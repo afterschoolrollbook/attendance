@@ -1,37 +1,86 @@
+import React, { useState, useEffect } from 'react'
+import { seedIfEmpty } from './lib/seed.js'
+import { Users } from './lib/db.js'
+import { Auth } from './pages/Auth.jsx'
+import { Dashboard } from './pages/Dashboard.jsx'
+import { Classes } from './pages/Classes.jsx'
+import { Students } from './pages/Students.jsx'
+import { StudentConfirm } from './pages/StudentConfirm.jsx'
+import { Attendance } from './pages/Attendance.jsx'
+import { Reports } from './pages/Reports.jsx'
+import { Templates } from './pages/Templates.jsx'
+import { PrintSetup } from './pages/PrintSetup.jsx'
+import { Admin } from './pages/Admin.jsx'
+import { Adsense } from './pages/Adsense.jsx'
+import { Sidebar } from './components/Sidebar.jsx'
+import { ToastContainer } from './components/Atoms.jsx'
+import { useToast } from './hooks/useToast.js'
+
 export default function App() {
+  const [user, setUser] = useState(null)
+  const [page, setPage] = useState('dashboard')
+  const { toasts, success } = useToast()
+
+  useEffect(() => {
+    seedIfEmpty()
+    // 세션 복원
+    const saved = sessionStorage.getItem('asa_user')
+    if (saved) {
+      try {
+        const u = JSON.parse(saved)
+        const fresh = Users.find(u.id)
+        if (fresh) setUser(fresh)
+      } catch {}
+    }
+  }, [])
+
+  const handleLogin = (u) => {
+    setUser(u)
+    sessionStorage.setItem('asa_user', JSON.stringify(u))
+    setPage('dashboard')
+  }
+
+  const handleLogout = () => {
+    setUser(null)
+    sessionStorage.removeItem('asa_user')
+  }
+
+  // 페이지 전환 시 최신 유저 데이터 갱신
+  const handleNav = (p) => {
+    if (user) {
+      const fresh = Users.find(user.id)
+      if (fresh) setUser(fresh)
+    }
+    setPage(p)
+  }
+
+  if (!user) return <Auth onLogin={handleLogin} />
+
+  const pageProps = { user, onNav: handleNav }
+
+  const renderPage = () => {
+    switch (page) {
+      case 'dashboard':   return <Dashboard {...pageProps} />
+      case 'classes':     return <Classes {...pageProps} />
+      case 'students':    return <Students {...pageProps} />
+      case 'confirm':     return <StudentConfirm {...pageProps} />
+      case 'attendance':  return <Attendance {...pageProps} />
+      case 'reports':     return <Reports {...pageProps} />
+      case 'templates':   return <Templates {...pageProps} />
+      case 'printsetup':  return <PrintSetup {...pageProps} />
+      case 'admin':       return <Admin {...pageProps} />
+      case 'adsense':     return <Adsense {...pageProps} />
+      default:            return <Dashboard {...pageProps} />
+    }
+  }
+
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#F8F6F3',
-      fontFamily: "'Noto Sans KR', sans-serif",
-    }}>
-      <div style={{
-        width: 72,
-        height: 72,
-        background: '#F97316',
-        borderRadius: 20,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: 36,
-        marginBottom: 24,
-        boxShadow: '0 8px 24px rgba(249,115,22,0.3)',
-      }}>
-        📋
-      </div>
-      <h1 style={{ fontSize: 28, fontWeight: 900, color: '#1A1917', marginBottom: 8 }}>
-        방과후 출석부
-      </h1>
-      <p style={{ fontSize: 15, color: '#78716C', marginBottom: 4 }}>
-        AfterSchool Attendance
-      </p>
-      <p style={{ fontSize: 13, color: '#A8A29E' }}>
-        🚀 배포 성공! 개발 진행 중입니다.
-      </p>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f5f7' }}>
+      <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout} />
+      <main style={{ flex: 1, overflowY: 'auto', minHeight: '100vh' }}>
+        {renderPage()}
+      </main>
+      <ToastContainer toasts={toasts} />
     </div>
   )
 }
