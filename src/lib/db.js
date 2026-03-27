@@ -102,3 +102,11 @@ export const Templates = {
   update: (id, patch) => db.update('attendanceTemplates', id, patch),
   delete: (id) => db.delete('attendanceTemplates', id),
 }
+
+export const Notes = {
+  all: () => db.get('notes'),
+  byTeacherDate: (tid, date) => db.where('notes', n => n.teacherId === tid && n.date === date),
+  insert: (n) => db.insert('notes', n),
+  update: (id, patch) => db.update('notes', id, patch),
+  delete: (id) => db.delete('notes', id),
+}
