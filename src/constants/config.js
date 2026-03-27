@@ -8,6 +8,15 @@ export const TERM_TYPES = [
   { value: 'semester', label: '학기제' },
 ]
 
+export const REPEAT_TYPES = [
+  { value: 'every',          label: '매주' },
+  { value: 'biweekly',       label: '격주' },
+  { value: 'monthly_first',  label: '매월 첫째 주' },
+  { value: 'monthly_second', label: '매월 둘째 주' },
+  { value: 'monthly_third',  label: '매월 셋째 주' },
+  { value: 'monthly_fourth', label: '매월 넷째 주' },
+]
+
 export const STUDENT_STATUS = {
   applied: { label: '신청', color: '#6366f1', bg: '#eef2ff' },
   selected: { label: '추첨완료', color: '#f97316', bg: '#fff7ed' },

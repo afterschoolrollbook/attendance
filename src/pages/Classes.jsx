@@ -3,7 +3,7 @@ import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB 
 import { uid, now, calcSessionDates, today } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
 import { ClassCalendar } from '../components/ClassCalendar.jsx'
-import { TERM_TYPES } from '../constants/config.js'
+import { TERM_TYPES, REPEAT_TYPES } from '../constants/config.js'
 
 const VIEW_TABS = ['요일별', '학교별', '과목별']
 const DAY_ORDER = ['월', '화', '수', '목', '금', '토', '일']
@@ -12,7 +12,7 @@ const MAX_PROMO_IMAGES = 2
 function emptyForm() {
   return {
     organization: '', className: '', section: '',
-    termType: 'semester', days: [], time: '',
+    termType: 'semester', days: [], repeatType: 'every', time: '',
     startDate: '', endDate: '', description: '',
     promotionImgs: [],   // 최대 2장 base64[]
     templateFile: null,  // { name, type, data(base64) }
@@ -224,6 +224,26 @@ export function Classes({ user }) {
             <div>
               <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827', marginBottom: '8px' }}>수업 요일 <span style={{ color: '#ef4444' }}>*</span></div>
               <DayPicker value={form.days} onChange={v => set('days', v)} />
+            </div>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827', marginBottom: '8px' }}>반복 패턴 <span style={{ color: '#ef4444' }}>*</span></div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {REPEAT_TYPES.map(rt => (
+                  <button key={rt.value} type="button" onClick={() => set('repeatType', rt.value)}
+                    style={{
+                      padding: '7px 14px', borderRadius: '8px', border: `1.5px solid ${form.repeatType === rt.value ? '#f97316' : '#e5e7eb'}`,
+                      background: form.repeatType === rt.value ? '#f97316' : '#fff',
+                      color: form.repeatType === rt.value ? '#fff' : '#374151',
+                      fontSize: '13px', fontWeight: form.repeatType === rt.value ? 700 : 400,
+                      cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .15s',
+                    }}>{rt.label}</button>
+                ))}
+              </div>
+              {form.repeatType !== 'every' && (
+                <div style={{ marginTop: '8px', fontSize: '12px', color: '#f97316', background: '#fff7ed', padding: '8px 12px', borderRadius: '7px', border: '1px solid #fed7aa' }}>
+                  💡 선택된 패턴: <strong>{REPEAT_TYPES.find(r=>r.value===form.repeatType)?.label}</strong> — 수업 달력에서 실제 날짜를 확인하세요
+                </div>
+              )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <Input label="수업 시작일" value={form.startDate} onChange={v => set('startDate', v)} type="date" required />
