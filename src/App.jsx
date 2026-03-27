@@ -19,11 +19,11 @@ import { useToast } from './hooks/useToast.js'
 export default function App() {
   const [user, setUser] = useState(null)
   const [page, setPage] = useState('dashboard')
-  const { toasts, success } = useToast()
+  const [pageParams, setPageParams] = useState({})
+  const { toasts } = useToast()
 
   useEffect(() => {
     seedIfEmpty()
-    // 세션 복원
     const saved = sessionStorage.getItem('asa_user')
     if (saved) {
       try {
@@ -38,6 +38,7 @@ export default function App() {
     setUser(u)
     sessionStorage.setItem('asa_user', JSON.stringify(u))
     setPage('dashboard')
+    setPageParams({})
   }
 
   const handleLogout = () => {
@@ -45,18 +46,19 @@ export default function App() {
     sessionStorage.removeItem('asa_user')
   }
 
-  // 페이지 전환 시 최신 유저 데이터 갱신
-  const handleNav = (p) => {
+  // params: { classId, date, ... } 등 페이지별 초기값 전달
+  const handleNav = (p, params = {}) => {
     if (user) {
       const fresh = Users.find(user.id)
       if (fresh) setUser(fresh)
     }
     setPage(p)
+    setPageParams(params)
   }
 
   if (!user) return <Auth onLogin={handleLogin} />
 
-  const pageProps = { user, onNav: handleNav }
+  const pageProps = { user, onNav: handleNav, pageParams }
 
   const renderPage = () => {
     switch (page) {

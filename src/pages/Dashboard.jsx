@@ -201,7 +201,7 @@ function DayDetail({ date, user, classes, onNav }) {
                       <div style={{ fontSize: '20px', fontWeight: 700, color: C.text }}>{students.length}명</div>
                       <div style={{ fontSize: '11px', color: presentCnt > 0 ? C.success : C.muted }}>출석 {presentCnt}명</div>
                     </div>
-                    <button onClick={() => onNav('attendance')}
+                    <button onClick={() => onNav('attendance', { classId: cls.id, date })}
                       style={{ padding: '9px 18px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 700, fontSize: '13px', transition: 'all .15s',
                         background: pendingCnt > 0 ? C.primary : C.success, color: '#fff',
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
