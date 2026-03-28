@@ -18,10 +18,11 @@ export const REPEAT_TYPES = [
 ]
 
 export const STUDENT_STATUS = {
-  applied: { label: '신청', color: '#6366f1', bg: '#eef2ff' },
-  selected: { label: '추첨완료', color: '#f97316', bg: '#fff7ed' },
-  cancelled: { label: '취소', color: '#ef4444', bg: '#fef2f2' },
+  applied:   { label: '신청',    color: '#6366f1', bg: '#eef2ff' },
+  waiting:   { label: '대기',    color: '#8b5cf6', bg: '#f5f3ff' },  // ✅ 추가
+  selected:  { label: '추첨완료', color: '#f97316', bg: '#fff7ed' },
   confirmed: { label: '최종확정', color: '#16a34a', bg: '#f0fdf4' },
+  cancelled: { label: '취소',    color: '#ef4444', bg: '#fef2f2' },
 }
 
 export const ATTENDANCE_STATUS = {
@@ -57,10 +58,10 @@ export const COLORS = {
 }
 
 export const AD_SLOTS = [
-  { id: 'dashboard_top', name: '대시보드 상단', position: 'dashboard_top', w: '100%', h: 90 },
-  { id: 'student_mid', name: '학생관리 상단', position: 'student_mid', w: '100%', h: 90 },
-  { id: 'sidebar_bottom', name: '사이드바 하단', position: 'sidebar_bottom', w: 224, h: 120 },
-  { id: 'report_bottom', name: '리포트 하단', position: 'report_bottom', w: '100%', h: 90 },
+  { id: 'dashboard_top',  name: '대시보드 상단',  position: 'dashboard_top',  w: '100%', h: 90 },
+  { id: 'student_mid',    name: '학생관리 상단',   position: 'student_mid',    w: '100%', h: 90 },
+  { id: 'sidebar_bottom', name: '사이드바 하단',   position: 'sidebar_bottom', w: 224,    h: 120 },
+  { id: 'report_bottom',  name: '리포트 하단',     position: 'report_bottom',  w: '100%', h: 90 },
 ]
 
 export const ABSENT_REASONS = [
