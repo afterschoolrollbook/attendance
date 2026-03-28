@@ -1,9 +1,8 @@
 import React, { useState } from 'react'
-import { Users } from '../lib/db.js'
-import { now } from '../lib/utils.js'
+import { Users, Classes, Students, Attendance, Branches } from '../lib/db.js'  // ✅ 버그수정: Branches 추가, 중복 import 정리
+import { uid, now } from '../lib/utils.js'                                      // ✅ 버그수정: uid 추가
 import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard } from '../components/Atoms.jsx'
 import { LEVEL_NAMES, FEATURES, LEVEL_PERMISSIONS } from '../constants/permissions.js'
-import { Classes, Students, Attendance } from '../lib/db.js'
 
 const FEATURE_LABELS = {
   [FEATURES.MANAGE_CLASS]:      '수업 등록/수정/삭제',
@@ -55,36 +54,29 @@ function BranchPanel({ branches, setBranches, teachers }) {
     Branches.delete(id); setBranches(Branches.all())
   }
 
-  // 선생님 수 계산 (지사에 배정된)
   const teacherCount = (branchId) => teachers.filter(t => t.branchId === branchId).length
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-      {/* 상단 안내 */}
       <div style={{ padding:'14px 18px', background:'#eff6ff', borderRadius:'12px', border:'1.5px solid #bfdbfe', fontSize:'13px', color:'#1e40af', lineHeight:1.8 }}>
         <strong>지사 구조:</strong> 본사 → 지사(지역관리자) → 선생님 → 학생/학부모<br />
         선생님은 선생님 목록에서 지사를 <strong>수동으로 배정</strong>합니다.<br />
         지사장은 등급을 <strong>Lv.4 파트너</strong>로 설정한 선생님 중에서 지정합니다.
       </div>
 
-      {/* 추가 버튼 */}
       <div style={{ display:'flex', justifyContent:'flex-end' }}>
-        <button onClick={() => { setShowForm(true); setEditId(null); setForm({ name:'', region:'', managerId:'', memo:'' }) }}
+        <button onClick={() => { setShowForm(true); setEditId(null); setForm({ name:'', managerId:'', memo:'' }) }}
           style={{ padding:'8px 16px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           + 지사 추가
         </button>
       </div>
 
-      {/* 지사 등록/수정 폼 */}
       {showForm && (
         <div style={{ padding:'18px', background:'#fff', borderRadius:'12px', border:`1.5px solid ${C.primary}`, display:'flex', flexDirection:'column', gap:'12px' }}>
           <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{editId ? '지사 수정' : '지사 추가'}</div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
-            <div>
-              <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>지사명 *</label>
-              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="예: 경기남부지사" style={inSt} />
-            </div>
-
+          <div>
+            <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>지사명 *</label>
+            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="예: 경기남부지사" style={inSt} />
           </div>
           <div>
             <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>지사장 (Lv.4 이상 선생님)</label>
@@ -92,7 +84,7 @@ function BranchPanel({ branches, setBranches, teachers }) {
               <option value="">-- 미지정 --</option>
               {managers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.email})</option>)}
             </select>
-            {managers.length === 0 && <div style={{ fontSize:'11px', color:'#f59e0b', marginTop:'4px' }}>⚠️ Lv.4 이상 선생님이 없습니다. 선생님 목록에서 등급을 올려주세요.</div>}
+            {managers.length === 0 && <div style={{ fontSize:'11px', color:'#f59e0b', marginTop:'4px' }}>⚠️ Lv.4 이상 선생님이 없습니다.</div>}
           </div>
           <div>
             <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>메모</label>
@@ -107,7 +99,6 @@ function BranchPanel({ branches, setBranches, teachers }) {
         </div>
       )}
 
-      {/* 지사 목록 */}
       {branches.length === 0 ? (
         <div style={{ textAlign:'center', padding:'60px 20px', color:C.muted, background:'#f9fafb', borderRadius:'12px' }}>
           <div style={{ fontSize:'36px', marginBottom:'10px' }}>🏢</div>
@@ -148,7 +139,7 @@ function BranchPanel({ branches, setBranches, teachers }) {
 
 export function Admin({ user: currentUser }) {
   const [tab, setTab] = useState('pending')
-  const [branches, setBranches] = useState(() => Branches.all()) // 'pending' | 'teachers' | 'stats'
+  const [branches, setBranches] = useState(() => Branches.all())
   const [selectedUser, setSelectedUser] = useState(null)
   const [showPermModal, setShowPermModal] = useState(false)
   const [lightboxImg, setLightboxImg] = useState(null)
@@ -156,17 +147,10 @@ export function Admin({ user: currentUser }) {
   const teachers = Users.teachers()
   const pending = Users.pending()
 
-  const approve = (id) => {
-    Users.update(id, { level: 2, verified: true })
-  }
-  const reject = (id) => {
-    Users.update(id, { verifyImg: null })
-  }
+  const approve = (id) => { Users.update(id, { level: 2, verified: true }) }
+  const reject  = (id) => { Users.update(id, { verifyImg: null }) }
 
-  const openPerm = (u) => {
-    setSelectedUser({ ...u })
-    setShowPermModal(true)
-  }
+  const openPerm = (u) => { setSelectedUser({ ...u }); setShowPermModal(true) }
 
   const setOverride = (feature, value) => {
     setSelectedUser(prev => ({
@@ -191,13 +175,12 @@ export function Admin({ user: currentUser }) {
     setShowPermModal(false)
   }
 
-  // 전체 통계
   const stats = {
-    totalTeachers: teachers.length,
-    verified: teachers.filter(t => t.level >= 2).length,
-    pending: pending.length,
-    totalClasses: Classes.all().length,
-    totalStudents: Students.all().filter(s => s.status === 'confirmed').length,
+    totalTeachers:   teachers.length,
+    verified:        teachers.filter(t => t.level >= 2).length,
+    pending:         pending.length,
+    totalClasses:    Classes.all().length,
+    totalStudents:   Students.all().filter(s => s.status === 'confirmed').length,
     todayAttendance: Attendance.all().filter(a => a.date === new Date().toISOString().slice(0, 10)).length,
   }
 
@@ -208,19 +191,17 @@ export function Admin({ user: currentUser }) {
       {/* 탭 */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid #e5e7eb', paddingBottom: '0' }}>
         {[
-          { key: 'pending', label: `인증 대기 ${pending.length}` },
+          { key: 'pending',  label: `인증 대기 ${pending.length}` },
           { key: 'teachers', label: '선생님 목록' },
           { key: 'branches', label: '지사 관리' },
-          { key: 'stats', label: '전체 통계' },
+          { key: 'stats',    label: '전체 통계' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '10px 18px', border: 'none', cursor: 'pointer', background: 'none',
             color: tab === t.key ? '#f97316' : '#9ca3af',
-            fontWeight: tab === t.key ? 700 : 400,
-            fontSize: '14px',
+            fontWeight: tab === t.key ? 700 : 400, fontSize: '14px',
             borderBottom: tab === t.key ? '2px solid #f97316' : '2px solid transparent',
-            fontFamily: 'Noto Sans KR, sans-serif',
-            marginBottom: '-1px',
+            fontFamily: 'Noto Sans KR, sans-serif', marginBottom: '-1px',
           }}>{t.label}</button>
         ))}
       </div>
@@ -292,21 +273,20 @@ export function Admin({ user: currentUser }) {
         </div>
       )}
 
-      {/* 전체 통계 */}
-
       {/* 지사 관리 */}
       {tab === 'branches' && (
         <BranchPanel branches={branches} setBranches={setBranches} teachers={teachers} />
       )}
 
+      {/* 전체 통계 */}
       {tab === 'stats' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-          <StatCard label="전체 선생님" value={stats.totalTeachers} icon="👩‍🏫" color="#3b82f6" />
-          <StatCard label="인증 완료" value={stats.verified} icon="✅" color="#16a34a" />
-          <StatCard label="인증 대기" value={stats.pending} icon="⏳" color="#f59e0b" />
-          <StatCard label="전체 수업" value={stats.totalClasses} icon="📚" color="#f97316" />
-          <StatCard label="확정 학생" value={stats.totalStudents} icon="👥" color="#8b5cf6" />
-          <StatCard label="오늘 출석 처리" value={stats.todayAttendance} icon="📋" color="#ef4444" />
+          <StatCard label="전체 선생님"    value={stats.totalTeachers}   icon="👩‍🏫" color="#3b82f6" />
+          <StatCard label="인증 완료"      value={stats.verified}         icon="✅"   color="#16a34a" />
+          <StatCard label="인증 대기"      value={stats.pending}          icon="⏳"   color="#f59e0b" />
+          <StatCard label="전체 수업"      value={stats.totalClasses}     icon="📚"   color="#f97316" />
+          <StatCard label="확정 학생"      value={stats.totalStudents}    icon="👥"   color="#8b5cf6" />
+          <StatCard label="오늘 출석 처리" value={stats.todayAttendance}  icon="📋"   color="#ef4444" />
         </div>
       )}
 
@@ -339,10 +319,9 @@ export function Admin({ user: currentUser }) {
                 const base = LEVEL_PERMISSIONS[selectedUser.level]?.[feature] ?? false
                 const override = selectedUser.permissionOverrides?.[feature]
                 const hasOverride = feature in (selectedUser.permissionOverrides || {})
-                const effective = hasOverride ? override : base
 
-                let indicatorColor = '#9ca3af' // 기본값
-                if (hasOverride && override === true) indicatorColor = '#16a34a'
+                let indicatorColor = '#9ca3af'
+                if (hasOverride && override === true)  indicatorColor = '#16a34a'
                 if (hasOverride && override === false) indicatorColor = '#ef4444'
 
                 return (
