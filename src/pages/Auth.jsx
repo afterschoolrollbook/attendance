@@ -385,11 +385,17 @@ export function Auth({ onLogin }) {
                   </button>
                 )}
 
-                {/* 개발모드: 인증번호 표시 */}
+                {/* 인증번호 안내 */}
                 {codeSent && !verified && (
-                  <div style={{ padding: '12px', background: '#fffbeb', borderRadius: '8px', border: '1.5px solid #fde68a', fontSize: '13px' }}>
-                    <div style={{ fontWeight: 700, color: '#92400e', marginBottom: '4px' }}>🔧 개발 모드 — 실제 서비스에서는 이메일로 발송</div>
-                    <div style={{ color: '#b45309' }}>인증번호: <strong style={{ fontSize: '22px', letterSpacing: '5px', color: '#f97316' }}>{verifyCode}</strong></div>
+                  <div style={{ padding: '12px', background: isConfigured ? '#f0fdf4' : '#fffbeb', borderRadius: '8px', border: `1.5px solid ${isConfigured ? '#86efac' : '#fde68a'}`, fontSize: '13px' }}>
+                    {isConfigured ? (
+                      <div style={{ color: '#15803d', fontWeight: 600 }}>✅ {form.email}으로 인증번호를 발송했습니다. 이메일을 확인해주세요.</div>
+                    ) : (
+                      <>
+                        <div style={{ fontWeight: 700, color: '#92400e', marginBottom: '4px' }}>🔧 개발 모드 — Supabase 연결 전</div>
+                        <div style={{ color: '#b45309' }}>인증번호: <strong style={{ fontSize: '22px', letterSpacing: '5px', color: '#f97316' }}>{verifyCode}</strong></div>
+                      </>
+                    )}
                   </div>
                 )}
 

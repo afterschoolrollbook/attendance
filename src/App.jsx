@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { seedIfEmpty } from './lib/seed.js'
 import { Users } from './lib/db.js'
+import { initFromSupabase } from './lib/db.js'
+import { isConfigured } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
 import { Dashboard } from './pages/Dashboard.jsx'
 import { Classes } from './pages/Classes.jsx'
@@ -22,18 +24,29 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [page, setPage] = useState('dashboard')
   const [pageParams, setPageParams] = useState({})
+  const [dbReady, setDbReady] = useState(false)
   const { toasts } = useToast()
 
   useEffect(() => {
-    seedIfEmpty()
-    const saved = sessionStorage.getItem('asa_user')
-    if (saved) {
-      try {
-        const u = JSON.parse(saved)
-        const fresh = Users.find(u.id)
-        if (fresh) setUser(fresh)
-      } catch {}
+    async function init() {
+      // Supabase 설정이 있으면 서버 데이터 먼저 동기화
+      if (isConfigured) {
+        await initFromSupabase()
+      } else {
+        seedIfEmpty()
+      }
+      setDbReady(true)
+      // 세션 복원
+      const saved = sessionStorage.getItem('asa_user')
+      if (saved) {
+        try {
+          const u = JSON.parse(saved)
+          const fresh = Users.find(u.id)
+          if (fresh) setUser(fresh)
+        } catch {}
+      }
     }
+    init()
   }, [])
 
   const handleLogin = (u) => {
@@ -62,6 +75,14 @@ export default function App() {
     setPage(p)
     setPageParams(params)
   }
+
+  if (!dbReady) return (
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#fff7ed', flexDirection:'column', gap:'16px' }}>
+      <div style={{ fontSize:'48px' }}>📋</div>
+      <div style={{ fontSize:'16px', fontWeight:700, color:'#f97316' }}>방과후 출석부</div>
+      <div style={{ fontSize:'13px', color:'#9ca3af' }}>{isConfigured ? '서버 연결 중...' : '로딩 중...'}</div>
+    </div>
+  )
 
   if (!user) return <Auth onLogin={handleLogin} />
 
