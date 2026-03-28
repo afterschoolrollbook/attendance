@@ -110,3 +110,22 @@ export const Notes = {
   update: (id, patch) => db.update('notes', id, patch),
   delete: (id) => db.delete('notes', id),
 }
+
+export const Settings = {
+  get: (key) => {
+    try { return JSON.parse(localStorage.getItem('asa_settings_' + key)) }
+    catch { return null }
+  },
+  set: (key, value) => {
+    localStorage.setItem('asa_settings_' + key, JSON.stringify(value))
+  },
+  getAll: () => {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('asa_settings_'))
+    const result = {}
+    keys.forEach(k => {
+      try { result[k.replace('asa_settings_', '')] = JSON.parse(localStorage.getItem(k)) }
+      catch {}
+    })
+    return result
+  },
+}

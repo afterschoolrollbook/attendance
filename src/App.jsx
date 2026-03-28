@@ -12,6 +12,8 @@ import { Templates } from './pages/Templates.jsx'
 import { PrintSetup } from './pages/PrintSetup.jsx'
 import { Admin } from './pages/Admin.jsx'
 import { Adsense } from './pages/Adsense.jsx'
+import { AdminSettings } from './pages/AdminSettings.jsx'
+import { Profile } from './pages/Profile.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
@@ -41,6 +43,11 @@ export default function App() {
     setPageParams({})
   }
 
+  const handleUserUpdate = (updatedUser) => {
+    setUser(updatedUser)
+    sessionStorage.setItem('asa_user', JSON.stringify(updatedUser))
+  }
+
   const handleLogout = () => {
     setUser(null)
     sessionStorage.removeItem('asa_user')
@@ -58,7 +65,7 @@ export default function App() {
 
   if (!user) return <Auth onLogin={handleLogin} />
 
-  const pageProps = { user, onNav: handleNav, pageParams }
+  const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate }
 
   const renderPage = () => {
     switch (page) {
@@ -72,6 +79,8 @@ export default function App() {
       case 'printsetup':  return <PrintSetup {...pageProps} />
       case 'admin':       return <Admin {...pageProps} />
       case 'adsense':     return <Adsense {...pageProps} />
+      case 'profile':       return <Profile {...pageProps} />
+      case 'admin_settings': return <AdminSettings {...pageProps} />
       default:            return <Dashboard {...pageProps} />
     }
   }

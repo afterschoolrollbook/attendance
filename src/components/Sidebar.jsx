@@ -10,11 +10,13 @@ const NAV = [
   { path: 'reports',    label: '출석 리포트',       icon: '📊', feature: FEATURES.VIEW_REPORT },
   { path: 'templates',  label: '출석부 양식',       icon: '📄', feature: FEATURES.MANAGE_TEMPLATE },
   { path: 'printsetup', label: '출석부 출력',       icon: '🖨️', feature: FEATURES.PRINT_ATTENDANCE },
+  { path: 'profile',    label: '내 정보',            icon: '👤', feature: null },
 ]
 
 const ADMIN_NAV = [
-  { path: 'admin',    label: '관리자',      icon: '⚙️',  feature: FEATURES.APPROVE_TEACHER },
-  { path: 'adsense',  label: '광고 관리',   icon: '📢',  feature: FEATURES.MANAGE_AD },
+  { path: 'admin',           label: '관리자',      icon: '⚙️',  feature: FEATURES.APPROVE_TEACHER },
+  { path: 'admin_settings',  label: '서비스 설정',  icon: '🔧',  feature: FEATURES.MANAGE_AD },
+  { path: 'adsense',         label: '광고 관리',   icon: '📢',  feature: FEATURES.MANAGE_AD },
 ]
 
 export function Sidebar({ user, currentPage, onNav, onLogout }) {

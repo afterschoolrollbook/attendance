@@ -62,3 +62,21 @@ export const AD_SLOTS = [
   { id: 'sidebar_bottom', name: '사이드바 하단', position: 'sidebar_bottom', w: 224, h: 120 },
   { id: 'report_bottom', name: '리포트 하단', position: 'report_bottom', w: '100%', h: 90 },
 ]
+
+export const ABSENT_REASONS = [
+  { value: '',           label: '사유 없음' },
+  { value: 'sick',       label: '병가' },
+  { value: 'field_trip', label: '체험학습' },
+  { value: 'event',      label: '학교행사' },
+  { value: 'family',     label: '가족사정' },
+  { value: 'etc',        label: '기타' },
+]
+
+export const HOME_RETURN_TYPES = [
+  { value: '',          label: '미지정' },
+  { value: 'alone',     label: '혼자 귀가' },
+  { value: 'parent',    label: '보호자 동행' },
+  { value: 'bus',       label: '학교버스' },
+  { value: 'aftercare', label: '방과후돌봄' },
+  { value: 'etc',       label: '기타' },
+]
