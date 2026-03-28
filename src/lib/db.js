@@ -141,3 +141,113 @@ export const Settings = {
     return r
   },
 }
+
+// ─── 본사 학부모 회원 (절대 삭제 안됨)
+export const ParentMembers = {
+  all:        ()      => db.get('parentMembers'),
+  find:       (id)    => db.getOne('parentMembers', id),
+  findByPhone:(phone) => db.get('parentMembers').find(p => p.phone === phone?.replace(/[^0-9]/g, '')),
+
+  // 학생 등록 시 학부모를 본사 회원으로 자동 등록 (이미 있으면 스킵)
+  upsert(phone, name = '') {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    if (!clean || clean.length < 9) return null
+    const existing = this.findByPhone(clean)
+    if (existing) return existing
+    const record = { id: uid(), phone: clean, name, appJoined: false, memo: '', createdAt: now() }
+    db.insert('parentMembers', record)
+    return record
+  },
+}
+
+// ─── 선생님-학부모 연결
+export const TeacherParentLinks = {
+  all:       ()    => db.get('teacherParentLinks'),
+  byTeacher: (tid) => db.where('teacherParentLinks', l => l.teacherId === tid),
+  active:    (tid) => db.where('teacherParentLinks', l => l.teacherId === tid && l.status === 'active'),
+  activeCount:(tid)=> db.where('teacherParentLinks', l => l.teacherId === tid && l.status === 'active').length,
+
+  // 학생 confirmed 시 연결 생성
+  link(teacherId, student, classId) {
+    if (!student.parentPhone) return
+    // 1. 학부모를 본사 회원으로 먼저 등록
+    const parent = ParentMembers.upsert(student.parentPhone)
+    if (!parent) return
+    // 2. 이미 연결돼 있으면 스킵
+    const existing = db.get('teacherParentLinks').find(l =>
+      l.teacherId === teacherId && l.parentMemberId === parent.id && l.studentId === student.id
+    )
+    if (existing?.status === 'active') return
+    db.insert('teacherParentLinks', {
+      id: uid(), teacherId,
+      parentMemberId: parent.id,  // 본사 회원 ID 참조
+      studentId: student.id, classId,
+      status: 'active', startedAt: now(),
+      endedAt: null, endReason: null, createdAt: now(),
+    })
+  },
+
+  // 학생 제외 시 연결만 종료 (parent_members는 유지)
+  unlink(teacherId, studentId, reason = 'student_left') {
+    db.where('teacherParentLinks', l =>
+      l.teacherId === teacherId && l.studentId === studentId && l.status === 'active'
+    ).forEach(l => db.update('teacherParentLinks', l.id, {
+      status: 'ended', endedAt: now(), endReason: reason,
+    }))
+  },
+
+  // 수업 종료 시 해당 수업 전체 연결 종료 (parent_members는 유지)
+  unlinkByClass(teacherId, classId) {
+    db.where('teacherParentLinks', l =>
+      l.teacherId === teacherId && l.classId === classId && l.status === 'active'
+    ).forEach(l => db.update('teacherParentLinks', l.id, {
+      status: 'ended', endedAt: now(), endReason: 'class_ended',
+    }))
+  },
+}
+
+// ─── 포인트
+export const Points = {
+  all:        ()    => db.get('points'),
+  byTeacher:  (tid) => db.where('points', p => p.teacherId === tid),
+
+  balance(tid) {
+    const now_ = new Date().toISOString()
+    return this.byTeacher(tid).reduce((sum, p) => {
+      if (p.type === 'earn') {
+        if (p.expiresAt && p.expiresAt < now_) return sum
+        return sum + (p.amount || 0)
+      }
+      return sum - (p.amount || 0)
+    }, 0)
+  },
+
+  earn(teacherId, amount, { source='shop', parentMemberId='', orderId='', memo='', expireDays=365 } = {}) {
+    const expiresAt = new Date(Date.now() + expireDays * 86400000).toISOString()
+    return db.insert('points', { id:uid(), teacherId, type:'earn', amount, source, parentMemberId, orderId, memo, expiresAt, createdAt:now() })
+  },
+
+  use(teacherId, amount, { memo='', orderId='' } = {}) {
+    if (this.balance(teacherId) < amount) throw new Error('포인트가 부족합니다.')
+    return db.insert('points', { id:uid(), teacherId, type:'use', amount, source:'use', memo, orderId, createdAt:now() })
+  },
+}
+
+// ─── 지사
+export const Branches = {
+  all:        ()       => db.get('branches'),
+  find:       (id)     => db.getOne('branches', id),
+  active:     ()       => db.where('branches', b => b.active),
+  insert:     (b)      => db.insert('branches', b),
+  update:     (id, p)  => db.update('branches', id, p),
+  delete:     (id)     => db.delete('branches', id),
+
+  // 선생님을 지사에 수동 배정
+  assignTeacher(branchId, teacherId) {
+    Users.update(teacherId, { branchId })
+  },
+  // 선생님 지사 배정 해제
+  unassignTeacher(teacherId) {
+    Users.update(teacherId, { branchId: null })
+  },
+}
