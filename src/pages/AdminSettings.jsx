@@ -65,7 +65,7 @@ function SocialSection() {
         <Field label="클라이언트 ID (Client ID)" value={cfg.googleClientId} onChange={v => set('googleClientId', v)}
           placeholder="000000000000-xxxxxxxxxxxxxxxx.apps.googleusercontent.com" mono />
 
-        {/* 발급 안내 */}
+        {/* ✅ 수정된 Google 발급 안내 */}
         <details style={{ marginTop:'12px' }}>
           <summary style={{ fontSize:'12px', fontWeight:600, color:'#4338ca', cursor:'pointer', userSelect:'none' }}>
             📋 Google 클라이언트 ID 발급 방법 보기
@@ -75,7 +75,8 @@ function SocialSection() {
             &nbsp;&nbsp;<a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" style={{ color:'#4338ca' }}>console.cloud.google.com</a> 접속 → Google 계정 로그인<br />
             <br />
             <strong>② 프로젝트 생성</strong><br />
-            &nbsp;&nbsp;상단 프로젝트 선택 → 새 프로젝트 → 이름 입력 (예: 방과후출석부) → 만들기<br />
+            &nbsp;&nbsp;상단 프로젝트 선택 → 새 프로젝트<br />
+            &nbsp;&nbsp;→ 프로젝트 이름 입력 (예: 방과후출석부) → 만들기<br />
             <br />
             <strong>③ OAuth 동의 화면 설정</strong><br />
             &nbsp;&nbsp;왼쪽 메뉴 → API 및 서비스 → OAuth 동의 화면<br />
@@ -83,9 +84,11 @@ function SocialSection() {
             <br />
             <strong>④ 클라이언트 ID 발급</strong><br />
             &nbsp;&nbsp;왼쪽 메뉴 → 사용자 인증 정보 → + 사용자 인증 정보 만들기<br />
-            &nbsp;&nbsp;→ OAuth 클라이언트 ID → 웹 애플리케이션 선택<br />
-            &nbsp;&nbsp;→ 승인된 JavaScript 원본에 사이트 주소 추가<br />
-            &nbsp;&nbsp;&nbsp;&nbsp;예: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://afterschool.vercel.app</code><br />
+            &nbsp;&nbsp;→ OAuth 클라이언트 ID → <strong>웹 애플리케이션</strong> 선택<br />
+            &nbsp;&nbsp;→ 앱 이름: 방과후 출석부<br />
+            &nbsp;&nbsp;→ <strong>승인된 JavaScript 원본</strong>에 사이트 주소 추가<br />
+            &nbsp;&nbsp;&nbsp;&nbsp;예: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app</code><br />
+            &nbsp;&nbsp;→ 승인된 리디렉션 URI: <strong>비워두기</strong> (불필요)<br />
             &nbsp;&nbsp;→ 만들기 → 클라이언트 ID 복사하여 위에 입력<br />
             <br />
             <strong>⑤ 비용</strong>: 무료 (Google 계정만 있으면 됨)
@@ -112,34 +115,38 @@ function SocialSection() {
         <Field label="JavaScript 앱 키" value={cfg.kakaoAppKey} onChange={v => set('kakaoAppKey', v)}
           placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" mono />
 
+        {/* ✅ 수정된 카카오 발급 안내 */}
         <details style={{ marginTop:'12px' }}>
           <summary style={{ fontSize:'12px', fontWeight:600, color:'#92400e', cursor:'pointer', userSelect:'none' }}>
             📋 카카오 앱 키 발급 방법 보기
           </summary>
           <div style={{ marginTop:'10px', padding:'12px 14px', background:'#fff', borderRadius:'8px', border:'1px solid #fde68a', fontSize:'12px', color:'#374151', lineHeight:2 }}>
             <strong>① Kakao Developers 접속</strong><br />
-            &nbsp;&nbsp;<a href="https://developers.kakao.com" target="_blank" rel="noopener noreferrer" style={{ color:'#92400e' }}>developers.kakao.com</a> 접속 → 카카오 계정 로그인<br />
+            &nbsp;&nbsp;<a href="https://developers.kakao.com" target="_blank" rel="noopener noreferrer" style={{ color:'#92400e' }}>developers.kakao.com</a> → 상단 <strong>앱</strong> 메뉴 → 카카오 계정 로그인<br />
             <br />
             <strong>② 앱 생성</strong><br />
-            &nbsp;&nbsp;내 애플리케이션 → 애플리케이션 추가하기<br />
-            &nbsp;&nbsp;→ 앱 이름 입력 (예: 방과후출석부) → 저장<br />
+            &nbsp;&nbsp;+ 앱 생성 버튼 클릭<br />
+            &nbsp;&nbsp;→ 앱 이름: 방과후 출석부 / 카테고리: 교육<br />
+            &nbsp;&nbsp;→ 도메인: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app</code><br />
+            &nbsp;&nbsp;→ 저장<br />
             <br />
-            <strong>③ 앱 키 확인</strong><br />
-            &nbsp;&nbsp;생성된 앱 클릭 → 앱 키 탭<br />
-            &nbsp;&nbsp;→ <strong>JavaScript 키</strong> 복사하여 위에 입력<br />
+            <strong>③ JavaScript 키 등록</strong><br />
+            &nbsp;&nbsp;앱 클릭 → 왼쪽 메뉴 <strong>앱 → 플랫폼 키</strong><br />
+            &nbsp;&nbsp;→ JavaScript 키 섹션 → <strong>JavaScript 키 추가</strong> 클릭<br />
+            &nbsp;&nbsp;→ 키 이름: 방과후 출석부<br />
+            &nbsp;&nbsp;→ JavaScript SDK 도메인: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app</code><br />
+            &nbsp;&nbsp;→ 카카오 로그인 리다이렉트 URI: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app</code><br />
+            &nbsp;&nbsp;→ 저장 → 생성된 키 복사하여 위에 입력<br />
             <br />
-            <strong>④ 플랫폼 등록</strong><br />
-            &nbsp;&nbsp;앱 설정 → 플랫폼 → Web → 사이트 도메인 추가<br />
-            &nbsp;&nbsp;예: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://afterschool.vercel.app</code><br />
+            <strong>④ 카카오 로그인 활성화</strong><br />
+            &nbsp;&nbsp;왼쪽 메뉴 <strong>제품 설정 → 카카오 로그인 → 일반</strong><br />
+            &nbsp;&nbsp;→ 사용 설정 상태 <strong>ON</strong><br />
             <br />
-            <strong>⑤ 카카오 로그인 활성화</strong><br />
-            &nbsp;&nbsp;제품 설정 → 카카오 로그인 → 활성화 ON<br />
-            &nbsp;&nbsp;→ Redirect URI 등록 (동일 도메인)<br />
+            <strong>⑤ 동의항목 설정</strong><br />
+            &nbsp;&nbsp;제품 설정 → 카카오 로그인 → 동의항목<br />
+            &nbsp;&nbsp;→ 닉네임: <strong>필수 동의</strong> / 프로필 사진: 선택 동의<br />
             <br />
-            <strong>⑥ 동의항목 설정</strong><br />
-            &nbsp;&nbsp;카카오 로그인 → 동의항목 → 닉네임·이메일 필수 동의 설정<br />
-            <br />
-            <strong>⑦ 비용</strong>: 무료
+            <strong>⑥ 비용</strong>: 무료
           </div>
         </details>
       </div>
@@ -151,7 +158,7 @@ function SocialSection() {
             <span style={{ fontSize:'20px' }}>🟢</span>
             <div>
               <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>네이버 로그인</div>
-              <div style={{ fontSize:'12px', color:C.muted }}>서버사이드 처리 (Supabase Edge Function)</div>
+              <div style={{ fontSize:'12px', color:C.muted }}>OAuth 팝업 방식</div>
             </div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
@@ -162,6 +169,7 @@ function SocialSection() {
         <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
           <Field label="클라이언트 ID" value={cfg.naverClientId||''} onChange={v => setCfg(p=>({...p,naverClientId:v}))} placeholder="XXXXXXXXXXXXXXXX" mono />
           <Field label="클라이언트 Secret" value={cfg.naverClientSecret||''} onChange={v => setCfg(p=>({...p,naverClientSecret:v}))} placeholder="XXXXXXXXXX" type="password" mono />
+          <Field label="콜백 URL" value={cfg.naverCallbackUrl||''} onChange={v => setCfg(p=>({...p,naverCallbackUrl:v}))} placeholder="https://your-app.vercel.app/naver-callback" mono />
         </div>
         <details style={{ marginTop:'12px' }}>
           <summary style={{ fontSize:'12px', fontWeight:600, color:'#15803d', cursor:'pointer', userSelect:'none' }}>
@@ -173,9 +181,9 @@ function SocialSection() {
             <br />
             <strong>② 애플리케이션 등록</strong><br />
             &nbsp;&nbsp;Application → 애플리케이션 등록<br />
-            &nbsp;&nbsp;→ 사용 API: 네아로(네이버 아이디로 로그인) 선택<br />
-            &nbsp;&nbsp;→ 서비스 URL: 사이트 주소 입력<br />
-            &nbsp;&nbsp;→ Callback URL: 사이트주소/naver-callback<br />
+            &nbsp;&nbsp;→ 사용 API: <strong>네아로(네이버 아이디로 로그인)</strong> 선택<br />
+            &nbsp;&nbsp;→ 서비스 URL: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app</code><br />
+            &nbsp;&nbsp;→ Callback URL: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app/naver-callback</code><br />
             <br />
             <strong>③ 키 확인</strong><br />
             &nbsp;&nbsp;Client ID + Client Secret 복사하여 위에 입력<br />
@@ -224,8 +232,6 @@ function ServiceSection() {
     </Card>
   )
 }
-
-
 
 // ─── 섹션: 이메일 발송 (Resend)
 function EmailSection() {
@@ -311,7 +317,6 @@ function SolapiSection() {
   const testSMS = async () => {
     if (!cfg.apiKey || !cfg.senderPhone) { setMsg({ ok:false, msg:'API 키와 발신번호를 먼저 입력하세요.' }); return }
     setTesting(true)
-    // 실제 테스트는 Phase 4 백엔드 연동 후 구현
     setTimeout(() => {
       setMsg({ ok:true, msg:'테스트 발송 기능은 Phase 4 백엔드 연동 후 사용 가능합니다.' })
       setTesting(false)
@@ -325,7 +330,6 @@ function SolapiSection() {
         Solapi를 연동하면 선생님이 출석부에서 학부모에게 <strong>문자·카카오 알림톡</strong>을 직접 발송할 수 있습니다.
       </div>
 
-      {/* API 설정 */}
       <div style={{ padding:'16px', background:'#f0f9ff', borderRadius:'12px', border:'1.5px solid #bae6fd', marginBottom:'16px' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
@@ -372,7 +376,6 @@ function SolapiSection() {
         </details>
       </div>
 
-      {/* 카카오 알림톡 */}
       <div style={{ padding:'16px', background:'#fffde7', borderRadius:'12px', border:'1.5px solid #fde68a', marginBottom:'16px' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
@@ -412,7 +415,6 @@ function SolapiSection() {
         </details>
       </div>
 
-      {/* 테스트 발송 */}
       <div style={{ padding:'14px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}`, marginBottom:'14px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px' }}>
         <div>
           <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>테스트 발송</div>
@@ -431,7 +433,7 @@ function SolapiSection() {
 
 // ─── 메인
 export function AdminSettings() {
-  const [tab, setTab] = useState('social') // 'social' | 'email' | 'solapi' | 'service'
+  const [tab, setTab] = useState('social')
 
   return (
     <div style={{ padding:'28px', maxWidth:'780px' }}>
