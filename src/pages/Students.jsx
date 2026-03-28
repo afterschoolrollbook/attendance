@@ -320,7 +320,7 @@ export function Students({ user, onNav }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>학교</label>
             <select value={ctxSchool} onChange={e => { setCtxSchool(e.target.value); setCtxClass(''); setCtxSection('') }}
-              style={selStyle}>
+              style={selSt}>
               <option value="">전체 학교</option>
               {schools.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -330,7 +330,7 @@ export function Students({ user, onNav }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>과목</label>
             <select value={ctxClass} onChange={e => { setCtxClass(e.target.value); setCtxSection('') }}
-              style={selStyle}>
+              style={selSt}>
               <option value="">전체 과목</option>
               {filteredClasses.map(c => (
                 <option key={c.id} value={c.id}>{c.className}{c.section ? ' ' + c.section + '반' : ''}</option>
@@ -342,7 +342,7 @@ export function Students({ user, onNav }) {
           {sections.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>반</label>
-              <select value={ctxSection} onChange={e => setCtxSection(e.target.value)} style={selStyle}>
+              <select value={ctxSection} onChange={e => setCtxSection(e.target.value)} style={selSt}>
                 <option value="">전체 반</option>
                 {sections.map(s => <option key={s} value={s}>{s}반</option>)}
               </select>
