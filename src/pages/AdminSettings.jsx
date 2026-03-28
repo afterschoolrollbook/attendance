@@ -200,9 +200,146 @@ function ServiceSection() {
   )
 }
 
+
+// ─── 섹션: Solapi 문자/알림톡
+function SolapiSection() {
+  const init = Settings.get('solapi') || { apiKey:'', apiSecret:'', senderPhone:'', kakaoChannelId:'', kakaoEnabled:false, smsEnabled:false }
+  const [cfg, setCfg] = useState(init)
+  const [msg, setMsg] = useState(null)
+  const [testing, setTesting] = useState(false)
+
+  const set = (k, v) => setCfg(p => ({ ...p, [k]: v }))
+
+  const save = () => {
+    Settings.set('solapi', cfg)
+    setMsg({ ok:true, msg:'저장되었습니다.' })
+    setTimeout(() => setMsg(null), 3000)
+  }
+
+  const testSMS = async () => {
+    if (!cfg.apiKey || !cfg.senderPhone) { setMsg({ ok:false, msg:'API 키와 발신번호를 먼저 입력하세요.' }); return }
+    setTesting(true)
+    // 실제 테스트는 Phase 4 백엔드 연동 후 구현
+    setTimeout(() => {
+      setMsg({ ok:true, msg:'테스트 발송 기능은 Phase 4 백엔드 연동 후 사용 가능합니다.' })
+      setTesting(false)
+    }, 1000)
+  }
+
+  return (
+    <Card style={{ marginBottom:'16px' }}>
+      <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>📱 Solapi 문자·카카오 알림톡</div>
+      <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px', lineHeight:1.6 }}>
+        Solapi를 연동하면 선생님이 출석부에서 학부모에게 <strong>문자·카카오 알림톡</strong>을 직접 발송할 수 있습니다.
+      </div>
+
+      {/* API 설정 */}
+      <div style={{ padding:'16px', background:'#f0f9ff', borderRadius:'12px', border:'1.5px solid #bae6fd', marginBottom:'16px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+            <span style={{ fontSize:'22px' }}>🔵</span>
+            <div>
+              <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>Solapi 계정 연동</div>
+              <div style={{ fontSize:'12px', color:C.muted }}>문자 + 카카오 알림톡 통합 발송 서비스</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+            <Toggle checked={cfg.smsEnabled} onChange={v => set('smsEnabled', v)} />
+            <span style={{ fontSize:'12px', fontWeight:600, color:cfg.smsEnabled?C.success:C.muted }}>{cfg.smsEnabled?'활성':'비활성'}</span>
+          </div>
+        </div>
+
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+          <Field label="API Key" value={cfg.apiKey} onChange={v => set('apiKey', v)} placeholder="NCSXXXXXXXXXXXXXXXXXXXXX" mono />
+          <Field label="API Secret" value={cfg.apiSecret} onChange={v => set('apiSecret', v)} placeholder="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" type="password" mono />
+          <Field label="발신 전화번호" value={cfg.senderPhone} onChange={v => set('senderPhone', v)} placeholder="01012345678 (하이픈 없이)" />
+        </div>
+
+        <details style={{ marginTop:'14px' }}>
+          <summary style={{ fontSize:'12px', fontWeight:600, color:'#0369a1', cursor:'pointer', userSelect:'none' }}>
+            📋 Solapi API 키 발급 방법 보기
+          </summary>
+          <div style={{ marginTop:'10px', padding:'12px 14px', background:'#fff', borderRadius:'8px', border:'1px solid #bae6fd', fontSize:'12px', color:'#374151', lineHeight:2 }}>
+            <strong>① Solapi 가입</strong><br />
+            &nbsp;&nbsp;<a href="https://solapi.com" target="_blank" rel="noopener noreferrer" style={{ color:'#0369a1' }}>solapi.com</a> 접속 → 회원가입 (사업자 또는 개인)<br />
+            <br />
+            <strong>② API 키 발급</strong><br />
+            &nbsp;&nbsp;로그인 → 개발자 → API 관리 → API 키 추가<br />
+            &nbsp;&nbsp;→ API Key·API Secret 복사하여 위에 입력<br />
+            <br />
+            <strong>③ 발신번호 등록</strong><br />
+            &nbsp;&nbsp;설정 → 발신번호 관리 → 발신번호 추가<br />
+            &nbsp;&nbsp;→ 휴대폰 인증 후 등록<br />
+            <br />
+            <strong>④ 요금</strong>: SMS 건당 약 9~20원 · 카카오 알림톡 건당 약 7~15원<br />
+            &nbsp;&nbsp;충전식 선불 방식 (무료 체험 크레딧 제공)<br />
+            <br />
+            <strong>⑤ 주의사항</strong>: 대량 발송 시 스팸 신고 방지를 위해<br />
+            &nbsp;&nbsp;수신 동의를 받은 학부모에게만 발송하세요.
+          </div>
+        </details>
+      </div>
+
+      {/* 카카오 알림톡 */}
+      <div style={{ padding:'16px', background:'#fffde7', borderRadius:'12px', border:'1.5px solid #fde68a', marginBottom:'16px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+            <span style={{ fontSize:'22px' }}>💛</span>
+            <div>
+              <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>카카오 알림톡</div>
+              <div style={{ fontSize:'12px', color:C.muted }}>Solapi를 통한 카카오 비즈니스 채널 발송</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+            <Toggle checked={cfg.kakaoEnabled} onChange={v => set('kakaoEnabled', v)} />
+            <span style={{ fontSize:'12px', fontWeight:600, color:cfg.kakaoEnabled?C.success:C.muted }}>{cfg.kakaoEnabled?'활성':'비활성'}</span>
+          </div>
+        </div>
+
+        <Field label="카카오 채널 ID (pfId)" value={cfg.kakaoChannelId} onChange={v => set('kakaoChannelId', v)} placeholder="_xXXXXX" mono />
+
+        <details style={{ marginTop:'12px' }}>
+          <summary style={{ fontSize:'12px', fontWeight:600, color:'#92400e', cursor:'pointer', userSelect:'none' }}>
+            📋 카카오 알림톡 채널 등록 방법 보기
+          </summary>
+          <div style={{ marginTop:'10px', padding:'12px 14px', background:'#fff', borderRadius:'8px', border:'1px solid #fde68a', fontSize:'12px', color:'#374151', lineHeight:2 }}>
+            <strong>① 카카오 비즈니스 채널 생성</strong><br />
+            &nbsp;&nbsp;<a href="https://business.kakao.com" target="_blank" rel="noopener noreferrer" style={{ color:'#92400e' }}>business.kakao.com</a> → 카카오톡 채널 개설<br />
+            &nbsp;&nbsp;→ 채널명, 검색용 아이디 설정<br />
+            <br />
+            <strong>② 알림톡 발신 프로필 등록</strong><br />
+            &nbsp;&nbsp;채널 관리자센터 → 알림톡 → 발신프로필 등록<br />
+            &nbsp;&nbsp;→ 채널 ID(pfId) 확인 후 위에 입력<br />
+            <br />
+            <strong>③ Solapi에서 카카오 연동</strong><br />
+            &nbsp;&nbsp;Solapi → 카카오 채널 → 채널 추가 → pfId 입력<br />
+            <br />
+            <strong>④ 주의</strong>: 알림톡은 사전에 승인된 템플릿만 발송 가능합니다.<br />
+            &nbsp;&nbsp;자유 문자는 SMS/LMS를 사용하세요.
+          </div>
+        </details>
+      </div>
+
+      {/* 테스트 발송 */}
+      <div style={{ padding:'14px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}`, marginBottom:'14px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px' }}>
+        <div>
+          <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>테스트 발송</div>
+          <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>설정 저장 후 발신번호로 테스트 SMS를 발송합니다.</div>
+        </div>
+        <Btn size="sm" variant="ghost" onClick={testSMS} disabled={testing}>{testing ? '발송 중...' : '테스트 발송'}</Btn>
+      </div>
+
+      <SaveMsg data={msg} />
+      <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'12px' }}>
+        <Btn onClick={save}>💾 저장</Btn>
+      </div>
+    </Card>
+  )
+}
+
 // ─── 메인
 export function AdminSettings() {
-  const [tab, setTab] = useState('social') // 'social' | 'service'
+  const [tab, setTab] = useState('social') // 'social' | 'solapi' | 'service'
 
   return (
     <div style={{ padding:'28px', maxWidth:'780px' }}>
@@ -210,8 +347,9 @@ export function AdminSettings() {
 
       <div style={{ display:'flex', gap:'8px', marginBottom:'24px', borderBottom:`1px solid ${C.border}`, paddingBottom:'0' }}>
         {[
-          { key:'social', label:'🔑 소셜 로그인' },
-          { key:'service', label:'⚙️ 기본 설정' },
+          { key:'social',   label:'🔑 소셜 로그인' },
+          { key:'solapi',   label:'📱 문자·알림톡' },
+          { key:'service',  label:'⚙️ 기본 설정' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             style={{ padding:'10px 16px', border:'none', cursor:'pointer', background:'none', color:tab===t.key?C.primary:'#9ca3af', fontWeight:tab===t.key?700:400, fontSize:'14px', borderBottom:tab===t.key?`2px solid ${C.primary}`:'2px solid transparent', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'-1px', transition:'all .15s' }}>
@@ -221,6 +359,7 @@ export function AdminSettings() {
       </div>
 
       {tab === 'social'  && <SocialSection />}
+      {tab === 'solapi'  && <SolapiSection />}
       {tab === 'service' && <ServiceSection />}
     </div>
   )

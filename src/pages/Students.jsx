@@ -648,11 +648,12 @@ export function Students({ user, onNav }) {
                 </thead>
                 <tbody>
                   {excelPreview.map((r, i) => {
-                    const selCls = classes.find(c => c.id === excelClassId)
-                    const dispSchool = r.school || excelSchool || selCls?.organization || '-'
-                    const dispSubject = (r.subject || (selCls ? selCls.className : '')) + (dispSubjectSec ? ' ' + dispSubjectSec + '반' : (selCls?.section ? ' '+selCls.section+'반' : '')) || '-'
-                    const dispSection = r.section || excelSection || selCls?.section || ''
-                    const dispTime = r.timeStart ? (r.timeEnd ? `${r.timeStart}~${r.timeEnd}` : r.timeStart) : (selCls?.time || '-')
+                    const selCls       = classes.find(c => c.id === excelClassId)
+                    const dispSchool   = r.school    || excelSchool  || selCls?.organization || '-'
+                    const dispSubjectSec = r.subjectSec || excelSection || selCls?.section || ''
+                    const dispSubject  = (r.subject  || (selCls ? selCls.className : '') || '-') + (dispSubjectSec ? ' ' + dispSubjectSec + '반' : '')
+                    const dispSection  = r.studentClass || r.classNum || '-'
+                    const dispTime     = r.timeStart ? (r.timeEnd ? `${r.timeStart}~${r.timeEnd}` : r.timeStart) : (selCls?.time || '-')
                     return (
                       <tr key={i} style={{ borderBottom:'1px solid #f3f4f6',background:i%2===0?'#fff':'#fafafa' }}>
                         <td style={{ padding:'7px 10px',fontWeight:700 }}>{r.name}</td>
