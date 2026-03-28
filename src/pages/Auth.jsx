@@ -310,9 +310,19 @@ export function Auth({ onLogin }) {
                   {/* 카카오 버튼 */}
                   <SocialBtn icon="💛" label="카카오로 계속하기" color="#3C1E1E" bg="#FEE500" border="#FEE500"
                     onClick={kakaoConfigured ? loginWithKakao : () => alert('카카오 로그인을 사용하려면\n관리자 페이지 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
-                  {/* 네이버 (안내만) */}
-                  <SocialBtn icon="🟢" label="네이버로 계속하기 (Phase 4)" color="#fff" bg="#03C75A" border="#03C75A"
-                    onClick={() => alert('네이버 로그인은 서버가 필요하여 Phase 4에서 지원됩니다.')} disabled />
+                  {/* 네이버 */}
+                  {(() => {
+                    const naverCfg = (Settings.get('social') || {})
+                    const naverEnabled = naverCfg.naverEnabled && naverCfg.naverClientId
+                    return (
+                      <SocialBtn icon="🟢" label="네이버로 계속하기" color="#fff" bg="#03C75A" border="#03C75A"
+                        onClick={() => naverEnabled
+                          ? alert('네이버 로그인: 관리자가 클라이언트 ID를 설정하면 활성화됩니다.')
+                          : alert('관리자 페이지 → 서비스설정 → 소셜 로그인에서 네이버 키를 등록하세요.')
+                        }
+                        disabled={!naverEnabled} />
+                    )
+                  })()}
                 </div>
 
                 {/* 구분선 */}
