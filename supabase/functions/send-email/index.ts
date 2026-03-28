@@ -15,8 +15,15 @@ serve(async (req) => {
   try {
     const { to, subject, html, purpose, code } = await req.json()
 
-    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-    const FROM_EMAIL     = Deno.env.get('FROM_EMAIL') || 'noreply@afterschool.app'
+    // settings 테이블에서 키 읽기 (관리자 페이지에서 등록)
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    )
+    const { data: emailCfg } = await supabase.from('settings').select('value').eq('key', 'email').single()
+    const cfg = emailCfg?.value || {}
+    const RESEND_API_KEY = cfg.resendApiKey || Deno.env.get('RESEND_API_KEY') || ''
+    const FROM_EMAIL     = cfg.fromEmail || 'noreply@afterschool.app'
 
     if (!RESEND_API_KEY) {
       // 개발 모드: 콘솔에만 출력

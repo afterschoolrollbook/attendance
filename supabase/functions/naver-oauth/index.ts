@@ -15,8 +15,16 @@ serve(async (req) => {
   try {
     const { code, state } = await req.json()
 
-    const CLIENT_ID     = Deno.env.get('NAVER_CLIENT_ID')
-    const CLIENT_SECRET = Deno.env.get('NAVER_CLIENT_SECRET')
+    // settings 테이블에서 키 읽기
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    )
+    const { data: socialCfg } = await supabase.from('settings').select('value').eq('key', 'social').single()
+    const cfg = socialCfg?.value || {}
+    const CLIENT_ID     = cfg.naverClientId     || Deno.env.get('NAVER_CLIENT_ID')     || ''
+    const CLIENT_SECRET = cfg.naverClientSecret || Deno.env.get('NAVER_CLIENT_SECRET') || ''
 
     if (!CLIENT_ID || !CLIENT_SECRET) {
       throw new Error('네이버 클라이언트 ID/Secret이 설정되지 않았습니다.')

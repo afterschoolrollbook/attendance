@@ -144,20 +144,45 @@ function SocialSection() {
         </details>
       </div>
 
-      {/* ── 네이버 안내 */}
-      <div style={{ padding:'14px 16px', background:'#f9fafb', borderRadius:'12px', border:'1.5px solid #e5e7eb', marginBottom:'16px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'8px' }}>
-          <span style={{ fontSize:'20px' }}>🟢</span>
-          <div>
-            <div style={{ fontSize:'14px', fontWeight:700, color:'#9ca3af' }}>네이버 로그인 (Phase 4 예정)</div>
-            <div style={{ fontSize:'12px', color:'#d1d5db' }}>서버 사이드 처리 필요 — Supabase/Node.js 백엔드 연동 후 지원</div>
+      {/* ── 네이버 */}
+      <div style={{ padding:'16px', background:'#f0fdf4', borderRadius:'12px', border:'1.5px solid #86efac', marginBottom:'16px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+            <span style={{ fontSize:'20px' }}>🟢</span>
+            <div>
+              <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>네이버 로그인</div>
+              <div style={{ fontSize:'12px', color:C.muted }}>서버사이드 처리 (Supabase Edge Function)</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+            <Toggle checked={cfg.naverEnabled||false} onChange={v => setCfg(p=>({...p,naverEnabled:v}))} />
+            <span style={{ fontSize:'12px', fontWeight:600, color:cfg.naverEnabled?C.success:C.muted }}>{cfg.naverEnabled?'활성':'비활성'}</span>
           </div>
         </div>
-        <div style={{ fontSize:'12px', color:'#9ca3af', lineHeight:1.8, background:'#fff', padding:'10px 12px', borderRadius:'8px', border:'1px solid #e5e7eb' }}>
-          네이버 로그인은 보안 정책상 <strong>브라우저에서 직접 토큰 교환이 불가</strong>합니다.<br />
-          백엔드 서버(Node.js / Supabase Edge Function)를 통해 처리해야 합니다.<br />
-          Phase 4에서 실서버 연동 시 함께 구현 예정입니다.
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+          <Field label="클라이언트 ID" value={cfg.naverClientId||''} onChange={v => setCfg(p=>({...p,naverClientId:v}))} placeholder="XXXXXXXXXXXXXXXX" mono />
+          <Field label="클라이언트 Secret" value={cfg.naverClientSecret||''} onChange={v => setCfg(p=>({...p,naverClientSecret:v}))} placeholder="XXXXXXXXXX" type="password" mono />
         </div>
+        <details style={{ marginTop:'12px' }}>
+          <summary style={{ fontSize:'12px', fontWeight:600, color:'#15803d', cursor:'pointer', userSelect:'none' }}>
+            📋 네이버 로그인 설정 방법 보기
+          </summary>
+          <div style={{ marginTop:'10px', padding:'12px 14px', background:'#fff', borderRadius:'8px', border:'1px solid #86efac', fontSize:'12px', color:'#374151', lineHeight:2 }}>
+            <strong>① 네이버 개발자센터 접속</strong><br />
+            &nbsp;&nbsp;<a href="https://developers.naver.com" target="_blank" rel="noopener noreferrer" style={{ color:'#15803d' }}>developers.naver.com</a> → 로그인<br />
+            <br />
+            <strong>② 애플리케이션 등록</strong><br />
+            &nbsp;&nbsp;Application → 애플리케이션 등록<br />
+            &nbsp;&nbsp;→ 사용 API: 네아로(네이버 아이디로 로그인) 선택<br />
+            &nbsp;&nbsp;→ 서비스 URL: 사이트 주소 입력<br />
+            &nbsp;&nbsp;→ Callback URL: 사이트주소/naver-callback<br />
+            <br />
+            <strong>③ 키 확인</strong><br />
+            &nbsp;&nbsp;Client ID + Client Secret 복사하여 위에 입력<br />
+            <br />
+            <strong>④ 비용</strong>: 무료
+          </div>
+        </details>
       </div>
 
       <SaveMsg data={msg} />
@@ -200,6 +225,73 @@ function ServiceSection() {
   )
 }
 
+
+
+// ─── 섹션: 이메일 발송 (Resend)
+function EmailSection() {
+  const init = Settings.get('email') || { resendApiKey:'', fromEmail:'', enabled:false }
+  const [cfg, setCfg] = useState(init)
+  const [msg, setMsg] = useState(null)
+  const set = (k, v) => setCfg(p => ({ ...p, [k]: v }))
+
+  const save = () => {
+    Settings.set('email', cfg)
+    setMsg({ ok:true, msg:'저장되었습니다.' })
+    setTimeout(() => setMsg(null), 3000)
+  }
+
+  return (
+    <Card style={{ marginBottom:'16px' }}>
+      <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>📧 이메일 발송 (Resend)</div>
+      <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px', lineHeight:1.6 }}>
+        회원가입 이메일 인증, 공지 발송에 사용됩니다. 무료로 사용 가능합니다.
+      </div>
+
+      <div style={{ padding:'16px', background:'#f0f9ff', borderRadius:'12px', border:'1.5px solid #bae6fd', marginBottom:'16px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+            <span style={{ fontSize:'22px' }}>📨</span>
+            <div>
+              <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>Resend</div>
+              <div style={{ fontSize:'12px', color:C.muted }}>월 3,000건 무료</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+            <Toggle checked={cfg.enabled} onChange={v => set('enabled', v)} />
+            <span style={{ fontSize:'12px', fontWeight:600, color:cfg.enabled?C.success:C.muted }}>{cfg.enabled?'활성':'비활성'}</span>
+          </div>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+          <Field label="API Key" value={cfg.resendApiKey} onChange={v => set('resendApiKey', v)} placeholder="re_xxxxxxxxxxxxxxxx" mono />
+          <Field label="발신 이메일" value={cfg.fromEmail} onChange={v => set('fromEmail', v)} placeholder="noreply@yourdomain.com" />
+        </div>
+        <details style={{ marginTop:'12px' }}>
+          <summary style={{ fontSize:'12px', fontWeight:600, color:'#0369a1', cursor:'pointer', userSelect:'none' }}>
+            📋 Resend API 키 발급 방법 보기
+          </summary>
+          <div style={{ marginTop:'10px', padding:'12px 14px', background:'#fff', borderRadius:'8px', border:'1px solid #bae6fd', fontSize:'12px', color:'#374151', lineHeight:2 }}>
+            <strong>① Resend 가입</strong><br />
+            &nbsp;&nbsp;<a href="https://resend.com" target="_blank" rel="noopener noreferrer" style={{ color:'#0369a1' }}>resend.com</a> 접속 → 무료 가입<br />
+            <br />
+            <strong>② API Key 생성</strong><br />
+            &nbsp;&nbsp;대시보드 → API Keys → Create API Key<br />
+            &nbsp;&nbsp;→ 이름 입력 → 키 복사하여 위에 입력<br />
+            <br />
+            <strong>③ 발신 도메인 등록 (선택)</strong><br />
+            &nbsp;&nbsp;자체 도메인 없으면 <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>onboarding@resend.dev</code>로 자동 발송<br />
+            &nbsp;&nbsp;자체 도메인: Domains → Add → DNS 레코드 추가<br />
+            <br />
+            <strong>④ 비용</strong>: 월 3,000건 무료 / 초과 시 $0.001/건
+          </div>
+        </details>
+      </div>
+      <SaveMsg data={msg} />
+      <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'12px' }}>
+        <Btn onClick={save}>💾 저장</Btn>
+      </div>
+    </Card>
+  )
+}
 
 // ─── 섹션: Solapi 문자/알림톡
 function SolapiSection() {
@@ -339,7 +431,7 @@ function SolapiSection() {
 
 // ─── 메인
 export function AdminSettings() {
-  const [tab, setTab] = useState('social') // 'social' | 'solapi' | 'service'
+  const [tab, setTab] = useState('social') // 'social' | 'email' | 'solapi' | 'service'
 
   return (
     <div style={{ padding:'28px', maxWidth:'780px' }}>
@@ -348,6 +440,7 @@ export function AdminSettings() {
       <div style={{ display:'flex', gap:'8px', marginBottom:'24px', borderBottom:`1px solid ${C.border}`, paddingBottom:'0' }}>
         {[
           { key:'social',   label:'🔑 소셜 로그인' },
+          { key:'email',    label:'📧 이메일 발송' },
           { key:'solapi',   label:'📱 문자·알림톡' },
           { key:'service',  label:'⚙️ 기본 설정' },
         ].map(t => (
@@ -359,6 +452,7 @@ export function AdminSettings() {
       </div>
 
       {tab === 'social'  && <SocialSection />}
+      {tab === 'email'   && <EmailSection />}
       {tab === 'solapi'  && <SolapiSection />}
       {tab === 'service' && <ServiceSection />}
     </div>
