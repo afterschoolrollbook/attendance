@@ -5,6 +5,7 @@
  */
 
 import { dbCall, isConfigured } from './supabase.js'
+import { uid, now, localDateStr } from './utils.js'   // ✅ 버그수정: uid, now, localDateStr import 추가
 
 const PREFIX = 'asa_'
 const key = (t) => PREFIX + t
@@ -79,6 +80,9 @@ export const Students = {
   byTeacher: (tid)    => db.where('students', s => s.teacherId === tid),
   byClass:   (cid)    => db.where('students', s => s.classIds?.includes(cid)),
   confirmed: (cid)    => db.where('students', s => s.classIds?.includes(cid) && s.status === 'confirmed'),
+  // ✅ 대기자 관련 쿼리 추가
+  waiting:   (cid)    => db.where('students', s => s.classIds?.includes(cid) && s.status === 'waiting'),
+  applied:   (cid)    => db.where('students', s => s.classIds?.includes(cid) && s.status === 'applied'),
   insert:    (s)      => db.insert('students', s),
   update:    (id, p)  => db.update('students', id, p),
   delete:    (id)     => db.delete('students', id),
@@ -180,7 +184,7 @@ export const TeacherParentLinks = {
     if (existing?.status === 'active') return
     db.insert('teacherParentLinks', {
       id: uid(), teacherId,
-      parentMemberId: parent.id,  // 본사 회원 ID 참조
+      parentMemberId: parent.id,
       studentId: student.id, classId,
       status: 'active', startedAt: now(),
       endedAt: null, endReason: null, createdAt: now(),
@@ -242,12 +246,19 @@ export const Branches = {
   update:     (id, p)  => db.update('branches', id, p),
   delete:     (id)     => db.delete('branches', id),
 
-  // 선생님을 지사에 수동 배정
   assignTeacher(branchId, teacherId) {
     Users.update(teacherId, { branchId })
   },
-  // 선생님 지사 배정 해제
   unassignTeacher(teacherId) {
     Users.update(teacherId, { branchId: null })
   },
+}
+
+// ─── thisMonthRange 유틸 (UTC 버그 수정)
+export function thisMonthRange() {
+  const d = new Date()
+  const first = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  // ✅ 버그수정: toISOString() → localDateStr() 로 UTC 변환 버그 방지
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+  return { first, last: localDateStr(lastDay) }
 }
