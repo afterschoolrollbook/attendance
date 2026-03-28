@@ -21,8 +21,134 @@ const FEATURE_LABELS = {
   [FEATURES.MANAGE_LEVEL]:      '등급 관리 / 권한 예외 설정',
 }
 
+// ─── 지사 관리 패널
+function BranchPanel({ branches, setBranches, teachers }) {
+  const [form, setForm] = useState({ name: '', managerId: '', memo: '' })
+  const [editId, setEditId] = useState(null)
+  const [showForm, setShowForm] = useState(false)
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316' }
+  const selSt = { padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', width:'100%', background:'#fff' }
+  const inSt  = { padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', width:'100%', boxSizing:'border-box' }
+
+  const managers = teachers.filter(t => t.level >= 4)
+
+  const save = () => {
+    if (!form.name.trim()) { alert('지사명을 입력하세요.'); return }
+    if (editId) {
+      Branches.update(editId, { name:form.name.trim(), managerId:form.managerId||null, memo:form.memo })
+    } else {
+      Branches.insert({ id:uid(), name:form.name.trim(), managerId:form.managerId||null, memo:form.memo, active:true, createdAt:now() })
+    }
+    setBranches(Branches.all())
+    setForm({ name:'', managerId:'', memo:'' }); setEditId(null); setShowForm(false)
+  }
+
+  const startEdit = (b) => {
+    setForm({ name:b.name, managerId:b.managerId||'', memo:b.memo||'' })
+    setEditId(b.id); setShowForm(true)
+  }
+
+  const del = (id) => {
+    if (!window.confirm('삭제하시겠습니까?')) return
+    Branches.delete(id); setBranches(Branches.all())
+  }
+
+  // 선생님 수 계산 (지사에 배정된)
+  const teacherCount = (branchId) => teachers.filter(t => t.branchId === branchId).length
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+      {/* 상단 안내 */}
+      <div style={{ padding:'14px 18px', background:'#eff6ff', borderRadius:'12px', border:'1.5px solid #bfdbfe', fontSize:'13px', color:'#1e40af', lineHeight:1.8 }}>
+        <strong>지사 구조:</strong> 본사 → 지사(지역관리자) → 선생님 → 학생/학부모<br />
+        선생님은 선생님 목록에서 지사를 <strong>수동으로 배정</strong>합니다.<br />
+        지사장은 등급을 <strong>Lv.4 파트너</strong>로 설정한 선생님 중에서 지정합니다.
+      </div>
+
+      {/* 추가 버튼 */}
+      <div style={{ display:'flex', justifyContent:'flex-end' }}>
+        <button onClick={() => { setShowForm(true); setEditId(null); setForm({ name:'', region:'', managerId:'', memo:'' }) }}
+          style={{ padding:'8px 16px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          + 지사 추가
+        </button>
+      </div>
+
+      {/* 지사 등록/수정 폼 */}
+      {showForm && (
+        <div style={{ padding:'18px', background:'#fff', borderRadius:'12px', border:`1.5px solid ${C.primary}`, display:'flex', flexDirection:'column', gap:'12px' }}>
+          <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{editId ? '지사 수정' : '지사 추가'}</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+            <div>
+              <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>지사명 *</label>
+              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="예: 경기남부지사" style={inSt} />
+            </div>
+
+          </div>
+          <div>
+            <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>지사장 (Lv.4 이상 선생님)</label>
+            <select value={form.managerId} onChange={e => set('managerId', e.target.value)} style={selSt}>
+              <option value="">-- 미지정 --</option>
+              {managers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.email})</option>)}
+            </select>
+            {managers.length === 0 && <div style={{ fontSize:'11px', color:'#f59e0b', marginTop:'4px' }}>⚠️ Lv.4 이상 선생님이 없습니다. 선생님 목록에서 등급을 올려주세요.</div>}
+          </div>
+          <div>
+            <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>메모</label>
+            <input value={form.memo} onChange={e => set('memo', e.target.value)} placeholder="내부 메모" style={inSt} />
+          </div>
+          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+            <button onClick={() => { setShowForm(false); setEditId(null) }}
+              style={{ padding:'7px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
+            <button onClick={save}
+              style={{ padding:'7px 16px', borderRadius:'8px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+          </div>
+        </div>
+      )}
+
+      {/* 지사 목록 */}
+      {branches.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'60px 20px', color:C.muted, background:'#f9fafb', borderRadius:'12px' }}>
+          <div style={{ fontSize:'36px', marginBottom:'10px' }}>🏢</div>
+          <div style={{ fontSize:'15px', fontWeight:600 }}>등록된 지사가 없습니다</div>
+          <div style={{ fontSize:'13px', marginTop:'6px' }}>+ 지사 추가 버튼으로 생성하세요</div>
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+          {branches.map(b => {
+            const manager = teachers.find(t => t.id === b.managerId)
+            const cnt = teacherCount(b.id)
+            return (
+              <div key={b.id} style={{ padding:'16px 20px', background:'#fff', borderRadius:'12px', border:`1.5px solid ${C.border}`, display:'flex', alignItems:'center', gap:'16px', flexWrap:'wrap' }}>
+                <div style={{ flex:1, minWidth:'200px' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px' }}>
+                    <span style={{ fontSize:'16px', fontWeight:700, color:C.text }}>🏢 {b.name}</span>
+                    <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', padding:'2px 8px', borderRadius:'5px', fontWeight:600 }}>선생님 {cnt}명</span>
+                  </div>
+                  {manager && <div style={{ fontSize:'12px', color:'#f97316', fontWeight:600 }}>지사장: {manager.name}</div>}
+                  {!manager && <div style={{ fontSize:'12px', color:'#d1d5db' }}>지사장 미지정</div>}
+                  {b.memo && <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>{b.memo}</div>}
+                </div>
+                <div style={{ display:'flex', gap:'8px' }}>
+                  <button onClick={() => startEdit(b)}
+                    style={{ padding:'5px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>수정</button>
+                  <button onClick={() => del(b.id)}
+                    style={{ padding:'5px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#ef4444' }}>삭제</button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 export function Admin({ user: currentUser }) {
-  const [tab, setTab] = useState('pending') // 'pending' | 'teachers' | 'stats'
+  const [tab, setTab] = useState('pending')
+  const [branches, setBranches] = useState(() => Branches.all()) // 'pending' | 'teachers' | 'stats'
   const [selectedUser, setSelectedUser] = useState(null)
   const [showPermModal, setShowPermModal] = useState(false)
   const [lightboxImg, setLightboxImg] = useState(null)
@@ -84,6 +210,7 @@ export function Admin({ user: currentUser }) {
         {[
           { key: 'pending', label: `인증 대기 ${pending.length}` },
           { key: 'teachers', label: '선생님 목록' },
+          { key: 'branches', label: '지사 관리' },
           { key: 'stats', label: '전체 통계' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
@@ -166,6 +293,12 @@ export function Admin({ user: currentUser }) {
       )}
 
       {/* 전체 통계 */}
+
+      {/* 지사 관리 */}
+      {tab === 'branches' && (
+        <BranchPanel branches={branches} setBranches={setBranches} teachers={teachers} />
+      )}
+
       {tab === 'stats' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
           <StatCard label="전체 선생님" value={stats.totalTeachers} icon="👩‍🏫" color="#3b82f6" />
