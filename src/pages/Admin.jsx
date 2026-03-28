@@ -143,12 +143,21 @@ export function Admin({ user: currentUser }) {
   const [selectedUser, setSelectedUser] = useState(null)
   const [showPermModal, setShowPermModal] = useState(false)
   const [lightboxImg, setLightboxImg] = useState(null)
+  const [, forceUpdate] = useState(0)  // ✅ 강제 리렌더용
+
+  const refresh = () => forceUpdate(n => n + 1)  // ✅ DB 변경 후 화면 즉시 갱신
 
   const teachers = Users.teachers()
   const pending = Users.pending()
 
-  const approve = (id) => { Users.update(id, { level: 2, verified: true }) }
-  const reject  = (id) => { Users.update(id, { verifyImg: null }) }
+  const approve = (id) => {
+    Users.update(id, { level: 2, verified: true })
+    refresh()  // ✅ 즉시 반영
+  }
+  const reject  = (id) => {
+    Users.update(id, { verifyImg: null })
+    refresh()  // ✅ 즉시 반영
+  }
 
   const openPerm = (u) => { setSelectedUser({ ...u }); setShowPermModal(true) }
 
@@ -173,6 +182,7 @@ export function Admin({ user: currentUser }) {
       permissionOverrides: selectedUser.permissionOverrides,
     })
     setShowPermModal(false)
+    refresh()  // ✅ 즉시 반영
   }
 
   const stats = {
