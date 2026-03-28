@@ -28,7 +28,7 @@ serve(async (req) => {
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      Deno.env.get('SVC_ROLE_KEY')!,
     )
     const { data: solapiCfg } = await supabase.from('settings').select('value').eq('key', 'solapi').single()
     const cfg = solapiCfg?.value || {}

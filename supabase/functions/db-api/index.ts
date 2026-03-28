@@ -54,7 +54,7 @@ serve(async (req) => {
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      Deno.env.get('SVC_ROLE_KEY')!,
     )
 
     const { action, table, data, id, where, patch } = body
