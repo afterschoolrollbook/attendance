@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Classes, Students, Templates } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Templates } from '../lib/db.js'
 import { calcSessionDates, today } from '../lib/utils.js'
 import { Btn, Card, Select, PageHeader, Tag, EmptyState } from '../components/Atoms.jsx'
 import { can, FEATURES } from '../constants/permissions.js'
