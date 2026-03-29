@@ -16,6 +16,7 @@ import { Admin } from './pages/Admin.jsx'
 import { Adsense } from './pages/Adsense.jsx'
 import { AdminSettings } from './pages/AdminSettings.jsx'
 import { Profile } from './pages/Profile.jsx'
+import { NaverCallback } from './pages/NaverCallback.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
@@ -27,16 +28,19 @@ export default function App() {
   const [dbReady, setDbReady] = useState(false)
   const { toasts } = useToast()
 
+  // 네이버 콜백 페이지 처리 — 팝업으로 열린 경우 바로 렌더
+  if (window.location.pathname === '/naver-callback') {
+    return <NaverCallback />
+  }
+
   useEffect(() => {
     async function init() {
-      // Supabase 설정이 있으면 서버 데이터 먼저 동기화
       if (isConfigured) {
         await initFromSupabase()
       } else {
         seedIfEmpty()
       }
       setDbReady(true)
-      // 세션 복원
       const saved = sessionStorage.getItem('asa_user')
       if (saved) {
         try {
@@ -66,7 +70,6 @@ export default function App() {
     sessionStorage.removeItem('asa_user')
   }
 
-  // params: { classId, date, ... } 등 페이지별 초기값 전달
   const handleNav = (p, params = {}) => {
     if (user) {
       const fresh = Users.find(user.id)
@@ -90,26 +93,26 @@ export default function App() {
 
   const renderPage = () => {
     switch (page) {
-      case 'dashboard':   return <Dashboard {...pageProps} />
-      case 'classes':     return <Classes {...pageProps} />
-      case 'students':    return <Students {...pageProps} />
-      case 'confirm':     return <StudentConfirm {...pageProps} />
-      case 'attendance':  return <Attendance {...pageProps} />
-      case 'reports':     return <Reports {...pageProps} />
-      case 'templates':   return <Templates {...pageProps} />
-      case 'printsetup':  return <PrintSetup {...pageProps} />
-      case 'admin':       return <Admin {...pageProps} />
-      case 'adsense':     return <Adsense {...pageProps} />
-      case 'profile':       return <Profile {...pageProps} />
+      case 'dashboard':      return <Dashboard {...pageProps} />
+      case 'classes':        return <Classes {...pageProps} />
+      case 'students':       return <Students {...pageProps} />
+      case 'confirm':        return <StudentConfirm {...pageProps} />
+      case 'attendance':     return <Attendance {...pageProps} />
+      case 'reports':        return <Reports {...pageProps} />
+      case 'templates':      return <Templates {...pageProps} />
+      case 'printsetup':     return <PrintSetup {...pageProps} />
+      case 'admin':          return <Admin {...pageProps} />
+      case 'adsense':        return <Adsense {...pageProps} />
+      case 'profile':        return <Profile {...pageProps} />
       case 'admin_settings': return <AdminSettings {...pageProps} />
-      default:            return <Dashboard {...pageProps} />
+      default:               return <Dashboard {...pageProps} />
     }
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f5f7' }}>
+    <div style={{ display:'flex', minHeight:'100vh', background:'#f4f5f7' }}>
       <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout} />
-      <main style={{ flex: 1, overflowY: 'auto', minHeight: '100vh' }}>
+      <main style={{ flex:1, overflowY:'auto', minHeight:'100vh' }}>
         {renderPage()}
       </main>
       <ToastContainer toasts={toasts} />
