@@ -67,7 +67,24 @@ function useKakaoAuth(onSuccess, appKey) {
       if (!window.Kakao?.isInitialized()) window.Kakao?.init(appKey)
     }
     document.head.appendChild(script)
-    return () => { try { document.head.removeChild(script) } catch {} }
+
+    // 팝업 콜백 수신
+    const handleMessage = (e) => {
+      if (e.data?.type === 'kakao_login_success') {
+        onSuccess({
+          provider: 'kakao',
+          email: e.data.email || '',
+          name: e.data.name || '',
+          avatar: e.data.avatar || '',
+          providerId: String(e.data.id),
+        })
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => {
+      try { document.head.removeChild(script) } catch {}
+      window.removeEventListener('message', handleMessage)
+    }
   }, [])
 
   const loginWithKakao = () => {
@@ -75,9 +92,15 @@ function useKakaoAuth(onSuccess, appKey) {
       alert('카카오 앱 키가 설정되지 않았습니다.\n관리자 페이지 → 서비스설정 → 소셜 로그인에서 등록하세요.')
       return
     }
-    window.Kakao?.Auth.login({
-      success: () => {
-        window.Kakao?.API.request({
+    const kakao = window.Kakao
+    if (!kakao) { alert('카카오 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return }
+
+    // SDK v2.7+ 방식: authorize → REST API로 사용자 정보 조회
+    kakao.Auth.authorize({
+      redirectUri: window.location.origin + '/kakao-callback',
+      throughTalk: false,
+      success: (authObj) => {
+        kakao.API.request({
           url: '/v2/user/me',
           success: (res) => {
             const kakaoAcc = res.kakao_account
@@ -89,9 +112,30 @@ function useKakaoAuth(onSuccess, appKey) {
               providerId: String(res.id),
             })
           },
+          fail: (err) => console.error('Kakao API fail', err),
         })
       },
-      fail: (err) => console.error('Kakao login fail', err),
+      fail: (err) => {
+        // authorize 미지원 구버전 fallback
+        kakao.Auth.login({
+          success: () => {
+            kakao.API.request({
+              url: '/v2/user/me',
+              success: (res) => {
+                const kakaoAcc = res.kakao_account
+                onSuccess({
+                  provider: 'kakao',
+                  email: kakaoAcc?.email || '',
+                  name: kakaoAcc?.profile?.nickname || '',
+                  avatar: kakaoAcc?.profile?.thumbnail_image_url || '',
+                  providerId: String(res.id),
+                })
+              },
+            })
+          },
+          fail: (e) => console.error('Kakao login fail', e),
+        })
+      },
     })
   }
 
