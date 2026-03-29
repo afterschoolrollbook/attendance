@@ -1,8 +1,6 @@
 import React, { useEffect } from 'react'
-import { Settings } from '../lib/db.js'
 
 // 카카오 로그인 콜백 페이지 (팝업으로 열림)
-// AdminSettings에 저장된 REST API 키를 Edge Function으로 전달
 export function KakaoCallback() {
   useEffect(() => {
     const run = async () => {
@@ -20,16 +18,18 @@ export function KakaoCallback() {
           window.close(); return
         }
 
-        // AdminSettings에 저장된 REST API 키 읽기
-        const social = Settings.get('social') || {}
-        const clientId = social.kakaoAppKey || ''
+        // 팝업 열기 전에 임시 저장한 clientId 읽기
+        const clientId = localStorage.getItem('asa_kakao_client_id') || ''
+        localStorage.removeItem('asa_kakao_client_id')
+
         if (!clientId) {
-          window.opener?.postMessage({ type:'kakao_login_fail', error:'카카오 REST API 키가 설정되지 않았습니다.' }, window.location.origin)
+          window.opener?.postMessage({ type:'kakao_login_fail', error:'카카오 REST API 키가 없습니다. 관리자 설정을 확인하세요.' }, window.location.origin)
           window.close(); return
         }
 
         const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
         const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+        const redirectUri   = window.location.origin + '/kakao-callback'
 
         const res = await fetch(`${SUPABASE_URL}/functions/v1/kakao-oauth`, {
           method:  'POST',
@@ -37,11 +37,7 @@ export function KakaoCallback() {
             'Content-Type':  'application/json',
             'Authorization': `Bearer ${SUPABASE_ANON}`,
           },
-          body: JSON.stringify({
-            code,
-            clientId,
-            redirectUri: window.location.origin + '/kakao-callback',
-          }),
+          body: JSON.stringify({ code, clientId, redirectUri }),
         })
         const data = await res.json()
         if (!data.success) throw new Error(data.error || '카카오 로그인 실패')

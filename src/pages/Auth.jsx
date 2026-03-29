@@ -54,8 +54,11 @@ function useKakaoAuth(onSuccess, appKey) {
   const loginWithKakao = () => {
     if (!appKey) { alert('관리자 페이지 → 서비스설정 → 소셜 로그인에서 카카오 키를 등록하세요.'); return }
 
-    const callback = encodeURIComponent(window.location.origin + '/kakao-callback')
-    const url = 'https://kauth.kakao.com/oauth/authorize?client_id=' + appKey + '&redirect_uri=' + callback + '&response_type=code'
+    // 팝업에서 읽을 수 있도록 임시 저장
+    localStorage.setItem('asa_kakao_client_id', appKey)
+
+    const redirectUri = window.location.origin + '/kakao-callback'
+    const url = 'https://kauth.kakao.com/oauth/authorize?client_id=' + appKey + '&redirect_uri=' + encodeURIComponent(redirectUri) + '&response_type=code'
 
     const popup = window.open(url, 'kakao_login', 'width=500,height=600,scrollbars=yes')
 
@@ -133,21 +136,11 @@ function NaverLoginBtn({ onSuccess }) {
 }
 
 // ─── 소셜 로그인 처리 공통 함수
-function handleSocialLogin(profile, onLogin) {
+// 기존 계정 → 바로 로그인 / 신규 → 이메일 인증 필요
+function handleSocialLogin(profile, onLogin, onNeedVerify) {
   const existing = Users.findByEmail(profile.email?.toLowerCase())
-  if (existing) { onLogin(existing); return }
-
-  const email = profile.email || `${profile.provider}_${profile.providerId}@social.local`
-  const user = {
-    id: uid(), name: profile.name || '소셜 사용자',
-    email: email.toLowerCase(), pw: uid(), phone: '',
-    role: 'teacher', level: 1, verified: false,
-    verifyImg: null, permissionOverrides: {},
-    provider: profile.provider, providerId: profile.providerId,
-    avatar: profile.avatar || '', createdAt: now(),
-  }
-  Users.insert(user)
-  onLogin(user)
+  if (existing) { onLogin(existing); return }  // 기존 계정 → 바로 로그인 (변경 없음)
+  onNeedVerify(profile)  // 신규만 인증
 }
 
 // ─── 메인 Auth 컴포넌트
@@ -181,9 +174,23 @@ export function Auth({ onLogin }) {
     setVerified(false); setError(''); setEmailChecked(false); setSending(false)
   }
 
+  // 소셜 신규 가입 이메일 인증
+  const [socialProfile,    setSocialProfile]    = useState(null)  // 인증 대기 중인 소셜 프로필
+  const [socialVerifyCode, setSocialVerifyCode] = useState('')
+  const [socialInputCode,  setSocialInputCode]  = useState('')
+  const [socialCodeSent,   setSocialCodeSent]   = useState(false)
+  const [socialSending,    setSocialSending]    = useState(false)
+  const [socialVerified,   setSocialVerified]   = useState(false)
+
+  const handleNeedVerify = (profile) => {
+    setSocialProfile(profile)
+    setSocialInputCode(''); setSocialCodeSent(false); setSocialVerified(false); setError('')
+    setMode('social_verify')
+  }
+
   const socialCfg      = getSocialConfig()
-  const googleBtnRef   = useGoogleAuth((p) => handleSocialLogin(p, onLogin), socialCfg.google.clientId)
-  const loginWithKakao = useKakaoAuth((p) => handleSocialLogin(p, onLogin), socialCfg.kakao.appKey)
+  const googleBtnRef   = useGoogleAuth((p) => handleSocialLogin(p, onLogin, handleNeedVerify), socialCfg.google.clientId)
+  const loginWithKakao = useKakaoAuth((p) => handleSocialLogin(p, onLogin, handleNeedVerify), socialCfg.kakao.appKey)
   const googleConfigured = !!socialCfg.google.clientId
   const kakaoConfigured  = !!socialCfg.kakao.appKey
 
@@ -281,7 +288,7 @@ export function Auth({ onLogin }) {
 
         <div style={{ background:'#fff', borderRadius:'20px', boxShadow:'0 8px 40px rgba(0,0,0,0.1)', overflow:'hidden' }}>
 
-          {mode !== 'forgot' && (
+          {mode !== 'forgot' && mode !== 'social_verify' && (
             <div style={{ display:'flex', borderBottom:'1px solid #f3f4f6' }}>
               {['login','register'].map(m => (
                 <button key={m}
@@ -306,7 +313,7 @@ export function Auth({ onLogin }) {
                   }
                   <SocialBtn icon="💛" label="카카오로 계속하기" color="#3C1E1E" bg="#FEE500" border="#FEE500"
                     onClick={kakaoConfigured ? loginWithKakao : () => alert('관리자 페이지 → 서비스설정 → 소셜 로그인에서 카카오 키를 등록하세요.')} />
-                  <NaverLoginBtn onSuccess={(p) => handleSocialLogin(p, onLogin)} />
+                  <NaverLoginBtn onSuccess={(p) => handleSocialLogin(p, onLogin, handleNeedVerify)} />
                 </div>
 
                 <Divider label="또는 이메일로 로그인" />
@@ -336,7 +343,7 @@ export function Auth({ onLogin }) {
                   }
                   <SocialBtn icon="💛" label="카카오로 간편가입" color="#3C1E1E" bg="#FEE500" border="#FEE500"
                     onClick={kakaoConfigured ? loginWithKakao : () => alert('관리자 페이지 → 서비스설정 → 소셜 로그인에서 카카오 키를 등록하세요.')} />
-                  <NaverLoginBtn onSuccess={(p) => handleSocialLogin(p, onLogin)} />
+                  <NaverLoginBtn onSuccess={(p) => handleSocialLogin(p, onLogin, handleNeedVerify)} />
                 </div>
 
                 <Divider label="또는 이메일로 가입" />
@@ -391,6 +398,90 @@ export function Auth({ onLogin }) {
                   <Btn variant="ghost" onClick={() => { setStep(1); setError('') }} style={{ flex:1 }}>← 뒤로</Btn>
                   <Btn onClick={handleRegister} disabled={!verified} style={{ flex:2 }}>가입 완료</Btn>
                 </div>
+              </div>
+            )}
+
+            {/* ══ 소셜 신규 가입 이메일 인증 ══ */}
+            {mode === 'social_verify' && socialProfile && (
+              <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+                <div style={{ fontSize:'16px', fontWeight:700, color:'#111827' }}>
+                  {socialProfile.provider === 'google' ? '🔵 Google' : socialProfile.provider === 'kakao' ? '💛 카카오' : '🟢 네이버'} 계정 이메일 인증
+                </div>
+                <div style={{ padding:'12px 14px', background:'#f0fdf4', borderRadius:'10px', border:'1.5px solid #86efac', fontSize:'13px', color:'#15803d', lineHeight:1.7 }}>
+                  처음 가입하시는 계정입니다.<br/>
+                  <strong>{socialProfile.email}</strong> 으로 인증번호를 발송합니다.
+                </div>
+
+                {!socialVerified && (
+                  <button
+                    onClick={async () => {
+                      const code = String(Math.floor(100000 + Math.random() * 900000))
+                      setSocialVerifyCode(code); setSocialInputCode(''); setError(''); setSocialSending(true)
+                      try {
+                        await sendEmail(socialProfile.email, code)
+                        setSocialCodeSent(true)
+                      } catch {
+                        setError('인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.')
+                      } finally {
+                        setSocialSending(false)
+                      }
+                    }}
+                    disabled={socialSending}
+                    style={{ padding:'10px', borderRadius:'9px', border:'1.5px solid #f97316', background:'#fff7ed', color:'#f97316', fontSize:'13px', fontWeight:700, cursor:socialSending?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif', opacity:socialSending?0.6:1 }}>
+                    📧 {socialSending ? '발송 중...' : socialCodeSent ? '인증번호 재발송' : '인증번호 발송'}
+                  </button>
+                )}
+
+                {socialCodeSent && !socialVerified && (
+                  <>
+                    <div style={{ padding:'12px', background:'#f0fdf4', borderRadius:'8px', border:'1.5px solid #86efac', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
+                      ✅ {socialProfile.email}으로 인증번호를 발송했습니다.
+                    </div>
+                    <div style={{ display:'flex', gap:'8px' }}>
+                      <input value={socialInputCode} onChange={e => setSocialInputCode(e.target.value)}
+                        placeholder="인증번호 6자리"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            if (socialInputCode.trim() === socialVerifyCode) { setSocialVerified(true); setError('') }
+                            else setError('인증번호가 올바르지 않습니다.')
+                          }
+                        }}
+                        maxLength={6}
+                        style={{ flex:1, padding:'10px 14px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'18px', fontFamily:'Noto Sans KR, sans-serif', letterSpacing:'6px', textAlign:'center', outline:'none' }} />
+                      <Btn onClick={() => {
+                        if (socialInputCode.trim() === socialVerifyCode) { setSocialVerified(true); setError('') }
+                        else setError('인증번호가 올바르지 않습니다.')
+                      }}>확인</Btn>
+                    </div>
+                  </>
+                )}
+
+                {socialVerified && (
+                  <>
+                    <div style={{ padding:'12px', background:'#f0fdf4', borderRadius:'10px', border:'1.5px solid #86efac', fontSize:'14px', fontWeight:700, color:'#15803d', textAlign:'center' }}>
+                      ✅ 이메일 인증 완료!
+                    </div>
+                    <Btn full onClick={() => {
+                      const email = socialProfile.email || `${socialProfile.provider}_${socialProfile.providerId}@social.local`
+                      const user = {
+                        id: uid(), name: socialProfile.name || '소셜 사용자',
+                        email: email.toLowerCase(), pw: uid(), phone: '',
+                        role: 'teacher', level: 1, verified: false,
+                        verifyImg: null, permissionOverrides: {},
+                        provider: socialProfile.provider, providerId: socialProfile.providerId,
+                        avatar: socialProfile.avatar || '', createdAt: now(),
+                      }
+                      Users.insert(user)
+                      onLogin(user)
+                    }}>가입 완료 → 대시보드</Btn>
+                  </>
+                )}
+
+                {error && <ErrBox msg={error} />}
+                <button onClick={() => { setMode('login'); setError(''); setSocialProfile(null) }}
+                  style={{ background:'none', border:'none', color:'#9ca3af', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  ← 로그인으로 돌아가기
+                </button>
               </div>
             )}
 
