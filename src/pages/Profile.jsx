@@ -249,7 +249,20 @@ export function Profile({ user, onUserUpdate, onNav }) {
         </div>
       </Card>
 
-      {/* 비밀번호 변경 — 소셜 로그인 사용자 숨김 */}
+      {/* 비밀번호 변경 — 소셜 로그인 사용자는 안내 표시 */}
+      {user.provider && user.provider !== 'email' && (
+        <Card style={{ marginBottom:'16px' }}>
+          <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'10px' }}>🔒 비밀번호</div>
+          <div style={{ fontSize:'13px', color:C.muted, background:'#f9fafb', padding:'12px 14px', borderRadius:'9px', border:`1px solid ${C.border}`, lineHeight:1.8 }}>
+            <strong style={{ color:C.text }}>
+              { user.provider === 'google' ? 'Google' : user.provider === 'kakao' ? '카카오' : '네이버' }
+            </strong> 계정으로 로그인하셨습니다.<br/>
+            소셜 로그인 계정은 별도의 비밀번호를 관리하지 않습니다.<br/>
+            비밀번호 변경은 해당 소셜 서비스에서 진행해주세요.
+          </div>
+        </Card>
+      )}
+
       {(!user.provider || user.provider === 'email') && (
         <Card style={{ marginBottom:'16px' }}>
           <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'16px' }}>🔒 비밀번호 변경</div>
