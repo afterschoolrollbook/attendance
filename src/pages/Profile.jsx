@@ -154,7 +154,7 @@ function VerifyModal({ user, onVerified, onClose }) {
   )
 }
 
-export function Profile({ user, onUserUpdate }) {
+export function Profile({ user, onUserUpdate, onNav }) {
   const isSocial = user.provider && user.provider !== 'email'
 
   const [verified,   setVerified]   = useState(false)
@@ -328,7 +328,7 @@ export function Profile({ user, onUserUpdate }) {
         </Card>
       )}
 
-      {showVerify && <VerifyModal user={user} onVerified={handleVerified} onClose={() => setShowVerify(false)} />}
+      {showVerify && <VerifyModal user={user} onVerified={handleVerified} onClose={() => onNav('dashboard')} />}
     </div>
   )
 }
