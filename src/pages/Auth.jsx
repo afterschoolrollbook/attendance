@@ -49,48 +49,32 @@ function useGoogleAuth(onSuccess, clientId) {
   return btnRef
 }
 
-// ─── 카카오 로그인 훅
+// ─── 카카오 로그인 (팝업 URL 방식 — SDK 불필요)
 function useKakaoAuth(onSuccess, appKey) {
-  useEffect(() => {
-    if (!appKey) return
-    const script = document.createElement('script')
-    script.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js'
-    script.async = true
-    script.onload = () => {
-      if (!window.Kakao?.isInitialized()) window.Kakao?.init(appKey)
-    }
-    document.head.appendChild(script)
-    return () => { try { document.head.removeChild(script) } catch {} }
-  }, [])
-
   const loginWithKakao = () => {
     if (!appKey) { alert('관리자 페이지 → 서비스설정 → 소셜 로그인에서 카카오 키를 등록하세요.'); return }
-    const kakao = window.Kakao
-    if (!kakao) { alert('카카오 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return }
 
-    const doRequest = () => {
-      kakao.API.request({
-        url: '/v2/user/me',
-        success: (res) => {
-          const acc = res.kakao_account
-          onSuccess({ provider:'kakao', email:acc?.email||'', name:acc?.profile?.nickname||'', avatar:acc?.profile?.thumbnail_image_url||'', providerId:String(res.id) })
-        },
-        fail: (e) => console.error('Kakao API fail', e),
-      })
-    }
+    const callback = encodeURIComponent(window.location.origin + '/kakao-callback')
+    const url = 'https://kauth.kakao.com/oauth/authorize?client_id=' + appKey + '&redirect_uri=' + callback + '&response_type=token'
 
-    try {
-      kakao.Auth.authorize({
-        redirectUri: window.location.origin + '/kakao-callback',
-        throughTalk: false,
-        success: doRequest,
-        fail: () => {
-          kakao.Auth.login({ success: doRequest, fail: (e) => console.error('Kakao login fail', e) })
-        },
-      })
-    } catch {
-      kakao.Auth.login({ success: doRequest, fail: (e) => console.error('Kakao login fail', e) })
+    const popup = window.open(url, 'kakao_login', 'width=500,height=600,scrollbars=yes')
+
+    const handler = (e) => {
+      if (e.origin !== window.location.origin) return
+      if (e.data?.type === 'kakao_login_success') {
+        window.removeEventListener('message', handler)
+        onSuccess({ provider:'kakao', email:e.data.email||'', name:e.data.name||'', avatar:e.data.avatar||'', providerId:String(e.data.id) })
+      }
+      if (e.data?.type === 'kakao_login_fail') {
+        window.removeEventListener('message', handler)
+        console.error('Kakao login fail', e.data.error)
+      }
     }
+    window.addEventListener('message', handler)
+
+    const timer = setInterval(() => {
+      if (popup?.closed) { clearInterval(timer); window.removeEventListener('message', handler) }
+    }, 500)
   }
 
   return loginWithKakao
