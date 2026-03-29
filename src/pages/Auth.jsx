@@ -4,12 +4,14 @@ import { uid, now } from '../lib/utils.js'
 import { sendEmail } from '../lib/supabase.js'
 import { Btn, Input } from '../components/Atoms.jsx'
 
-// 소셜 로그인 키는 관리자 페이지에서 등록 (서비스설정 → 소셜 로그인)
 function getSocialConfig() {
   const saved = Settings.get('social') || {}
   return {
     google: { clientId: saved.googleEnabled ? (saved.googleClientId || '') : '' },
     kakao:  { appKey:   saved.kakaoEnabled  ? (saved.kakaoAppKey  || '') : '' },
+    naver:  {
+      clientId: saved.naverEnabled ? (saved.naverClientId || '') : '',
+    },
   }
 }
 
@@ -20,7 +22,6 @@ function generateCode() {
 // ─── Google 로그인 훅
 function useGoogleAuth(onSuccess, clientId) {
   const btnRef = useRef()
-
   useEffect(() => {
     if (!clientId) return
     const script = document.createElement('script')
@@ -32,27 +33,19 @@ function useGoogleAuth(onSuccess, clientId) {
         callback: (res) => {
           try {
             const payload = JSON.parse(atob(res.credential.split('.')[1]))
-            onSuccess({
-              provider: 'google',
-              email: payload.email,
-              name: payload.name,
-              avatar: payload.picture,
-              providerId: payload.sub,
-            })
+            onSuccess({ provider:'google', email:payload.email, name:payload.name, avatar:payload.picture, providerId:payload.sub })
           } catch {}
         },
       })
       if (btnRef.current) {
         window.google?.accounts.id.renderButton(btnRef.current, {
-          type: 'standard', theme: 'outline', size: 'large',
-          text: 'signin_with', shape: 'rectangular', width: 340,
+          type:'standard', theme:'outline', size:'large', text:'signin_with', shape:'rectangular', width:340,
         })
       }
     }
     document.head.appendChild(script)
     return () => { try { document.head.removeChild(script) } catch {} }
   }, [])
-
   return btnRef
 }
 
@@ -67,79 +60,92 @@ function useKakaoAuth(onSuccess, appKey) {
       if (!window.Kakao?.isInitialized()) window.Kakao?.init(appKey)
     }
     document.head.appendChild(script)
-
-    // 팝업 콜백 수신
-    const handleMessage = (e) => {
-      if (e.data?.type === 'kakao_login_success') {
-        onSuccess({
-          provider: 'kakao',
-          email: e.data.email || '',
-          name: e.data.name || '',
-          avatar: e.data.avatar || '',
-          providerId: String(e.data.id),
-        })
-      }
-    }
-    window.addEventListener('message', handleMessage)
-    return () => {
-      try { document.head.removeChild(script) } catch {}
-      window.removeEventListener('message', handleMessage)
-    }
+    return () => { try { document.head.removeChild(script) } catch {} }
   }, [])
 
   const loginWithKakao = () => {
-    if (!appKey) {
-      alert('카카오 앱 키가 설정되지 않았습니다.\n관리자 페이지 → 서비스설정 → 소셜 로그인에서 등록하세요.')
-      return
-    }
+    if (!appKey) { alert('관리자 페이지 → 서비스설정 → 소셜 로그인에서 카카오 키를 등록하세요.'); return }
     const kakao = window.Kakao
     if (!kakao) { alert('카카오 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return }
 
-    // SDK v2.7+ 방식: authorize → REST API로 사용자 정보 조회
-    kakao.Auth.authorize({
-      redirectUri: window.location.origin + '/kakao-callback',
-      throughTalk: false,
-      success: (authObj) => {
-        kakao.API.request({
-          url: '/v2/user/me',
-          success: (res) => {
-            const kakaoAcc = res.kakao_account
-            onSuccess({
-              provider: 'kakao',
-              email: kakaoAcc?.email || '',
-              name: kakaoAcc?.profile?.nickname || '',
-              avatar: kakaoAcc?.profile?.thumbnail_image_url || '',
-              providerId: String(res.id),
-            })
-          },
-          fail: (err) => console.error('Kakao API fail', err),
-        })
-      },
-      fail: (err) => {
-        // authorize 미지원 구버전 fallback
-        kakao.Auth.login({
-          success: () => {
-            kakao.API.request({
-              url: '/v2/user/me',
-              success: (res) => {
-                const kakaoAcc = res.kakao_account
-                onSuccess({
-                  provider: 'kakao',
-                  email: kakaoAcc?.email || '',
-                  name: kakaoAcc?.profile?.nickname || '',
-                  avatar: kakaoAcc?.profile?.thumbnail_image_url || '',
-                  providerId: String(res.id),
-                })
-              },
-            })
-          },
-          fail: (e) => console.error('Kakao login fail', e),
-        })
-      },
-    })
+    const doRequest = () => {
+      kakao.API.request({
+        url: '/v2/user/me',
+        success: (res) => {
+          const acc = res.kakao_account
+          onSuccess({ provider:'kakao', email:acc?.email||'', name:acc?.profile?.nickname||'', avatar:acc?.profile?.thumbnail_image_url||'', providerId:String(res.id) })
+        },
+        fail: (e) => console.error('Kakao API fail', e),
+      })
+    }
+
+    try {
+      kakao.Auth.authorize({
+        redirectUri: window.location.origin + '/kakao-callback',
+        throughTalk: false,
+        success: doRequest,
+        fail: () => {
+          kakao.Auth.login({ success: doRequest, fail: (e) => console.error('Kakao login fail', e) })
+        },
+      })
+    } catch {
+      kakao.Auth.login({ success: doRequest, fail: (e) => console.error('Kakao login fail', e) })
+    }
   }
 
   return loginWithKakao
+}
+
+// ─── 네이버 로그인 버튼 컴포넌트 (팝업 방식)
+function NaverLoginBtn({ onSuccess }) {
+  const cfg = Settings.get('social') || {}
+  const clientId = cfg.naverEnabled ? (cfg.naverClientId || '') : ''
+
+  const handleClick = () => {
+    if (!clientId) { alert('관리자 페이지 → 서비스설정 → 소셜 로그인에서 네이버 키를 등록하세요.'); return }
+
+    const state    = Math.random().toString(36).slice(2)
+    const callback = encodeURIComponent(window.location.origin + '/naver-callback')
+    const url = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${clientId}&redirect_uri=${callback}&state=${state}`
+
+    const popup = window.open(url, 'naver_login', 'width=500,height=600,scrollbars=yes')
+
+    const handler = (e) => {
+      if (e.origin !== window.location.origin) return
+      if (e.data?.type === 'naver_login_success') {
+        window.removeEventListener('message', handler)
+        onSuccess({
+          provider:   'naver',
+          email:      e.data.email   || '',
+          name:       e.data.name    || '',
+          avatar:     e.data.avatar  || '',
+          providerId: String(e.data.id),
+        })
+      }
+      if (e.data?.type === 'naver_login_fail') {
+        window.removeEventListener('message', handler)
+        console.error('Naver login fail', e.data.error)
+      }
+    }
+    window.addEventListener('message', handler)
+
+    // 팝업이 닫혔을 때 핸들러 정리
+    const timer = setInterval(() => {
+      if (popup?.closed) { clearInterval(timer); window.removeEventListener('message', handler) }
+    }, 500)
+  }
+
+  return (
+    <SocialBtn
+      icon="🟢"
+      label="네이버로 계속하기"
+      color="#fff"
+      bg="#03C75A"
+      border="#03C75A"
+      onClick={handleClick}
+      disabled={!clientId}
+    />
+  )
 }
 
 // ─── 소셜 로그인 처리 공통 함수
@@ -149,17 +155,12 @@ function handleSocialLogin(profile, onLogin) {
 
   const email = profile.email || `${profile.provider}_${profile.providerId}@social.local`
   const user = {
-    id: uid(),
-    name: profile.name || '소셜 사용자',
-    email: email.toLowerCase(),
-    pw: uid(),
-    phone: '',
+    id: uid(), name: profile.name || '소셜 사용자',
+    email: email.toLowerCase(), pw: uid(), phone: '',
     role: 'teacher', level: 1, verified: false,
     verifyImg: null, permissionOverrides: {},
-    provider: profile.provider,
-    providerId: profile.providerId,
-    avatar: profile.avatar || '',
-    createdAt: now(),
+    provider: profile.provider, providerId: profile.providerId,
+    avatar: profile.avatar || '', createdAt: now(),
   }
   Users.insert(user)
   onLogin(user)
@@ -167,29 +168,27 @@ function handleSocialLogin(profile, onLogin) {
 
 // ─── 메인 Auth 컴포넌트
 export function Auth({ onLogin }) {
-  const [mode, setMode] = useState('login')   // 'login' | 'register' | 'forgot'
+  const [mode, setMode] = useState('login')
   const [step, setStep] = useState(1)
 
-  const [form, setForm] = useState({ name: '', email: '', pw: '', pw2: '', phone: '' })
+  const [form, setForm]               = useState({ name:'', email:'', pw:'', pw2:'', phone:'' })
   const [emailChecked, setEmailChecked] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError]             = useState('')
 
-  // 이메일 인증 상태
   const [verifyCode, setVerifyCode] = useState('')
   const [inputCode,  setInputCode]  = useState('')
   const [codeSent,   setCodeSent]   = useState(false)
   const [sending,    setSending]    = useState(false)
   const [verified,   setVerified]   = useState(false)
 
-  // 비밀번호 찾기
   const [forgotEmail,   setForgotEmail]   = useState('')
   const [forgotCode,    setForgotCode]    = useState('')
   const [forgotInput,   setForgotInput]   = useState('')
   const [forgotSent,    setForgotSent]    = useState(false)
   const [forgotSending, setForgotSending] = useState(false)
   const [forgotOk,      setForgotOk]      = useState(false)
-  const [newPw,         setNewPw]         = useState('')
-  const [newPw2,        setNewPw2]        = useState('')
+  const [newPw,  setNewPw]  = useState('')
+  const [newPw2, setNewPw2] = useState('')
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
@@ -198,36 +197,28 @@ export function Auth({ onLogin }) {
     setVerified(false); setError(''); setEmailChecked(false); setSending(false)
   }
 
-  const socialCfg    = getSocialConfig()
-  const googleBtnRef = useGoogleAuth((p) => handleSocialLogin(p, onLogin), socialCfg.google.clientId)
+  const socialCfg      = getSocialConfig()
+  const googleBtnRef   = useGoogleAuth((p) => handleSocialLogin(p, onLogin), socialCfg.google.clientId)
   const loginWithKakao = useKakaoAuth((p) => handleSocialLogin(p, onLogin), socialCfg.kakao.appKey)
   const googleConfigured = !!socialCfg.google.clientId
   const kakaoConfigured  = !!socialCfg.kakao.appKey
 
-  // ── 일반 로그인
   const handleLogin = () => {
     setError('')
     const user = Users.findByEmail(form.email.trim().toLowerCase())
-    if (!user || user.pw !== form.pw) {
-      setError('이메일 또는 비밀번호가 올바르지 않습니다.')
-      return
-    }
+    if (!user || user.pw !== form.pw) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
     onLogin(user)
   }
 
-  // ── Step 1: 정보 검증
   const handleNext = () => {
     setError('')
-    if (!form.name.trim() || !form.email.trim() || !form.pw || !form.phone.trim()) {
-      setError('필수 항목을 모두 입력해주세요.'); return
-    }
+    if (!form.name.trim() || !form.email.trim() || !form.pw || !form.phone.trim()) { setError('필수 항목을 모두 입력해주세요.'); return }
     if (!emailChecked) { setError('이메일 중복 확인을 해주세요.'); return }
     if (form.pw.length < 4) { setError('비밀번호는 4자 이상이어야 합니다.'); return }
     if (form.pw !== form.pw2) { setError('비밀번호가 일치하지 않습니다.'); return }
     setStep(2)
   }
 
-  // ── 인증번호 발송 (실제 이메일 발송)
   const sendCode = async () => {
     const code = generateCode()
     setVerifyCode(code); setInputCode(''); setVerified(false); setError(''); setSending(true)
@@ -246,28 +237,25 @@ export function Auth({ onLogin }) {
     else setError('인증번호가 올바르지 않습니다.')
   }
 
-  // ── 최종 가입
   const handleRegister = () => {
     if (!verified) { setError('이메일 인증을 완료해주세요.'); return }
     const user = {
-      id: uid(), name: form.name.trim(),
-      email: form.email.trim().toLowerCase(),
+      id: uid(), name: form.name.trim(), email: form.email.trim().toLowerCase(),
       pw: form.pw, phone: form.phone.trim(),
-      role: 'teacher', level: 1, verified: false,
-      verifyImg: null, permissionOverrides: {},
-      provider: 'email', createdAt: now(),
+      role:'teacher', level:1, verified:false, verifyImg:null, permissionOverrides:{},
+      provider:'email', createdAt: now(),
     }
     Users.insert(user)
     onLogin(user)
   }
 
-  // ── 비밀번호 찾기: 인증번호 발송
   const sendForgotCode = async () => {
     setError('')
     const user = Users.findByEmail(forgotEmail.trim().toLowerCase())
     if (!user) { setError('등록되지 않은 이메일입니다.'); return }
     if (user.provider && user.provider !== 'email') {
-      setError(`${user.provider === 'google' ? 'Google' : user.provider === 'kakao' ? '카카오' : '소셜'} 계정으로 가입된 이메일입니다. 소셜 로그인을 이용해주세요.`); return
+      const label = user.provider === 'google' ? 'Google' : user.provider === 'kakao' ? '카카오' : '네이버'
+      setError(`${label} 계정으로 가입된 이메일입니다. 소셜 로그인을 이용해주세요.`); return
     }
     const code = generateCode()
     setForgotCode(code); setForgotInput(''); setForgotOk(false); setForgotSending(true)
@@ -295,14 +283,12 @@ export function Auth({ onLogin }) {
     setMode('login')
     setForgotEmail(''); setForgotCode(''); setForgotInput('')
     setForgotSent(false); setForgotOk(false); setNewPw(''); setNewPw2('')
-    setError('')
   }
 
   return (
     <div style={{ minHeight:'100vh', background:'linear-gradient(135deg, #fff7ed 0%, #fff 60%, #f0fdf4 100%)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
       <div style={{ width:'100%', maxWidth:'440px' }}>
 
-        {/* 로고 */}
         <div style={{ textAlign:'center', marginBottom:'32px' }}>
           <div style={{ fontSize:'48px', marginBottom:'12px' }}>📋</div>
           <h1 style={{ fontSize:'26px', fontWeight:700, color:'#111827' }}>방과후 출석부</h1>
@@ -311,7 +297,6 @@ export function Auth({ onLogin }) {
 
         <div style={{ background:'#fff', borderRadius:'20px', boxShadow:'0 8px 40px rgba(0,0,0,0.1)', overflow:'hidden' }}>
 
-          {/* 탭 — 비밀번호 찾기 모드일 땐 탭 숨김 */}
           {mode !== 'forgot' && (
             <div style={{ display:'flex', borderBottom:'1px solid #f3f4f6' }}>
               {['login','register'].map(m => (
@@ -337,15 +322,7 @@ export function Auth({ onLogin }) {
                   }
                   <SocialBtn icon="💛" label="카카오로 계속하기" color="#3C1E1E" bg="#FEE500" border="#FEE500"
                     onClick={kakaoConfigured ? loginWithKakao : () => alert('관리자 페이지 → 서비스설정 → 소셜 로그인에서 카카오 키를 등록하세요.')} />
-                  {(() => {
-                    const naverCfg = Settings.get('social') || {}
-                    const naverEnabled = naverCfg.naverEnabled && naverCfg.naverClientId
-                    return (
-                      <SocialBtn icon="🟢" label="네이버로 계속하기" color="#fff" bg="#03C75A" border="#03C75A"
-                        onClick={() => !naverEnabled && alert('관리자 페이지 → 서비스설정 → 소셜 로그인에서 네이버 키를 등록하세요.')}
-                        disabled={!naverEnabled} />
-                    )
-                  })()}
+                  <NaverLoginBtn onSuccess={(p) => handleSocialLogin(p, onLogin)} />
                 </div>
 
                 <Divider label="또는 이메일로 로그인" />
@@ -375,16 +352,13 @@ export function Auth({ onLogin }) {
                   }
                   <SocialBtn icon="💛" label="카카오로 간편가입" color="#3C1E1E" bg="#FEE500" border="#FEE500"
                     onClick={kakaoConfigured ? loginWithKakao : () => alert('관리자 페이지 → 서비스설정 → 소셜 로그인에서 카카오 키를 등록하세요.')} />
+                  <NaverLoginBtn onSuccess={(p) => handleSocialLogin(p, onLogin)} />
                 </div>
 
                 <Divider label="또는 이메일로 가입" />
 
                 <Input label="이름" value={form.name} onChange={v => set('name', v)} placeholder="홍길동" required />
-                <EmailInputWithCheck
-                  value={form.email}
-                  onChange={v => { set('email', v); setEmailChecked(false) }}
-                  onChecked={ok => setEmailChecked(ok)}
-                />
+                <EmailInputWithCheck value={form.email} onChange={v => { set('email', v); setEmailChecked(false) }} onChecked={ok => setEmailChecked(ok)} />
                 <Input label="연락처" value={form.phone} onChange={v => set('phone', v)} placeholder="010-0000-0000" required />
                 <Input label="비밀번호 (4자 이상)" value={form.pw} onChange={v => set('pw', v)} type="password" placeholder="비밀번호" required />
                 <Input label="비밀번호 확인" value={form.pw2} onChange={v => set('pw2', v)} type="password" placeholder="재입력" required />
@@ -393,7 +367,7 @@ export function Auth({ onLogin }) {
               </div>
             )}
 
-            {/* ══ 회원가입 Step 2: 이메일 인증 ══ */}
+            {/* ══ 회원가입 Step 2 ══ */}
             {mode === 'register' && step === 2 && (
               <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'12px' }}>
@@ -401,18 +375,15 @@ export function Auth({ onLogin }) {
                   <span style={{ color:'#9ca3af' }}>→</span>
                   <span style={{ color:'#f97316', fontWeight:700 }}>② 이메일 인증</span>
                 </div>
-
                 <div style={{ padding:'12px 14px', background:'#eff6ff', borderRadius:'10px', border:'1.5px solid #bfdbfe', fontSize:'13px', color:'#1e40af', lineHeight:1.7 }}>
                   <strong>{form.email}</strong>으로 인증번호를 발송합니다.
                 </div>
-
                 {!verified && (
                   <button onClick={sendCode} disabled={sending}
                     style={{ padding:'10px', borderRadius:'9px', border:'1.5px solid #f97316', background:'#fff7ed', color:'#f97316', fontSize:'13px', fontWeight:700, cursor:sending?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif', opacity:sending?0.6:1 }}>
                     📧 {sending ? '발송 중...' : codeSent ? '인증번호 재발송' : '인증번호 발송'}
                   </button>
                 )}
-
                 {codeSent && !verified && (
                   <>
                     <div style={{ padding:'12px', background:'#f0fdf4', borderRadius:'8px', border:'1.5px solid #86efac', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
@@ -420,21 +391,17 @@ export function Auth({ onLogin }) {
                     </div>
                     <div style={{ display:'flex', gap:'8px' }}>
                       <input value={inputCode} onChange={e => setInputCode(e.target.value)}
-                        placeholder="인증번호 6자리"
-                        onKeyDown={e => e.key === 'Enter' && checkCode()}
-                        maxLength={6}
+                        placeholder="인증번호 6자리" onKeyDown={e => e.key==='Enter' && checkCode()} maxLength={6}
                         style={{ flex:1, padding:'10px 14px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'18px', fontFamily:'Noto Sans KR, sans-serif', letterSpacing:'6px', textAlign:'center', outline:'none' }} />
                       <Btn onClick={checkCode}>확인</Btn>
                     </div>
                   </>
                 )}
-
                 {verified && (
                   <div style={{ padding:'12px', background:'#f0fdf4', borderRadius:'10px', border:'1.5px solid #86efac', fontSize:'14px', fontWeight:700, color:'#15803d', textAlign:'center' }}>
                     ✅ 이메일 인증 완료!
                   </div>
                 )}
-
                 {error && <ErrBox msg={error} />}
                 <div style={{ display:'flex', gap:'8px' }}>
                   <Btn variant="ghost" onClick={() => { setStep(1); setError('') }} style={{ flex:1 }}>← 뒤로</Btn>
@@ -447,7 +414,6 @@ export function Auth({ onLogin }) {
             {mode === 'forgot' && (
               <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
                 <div style={{ fontSize:'16px', fontWeight:700, color:'#111827' }}>🔑 비밀번호 찾기</div>
-
                 {!forgotOk ? (
                   <>
                     <Input label="가입한 이메일" value={forgotEmail} onChange={setForgotEmail} placeholder="이메일 입력" type="email" />
@@ -462,9 +428,7 @@ export function Auth({ onLogin }) {
                         </div>
                         <div style={{ display:'flex', gap:'8px' }}>
                           <input value={forgotInput} onChange={e => setForgotInput(e.target.value)}
-                            placeholder="인증번호 6자리"
-                            onKeyDown={e => e.key === 'Enter' && checkForgotCode()}
-                            maxLength={6}
+                            placeholder="인증번호 6자리" onKeyDown={e => e.key==='Enter' && checkForgotCode()} maxLength={6}
                             style={{ flex:1, padding:'10px 14px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'18px', fontFamily:'Noto Sans KR, sans-serif', letterSpacing:'6px', textAlign:'center', outline:'none' }} />
                           <Btn onClick={checkForgotCode}>확인</Btn>
                         </div>
@@ -480,12 +444,11 @@ export function Auth({ onLogin }) {
                     <div style={{ padding:'12px', background:'#f0fdf4', borderRadius:'8px', border:'1.5px solid #86efac', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
                       ✅ 본인 확인 완료. 새 비밀번호를 입력하세요.
                     </div>
-                    <Input label="새 비밀번호 (4자 이상)" value={newPw} onChange={setNewPw} type="password" placeholder="새 비밀번호" />
-                    <Input label="새 비밀번호 확인" value={newPw2} onChange={setNewPw2} type="password" placeholder="재입력" />
+                    <Input label="새 비밀번호 (4자 이상)" value={newPw}  onChange={setNewPw}  type="password" placeholder="새 비밀번호" />
+                    <Input label="새 비밀번호 확인"        value={newPw2} onChange={setNewPw2} type="password" placeholder="재입력" />
                     <Btn full onClick={handleResetPw}>비밀번호 변경</Btn>
                   </>
                 )}
-
                 {error && <ErrBox msg={error} />}
                 <button onClick={() => { setMode('login'); setError('') }}
                   style={{ background:'none', border:'none', color:'#9ca3af', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
@@ -507,7 +470,6 @@ export function Auth({ onLogin }) {
   )
 }
 
-// ── 소셜 버튼
 function SocialBtn({ icon, label, color, bg, border, onClick, disabled }) {
   return (
     <button onClick={onClick} disabled={disabled}
@@ -517,7 +479,6 @@ function SocialBtn({ icon, label, color, bg, border, onClick, disabled }) {
   )
 }
 
-// ── 구분선
 function Divider({ label }) {
   return (
     <div style={{ display:'flex', alignItems:'center', gap:'10px', color:'#9ca3af', fontSize:'12px' }}>
@@ -528,42 +489,32 @@ function Divider({ label }) {
   )
 }
 
-// ── 이메일 + 중복확인
 function EmailInputWithCheck({ value, onChange, onChecked }) {
   const [state, setState] = useState(null)
-
   const check = () => {
     if (!value.trim()) { setState({ ok:false, msg:'이메일을 입력해주세요.' }); return }
     const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailReg.test(value.trim())) { setState({ ok:false, msg:'올바른 이메일 형식이 아닙니다.' }); onChecked(false); return }
     const dup = Users.findByEmail(value.trim().toLowerCase())
     if (dup) { setState({ ok:false, msg:'이미 사용 중인 이메일입니다.' }); onChecked(false) }
-    else     { setState({ ok:true,  msg:'사용 가능한 이메일입니다.' });   onChecked(true) }
+    else     { setState({ ok:true,  msg:'사용 가능한 이메일입니다.' });   onChecked(true)  }
   }
-
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
       <label style={{ fontSize:'13px', fontWeight:500, color:'#111827' }}>이메일 (아이디) <span style={{ color:'#ef4444' }}>*</span></label>
       <div style={{ display:'flex', gap:'8px' }}>
-        <input type="email" value={value}
-          onChange={e => { onChange(e.target.value); setState(null); onChecked(false) }}
-          placeholder="example@email.com"
-          style={{ flex:1, padding:'9px 13px', borderRadius:'9px', border:`1.5px solid ${state ? (state.ok?'#86efac':'#fca5a5') : '#e5e7eb'}`, fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+        <input type="email" value={value} onChange={e => { onChange(e.target.value); setState(null); onChecked(false) }} placeholder="example@email.com"
+          style={{ flex:1, padding:'9px 13px', borderRadius:'9px', border:`1.5px solid ${state?(state.ok?'#86efac':'#fca5a5'):'#e5e7eb'}`, fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
         <button onClick={check}
           style={{ padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${state?.ok?'#86efac':'#e5e7eb'}`, background:state?.ok?'#f0fdf4':'#fff', color:state?.ok?'#16a34a':'#374151', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', minWidth:'76px', transition:'all .15s' }}>
           {state?.ok ? '✅ 확인됨' : '중복 확인'}
         </button>
       </div>
-      {state && (
-        <div style={{ fontSize:'12px', color:state.ok?'#16a34a':'#ef4444' }}>
-          {state.ok ? '✓' : '✗'} {state.msg}
-        </div>
-      )}
+      {state && <div style={{ fontSize:'12px', color:state.ok?'#16a34a':'#ef4444' }}>{state.ok?'✓':'✗'} {state.msg}</div>}
     </div>
   )
 }
 
-// ── 에러 박스
 function ErrBox({ msg }) {
   return <div style={{ fontSize:'13px', color:'#ef4444', background:'#fef2f2', padding:'10px 14px', borderRadius:'8px', border:'1px solid #fca5a5' }}>{msg}</div>
 }
