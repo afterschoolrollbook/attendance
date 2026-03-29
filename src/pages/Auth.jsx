@@ -10,6 +10,7 @@ function getSocialConfig() {
   return {
     google: { clientId: saved.googleEnabled ? (saved.googleClientId || '') : '' },
     kakao:  { appKey:   saved.kakaoEnabled  ? (saved.kakaoAppKey  || '') : '' },
+    naver:  { clientId: saved.naverEnabled  ? (saved.naverClientId || '') : '' },
   }
 }
 
@@ -109,35 +110,74 @@ function useGoogleAuth(onSuccess, clientId) {
   return btnRef
 }
 
-// 카카오 로그인 훅
-function useKakaoAuth(onSuccess, appKey) {
-  useEffect(() => {
-    if (!appKey) return
-    const script = document.createElement('script')
-    script.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js'
-    script.async = true
-    script.onload = () => { if (!window.Kakao?.isInitialized()) window.Kakao?.init(appKey) }
-    document.head.appendChild(script)
-    return () => { try { document.head.removeChild(script) } catch {} }
-  }, [appKey])
-
+// 카카오 로그인 훅 (REST API 팝업 방식)
+function useKakaoAuth(onSuccess, restApiKey) {
   const loginWithKakao = () => {
-    if (!appKey) { alert('카카오 앱 키가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
-    window.Kakao?.Auth.login({
-      success: () => {
-        window.Kakao?.API.request({
-          url: '/v2/user/me',
-          success: (res) => {
-            const kakaoAcc = res.kakao_account
-            onSuccess({ provider: 'kakao', email: kakaoAcc?.email || '', name: kakaoAcc?.profile?.nickname || '', avatar: kakaoAcc?.profile?.thumbnail_image_url || '', providerId: String(res.id) })
-          },
-        })
-      },
-      fail: (err) => console.error('Kakao login fail', err),
-    })
+    if (!restApiKey) { alert('카카오 앱 키가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
+
+    // 팝업에서 clientId를 읽을 수 있게 임시 저장
+    localStorage.setItem('asa_kakao_client_id', restApiKey)
+
+    const redirectUri = `${window.location.origin}/kakao-callback`
+    const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${restApiKey}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`
+
+    const popup = window.open(kakaoAuthUrl, 'kakaoLogin', 'width=500,height=700,left=200,top=100')
+
+    const handleMessage = (e) => {
+      if (e.origin !== window.location.origin) return
+      if (e.data?.type !== 'kakao_login_success' && e.data?.type !== 'kakao_login_fail') return
+      window.removeEventListener('message', handleMessage)
+
+      if (e.data.type === 'kakao_login_success') {
+        onSuccess({ provider: 'kakao', email: e.data.email, name: e.data.name || '', avatar: e.data.avatar || '', providerId: String(e.data.id) })
+      } else {
+        console.error('카카오 로그인 실패:', e.data.error)
+        alert('카카오 로그인에 실패했습니다.')
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+
+    const timer = setInterval(() => {
+      if (popup?.closed) { clearInterval(timer); window.removeEventListener('message', handleMessage) }
+    }, 500)
   }
 
   return loginWithKakao
+}
+
+// 네이버 로그인 훅 (팝업 방식)
+function useNaverAuth(onSuccess, clientId) {
+  const loginWithNaver = () => {
+    if (!clientId) { alert('네이버 클라이언트 ID가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
+
+    const redirectUri = `${window.location.origin}/naver-callback`
+    const state = Math.random().toString(36).substring(2)
+    const naverAuthUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`
+
+    const popup = window.open(naverAuthUrl, 'naverLogin', 'width=500,height=700,left=200,top=100')
+
+    const handleMessage = (e) => {
+      if (e.origin !== window.location.origin) return
+      if (e.data?.type !== 'naver_login_success' && e.data?.type !== 'naver_login_fail') return
+      window.removeEventListener('message', handleMessage)
+
+      if (e.data.type === 'naver_login_success') {
+        onSuccess({ provider: 'naver', email: e.data.email, name: e.data.name || '', avatar: e.data.avatar || '', providerId: String(e.data.id) })
+      } else {
+        console.error('네이버 로그인 실패:', e.data.error)
+        alert('네이버 로그인에 실패했습니다.')
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+
+    const timer = setInterval(() => {
+      if (popup?.closed) { clearInterval(timer); window.removeEventListener('message', handleMessage) }
+    }, 500)
+  }
+
+  return loginWithNaver
 }
 
 // ─── 소셜 이메일 인증 화면
@@ -339,8 +379,10 @@ export function Auth({ onLogin }) {
   const socialCfg = getSocialConfig()
   const googleBtnRef = useGoogleAuth(handleSocialSuccess, socialCfg.google.clientId)
   const loginWithKakao = useKakaoAuth(handleSocialSuccess, socialCfg.kakao.appKey)
+  const loginWithNaver = useNaverAuth(handleSocialSuccess, socialCfg.naver.clientId)
   const googleConfigured = !!socialCfg.google.clientId
   const kakaoConfigured  = !!socialCfg.kakao.appKey
+  const naverConfigured  = !!socialCfg.naver.clientId
 
   const handleLogin = () => {
     setError('')
@@ -444,17 +486,8 @@ export function Auth({ onLogin }) {
                       )}
                       <SocialBtn icon="💛" label="카카오로 계속하기" color="#3C1E1E" bg="#FEE500" border="#FEE500"
                         onClick={kakaoConfigured ? loginWithKakao : () => alert('카카오 로그인을 사용하려면\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
-                      {(() => {
-                        const naverCfg = Settings.get('social') || {}
-                        const naverEnabled = naverCfg.naverEnabled && naverCfg.naverClientId
-                        return (
-                          <SocialBtn icon="🟢" label="네이버로 계속하기" color="#fff" bg="#03C75A" border="#03C75A"
-                            onClick={() => naverEnabled
-                              ? alert('네이버 로그인: 관리자가 클라이언트 ID를 설정하면 활성화됩니다.')
-                              : alert('관리자 → 서비스설정 → 소셜 로그인에서 네이버 키를 등록하세요.')}
-                            disabled={!naverEnabled} />
-                        )
-                      })()}
+                      <SocialBtn icon="🟢" label="네이버로 계속하기" color="#fff" bg="#03C75A" border="#03C75A"
+                        onClick={naverConfigured ? loginWithNaver : () => alert('네이버 로그인을 사용하려면\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
                     </div>
                     <Divider label="또는 이메일로 로그인" />
                     <Input label="이메일" value={form.email} onChange={v => set('email', v)} placeholder="admin@test.com" type="email" />
@@ -480,6 +513,8 @@ export function Auth({ onLogin }) {
                       )}
                       <SocialBtn icon="💛" label="카카오로 간편가입" color="#3C1E1E" bg="#FEE500" border="#FEE500"
                         onClick={kakaoConfigured ? loginWithKakao : () => alert('관리자 → 서비스설정 → 소셜 로그인에서 카카오 키를 등록하세요.')} />
+                      <SocialBtn icon="🟢" label="네이버로 간편가입" color="#fff" bg="#03C75A" border="#03C75A"
+                        onClick={naverConfigured ? loginWithNaver : () => alert('관리자 → 서비스설정 → 소셜 로그인에서 네이버 키를 등록하세요.')} />
                     </div>
                     <Divider label="또는 이메일로 가입" />
                     <Input label="이름" value={form.name} onChange={v => set('name', v)} placeholder="홍길동" required />
