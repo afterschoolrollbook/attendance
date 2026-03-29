@@ -287,30 +287,26 @@ export function Auth({ onLogin }) {
     setError(''); setEmailChecked(false); setSending(false); setIsDev(false)
   }
 
-  // 소셜 로그인 콜백 — 이메일 인증 먼저
+  // 소셜 로그인 콜백
   const handleSocialSuccess = (profile) => {
-    setPendingSocialProfile(profile)
-    setSocialStep('email_verify')
-  }
-
-  // 이메일 인증 완료 → 프로필 입력 or 바로 로그인
-  const handleEmailVerified = () => {
-    const profile = pendingSocialProfile
     const existing = Users.findByEmail(profile.email?.toLowerCase())
-
     if (existing) {
-      // 기존 계정 — 이름 깨졌거나 전화번호 없으면 프로필 입력
+      // 기존 계정 — 바로 로그인 (이메일 인증 불필요)
       if (isGarbled(existing.name) || !existing.phone) {
+        setPendingSocialProfile({ ...profile, existingId: existing.id })
         setSocialStep('profile')
       } else {
-        setSocialStep(null)
-        setPendingSocialProfile(null)
         onLogin(existing)
       }
       return
     }
+    // 신규 가입 — 이메일 인증 후 프로필 입력
+    setPendingSocialProfile(profile)
+    setSocialStep('email_verify')
+  }
 
-    // 신규 가입 — 프로필 입력
+  // 이메일 인증 완료 → 프로필 입력 (신규 가입자만 여기 도달)
+  const handleEmailVerified = () => {
     setSocialStep('profile')
   }
 
