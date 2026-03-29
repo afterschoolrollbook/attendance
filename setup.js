@@ -1,13 +1,11 @@
 /**
- * 방과후 출석부 — 백엔드 자동 설정
- * Supabase CLI 없이 Management API 직접 사용
- * 실행: node setup.js
+ * Afterschool Attendance - Backend Auto Setup
+ * Run: node setup.js
  */
 
-const https  = require('https')
-const http   = require('http')
-const fs     = require('fs')
-const path   = require('path')
+const https    = require('https')
+const fs       = require('fs')
+const path     = require('path')
 const readline = require('readline')
 
 const G = '\x1b[32m'; const Y = '\x1b[33m'; const R = '\x1b[31m'; const N = '\x1b[0m'
@@ -32,12 +30,12 @@ function ask(question) {
   return new Promise(resolve => rl.question(question, ans => { rl.close(); resolve(ans.trim()) }))
 }
 
-function apiCall(method, path, token, body) {
+function apiCall(method, urlPath, token, body) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null
     const opts = {
       hostname: 'api.supabase.com',
-      path,
+      path: urlPath,
       method,
       headers: {
         'Authorization': 'Bearer ' + token,
@@ -59,6 +57,56 @@ function apiCall(method, path, token, body) {
   })
 }
 
+// 공식 문서 기준: entrypoint_path 필수, --form file=@file 방식
+function deployFunction(projectRef, token, fnSlug, code) {
+  return new Promise((resolve, reject) => {
+    const boundary = '----FormBoundary' + Date.now().toString(36) + Math.random().toString(36).slice(2)
+
+    // metadata: entrypoint_path 필수!
+    const meta = JSON.stringify({ name: fnSlug, entrypoint_path: 'index.ts', verify_jwt: false })
+    const metaBuf = Buffer.from(meta, 'utf8')
+    const codeBuf = Buffer.from(code, 'utf8')
+    const CRLF = '\r\n'
+
+    const parts = [
+      Buffer.from(`--${boundary}${CRLF}`),
+      Buffer.from(`Content-Disposition: form-data; name="metadata"${CRLF}`),
+      Buffer.from(`Content-Type: application/json${CRLF}${CRLF}`),
+      metaBuf,
+      Buffer.from(`${CRLF}--${boundary}${CRLF}`),
+      Buffer.from(`Content-Disposition: form-data; name="file"; filename="index.ts"${CRLF}`),
+      Buffer.from(`Content-Type: application/typescript${CRLF}${CRLF}`),
+      codeBuf,
+      Buffer.from(`${CRLF}--${boundary}--${CRLF}`),
+    ]
+
+    const bodyBuf = Buffer.concat(parts)
+
+    const opts = {
+      hostname: 'api.supabase.com',
+      path: `/v1/projects/${projectRef}/functions/deploy?slug=${fnSlug}`,
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': bodyBuf.byteLength,
+      }
+    }
+
+    const req = https.request(opts, res => {
+      let buf = ''
+      res.on('data', d => buf += d)
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(buf) }) }
+        catch { resolve({ status: res.statusCode, body: buf }) }
+      })
+    })
+    req.on('error', reject)
+    req.write(bodyBuf)
+    req.end()
+  })
+}
+
 async function main() {
   console.log('')
   console.log('====================================================')
@@ -66,7 +114,6 @@ async function main() {
   console.log('====================================================')
   console.log('')
 
-  // .env 확인
   const envPath = path.join(__dirname, '.env')
   if (!fs.existsSync(envPath)) { fail('.env 파일 없음'); process.exit(1) }
   const env = loadEnv(envPath)
@@ -76,7 +123,6 @@ async function main() {
   const projectRef = env.VITE_SUPABASE_URL.replace('https://','').split('.')[0]
   ok('프로젝트: ' + projectRef)
 
-  // Access Token 안내
   console.log('')
   console.log('[ 인증 ] Supabase Access Token 필요')
   console.log('')
@@ -91,25 +137,21 @@ async function main() {
   const token = await ask('  토큰 붙여넣기: ')
   if (!token) { fail('토큰 없음'); process.exit(1) }
 
-  // 토큰 확인
   const me = await apiCall('GET', '/v1/projects', token)
-  if (me.status !== 200) { fail('토큰 오류 (상태코드 '+me.status+'): ' + JSON.stringify(me.body).slice(0,100)); process.exit(1) }
+  if (me.status !== 200) { fail('토큰 오류 ('+me.status+'): ' + JSON.stringify(me.body).slice(0,100)); process.exit(1) }
   ok('토큰 확인 완료')
 
-  // Secrets 등록
   console.log('')
   console.log('[ SECRETS ] 등록 중...')
-  const secrets = [
+  const secRes = await apiCall('POST', `/v1/projects/${projectRef}/secrets`, token, [
     { name: 'SVC_ROLE_KEY', value: env.SUPABASE_SERVICE_ROLE_KEY }
-  ]
-  const secRes = await apiCall('POST', `/v1/projects/${projectRef}/secrets`, token, secrets)
+  ])
   if (secRes.status === 200 || secRes.status === 201) {
-    ok('SUPABASE_SERVICE_ROLE_KEY 등록 완료')
+    ok('SVC_ROLE_KEY 등록 완료')
   } else {
     warn('Secrets 등록 오류: ' + JSON.stringify(secRes.body))
   }
 
-  // Edge Functions 배포
   console.log('')
   console.log('[ DEPLOY ] Edge Functions 배포 중...')
 
@@ -121,31 +163,16 @@ async function main() {
 
     const code = fs.readFileSync(fnPath, 'utf8')
 
-    // 기존 함수 확인
-    const existing = await apiCall('GET', `/v1/projects/${projectRef}/functions/${fn}`, token)
-
-    let res
-    if (existing.status === 200) {
-      // 업데이트
-      res = await apiCall('PATCH', `/v1/projects/${projectRef}/functions/${fn}`, token, {
-        body: Buffer.from(code).toString('base64'),
-        verify_jwt: false
-      })
-    } else {
-      // 신규 생성
-      res = await apiCall('POST', `/v1/projects/${projectRef}/functions`, token, {
-        slug: fn,
-        name: fn,
-        body: Buffer.from(code).toString('base64'),
-        verify_jwt: false
-      })
-    }
-
-    if (res.status === 200 || res.status === 201) {
-      console.log(G+'완료'+N)
-    } else {
-      console.log(R+'실패 ('+res.status+')'+N)
-      if (res.body) console.log('    ' + JSON.stringify(res.body).slice(0,100))
+    try {
+      const res = await deployFunction(projectRef, token, fn, code)
+      if (res.status === 200 || res.status === 201) {
+        console.log(G+'완료'+N)
+      } else {
+        console.log(R+'실패 ('+res.status+')'+N)
+        if (res.body) console.log('    ' + JSON.stringify(res.body).slice(0,300))
+      }
+    } catch(e) {
+      console.log(R+'오류: '+e.message+N)
     }
   }
 
