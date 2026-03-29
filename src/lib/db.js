@@ -35,9 +35,9 @@ export async function initFromSupabase() {
       const settings = await dbCall('getAll', 'settings')
       if (Array.isArray(settings)) {
         settings.forEach(row => {
-          // DB의 settings 테이블: { id: 'social', data: { googleClientId: ... } }
-          if (row.id && row.data) {
-            localStorage.setItem('asa_settings_' + row.id, JSON.stringify(row.data))
+          // DB의 settings 테이블: { key: 'social', value: { googleClientId: ... } }
+          if (row.key && row.value) {
+            localStorage.setItem('asa_settings_' + row.key, JSON.stringify(row.value))
           }
         })
         console.log('[Supabase] settings 동기화 완료')
