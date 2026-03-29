@@ -110,43 +110,31 @@ function useGoogleAuth(onSuccess, clientId) {
 }
 
 // 카카오 로그인 훅
-function useKakaoAuth(onSuccess, restApiKey) {
+function useKakaoAuth(onSuccess, appKey) {
+  useEffect(() => {
+    if (!appKey) return
+    const script = document.createElement('script')
+    script.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js'
+    script.async = true
+    script.onload = () => { if (!window.Kakao?.isInitialized()) window.Kakao?.init(appKey) }
+    document.head.appendChild(script)
+    return () => { try { document.head.removeChild(script) } catch {} }
+  }, [appKey])
+
   const loginWithKakao = () => {
-    if (!restApiKey) { alert('카카오 앱 키가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
-
-    const redirectUri = window.location.origin + '/kakao-callback'
-    const kakaoAuthUrl = 'https://kauth.kakao.com/oauth/authorize?client_id=' + restApiKey + '&redirect_uri=' + encodeURIComponent(redirectUri) + '&response_type=code'
-
-    window.open(kakaoAuthUrl, 'kakaoLogin', 'width=500,height=700,left=200,top=100')
-
-    const handleMessage = async (e) => {
-      if (e.origin !== window.location.origin) return
-      if (e.data?.type !== 'kakao_callback' && e.data?.type !== 'kakao_login_fail') return
-      window.removeEventListener('message', handleMessage)
-
-      if (e.data.type === 'kakao_login_fail') {
-        alert('카카오 로그인에 실패했습니다.')
-        return
-      }
-
-      try {
-        const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
-        const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-        const res = await fetch(SUPABASE_URL + '/functions/v1/kakao-oauth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON },
-          body: JSON.stringify({ code: e.data.code, clientId: restApiKey, redirectUri }),
+    if (!appKey) { alert('카카오 앱 키가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
+    window.Kakao?.Auth.login({
+      success: () => {
+        window.Kakao?.API.request({
+          url: '/v2/user/me',
+          success: (res) => {
+            const kakaoAcc = res.kakao_account
+            onSuccess({ provider: 'kakao', email: kakaoAcc?.email || '', name: kakaoAcc?.profile?.nickname || '', avatar: kakaoAcc?.profile?.thumbnail_image_url || '', providerId: String(res.id) })
+          },
         })
-        const data = await res.json()
-        if (!data.success) throw new Error(data.error || '카카오 로그인 실패')
-        onSuccess({ provider: 'kakao', email: data.data.email || '', name: data.data.name || '', avatar: data.data.profile_image || '', providerId: String(data.data.id) })
-      } catch(err) {
-        console.error('카카오 토큰 교환 실패:', err)
-        alert('카카오 로그인에 실패했습니다: ' + err.message)
-      }
-    }
-
-    window.addEventListener('message', handleMessage)
+      },
+      fail: (err) => console.error('Kakao login fail', err),
+    })
   }
 
   return loginWithKakao
@@ -301,7 +289,8 @@ export function Auth({ onLogin }) {
 
   // 소셜 로그인 콜백
   const handleSocialSuccess = (profile) => {
-    const existing = Users.findByEmail(profile.email?.toLowerCase())
+    const email = profile.email?.toLowerCase() || ''
+    const existing = email ? Users.findByEmail(email) : null
     if (existing) {
       // 기존 계정 — 바로 로그인 (이메일 인증 불필요)
       if (isGarbled(existing.name) || !existing.phone) {
@@ -312,9 +301,9 @@ export function Auth({ onLogin }) {
       }
       return
     }
-    // 신규 가입 — 이메일 인증 후 프로필 입력
+    // 신규 가입 — 이메일 있으면 인증, 없으면 바로 프로필 입력
     setPendingSocialProfile(profile)
-    setSocialStep('email_verify')
+    setSocialStep(email ? 'email_verify' : 'profile')
   }
 
   // 이메일 인증 완료 → 프로필 입력 (신규 가입자만 여기 도달)
