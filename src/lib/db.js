@@ -5,7 +5,7 @@
  */
 
 import { dbCall, isConfigured } from './supabase.js'
-import { uid, now, localDateStr } from './utils.js'   // ✅ 버그수정: uid, now, localDateStr import 추가
+import { uid, now } from './utils.js'
 
 const PREFIX = 'asa_'
 const key = (t) => PREFIX + t
@@ -29,6 +29,23 @@ export async function initFromSupabase() {
     await Promise.all(tables.map(async (t) => {
       try { const r = await dbCall('getAll', t); if (Array.isArray(r)) cache.set(t, r) } catch {}
     }))
+
+    // ✅ settings 로딩 추가 — 모든 기기에서 관리자 설정(소셜로그인 키 등)을 읽어옴
+    try {
+      const settings = await dbCall('getAll', 'settings')
+      if (Array.isArray(settings)) {
+        settings.forEach(row => {
+          // DB의 settings 테이블: { id: 'social', data: { googleClientId: ... } }
+          if (row.id && row.data) {
+            localStorage.setItem('asa_settings_' + row.id, JSON.stringify(row.data))
+          }
+        })
+        console.log('[Supabase] settings 동기화 완료')
+      }
+    } catch (e) {
+      console.warn('[Supabase] settings 동기화 실패:', e.message)
+    }
+
     console.log('[Supabase] 데이터 동기화 완료')
     return true
   } catch { return false }
@@ -80,9 +97,6 @@ export const Students = {
   byTeacher: (tid)    => db.where('students', s => s.teacherId === tid),
   byClass:   (cid)    => db.where('students', s => s.classIds?.includes(cid)),
   confirmed: (cid)    => db.where('students', s => s.classIds?.includes(cid) && s.status === 'confirmed'),
-  // ✅ 대기자 관련 쿼리 추가
-  waiting:   (cid)    => db.where('students', s => s.classIds?.includes(cid) && s.status === 'waiting'),
-  applied:   (cid)    => db.where('students', s => s.classIds?.includes(cid) && s.status === 'applied'),
   insert:    (s)      => db.insert('students', s),
   update:    (id, p)  => db.update('students', id, p),
   delete:    (id)     => db.delete('students', id),
@@ -135,6 +149,7 @@ export const Settings = {
   get(k)    { try { return JSON.parse(localStorage.getItem('asa_settings_' + k)) } catch { return null } },
   set(k, v) {
     localStorage.setItem('asa_settings_' + k, JSON.stringify(v))
+    // ✅ Supabase에도 저장 (다른 기기에서도 읽을 수 있도록)
     if (isConfigured) dbCall('settingSet', 'settings', { id: k, data: v }).catch(() => {})
   },
   getAll() {
@@ -152,7 +167,6 @@ export const ParentMembers = {
   find:       (id)    => db.getOne('parentMembers', id),
   findByPhone:(phone) => db.get('parentMembers').find(p => p.phone === phone?.replace(/[^0-9]/g, '')),
 
-  // 학생 등록 시 학부모를 본사 회원으로 자동 등록 (이미 있으면 스킵)
   upsert(phone, name = '') {
     const clean = phone?.replace(/[^0-9]/g, '')
     if (!clean || clean.length < 9) return null
@@ -171,13 +185,10 @@ export const TeacherParentLinks = {
   active:    (tid) => db.where('teacherParentLinks', l => l.teacherId === tid && l.status === 'active'),
   activeCount:(tid)=> db.where('teacherParentLinks', l => l.teacherId === tid && l.status === 'active').length,
 
-  // 학생 confirmed 시 연결 생성
   link(teacherId, student, classId) {
     if (!student.parentPhone) return
-    // 1. 학부모를 본사 회원으로 먼저 등록
     const parent = ParentMembers.upsert(student.parentPhone)
     if (!parent) return
-    // 2. 이미 연결돼 있으면 스킵
     const existing = db.get('teacherParentLinks').find(l =>
       l.teacherId === teacherId && l.parentMemberId === parent.id && l.studentId === student.id
     )
@@ -191,7 +202,6 @@ export const TeacherParentLinks = {
     })
   },
 
-  // 학생 제외 시 연결만 종료 (parent_members는 유지)
   unlink(teacherId, studentId, reason = 'student_left') {
     db.where('teacherParentLinks', l =>
       l.teacherId === teacherId && l.studentId === studentId && l.status === 'active'
@@ -200,7 +210,6 @@ export const TeacherParentLinks = {
     }))
   },
 
-  // 수업 종료 시 해당 수업 전체 연결 종료 (parent_members는 유지)
   unlinkByClass(teacherId, classId) {
     db.where('teacherParentLinks', l =>
       l.teacherId === teacherId && l.classId === classId && l.status === 'active'
@@ -252,13 +261,4 @@ export const Branches = {
   unassignTeacher(teacherId) {
     Users.update(teacherId, { branchId: null })
   },
-}
-
-// ─── thisMonthRange 유틸 (UTC 버그 수정)
-export function thisMonthRange() {
-  const d = new Date()
-  const first = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-  // ✅ 버그수정: toISOString() → localDateStr() 로 UTC 변환 버그 방지
-  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0)
-  return { first, last: localDateStr(lastDay) }
 }
