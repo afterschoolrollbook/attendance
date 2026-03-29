@@ -43,7 +43,7 @@ function SocialSection() {
     <Card style={{ marginBottom:'16px' }}>
       <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>🔑 소셜 로그인 연동</div>
       <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px', lineHeight:1.6 }}>
-        소셜 로그인 키를 등록하면 선생님들이 Google·카카오 계정으로 간편하게 가입/로그인할 수 있습니다.
+        소셜 로그인 키를 등록하면 선생님들이 Google·카카오·네이버 계정으로 간편하게 가입/로그인할 수 있습니다.
       </div>
 
       {/* ── Google */}
@@ -65,7 +65,6 @@ function SocialSection() {
         <Field label="클라이언트 ID (Client ID)" value={cfg.googleClientId} onChange={v => set('googleClientId', v)}
           placeholder="000000000000-xxxxxxxxxxxxxxxx.apps.googleusercontent.com" mono />
 
-        {/* ✅ 수정된 Google 발급 안내 */}
         <details style={{ marginTop:'12px' }}>
           <summary style={{ fontSize:'12px', fontWeight:600, color:'#4338ca', cursor:'pointer', userSelect:'none' }}>
             📋 Google 클라이언트 ID 발급 방법 보기
@@ -75,8 +74,7 @@ function SocialSection() {
             &nbsp;&nbsp;<a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" style={{ color:'#4338ca' }}>console.cloud.google.com</a> 접속 → Google 계정 로그인<br />
             <br />
             <strong>② 프로젝트 생성</strong><br />
-            &nbsp;&nbsp;상단 프로젝트 선택 → 새 프로젝트<br />
-            &nbsp;&nbsp;→ 프로젝트 이름 입력 (예: 방과후출석부) → 만들기<br />
+            &nbsp;&nbsp;상단 프로젝트 선택 → 새 프로젝트 → 이름 입력 (예: 방과후출석부) → 만들기<br />
             <br />
             <strong>③ OAuth 동의 화면 설정</strong><br />
             &nbsp;&nbsp;왼쪽 메뉴 → API 및 서비스 → OAuth 동의 화면<br />
@@ -84,11 +82,9 @@ function SocialSection() {
             <br />
             <strong>④ 클라이언트 ID 발급</strong><br />
             &nbsp;&nbsp;왼쪽 메뉴 → 사용자 인증 정보 → + 사용자 인증 정보 만들기<br />
-            &nbsp;&nbsp;→ OAuth 클라이언트 ID → <strong>웹 애플리케이션</strong> 선택<br />
-            &nbsp;&nbsp;→ 앱 이름: 방과후 출석부<br />
-            &nbsp;&nbsp;→ <strong>승인된 JavaScript 원본</strong>에 사이트 주소 추가<br />
+            &nbsp;&nbsp;→ OAuth 클라이언트 ID → 웹 애플리케이션 선택<br />
+            &nbsp;&nbsp;→ 승인된 JavaScript 원본에 사이트 주소 추가<br />
             &nbsp;&nbsp;&nbsp;&nbsp;예: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app</code><br />
-            &nbsp;&nbsp;→ 승인된 리디렉션 URI: <strong>비워두기</strong> (불필요)<br />
             &nbsp;&nbsp;→ 만들기 → 클라이언트 ID 복사하여 위에 입력<br />
             <br />
             <strong>⑤ 비용</strong>: 무료 (Google 계정만 있으면 됨)
@@ -103,7 +99,7 @@ function SocialSection() {
             <span style={{ fontSize:'20px' }}>💛</span>
             <div>
               <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>카카오 로그인</div>
-              <div style={{ fontSize:'12px', color:C.muted }}>JavaScript SDK 방식</div>
+              <div style={{ fontSize:'12px', color:C.muted }}>OAuth 팝업 방식 (REST API 키)</div>
             </div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
@@ -112,41 +108,43 @@ function SocialSection() {
           </div>
         </div>
 
-        <Field label="JavaScript 앱 키" value={cfg.kakaoAppKey} onChange={v => set('kakaoAppKey', v)}
+        <Field label="REST API 키" value={cfg.kakaoAppKey} onChange={v => set('kakaoAppKey', v)}
           placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" mono />
 
-        {/* ✅ 수정된 카카오 발급 안내 */}
         <details style={{ marginTop:'12px' }}>
           <summary style={{ fontSize:'12px', fontWeight:600, color:'#92400e', cursor:'pointer', userSelect:'none' }}>
-            📋 카카오 앱 키 발급 방법 보기
+            📋 카카오 REST API 키 발급 방법 보기
           </summary>
           <div style={{ marginTop:'10px', padding:'12px 14px', background:'#fff', borderRadius:'8px', border:'1px solid #fde68a', fontSize:'12px', color:'#374151', lineHeight:2 }}>
             <strong>① Kakao Developers 접속</strong><br />
-            &nbsp;&nbsp;<a href="https://developers.kakao.com" target="_blank" rel="noopener noreferrer" style={{ color:'#92400e' }}>developers.kakao.com</a> → 상단 <strong>앱</strong> 메뉴 → 카카오 계정 로그인<br />
+            &nbsp;&nbsp;<a href="https://developers.kakao.com" target="_blank" rel="noopener noreferrer" style={{ color:'#92400e' }}>developers.kakao.com</a> 접속 → 카카오 계정 로그인<br />
             <br />
             <strong>② 앱 생성</strong><br />
-            &nbsp;&nbsp;+ 앱 생성 버튼 클릭<br />
-            &nbsp;&nbsp;→ 앱 이름: 방과후 출석부 / 카테고리: 교육<br />
-            &nbsp;&nbsp;→ 도메인: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app</code><br />
-            &nbsp;&nbsp;→ 저장<br />
+            &nbsp;&nbsp;내 애플리케이션 → 애플리케이션 추가하기<br />
+            &nbsp;&nbsp;→ 앱 이름 입력 (예: 방과후출석부) → 저장<br />
             <br />
-            <strong>③ JavaScript 키 등록</strong><br />
-            &nbsp;&nbsp;앱 클릭 → 왼쪽 메뉴 <strong>앱 → 플랫폼 키</strong><br />
-            &nbsp;&nbsp;→ JavaScript 키 섹션 → <strong>JavaScript 키 추가</strong> 클릭<br />
-            &nbsp;&nbsp;→ 키 이름: 방과후 출석부<br />
-            &nbsp;&nbsp;→ JavaScript SDK 도메인: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app</code><br />
-            &nbsp;&nbsp;→ 카카오 로그인 리다이렉트 URI: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app</code><br />
-            &nbsp;&nbsp;→ 저장 → 생성된 키 복사하여 위에 입력<br />
+            <strong>③ REST API 키 확인</strong><br />
+            &nbsp;&nbsp;생성된 앱 클릭 → 앱 설정 → 플랫폼 키<br />
+            &nbsp;&nbsp;→ <strong>REST API 키</strong> 복사하여 위에 입력<br />
+            &nbsp;&nbsp;<span style={{ color:'#ef4444', fontWeight:700 }}>⚠️ JavaScript 키 ❌ — 반드시 REST API 키 사용</span><br />
             <br />
-            <strong>④ 카카오 로그인 활성화</strong><br />
-            &nbsp;&nbsp;왼쪽 메뉴 <strong>제품 설정 → 카카오 로그인 → 일반</strong><br />
-            &nbsp;&nbsp;→ 사용 설정 상태 <strong>ON</strong><br />
+            <strong>④ 리다이렉트 URI 등록</strong><br />
+            &nbsp;&nbsp;플랫폼 키 → JavaScript 키 섹션 → 해당 키 클릭<br />
+            &nbsp;&nbsp;→ 카카오 로그인 리다이렉트 URI에 아래 2개 추가:<br />
+            &nbsp;&nbsp;&nbsp;&nbsp;<code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app</code><br />
+            &nbsp;&nbsp;&nbsp;&nbsp;<code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app/kakao-callback</code><br />
             <br />
-            <strong>⑤ 동의항목 설정</strong><br />
-            &nbsp;&nbsp;제품 설정 → 카카오 로그인 → 동의항목<br />
-            &nbsp;&nbsp;→ 닉네임: <strong>필수 동의</strong> / 프로필 사진: 선택 동의<br />
+            <strong>⑤ 카카오 로그인 활성화</strong><br />
+            &nbsp;&nbsp;제품 설정 → 카카오 로그인 → 활성화 ON<br />
             <br />
-            <strong>⑥ 비용</strong>: 무료
+            <strong>⑥ 동의항목 설정</strong><br />
+            &nbsp;&nbsp;카카오 로그인 → 동의항목 → 닉네임·이메일 필수 동의 설정<br />
+            <br />
+            <strong>⑦ Supabase 환경변수 설정 (필수)</strong><br />
+            &nbsp;&nbsp;Supabase 대시보드 → Edge Functions → Secrets<br />
+            &nbsp;&nbsp;→ <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>KAKAO_CLIENT_ID</code> = REST API 키 값 입력<br />
+            <br />
+            <strong>⑧ 비용</strong>: 무료
           </div>
         </details>
       </div>
@@ -158,7 +156,7 @@ function SocialSection() {
             <span style={{ fontSize:'20px' }}>🟢</span>
             <div>
               <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>네이버 로그인</div>
-              <div style={{ fontSize:'12px', color:C.muted }}>OAuth 팝업 방식</div>
+              <div style={{ fontSize:'12px', color:C.muted }}>OAuth 팝업 방식 (Supabase Edge Function)</div>
             </div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
@@ -169,7 +167,6 @@ function SocialSection() {
         <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
           <Field label="클라이언트 ID" value={cfg.naverClientId||''} onChange={v => setCfg(p=>({...p,naverClientId:v}))} placeholder="XXXXXXXXXXXXXXXX" mono />
           <Field label="클라이언트 Secret" value={cfg.naverClientSecret||''} onChange={v => setCfg(p=>({...p,naverClientSecret:v}))} placeholder="XXXXXXXXXX" type="password" mono />
-          <Field label="콜백 URL" value={cfg.naverCallbackUrl||''} onChange={v => setCfg(p=>({...p,naverCallbackUrl:v}))} placeholder="https://your-app.vercel.app/naver-callback" mono />
         </div>
         <details style={{ marginTop:'12px' }}>
           <summary style={{ fontSize:'12px', fontWeight:600, color:'#15803d', cursor:'pointer', userSelect:'none' }}>
@@ -181,14 +178,19 @@ function SocialSection() {
             <br />
             <strong>② 애플리케이션 등록</strong><br />
             &nbsp;&nbsp;Application → 애플리케이션 등록<br />
-            &nbsp;&nbsp;→ 사용 API: <strong>네아로(네이버 아이디로 로그인)</strong> 선택<br />
+            &nbsp;&nbsp;→ 사용 API: 네아로(네이버 아이디로 로그인) 선택<br />
             &nbsp;&nbsp;→ 서비스 URL: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app</code><br />
             &nbsp;&nbsp;→ Callback URL: <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>https://attendance-phi-sand.vercel.app/naver-callback</code><br />
             <br />
             <strong>③ 키 확인</strong><br />
             &nbsp;&nbsp;Client ID + Client Secret 복사하여 위에 입력<br />
             <br />
-            <strong>④ 비용</strong>: 무료
+            <strong>④ Supabase 환경변수 설정 (필수)</strong><br />
+            &nbsp;&nbsp;Supabase 대시보드 → Edge Functions → Secrets<br />
+            &nbsp;&nbsp;→ <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>NAVER_CLIENT_ID</code> = Client ID 입력<br />
+            &nbsp;&nbsp;→ <code style={{ background:'#f3f4f6', padding:'1px 5px', borderRadius:'3px' }}>NAVER_CLIENT_SECRET</code> = Client Secret 입력<br />
+            <br />
+            <strong>⑤ 비용</strong>: 무료
           </div>
         </details>
       </div>
@@ -368,10 +370,7 @@ function SolapiSection() {
             &nbsp;&nbsp;→ 휴대폰 인증 후 등록<br />
             <br />
             <strong>④ 요금</strong>: SMS 건당 약 9~20원 · 카카오 알림톡 건당 약 7~15원<br />
-            &nbsp;&nbsp;충전식 선불 방식 (무료 체험 크레딧 제공)<br />
-            <br />
-            <strong>⑤ 주의사항</strong>: 대량 발송 시 스팸 신고 방지를 위해<br />
-            &nbsp;&nbsp;수신 동의를 받은 학부모에게만 발송하세요.
+            &nbsp;&nbsp;충전식 선불 방식 (무료 체험 크레딧 제공)
           </div>
         </details>
       </div>
@@ -392,27 +391,6 @@ function SolapiSection() {
         </div>
 
         <Field label="카카오 채널 ID (pfId)" value={cfg.kakaoChannelId} onChange={v => set('kakaoChannelId', v)} placeholder="_xXXXXX" mono />
-
-        <details style={{ marginTop:'12px' }}>
-          <summary style={{ fontSize:'12px', fontWeight:600, color:'#92400e', cursor:'pointer', userSelect:'none' }}>
-            📋 카카오 알림톡 채널 등록 방법 보기
-          </summary>
-          <div style={{ marginTop:'10px', padding:'12px 14px', background:'#fff', borderRadius:'8px', border:'1px solid #fde68a', fontSize:'12px', color:'#374151', lineHeight:2 }}>
-            <strong>① 카카오 비즈니스 채널 생성</strong><br />
-            &nbsp;&nbsp;<a href="https://business.kakao.com" target="_blank" rel="noopener noreferrer" style={{ color:'#92400e' }}>business.kakao.com</a> → 카카오톡 채널 개설<br />
-            &nbsp;&nbsp;→ 채널명, 검색용 아이디 설정<br />
-            <br />
-            <strong>② 알림톡 발신 프로필 등록</strong><br />
-            &nbsp;&nbsp;채널 관리자센터 → 알림톡 → 발신프로필 등록<br />
-            &nbsp;&nbsp;→ 채널 ID(pfId) 확인 후 위에 입력<br />
-            <br />
-            <strong>③ Solapi에서 카카오 연동</strong><br />
-            &nbsp;&nbsp;Solapi → 카카오 채널 → 채널 추가 → pfId 입력<br />
-            <br />
-            <strong>④ 주의</strong>: 알림톡은 사전에 승인된 템플릿만 발송 가능합니다.<br />
-            &nbsp;&nbsp;자유 문자는 SMS/LMS를 사용하세요.
-          </div>
-        </details>
       </div>
 
       <div style={{ padding:'14px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}`, marginBottom:'14px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px' }}>
@@ -441,10 +419,10 @@ export function AdminSettings() {
 
       <div style={{ display:'flex', gap:'8px', marginBottom:'24px', borderBottom:`1px solid ${C.border}`, paddingBottom:'0' }}>
         {[
-          { key:'social',   label:'🔑 소셜 로그인' },
-          { key:'email',    label:'📧 이메일 발송' },
-          { key:'solapi',   label:'📱 문자·알림톡' },
-          { key:'service',  label:'⚙️ 기본 설정' },
+          { key:'social',  label:'🔑 소셜 로그인' },
+          { key:'email',   label:'📧 이메일 발송' },
+          { key:'solapi',  label:'📱 문자·알림톡' },
+          { key:'service', label:'⚙️ 기본 설정' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             style={{ padding:'10px 16px', border:'none', cursor:'pointer', background:'none', color:tab===t.key?C.primary:'#9ca3af', fontWeight:tab===t.key?700:400, fontSize:'14px', borderBottom:tab===t.key?`2px solid ${C.primary}`:'2px solid transparent', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'-1px', transition:'all .15s' }}>
