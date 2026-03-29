@@ -49,13 +49,13 @@ function useGoogleAuth(onSuccess, clientId) {
   return btnRef
 }
 
-// ─── 카카오 로그인 (팝업 URL 방식 — SDK 불필요)
+// ─── 카카오 로그인 (팝업 code 방식)
 function useKakaoAuth(onSuccess, appKey) {
   const loginWithKakao = () => {
     if (!appKey) { alert('관리자 페이지 → 서비스설정 → 소셜 로그인에서 카카오 키를 등록하세요.'); return }
 
     const callback = encodeURIComponent(window.location.origin + '/kakao-callback')
-    const url = 'https://kauth.kakao.com/oauth/authorize?client_id=' + appKey + '&redirect_uri=' + callback + '&response_type=token'
+    const url = 'https://kauth.kakao.com/oauth/authorize?client_id=' + appKey + '&redirect_uri=' + callback + '&response_type=code'
 
     const popup = window.open(url, 'kakao_login', 'width=500,height=600,scrollbars=yes')
 

@@ -1,43 +1,49 @@
 import React, { useEffect } from 'react'
-import { Settings } from '../lib/db.js'
 
 // 카카오 로그인 콜백 페이지 (팝업으로 열림)
-// implicit flow: URL 해시에서 access_token 바로 추출
+// response_type=code → Edge Function으로 토큰 교환 → 사용자 정보
 export function KakaoCallback() {
   useEffect(() => {
     const run = async () => {
       try {
-        // response_type=token 방식: 해시에서 access_token 추출
-        const hash   = new URLSearchParams(window.location.hash.slice(1))
         const params = new URLSearchParams(window.location.search)
-        const token  = hash.get('access_token')
-        const error  = params.get('error') || hash.get('error')
+        const code   = params.get('code')
+        const error  = params.get('error')
 
         if (error) {
           window.opener?.postMessage({ type:'kakao_login_fail', error }, window.location.origin)
           window.close(); return
         }
-        if (!token) {
-          window.opener?.postMessage({ type:'kakao_login_fail', error:'no_token' }, window.location.origin)
+        if (!code) {
+          window.opener?.postMessage({ type:'kakao_login_fail', error:'no_code' }, window.location.origin)
           window.close(); return
         }
 
-        // access_token으로 사용자 정보 조회
-        const res = await fetch('https://kapi.kakao.com/v2/user/me', {
-          headers: { Authorization: `Bearer ${token}` }
+        const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
+        const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/kakao-oauth`, {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON}`,
+          },
+          body: JSON.stringify({
+            code,
+            redirectUri: window.location.origin + '/kakao-callback',
+          }),
         })
         const data = await res.json()
+        if (!data.success) throw new Error(data.error || '카카오 로그인 실패')
 
-        if (data.code < 0 || !data.id) throw new Error('Kakao user info failed')
-
-        const acc = data.kakao_account
         window.opener?.postMessage({
-          type:     'kakao_login_success',
-          email:    acc?.email       || '',
-          name:     acc?.profile?.nickname || '',
-          avatar:   acc?.profile?.thumbnail_image_url || '',
-          id:       String(data.id),
+          type:   'kakao_login_success',
+          email:  data.data.email  || '',
+          name:   data.data.name   || '',
+          avatar: data.data.profile_image || '',
+          id:     data.data.id,
         }, window.location.origin)
+
       } catch (e) {
         window.opener?.postMessage({ type:'kakao_login_fail', error: e.message }, window.location.origin)
       } finally {
