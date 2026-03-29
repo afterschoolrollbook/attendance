@@ -17,6 +17,7 @@ import { Adsense } from './pages/Adsense.jsx'
 import { AdminSettings } from './pages/AdminSettings.jsx'
 import { Profile } from './pages/Profile.jsx'
 import { NaverCallback } from './pages/NaverCallback.jsx'
+import { KakaoCallback } from './pages/KakaoCallback.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
@@ -29,9 +30,8 @@ export default function App() {
   const { toasts } = useToast()
 
   // 네이버 콜백 페이지 처리 — 팝업으로 열린 경우 바로 렌더
-  if (window.location.pathname === '/naver-callback') {
-    return <NaverCallback />
-  }
+  if (window.location.pathname === '/naver-callback') return <NaverCallback />
+  if (window.location.pathname === '/kakao-callback') return <KakaoCallback />
 
   useEffect(() => {
     async function init() {
