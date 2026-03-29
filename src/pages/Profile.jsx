@@ -157,7 +157,7 @@ function VerifyModal({ user, onVerified, onClose }) {
 export function Profile({ user, onUserUpdate, onNav }) {
   const isSocial = user.provider && user.provider !== 'email'
 
-  const [verified,   setVerified]   = useState(false)
+  const [verified, setVerified] = useState(() => sessionStorage.getItem('profile_verified') === 'true')
   const [showVerify, setShowVerify] = useState(false)
   const [pendingAction, setPendingAction] = useState(null)
 
@@ -183,6 +183,7 @@ export function Profile({ user, onUserUpdate, onNav }) {
   }
 
   const handleVerified = () => {
+    sessionStorage.setItem('profile_verified', 'true')
     setVerified(true)
     setShowVerify(false)
     if (pendingAction) { pendingAction(); setPendingAction(null) }
