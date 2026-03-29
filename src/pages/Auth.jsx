@@ -33,7 +33,11 @@ function useGoogleAuth(onSuccess, clientId) {
         client_id: clientId,
         callback: (res) => {
           try {
-            const payload = JSON.parse(atob(res.credential.split('.')[1]))
+            // base64url → base64 변환 후 디코딩
+            const base64url = res.credential.split('.')[1]
+            const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/')
+            const padded = base64 + '=='.slice(0, (4 - base64.length % 4) % 4)
+            const payload = JSON.parse(atob(padded))
             onSuccess({
               provider: 'google',
               email: payload.email,
