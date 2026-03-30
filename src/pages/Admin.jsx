@@ -1002,6 +1002,16 @@ export function Admin({ user: currentUser }) {
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <Btn size="sm" variant="ghost" onClick={() => openPerm(t)}>권한 설정</Btn>
+                        <button onClick={() => {
+                          if (!t.phone) { alert('등록된 핸드폰 번호가 없어 초기화할 수 없습니다.'); return }
+                          const normalized = t.phone.replace(/-/g, '').slice(0, 11)
+                          if (!window.confirm(`${t.name} 선생님의 비밀번호를\n핸드폰 번호(${normalized})로 초기화하시겠습니까?`)) return
+                          Users.update(t.id, { pw: normalized })
+                          alert(`비밀번호가 ${normalized}(으)로 초기화되었습니다.`)
+                        }}
+                          style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', color: '#b45309', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+                          비번초기화
+                        </button>
                         <button onClick={deleteTeacher}
                           style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fca5a5', background: '#fef2f2', color: '#ef4444', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
                           삭제
