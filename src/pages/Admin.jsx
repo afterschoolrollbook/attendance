@@ -20,6 +20,165 @@ const FEATURE_LABELS = {
   [FEATURES.MANAGE_LEVEL]:      '등급 관리 / 권한 예외 설정',
 }
 
+// ─── 학생 전체 목록 패널
+function StudentListPanel({ allStudents, allClasses, allTeachers, allBranches, STATUS_LABEL, STATUS_COLOR }) {
+  const [search,        setSearch]        = useState('')
+  const [filterStatus,  setFilterStatus]  = useState('')
+  const [filterBranch,  setFilterBranch]  = useState('')
+  const [filterTeacher, setFilterTeacher] = useState('')
+
+  const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316' }
+  const selSt = { padding:'7px 11px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }
+
+  // 선생님 → 지사 매핑
+  const teacherBranchMap = {}
+  allTeachers.forEach(t => { teacherBranchMap[t.id] = t.branchId || null })
+
+  // 필터링된 선생님 목록 (지사 필터 적용)
+  const filteredTeachers = filterBranch
+    ? allTeachers.filter(t => t.branchId === filterBranch)
+    : allTeachers
+
+  // 학생 enriched 데이터
+  const enriched = allStudents.map(s => {
+    const teacher = allTeachers.find(t => t.id === s.teacherId)
+    const branchId = teacher ? teacherBranchMap[teacher.id] : null
+    const branch = branchId ? allBranches.find(b => b.id === branchId) : null
+    const classes = (s.classIds || []).map(cid => allClasses.find(c => c.id === cid)).filter(Boolean)
+    return { ...s, teacher, branch, classes }
+  })
+
+  // 필터 적용
+  const filtered = enriched.filter(s => {
+    if (filterStatus  && s.status    !== filterStatus)            return false
+    if (filterBranch  && s.branch?.id !== filterBranch)           return false
+    if (filterTeacher && s.teacherId  !== filterTeacher)          return false
+    if (search) {
+      const q = search.toLowerCase()
+      const hit = s.name?.toLowerCase().includes(q)
+        || s.school?.toLowerCase().includes(q)
+        || s.parentPhone?.includes(q)
+        || s.teacher?.name?.toLowerCase().includes(q)
+      if (!hit) return false
+    }
+    return true
+  })
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+
+      {/* 요약 */}
+      <div style={{ display:'flex', gap:'12px', flexWrap:'wrap' }}>
+        {[
+          { label:'전체 학생', value: allStudents.length, color:'#3b82f6' },
+          { label:'확정',      value: allStudents.filter(s=>s.status==='confirmed').length,  color:'#16a34a' },
+          { label:'신청/대기', value: allStudents.filter(s=>['applied','waiting','selected'].includes(s.status)).length, color:'#f59e0b' },
+          { label:'취소',      value: allStudents.filter(s=>s.status==='cancelled').length,  color:'#ef4444' },
+        ].map(card => (
+          <div key={card.label} style={{ padding:'12px 20px', background:'#fff', borderRadius:'10px', border:`1.5px solid ${card.color}22`, minWidth:'110px' }}>
+            <div style={{ fontSize:'22px', fontWeight:700, color:card.color }}>{card.value}</div>
+            <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>{card.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 검색/필터 */}
+      <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
+        <input
+          value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="이름 / 학교 / 전화번호 / 선생님 검색"
+          style={{ flex:1, minWidth:'200px', padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}
+        />
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={selSt}>
+          <option value="">전체 상태</option>
+          {Object.entries(STATUS_LABEL).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <select value={filterBranch} onChange={e => { setFilterBranch(e.target.value); setFilterTeacher('') }} style={selSt}>
+          <option value="">전체 지사</option>
+          <option value="__none__">지사 미배정</option>
+          {allBranches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+        <select value={filterTeacher} onChange={e => setFilterTeacher(e.target.value)} style={selSt}>
+          <option value="">전체 선생님</option>
+          {filteredTeachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        {(search || filterStatus || filterBranch || filterTeacher) && (
+          <button onClick={() => { setSearch(''); setFilterStatus(''); setFilterBranch(''); setFilterTeacher('') }}
+            style={{ padding:'7px 12px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'12px', color:C.muted, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            초기화
+          </button>
+        )}
+        <span style={{ fontSize:'13px', color:C.muted }}>{filtered.length}명</span>
+      </div>
+
+      {/* 테이블 */}
+      <div style={{ background:'#fff', borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+          <thead>
+            <tr style={{ background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
+              {['이름', '학교/학년', '수강 수업', '상태', '지사', '담당 선생님', '학부모 연락처'].map(h => (
+                <th key={h} style={{ padding:'11px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:C.muted, whiteSpace:'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={7} style={{ padding:'48px', textAlign:'center', color:C.muted, fontSize:'14px' }}>
+                  해당하는 학생이 없습니다.
+                </td>
+              </tr>
+            ) : filtered.map((s, i) => (
+              <tr key={s.id} style={{ borderBottom:`1px solid #f3f4f6`, background: i%2===0 ? '#fff' : '#fafafa' }}>
+                <td style={{ padding:'11px 14px', fontWeight:600, color:C.text, fontSize:'14px' }}>
+                  {s.name}
+                  {s.memo && <span style={{ marginLeft:'4px', fontSize:'11px' }}>📌</span>}
+                </td>
+                <td style={{ padding:'11px 14px', fontSize:'13px', color:C.muted }}>
+                  {s.school && <div>{s.school}</div>}
+                  <div>{s.grade}{s.classNum ? ` ${s.classNum}반` : ''}{s.number ? ` ${s.number}번` : ''}</div>
+                </td>
+                <td style={{ padding:'11px 14px', fontSize:'12px', color:C.muted }}>
+                  {s.classes.length > 0
+                    ? s.classes.map(c => (
+                        <div key={c.id} style={{ whiteSpace:'nowrap' }}>
+                          {c.className}{c.section ? ` ${c.section}반` : ''}
+                        </div>
+                      ))
+                    : <span style={{ color:'#d1d5db' }}>—</span>
+                  }
+                </td>
+                <td style={{ padding:'11px 14px' }}>
+                  <span style={{ fontSize:'12px', fontWeight:600, padding:'2px 8px', borderRadius:'5px',
+                    background:`${STATUS_COLOR[s.status]}18`, color:STATUS_COLOR[s.status] }}>
+                    {STATUS_LABEL[s.status] || s.status}
+                  </span>
+                </td>
+                <td style={{ padding:'11px 14px', fontSize:'13px', color:C.muted }}>
+                  {s.branch
+                    ? <span style={{ color:'#8b5cf6', fontWeight:600 }}>🏢 {s.branch.name}</span>
+                    : <span style={{ color:'#d1d5db' }}>본사 직속</span>}
+                </td>
+                <td style={{ padding:'11px 14px', fontSize:'13px', color:C.text }}>
+                  {s.teacher
+                    ? <div>
+                        <div style={{ fontWeight:600 }}>{s.teacher.name}</div>
+                        <div style={{ fontSize:'11px', color:C.muted }}>{s.teacher.email}</div>
+                      </div>
+                    : <span style={{ color:'#d1d5db' }}>—</span>}
+                </td>
+                <td style={{ padding:'11px 14px', fontSize:'13px', color:C.muted }}>
+                  {s.parentPhone || <span style={{ color:'#d1d5db' }}>—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ─── 지사 관리 패널
 function BranchPanel({ branches, setBranches, teachers }) {
   const [form, setForm] = useState({ name: '', managerId: '', memo: '' })
@@ -203,6 +362,7 @@ export function Admin({ user: currentUser }) {
         {[
           { key: 'pending',  label: `인증 대기 ${pending.length}` },
           { key: 'teachers', label: '선생님 목록' },
+          { key: 'students', label: '학생 목록' },
           { key: 'branches', label: '지사 관리' },
           { key: 'stats',    label: '전체 통계' },
         ].map(t => (
@@ -282,6 +442,28 @@ export function Admin({ user: currentUser }) {
           </table>
         </div>
       )}
+
+      {/* 학생 목록 */}
+      {tab === 'students' && (() => {
+        const allStudents  = Students.all()
+        const allClasses   = Classes.all()
+        const allBranches  = Branches.all()
+
+        const STATUS_LABEL = { applied:'신청', waiting:'대기', selected:'추첨완료', confirmed:'확정', cancelled:'취소' }
+        const STATUS_COLOR = { applied:'#6b7280', waiting:'#f59e0b', selected:'#3b82f6', confirmed:'#16a34a', cancelled:'#ef4444' }
+
+        // 검색/필터 상태는 로컬 변수 대신 컴포넌트로 분리
+        return (
+          <StudentListPanel
+            allStudents={allStudents}
+            allClasses={allClasses}
+            allTeachers={teachers}
+            allBranches={allBranches}
+            STATUS_LABEL={STATUS_LABEL}
+            STATUS_COLOR={STATUS_COLOR}
+          />
+        )
+      })()}
 
       {/* 지사 관리 */}
       {tab === 'branches' && (
