@@ -437,11 +437,13 @@ export function Auth({ onLogin }) {
     const phone = findIdPhone.trim()
     if (!phone) { setError('연락처를 입력해주세요.'); return }
     const all = JSON.parse(localStorage.getItem('asa_users') || '[]')
-    const user = all.find(u => u.phone === phone)
+    const normalize = (p) => p.replace(/-/g, "")
+    const user = all.find(u => normalize(u.phone) === normalize(phone))
     if (!user) { setFoundEmail('notfound'); return }
     // 이메일 마스킹: ab***@gmail.com
     const [local, domain] = user.email.split('@')
-    const masked = local.slice(0, 2) + '***@' + domain
+    const half = Math.ceil(local.length / 2)
+    const masked = local.slice(0, half) + '*'.repeat(local.length - half) + '@' + domain
     setFoundEmail(masked)
     setError('')
   }
