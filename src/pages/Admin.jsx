@@ -20,133 +20,93 @@ const FEATURE_LABELS = {
   [FEATURES.MANAGE_LEVEL]:      '등급 관리 / 권한 예외 설정',
 }
 
-// ─── 한국 지도 (D3 + TopoJSON)
-function KoreaMapSVG({ regionCounts, onSelect, selectedSido }) {
-  const svgRef = React.useRef(null)
-  const [ready, setReady] = React.useState(false)
+// ─── 한국 시도 인라인 SVG 지도 (D3/TopoJSON/fetch 없음 — 즉시 렌더링)
+// viewBox: 0 0 600 680  (단순화된 시도 경계 path)
+const KOREA_SIDO_PATHS = [
+  { id:'서울', label:'서울', cx:212, cy:198,
+    d:'M195,183 L213,178 L228,183 L232,196 L228,210 L213,215 L197,210 L191,197 Z' },
+  { id:'인천', label:'인천', cx:171, cy:205,
+    d:'M155,192 L172,187 L185,195 L183,212 L170,220 L153,213 L148,200 Z' },
+  { id:'경기', label:'경기', cx:205, cy:235,
+    d:'M148,168 L195,155 L245,160 L265,183 L260,225 L245,248 L220,262 L190,258 L165,245 L140,228 L135,205 L148,168 Z' },
+  { id:'강원', label:'강원', cx:318, cy:193,
+    d:'M248,145 L310,132 L375,140 L395,165 L390,215 L370,245 L335,258 L295,252 L260,238 L248,210 L248,145 Z' },
+  { id:'충북', label:'충북', cx:278, cy:283,
+    d:'M225,255 L268,248 L308,255 L322,278 L318,308 L295,325 L262,325 L238,308 L222,285 Z' },
+  { id:'세종', label:'세종', cx:222, cy:288,
+    d:'M210,278 L226,274 L234,284 L230,298 L215,302 L206,292 Z' },
+  { id:'대전', label:'대전', cx:238, cy:315,
+    d:'M224,305 L242,300 L252,311 L248,326 L232,330 L220,320 Z' },
+  { id:'충남', label:'충남', cx:175, cy:302,
+    d:'M130,258 L182,250 L218,265 L225,290 L218,322 L195,342 L160,348 L128,335 L112,310 L118,278 Z' },
+  { id:'경북', label:'경북', cx:360, cy:308,
+    d:'M295,255 L368,248 L415,265 L430,300 L425,345 L400,372 L358,382 L318,370 L292,345 L285,310 Z' },
+  { id:'대구', label:'대구', cx:358, cy:355,
+    d:'M338,338 L362,332 L378,345 L374,365 L355,372 L336,362 L330,348 Z' },
+  { id:'전북', label:'전북', cx:220, cy:375,
+    d:'M148,340 L215,330 L258,342 L268,372 L255,402 L220,415 L180,410 L148,392 L135,368 Z' },
+  { id:'광주', label:'광주', cx:202, cy:428,
+    d:'M185,416 L208,411 L220,423 L215,440 L196,445 L180,435 Z' },
+  { id:'전남', label:'전남', cx:195, cy:470,
+    d:'M148,420 L195,410 L232,422 L245,452 L235,488 L200,505 L162,500 L132,478 L128,450 Z' },
+  { id:'울산', label:'울산', cx:412, cy:352,
+    d:'M396,335 L418,330 L430,342 L428,360 L412,368 L395,360 L390,346 Z' },
+  { id:'부산', label:'부산', cx:408, cy:392,
+    d:'M388,375 L415,370 L432,382 L430,402 L410,410 L388,402 L380,388 Z' },
+  { id:'경남', label:'경남', cx:340, cy:408,
+    d:'M268,368 L322,358 L368,368 L388,392 L380,430 L348,448 L305,445 L270,428 L255,402 Z' },
+  { id:'제주', label:'제주', cx:218, cy:545,
+    d:'M180,533 L222,525 L255,535 L258,552 L228,562 L190,558 L174,546 Z' },
+]
 
-  const SIDO_NAME_MAP = {
-    '서울특별시':'서울','부산광역시':'부산','대구광역시':'대구','인천광역시':'인천',
-    '광주광역시':'광주','대전광역시':'대전','울산광역시':'울산','세종특별자치시':'세종',
-    '경기도':'경기','강원특별자치도':'강원','강원도':'강원','충청북도':'충북','충청남도':'충남',
-    '전라북도':'전북','전북특별자치도':'전북','전라남도':'전남','경상북도':'경북',
-    '경상남도':'경남','제주특별자치도':'제주',
+function KoreaMapSVG({ regionCounts, onSelect, selectedSido }) {
+  const maxCount = Math.max(...Object.values(regionCounts), 1)
+
+  const getFill = (id) => {
+    if (selectedSido === id) return '#f97316'
+    const count = regionCounts[id] || 0
+    if (count > 0) return `rgba(249,115,22,${0.2 + (count / maxCount) * 0.7})`
+    return '#e5e7eb'
+  }
+  const getStroke = (id) => selectedSido === id ? '#c2410c' : '#fff'
+  const getStrokeWidth = (id) => selectedSido === id ? 2.5 : 0.8
+  const getLabelFill = (id) => {
+    if (selectedSido === id) return '#fff'
+    return (regionCounts[id] || 0) > 0 ? '#fff' : '#6b7280'
   }
 
-  React.useEffect(() => {
-    // D3, TopoJSON CDN 로드
-    const loadScript = (src) => new Promise((res, rej) => {
-      if (document.querySelector(`script[src="${src}"]`)) { res(); return }
-      const s = document.createElement('script')
-      s.src = src; s.onload = res; s.onerror = rej
-      document.head.appendChild(s)
-    })
-
-    Promise.all([
-      loadScript('https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js'),
-      loadScript('https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js'),
-    ]).then(() => setReady(true))
-  }, [])
-
-  React.useEffect(() => {
-    if (!ready || !svgRef.current) return
-    const d3 = window.d3
-    const topojson = window.topojson
-    const svg = d3.select(svgRef.current)
-    svg.selectAll('*').remove()
-
-    const width = 400, height = 500
-
-    fetch('https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2013/json/skorea-provinces-2013-geo.json')
-      .then(r => r.json())
-      .then(geoData => {
-        const projection = d3.geoMercator().fitSize([width, height], geoData)
-        const path = d3.geoPath().projection(projection)
-        const maxCount = Math.max(...Object.values(regionCounts), 1)
-
-        svg.selectAll('path')
-          .data(geoData.features)
-          .enter()
-          .append('path')
-          .attr('d', path)
-          .attr('fill', d => {
-            const name = SIDO_NAME_MAP[d.properties.name] || d.properties.name
-            const isSelected = selectedSido === name
-            const count = regionCounts[name] || 0
-            if (isSelected) return '#f97316'
-            if (count > 0) return `rgba(249,115,22,${0.2 + (count / maxCount) * 0.7})`
-            return '#e5e7eb'
-          })
-          .attr('stroke', '#fff')
-          .attr('stroke-width', d => {
-            const name = SIDO_NAME_MAP[d.properties.name] || d.properties.name
-            return selectedSido === name ? 2.5 : 0.8
-          })
-          .style('cursor', 'pointer')
-          .style('transition', 'fill .2s')
-          .on('mouseover', function(event, d) {
-            const name = SIDO_NAME_MAP[d.properties.name] || d.properties.name
-            if (selectedSido !== name) d3.select(this).attr('fill', 'rgba(249,115,22,0.5)')
-          })
-          .on('mouseout', function(event, d) {
-            const name = SIDO_NAME_MAP[d.properties.name] || d.properties.name
-            const isSelected = selectedSido === name
-            const count = regionCounts[name] || 0
-            const maxCnt = Math.max(...Object.values(regionCounts), 1)
-            if (!isSelected) d3.select(this).attr('fill',
-              count > 0 ? `rgba(249,115,22,${0.2 + (count / maxCnt) * 0.7})` : '#e5e7eb'
-            )
-          })
-          .on('click', (event, d) => {
-            const name = SIDO_NAME_MAP[d.properties.name] || d.properties.name
-            onSelect(name)
-          })
-
-        // 시도 이름 + 학생 수 레이블
-        svg.selectAll('text')
-          .data(geoData.features)
-          .enter()
-          .append('text')
-          .attr('transform', d => `translate(${path.centroid(d)})`)
-          .attr('text-anchor', 'middle')
-          .style('pointer-events', 'none')
-          .style('user-select', 'none')
-          .each(function(d) {
-            const name = SIDO_NAME_MAP[d.properties.name] || d.properties.name
-            const count = regionCounts[name] || 0
-            const isSelected = selectedSido === name
-            const el = d3.select(this)
-            el.append('tspan')
-              .attr('x', 0).attr('dy', '0')
-              .attr('font-size', name.length > 2 ? '8px' : '9px')
-              .attr('font-weight', isSelected ? 700 : 500)
-              .attr('fill', isSelected || count > 0 ? '#fff' : '#6b7280')
-              .attr('font-family', 'Noto Sans KR, sans-serif')
-              .text(name)
-            if (count > 0) {
-              el.append('tspan')
-                .attr('x', 0).attr('dy', '10px')
-                .attr('font-size', '8px')
-                .attr('fill', isSelected ? '#fff' : '#f97316')
-                .attr('font-family', 'monospace')
-                .text(`${count}명`)
-            }
-          })
-      })
-      .catch(() => {
-        // fetch 실패 시 폴백 메시지
-        svg.append('text')
-          .attr('x', width/2).attr('y', height/2)
-          .attr('text-anchor', 'middle')
-          .attr('fill', '#9ca3af')
-          .attr('font-size', '13px')
-          .text('지도를 불러오는 중...')
-      })
-  }, [ready, regionCounts, selectedSido])
-
   return (
-    <svg ref={svgRef} viewBox="0 0 400 500"
-      style={{ width:'100%', maxWidth:'400px', cursor:'pointer' }} />
+    <svg viewBox="0 0 560 590" style={{ width:'100%', maxWidth:'400px', cursor:'pointer' }}>
+      {KOREA_SIDO_PATHS.map(({ id, label, cx, cy, d }) => {
+        const count = regionCounts[id] || 0
+        return (
+          <g key={id} onClick={() => onSelect(id)} style={{ cursor:'pointer' }}>
+            <path
+              d={d}
+              fill={getFill(id)}
+              stroke={getStroke(id)}
+              strokeWidth={getStrokeWidth(id)}
+              style={{ transition:'fill .15s' }}
+              onMouseEnter={e => { if (selectedSido !== id) e.currentTarget.setAttribute('fill','rgba(249,115,22,0.5)') }}
+              onMouseLeave={e => { e.currentTarget.setAttribute('fill', getFill(id)) }}
+            />
+            <text x={cx} y={cy - (count > 0 ? 5 : 0)} textAnchor="middle"
+              fontSize={label.length > 2 ? 9 : 10} fontWeight={selectedSido===id ? 700 : 500}
+              fill={getLabelFill(id)} fontFamily="Noto Sans KR, sans-serif"
+              style={{ pointerEvents:'none', userSelect:'none' }}>
+              {label}
+            </text>
+            {count > 0 && (
+              <text x={cx} y={cy + 9} textAnchor="middle" fontSize={8}
+                fill={selectedSido===id ? '#fff' : '#f97316'} fontFamily="monospace"
+                style={{ pointerEvents:'none', userSelect:'none' }}>
+                {count}명
+              </text>
+            )}
+          </g>
+        )
+      })}
+    </svg>
   )
 }
 
