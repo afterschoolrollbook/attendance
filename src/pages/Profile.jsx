@@ -20,10 +20,8 @@ const providerLabel = { google:'Google', kakao:'카카오', naver:'네이버' }
 // ─── 본인 인증 모달
 function VerifyModal({ user, onVerified, onClose }) {
   const isSocial = user.provider && user.provider !== 'email'
-  const isKakao  = user.provider === 'kakao'
 
   const [pwInput,    setPwInput]    = useState('')
-  const [emailInput, setEmailInput] = useState('')  // 카카오 전용 이메일 입력
   const [code,       setCode]       = useState('')
   const [sentCode,   setSentCode]   = useState('')
   const [codeSent,   setCodeSent]   = useState(false)
@@ -31,16 +29,11 @@ function VerifyModal({ user, onVerified, onClose }) {
   const [devCode,    setDevCode]    = useState('')
   const [error,      setError]      = useState('')
 
-  // 발송 대상 이메일: 카카오는 직접 입력, 그 외 소셜은 저장된 이메일
-  const targetEmail = isKakao ? emailInput.trim() : user.email
+  // 발송 대상 이메일: 소셜 로그인은 모두 저장된 이메일로 발송
+  const targetEmail = user.email
 
   const sendCode = async () => {
     setError('')
-    if (isKakao) {
-      const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailInput.trim()) { setError('이메일을 입력해주세요.'); return }
-      if (!emailReg.test(emailInput.trim())) { setError('올바른 이메일 형식이 아닙니다.'); return }
-    }
     const c = genCode()
     setSentCode(c); setCodeSent(false); setCode(''); setSending(true); setDevCode('')
     try {
@@ -98,28 +91,11 @@ function VerifyModal({ user, onVerified, onClose }) {
           {isSocial && (
             <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
 
-              {/* 카카오: 이메일 직접 입력 */}
-              {isKakao ? (
-                <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-                  <label style={{ fontSize:'13px', fontWeight:500, color:C.text }}>
-                    💛 인증받을 이메일 주소 입력
-                  </label>
-                  <input
-                    type="email"
-                    value={emailInput}
-                    onChange={e => { setEmailInput(e.target.value); setCodeSent(false); setCode('') }}
-                    placeholder="example@email.com"
-                    style={{ padding:'9px 13px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}
-                  />
-                  <div style={{ fontSize:'12px', color:C.muted }}>인증번호를 받을 실제 이메일 주소를 입력하세요.</div>
-                </div>
-              ) : (
-                /* 구글/네이버: 저장된 이메일로 발송 */
-                <div style={{ fontSize:'13px', color:C.muted, background:'#f9fafb', padding:'10px 12px', borderRadius:'8px' }}>
-                  📧 {providerLabel[user.provider] || '소셜'} 계정 이메일<br/>
-                  <strong style={{ color:C.text }}>{user.email}</strong> 으로 인증번호를 발송합니다.
-                </div>
-              )}
+              {/* 카카오/구글/네이버: 저장된 이메일로 발송 */}
+              <div style={{ fontSize:'13px', color:C.muted, background:'#f9fafb', padding:'10px 12px', borderRadius:'8px' }}>
+                📧 {providerLabel[user.provider] || '소셜'} 계정 이메일<br/>
+                <strong style={{ color:C.text }}>{user.email}</strong> 으로 인증번호를 발송합니다.
+              </div>
 
               <Btn onClick={sendCode} disabled={sending}>
                 {sending ? '발송 중...' : codeSent ? '인증번호 재발송' : '인증번호 발송'}
