@@ -8,8 +8,9 @@ import { sendEmail, isConfigured } from '../lib/supabase.js'
 function getSocialConfig() {
   const saved = Settings.get('social') || {}
   return {
-    google: { clientId: saved.googleEnabled ? (saved.googleClientId || '') : '' },
-    kakao:  { appKey:   saved.kakaoEnabled  ? (saved.kakaoAppKey  || '') : '' },
+    google: { clientId:  saved.googleEnabled ? (saved.googleClientId  || '') : '' },
+    kakao:  { appKey:    saved.kakaoEnabled  ? (saved.kakaoAppKey    || '') : '' },
+    naver:  { clientId:  saved.naverEnabled  ? (saved.naverClientId  || '') : '' },
   }
 }
 
@@ -151,8 +152,36 @@ function useKakaoAuth(onSuccess, restApiKey) {
   return loginWithKakao
 }
 
+function useNaverAuth(onSuccess, clientId) {
+  const loginWithNaver = () => {
+    if (!clientId) { alert('네이버 클라이언트 ID가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
 
-// ─── 소셜 이메일 인증 화면
+    const state = Math.random().toString(36).substring(2, 15)
+    const redirectUri = window.location.origin + '/naver-callback'
+    const naverAuthUrl = 'https://nid.naver.com/oauth2.0/authorize?client_id=' + clientId
+      + '&redirect_uri=' + encodeURIComponent(redirectUri)
+      + '&response_type=code'
+      + '&state=' + state
+    window.open(naverAuthUrl, 'naverLogin', 'width=500,height=700,left=200,top=100')
+
+    const handleMessage = (e) => {
+      if (e.origin !== window.location.origin) return
+      if (e.data?.type !== 'naver_login_success' && e.data?.type !== 'naver_login_fail') return
+      window.removeEventListener('message', handleMessage)
+
+      if (e.data.type === 'naver_login_fail') {
+        alert('네이버 로그인에 실패했습니다.')
+        return
+      }
+
+      onSuccess({ provider: 'naver', email: e.data.email || '', name: e.data.name || '', avatar: e.data.avatar || '', providerId: String(e.data.id) })
+    }
+
+    window.addEventListener('message', handleMessage)
+  }
+
+  return loginWithNaver
+}
 function SocialEmailVerify({ profile, onVerified, onCancel }) {
   const isKakao = profile.provider === 'kakao'
   const isFakeEmail = (e) => !e || e.includes('@social.local')
@@ -459,10 +488,12 @@ export function Auth({ onLogin }) {
   }
 
   const socialCfg = getSocialConfig()
-  const googleBtnRef = useGoogleAuth(handleSocialSuccess, socialCfg.google.clientId)
-  const loginWithKakao = useKakaoAuth(handleSocialSuccess, socialCfg.kakao.appKey)
+  const googleBtnRef     = useGoogleAuth(handleSocialSuccess, socialCfg.google.clientId)
+  const loginWithKakao   = useKakaoAuth(handleSocialSuccess, socialCfg.kakao.appKey)
+  const loginWithNaver   = useNaverAuth(handleSocialSuccess, socialCfg.naver.clientId)
   const googleConfigured = !!socialCfg.google.clientId
   const kakaoConfigured  = !!socialCfg.kakao.appKey
+  const naverConfigured  = !!socialCfg.naver.clientId
 
   const handleLogin = () => {
     setError('')
@@ -566,17 +597,8 @@ export function Auth({ onLogin }) {
                       )}
                       <SocialBtn icon="💛" label="카카오로 계속하기" color="#3C1E1E" bg="#FEE500" border="#FEE500"
                         onClick={kakaoConfigured ? loginWithKakao : () => alert('카카오 로그인을 사용하려면\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
-                      {(() => {
-                        const naverCfg = Settings.get('social') || {}
-                        const naverEnabled = naverCfg.naverEnabled && naverCfg.naverClientId
-                        return (
-                          <SocialBtn icon="🟢" label="네이버로 계속하기" color="#fff" bg="#03C75A" border="#03C75A"
-                            onClick={() => naverEnabled
-                              ? alert('네이버 로그인: 관리자가 클라이언트 ID를 설정하면 활성화됩니다.')
-                              : alert('관리자 → 서비스설정 → 소셜 로그인에서 네이버 키를 등록하세요.')}
-                            disabled={!naverEnabled} />
-                        )
-                      })()}
+                      <SocialBtn icon="🟢" label="네이버로 계속하기" color="#fff" bg="#03C75A" border="#03C75A"
+                        onClick={naverConfigured ? loginWithNaver : () => alert('네이버 로그인을 사용하려면\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
                     </div>
                     <Divider label="또는 이메일로 로그인" />
                     <Input label="이메일" value={form.email} onChange={v => set('email', v)} placeholder="admin@test.com" type="email" />
