@@ -23,42 +23,48 @@ const FEATURE_LABELS = {
 // ─── 한국 지도 (wikimedia SVG 이미지 + 시도 버튼 목록)
 const SIDO_LIST = ['서울','인천','경기','강원','충북','세종','대전','충남','경북','대구','전북','광주','전남','울산','부산','경남','제주']
 
+const SIDO_LIST_TOP  = ['서울','인천']
+const SIDO_LIST_REST = ['경기','강원','충북','세종','대전','충남','경북','대구','전북','광주','전남','울산','부산','경남','제주']
+
 function KoreaMapSVG({ regionCounts, onSelect, selectedSido }) {
-  const maxCount = Math.max(...Object.values(regionCounts), 1)
+  const renderBtn = (sido) => {
+    const count = regionCounts[sido] || 0
+    const isSel = selectedSido === sido
+    return (
+      <button key={sido} onClick={() => onSelect(sido)}
+        style={{
+          padding:'6px 14px', borderRadius:'20px', fontSize:'13px', cursor:'pointer',
+          fontFamily:'Noto Sans KR, sans-serif', border:'1.5px solid',
+          borderColor: isSel ? '#f97316' : count > 0 ? '#fdba74' : '#e5e7eb',
+          background: isSel ? '#f97316' : count > 0 ? '#fff7ed' : '#f9fafb',
+          color: isSel ? '#fff' : count > 0 ? '#ea580c' : '#6b7280',
+          fontWeight: isSel ? 700 : 400,
+          transition:'all .15s',
+        }}>
+        {sido}{count > 0 && <span style={{ marginLeft:'5px', fontSize:'11px', opacity:.8 }}>{count}명</span>}
+      </button>
+    )
+  }
 
   return (
-    <div style={{ display:'flex', gap:'20px', alignItems:'flex-start', flexWrap:'wrap' }}>
+    <div style={{ display:'flex', gap:'24px', alignItems:'flex-start' }}>
       {/* 지도 이미지 */}
-      <div style={{ position:'relative', flexShrink:0 }}>
-        <img
-          src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/South_Korea_divisions.svg/500px-South_Korea_divisions.svg.png"
-          alt="한국 지도"
-          style={{ width:'260px', display:'block', borderRadius:'8px' }}
-        />
-      </div>
+      <img
+        src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/South_Korea_divisions.svg/500px-South_Korea_divisions.svg.png"
+        alt="한국 지도"
+        style={{ width:'220px', flexShrink:0, display:'block', borderRadius:'8px' }}
+      />
 
       {/* 시도 버튼 목록 */}
-      <div style={{ flex:1, minWidth:'200px' }}>
-        <div style={{ fontSize:'12px', color:'#9ca3af', marginBottom:'10px' }}>시도를 클릭하세요</div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontSize:'12px', color:'#9ca3af', marginBottom:'8px' }}>시도를 클릭하세요</div>
+        {/* 서울·인천 강조 */}
+        <div style={{ display:'flex', gap:'6px', marginBottom:'10px', paddingBottom:'10px', borderBottom:'1px solid #f3f4f6' }}>
+          {SIDO_LIST_TOP.map(renderBtn)}
+        </div>
+        {/* 나머지 시도 */}
         <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
-          {SIDO_LIST.map(sido => {
-            const count = regionCounts[sido] || 0
-            const isSel = selectedSido === sido
-            return (
-              <button key={sido} onClick={() => onSelect(sido)}
-                style={{
-                  padding:'5px 11px', borderRadius:'20px', fontSize:'13px', cursor:'pointer',
-                  fontFamily:'Noto Sans KR, sans-serif', border:'1.5px solid',
-                  borderColor: isSel ? '#f97316' : count > 0 ? '#fdba74' : '#e5e7eb',
-                  background: isSel ? '#f97316' : count > 0 ? '#fff7ed' : '#fff',
-                  color: isSel ? '#fff' : count > 0 ? '#f97316' : '#6b7280',
-                  fontWeight: isSel ? 700 : 400,
-                  transition:'all .15s',
-                }}>
-                {sido}{count > 0 && <span style={{ marginLeft:'4px', fontSize:'11px' }}>{count}</span>}
-              </button>
-            )
-          })}
+          {SIDO_LIST_REST.map(renderBtn)}
         </div>
       </div>
     </div>
@@ -243,8 +249,8 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
       {/* 지도 + 우측 패널 */}
       <div style={{ display:'flex', gap:'24px', alignItems:'flex-start', flexWrap:'wrap' }}>
 
-        {/* SVG 지도 */}
-        <div style={{ flex:'0 0 580px', background:'#fff', borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px' }}>
+        {/* 지도 */}
+        <div style={{ flex:'0 0 700px', background:'#fff', borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px' }}>
           <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'12px' }}>
             🗺️ 지역별 학생 현황 {selectedSido && <span style={{ color:C.primary }}>— {selectedSido} 선택됨</span>}
           </div>
