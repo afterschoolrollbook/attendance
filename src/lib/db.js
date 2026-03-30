@@ -78,6 +78,7 @@ export const Users = {
   findByEmail: (email) => db.get('users').find(u => u.email === email?.toLowerCase()),
   insert:      (u)     => db.insert('users', u),
   update:      (id, p) => db.update('users', id, p),
+  delete:      (id)    => db.delete('users', id),
   teachers:    ()      => db.get('users').filter(u => u.role === 'teacher'),
   pending:     ()      => db.get('users').filter(u => u.role === 'teacher' && u.level === 1 && u.verifyImg),
 }
