@@ -46,12 +46,16 @@ function useGoogleAuth(onSuccess, clientId) {
 
   const renderButtons = () => {
     if (!window.google?.accounts?.id || !initialized.current) return
-    ;[loginBtnRef, registerBtnRef].forEach(ref => {
+    const configs = [
+      { ref: loginBtnRef,    text: 'continue_with' },
+      { ref: registerBtnRef, text: 'signup_with'   },
+    ]
+    configs.forEach(({ ref, text }) => {
       if (ref.current) {
         ref.current.innerHTML = ''
         window.google.accounts.id.renderButton(ref.current, {
           type: 'standard', theme: 'outline', size: 'large',
-          text: 'signin_with', shape: 'rectangular', width: 340,
+          text, shape: 'rectangular', width: 340,
         })
       }
     })
