@@ -40,52 +40,59 @@ async function sendVerifyCode(email, code) {
 
 // Google 로그인 훅
 function useGoogleAuth(onSuccess, clientId) {
-  const btnRef = useRef()
-  const initialized = useRef(false)
+  const loginBtnRef    = useRef()
+  const registerBtnRef = useRef()
+  const initialized    = useRef(false)
+
+  const renderButtons = () => {
+    if (!window.google?.accounts?.id || !initialized.current) return
+    ;[loginBtnRef, registerBtnRef].forEach(ref => {
+      if (ref.current) {
+        ref.current.innerHTML = ''
+        window.google.accounts.id.renderButton(ref.current, {
+          type: 'standard', theme: 'outline', size: 'large',
+          text: 'signin_with', shape: 'rectangular', width: 340,
+        })
+      }
+    })
+  }
 
   useEffect(() => {
     if (!clientId) return
 
     const initGoogle = () => {
-      if (initialized.current) return
       if (!window.google?.accounts?.id) return
-      initialized.current = true
-
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: (res) => {
-          try {
-            const base64url = res.credential.split('.')[1]
-            const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/')
-            const padded = base64 + '=='.slice(0, (4 - base64.length % 4) % 4)
-            const payload = JSON.parse(decodeURIComponent(
-              atob(padded).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
-            ))
-            onSuccess({
-              provider: 'google',
-              email: payload.email,
-              name: payload.name,
-              avatar: payload.picture,
-              providerId: payload.sub,
-            })
-          } catch(e) {
-            console.error('Google login parse error', e)
-          }
-        },
-        ux_mode: 'popup',
-        auto_select: false,
-      })
-
-      if (btnRef.current) {
-        window.google.accounts.id.renderButton(btnRef.current, {
-          type: 'standard', theme: 'outline', size: 'large',
-          text: 'signin_with', shape: 'rectangular', width: 340,
+      if (!initialized.current) {
+        initialized.current = true
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (res) => {
+            try {
+              const base64url = res.credential.split('.')[1]
+              const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/')
+              const padded = base64 + '=='.slice(0, (4 - base64.length % 4) % 4)
+              const payload = JSON.parse(decodeURIComponent(
+                atob(padded).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+              ))
+              onSuccess({
+                provider: 'google',
+                email: payload.email,
+                name: payload.name,
+                avatar: payload.picture,
+                providerId: payload.sub,
+              })
+            } catch(e) {
+              console.error('Google login parse error', e)
+            }
+          },
+          ux_mode: 'popup',
+          auto_select: false,
         })
       }
+      renderButtons()
     }
 
     if (window.google?.accounts?.id) {
-      initialized.current = false
       initGoogle()
       return
     }
@@ -103,11 +110,9 @@ function useGoogleAuth(onSuccess, clientId) {
     script.defer = true
     script.onload = initGoogle
     document.head.appendChild(script)
-
-    return () => { initialized.current = false }
   }, [clientId])
 
-  return btnRef
+  return { loginBtnRef, registerBtnRef, renderButtons }
 }
 
 // 카카오 로그인 훅
@@ -488,12 +493,15 @@ export function Auth({ onLogin }) {
   }
 
   const socialCfg = getSocialConfig()
-  const googleBtnRef     = useGoogleAuth(handleSocialSuccess, socialCfg.google.clientId)
+  const { loginBtnRef, registerBtnRef, renderButtons } = useGoogleAuth(handleSocialSuccess, socialCfg.google.clientId)
   const loginWithKakao   = useKakaoAuth(handleSocialSuccess, socialCfg.kakao.appKey)
   const loginWithNaver   = useNaverAuth(handleSocialSuccess, socialCfg.naver.clientId)
   const googleConfigured = !!socialCfg.google.clientId
   const kakaoConfigured  = !!socialCfg.kakao.appKey
   const naverConfigured  = !!socialCfg.naver.clientId
+
+  // 탭 전환 시 Google 버튼 재렌더 (DOM이 바뀌므로)
+  useEffect(() => { renderButtons() }, [mode, socialStep])
 
   const handleLogin = () => {
     setError('')
@@ -590,7 +598,7 @@ export function Auth({ onLogin }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {googleConfigured ? (
-                        <div ref={googleBtnRef} style={{ width: '100%', minHeight: '44px' }} />
+                        <div ref={loginBtnRef} style={{ width: '100%', minHeight: '44px' }} />
                       ) : (
                         <SocialBtn icon="🔵" label="Google로 계속하기" color="#4285F4" bg="#fff" border="#dadce0"
                           onClick={() => alert('Google 로그인을 사용하려면\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
@@ -617,13 +625,15 @@ export function Auth({ onLogin }) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <div style={{ fontSize: '12px', fontWeight: 600, color: '#9ca3af', textAlign: 'center', marginBottom: '2px' }}>소셜 간편가입</div>
                       {googleConfigured ? (
-                        <div ref={googleBtnRef} style={{ width: '100%', minHeight: '44px' }} />
+                        <div ref={registerBtnRef} style={{ width: '100%', minHeight: '44px' }} />
                       ) : (
                         <SocialBtn icon="🔵" label="Google로 간편가입" color="#4285F4" bg="#fff" border="#dadce0"
                           onClick={() => alert('관리자 → 서비스설정 → 소셜 로그인에서 Google 키를 등록하세요.')} />
                       )}
                       <SocialBtn icon="💛" label="카카오로 간편가입" color="#3C1E1E" bg="#FEE500" border="#FEE500"
                         onClick={kakaoConfigured ? loginWithKakao : () => alert('관리자 → 서비스설정 → 소셜 로그인에서 카카오 키를 등록하세요.')} />
+                      <SocialBtn icon="🟢" label="네이버로 간편가입" color="#fff" bg="#03C75A" border="#03C75A"
+                        onClick={naverConfigured ? loginWithNaver : () => alert('관리자 → 서비스설정 → 소셜 로그인에서 네이버 키를 등록하세요.')} />
                     </div>
                     <Divider label="또는 이메일로 가입" />
                     <Input label="이름" value={form.name} onChange={v => set('name', v)} placeholder="홍길동" required />
