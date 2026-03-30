@@ -904,7 +904,6 @@ export function Auth({ onLogin }) {
                   </div>
                 )}
               </div>
-            )} {/* end login/register 탭 */}
             </>
           )}
         </div>
