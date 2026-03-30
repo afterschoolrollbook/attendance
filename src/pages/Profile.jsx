@@ -148,7 +148,7 @@ export function Profile({ user, onUserUpdate, onNav }) {
   const [showVerify,    setShowVerify]    = useState(false)
   const [pendingAction, setPendingAction] = useState(null)
 
-  const [info, setInfo] = useState({ name: user.name, email: user.email, phone: user.phone || '' })
+  const [info, setInfo] = useState({ name: user.name, email: user.email, phone: user.phone || '', nickname: user.nickname || '', displayNameMode: user.displayNameMode || 'name' })
   const [pw,   setPw]   = useState({ next: '', next2: '' })
   const [imgPreview, setImgPreview] = useState(user.verifyImg || null)
   const [imgFile,    setImgFile]    = useState(null)
@@ -190,7 +190,13 @@ export function Profile({ user, onUserUpdate, onNav }) {
       if (!emailReg.test(info.email.trim())) { flash(setInfoMsg, false, '올바른 이메일 형식이 아닙니다.'); return }
       const dup = Users.findByEmail(info.email.trim().toLowerCase())
       if (dup && dup.id !== user.id) { flash(setInfoMsg, false, '이미 사용 중인 이메일입니다.'); return }
-      const updated = Users.update(user.id, { name: info.name.trim(), email: info.email.trim().toLowerCase(), phone: info.phone.trim() })
+      const updated = Users.update(user.id, {
+        name: info.name.trim(),
+        email: info.email.trim().toLowerCase(),
+        phone: info.phone.trim(),
+        nickname: info.nickname.trim(),
+        displayNameMode: info.nickname.trim() ? info.displayNameMode : 'name',
+      })
       onUserUpdate(updated)
       flash(setInfoMsg, true, '정보가 저장되었습니다.')
     })
@@ -233,7 +239,9 @@ export function Profile({ user, onUserUpdate, onNav }) {
       <div style={{ display:'inline-flex', alignItems:'center', gap:'10px', padding:'10px 18px', background:`${levelColors[user.level]}18`, borderRadius:'10px', border:`1.5px solid ${levelColors[user.level]}44`, marginBottom:'24px' }}>
         <span style={{ fontSize:'20px' }}>👩‍🏫</span>
         <div>
-          <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{user.name}</div>
+          <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>
+            {user.displayNameMode === 'nickname' && user.nickname ? user.nickname : user.name}
+          </div>
           <div style={{ fontSize:'12px', fontWeight:700, color:levelColors[user.level] }}>{levelNames[user.level]}</div>
         </div>
         {verified && <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', padding:'2px 8px', borderRadius:'6px', fontWeight:600 }}>🔓 인증됨</span>}
@@ -244,6 +252,47 @@ export function Profile({ user, onUserUpdate, onNav }) {
         <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'16px' }}>📝 기본 정보</div>
         <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
           <Input label="이름" value={info.name} onChange={v => setInfo(p=>({...p,name:v}))} placeholder="홍길동" required />
+
+          {/* 닉네임 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'13px', fontWeight:500, color:C.text }}>
+              닉네임 <span style={{ fontSize:'12px', color:C.muted, fontWeight:400 }}>(선택)</span>
+            </label>
+            <input
+              value={info.nickname}
+              onChange={e => setInfo(p=>({...p, nickname:e.target.value}))}
+              placeholder="예: 푸우쌤, 수학왕쌤"
+              style={{ padding:'9px 13px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}
+            />
+          </div>
+
+          {/* 앱 표시이름 선택 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+            <label style={{ fontSize:'13px', fontWeight:500, color:C.text }}>앱 표시 이름</label>
+            <div style={{ display:'flex', flexDirection:'column', gap:'6px', padding:'12px 14px', background:'#f9fafb', borderRadius:'9px', border:`1.5px solid ${C.border}` }}>
+              {[
+                { value:'name',     label:`실명으로 표시`,                               desc: info.name || '홍길동' },
+                { value:'nickname', label:`닉네임으로 표시`,                             desc: info.nickname || '닉네임을 먼저 입력해주세요', disabled: !info.nickname.trim() },
+              ].map(opt => (
+                <label key={opt.value} style={{ display:'flex', alignItems:'center', gap:'10px', cursor: opt.disabled ? 'not-allowed' : 'pointer', opacity: opt.disabled ? 0.45 : 1 }}>
+                  <input
+                    type="radio"
+                    name="displayNameMode"
+                    value={opt.value}
+                    checked={info.displayNameMode === opt.value}
+                    disabled={opt.disabled}
+                    onChange={() => setInfo(p=>({...p, displayNameMode: opt.value}))}
+                    style={{ accentColor: C.primary, width:'16px', height:'16px' }}
+                  />
+                  <div>
+                    <div style={{ fontSize:'13px', fontWeight:500, color:C.text }}>{opt.label}</div>
+                    <div style={{ fontSize:'12px', color:C.muted }}>{opt.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div style={{ fontSize:'12px', color:C.muted }}>대시보드, 알림 등 앱 전체에서 선택한 이름으로 표시됩니다.</div>
+          </div>
           <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
             <label style={{ fontSize:'13px', fontWeight:500, color:C.text }}>이메일 (아이디)</label>
             <input type="email" value={info.email} onChange={e => setInfo(p=>({...p,email:e.target.value}))}
