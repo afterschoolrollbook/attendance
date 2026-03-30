@@ -411,10 +411,8 @@ function SolapiSection() {
 
 // ─── 섹션: 지역/학교 관리
 function RegionSection() {
-  const initData = Settings.get('regionMap') || { regions: [], neisApiKey: '' }
-  // regions: [{ id, sido, office, officeUrl, support, supportUrl, schools: [{ name, url }, ...] }]
-  const [regions,    setRegions]    = useState(initData.regions || [])
-  const [neisApiKey, setNeisApiKey] = useState(initData.neisApiKey || '')
+  const [regions,    setRegions]    = useState(() => (Settings.get('regionMap') || {}).regions    || [])
+  const [neisApiKey, setNeisApiKey] = useState(() => (Settings.get('regionMap') || {}).neisApiKey || '')
   const [msg,        setMsg]        = useState(null)
 
   // NEIS 학교 검색
@@ -449,18 +447,20 @@ function RegionSection() {
     }
   }
 
-  // NEIS 결과에서 학교 추가
   const addFromNeis = (school) => {
-    // 해당 교육지원청이 있으면 학교만 추가, 없으면 새로 생성
+    const currentKey = neisApiKey  // 현재 입력된 키
     const existing = regions.find(r => r.support === school.support && r.sido === school.sido)
+    let updated
     if (existing) {
       if (!existing.schools.find(s => (s.name||s) === school.name)) {
-        setRegions(prev => prev.map(r =>
+        updated = regions.map(r =>
           r.id === existing.id
             ? { ...r, schools: [...r.schools, { name: school.name, url: school.url }] }
             : r
-        ))
-        setNeisMsg({ ok:true, msg:`${school.name}을(를) "${school.support}"에 추가했습니다. 저장 버튼을 눌러주세요.` })
+        )
+        setRegions(updated)
+        Settings.set('regionMap', { regions: updated, neisApiKey: currentKey })
+        setNeisMsg({ ok:true, msg:`✅ ${school.name}을(를) "${school.support}"에 추가하고 저장했습니다.` })
       } else {
         setNeisMsg({ ok:false, msg:`${school.name}은(는) 이미 등록되어 있습니다.` })
       }
@@ -470,9 +470,13 @@ function RegionSection() {
         officeUrl: '', support: school.support, supportUrl: '',
         schools: [{ name: school.name, url: school.url }]
       }
-      setRegions(prev => [...prev, newEntry])
-      setNeisMsg({ ok:true, msg:`${school.name}과(와) "${school.support}"을(를) 새로 추가했습니다. 저장 버튼을 눌러주세요.` })
+      updated = [...regions, newEntry]
+      setRegions(updated)
+      Settings.set('regionMap', { regions: updated, neisApiKey: currentKey })
+      setNeisMsg({ ok:true, msg:`✅ ${school.name}과(와) "${school.support}"을(를) 추가하고 저장했습니다.` })
     }
+    // 저장 확인 로그
+    console.log('[RegionSection] 저장된 데이터:', Settings.get('regionMap'))
   }
 
   // 폼 상태
