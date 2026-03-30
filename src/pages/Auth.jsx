@@ -174,6 +174,12 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
       if (!emailInput.trim()) { setError('이메일을 입력해주세요.'); return }
       if (!emailReg.test(emailInput.trim())) { setError('올바른 이메일 형식이 아닙니다.'); return }
     }
+    // 중복 체크 — 모든 소셜 로그인 공통
+    const dup = Users.findByEmail(targetEmail.toLowerCase())
+    if (dup) {
+      setError('이미 가입된 이메일입니다.\n회원이시면 해당 이메일로 로그인해 주시길 바랍니다!')
+      return
+    }
     setSending(true)
     const c = generateCode()
     setSentCode(c)
@@ -250,7 +256,19 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
         </>
       )}
 
-      {error && !codeSent && <div style={{ fontSize:'13px', color:'#ef4444', background:'#fef2f2', padding:'10px 14px', borderRadius:'8px', border:'1px solid #fca5a5' }}>{error}</div>}
+      {error && !codeSent && (
+        <div style={{ fontSize:'13px', color:'#ef4444', background:'#fef2f2', padding:'10px 14px', borderRadius:'8px', border:'1px solid #fca5a5', whiteSpace:'pre-line' }}>
+          {error}
+          {error.includes('가입된 이메일') && (
+            <div style={{ marginTop:'10px' }}>
+              <button onClick={onCancel}
+                style={{ width:'100%', padding:'8px', borderRadius:'7px', border:'1.5px solid #ef4444', background:'#fff', color:'#ef4444', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                🔐 로그인하러 가기
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <button onClick={onCancel}
         style={{ padding:'9px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
