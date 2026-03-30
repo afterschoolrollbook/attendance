@@ -415,7 +415,7 @@ export function Admin({ user: currentUser }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['이름', '이메일', '연락처', '등급', '가입일', '권한 관리'].map(h => (
+                {['이름', '이메일', '연락처', '등급', '가입일', '관리'].map(h => (
                   <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>{h}</th>
                 ))}
               </tr>
@@ -423,6 +423,11 @@ export function Admin({ user: currentUser }) {
             <tbody>
               {teachers.map((t, i) => {
                 const levelColors = { 1: '#9ca3af', 2: '#f97316', 3: '#16a34a', 4: '#8b5cf6', 5: '#ef4444' }
+                const deleteTeacher = () => {
+                  if (!window.confirm(`${t.name} 선생님을 삭제하시겠습니까?\n관련 수업·학생·출석 데이터는 유지됩니다.`)) return
+                  Users.delete(t.id)
+                  refresh()
+                }
                 return (
                   <tr key={t.id} style={{ borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                     <td style={{ padding: '12px 16px', fontWeight: 600, color: '#111827', fontSize: '14px' }}>{t.name}</td>
@@ -433,7 +438,13 @@ export function Admin({ user: currentUser }) {
                     </td>
                     <td style={{ padding: '12px 16px', fontSize: '13px', color: '#9ca3af' }}>{t.createdAt?.slice(0, 10)}</td>
                     <td style={{ padding: '12px 16px' }}>
-                      <Btn size="sm" variant="ghost" onClick={() => openPerm(t)}>권한 설정</Btn>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <Btn size="sm" variant="ghost" onClick={() => openPerm(t)}>권한 설정</Btn>
+                        <button onClick={deleteTeacher}
+                          style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fca5a5', background: '#fef2f2', color: '#ef4444', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+                          삭제
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
