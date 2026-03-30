@@ -20,7 +20,347 @@ const FEATURE_LABELS = {
   [FEATURES.MANAGE_LEVEL]:      '등급 관리 / 권한 예외 설정',
 }
 
-// ─── 학생 전체 목록 패널
+// ─── 한국 SVG 지도 (시도별 클릭)
+const SIDO_PATHS = {
+  '서울':  'M 188 140 L 210 140 L 215 155 L 205 165 L 188 160 Z',
+  '인천':  'M 155 140 L 188 140 L 188 160 L 170 168 L 152 158 Z',
+  '경기':  'M 152 95 L 240 95 L 245 140 L 215 155 L 205 165 L 188 160 L 188 140 L 155 140 L 152 158 L 145 170 L 138 155 L 140 120 Z',
+  '강원':  'M 240 80 L 330 80 L 335 170 L 290 175 L 245 140 L 240 95 Z',
+  '충북':  'M 215 155 L 245 140 L 290 175 L 285 215 L 250 220 L 225 200 Z',
+  '세종':  'M 190 200 L 210 198 L 215 210 L 195 212 Z',
+  '충남':  'M 138 155 L 145 170 L 188 160 L 205 165 L 225 200 L 210 198 L 195 212 L 175 218 L 148 210 L 130 190 L 128 168 Z',
+  '대전':  'M 210 198 L 225 200 L 228 212 L 215 215 L 210 210 Z',
+  '전북':  'M 148 210 L 175 218 L 195 212 L 210 210 L 215 215 L 228 212 L 235 240 L 215 260 L 185 265 L 155 255 L 140 235 Z',
+  '전남':  'M 140 235 L 155 255 L 185 265 L 215 260 L 225 290 L 210 320 L 180 335 L 148 325 L 128 300 L 125 268 Z',
+  '광주':  'M 168 268 L 185 265 L 190 278 L 175 282 Z',
+  '경북':  'M 285 215 L 290 175 L 335 170 L 345 200 L 360 220 L 355 270 L 330 285 L 295 275 L 275 250 L 270 228 Z',
+  '대구':  'M 295 248 L 315 245 L 318 260 L 300 262 Z',
+  '경남':  'M 225 290 L 235 240 L 275 250 L 295 275 L 330 285 L 340 310 L 320 335 L 285 340 L 255 330 L 232 310 Z',
+  '울산':  'M 340 260 L 360 255 L 362 280 L 342 282 Z',
+  '부산':  'M 320 335 L 340 325 L 355 338 L 345 355 L 322 352 Z',
+  '제주':  'M 162 395 L 220 390 L 228 410 L 210 422 L 168 420 Z',
+}
+
+const SIDO_LABEL_POS = {
+  '서울': [198, 153], '인천': [168, 152], '경기': [190, 128],
+  '강원': [282, 128], '충북': [252, 188], '세종': [200, 207],
+  '충남': [160, 188], '대전': [217, 207], '전북': [185, 238],
+  '전남': [170, 295], '광주': [177, 276], '경북': [315, 228],
+  '대구': [305, 255], '경남': [285, 308], '울산': [348, 268],
+  '부산': [335, 342], '제주': [192, 408],
+}
+
+function KoreaMapSVG({ regionCounts, onSelect, selectedSido }) {
+  const maxCount = Math.max(...Object.values(regionCounts), 1)
+  const sidos = Object.keys(SIDO_PATHS)
+
+  return (
+    <svg viewBox="0 0 490 450" style={{ width:'100%', maxWidth:'420px', cursor:'pointer' }} xmlns="http://www.w3.org/2000/svg">
+      {sidos.map(sido => {
+        const count = regionCounts[sido] || 0
+        const intensity = count > 0 ? 0.2 + (count / maxCount) * 0.7 : 0
+        const isSelected = selectedSido === sido
+        const fill = isSelected ? '#f97316'
+          : count > 0 ? `rgba(249,115,22,${intensity})`
+          : '#e5e7eb'
+        const stroke = isSelected ? '#ea580c' : '#fff'
+        const [lx, ly] = SIDO_LABEL_POS[sido]
+
+        return (
+          <g key={sido} onClick={() => onSelect(sido)} style={{ cursor:'pointer' }}>
+            <path d={SIDO_PATHS[sido]} fill={fill} stroke={stroke} strokeWidth={isSelected ? 2 : 1}
+              style={{ transition:'all .2s' }}
+              onMouseEnter={e => { if (!isSelected) e.target.style.fill = 'rgba(249,115,22,0.5)' }}
+              onMouseLeave={e => { if (!isSelected) e.target.style.fill = fill }} />
+            <text x={lx} y={ly} textAnchor="middle" fontSize="8" fontFamily="Noto Sans KR, sans-serif"
+              fill={isSelected || count > 0 ? '#fff' : '#6b7280'} fontWeight={isSelected ? 700 : 400}
+              style={{ pointerEvents:'none', userSelect:'none' }}>
+              {sido}
+            </text>
+            {count > 0 && (
+              <text x={lx} y={ly + 9} textAnchor="middle" fontSize="7" fontFamily="monospace"
+                fill={isSelected ? '#fff' : '#f97316'} style={{ pointerEvents:'none', userSelect:'none' }}>
+                {count}명
+              </text>
+            )}
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+// ─── 지도 드릴다운 패널
+function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATUS_LABEL, STATUS_COLOR }) {
+  const [selectedSido,    setSelectedSido]    = useState(null)
+  const [selectedSupport, setSelectedSupport] = useState(null)
+  const [selectedSchool,  setSelectedSchool]  = useState(null)
+  const [selectedTeacher, setSelectedTeacher] = useState(null)
+
+  const regionMap = (() => {
+    try { return JSON.parse(localStorage.getItem('asa_settings_regionMap') || '{}').regions || [] } catch { return [] }
+  })()
+
+  // 학교 → 시도/교육지원청 매핑
+  const schoolToRegion = {}
+  regionMap.forEach(r => {
+    r.schools.forEach(s => {
+      const name = s.name || s
+      schoolToRegion[name] = { sido: r.sido, support: r.support, supportUrl: r.supportUrl || '' }
+    })
+  })
+
+  // 학생 enriched
+  const enriched = allStudents.map(s => {
+    const teacher = allTeachers.find(t => t.id === s.teacherId)
+    const classes = (s.classIds || []).map(cid => allClasses.find(c => c.id === cid)).filter(Boolean)
+    const region = schoolToRegion[s.school] || null
+    return { ...s, teacher, classes, region }
+  })
+
+  // 시도별 학생 수 (지도 색상용)
+  const regionCounts = {}
+  enriched.forEach(s => {
+    const sido = s.region?.sido || null
+    if (sido) regionCounts[sido] = (regionCounts[sido] || 0) + 1
+  })
+
+  // 선택된 시도의 교육지원청 목록
+  const supportList = selectedSido
+    ? [...new Set(regionMap.filter(r => r.sido === selectedSido).map(r => r.support))]
+    : []
+
+  // 선택된 교육지원청의 학교 목록
+  const schoolList = selectedSupport
+    ? [...new Set(enriched.filter(s => s.region?.support === selectedSupport).map(s => s.school).filter(Boolean))]
+    : []
+
+  // 선택된 학교의 선생님 목록
+  const teacherList = selectedSchool
+    ? allTeachers.filter(t => enriched.some(s => s.school === selectedSchool && s.teacherId === t.id))
+    : []
+
+  // 최종 학생 목록
+  const finalStudents = enriched.filter(s => {
+    if (selectedTeacher) return s.teacherId === selectedTeacher && s.school === selectedSchool
+    if (selectedSchool)  return s.school === selectedSchool
+    if (selectedSupport) return s.region?.support === selectedSupport
+    if (selectedSido)    return s.region?.sido === selectedSido
+    return false
+  })
+
+  const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316' }
+
+  const Breadcrumb = () => (
+    <div style={{ display:'flex', alignItems:'center', gap:'6px', fontSize:'13px', marginBottom:'16px', flexWrap:'wrap' }}>
+      <button onClick={() => { setSelectedSido(null); setSelectedSupport(null); setSelectedSchool(null); setSelectedTeacher(null) }}
+        style={{ background:'none', border:'none', color:C.primary, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, padding:0 }}>
+        🗺️ 전체
+      </button>
+      {selectedSido && <>
+        <span style={{ color:'#d1d5db' }}>›</span>
+        <button onClick={() => { setSelectedSupport(null); setSelectedSchool(null); setSelectedTeacher(null) }}
+          style={{ background:'none', border:'none', color:selectedSupport?C.muted:C.primary, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, padding:0 }}>
+          📍 {selectedSido}
+        </button>
+      </>}
+      {selectedSupport && <>
+        <span style={{ color:'#d1d5db' }}>›</span>
+        <button onClick={() => { setSelectedSchool(null); setSelectedTeacher(null) }}
+          style={{ background:'none', border:'none', color:selectedSchool?C.muted:C.primary, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, padding:0 }}>
+          🏛️ {selectedSupport}
+        </button>
+      </>}
+      {selectedSchool && <>
+        <span style={{ color:'#d1d5db' }}>›</span>
+        <button onClick={() => setSelectedTeacher(null)}
+          style={{ background:'none', border:'none', color:selectedTeacher?C.muted:C.primary, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, padding:0 }}>
+          🏫 {selectedSchool}
+        </button>
+      </>}
+      {selectedTeacher && <>
+        <span style={{ color:'#d1d5db' }}>›</span>
+        <span style={{ color:C.primary, fontWeight:600 }}>
+          👩‍🏫 {allTeachers.find(t => t.id === selectedTeacher)?.name}
+        </span>
+      </>}
+    </div>
+  )
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
+
+      {/* 지도 + 우측 패널 */}
+      <div style={{ display:'flex', gap:'24px', alignItems:'flex-start', flexWrap:'wrap' }}>
+
+        {/* SVG 지도 */}
+        <div style={{ flex:'0 0 auto', background:'#fff', borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px' }}>
+          <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'12px' }}>
+            🗺️ 지역별 학생 현황 {selectedSido && <span style={{ color:C.primary }}>— {selectedSido} 선택됨</span>}
+          </div>
+          <KoreaMapSVG regionCounts={regionCounts} onSelect={sido => { setSelectedSido(sido); setSelectedSupport(null); setSelectedSchool(null); setSelectedTeacher(null) }} selectedSido={selectedSido} />
+          {Object.keys(regionCounts).length === 0 && (
+            <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', marginTop:'8px' }}>
+              ※ 지역/학교 매핑 등록 후 표시됩니다<br/>(서비스설정 → 지역/학교)
+            </div>
+          )}
+        </div>
+
+        {/* 우측 드릴다운 패널 */}
+        <div style={{ flex:1, minWidth:'260px', display:'flex', flexDirection:'column', gap:'12px' }}>
+          <Breadcrumb />
+
+          {/* 시도 미선택 */}
+          {!selectedSido && (
+            <div style={{ padding:'32px', background:'#f9fafb', borderRadius:'12px', textAlign:'center', color:C.muted, fontSize:'14px' }}>
+              <div style={{ fontSize:'32px', marginBottom:'10px' }}>👆</div>
+              지도에서 시도를 클릭하면<br/>해당 지역 현황을 볼 수 있습니다.
+            </div>
+          )}
+
+          {/* 교육지원청 목록 */}
+          {selectedSido && !selectedSupport && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>🏛️ {selectedSido} 교육지원청</div>
+              {supportList.length === 0 ? (
+                <div style={{ padding:'20px', background:'#f9fafb', borderRadius:'10px', color:C.muted, fontSize:'13px', textAlign:'center' }}>
+                  등록된 교육지원청이 없습니다.<br/>서비스설정 → 지역/학교에서 등록하세요.
+                </div>
+              ) : supportList.map(support => {
+                const cnt = enriched.filter(s => s.region?.support === support).length
+                const regionInfo = regionMap.find(r => r.support === support)
+                return (
+                  <button key={support} onClick={() => setSelectedSupport(support)}
+                    style={{ padding:'14px 16px', background:'#fff', borderRadius:'10px', border:`1.5px solid ${C.border}`, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'space-between', transition:'all .15s' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor=C.primary}
+                    onMouseLeave={e => e.currentTarget.style.borderColor=C.border}>
+                    <div>
+                      <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{support}</div>
+                      {regionInfo?.supportUrl && <div style={{ fontSize:'11px', color:'#3b82f6', marginTop:'2px' }}>🔗 홈페이지</div>}
+                    </div>
+                    <span style={{ fontSize:'13px', fontWeight:700, color:C.primary }}>{cnt}명 ›</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* 학교 목록 */}
+          {selectedSupport && !selectedSchool && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>🏫 소속 학교</div>
+              {schoolList.length === 0 ? (
+                <div style={{ padding:'20px', background:'#f9fafb', borderRadius:'10px', color:C.muted, fontSize:'13px', textAlign:'center' }}>등록된 학교가 없습니다.</div>
+              ) : schoolList.map(school => {
+                const cnt = enriched.filter(s => s.school === school).length
+                const schoolInfo = regionMap.find(r => r.support === selectedSupport)?.schools?.find(s => (s.name||s) === school)
+                return (
+                  <button key={school} onClick={() => setSelectedSchool(school)}
+                    style={{ padding:'14px 16px', background:'#fff', borderRadius:'10px', border:`1.5px solid ${C.border}`, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'space-between', transition:'all .15s' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor=C.primary}
+                    onMouseLeave={e => e.currentTarget.style.borderColor=C.border}>
+                    <div>
+                      <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{school}</div>
+                      {schoolInfo?.url && <a href={schoolInfo.url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{ fontSize:'11px', color:'#3b82f6' }}>🔗 홈페이지</a>}
+                    </div>
+                    <span style={{ fontSize:'13px', fontWeight:700, color:C.primary }}>{cnt}명 ›</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* 선생님 목록 */}
+          {selectedSchool && !selectedTeacher && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>👩‍🏫 담당 선생님</div>
+              {teacherList.length === 0 ? (
+                <div style={{ padding:'20px', background:'#f9fafb', borderRadius:'10px', color:C.muted, fontSize:'13px', textAlign:'center' }}>담당 선생님이 없습니다.</div>
+              ) : teacherList.map(t => {
+                const cnt = enriched.filter(s => s.school === selectedSchool && s.teacherId === t.id).length
+                return (
+                  <button key={t.id} onClick={() => setSelectedTeacher(t.id)}
+                    style={{ padding:'14px 16px', background:'#fff', borderRadius:'10px', border:`1.5px solid ${C.border}`, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'space-between', transition:'all .15s' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor=C.primary}
+                    onMouseLeave={e => e.currentTarget.style.borderColor=C.border}>
+                    <div>
+                      <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{t.name}</div>
+                      <div style={{ fontSize:'12px', color:C.muted }}>{t.email}</div>
+                    </div>
+                    <span style={{ fontSize:'13px', fontWeight:700, color:C.primary }}>{cnt}명 ›</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 학생 목록 테이블 */}
+      {selectedSido && finalStudents.length > 0 && (
+        <div style={{ background:'#fff', borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+          <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, fontSize:'14px', fontWeight:700, color:C.text }}>
+            👥 학생 목록 ({finalStudents.length}명)
+          </div>
+          <table style={{ width:'100%', borderCollapse:'collapse' }}>
+            <thead>
+              <tr style={{ background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
+                {['이름','학교/학년','수강수업','상태','담당선생님','학부모연락처'].map(h => (
+                  <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:C.muted }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {finalStudents.map((s, i) => (
+                <tr key={s.id} style={{ borderBottom:`1px solid #f3f4f6`, background:i%2===0?'#fff':'#fafafa' }}>
+                  <td style={{ padding:'10px 14px', fontWeight:600, color:C.text, fontSize:'13px' }}>{s.name}</td>
+                  <td style={{ padding:'10px 14px', fontSize:'12px', color:C.muted }}>
+                    {s.school && <div>{s.school}</div>}
+                    <div>{s.grade}{s.classNum?` ${s.classNum}반`:''}</div>
+                  </td>
+                  <td style={{ padding:'10px 14px', fontSize:'12px', color:C.muted }}>
+                    {s.classes.map(c => <div key={c.id}>{c.className}{c.section?` ${c.section}반`:''}</div>)}
+                  </td>
+                  <td style={{ padding:'10px 14px' }}>
+                    <span style={{ fontSize:'11px', fontWeight:600, padding:'2px 7px', borderRadius:'5px', background:`${STATUS_COLOR[s.status]}18`, color:STATUS_COLOR[s.status] }}>
+                      {STATUS_LABEL[s.status]||s.status}
+                    </span>
+                  </td>
+                  <td style={{ padding:'10px 14px', fontSize:'12px', color:C.text }}>
+                    {s.teacher ? <div><div style={{ fontWeight:600 }}>{s.teacher.name}</div><div style={{ fontSize:'11px', color:C.muted }}>{s.teacher.email}</div></div> : '—'}
+                  </td>
+                  <td style={{ padding:'10px 14px', fontSize:'12px', color:C.muted }}>{s.parentPhone||'—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── 학생 탭 (지도 / 리스트 뷰 전환)
+function StudentTabPanel(props) {
+  const [view, setView] = useState('map')
+  const C = { primary:'#f97316', border:'#e5e7eb', muted:'#6b7280' }
+  return (
+    <div>
+      <div style={{ display:'flex', gap:'8px', marginBottom:'20px' }}>
+        {[{ key:'map', label:'🗺️ 지도 뷰' }, { key:'list', label:'📋 목록 뷰' }].map(v => (
+          <button key={v.key} onClick={() => setView(v.key)}
+            style={{ padding:'8px 18px', borderRadius:'9px', border:`1.5px solid ${view===v.key?C.primary:C.border}`, background:view===v.key?C.primary:'#fff', color:view===v.key?'#fff':C.muted, fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
+            {v.label}
+          </button>
+        ))}
+      </div>
+      {view === 'map'  && <MapDrilldown  {...props} />}
+      {view === 'list' && <StudentListPanel {...props} />}
+    </div>
+  )
+}
+
+// ─── 학생 전체 목록 패널 (탭 뷰 전환)
 function StudentListPanel({ allStudents, allClasses, allTeachers, allBranches, STATUS_LABEL, STATUS_COLOR }) {
   const [search,        setSearch]        = useState('')
   const [filterStatus,  setFilterStatus]  = useState('')
@@ -459,19 +799,13 @@ export function Admin({ user: currentUser }) {
         const allStudents  = Students.all()
         const allClasses   = Classes.all()
         const allBranches  = Branches.all()
-
         const STATUS_LABEL = { applied:'신청', waiting:'대기', selected:'추첨완료', confirmed:'확정', cancelled:'취소' }
         const STATUS_COLOR = { applied:'#6b7280', waiting:'#f59e0b', selected:'#3b82f6', confirmed:'#16a34a', cancelled:'#ef4444' }
-
-        // 검색/필터 상태는 로컬 변수 대신 컴포넌트로 분리
         return (
-          <StudentListPanel
-            allStudents={allStudents}
-            allClasses={allClasses}
-            allTeachers={teachers}
-            allBranches={allBranches}
-            STATUS_LABEL={STATUS_LABEL}
-            STATUS_COLOR={STATUS_COLOR}
+          <StudentTabPanel
+            allStudents={allStudents} allClasses={allClasses}
+            allTeachers={teachers} allBranches={allBranches}
+            STATUS_LABEL={STATUS_LABEL} STATUS_COLOR={STATUS_COLOR}
           />
         )
       })()}

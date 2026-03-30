@@ -411,10 +411,69 @@ function SolapiSection() {
 
 // ─── 섹션: 지역/학교 관리
 function RegionSection() {
-  const initData = Settings.get('regionMap') || { regions: [] }
+  const initData = Settings.get('regionMap') || { regions: [], neisApiKey: '' }
   // regions: [{ id, sido, office, officeUrl, support, supportUrl, schools: [{ name, url }, ...] }]
-  const [regions, setRegions] = useState(initData.regions || [])
-  const [msg, setMsg] = useState(null)
+  const [regions,    setRegions]    = useState(initData.regions || [])
+  const [neisApiKey, setNeisApiKey] = useState(initData.neisApiKey || '')
+  const [msg,        setMsg]        = useState(null)
+
+  // NEIS 학교 검색
+  const [neisQuery,   setNeisQuery]   = useState('')
+  const [neisResults, setNeisResults] = useState([])
+  const [neisLoading, setNeisLoading] = useState(false)
+  const [neisMsg,     setNeisMsg]     = useState(null)
+
+  const searchNeis = async () => {
+    if (!neisApiKey.trim()) { setNeisMsg({ ok:false, msg:'NEIS API 키를 먼저 입력하고 저장하세요.' }); return }
+    if (!neisQuery.trim())  { setNeisMsg({ ok:false, msg:'학교명을 입력하세요.' }); return }
+    setNeisLoading(true); setNeisMsg(null); setNeisResults([])
+    try {
+      const url = `https://open.neis.go.kr/hub/schoolInfo?KEY=${neisApiKey.trim()}&Type=json&pIndex=1&pSize=20&SCHUL_NM=${encodeURIComponent(neisQuery.trim())}`
+      const res  = await fetch(url)
+      const data = await res.json()
+      const rows = data?.schoolInfo?.[1]?.row || []
+      if (rows.length === 0) { setNeisMsg({ ok:false, msg:'검색 결과가 없습니다.' }); return }
+      setNeisResults(rows.map(r => ({
+        name:       r.SCHUL_NM,
+        sido:       r.ATPT_OFCDC_SC_NM?.replace('교육청','').replace('특별시','').replace('광역시','').replace('특별자치시','').replace('특별자치도','').replace('도','').trim() || '',
+        sidoFull:   r.ATPT_OFCDC_SC_NM || '',
+        support:    r.JU_ORG_NM || '',
+        address:    r.ORG_RDNMA || '',
+        url:        r.HMPG_ADRES || '',
+        phone:      r.ORG_TELNO || '',
+      })))
+    } catch(e) {
+      setNeisMsg({ ok:false, msg:'검색 중 오류가 발생했습니다. API 키를 확인해주세요.' })
+    } finally {
+      setNeisLoading(false)
+    }
+  }
+
+  // NEIS 결과에서 학교 추가
+  const addFromNeis = (school) => {
+    // 해당 교육지원청이 있으면 학교만 추가, 없으면 새로 생성
+    const existing = regions.find(r => r.support === school.support && r.sido === school.sido)
+    if (existing) {
+      if (!existing.schools.find(s => (s.name||s) === school.name)) {
+        setRegions(prev => prev.map(r =>
+          r.id === existing.id
+            ? { ...r, schools: [...r.schools, { name: school.name, url: school.url }] }
+            : r
+        ))
+        setNeisMsg({ ok:true, msg:`${school.name}을(를) "${school.support}"에 추가했습니다. 저장 버튼을 눌러주세요.` })
+      } else {
+        setNeisMsg({ ok:false, msg:`${school.name}은(는) 이미 등록되어 있습니다.` })
+      }
+    } else {
+      const newEntry = {
+        id: String(Date.now()), sido: school.sido, office: school.sidoFull,
+        officeUrl: '', support: school.support, supportUrl: '',
+        schools: [{ name: school.name, url: school.url }]
+      }
+      setRegions(prev => [...prev, newEntry])
+      setNeisMsg({ ok:true, msg:`${school.name}과(와) "${school.support}"을(를) 새로 추가했습니다. 저장 버튼을 눌러주세요.` })
+    }
+  }
 
   // 폼 상태
   const [showForm, setShowForm] = useState(false)
@@ -444,7 +503,7 @@ function RegionSection() {
   const SIDO_LIST = ['서울','부산','대구','인천','광주','대전','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주']
 
   const saveAll = () => {
-    Settings.set('regionMap', { regions })
+    Settings.set('regionMap', { regions, neisApiKey })
     setMsg({ ok:true, msg:'저장되었습니다.' })
     setTimeout(() => setMsg(null), 3000)
   }
@@ -495,7 +554,74 @@ function RegionSection() {
       <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>🗺️ 지역 / 학교 관리</div>
       <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px', lineHeight:1.6 }}>
         시도 → 교육청 → 교육지원청 → 학교 계층을 등록합니다.<br/>
-        등록된 매핑은 관리자 학생 목록의 지역별 드릴다운에 사용됩니다.
+        NEIS API로 학교를 검색하면 교육지원청·홈페이지가 자동으로 입력됩니다.
+      </div>
+
+      {/* NEIS API 키 입력 */}
+      <div style={{ padding:'16px', background:'#f0f9ff', borderRadius:'12px', border:'1.5px solid #bae6fd', marginBottom:'20px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px' }}>
+          <span style={{ fontSize:'20px' }}>🏫</span>
+          <div>
+            <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>NEIS 교육정보 Open API</div>
+            <div style={{ fontSize:'12px', color:C.muted }}>학교명 검색 시 교육지원청·홈페이지 자동 입력</div>
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:'8px', alignItems:'flex-end' }}>
+          <div style={{ flex:1 }}>
+            <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>
+              API 인증키 <a href="https://open.neis.go.kr/portal/guide/apiUsageGuide.do" target="_blank" rel="noopener noreferrer" style={{ color:'#0369a1', fontSize:'11px', marginLeft:'6px' }}>📋 발급받기</a>
+            </label>
+            <input value={neisApiKey} onChange={e => setNeisApiKey(e.target.value)}
+              placeholder="NEIS Open API 인증키 입력"
+              style={{ padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'monospace', outline:'none', width:'100%', boxSizing:'border-box' }} />
+          </div>
+          <button onClick={saveAll}
+            style={{ padding:'8px 16px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', height:'38px' }}>
+            💾 저장
+          </button>
+        </div>
+
+        {/* NEIS 학교 검색 */}
+        <div style={{ marginTop:'14px', borderTop:`1px solid #bae6fd`, paddingTop:'14px' }}>
+          <div style={{ fontSize:'13px', fontWeight:600, color:C.text, marginBottom:'8px' }}>🔍 학교 검색 (NEIS API)</div>
+          <div style={{ display:'flex', gap:'8px' }}>
+            <input value={neisQuery} onChange={e => setNeisQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && searchNeis()}
+              placeholder="학교명 입력 후 검색 (예: 군포초등학교)"
+              style={{ flex:1, padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+            <button onClick={searchNeis} disabled={neisLoading}
+              style={{ padding:'8px 16px', borderRadius:'9px', border:`1.5px solid #0369a1`, background:neisLoading?'#f0f9ff':'#0369a1', color:neisLoading?'#0369a1':'#fff', fontSize:'13px', fontWeight:700, cursor:neisLoading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', opacity:neisLoading?0.7:1 }}>
+              {neisLoading ? '검색 중...' : '검색'}
+            </button>
+          </div>
+
+          {neisMsg && (
+            <div style={{ marginTop:'8px', fontSize:'12px', padding:'8px 12px', borderRadius:'7px', background:neisMsg.ok?'#f0fdf4':'#fef2f2', color:neisMsg.ok?'#16a34a':'#ef4444', border:`1px solid ${neisMsg.ok?'#86efac':'#fca5a5'}` }}>
+              {neisMsg.ok ? '✅' : '⚠️'} {neisMsg.msg}
+            </div>
+          )}
+
+          {neisResults.length > 0 && (
+            <div style={{ marginTop:'10px', display:'flex', flexDirection:'column', gap:'6px', maxHeight:'280px', overflowY:'auto' }}>
+              {neisResults.map((school, i) => (
+                <div key={i} style={{ padding:'10px 12px', background:'#fff', borderRadius:'9px', border:`1px solid ${C.border}`, display:'flex', alignItems:'center', gap:'10px' }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{school.name}</div>
+                    <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
+                      {school.sido} · {school.support}
+                      {school.address && ` · ${school.address}`}
+                    </div>
+                    {school.url && <a href={school.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:'11px', color:'#3b82f6' }}>🔗 홈페이지</a>}
+                  </div>
+                  <button onClick={() => addFromNeis(school)}
+                    style={{ padding:'5px 12px', borderRadius:'7px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                    + 추가
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 미매핑 학교 알림 */}
@@ -688,9 +814,6 @@ function RegionSection() {
       )}
 
       <SaveMsg data={msg} />
-      <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'4px' }}>
-        <Btn onClick={saveAll}>💾 전체 저장</Btn>
-      </div>
     </Card>
   )
 }
