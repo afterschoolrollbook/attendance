@@ -409,6 +409,292 @@ function SolapiSection() {
   )
 }
 
+// ─── 섹션: 지역/학교 관리
+function RegionSection() {
+  const initData = Settings.get('regionMap') || { regions: [] }
+  // regions: [{ id, sido, office, officeUrl, support, supportUrl, schools: [{ name, url }, ...] }]
+  const [regions, setRegions] = useState(initData.regions || [])
+  const [msg, setMsg] = useState(null)
+
+  // 폼 상태
+  const [showForm, setShowForm] = useState(false)
+  const [editId,   setEditId]   = useState(null)
+  const [form, setForm] = useState({ sido:'', office:'', officeUrl:'', support:'', supportUrl:'', schoolInput:'', schoolUrlInput:'' })
+  const [schools, setSchools] = useState([])  // [{ name, url }, ...]
+
+  // 미매핑 학교 계산
+  const { Students, Classes } = (() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('asa_students') || '[]')
+      const c = JSON.parse(localStorage.getItem('asa_classes')  || '[]')
+      return { Students: s, Classes: c }
+    } catch { return { Students: [], Classes: [] } }
+  })()
+
+  const allSchools = [...new Set([
+    ...Students.map(s => s.school).filter(Boolean),
+    ...Classes.map(c => c.organization).filter(Boolean),
+  ])]
+  const mappedSchools = new Set(regions.flatMap(r => r.schools.map(s => s.name || s)))
+  const unmappedSchools = allSchools.filter(s => !mappedSchools.has(s))
+
+  const inSt  = { padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', width:'100%', boxSizing:'border-box' }
+  const selSt = { ...inSt, background:'#fff' }
+
+  const SIDO_LIST = ['서울','부산','대구','인천','광주','대전','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주']
+
+  const saveAll = () => {
+    Settings.set('regionMap', { regions })
+    setMsg({ ok:true, msg:'저장되었습니다.' })
+    setTimeout(() => setMsg(null), 3000)
+  }
+
+  const openNew = () => {
+    setForm({ sido:'', office:'', officeUrl:'', support:'', supportUrl:'', schoolInput:'', schoolUrlInput:'' })
+    setSchools([]); setEditId(null); setShowForm(true)
+  }
+
+  const openEdit = (r) => {
+    setForm({ sido:r.sido, office:r.office||'', officeUrl:r.officeUrl||'', support:r.support||'', supportUrl:r.supportUrl||'', schoolInput:'', schoolUrlInput:'' })
+    setSchools(r.schools.map(s => typeof s === 'string' ? { name:s, url:'' } : s))
+    setEditId(r.id); setShowForm(true)
+  }
+
+  const addSchool = () => {
+    const name = form.schoolInput.trim()
+    if (!name) return
+    if (!schools.find(s => s.name === name)) setSchools(p => [...p, { name, url: form.schoolUrlInput.trim() }])
+    setForm(p => ({ ...p, schoolInput:'', schoolUrlInput:'' }))
+  }
+
+  const addUnmapped = (school) => {
+    if (!schools.find(s => s.name === school)) setSchools(p => [...p, { name: school, url: '' }])
+  }
+
+  const removeSchool = (name) => setSchools(p => p.filter(s => s.name !== name))
+
+  const saveForm = () => {
+    if (!form.sido) { alert('시도를 선택하세요.'); return }
+    if (!form.support.trim()) { alert('교육지원청명을 입력하세요.'); return }
+    const entry = { id: editId || String(Date.now()), sido: form.sido, office: form.office.trim(), officeUrl: form.officeUrl.trim(), support: form.support.trim(), supportUrl: form.supportUrl.trim(), schools }
+    if (editId) {
+      setRegions(p => p.map(r => r.id === editId ? entry : r))
+    } else {
+      setRegions(p => [...p, entry])
+    }
+    setShowForm(false); setEditId(null)
+  }
+
+  const deleteRegion = (id) => {
+    if (!window.confirm('삭제하시겠습니까?')) return
+    setRegions(p => p.filter(r => r.id !== id))
+  }
+
+  return (
+    <Card style={{ marginBottom:'16px' }}>
+      <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>🗺️ 지역 / 학교 관리</div>
+      <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px', lineHeight:1.6 }}>
+        시도 → 교육청 → 교육지원청 → 학교 계층을 등록합니다.<br/>
+        등록된 매핑은 관리자 학생 목록의 지역별 드릴다운에 사용됩니다.
+      </div>
+
+      {/* 미매핑 학교 알림 */}
+      {unmappedSchools.length > 0 && (
+        <div style={{ padding:'14px 16px', background:'#fffbeb', borderRadius:'12px', border:'1.5px solid #fde68a', marginBottom:'20px' }}>
+          <div style={{ fontSize:'14px', fontWeight:700, color:'#92400e', marginBottom:'10px' }}>
+            ⚠️ 지역/교육청 미등록 학교 {unmappedSchools.length}곳
+          </div>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
+            {unmappedSchools.map(s => (
+              <span key={s} style={{ fontSize:'12px', padding:'3px 10px', background:'#fff', border:'1px solid #fde68a', borderRadius:'6px', color:'#92400e', display:'flex', alignItems:'center', gap:'6px' }}>
+                {s}
+                {showForm && (
+                  <button onClick={() => addUnmapped(s)}
+                    style={{ background:'#f97316', color:'#fff', border:'none', borderRadius:'4px', padding:'1px 6px', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    + 추가
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+          {!showForm && (
+            <div style={{ fontSize:'12px', color:'#b45309', marginTop:'8px' }}>
+              📌 교육지원청 등록/수정 시 미등록 학교를 바로 추가할 수 있습니다.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 추가 버튼 */}
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'16px' }}>
+        <button onClick={openNew}
+          style={{ padding:'8px 16px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          + 교육지원청 추가
+        </button>
+      </div>
+
+      {/* 입력 폼 */}
+      {showForm && (
+        <div style={{ padding:'18px', background:'#fff7ed', borderRadius:'12px', border:`1.5px solid ${C.primary}`, marginBottom:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+          <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{editId ? '교육지원청 수정' : '교육지원청 추가'}</div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 2fr', gap:'10px' }}>
+            <div>
+              <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>시도 *</label>
+              <select value={form.sido} onChange={e => setForm(p=>({...p,sido:e.target.value}))} style={selSt}>
+                <option value="">선택</option>
+                {SIDO_LIST.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교육청 (시도교육청)</label>
+              <input value={form.office} onChange={e => setForm(p=>({...p,office:e.target.value}))} placeholder="예: 경기도교육청" style={inSt} />
+            </div>
+            <div>
+              <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교육지원청 *</label>
+              <input value={form.support} onChange={e => setForm(p=>({...p,support:e.target.value}))} placeholder="예: 군포의왕교육지원청" style={inSt} />
+            </div>
+          </div>
+
+          {/* 교육청/교육지원청 URL */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+            <div>
+              <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교육청 홈페이지 URL</label>
+              <input value={form.officeUrl} onChange={e => setForm(p=>({...p,officeUrl:e.target.value}))} placeholder="https://www.goe.go.kr" style={inSt} />
+            </div>
+            <div>
+              <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교육지원청 홈페이지 URL</label>
+              <input value={form.supportUrl} onChange={e => setForm(p=>({...p,supportUrl:e.target.value}))} placeholder="https://gunpo.goe.go.kr" style={inSt} />
+            </div>
+          </div>
+
+          {/* 학교 추가 */}
+          <div>
+            <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>소속 학교</label>
+            <div style={{ display:'grid', gridTemplateColumns:'2fr 2fr auto', gap:'8px', marginBottom:'8px', alignItems:'flex-end' }}>
+              <div>
+                <div style={{ fontSize:'11px', color:C.muted, marginBottom:'3px' }}>학교명</div>
+                <input value={form.schoolInput} onChange={e => setForm(p=>({...p,schoolInput:e.target.value}))}
+                  onKeyDown={e => e.key === 'Enter' && addSchool()}
+                  placeholder="예: 군포초등학교" style={inSt} />
+              </div>
+              <div>
+                <div style={{ fontSize:'11px', color:C.muted, marginBottom:'3px' }}>홈페이지 URL (선택)</div>
+                <input value={form.schoolUrlInput} onChange={e => setForm(p=>({...p,schoolUrlInput:e.target.value}))}
+                  onKeyDown={e => e.key === 'Enter' && addSchool()}
+                  placeholder="https://gunpo.es.kr" style={inSt} />
+              </div>
+              <button onClick={addSchool}
+                style={{ padding:'8px 14px', borderRadius:'9px', border:`1.5px solid ${C.primary}`, background:'#fff', color:C.primary, fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', height:'38px' }}>
+                추가
+              </button>
+            </div>
+            {unmappedSchools.length > 0 && (
+              <div style={{ marginBottom:'8px' }}>
+                <div style={{ fontSize:'11px', color:'#b45309', marginBottom:'4px' }}>⚠️ 미등록 학교 클릭하여 빠르게 추가:</div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'4px' }}>
+                  {unmappedSchools.filter(s => !schools.find(x => x.name === s)).map(s => (
+                    <button key={s} onClick={() => addUnmapped(s)}
+                      style={{ padding:'2px 8px', borderRadius:'5px', border:'1px solid #fde68a', background:'#fffbeb', color:'#92400e', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      + {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {schools.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                {schools.map(s => (
+                  <div key={s.name} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'5px 10px', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'7px' }}>
+                    <span style={{ fontSize:'12px', fontWeight:600, color:'#15803d', flex:1 }}>🏫 {s.name}</span>
+                    {s.url
+                      ? <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:'11px', color:'#3b82f6', textDecoration:'none' }}>🔗 홈페이지</a>
+                      : <span style={{ fontSize:'11px', color:'#d1d5db' }}>URL 미등록</span>
+                    }
+                    <button onClick={() => removeSchool(s.name)}
+                      style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', padding:'0', fontSize:'14px', lineHeight:1 }}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+            <button onClick={() => { setShowForm(false); setEditId(null) }}
+              style={{ padding:'7px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
+            <button onClick={saveForm}
+              style={{ padding:'7px 16px', borderRadius:'8px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+          </div>
+        </div>
+      )}
+
+      {/* 등록된 목록 */}
+      {regions.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'48px', color:C.muted, background:'#f9fafb', borderRadius:'12px', fontSize:'14px' }}>
+          <div style={{ fontSize:'32px', marginBottom:'10px' }}>🗺️</div>
+          등록된 지역이 없습니다.<br/>
+          <span style={{ fontSize:'13px' }}>교육지원청 추가 버튼으로 시작하세요.</span>
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'10px', marginBottom:'20px' }}>
+          {/* 시도별 그룹 */}
+          {SIDO_LIST.filter(sido => regions.some(r => r.sido === sido)).map(sido => (
+            <div key={sido}>
+              <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', padding:'6px 10px', background:'#f3f4f6', borderRadius:'8px', marginBottom:'6px' }}>
+                📍 {sido}
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px', paddingLeft:'10px' }}>
+                {regions.filter(r => r.sido === sido).map(r => (
+                  <div key={r.id} style={{ padding:'12px 16px', background:'#fff', borderRadius:'10px', border:`1px solid ${C.border}`, display:'flex', alignItems:'flex-start', gap:'12px' }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px' }}>
+                        {r.office && <span style={{ fontSize:'12px', color:C.muted }}>
+                          {r.officeUrl
+                            ? <a href={r.officeUrl} target="_blank" rel="noopener noreferrer" style={{ color:C.muted, textDecoration:'none' }}>{r.office} 🔗</a>
+                            : r.office} &rsaquo;
+                        </span>}
+                        <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>
+                          {r.supportUrl
+                            ? <a href={r.supportUrl} target="_blank" rel="noopener noreferrer" style={{ color:C.text, textDecoration:'none' }}>{r.support} 🔗</a>
+                            : r.support}
+                        </span>
+                        <span style={{ fontSize:'11px', background:'#eff6ff', color:'#3b82f6', padding:'1px 7px', borderRadius:'5px', fontWeight:600 }}>
+                          학교 {r.schools.length}곳
+                        </span>
+                      </div>
+                      {r.schools.length > 0 && (
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', marginTop:'6px' }}>
+                          {r.schools.map(s => (
+                            <span key={s.name || s} style={{ fontSize:'11px', padding:'2px 8px', background:'#f9fafb', border:`1px solid ${C.border}`, borderRadius:'5px', color:C.muted, display:'flex', alignItems:'center', gap:'4px' }}>
+                              {s.name || s}
+                              {(s.url) && <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color:'#3b82f6', textDecoration:'none', fontSize:'11px' }}>🔗</a>}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+                      <button onClick={() => openEdit(r)}
+                        style={{ padding:'4px 10px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>수정</button>
+                      <button onClick={() => deleteRegion(r.id)}
+                        style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#ef4444' }}>삭제</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <SaveMsg data={msg} />
+      <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'4px' }}>
+        <Btn onClick={saveAll}>💾 전체 저장</Btn>
+      </div>
+    </Card>
+  )
+}
+
 // ─── 메인
 export function AdminSettings() {
   const [tab, setTab] = useState('social')
@@ -423,6 +709,7 @@ export function AdminSettings() {
           { key:'email',   label:'📧 이메일 발송' },
           { key:'solapi',  label:'📱 문자·알림톡' },
           { key:'service', label:'⚙️ 기본 설정' },
+          { key:'region',  label:'🗺️ 지역/학교' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             style={{ padding:'10px 16px', border:'none', cursor:'pointer', background:'none', color:tab===t.key?C.primary:'#9ca3af', fontWeight:tab===t.key?700:400, fontSize:'14px', borderBottom:tab===t.key?`2px solid ${C.primary}`:'2px solid transparent', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'-1px', transition:'all .15s' }}>
@@ -435,6 +722,7 @@ export function AdminSettings() {
       {tab === 'email'   && <EmailSection />}
       {tab === 'solapi'  && <SolapiSection />}
       {tab === 'service' && <ServiceSection />}
+      {tab === 'region'  && <RegionSection />}
     </div>
   )
 }
