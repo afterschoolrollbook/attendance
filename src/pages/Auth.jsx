@@ -813,7 +813,7 @@ export function Auth({ onLogin }) {
                         onClick={naverConfigured ? loginWithNaver : () => alert('네이버 로그인을 사용하려면\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
                     </div>
                     <Divider label="또는 이메일로 로그인" />
-                    <Input label="이메일" value={form.email} onChange={v => set('email', v)} placeholder="admin@test.com" type="email" />
+                    <Input label="이메일" value={form.email} onChange={v => set('email', v)} placeholder="이메일 입력" type="email" />
                     <Input label="비밀번호" value={form.pw} onChange={v => set('pw', v)} placeholder="비밀번호" type="password" />
                     {error && <ErrBox msg={error} />}
                     <Btn full onClick={handleLogin}>로그인</Btn>
