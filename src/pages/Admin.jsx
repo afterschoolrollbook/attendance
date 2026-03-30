@@ -50,7 +50,7 @@ function KoreaMapSVG({ regionCounts, onSelect, selectedSido }) {
     <div style={{ display:'flex', gap:'24px', alignItems:'flex-start' }}>
       {/* 지도 이미지 */}
       <img
-        src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/South_Korea_divisions.svg/500px-South_Korea_divisions.svg.png"
+        src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Administrative_divisions_map_of_South_Korea.svg/426px-Administrative_divisions_map_of_South_Korea.svg.png"
         alt="한국 지도"
         style={{ width:'220px', flexShrink:0, display:'block', borderRadius:'8px' }}
       />
