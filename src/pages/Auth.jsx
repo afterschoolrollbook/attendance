@@ -200,7 +200,7 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
       {/* 카카오: 이메일 직접 입력 */}
       {isKakao ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <label style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>💛 실제 이메일 주소 입력</label>
+          <label style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>💛 실제로 사용하시는 이메일 주소 입력 <span style={{ color: '#ef4444' }}>*</span></label>
           <input
             type="email"
             value={emailInput}
@@ -208,7 +208,7 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
             placeholder="example@email.com"
             style={{ padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }}
           />
-          <div style={{ fontSize: '12px', color: '#6b7280' }}>인증번호를 받을 실제 이메일 주소를 입력하세요.</div>
+          <div style={{ fontSize: '12px', color: '#6b7280' }}>평소 실제로 사용하시는 이메일 주소를 입력해주세요. 인증번호 수신 및 중요 알림에 사용됩니다.</div>
         </div>
       ) : (
         <div style={{ padding: '12px 14px', background: '#eff6ff', borderRadius: '10px', border: '1.5px solid #bfdbfe', fontSize: '13px', color: '#1e40af' }}>
@@ -262,13 +262,18 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
 
 // ─── 소셜 프로필 입력 화면
 function SocialProfileForm({ profile, onComplete }) {
-  const [name, setName] = useState(isGarbled(profile.name) ? '' : (profile.name || ''))
+  const isKakao = profile.provider === 'kakao'
+  const isFakeEmail = (e) => !e || e.includes('@social.local')
+
+  const [name,  setName]  = useState(isGarbled(profile.name) ? '' : (profile.name || ''))
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState(isFakeEmail(profile.email) ? '' : (profile.email || ''))
   const [error, setError] = useState('')
 
   const handleSubmit = () => {
     if (!name.trim()) { setError('이름을 입력해주세요.'); return }
-    onComplete({ name: name.trim(), phone: phone.trim() })
+    if (!phone.trim()) { setError('연락처를 입력해주세요.'); return }
+    onComplete({ name: name.trim(), phone: phone.trim(), email: email || profile.email })
   }
 
   return (
@@ -278,21 +283,41 @@ function SocialProfileForm({ profile, onComplete }) {
           <img src={profile.avatar} alt="" style={{ width: 56, height: 56, borderRadius: '50%', marginBottom: 8 }} />
         )}
         <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>프로필 정보 입력</div>
-        <div style={{ fontSize: '13px', color: '#6b7280', marginTop: 4 }}>{profile.email}</div>
+        <div style={{ fontSize: '13px', color: '#6b7280', marginTop: 4 }}>
+          {isKakao ? '💛 카카오 로그인' : profile.email}
+        </div>
       </div>
-      <div style={{ padding: '12px 14px', background: '#eff6ff', borderRadius: '10px', border: '1.5px solid #bfdbfe', fontSize: '13px', color: '#1e40af' }}>
-        서비스 이용을 위해 이름과 연락처를 입력해주세요.
+      <div style={{ padding: '12px 14px', background: '#eff6ff', borderRadius: '10px', border: '1.5px solid #bfdbfe', fontSize: '13px', color: '#1e40af', lineHeight: 1.7 }}>
+        서비스 이용을 위해 아래 정보를 입력해주세요.<br/>
+        {isKakao && <span style={{ fontWeight: 700 }}>📧 이메일은 실제로 사용하시는 이메일 주소를 입력해주세요.<br/>인증번호 수신 및 중요 알림에 사용됩니다.</span>}
       </div>
+
+      {/* 이름 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
         <label style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>이름 <span style={{ color: '#ef4444' }}>*</span></label>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="홍길동"
           style={{ padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }} />
       </div>
+
+      {/* 연락처 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-        <label style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>연락처</label>
+        <label style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>연락처 <span style={{ color: '#ef4444' }}>*</span></label>
         <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000"
           style={{ padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }} />
       </div>
+
+      {/* 카카오: 이메일 (인증된 이메일 표시, 수정 불가) */}
+      {isKakao && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <label style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>이메일</label>
+          <div style={{ padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #86efac', background: '#f0fdf4', fontSize: '14px', color: '#15803d', fontFamily: 'Noto Sans KR, sans-serif', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>✅</span>
+            <span style={{ fontWeight: 600 }}>{email}</span>
+          </div>
+          <div style={{ fontSize: '12px', color: '#6b7280' }}>인증 완료된 이메일입니다. 변경하려면 이전 단계로 돌아가세요.</div>
+        </div>
+      )}
+
       {error && <div style={{ fontSize:'13px', color:'#ef4444', background:'#fef2f2', padding:'10px 14px', borderRadius:'8px', border:'1px solid #fca5a5' }}>{error}</div>}
       <button onClick={handleSubmit}
         style={{ padding:'11px', borderRadius:'9px', border:'none', background:'#f97316', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
@@ -383,16 +408,17 @@ export function Auth({ onLogin }) {
   }
 
   // 프로필 입력 완료 → 로그인
-  const handleProfileComplete = ({ name, phone }) => {
+  const handleProfileComplete = ({ name, phone, email: inputEmail }) => {
     const profile = pendingSocialProfile
     setSocialStep(null)
     setPendingSocialProfile(null)
 
-    const email = (profile.email?.toLowerCase() || '') || `${profile.provider}_${profile.providerId}@social.local`
+    // 이메일: 폼에서 입력한 값 > 인증된 이메일 > 가짜 이메일
+    const email = (inputEmail?.trim().toLowerCase()) || (profile.email?.toLowerCase()) || `${profile.provider}_${profile.providerId}@social.local`
 
     // 기존 회원이면 업데이트
     const existing = profile.existingId
-      ? JSON.parse(localStorage.getItem('users') || '[]').find(u => u.id === profile.existingId)
+      ? JSON.parse(localStorage.getItem('asa_users') || '[]').find(u => u.id === profile.existingId)
       : (!isFakeEmail(email) ? Users.findByEmail(email) : null)
 
     if (existing) {
