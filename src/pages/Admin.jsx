@@ -171,9 +171,9 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
     ? [...new Set(regionMap.filter(r => r.sido === selectedSido).map(r => r.support))]
     : []
 
-  // 선택된 교육지원청의 학교 목록
+  // 선택된 교육지원청의 학교 목록 — regionMap에 등록된 학교 기준 (학생 없어도 표시)
   const schoolList = selectedSupport
-    ? [...new Set(enriched.filter(s => s.region?.support === selectedSupport).map(s => s.school).filter(Boolean))]
+    ? (regionMap.find(r => r.support === selectedSupport)?.schools || []).map(s => s.name || s).filter(Boolean)
     : []
 
   // 선택된 학교의 선생님 목록
@@ -426,43 +426,49 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
       </div>
 
       {/* 학생 목록 테이블 */}
-      {selectedSido && finalStudents.length > 0 && (
+      {selectedSido && (selectedSchool || selectedSupport || selectedTeacher) && (
         <div style={{ background:'#fff', borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
           <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, fontSize:'14px', fontWeight:700, color:C.text }}>
             👥 학생 목록 ({finalStudents.length}명)
           </div>
-          <table style={{ width:'100%', borderCollapse:'collapse' }}>
-            <thead>
-              <tr style={{ background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
-                {['이름','학교/학년','수강수업','상태','담당선생님','학부모연락처'].map(h => (
-                  <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:C.muted }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {finalStudents.map((s, i) => (
-                <tr key={s.id} style={{ borderBottom:`1px solid #f3f4f6`, background:i%2===0?'#fff':'#fafafa' }}>
-                  <td style={{ padding:'10px 14px', fontWeight:600, color:C.text, fontSize:'13px' }}>{s.name}</td>
-                  <td style={{ padding:'10px 14px', fontSize:'12px', color:C.muted }}>
-                    {s.school && <div>{s.school}</div>}
-                    <div>{s.grade}{s.classNum?` ${s.classNum}반`:''}</div>
-                  </td>
-                  <td style={{ padding:'10px 14px', fontSize:'12px', color:C.muted }}>
-                    {s.classes.map(c => <div key={c.id}>{c.className}{c.section?` ${c.section}반`:''}</div>)}
-                  </td>
-                  <td style={{ padding:'10px 14px' }}>
-                    <span style={{ fontSize:'11px', fontWeight:600, padding:'2px 7px', borderRadius:'5px', background:`${STATUS_COLOR[s.status]}18`, color:STATUS_COLOR[s.status] }}>
-                      {STATUS_LABEL[s.status]||s.status}
-                    </span>
-                  </td>
-                  <td style={{ padding:'10px 14px', fontSize:'12px', color:C.text }}>
-                    {s.teacher ? <div><div style={{ fontWeight:600 }}>{s.teacher.name}</div><div style={{ fontSize:'11px', color:C.muted }}>{s.teacher.email}</div></div> : '—'}
-                  </td>
-                  <td style={{ padding:'10px 14px', fontSize:'12px', color:C.muted }}>{s.parentPhone||'—'}</td>
+          {finalStudents.length === 0 ? (
+            <div style={{ padding:'40px', textAlign:'center', color:C.muted, fontSize:'13px' }}>
+              등록된 학생이 없습니다.
+            </div>
+          ) : (
+            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <thead>
+                <tr style={{ background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
+                  {['이름','학교/학년','수강수업','상태','담당선생님','학부모연락처'].map(h => (
+                    <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:C.muted }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {finalStudents.map((s, i) => (
+                  <tr key={s.id} style={{ borderBottom:`1px solid #f3f4f6`, background:i%2===0?'#fff':'#fafafa' }}>
+                    <td style={{ padding:'10px 14px', fontWeight:600, color:C.text, fontSize:'13px' }}>{s.name}</td>
+                    <td style={{ padding:'10px 14px', fontSize:'12px', color:C.muted }}>
+                      {s.school && <div>{s.school}</div>}
+                      <div>{s.grade}{s.classNum?` ${s.classNum}반`:''}</div>
+                    </td>
+                    <td style={{ padding:'10px 14px', fontSize:'12px', color:C.muted }}>
+                      {s.classes.map(c => <div key={c.id}>{c.className}{c.section?` ${c.section}반`:''}</div>)}
+                    </td>
+                    <td style={{ padding:'10px 14px' }}>
+                      <span style={{ fontSize:'11px', fontWeight:600, padding:'2px 7px', borderRadius:'5px', background:`${STATUS_COLOR[s.status]}18`, color:STATUS_COLOR[s.status] }}>
+                        {STATUS_LABEL[s.status]||s.status}
+                      </span>
+                    </td>
+                    <td style={{ padding:'10px 14px', fontSize:'12px', color:C.text }}>
+                      {s.teacher ? <div><div style={{ fontWeight:600 }}>{s.teacher.name}</div><div style={{ fontSize:'11px', color:C.muted }}>{s.teacher.email}</div></div> : '—'}
+                    </td>
+                    <td style={{ padding:'10px 14px', fontSize:'12px', color:C.muted }}>{s.parentPhone||'—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
     </div>
