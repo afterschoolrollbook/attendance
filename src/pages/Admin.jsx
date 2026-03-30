@@ -20,49 +20,101 @@ const FEATURE_LABELS = {
   [FEATURES.MANAGE_LEVEL]:      '등급 관리 / 권한 예외 설정',
 }
 
-// ─── 한국 지도 (wikimedia SVG 이미지 + 시도 버튼 목록)
-const SIDO_LIST = ['서울','인천','경기','강원','충북','세종','대전','충남','경북','대구','전북','광주','전남','울산','부산','경남','제주']
-
+// ─── 한국 지도 (SVG fetch + DOM 조작으로 색상/클릭 처리)
 const SIDO_LIST_TOP  = ['서울','인천']
 const SIDO_LIST_REST = ['경기','강원','충북','세종','대전','충남','경북','대구','전북','광주','전남','울산','부산','경남','제주']
 
+const SVG_ID_TO_SIDO = {
+  seoul:'서울', incheon:'인천', gyeonggi:'경기', gangwon:'강원',
+  'chungcheongbuk-do':'충북', sejong:'세종', daejeon:'대전',
+  'chungcheongnam-do':'충남', 'gyeongsangbuk-do':'경북', daegu:'대구',
+  'jeollabuk-do':'전북', gwangju:'광주', 'jeollanam-do':'전남',
+  ulsan:'울산', busan:'부산', 'gyeongsangnam-do':'경남', jeju:'제주',
+}
+
+let _svgCache = null
+
 function KoreaMapSVG({ regionCounts, onSelect, selectedSido }) {
+  const containerRef = React.useRef(null)
+  const [svgLoaded, setSvgLoaded] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!containerRef.current) return
+    const inject = (text) => {
+      containerRef.current.innerHTML = text
+      const svg = containerRef.current.querySelector('svg')
+      if (svg) { svg.style.width = '100%'; svg.style.height = 'auto' }
+      setSvgLoaded(true)
+    }
+    if (_svgCache) { inject(_svgCache); return }
+    fetch('https://unpkg.com/@svg-maps/south-korea@1.0.1/south-korea.svg')
+      .then(r => r.text()).then(text => { _svgCache = text; inject(text) })
+  }, [])
+
+  React.useEffect(() => {
+    if (!svgLoaded || !containerRef.current) return
+    const maxCount = Math.max(...Object.values(regionCounts), 1)
+    containerRef.current.querySelectorAll('path[id]').forEach(path => {
+      const sido = SVG_ID_TO_SIDO[path.id]
+      if (!sido) return
+      const count = regionCounts[sido] || 0
+      const isSel = selectedSido === sido
+      path.style.cursor = 'pointer'
+      path.style.transition = 'fill .15s'
+      path.style.stroke = '#fff'
+      path.style.strokeWidth = isSel ? '3' : '0.5'
+      path.style.fill = isSel
+        ? '#f97316'
+        : count > 0
+          ? `rgba(249,115,22,${0.25 + (count / maxCount) * 0.65})`
+          : '#e2e8f0'
+      path.onclick = () => onSelect(sido)
+      path.onmouseenter = () => { if (selectedSido !== sido) path.style.fill = 'rgba(249,115,22,0.45)' }
+      path.onmouseleave = () => {
+        if (selectedSido === sido) { path.style.fill = '#f97316'; return }
+        const c = regionCounts[sido] || 0
+        const mx = Math.max(...Object.values(regionCounts), 1)
+        path.style.fill = c > 0 ? `rgba(249,115,22,${0.25+(c/mx)*0.65})` : '#e2e8f0'
+      }
+    })
+  }, [svgLoaded, regionCounts, selectedSido])
+
   const renderBtn = (sido) => {
     const count = regionCounts[sido] || 0
     const isSel = selectedSido === sido
     return (
       <button key={sido} onClick={() => onSelect(sido)}
         style={{
-          padding:'6px 14px', borderRadius:'20px', fontSize:'13px', cursor:'pointer',
+          padding:'5px 13px', borderRadius:'20px', fontSize:'13px', cursor:'pointer',
           fontFamily:'Noto Sans KR, sans-serif', border:'1.5px solid',
           borderColor: isSel ? '#f97316' : count > 0 ? '#fdba74' : '#e5e7eb',
           background: isSel ? '#f97316' : count > 0 ? '#fff7ed' : '#f9fafb',
           color: isSel ? '#fff' : count > 0 ? '#ea580c' : '#6b7280',
-          fontWeight: isSel ? 700 : 400,
-          transition:'all .15s',
+          fontWeight: isSel ? 700 : 400, transition:'all .15s',
         }}>
-        {sido}{count > 0 && <span style={{ marginLeft:'5px', fontSize:'11px', opacity:.8 }}>{count}명</span>}
+        {sido}{count > 0 && <span style={{ marginLeft:'4px', fontSize:'11px', opacity:.8 }}>{count}명</span>}
       </button>
     )
   }
 
   return (
     <div style={{ display:'flex', gap:'24px', alignItems:'flex-start' }}>
-      {/* 지도 이미지 */}
-      <img
-        src="https://unpkg.com/@svg-maps/south-korea/south-korea.svg"
-        alt="한국 지도"
-        style={{ width:'220px', flexShrink:0, display:'block', borderRadius:'8px' }}
-      />
+      {/* 인터랙티브 SVG 지도 */}
+      <div ref={containerRef} style={{ width:'220px', flexShrink:0, minHeight:'280px' }}>
+        {!svgLoaded && (
+          <div style={{ width:'220px', height:'280px', background:'#f3f4f6', borderRadius:'8px',
+            display:'flex', alignItems:'center', justifyContent:'center', fontSize:'12px', color:'#9ca3af' }}>
+            지도 로딩 중...
+          </div>
+        )}
+      </div>
 
-      {/* 시도 버튼 목록 */}
+      {/* 시도 버튼 */}
       <div style={{ flex:1 }}>
         <div style={{ fontSize:'12px', color:'#9ca3af', marginBottom:'8px' }}>시도를 클릭하세요</div>
-        {/* 서울·인천 강조 */}
         <div style={{ display:'flex', gap:'6px', marginBottom:'10px', paddingBottom:'10px', borderBottom:'1px solid #f3f4f6' }}>
           {SIDO_LIST_TOP.map(renderBtn)}
         </div>
-        {/* 나머지 시도 */}
         <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
           {SIDO_LIST_REST.map(renderBtn)}
         </div>
