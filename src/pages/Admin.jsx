@@ -20,75 +20,136 @@ const FEATURE_LABELS = {
   [FEATURES.MANAGE_LEVEL]:      '등급 관리 / 권한 예외 설정',
 }
 
-// ─── 한국 SVG 지도 (시도별 클릭)
-const SIDO_PATHS = {
-  '서울':  'M 188 140 L 210 140 L 215 155 L 205 165 L 188 160 Z',
-  '인천':  'M 155 140 L 188 140 L 188 160 L 170 168 L 152 158 Z',
-  '경기':  'M 152 95 L 240 95 L 245 140 L 215 155 L 205 165 L 188 160 L 188 140 L 155 140 L 152 158 L 145 170 L 138 155 L 140 120 Z',
-  '강원':  'M 240 80 L 330 80 L 335 170 L 290 175 L 245 140 L 240 95 Z',
-  '충북':  'M 215 155 L 245 140 L 290 175 L 285 215 L 250 220 L 225 200 Z',
-  '세종':  'M 190 200 L 210 198 L 215 210 L 195 212 Z',
-  '충남':  'M 138 155 L 145 170 L 188 160 L 205 165 L 225 200 L 210 198 L 195 212 L 175 218 L 148 210 L 130 190 L 128 168 Z',
-  '대전':  'M 210 198 L 225 200 L 228 212 L 215 215 L 210 210 Z',
-  '전북':  'M 148 210 L 175 218 L 195 212 L 210 210 L 215 215 L 228 212 L 235 240 L 215 260 L 185 265 L 155 255 L 140 235 Z',
-  '전남':  'M 140 235 L 155 255 L 185 265 L 215 260 L 225 290 L 210 320 L 180 335 L 148 325 L 128 300 L 125 268 Z',
-  '광주':  'M 168 268 L 185 265 L 190 278 L 175 282 Z',
-  '경북':  'M 285 215 L 290 175 L 335 170 L 345 200 L 360 220 L 355 270 L 330 285 L 295 275 L 275 250 L 270 228 Z',
-  '대구':  'M 295 248 L 315 245 L 318 260 L 300 262 Z',
-  '경남':  'M 225 290 L 235 240 L 275 250 L 295 275 L 330 285 L 340 310 L 320 335 L 285 340 L 255 330 L 232 310 Z',
-  '울산':  'M 340 260 L 360 255 L 362 280 L 342 282 Z',
-  '부산':  'M 320 335 L 340 325 L 355 338 L 345 355 L 322 352 Z',
-  '제주':  'M 162 395 L 220 390 L 228 410 L 210 422 L 168 420 Z',
-}
-
-const SIDO_LABEL_POS = {
-  '서울': [198, 153], '인천': [168, 152], '경기': [190, 128],
-  '강원': [282, 128], '충북': [252, 188], '세종': [200, 207],
-  '충남': [160, 188], '대전': [217, 207], '전북': [185, 238],
-  '전남': [170, 295], '광주': [177, 276], '경북': [315, 228],
-  '대구': [305, 255], '경남': [285, 308], '울산': [348, 268],
-  '부산': [335, 342], '제주': [192, 408],
-}
-
+// ─── 한국 지도 (D3 + TopoJSON)
 function KoreaMapSVG({ regionCounts, onSelect, selectedSido }) {
-  const maxCount = Math.max(...Object.values(regionCounts), 1)
-  const sidos = Object.keys(SIDO_PATHS)
+  const svgRef = React.useRef(null)
+  const [ready, setReady] = React.useState(false)
+
+  const SIDO_NAME_MAP = {
+    '서울특별시':'서울','부산광역시':'부산','대구광역시':'대구','인천광역시':'인천',
+    '광주광역시':'광주','대전광역시':'대전','울산광역시':'울산','세종특별자치시':'세종',
+    '경기도':'경기','강원특별자치도':'강원','강원도':'강원','충청북도':'충북','충청남도':'충남',
+    '전라북도':'전북','전북특별자치도':'전북','전라남도':'전남','경상북도':'경북',
+    '경상남도':'경남','제주특별자치도':'제주',
+  }
+
+  React.useEffect(() => {
+    // D3, TopoJSON CDN 로드
+    const loadScript = (src) => new Promise((res, rej) => {
+      if (document.querySelector(`script[src="${src}"]`)) { res(); return }
+      const s = document.createElement('script')
+      s.src = src; s.onload = res; s.onerror = rej
+      document.head.appendChild(s)
+    })
+
+    Promise.all([
+      loadScript('https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js'),
+      loadScript('https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js'),
+    ]).then(() => setReady(true))
+  }, [])
+
+  React.useEffect(() => {
+    if (!ready || !svgRef.current) return
+    const d3 = window.d3
+    const topojson = window.topojson
+    const svg = d3.select(svgRef.current)
+    svg.selectAll('*').remove()
+
+    const width = 400, height = 500
+
+    fetch('https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2013/json/skorea-provinces-2013-geo.json')
+      .then(r => r.json())
+      .then(geoData => {
+        const projection = d3.geoMercator().fitSize([width, height], geoData)
+        const path = d3.geoPath().projection(projection)
+        const maxCount = Math.max(...Object.values(regionCounts), 1)
+
+        svg.selectAll('path')
+          .data(geoData.features)
+          .enter()
+          .append('path')
+          .attr('d', path)
+          .attr('fill', d => {
+            const name = SIDO_NAME_MAP[d.properties.name] || d.properties.name
+            const isSelected = selectedSido === name
+            const count = regionCounts[name] || 0
+            if (isSelected) return '#f97316'
+            if (count > 0) return `rgba(249,115,22,${0.2 + (count / maxCount) * 0.7})`
+            return '#e5e7eb'
+          })
+          .attr('stroke', '#fff')
+          .attr('stroke-width', d => {
+            const name = SIDO_NAME_MAP[d.properties.name] || d.properties.name
+            return selectedSido === name ? 2.5 : 0.8
+          })
+          .style('cursor', 'pointer')
+          .style('transition', 'fill .2s')
+          .on('mouseover', function(event, d) {
+            const name = SIDO_NAME_MAP[d.properties.name] || d.properties.name
+            if (selectedSido !== name) d3.select(this).attr('fill', 'rgba(249,115,22,0.5)')
+          })
+          .on('mouseout', function(event, d) {
+            const name = SIDO_NAME_MAP[d.properties.name] || d.properties.name
+            const isSelected = selectedSido === name
+            const count = regionCounts[name] || 0
+            const maxCnt = Math.max(...Object.values(regionCounts), 1)
+            if (!isSelected) d3.select(this).attr('fill',
+              count > 0 ? `rgba(249,115,22,${0.2 + (count / maxCnt) * 0.7})` : '#e5e7eb'
+            )
+          })
+          .on('click', (event, d) => {
+            const name = SIDO_NAME_MAP[d.properties.name] || d.properties.name
+            onSelect(name)
+          })
+
+        // 시도 이름 + 학생 수 레이블
+        svg.selectAll('text')
+          .data(geoData.features)
+          .enter()
+          .append('text')
+          .attr('transform', d => `translate(${path.centroid(d)})`)
+          .attr('text-anchor', 'middle')
+          .style('pointer-events', 'none')
+          .style('user-select', 'none')
+          .each(function(d) {
+            const name = SIDO_NAME_MAP[d.properties.name] || d.properties.name
+            const count = regionCounts[name] || 0
+            const isSelected = selectedSido === name
+            const el = d3.select(this)
+            el.append('tspan')
+              .attr('x', 0).attr('dy', '0')
+              .attr('font-size', name.length > 2 ? '8px' : '9px')
+              .attr('font-weight', isSelected ? 700 : 500)
+              .attr('fill', isSelected || count > 0 ? '#fff' : '#6b7280')
+              .attr('font-family', 'Noto Sans KR, sans-serif')
+              .text(name)
+            if (count > 0) {
+              el.append('tspan')
+                .attr('x', 0).attr('dy', '10px')
+                .attr('font-size', '8px')
+                .attr('fill', isSelected ? '#fff' : '#f97316')
+                .attr('font-family', 'monospace')
+                .text(`${count}명`)
+            }
+          })
+      })
+      .catch(() => {
+        // fetch 실패 시 폴백 메시지
+        svg.append('text')
+          .attr('x', width/2).attr('y', height/2)
+          .attr('text-anchor', 'middle')
+          .attr('fill', '#9ca3af')
+          .attr('font-size', '13px')
+          .text('지도를 불러오는 중...')
+      })
+  }, [ready, regionCounts, selectedSido])
 
   return (
-    <svg viewBox="0 0 490 450" style={{ width:'100%', maxWidth:'420px', cursor:'pointer' }} xmlns="http://www.w3.org/2000/svg">
-      {sidos.map(sido => {
-        const count = regionCounts[sido] || 0
-        const intensity = count > 0 ? 0.2 + (count / maxCount) * 0.7 : 0
-        const isSelected = selectedSido === sido
-        const fill = isSelected ? '#f97316'
-          : count > 0 ? `rgba(249,115,22,${intensity})`
-          : '#e5e7eb'
-        const stroke = isSelected ? '#ea580c' : '#fff'
-        const [lx, ly] = SIDO_LABEL_POS[sido]
-
-        return (
-          <g key={sido} onClick={() => onSelect(sido)} style={{ cursor:'pointer' }}>
-            <path d={SIDO_PATHS[sido]} fill={fill} stroke={stroke} strokeWidth={isSelected ? 2 : 1}
-              style={{ transition:'all .2s' }}
-              onMouseEnter={e => { if (!isSelected) e.target.style.fill = 'rgba(249,115,22,0.5)' }}
-              onMouseLeave={e => { if (!isSelected) e.target.style.fill = fill }} />
-            <text x={lx} y={ly} textAnchor="middle" fontSize="8" fontFamily="Noto Sans KR, sans-serif"
-              fill={isSelected || count > 0 ? '#fff' : '#6b7280'} fontWeight={isSelected ? 700 : 400}
-              style={{ pointerEvents:'none', userSelect:'none' }}>
-              {sido}
-            </text>
-            {count > 0 && (
-              <text x={lx} y={ly + 9} textAnchor="middle" fontSize="7" fontFamily="monospace"
-                fill={isSelected ? '#fff' : '#f97316'} style={{ pointerEvents:'none', userSelect:'none' }}>
-                {count}명
-              </text>
-            )}
-          </g>
-        )
-      })}
-    </svg>
+    <svg ref={svgRef} viewBox="0 0 400 500"
+      style={{ width:'100%', maxWidth:'400px', cursor:'pointer' }} />
   )
 }
+
 
 // ─── 지도 드릴다운 패널
 function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATUS_LABEL, STATUS_COLOR }) {
@@ -96,6 +157,80 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
   const [selectedSupport, setSelectedSupport] = useState(null)
   const [selectedSchool,  setSelectedSchool]  = useState(null)
   const [selectedTeacher, setSelectedTeacher] = useState(null)
+  const [neisSchoolStats, setNeisSchoolStats] = useState(null)   // NEIS 학생수 데이터
+  const [neisLoading,     setNeisLoading]     = useState(false)
+
+  const neisApiKey = (() => {
+    try { return JSON.parse(localStorage.getItem('asa_settings_regionMap') || '{}').neisApiKey || '' } catch { return '' }
+  })()
+
+  // 학교 선택 시 NEIS에서 성별 학생수 조회
+  const fetchNeisSchoolStats = async (schoolName) => {
+    if (!neisApiKey) return
+    setNeisLoading(true); setNeisSchoolStats(null)
+    try {
+      // 1) 학교 기본정보로 표준학교코드 조회
+      const infoRes = await fetch(`https://open.neis.go.kr/hub/schoolInfo?KEY=${neisApiKey}&Type=json&pIndex=1&pSize=5&SCHUL_NM=${encodeURIComponent(schoolName)}`)
+      const infoData = await infoRes.json()
+      const school = infoData?.schoolInfo?.[1]?.row?.[0]
+      if (!school) { setNeisLoading(false); return }
+
+      const { ATPT_OFCDC_SC_CODE, SD_SCHUL_CODE, SCHUL_KND_SC_NM, COEDU_SC_NM } = school
+
+      // 2) 성별 학생수 + 학년별 학급정보 + 학년별학생수 병렬 조회
+      const [stuRes, classRes, gradeStudentRes] = await Promise.all([
+        fetch(`https://open.neis.go.kr/hub/stuSexEnsnStatus?KEY=${neisApiKey}&Type=json&pIndex=1&pSize=10&ATPT_OFCDC_SC_CODE=${ATPT_OFCDC_SC_CODE}&SD_SCHUL_CODE=${SD_SCHUL_CODE}`),
+        fetch(`https://open.neis.go.kr/hub/classInfo?KEY=${neisApiKey}&Type=json&pIndex=1&pSize=50&ATPT_OFCDC_SC_CODE=${ATPT_OFCDC_SC_CODE}&SD_SCHUL_CODE=${SD_SCHUL_CODE}`),
+        fetch(`https://open.neis.go.kr/hub/schoolInfo?KEY=${neisApiKey}&Type=json&pIndex=1&pSize=1&ATPT_OFCDC_SC_CODE=${ATPT_OFCDC_SC_CODE}&SD_SCHUL_CODE=${SD_SCHUL_CODE}`),
+      ])
+      const stuData          = await stuRes.json()
+      const classData        = await classRes.json()
+
+      // 성별 학생수
+      const stuRows = stuData?.stuSexEnsnStatus?.[1]?.row || []
+      const latestYear = stuRows.reduce((max, r) => Math.max(max, parseInt(r.AY||0)), 0)
+      const latestRows = stuRows.filter(r => parseInt(r.AY) === latestYear)
+      const total  = latestRows.reduce((s, r) => s + parseInt(r.TOTSTUNUM||0), 0)
+      const male   = latestRows.reduce((s, r) => s + parseInt(r.MALESTUNUM||0), 0)
+      const female = latestRows.reduce((s, r) => s + parseInt(r.FEMALESTUNUM||0), 0)
+
+      // 학년별 학급수 (classInfo)
+      const classRows = classData?.classInfo?.[1]?.row || []
+      const classYear = classRows.reduce((max, r) => Math.max(max, parseInt(r.AY||0)), 0)
+      const gradeClassCount = {}
+      classRows
+        .filter(r => parseInt(r.AY) === classYear)
+        .forEach(r => {
+          const grade = parseInt(r.GRADE)
+          if (!gradeClassCount[grade]) gradeClassCount[grade] = 0
+          gradeClassCount[grade] += 1
+        })
+
+      // 학년별 학생수 — stuSexEnsnStatus의 GRADE 필드 활용
+      const gradeStudentCount = {}
+      latestRows.forEach(r => {
+        if (r.GRADE) {
+          const grade = parseInt(r.GRADE)
+          if (!gradeStudentCount[grade]) gradeStudentCount[grade] = { total:0, male:0, female:0 }
+          gradeStudentCount[grade].total  += parseInt(r.TOTSTUNUM||0)
+          gradeStudentCount[grade].male   += parseInt(r.MALESTUNUM||0)
+          gradeStudentCount[grade].female += parseInt(r.FEMALESTUNUM||0)
+        }
+      })
+
+      setNeisSchoolStats({
+        year: latestYear, total, male, female,
+        schoolType: SCHUL_KND_SC_NM, coedu: COEDU_SC_NM,
+        gradeClassCount,    // { 1:6, 2:5, ... } 학년별 학급수
+        gradeStudentCount,  // { 1:{total,male,female}, ... } 학년별 학생수
+        classYear,
+      })
+    } catch(e) {
+      console.warn('NEIS 학생수 조회 실패:', e)
+    } finally {
+      setNeisLoading(false)
+    }
+  }
 
   const regionMap = (() => {
     try { return JSON.parse(localStorage.getItem('asa_settings_regionMap') || '{}').regions || [] } catch { return [] }
@@ -194,7 +329,7 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
       <div style={{ display:'flex', gap:'24px', alignItems:'flex-start', flexWrap:'wrap' }}>
 
         {/* SVG 지도 */}
-        <div style={{ flex:'0 0 auto', background:'#fff', borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px' }}>
+        <div style={{ flex:'0 0 580px', background:'#fff', borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px' }}>
           <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'12px' }}>
             🗺️ 지역별 학생 현황 {selectedSido && <span style={{ color:C.primary }}>— {selectedSido} 선택됨</span>}
           </div>
@@ -235,8 +370,17 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
                     onMouseEnter={e => e.currentTarget.style.borderColor=C.primary}
                     onMouseLeave={e => e.currentTarget.style.borderColor=C.border}>
                     <div>
+                      {regionInfo?.office && (
+                        <div style={{ fontSize:'11px', color:C.muted, marginBottom:'3px' }}>
+                          {regionInfo.officeUrl
+                            ? <a href={regionInfo.officeUrl} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{ color:C.muted, textDecoration:'none' }}>📍 {regionInfo.office} 🔗</a>
+                            : `📍 ${regionInfo.office}`}
+                        </div>
+                      )}
                       <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{support}</div>
-                      {regionInfo?.supportUrl && <div style={{ fontSize:'11px', color:'#3b82f6', marginTop:'2px' }}>🔗 홈페이지</div>}
+                      {regionInfo?.supportUrl && (
+                        <a href={regionInfo.supportUrl} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{ fontSize:'11px', color:'#3b82f6', marginTop:'2px', display:'block' }}>🔗 홈페이지</a>
+                      )}
                     </div>
                     <span style={{ fontSize:'13px', fontWeight:700, color:C.primary }}>{cnt}명 ›</span>
                   </button>
@@ -255,7 +399,7 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
                 const cnt = enriched.filter(s => s.school === school).length
                 const schoolInfo = regionMap.find(r => r.support === selectedSupport)?.schools?.find(s => (s.name||s) === school)
                 return (
-                  <button key={school} onClick={() => setSelectedSchool(school)}
+                  <button key={school} onClick={() => { setSelectedSchool(school); fetchNeisSchoolStats(school) }}
                     style={{ padding:'14px 16px', background:'#fff', borderRadius:'10px', border:`1.5px solid ${C.border}`, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'space-between', transition:'all .15s' }}
                     onMouseEnter={e => e.currentTarget.style.borderColor=C.primary}
                     onMouseLeave={e => e.currentTarget.style.borderColor=C.border}>
@@ -270,9 +414,88 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
             </div>
           )}
 
-          {/* 선생님 목록 */}
+          {/* 선생님 목록 + NEIS 학교 통계 */}
           {selectedSchool && !selectedTeacher && (
             <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+
+              {/* NEIS 학교 전체 학생수 카드 */}
+              {neisLoading && (
+                <div style={{ padding:'12px 16px', background:'#f0f9ff', borderRadius:'10px', border:'1px solid #bae6fd', fontSize:'13px', color:'#0369a1', textAlign:'center' }}>
+                  📊 NEIS에서 학생 현황 불러오는 중...
+                </div>
+              )}
+              {!neisLoading && neisSchoolStats && (
+                <div style={{ padding:'14px 16px', background:'#f0fdf4', borderRadius:'10px', border:'1.5px solid #86efac' }}>
+                  <div style={{ fontSize:'12px', color:'#6b7280', marginBottom:'8px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <span>📊 NEIS 학생 현황 ({neisSchoolStats.year}년 기준)</span>
+                    <span style={{ fontSize:'11px', background:'#eff6ff', color:'#3b82f6', padding:'1px 7px', borderRadius:'5px' }}>{neisSchoolStats.schoolType} · {neisSchoolStats.coedu}</span>
+                  </div>
+
+                  {/* 성별 학생수 */}
+                  <div style={{ display:'flex', gap:'8px', marginBottom:'10px' }}>
+                    {[
+                      { label:'전체', value: neisSchoolStats.total, color:'#16a34a', bg:'#f0fdf4' },
+                      { label:'남학생', value: neisSchoolStats.male, color:'#3b82f6', bg:'#eff6ff' },
+                      { label:'여학생', value: neisSchoolStats.female, color:'#ec4899', bg:'#fdf2f8' },
+                    ].map(item => (
+                      <div key={item.label} style={{ flex:1, padding:'10px', background:item.bg, borderRadius:'8px', textAlign:'center', border:`1px solid ${item.color}22` }}>
+                        <div style={{ fontSize:'20px', fontWeight:700, color:item.color }}>{item.value.toLocaleString()}</div>
+                        <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'2px' }}>{item.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 학년별 학급수 + 학생수 */}
+                  {neisSchoolStats.gradeClassCount && Object.keys(neisSchoolStats.gradeClassCount).length > 0 && (
+                    <div style={{ marginTop:'10px' }}>
+                      <div style={{ fontSize:'11px', fontWeight:600, color:'#6b7280', marginBottom:'6px' }}>
+                        학년별 현황 ({neisSchoolStats.classYear}년)
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                        {/* 헤더 */}
+                        <div style={{ display:'flex', gap:'4px' }}>
+                          <div style={{ width:'52px', fontSize:'10px', color:'#9ca3af', textAlign:'center' }}>학년</div>
+                          <div style={{ flex:1, fontSize:'10px', color:'#9ca3af', textAlign:'center' }}>학급수</div>
+                          <div style={{ flex:1, fontSize:'10px', color:'#9ca3af', textAlign:'center' }}>전체</div>
+                          <div style={{ flex:1, fontSize:'10px', color:'#3b82f6', textAlign:'center' }}>남</div>
+                          <div style={{ flex:1, fontSize:'10px', color:'#ec4899', textAlign:'center' }}>여</div>
+                        </div>
+                        {Object.entries(neisSchoolStats.gradeClassCount)
+                          .sort(([a],[b]) => parseInt(a)-parseInt(b))
+                          .map(([grade, classes]) => {
+                            const stu = neisSchoolStats.gradeStudentCount?.[parseInt(grade)]
+                            return (
+                              <div key={grade} style={{ display:'flex', gap:'4px', alignItems:'center' }}>
+                                <div style={{ width:'52px', padding:'5px', background:'#f3f4f6', borderRadius:'6px', fontSize:'12px', fontWeight:700, color:'#374151', textAlign:'center' }}>
+                                  {grade}학년
+                                </div>
+                                <div style={{ flex:1, padding:'5px', background:'#fff', border:'1px solid #e5e7eb', borderRadius:'6px', fontSize:'12px', fontWeight:600, color:'#374151', textAlign:'center' }}>
+                                  {classes}반
+                                </div>
+                                <div style={{ flex:1, padding:'5px', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'6px', fontSize:'12px', fontWeight:700, color:'#16a34a', textAlign:'center' }}>
+                                  {stu ? stu.total.toLocaleString() : '—'}
+                                </div>
+                                <div style={{ flex:1, padding:'5px', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'6px', fontSize:'12px', fontWeight:700, color:'#3b82f6', textAlign:'center' }}>
+                                  {stu ? stu.male.toLocaleString() : '—'}
+                                </div>
+                                <div style={{ flex:1, padding:'5px', background:'#fdf2f8', border:'1px solid #fbcfe8', borderRadius:'6px', fontSize:'12px', fontWeight:700, color:'#ec4899', textAlign:'center' }}>
+                                  {stu ? stu.female.toLocaleString() : '—'}
+                                </div>
+                              </div>
+                            )
+                          })
+                        }
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {!neisLoading && !neisSchoolStats && neisApiKey && (
+                <div style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'8px', fontSize:'12px', color:'#9ca3af', textAlign:'center' }}>
+                  📊 NEIS 학생 현황을 불러올 수 없습니다.
+                </div>
+              )}
+
               <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>👩‍🏫 담당 선생님</div>
               {teacherList.length === 0 ? (
                 <div style={{ padding:'20px', background:'#f9fafb', borderRadius:'10px', color:C.muted, fontSize:'13px', textAlign:'center' }}>담당 선생님이 없습니다.</div>
