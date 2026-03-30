@@ -262,58 +262,60 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
           {/* 교육지원청 목록 */}
           {selectedSido && !selectedSupport && (
             <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-              <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>🏛️ {selectedSido} 교육지원청</div>
-              {supportList.length === 0 ? (
-                <div style={{ padding:'20px', background:'#f9fafb', borderRadius:'10px', color:C.muted, fontSize:'13px', textAlign:'center' }}>
-                  등록된 교육지원청이 없습니다.<br/>서비스설정 → 지역/학교에서 등록하세요.
-                </div>
-              ) : supportList.map(support => {
-                const cnt = enriched.filter(s => s.region?.support === support).length
-                const regionInfo = regionMap.find(r => r.support === support)
+              {(() => {
+                const totalSupports = supportList.length
+                const totalSchools = regionMap.filter(r => r.sido === selectedSido).reduce((acc, r) => acc + (r.schools?.length || 0), 0)
+                const totalStudents = enriched.filter(s => s.region?.sido === selectedSido).length
+                const officeName = regionMap.find(r => r.sido === selectedSido)?.office || `${selectedSido}교육청`
                 return (
-                  <button key={support} onClick={() => setSelectedSupport(support)}
-                    style={{ padding:'14px 16px', background:'#fff', borderRadius:'10px', border:`1.5px solid ${C.border}`, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'space-between', transition:'all .15s' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor=C.primary}
-                    onMouseLeave={e => e.currentTarget.style.borderColor=C.border}>
-                    <div>
-                      {regionInfo?.office && (
-                        <div style={{ fontSize:'11px', color:C.muted, marginBottom:'3px' }}>
-                          {regionInfo.officeUrl
-                            ? <a href={regionInfo.officeUrl} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{ color:C.muted, textDecoration:'none' }}>📍 {regionInfo.office} 🔗</a>
-                            : `📍 ${regionInfo.office}`}
-                        </div>
-                      )}
-                      <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{support}</div>
-                      {regionInfo?.supportUrl && (
-                        <a href={regionInfo.supportUrl} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{ fontSize:'11px', color:'#3b82f6', marginTop:'2px', display:'block' }}>🔗 홈페이지</a>
-                      )}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                    {/* 교육청 요약 */}
+                    <div style={{ padding:'12px 16px', background:'#f0f9ff', borderRadius:'10px', border:'1px solid #bae6fd', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <span style={{ fontSize:'13px', fontWeight:700, color:'#0369a1' }}>🏢 {officeName}</span>
+                      <span style={{ fontSize:'12px', color:'#0284c7' }}>교육지원청 {totalSupports}개 · 학교 {totalSchools}개 · 학생 {totalStudents}명</span>
                     </div>
-                    <span style={{ fontSize:'13px', fontWeight:700, color:C.primary }}>{cnt}명 ›</span>
-                  </button>
+
+                    {/* 교육지원청 목록 */}
+                    <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, padding:'4px 2px' }}>🏛️ 교육지원청 — 클릭하면 학교 목록</div>
+                    {supportList.length === 0 ? (
+                      <div style={{ padding:'20px', background:'#f9fafb', borderRadius:'10px', color:C.muted, fontSize:'13px', textAlign:'center' }}>
+                        등록된 교육지원청이 없습니다.<br/>서비스설정 → 지역/학교에서 등록하세요.
+                      </div>
+                    ) : supportList.map(support => {
+                      const regionInfo = regionMap.find(r => r.support === support)
+                      const schoolCnt = regionInfo?.schools?.length || 0
+                      const studentCnt = enriched.filter(s => s.region?.support === support).length
+                      return (
+                        <button key={support} onClick={() => setSelectedSupport(support)}
+                          style={{ padding:'12px 16px', background:'#fff', borderRadius:'10px', border:`1.5px solid ${C.border}`, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'space-between', transition:'all .15s' }}
+                          onMouseEnter={e => e.currentTarget.style.borderColor=C.primary}
+                          onMouseLeave={e => e.currentTarget.style.borderColor=C.border}>
+                          <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{support}</span>
+                          <span style={{ fontSize:'12px', color:C.muted, flexShrink:0 }}>학교 {schoolCnt}개 · 학생 {studentCnt}명 ›</span>
+                        </button>
+                      )
+                    })}
+                  </div>
                 )
-              })}
+              })()}
             </div>
           )}
 
           {/* 학교 목록 */}
           {selectedSupport && !selectedSchool && (
             <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-              <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>🏫 소속 학교</div>
+              <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, padding:'4px 2px' }}>🏫 학교 {schoolList.length}개 — 클릭하면 학생 목록</div>
               {schoolList.length === 0 ? (
                 <div style={{ padding:'20px', background:'#f9fafb', borderRadius:'10px', color:C.muted, fontSize:'13px', textAlign:'center' }}>등록된 학교가 없습니다.</div>
               ) : schoolList.map(school => {
                 const cnt = enriched.filter(s => s.school === school).length
-                const schoolInfo = regionMap.find(r => r.support === selectedSupport)?.schools?.find(s => (s.name||s) === school)
                 return (
                   <button key={school} onClick={() => { setSelectedSchool(school); fetchNeisSchoolStats(school) }}
-                    style={{ padding:'14px 16px', background:'#fff', borderRadius:'10px', border:`1.5px solid ${C.border}`, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'space-between', transition:'all .15s' }}
+                    style={{ padding:'12px 16px', background:'#fff', borderRadius:'10px', border:`1.5px solid ${C.border}`, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'space-between', transition:'all .15s' }}
                     onMouseEnter={e => e.currentTarget.style.borderColor=C.primary}
                     onMouseLeave={e => e.currentTarget.style.borderColor=C.border}>
-                    <div>
-                      <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{school}</div>
-                      {schoolInfo?.url && <a href={schoolInfo.url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{ fontSize:'11px', color:'#3b82f6' }}>🔗 홈페이지</a>}
-                    </div>
-                    <span style={{ fontSize:'13px', fontWeight:700, color:C.primary }}>{cnt}명 ›</span>
+                    <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{school}</span>
+                    <span style={{ fontSize:'12px', fontWeight:700, color: cnt > 0 ? C.primary : C.muted, flexShrink:0 }}>학생 {cnt}명 ›</span>
                   </button>
                 )
               })}
