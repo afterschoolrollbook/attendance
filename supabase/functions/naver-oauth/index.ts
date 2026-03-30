@@ -47,7 +47,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      profile: {
+      data: {
         provider:   'naver',
         email:      profile.email || '',
         name:       profile.name  || '',
