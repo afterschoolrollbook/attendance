@@ -385,7 +385,7 @@ function SocialProfileForm({ profile, onComplete }) {
 
 // ─── 메인 Auth 컴포넌트
 export function Auth({ onLogin }) {
-  const [mode, setMode] = useState('login')
+  const [mode, setMode] = useState('login') // 'login' | 'register' | 'findId' | 'findPw'
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({ name: '', email: '', pw: '', pw2: '', phone: '' })
   const [emailChecked, setEmailChecked] = useState(false)
@@ -397,6 +397,22 @@ export function Auth({ onLogin }) {
   const [sending, setSending] = useState(false)
   const [isDev, setIsDev] = useState(false)
 
+  // 아이디 찾기 state
+  const [findIdPhone, setFindIdPhone] = useState('')
+  const [foundEmail,  setFoundEmail]  = useState(null)
+
+  // 비밀번호 초기화 state
+  const [fpEmail,    setFpEmail]    = useState('')
+  const [fpCode,     setFpCode]     = useState('')
+  const [fpSentCode, setFpSentCode] = useState('')
+  const [fpCodeSent, setFpCodeSent] = useState(false)
+  const [fpVerified, setFpVerified] = useState(false)
+  const [fpNewPw,    setFpNewPw]    = useState('')
+  const [fpNewPw2,   setFpNewPw2]   = useState('')
+  const [fpSending,  setFpSending]  = useState(false)
+  const [fpDev,      setFpDev]      = useState('')
+  const [fpDone,     setFpDone]     = useState(false)
+
   // 소셜 로그인 단계
   const [socialStep, setSocialStep] = useState(null) // null | 'email_verify' | 'profile'
   const [pendingSocialProfile, setPendingSocialProfile] = useState(null)
@@ -405,6 +421,69 @@ export function Auth({ onLogin }) {
   const resetRegister = () => {
     setStep(1); setVerifyCode(''); setInputCode(''); setCodeSent(false); setVerified(false)
     setError(''); setEmailChecked(false); setSending(false); setIsDev(false)
+  }
+
+  const goMode = (m) => {
+    setMode(m); setError('')
+    setFindIdPhone(''); setFoundEmail(null)
+    setFpEmail(''); setFpCode(''); setFpSentCode(''); setFpCodeSent(false)
+    setFpVerified(false); setFpNewPw(''); setFpNewPw2(''); setFpDev(''); setFpDone(false)
+    resetRegister()
+    setForm({ name:'', email:'', pw:'', pw2:'', phone:'' })
+  }
+
+  // 아이디 찾기: 전화번호로 이메일 마스킹 반환
+  const handleFindId = () => {
+    const phone = findIdPhone.trim()
+    if (!phone) { setError('연락처를 입력해주세요.'); return }
+    const all = JSON.parse(localStorage.getItem('asa_users') || '[]')
+    const user = all.find(u => u.phone === phone)
+    if (!user) { setFoundEmail('notfound'); return }
+    // 이메일 마스킹: ab***@gmail.com
+    const [local, domain] = user.email.split('@')
+    const masked = local.slice(0, 2) + '***@' + domain
+    setFoundEmail(masked)
+    setError('')
+  }
+
+  // 비밀번호 초기화: 인증번호 발송
+  const handleFpSend = async () => {
+    setError('')
+    const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!fpEmail.trim()) { setError('이메일을 입력해주세요.'); return }
+    if (!emailReg.test(fpEmail.trim())) { setError('올바른 이메일 형식이 아닙니다.'); return }
+    const all = JSON.parse(localStorage.getItem('asa_users') || '[]')
+    const user = all.find(u => u.email === fpEmail.trim().toLowerCase())
+    if (!user) { setError('등록되지 않은 이메일입니다.'); return }
+    if (user.provider && user.provider !== 'email') {
+      setError(`${user.provider === 'google' ? 'Google' : user.provider === 'kakao' ? '카카오' : '네이버'} 소셜 로그인 계정입니다.\n해당 소셜 서비스에서 비밀번호를 관리해주세요.`)
+      return
+    }
+    setFpSending(true)
+    const c = generateCode()
+    setFpSentCode(c)
+    const result = await sendVerifyCode(fpEmail.trim().toLowerCase(), c)
+    setFpSending(false)
+    setFpCodeSent(true)
+    setFpDev(result.dev ? c : '')
+  }
+
+  // 비밀번호 초기화: 인증번호 확인
+  const handleFpVerify = () => {
+    if (fpCode.trim() !== fpSentCode) { setError('인증번호가 올바르지 않습니다.'); return }
+    setFpVerified(true); setError('')
+  }
+
+  // 비밀번호 초기화: 새 비밀번호 저장
+  const handleFpReset = () => {
+    if (fpNewPw.length < 4) { setError('비밀번호는 4자 이상이어야 합니다.'); return }
+    if (fpNewPw !== fpNewPw2) { setError('비밀번호가 일치하지 않습니다.'); return }
+    const all = JSON.parse(localStorage.getItem('asa_users') || '[]')
+    const idx = all.findIndex(u => u.email === fpEmail.trim().toLowerCase())
+    if (idx === -1) { setError('오류가 발생했습니다.'); return }
+    all[idx].pw = fpNewPw
+    localStorage.setItem('asa_users', JSON.stringify(all))
+    setFpDone(true); setError('')
   }
 
   // 이메일이 가짜(social.local)인지 확인
@@ -505,7 +584,7 @@ export function Auth({ onLogin }) {
   const naverConfigured  = !!socialCfg.naver.clientId
 
   // 탭 전환 시 Google 버튼 재렌더 (DOM이 바뀌므로)
-  useEffect(() => { renderButtons() }, [mode, socialStep])
+  useEffect(() => { renderButtons() }, [mode, socialStep, fpVerified])
 
   const handleLogin = () => {
     setError('')
@@ -586,9 +665,130 @@ export function Auth({ onLogin }) {
           {/* 일반 로그인/회원가입 */}
           {!socialStep && (
             <>
-              <div style={{ display: 'flex', borderBottom: '1px solid #f3f4f6' }}>
+              {/* 아이디 찾기 / 비밀번호 초기화는 탭 숨기고 별도 화면 */}
+              {(mode === 'findId' || mode === 'findPw') && (
+                <div style={{ padding: '28px 24px', display:'flex', flexDirection:'column', gap:'16px' }}>
+
+                  {/* 아이디 찾기 */}
+                  {mode === 'findId' && (
+                    <>
+                      <div style={{ textAlign:'center' }}>
+                        <div style={{ fontSize:'28px', marginBottom:'8px' }}>🔍</div>
+                        <div style={{ fontSize:'16px', fontWeight:700, color:'#111827' }}>아이디 찾기</div>
+                        <div style={{ fontSize:'13px', color:'#6b7280', marginTop:'4px' }}>가입 시 등록한 연락처를 입력하세요</div>
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+                        <label style={{ fontSize:'13px', fontWeight:500, color:'#111827' }}>연락처</label>
+                        <input value={findIdPhone} onChange={e => { setFindIdPhone(e.target.value); setFoundEmail(null); setError('') }}
+                          placeholder="010-0000-0000" onKeyDown={e => e.key === 'Enter' && handleFindId()}
+                          style={{ padding:'9px 13px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                      </div>
+                      {error && <ErrBox msg={error} />}
+                      {foundEmail && foundEmail !== 'notfound' && (
+                        <div style={{ padding:'14px 16px', background:'#eff6ff', borderRadius:'10px', border:'1.5px solid #bfdbfe', fontSize:'14px', color:'#1e40af', textAlign:'center' }}>
+                          가입된 이메일: <strong>{foundEmail}</strong>
+                        </div>
+                      )}
+                      {foundEmail === 'notfound' && (
+                        <div style={{ padding:'12px', background:'#fef2f2', borderRadius:'9px', border:'1px solid #fca5a5', fontSize:'13px', color:'#ef4444', textAlign:'center' }}>
+                          ⚠️ 등록된 연락처가 없습니다.
+                        </div>
+                      )}
+                      <Btn full onClick={handleFindId}>확인</Btn>
+                    </>
+                  )}
+
+                  {/* 비밀번호 초기화 */}
+                  {mode === 'findPw' && (
+                    <>
+                      <div style={{ textAlign:'center' }}>
+                        <div style={{ fontSize:'28px', marginBottom:'8px' }}>🔑</div>
+                        <div style={{ fontSize:'16px', fontWeight:700, color:'#111827' }}>비밀번호 초기화</div>
+                        <div style={{ fontSize:'13px', color:'#6b7280', marginTop:'4px' }}>가입한 이메일로 인증 후 새 비밀번호를 설정합니다</div>
+                      </div>
+
+                      {!fpDone ? (
+                        <>
+                          {/* Step 1: 이메일 + 인증번호 */}
+                          {!fpVerified && (
+                            <>
+                              <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+                                <label style={{ fontSize:'13px', fontWeight:500, color:'#111827' }}>이메일 (아이디)</label>
+                                <input value={fpEmail} onChange={e => { setFpEmail(e.target.value); setFpCodeSent(false); setFpCode(''); setError('') }}
+                                  placeholder="example@email.com" type="email"
+                                  style={{ padding:'9px 13px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                              </div>
+                              <button onClick={handleFpSend} disabled={fpSending}
+                                style={{ padding:'10px', borderRadius:'9px', border:'1.5px solid #f97316', background:'#fff7ed', color:'#f97316', fontSize:'13px', fontWeight:700, cursor:fpSending?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif', opacity:fpSending?0.7:1 }}>
+                                {fpSending ? '발송 중...' : fpCodeSent ? '인증번호 재발송' : '📧 인증번호 발송'}
+                              </button>
+                              {fpCodeSent && (
+                                <>
+                                  {fpDev ? (
+                                    <div style={{ padding:'10px 12px', background:'#fffbeb', borderRadius:'8px', border:'1.5px solid #fde68a', fontSize:'13px' }}>
+                                      <div style={{ fontWeight:700, color:'#92400e', marginBottom:'4px' }}>🔧 개발 모드</div>
+                                      <div style={{ color:'#b45309' }}>인증번호: <strong style={{ fontSize:'20px', letterSpacing:'4px', color:'#f97316' }}>{fpDev}</strong></div>
+                                    </div>
+                                  ) : (
+                                    <div style={{ padding:'10px 12px', background:'#f0fdf4', borderRadius:'8px', border:'1.5px solid #86efac', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
+                                      ✅ {fpEmail}로 인증번호를 발송했습니다.
+                                    </div>
+                                  )}
+                                  <div style={{ display:'flex', gap:'8px' }}>
+                                    <input value={fpCode} onChange={e => { setFpCode(e.target.value); setError('') }}
+                                      placeholder="인증번호 6자리" maxLength={6} onKeyDown={e => e.key === 'Enter' && handleFpVerify()}
+                                      style={{ flex:1, padding:'10px 14px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'18px', letterSpacing:'6px', textAlign:'center', outline:'none', fontFamily:'monospace' }} />
+                                    <Btn onClick={handleFpVerify}>확인</Btn>
+                                  </div>
+                                </>
+                              )}
+                            </>
+                          )}
+
+                          {/* Step 2: 새 비밀번호 */}
+                          {fpVerified && (
+                            <>
+                              <div style={{ padding:'10px 12px', background:'#f0fdf4', borderRadius:'8px', border:'1.5px solid #86efac', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
+                                ✅ 이메일 인증 완료! 새 비밀번호를 설정하세요.
+                              </div>
+                              <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+                                <label style={{ fontSize:'13px', fontWeight:500, color:'#111827' }}>새 비밀번호 (4자 이상)</label>
+                                <input value={fpNewPw} onChange={e => { setFpNewPw(e.target.value); setError('') }} type="password" placeholder="새 비밀번호"
+                                  style={{ padding:'9px 13px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                              </div>
+                              <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+                                <label style={{ fontSize:'13px', fontWeight:500, color:'#111827' }}>새 비밀번호 확인</label>
+                                <input value={fpNewPw2} onChange={e => { setFpNewPw2(e.target.value); setError('') }} type="password" placeholder="재입력"
+                                  style={{ padding:'9px 13px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                              </div>
+                              <Btn full onClick={handleFpReset}>비밀번호 변경 완료</Btn>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ textAlign:'center', padding:'16px 0', display:'flex', flexDirection:'column', gap:'12px' }}>
+                          <div style={{ fontSize:'40px' }}>🎉</div>
+                          <div style={{ fontSize:'15px', fontWeight:700, color:'#111827' }}>비밀번호가 변경되었습니다!</div>
+                          <div style={{ fontSize:'13px', color:'#6b7280' }}>새 비밀번호로 로그인해주세요.</div>
+                        </div>
+                      )}
+
+                      {error && <ErrBox msg={error} />}
+                    </>
+                  )}
+
+                  {/* 공통 — 로그인으로 돌아가기 */}
+                  <button onClick={() => goMode('login')}
+                    style={{ padding:'9px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    ← 로그인으로 돌아가기
+                  </button>
+                </div>
+              )}
+
+              {/* 로그인 / 회원가입 탭 */}
+              {(mode === 'login' || mode === 'register') && (
                 {['login','register'].map(m => (
-                  <button key={m} onClick={() => { setMode(m); setError(''); resetRegister(); setForm({name:'',email:'',pw:'',pw2:'',phone:''}) }}
+                  <button key={m} onClick={() => goMode(m)}
                     style={{ flex:1, padding:'16px', border:'none', cursor:'pointer', background:mode===m?'#fff':'#fafafa', fontWeight:mode===m?700:400, color:mode===m?'#f97316':'#6b7280', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', borderBottom:mode===m?'2px solid #f97316':'2px solid transparent', transition:'all .15s' }}>
                     {m==='login'?'로그인':'회원가입'}
                   </button>
@@ -617,6 +817,11 @@ export function Auth({ onLogin }) {
                     <Input label="비밀번호" value={form.pw} onChange={v => set('pw', v)} placeholder="비밀번호" type="password" />
                     {error && <ErrBox msg={error} />}
                     <Btn full onClick={handleLogin}>로그인</Btn>
+                    <div style={{ display:'flex', justifyContent:'center', gap:'16px', fontSize:'12px' }}>
+                      <button onClick={() => goMode('findId')} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', textDecoration:'underline' }}>아이디 찾기</button>
+                      <span style={{ color:'#e5e7eb' }}>|</span>
+                      <button onClick={() => goMode('findPw')} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', textDecoration:'underline' }}>비밀번호 초기화</button>
+                    </div>
                     <div style={{ textAlign:'center', fontSize:'12px', color:'#9ca3af' }}>
                       테스트: admin@test.com / admin1234 &nbsp;|&nbsp; teacher@test.com / 1234
                     </div>
@@ -700,6 +905,7 @@ export function Auth({ onLogin }) {
                   </div>
                 )}
               </div>
+            )} {/* end login/register 탭 */}
             </>
           )}
         </div>
