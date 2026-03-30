@@ -57,6 +57,175 @@ function KoreaMapSVG({ regionCounts, onSelect, selectedSido }) {
 }
 
 
+// ─── 학교 상세 (학교정보 / 관리정보 탭)
+function SchoolDetail({ selectedSchool, selectedSupport, enriched, allClasses, teacherList, regionMap, neisLoading, neisSchoolStats, neisApiKey, C, STATUS_LABEL, STATUS_COLOR, setSelectedTeacher }) {
+  const [schoolTab, setSchoolTab] = useState('info')
+  const schoolStudents = enriched.filter(s => s.school === selectedSchool)
+  const schoolInfo = regionMap.find(r => r.support === selectedSupport)?.schools?.find(s => (s.name||s) === selectedSchool)
+
+  const teacherGroups = teacherList.map(t => {
+    const tStudents = schoolStudents.filter(s => s.teacherId === t.id)
+    const classMap = {}
+    tStudents.forEach(s => {
+      (s.classIds || []).forEach(cid => {
+        const cls = allClasses.find(c => c.id === cid)
+        if (!cls) return
+        if (!classMap[cid]) classMap[cid] = { cls, students:[] }
+        classMap[cid].students.push(s)
+      })
+    })
+    return { t, tStudents, classGroups: Object.values(classMap) }
+  })
+
+  const tabBtn = (key, label) => (
+    <button onClick={() => setSchoolTab(key)}
+      style={{ padding:'7px 16px', borderRadius:'8px', border:'none', cursor:'pointer',
+        fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600,
+        background: schoolTab===key ? C.primary : '#f3f4f6',
+        color: schoolTab===key ? '#fff' : C.muted, transition:'all .15s' }}>
+      {label}
+    </button>
+  )
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+      <div style={{ display:'flex', gap:'6px' }}>
+        {tabBtn('info', '🏫 학교정보')}
+        {tabBtn('manage', '📋 관리정보')}
+      </div>
+
+      {/* ── 학교정보 탭 ── */}
+      {schoolTab === 'info' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+          <div style={{ padding:'14px 16px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
+            <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>{selectedSchool}</div>
+            {schoolInfo?.url && <a href={schoolInfo.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:'12px', color:'#3b82f6', display:'block', marginBottom:'4px' }}>🔗 홈페이지</a>}
+            <div style={{ fontSize:'12px', color:C.muted }}>방과후 등록 학생 {schoolStudents.length}명</div>
+          </div>
+
+          {neisLoading && (
+            <div style={{ padding:'12px 16px', background:'#f0f9ff', borderRadius:'10px', border:'1px solid #bae6fd', fontSize:'13px', color:'#0369a1', textAlign:'center' }}>
+              📊 NEIS에서 학교 정보 불러오는 중...
+            </div>
+          )}
+          {!neisLoading && neisSchoolStats && (
+            <div style={{ padding:'14px 16px', background:'#f0fdf4', borderRadius:'10px', border:'1.5px solid #86efac' }}>
+              <div style={{ fontSize:'12px', fontWeight:600, color:'#6b7280', marginBottom:'10px', display:'flex', justifyContent:'space-between' }}>
+                <span>📊 NEIS 학생 현황 ({neisSchoolStats.year}년)</span>
+                <span style={{ fontSize:'11px', background:'#eff6ff', color:'#3b82f6', padding:'1px 7px', borderRadius:'5px' }}>{neisSchoolStats.schoolType} · {neisSchoolStats.coedu}</span>
+              </div>
+              <div style={{ display:'flex', gap:'8px', marginBottom:'10px' }}>
+                {[
+                  { label:'전체', value:neisSchoolStats.total, color:'#16a34a', bg:'#f0fdf4' },
+                  { label:'남학생', value:neisSchoolStats.male, color:'#3b82f6', bg:'#eff6ff' },
+                  { label:'여학생', value:neisSchoolStats.female, color:'#ec4899', bg:'#fdf2f8' },
+                ].map(item => (
+                  <div key={item.label} style={{ flex:1, padding:'10px', background:item.bg, borderRadius:'8px', textAlign:'center', border:`1px solid ${item.color}22` }}>
+                    <div style={{ fontSize:'20px', fontWeight:700, color:item.color }}>{item.value.toLocaleString()}</div>
+                    <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'2px' }}>{item.label}</div>
+                  </div>
+                ))}
+              </div>
+              {neisSchoolStats.gradeClassCount && Object.keys(neisSchoolStats.gradeClassCount).length > 0 && (
+                <div>
+                  <div style={{ fontSize:'11px', fontWeight:600, color:'#6b7280', marginBottom:'6px' }}>학년별 현황 ({neisSchoolStats.classYear}년)</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                    <div style={{ display:'flex', gap:'4px' }}>
+                      {['학년','학급수','전체','남','여'].map((h,i) => (
+                        <div key={h} style={{ width:i===0?'52px':undefined, flex:i>0?1:undefined, fontSize:'10px', color:'#9ca3af', textAlign:'center' }}>{h}</div>
+                      ))}
+                    </div>
+                    {Object.entries(neisSchoolStats.gradeClassCount).sort(([a],[b])=>parseInt(a)-parseInt(b)).map(([grade, classes]) => {
+                      const stu = neisSchoolStats.gradeStudentCount?.[parseInt(grade)]
+                      return (
+                        <div key={grade} style={{ display:'flex', gap:'4px', alignItems:'center' }}>
+                          <div style={{ width:'52px', padding:'5px', background:'#f3f4f6', borderRadius:'6px', fontSize:'12px', fontWeight:700, color:'#374151', textAlign:'center' }}>{grade}학년</div>
+                          <div style={{ flex:1, padding:'5px', background:'#fff', border:'1px solid #e5e7eb', borderRadius:'6px', fontSize:'12px', textAlign:'center' }}>{classes}반</div>
+                          <div style={{ flex:1, padding:'5px', background:'#f0fdf4', borderRadius:'6px', fontSize:'12px', fontWeight:700, color:'#16a34a', textAlign:'center' }}>{stu?.total ?? '—'}</div>
+                          <div style={{ flex:1, padding:'5px', background:'#eff6ff', borderRadius:'6px', fontSize:'12px', fontWeight:700, color:'#3b82f6', textAlign:'center' }}>{stu?.male ?? '—'}</div>
+                          <div style={{ flex:1, padding:'5px', background:'#fdf2f8', borderRadius:'6px', fontSize:'12px', fontWeight:700, color:'#ec4899', textAlign:'center' }}>{stu?.female ?? '—'}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {!neisLoading && !neisSchoolStats && neisApiKey && (
+            <div style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'8px', fontSize:'12px', color:'#9ca3af', textAlign:'center' }}>📊 NEIS 학생 현황을 불러올 수 없습니다.</div>
+          )}
+          {!neisApiKey && (
+            <div style={{ padding:'10px 14px', background:'#fffbeb', borderRadius:'8px', fontSize:'12px', color:'#92400e', textAlign:'center' }}>
+              ⚙️ NEIS API 키를 등록하면 학교 정보를 자동으로 불러옵니다.<br/>서비스설정 → 지역/학교
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── 관리정보 탭 ── */}
+      {schoolTab === 'manage' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+          {/* 요약 카드 */}
+          <div style={{ display:'flex', gap:'8px' }}>
+            {[
+              { label:'담당 선생님', value:`${teacherList.length}명`, color:'#7c3aed', bg:'#f5f3ff' },
+              { label:'수업', value:`${[...new Set(schoolStudents.flatMap(s=>s.classIds||[]))].length}개`, color:'#f97316', bg:'#fff7ed' },
+              { label:'등록 학생', value:`${schoolStudents.length}명`, color:'#16a34a', bg:'#f0fdf4' },
+            ].map(item => (
+              <div key={item.label} style={{ flex:1, padding:'10px', background:item.bg, borderRadius:'8px', textAlign:'center' }}>
+                <div style={{ fontSize:'18px', fontWeight:700, color:item.color }}>{item.value}</div>
+                <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'2px' }}>{item.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* 선생님별 수업 + 학생 */}
+          {teacherGroups.length === 0 ? (
+            <div style={{ padding:'30px', background:'#f9fafb', borderRadius:'10px', textAlign:'center', color:C.muted, fontSize:'13px' }}>등록된 선생님이 없습니다.</div>
+          ) : teacherGroups.map(({ t, tStudents, classGroups }) => (
+            <div key={t.id} style={{ border:`1.5px solid ${C.border}`, borderRadius:'12px', overflow:'hidden', background:'#fff' }}>
+              {/* 선생님 헤더 */}
+              <div style={{ padding:'12px 16px', background:'#fafafa', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                  <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:'#7c3aed18', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'15px' }}>👩‍🏫</div>
+                  <div>
+                    <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{t.name}</div>
+                    <div style={{ fontSize:'11px', color:C.muted }}>{t.email}</div>
+                  </div>
+                </div>
+                <div style={{ fontSize:'12px', color:C.muted }}>수업 {classGroups.length}개 · 학생 {tStudents.length}명</div>
+              </div>
+              {/* 수업별 학생 */}
+              {classGroups.length === 0 ? (
+                <div style={{ padding:'12px 16px', fontSize:'12px', color:C.muted }}>등록된 수업이 없습니다.</div>
+              ) : classGroups.map(({ cls, students }) => (
+                <div key={cls.id} style={{ borderBottom:`1px solid #f3f4f6` }}>
+                  <div style={{ padding:'8px 16px', background:'#fff7ed', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <span style={{ fontSize:'12px', fontWeight:700, color:'#ea580c' }}>📚 {cls.className}{cls.section?` (${cls.section}반)`:''}</span>
+                    <span style={{ fontSize:'11px', color:C.muted }}>{students.length}명</span>
+                  </div>
+                  <div style={{ padding:'6px 16px 8px', display:'flex', flexWrap:'wrap', gap:'6px' }}>
+                    {students.map(s => (
+                      <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 10px', background:'#f9fafb', borderRadius:'20px', border:'1px solid #e5e7eb' }}>
+                        <span style={{ fontSize:'12px', fontWeight:600, color:C.text }}>{s.name}</span>
+                        <span style={{ fontSize:'11px', color:C.muted }}>{s.grade}{s.classNum?`·${s.classNum}반`:''}</span>
+                        <span style={{ fontSize:'10px', fontWeight:600, padding:'1px 5px', borderRadius:'4px', background:`${STATUS_COLOR[s.status]}18`, color:STATUS_COLOR[s.status] }}>
+                          {STATUS_LABEL[s.status]||s.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── 지도 드릴다운 패널
 function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATUS_LABEL, STATUS_COLOR }) {
   const [selectedSido,    setSelectedSido]    = useState(null)
@@ -322,107 +491,23 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
             </div>
           )}
 
-          {/* 선생님 목록 + NEIS 학교 통계 */}
+          {/* 학교 상세 */}
           {selectedSchool && !selectedTeacher && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-
-              {/* NEIS 학교 전체 학생수 카드 */}
-              {neisLoading && (
-                <div style={{ padding:'12px 16px', background:'#f0f9ff', borderRadius:'10px', border:'1px solid #bae6fd', fontSize:'13px', color:'#0369a1', textAlign:'center' }}>
-                  📊 NEIS에서 학생 현황 불러오는 중...
-                </div>
-              )}
-              {!neisLoading && neisSchoolStats && (
-                <div style={{ padding:'14px 16px', background:'#f0fdf4', borderRadius:'10px', border:'1.5px solid #86efac' }}>
-                  <div style={{ fontSize:'12px', color:'#6b7280', marginBottom:'8px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                    <span>📊 NEIS 학생 현황 ({neisSchoolStats.year}년 기준)</span>
-                    <span style={{ fontSize:'11px', background:'#eff6ff', color:'#3b82f6', padding:'1px 7px', borderRadius:'5px' }}>{neisSchoolStats.schoolType} · {neisSchoolStats.coedu}</span>
-                  </div>
-
-                  {/* 성별 학생수 */}
-                  <div style={{ display:'flex', gap:'8px', marginBottom:'10px' }}>
-                    {[
-                      { label:'전체', value: neisSchoolStats.total, color:'#16a34a', bg:'#f0fdf4' },
-                      { label:'남학생', value: neisSchoolStats.male, color:'#3b82f6', bg:'#eff6ff' },
-                      { label:'여학생', value: neisSchoolStats.female, color:'#ec4899', bg:'#fdf2f8' },
-                    ].map(item => (
-                      <div key={item.label} style={{ flex:1, padding:'10px', background:item.bg, borderRadius:'8px', textAlign:'center', border:`1px solid ${item.color}22` }}>
-                        <div style={{ fontSize:'20px', fontWeight:700, color:item.color }}>{item.value.toLocaleString()}</div>
-                        <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'2px' }}>{item.label}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 학년별 학급수 + 학생수 */}
-                  {neisSchoolStats.gradeClassCount && Object.keys(neisSchoolStats.gradeClassCount).length > 0 && (
-                    <div style={{ marginTop:'10px' }}>
-                      <div style={{ fontSize:'11px', fontWeight:600, color:'#6b7280', marginBottom:'6px' }}>
-                        학년별 현황 ({neisSchoolStats.classYear}년)
-                      </div>
-                      <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                        {/* 헤더 */}
-                        <div style={{ display:'flex', gap:'4px' }}>
-                          <div style={{ width:'52px', fontSize:'10px', color:'#9ca3af', textAlign:'center' }}>학년</div>
-                          <div style={{ flex:1, fontSize:'10px', color:'#9ca3af', textAlign:'center' }}>학급수</div>
-                          <div style={{ flex:1, fontSize:'10px', color:'#9ca3af', textAlign:'center' }}>전체</div>
-                          <div style={{ flex:1, fontSize:'10px', color:'#3b82f6', textAlign:'center' }}>남</div>
-                          <div style={{ flex:1, fontSize:'10px', color:'#ec4899', textAlign:'center' }}>여</div>
-                        </div>
-                        {Object.entries(neisSchoolStats.gradeClassCount)
-                          .sort(([a],[b]) => parseInt(a)-parseInt(b))
-                          .map(([grade, classes]) => {
-                            const stu = neisSchoolStats.gradeStudentCount?.[parseInt(grade)]
-                            return (
-                              <div key={grade} style={{ display:'flex', gap:'4px', alignItems:'center' }}>
-                                <div style={{ width:'52px', padding:'5px', background:'#f3f4f6', borderRadius:'6px', fontSize:'12px', fontWeight:700, color:'#374151', textAlign:'center' }}>
-                                  {grade}학년
-                                </div>
-                                <div style={{ flex:1, padding:'5px', background:'#fff', border:'1px solid #e5e7eb', borderRadius:'6px', fontSize:'12px', fontWeight:600, color:'#374151', textAlign:'center' }}>
-                                  {classes}반
-                                </div>
-                                <div style={{ flex:1, padding:'5px', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'6px', fontSize:'12px', fontWeight:700, color:'#16a34a', textAlign:'center' }}>
-                                  {stu ? stu.total.toLocaleString() : '—'}
-                                </div>
-                                <div style={{ flex:1, padding:'5px', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'6px', fontSize:'12px', fontWeight:700, color:'#3b82f6', textAlign:'center' }}>
-                                  {stu ? stu.male.toLocaleString() : '—'}
-                                </div>
-                                <div style={{ flex:1, padding:'5px', background:'#fdf2f8', border:'1px solid #fbcfe8', borderRadius:'6px', fontSize:'12px', fontWeight:700, color:'#ec4899', textAlign:'center' }}>
-                                  {stu ? stu.female.toLocaleString() : '—'}
-                                </div>
-                              </div>
-                            )
-                          })
-                        }
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              {!neisLoading && !neisSchoolStats && neisApiKey && (
-                <div style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'8px', fontSize:'12px', color:'#9ca3af', textAlign:'center' }}>
-                  📊 NEIS 학생 현황을 불러올 수 없습니다.
-                </div>
-              )}
-
-              <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>👩‍🏫 담당 선생님</div>
-              {teacherList.length === 0 ? (
-                <div style={{ padding:'20px', background:'#f9fafb', borderRadius:'10px', color:C.muted, fontSize:'13px', textAlign:'center' }}>담당 선생님이 없습니다.</div>
-              ) : teacherList.map(t => {
-                const cnt = enriched.filter(s => s.school === selectedSchool && s.teacherId === t.id).length
-                return (
-                  <button key={t.id} onClick={() => setSelectedTeacher(t.id)}
-                    style={{ padding:'14px 16px', background:'#fff', borderRadius:'10px', border:`1.5px solid ${C.border}`, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', justifyContent:'space-between', transition:'all .15s' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor=C.primary}
-                    onMouseLeave={e => e.currentTarget.style.borderColor=C.border}>
-                    <div>
-                      <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{t.name}</div>
-                      <div style={{ fontSize:'12px', color:C.muted }}>{t.email}</div>
-                    </div>
-                    <span style={{ fontSize:'13px', fontWeight:700, color:C.primary }}>{cnt}명 ›</span>
-                  </button>
-                )
-              })}
-            </div>
+            <SchoolDetail
+              selectedSchool={selectedSchool}
+              selectedSupport={selectedSupport}
+              enriched={enriched}
+              allClasses={allClasses}
+              teacherList={teacherList}
+              regionMap={regionMap}
+              neisLoading={neisLoading}
+              neisSchoolStats={neisSchoolStats}
+              neisApiKey={neisApiKey}
+              C={C}
+              STATUS_LABEL={STATUS_LABEL}
+              STATUS_COLOR={STATUS_COLOR}
+              setSelectedTeacher={setSelectedTeacher}
+            />
           )}
         </div>
       </div>
