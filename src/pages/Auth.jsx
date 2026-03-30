@@ -329,7 +329,7 @@ export function Auth({ onLogin }) {
     setSocialStep(null)
     setPendingSocialProfile(null)
 
-    const email = profile.email?.toLowerCase() || ''
+    const email = (profile.email?.toLowerCase() || '') || `${profile.provider}_${profile.providerId}@social.local`
     const existing = email ? Users.findByEmail(email) : null
     if (existing) {
       Users.update(existing.id, { name, phone })
@@ -337,7 +337,6 @@ export function Auth({ onLogin }) {
       return
     }
 
-    const email = profile.email || `${profile.provider}_${profile.providerId}@social.local`
     const user = {
       id: uid(), name, phone,
       email: email.toLowerCase(),
