@@ -822,9 +822,6 @@ export function Auth({ onLogin }) {
                       <span style={{ color:'#e5e7eb' }}>|</span>
                       <button onClick={() => goMode('findPw')} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', textDecoration:'underline' }}>비밀번호 초기화</button>
                     </div>
-                    <div style={{ textAlign:'center', fontSize:'12px', color:'#9ca3af' }}>
-                      테스트: admin@test.com / admin1234 &nbsp;|&nbsp; teacher@test.com / 1234
-                    </div>
                   </div>
                 )}
 
@@ -910,11 +907,7 @@ export function Auth({ onLogin }) {
           )}
         </div>
 
-        {!socialStep && (!googleConfigured || !kakaoConfigured) && (
-          <div style={{ marginTop: '16px', padding: '12px 16px', background: 'rgba(255,255,255,0.8)', borderRadius: '10px', fontSize: '11px', color: '#9ca3af', lineHeight: 1.8 }}>
-            💡 소셜 로그인 활성화: 관리자 로그인 → 서비스설정 → 소셜 로그인에서 키를 등록하세요
-          </div>
-        )}
+        {!socialStep && (!googleConfigured || !kakaoConfigured) && null}
       </div>
     </div>
   )
