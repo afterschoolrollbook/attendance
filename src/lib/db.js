@@ -35,9 +35,12 @@ export async function initFromSupabase() {
       const settings = await dbCall('getAll', 'settings')
       if (Array.isArray(settings)) {
         settings.forEach(row => {
-          // DB의 settings 테이블: { key: 'social', value: { googleClientId: ... } }
           if (row.key && row.value) {
-            localStorage.setItem('asa_settings_' + row.key, JSON.stringify(row.value))
+            const localKey = 'asa_settings_' + row.key
+            // 로컬에 이미 있으면 덮어쓰지 않음 — 로컬이 최신
+            if (!localStorage.getItem(localKey)) {
+              localStorage.setItem(localKey, JSON.stringify(row.value))
+            }
           }
         })
         console.log('[Supabase] settings 동기화 완료')
@@ -149,9 +152,14 @@ export const Notes = {
 export const Settings = {
   get(k)    { try { return JSON.parse(localStorage.getItem('asa_settings_' + k)) } catch { return null } },
   set(k, v) {
+    // 1) 로컬 즉시 저장
     localStorage.setItem('asa_settings_' + k, JSON.stringify(v))
-    // ✅ Supabase에도 저장 (다른 기기에서도 읽을 수 있도록)
-    if (isConfigured) dbCall('settingSet', 'settings', { id: k, data: v }).catch(() => {})
+    // 2) Supabase 동기화 (실패해도 로컬은 유지)
+    if (isConfigured) {
+      dbCall('settingSet', 'settings', { id: k, data: v })
+        .then(() => console.log(`[Settings] "${k}" Supabase 저장 완료`))
+        .catch(e => console.warn(`[Settings] "${k}" Supabase 저장 실패:`, e.message))
+    }
   },
   getAll() {
     const r = {}
