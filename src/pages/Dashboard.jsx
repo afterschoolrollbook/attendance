@@ -272,7 +272,7 @@ export function Dashboard({ user, onNav }) {
       {/* 인사 + 날씨 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1 style={{ fontSize: '22px', fontWeight: 700, color: C.text }}>안녕하세요, {user.name} 선생님 👋</h1>
+          <h1 style={{ fontSize: '22px', fontWeight: 700, color: C.text }}>안녕하세요, {(user.displayNameMode === 'nickname' && user.nickname) ? user.nickname : user.name} 선생님 👋</h1>
           <div style={{ fontSize: '14px', color: C.muted, marginTop: '4px' }}>{formatDateKo(today)}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 22px', background: '#fff', borderRadius: '14px', border: `1px solid ${C.border}`, boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
