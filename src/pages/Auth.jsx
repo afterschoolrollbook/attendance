@@ -787,13 +787,15 @@ export function Auth({ onLogin }) {
 
               {/* 로그인 / 회원가입 탭 */}
               {(mode === 'login' || mode === 'register') && (
-                {['login','register'].map(m => (
-                  <button key={m} onClick={() => goMode(m)}
-                    style={{ flex:1, padding:'16px', border:'none', cursor:'pointer', background:mode===m?'#fff':'#fafafa', fontWeight:mode===m?700:400, color:mode===m?'#f97316':'#6b7280', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', borderBottom:mode===m?'2px solid #f97316':'2px solid transparent', transition:'all .15s' }}>
-                    {m==='login'?'로그인':'회원가입'}
-                  </button>
-                ))}
-              </div>
+                <div style={{ display:'flex', borderBottom:'1px solid #e5e7eb' }}>
+                  {['login','register'].map(m => (
+                    <button key={m} onClick={() => goMode(m)}
+                      style={{ flex:1, padding:'16px', border:'none', cursor:'pointer', background:mode===m?'#fff':'#fafafa', fontWeight:mode===m?700:400, color:mode===m?'#f97316':'#6b7280', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', borderBottom:mode===m?'2px solid #f97316':'2px solid transparent', transition:'all .15s' }}>
+                      {m==='login'?'로그인':'회원가입'}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div style={{ padding: '24px' }}>
 
