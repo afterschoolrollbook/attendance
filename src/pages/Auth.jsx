@@ -154,19 +154,30 @@ function useKakaoAuth(onSuccess, restApiKey) {
 
 // ─── 소셜 이메일 인증 화면
 function SocialEmailVerify({ profile, onVerified, onCancel }) {
-  const [code, setCode] = useState('')
-  const [sentCode, setSentCode] = useState('')
-  const [codeSent, setCodeSent] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [isDev, setIsDev] = useState(false)
-  const [error, setError] = useState('')
+  const isKakao = profile.provider === 'kakao'
+  const isFakeEmail = (e) => !e || e.includes('@social.local')
+
+  const [emailInput, setEmailInput] = useState(isFakeEmail(profile.email) ? '' : (profile.email || ''))
+  const [code,       setCode]       = useState('')
+  const [sentCode,   setSentCode]   = useState('')
+  const [codeSent,   setCodeSent]   = useState(false)
+  const [sending,    setSending]    = useState(false)
+  const [isDev,      setIsDev]      = useState(false)
+  const [error,      setError]      = useState('')
+
+  const targetEmail = isKakao ? emailInput.trim() : profile.email
 
   const handleSend = async () => {
-    setSending(true)
     setError('')
+    if (isKakao) {
+      const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailInput.trim()) { setError('이메일을 입력해주세요.'); return }
+      if (!emailReg.test(emailInput.trim())) { setError('올바른 이메일 형식이 아닙니다.'); return }
+    }
+    setSending(true)
     const c = generateCode()
     setSentCode(c)
-    const result = await sendVerifyCode(profile.email, c)
+    const result = await sendVerifyCode(targetEmail, c)
     setSending(false)
     setCodeSent(true)
     setIsDev(!!result.dev)
@@ -174,7 +185,7 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
 
   const handleVerify = () => {
     if (code.trim() !== sentCode) { setError('인증번호가 올바르지 않습니다.'); return }
-    onVerified()
+    onVerified(targetEmail)  // 인증된 이메일을 상위로 전달
   }
 
   return (
@@ -184,12 +195,26 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
           <img src={profile.avatar} alt="" style={{ width: 56, height: 56, borderRadius: '50%', marginBottom: 8 }} />
         )}
         <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>이메일 인증</div>
-        <div style={{ fontSize: '13px', color: '#6b7280', marginTop: 4 }}>{profile.email}</div>
       </div>
 
-      <div style={{ padding: '12px 14px', background: '#eff6ff', borderRadius: '10px', border: '1.5px solid #bfdbfe', fontSize: '13px', color: '#1e40af' }}>
-        가입하신 이메일로 인증번호를 발송합니다. 인증 후 서비스를 이용하실 수 있습니다.
-      </div>
+      {/* 카카오: 이메일 직접 입력 */}
+      {isKakao ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>💛 실제 이메일 주소 입력</label>
+          <input
+            type="email"
+            value={emailInput}
+            onChange={e => { setEmailInput(e.target.value); setCodeSent(false); setCode('') }}
+            placeholder="example@email.com"
+            style={{ padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }}
+          />
+          <div style={{ fontSize: '12px', color: '#6b7280' }}>인증번호를 받을 실제 이메일 주소를 입력하세요.</div>
+        </div>
+      ) : (
+        <div style={{ padding: '12px 14px', background: '#eff6ff', borderRadius: '10px', border: '1.5px solid #bfdbfe', fontSize: '13px', color: '#1e40af' }}>
+          <strong>{profile.email}</strong>으로 인증번호를 발송합니다. 인증 후 서비스를 이용하실 수 있습니다.
+        </div>
+      )}
 
       {!codeSent ? (
         <button onClick={handleSend} disabled={sending}
@@ -206,7 +231,7 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
           )}
           {!isDev && (
             <div style={{ padding: '12px', background: '#f0fdf4', borderRadius: '8px', border: '1.5px solid #86efac', fontSize: '13px', color: '#15803d', fontWeight: 600 }}>
-              ✅ {profile.email}로 인증번호를 발송했습니다.
+              ✅ {targetEmail}로 인증번호를 발송했습니다.
             </div>
           )}
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -224,6 +249,8 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
           </button>
         </>
       )}
+
+      {error && !codeSent && <div style={{ fontSize:'13px', color:'#ef4444', background:'#fef2f2', padding:'10px 14px', borderRadius:'8px', border:'1px solid #fca5a5' }}>{error}</div>}
 
       <button onClick={onCancel}
         style={{ padding:'9px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
@@ -299,27 +326,59 @@ export function Auth({ onLogin }) {
     setError(''); setEmailChecked(false); setSending(false); setIsDev(false)
   }
 
+  // 이메일이 가짜(social.local)인지 확인
+  const isFakeEmail = (email) => !email || email.includes('@social.local')
+
+  // providerId로 기존 회원 찾기
+  const findByProviderId = (provider, providerId) => {
+    const all = JSON.parse(localStorage.getItem('users') || '[]')
+    return all.find(u => u.provider === provider && u.providerId === String(providerId)) || null
+  }
+
   // 소셜 로그인 콜백
   const handleSocialSuccess = (profile) => {
     const email = profile.email?.toLowerCase() || ''
-    const existing = email ? Users.findByEmail(email) : null
+
+    // 1) 이메일로 기존 회원 찾기 (가짜 이메일 제외)
+    let existing = email && !isFakeEmail(email) ? Users.findByEmail(email) : null
+
+    // 2) providerId로도 찾기
+    if (!existing && profile.providerId) {
+      existing = findByProviderId(profile.provider, profile.providerId)
+    }
+
     if (existing) {
-      // 기존 계정 — 바로 로그인 (이메일 인증 불필요)
+      // 이름/전화번호 없으면 프로필 입력
       if (isGarbled(existing.name) || !existing.phone) {
         setPendingSocialProfile({ ...profile, existingId: existing.id })
         setSocialStep('profile')
-      } else {
-        onLogin(existing)
+        return
       }
+      // 카카오인데 이메일이 가짜면 → 이메일 인증 후 업데이트
+      if (profile.provider === 'kakao' && isFakeEmail(existing.email)) {
+        setPendingSocialProfile({ ...profile, existingId: existing.id })
+        setSocialStep('email_verify')
+        return
+      }
+      // 정상 기존 회원 → 바로 로그인
+      onLogin(existing)
       return
     }
-    // 신규 가입 — 이메일 있으면 인증, 없으면 바로 프로필 입력
+
+    // 신규 가입 — 카카오는 항상 이메일 인증, 그 외는 이메일 있으면 인증
     setPendingSocialProfile(profile)
-    setSocialStep(email ? 'email_verify' : 'profile')
+    if (profile.provider === 'kakao') {
+      setSocialStep('email_verify')
+    } else {
+      setSocialStep(email ? 'email_verify' : 'profile')
+    }
   }
 
-  // 이메일 인증 완료 → 프로필 입력 (신규 가입자만 여기 도달)
-  const handleEmailVerified = () => {
+  // 이메일 인증 완료 → 프로필 입력 (인증된 이메일을 profile에 반영)
+  const handleEmailVerified = (verifiedEmail) => {
+    if (verifiedEmail) {
+      setPendingSocialProfile(prev => ({ ...prev, email: verifiedEmail }))
+    }
     setSocialStep('profile')
   }
 
@@ -330,13 +389,19 @@ export function Auth({ onLogin }) {
     setPendingSocialProfile(null)
 
     const email = (profile.email?.toLowerCase() || '') || `${profile.provider}_${profile.providerId}@social.local`
-    const existing = email ? Users.findByEmail(email) : null
+
+    // 기존 회원이면 업데이트
+    const existing = profile.existingId
+      ? JSON.parse(localStorage.getItem('users') || '[]').find(u => u.id === profile.existingId)
+      : (!isFakeEmail(email) ? Users.findByEmail(email) : null)
+
     if (existing) {
-      Users.update(existing.id, { name, phone })
-      onLogin({ ...existing, name, phone })
+      const updated = Users.update(existing.id, { name, phone, email })
+      onLogin(updated)
       return
     }
 
+    // 신규 회원 생성
     const user = {
       id: uid(), name, phone,
       email: email.toLowerCase(),
