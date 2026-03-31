@@ -749,6 +749,28 @@ export function Attendance({ user, pageParams = {} }) {
     setDateClicked(true)
     const d = new Date(date+'T00:00:00')
     setCalYear(d.getFullYear()); setCalMonth(d.getMonth())
+
+    // 해당 날짜의 수업 찾기 (수업 선택 여부 무관하게 항상 재매칭)
+    const matched = allClasses.find(c => calcSessionDates(c).includes(date))
+    if (matched) {
+      const year = matched.startDate?.slice(0,4) || String(d.getFullYear())
+      setSelYear(year)
+      setSelSchool(matched.organization || '')
+      setSelClassId(matched.id)
+      setSelSection('')
+
+      // 기간(분기/학기) 자동 세팅
+      const month = d.getMonth() + 1  // 1~12
+      if (matched.termType === 'quarter') {
+        if (month <= 3)       setSelTerm('q1')
+        else if (month <= 6)  setSelTerm('q2')
+        else if (month <= 9)  setSelTerm('q3')
+        else                  setSelTerm('q4')
+      } else {
+        // 학기제: 3~8월 = 1학기, 9~2월 = 2학기
+        setSelTerm(month >= 3 && month <= 8 ? 's1' : 's2')
+      }
+    }
   }
 
   const prevMonth = () => { if (calMonth===0){setCalYear(y=>y-1);setCalMonth(11)}else setCalMonth(m=>m-1) }
