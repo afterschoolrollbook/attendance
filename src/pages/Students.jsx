@@ -8,9 +8,12 @@ function emptyStudent() {
   return {
     school: '', grade: '3학년', classNum: '', number: '', name: '',
     parentPhone: '', studentPhone: '', classIds: [], status: 'applied', memo: '',
-    applyOrder: '',  // 신청 순번
-    // 수업 직접 입력용 (수업 등록 미리 안 된 경우)
-    _newClassName: '', _newSection: '', _newDays: [], _newTime: '', _newStartDate: '', _newEndDate: '',
+    applyOrder: '',
+    // 수업 직접 입력용
+    _newOrganization: '', _newClassName: '', _newSection: '',
+    _newTimeStart: '', _newTimeEnd: '',
+    _newTermType: 'semester', _newDays: [], _newRepeatType: 'every',
+    _newStartDate: '', _newEndDate: '',
   }
 }
 
@@ -136,7 +139,10 @@ export function Students({ user, onNav }) {
   const openEdit = (s) => {
     setForm({
       ...s, memo: s.memo || '', applyOrder: s.applyOrder || '',
-      _newClassName: '', _newSection: '', _newDays: [], _newTime: '', _newStartDate: '', _newEndDate: '',
+      _newOrganization: '', _newClassName: '', _newSection: '',
+      _newTimeStart: '', _newTimeEnd: '',
+      _newTermType: 'semester', _newDays: [], _newRepeatType: 'every',
+      _newStartDate: '', _newEndDate: '',
     })
     setEditId(s.id)
     setShowModal(true)
@@ -147,26 +153,30 @@ export function Students({ user, onNav }) {
 
     let classIds = [...(form.classIds || [])]
 
-    // 수업 미선택 + 수업명 직접 입력한 경우 → 수업 자동 생성
+    // 수업 미선택 + 수업명 직접 입력 → 수업 자동 생성
     if (classIds.length === 0 && form._newClassName?.trim()) {
-      const school = form.school || form._newClassName
+      const org = form._newOrganization?.trim() || ''
       const existing = ClassesDB.byTeacher(user.id).find(c =>
-        c.organization === school &&
+        c.organization === org &&
         c.className === form._newClassName.trim() &&
         (!form._newSection || c.section === form._newSection.trim())
       )
       if (existing) {
         classIds = [existing.id]
       } else {
+        const timeStr = form._newTimeStart
+          ? (form._newTimeEnd ? `${form._newTimeStart}~${form._newTimeEnd}` : form._newTimeStart)
+          : ''
         const newCls = {
           id: uid(), teacherId: user.id,
-          organization: school,
+          organization: org,
           className: form._newClassName.trim(),
           section: form._newSection?.trim() || '',
-          termType: 'semester',
+          termType: form._newTermType || 'semester',
           days: form._newDays || [],
-          repeatType: 'every',
-          time: form._newTime || '',
+          repeatType: form._newRepeatType || 'every',
+          time: form._newTimeStart || '',
+          timeEnd: form._newTimeEnd || '',
           startDate: form._newStartDate || new Date().toISOString().slice(0, 10),
           endDate: form._newEndDate || new Date(new Date().getFullYear(), 11, 31).toISOString().slice(0, 10),
           cancelledDates: [], description: '', promotionImgs: [], templateFile: null,
@@ -175,13 +185,19 @@ export function Students({ user, onNav }) {
         ClassesDB.insert(newCls)
         classIds = [newCls.id]
       }
-      // 학교명 동기화
-      if (!form.school) form.school = school
+      if (!form.school && org) form.school = org
+    }
+
+    // 수업 선택된 경우 학교명 자동 동기화
+    if (classIds.length > 0 && !form.school) {
+      const cls = ClassesDB.byTeacher(user.id).find(c => c.id === classIds[0])
+      if (cls?.organization) form.school = cls.organization
     }
 
     const saveData = { ...form, classIds }
-    delete saveData._newClassName; delete saveData._newSection
-    delete saveData._newDays; delete saveData._newTime
+    delete saveData._newOrganization; delete saveData._newClassName; delete saveData._newSection
+    delete saveData._newTimeStart; delete saveData._newTimeEnd
+    delete saveData._newTermType; delete saveData._newDays; delete saveData._newRepeatType
     delete saveData._newStartDate; delete saveData._newEndDate
 
     if (editId) {
@@ -621,12 +637,35 @@ export function Students({ user, onNav }) {
                     : '수업 정보를 입력하면 저장 시 수업이 자동으로 등록됩니다.'}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                  <Input label="단체명(학교명)" value={form.school} onChange={v => set('school', v)} />
+                  <Input label="단체명(학교명)" value={form._newOrganization} onChange={v => set('_newOrganization', v)} />
                   <Input label="수업명(과목)" value={form._newClassName} onChange={v => set('_newClassName', v)} />
                 </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                  <Input label="반 (선택)" value={form._newSection} onChange={v => set('_newSection', v)} />
+                  <Input label="수업 시작시간 (선택)" value={form._newTimeStart} onChange={v => set('_newTimeStart', v)} placeholder="14:00" />
+                  <Input label="종료시간 (선택)" value={form._newTimeEnd} onChange={v => set('_newTimeEnd', v)} placeholder="15:00" />
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                  <Input label="수업반" value={form._newSection} onChange={v => set('_newSection', v)} />
-                  <Input label="수업 시간" value={form._newTime} onChange={v => set('_newTime', v)} placeholder="14:00" />
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>수업 운영방식</div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {[{value:'semester',label:'학기제'},{value:'quarter',label:'분기제'}].map(t => (
+                        <button key={t.value} type="button" onClick={() => set('_newTermType', t.value)}
+                          style={{ flex:1, padding:'7px', borderRadius:'7px', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', border:`1.5px solid ${form._newTermType===t.value?'#f97316':'#e5e7eb'}`, background:form._newTermType===t.value?'#fff7ed':'#fff', color:form._newTermType===t.value?'#ea580c':'#374151', fontWeight:form._newTermType===t.value?700:400 }}>
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>반복 패턴</div>
+                    <select value={form._newRepeatType} onChange={e => set('_newRepeatType', e.target.value)}
+                      style={{ width:'100%', padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
+                      {[{value:'every',label:'매주'},{value:'biweekly',label:'격주'},{value:'monthly_first',label:'매월 첫째주'},{value:'monthly_second',label:'매월 둘째주'},{value:'monthly_third',label:'매월 셋째주'},{value:'monthly_fourth',label:'매월 넷째주'}].map(r => (
+                        <option key={r.value} value={r.value}>{r.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div style={{ marginBottom: '10px' }}>
                   <div style={{ fontSize: '12px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>수업 요일</div>
@@ -636,7 +675,7 @@ export function Students({ user, onNav }) {
                       return (
                         <button key={d} type="button"
                           onClick={() => set('_newDays', sel ? (form._newDays||[]).filter(x=>x!==d) : [...(form._newDays||[]),d])}
-                          style={{ width: '32px', height: '32px', borderRadius: '6px', border: `1.5px solid ${sel?'#f97316':'#e5e7eb'}`, background: sel?'#f97316':'#fff', color: sel?'#fff':'#374151', fontSize: '12px', fontWeight: sel?700:400, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+                          style={{ width:'32px', height:'32px', borderRadius:'6px', border:`1.5px solid ${sel?'#f97316':'#e5e7eb'}`, background:sel?'#f97316':'#fff', color:sel?'#fff':'#374151', fontSize:'12px', fontWeight:sel?700:400, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                           {d}
                         </button>
                       )
@@ -660,41 +699,17 @@ export function Students({ user, onNav }) {
 
           {/* ══ 아래쪽: 학생 정보만 ══ */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-
-            {/* 학교명 (수업 선택된 경우 읽기전용, 아닌 경우 입력) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: '#374151', marginBottom: '5px' }}>
-                  학교명 <span style={{ color: '#ef4444' }}>*</span>
-                  {form.classIds?.length > 0 && <span style={{ fontSize: '11px', color: '#16a34a', marginLeft: '6px' }}>✓ 수업에서 자동 적용</span>}
-                </div>
-                <input
-                  value={form.school}
-                  onChange={e => set('school', e.target.value)}
-                  readOnly={form.classIds?.length > 0}
-                  style={{
-                    width: '100%', padding: '8px 12px', borderRadius: '9px', fontSize: '14px', boxSizing: 'border-box',
-                    border: `1.5px solid ${form.classIds?.length > 0 ? '#86efac' : '#e5e7eb'}`,
-                    background: form.classIds?.length > 0 ? '#f0fdf4' : '#fff',
-                    color: '#111827', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none',
-                  }}
-                />
-              </div>
-              <Select label="학년" value={form.grade} onChange={v => set('grade', v)} options={GRADES.map(g => ({ value: g, label: g }))} required />
-            </div>
-
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
+              <Select label="학년" value={form.grade} onChange={v => set('grade', v)} options={GRADES.map(g => ({ value: g, label: g }))} required />
               <Input label="학급 반" value={form.classNum} onChange={v => set('classNum', v)} />
               <Input label="번호" value={form.number} onChange={v => set('number', v)} />
               <Input label="이름" value={form.name} onChange={v => set('name', v)} required />
-              <Input label="신청 순번" value={form.applyOrder} onChange={v => set('applyOrder', v)} />
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+              <Input label="신청 순번" value={form.applyOrder} onChange={v => set('applyOrder', v)} />
               <Input label="학부모 전화번호" value={form.parentPhone} onChange={v => set('parentPhone', v)} />
               <Input label="학생 전화번호" value={form.studentPhone} onChange={v => set('studentPhone', v)} />
             </div>
-
             <Textarea label="📌 특이사항 메모" value={form.memo} onChange={v => set('memo', v)} rows={2} />
             <Select label="상태" value={form.status} onChange={v => set('status', v)}
               options={Object.entries(STUDENT_STATUS).map(([k, v]) => ({ value: k, label: v.label }))} />
