@@ -10,6 +10,7 @@ const NAV = [
   { path: 'reports',    label: '출석 리포트', icon: '📊', feature: FEATURES.VIEW_REPORT },
   { path: 'templates',  label: '출석부 양식', icon: '📄', feature: FEATURES.MANAGE_TEMPLATE },
   { path: 'printsetup', label: '출석부 출력', icon: '🖨️', feature: FEATURES.PRINT_ATTENDANCE },
+  { path: 'revenue',    label: '수익관리',    icon: '💰', feature: null },
   { path: 'profile',    label: '내 정보',     icon: '👤', feature: null },
 ]
 
