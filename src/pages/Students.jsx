@@ -61,7 +61,7 @@ export function Students({ user, onNav }) {
 
   // ✅ 대기자 승격 알림 상태
   const [promotedName, setPromotedName] = useState(null)
-  // ✅ 실시간 반영용 — DB 변경 시 강제 리렌더 트리거
+  // ✅ 실시간 반영용 강제 리렌더 트리거
   const [tick, setTick] = useState(0)
   const refresh = () => setTick(t => t + 1)
 
@@ -73,7 +73,7 @@ export function Students({ user, onNav }) {
     ? [...new Set(classes.filter(c => c.id === ctxClass).map(c => c.section).filter(Boolean))]
     : []
 
-  const allStudents = StudentsDB.byTeacher(user.id) // tick 변경 시 재계산
+  const allStudents = StudentsDB.byTeacher(user.id)
   const filtered = allStudents.filter(s => {
     if (ctxClass && !s.classIds?.includes(ctxClass)) return false
     if (ctxSchool && s.school !== ctxSchool) return false
@@ -214,6 +214,9 @@ export function Students({ user, onNav }) {
     }
     setShowModal(false)
     refresh() // ✅ 즉시 리렌더
+  }
+
+  // ✅ 상태 변경 시 대기자 자동 승격 처리
   const changeStatus = (id, status) => {
     const s = StudentsDB.find(id)
     const prevStatus = s.status
@@ -222,7 +225,7 @@ export function Students({ user, onNav }) {
       statusHistory: [...(s.statusHistory || []), { status, changedAt: now(), memo: '' }],
     })
 
-    // 취소 시 → 대기자 자동 승격
+    // 취소/대기자로 변경 시 → 대기자 자동 승격
     if ((prevStatus === 'applied' || prevStatus === 'selected' || prevStatus === 'confirmed') &&
         (status === 'cancelled')) {
       const classIds = s.classIds || []
@@ -234,7 +237,6 @@ export function Students({ user, onNav }) {
         }
       })
     }
-
     refresh() // ✅ 즉시 리렌더
   }
 
@@ -664,7 +666,7 @@ export function Students({ user, onNav }) {
                     <div style={{ fontSize: '12px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>반복 패턴</div>
                     <select value={form._newRepeatType} onChange={e => set('_newRepeatType', e.target.value)}
                       style={{ width:'100%', padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
-                      {[{value:'none',label:'해당없음'},{value:'every',label:'매주'},{value:'biweekly',label:'격주'},{value:'monthly_first',label:'매월 첫째주'},{value:'monthly_second',label:'매월 둘째주'},{value:'monthly_third',label:'매월 셋째주'},{value:'monthly_fourth',label:'매월 넷째주'}].map(r => (
+                      {[{value:'every',label:'매주'},{value:'biweekly',label:'격주'},{value:'monthly_first',label:'매월 첫째주'},{value:'monthly_second',label:'매월 둘째주'},{value:'monthly_third',label:'매월 셋째주'},{value:'monthly_fourth',label:'매월 넷째주'}].map(r => (
                         <option key={r.value} value={r.value}>{r.label}</option>
                       ))}
                     </select>
