@@ -2,10 +2,16 @@ import React, { useState, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB } from '../lib/db.js'
 import { uid, now, fmtPhone } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox, Textarea } from '../components/Atoms.jsx'
-import { STUDENT_STATUS, GRADES } from '../constants/config.js'
+import { STUDENT_STATUS, GRADES, DAYS } from '../constants/config.js'
 
 function emptyStudent() {
-  return { school: '', grade: '3학년', classNum: '', number: '', name: '', parentPhone: '', studentPhone: '', classIds: [], status: 'applied', memo: '' }
+  return {
+    school: '', grade: '3학년', classNum: '', number: '', name: '',
+    parentPhone: '', studentPhone: '', classIds: [], status: 'applied', memo: '',
+    applyOrder: '',  // 신청 순번
+    // 수업 직접 입력용 (수업 등록 미리 안 된 경우)
+    _newClassName: '', _newSection: '', _newDays: [], _newTime: '', _newStartDate: '', _newEndDate: '',
+  }
 }
 
 // ✅ 대기자 자동 승격: 취소 발생 시 대기자 중 가장 먼저 신청한 학생을 applied로 자동 승격
@@ -36,7 +42,7 @@ export function Students({ user, onNav }) {
   const [ctxSection, setCtxSection] = useState('')
 
   const [statusFilter, setStatusFilter] = useState('all')
-  const [sortOrder,    setSortOrder]    = useState('asc')
+  const [sortOrder,    setSortOrder]    = useState('name')
 
   const [showModal, setShowModal] = useState(false)
   const [editId,    setEditId]    = useState(null)
@@ -69,6 +75,32 @@ export function Students({ user, onNav }) {
     if (statusFilter !== 'all' && s.status !== statusFilter) return false
     return true
   }).sort((a, b) => {
+    // 정렬: 학교 → 수업/반 → 학년 → 반 → 번호 → 이름
+    if (sortOrder === 'name') {
+      // 학교
+      const schoolCmp = (a.school || '').localeCompare(b.school || '', 'ko')
+      if (schoolCmp !== 0) return schoolCmp
+      // 수업 (첫 번째 classId 기준 className)
+      const aClass = classes.find(c => c.id === a.classIds?.[0])
+      const bClass = classes.find(c => c.id === b.classIds?.[0])
+      const classCmp = (aClass?.className || '').localeCompare(bClass?.className || '', 'ko')
+      if (classCmp !== 0) return classCmp
+      // 반 (수업반)
+      const sectionCmp = (aClass?.section || '').localeCompare(bClass?.section || '', 'ko')
+      if (sectionCmp !== 0) return sectionCmp
+      // 학년
+      const gradeCmp = (a.grade || '').localeCompare(b.grade || '', 'ko')
+      if (gradeCmp !== 0) return gradeCmp
+      // 학급 반
+      const classNumCmp = parseInt(a.classNum || '0') - parseInt(b.classNum || '0')
+      if (classNumCmp !== 0) return classNumCmp
+      // 번호
+      const numCmp = parseInt(a.number || '0') - parseInt(b.number || '0')
+      if (numCmp !== 0) return numCmp
+      // 이름
+      return (a.name || '').localeCompare(b.name || '', 'ko')
+    }
+    // 신청순/최신순
     const ta = new Date(a.createdAt).getTime()
     const tb = new Date(b.createdAt).getTime()
     return sortOrder === 'asc' ? ta - tb : tb - ta
@@ -101,16 +133,67 @@ export function Students({ user, onNav }) {
     setShowModal(true)
   }
 
-  const openEdit = (s) => { setForm({ ...s, memo: s.memo || '' }); setEditId(s.id); setShowModal(true) }
+  const openEdit = (s) => {
+    setForm({
+      ...s, memo: s.memo || '', applyOrder: s.applyOrder || '',
+      _newClassName: '', _newSection: '', _newDays: [], _newTime: '', _newStartDate: '', _newEndDate: '',
+    })
+    setEditId(s.id)
+    setShowModal(true)
+  }
 
   const save = () => {
     if (!form.name.trim() || !form.school.trim() || !form.grade) { alert('필수 항목을 입력하세요.'); return }
+
+    let classIds = [...(form.classIds || [])]
+
+    // 수업이 선택되지 않았고 새 수업 정보가 입력된 경우 → 수업 자동 생성
+    if (classIds.length === 0 && form._newClassName?.trim()) {
+      const existing = ClassesDB.byTeacher(user.id).find(c =>
+        c.organization === form.school &&
+        c.className === form._newClassName.trim() &&
+        (!form._newSection || c.section === form._newSection.trim())
+      )
+      if (existing) {
+        classIds = [existing.id]
+      } else {
+        const newCls = {
+          id: uid(), teacherId: user.id,
+          organization: form.school,
+          className: form._newClassName.trim(),
+          section: form._newSection?.trim() || '',
+          termType: 'semester',
+          days: form._newDays || [],
+          repeatType: 'every',
+          time: form._newTime || '',
+          startDate: form._newStartDate || new Date().toISOString().slice(0, 10),
+          endDate: form._newEndDate || new Date(new Date().getFullYear(), 11, 31).toISOString().slice(0, 10),
+          cancelledDates: [],
+          description: '',
+          promotionImgs: [],
+          templateFile: null,
+          createdAt: now(),
+        }
+        ClassesDB.insert(newCls)
+        classIds = [newCls.id]
+      }
+    }
+
+    const saveData = { ...form, classIds }
+    // 내부용 임시 필드 제거
+    delete saveData._newClassName
+    delete saveData._newSection
+    delete saveData._newDays
+    delete saveData._newTime
+    delete saveData._newStartDate
+    delete saveData._newEndDate
+
     if (editId) {
-      StudentsDB.update(editId, { ...form })
+      StudentsDB.update(editId, saveData)
     } else {
       StudentsDB.insert({
-        id: uid(), teacherId: user.id, ...form,
-        statusHistory: [{ status: form.status, changedAt: now(), memo: '' }],
+        id: uid(), teacherId: user.id, ...saveData,
+        statusHistory: [{ status: saveData.status, changedAt: now(), memo: '' }],
         createdAt: now(),
       })
     }
@@ -420,6 +503,7 @@ export function Students({ user, onNav }) {
           ))}
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
+          <button onClick={() => setSortOrder('name')} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '12px', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: sortOrder === 'name' ? 700 : 400, background: sortOrder === 'name' ? '#18181b' : '#f3f4f6', color: sortOrder === 'name' ? '#fff' : '#374151', transition: 'all .15s' }}>학교·수업순</button>
           <button onClick={() => setSortOrder('asc')} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '12px', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: sortOrder === 'asc' ? 700 : 400, background: sortOrder === 'asc' ? '#18181b' : '#f3f4f6', color: sortOrder === 'asc' ? '#fff' : '#374151', transition: 'all .15s' }}>신청순 ↑</button>
           <button onClick={() => setSortOrder('desc')} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '12px', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: sortOrder === 'desc' ? 700 : 400, background: sortOrder === 'desc' ? '#18181b' : '#f3f4f6', color: sortOrder === 'desc' ? '#fff' : '#374151', transition: 'all .15s' }}>최신순 ↓</button>
         </div>
@@ -433,7 +517,7 @@ export function Students({ user, onNav }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['이름', '학교', '학년 / 반 / 번호', '학부모 전화', '수업 · 반', '상태', '메모', '작업'].map(h => (
+                {['순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '상태', '메모', '작업'].map(h => (
                   <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -449,19 +533,25 @@ export function Students({ user, onNav }) {
 
                 return (
                   <tr key={s.id} style={{ borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                    <td style={{ padding: '11px 14px', fontSize: '14px', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>{s.name}</td>
-                    <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{s.school}</td>
-                    <td style={{ padding: '11px 14px', fontSize: '13px', color: '#374151', whiteSpace: 'nowrap' }}>
-                      <span>{s.grade}</span>
-                      {s.classNum && <span style={{ marginLeft: '4px', padding: '1px 7px', borderRadius: '5px', background: '#f0fdf4', color: '#16a34a', fontWeight: 600, fontSize: '12px' }}>{s.classNum}반</span>}
-                      {s.number && <span style={{ marginLeft: '4px', color: '#9ca3af', fontSize: '12px' }}>{s.number}번</span>}
+                    <td style={{ padding: '11px 14px', fontSize: '13px', color: '#9ca3af', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      {s.applyOrder
+                        ? <span style={{ fontWeight: 700, color: '#f97316', background: '#fff7ed', padding: '2px 7px', borderRadius: '5px', border: '1px solid #fed7aa' }}>{s.applyOrder}</span>
+                        : <span style={{ color: '#d1d5db' }}>-</span>
+                      }
                     </td>
-                    <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtPhone(s.parentPhone) || '-'}</td>
+                    <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{s.school}</td>
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                         {sClasses.map(c => <Tag key={c} color="#6b7280" bg="#f3f4f6">{c}</Tag>)}
                       </div>
                     </td>
+                    <td style={{ padding: '11px 14px', fontSize: '13px', color: '#374151', whiteSpace: 'nowrap' }}>
+                      <span>{s.grade}</span>
+                      {s.classNum && <span style={{ marginLeft: '4px', padding: '1px 7px', borderRadius: '5px', background: '#f0fdf4', color: '#16a34a', fontWeight: 600, fontSize: '12px' }}>{s.classNum}반</span>}
+                      {s.number && <span style={{ marginLeft: '4px', color: '#9ca3af', fontSize: '12px' }}>{s.number}번</span>}
+                    </td>
+                    <td style={{ padding: '11px 14px', fontSize: '14px', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>{s.name}</td>
+                    <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtPhone(s.parentPhone) || '-'}</td>
                     <td style={{ padding: '11px 14px' }}>
                       <select value={s.status} onChange={e => changeStatus(s.id, e.target.value)}
                         style={{ padding: '4px 8px', borderRadius: '6px', border: `1.5px solid ${cfg.color}50`, background: cfg.bg, color: cfg.color, fontSize: '12px', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif', cursor: 'pointer', outline: 'none' }}>
@@ -486,34 +576,104 @@ export function Students({ user, onNav }) {
       )}
 
       {/* 학생 등록/편집 모달 */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title={editId ? '학생 정보 편집' : '학생 등록'} width={520}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <Input label="학교명" value={form.school} onChange={v => set('school', v)} placeholder="판교초등학교" required />
-            <Select label="학년" value={form.grade} onChange={v => set('grade', v)} options={GRADES.map(g => ({ value: g, label: g }))} required />
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={editId ? '학생 정보 편집' : '학생 등록'} width={560}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+          {/* ── 수업 연동 섹션 */}
+          <div style={{ background: '#f8fafc', border: '1.5px solid #e5e7eb', borderRadius: '12px', padding: '14px 16px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280', marginBottom: '12px', letterSpacing: '0.05em' }}>📚 수업 정보</div>
+
+            {/* 등록된 수업이 있으면 선택 → 자동 채움 */}
+            {classes.length > 0 && (
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>등록된 수업에서 선택</div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {classes.map(c => {
+                    const selected = form.classIds?.includes(c.id)
+                    return (
+                      <button key={c.id} type="button" onClick={() => {
+                        const newIds = selected
+                          ? (form.classIds || []).filter(id => id !== c.id)
+                          : [...(form.classIds || []), c.id]
+                        // 첫 번째 수업 선택 시 학교명 자동 채움
+                        const updatedSchool = newIds.length > 0
+                          ? (ClassesDB.byTeacher(user.id).find(cl => cl.id === newIds[0])?.organization || form.school)
+                          : form.school
+                        set('classIds', newIds)
+                        if (!form.school && updatedSchool) set('school', updatedSchool)
+                      }} style={{
+                        padding: '6px 12px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+                        border: `1.5px solid ${selected ? '#f97316' : '#e5e7eb'}`,
+                        background: selected ? '#fff7ed' : '#fff',
+                        color: selected ? '#ea580c' : '#374151',
+                        fontWeight: selected ? 700 : 400,
+                        transition: 'all .1s',
+                      }}>
+                        {c.organization && <span style={{ color: '#6b7280', fontSize: '11px', marginRight: '4px' }}>{c.organization}</span>}
+                        {c.className}{c.section ? ` ${c.section}반` : ''}
+                        {c.days?.length ? <span style={{ marginLeft: '4px', color: '#9ca3af', fontSize: '11px' }}>{c.days.join('')} {c.time}</span> : ''}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 수업 직접 입력 (수업 미등록이거나 새 수업 추가 시) */}
+            {form.classIds?.length === 0 && (
+              <div style={{ borderTop: classes.length > 0 ? '1px solid #e5e7eb' : 'none', paddingTop: classes.length > 0 ? '12px' : '0' }}>
+                {classes.length > 0 && <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '10px' }}>— 또는 새 수업 직접 입력 (저장 시 자동 수업 등록) —</div>}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                  <Input label="수업명(과목)" value={form._newClassName} onChange={v => set('_newClassName', v)} />
+                  <Input label="수업반" value={form._newSection} onChange={v => set('_newSection', v)} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                  <Input label="수업 시간" value={form._newTime} onChange={v => set('_newTime', v)} placeholder="14:00" />
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>수업 요일</div>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                      {DAYS.map(d => {
+                        const sel = (form._newDays || []).includes(d)
+                        return (
+                          <button key={d} type="button" onClick={() => set('_newDays', sel ? (form._newDays || []).filter(x => x !== d) : [...(form._newDays || []), d])}
+                            style={{ width: '30px', height: '30px', borderRadius: '6px', border: `1.5px solid ${sel ? '#f97316' : '#e5e7eb'}`, background: sel ? '#f97316' : '#fff', color: sel ? '#fff' : '#374151', fontSize: '12px', fontWeight: sel ? 700 : 400, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+                            {d}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <Input label="수업 시작일" value={form._newStartDate} onChange={v => set('_newStartDate', v)} type="date" />
+                  <Input label="수업 종료일" value={form._newEndDate} onChange={v => set('_newEndDate', v)} type="date" />
+                </div>
+              </div>
+            )}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-            <Input label="학급 반 (학교 소속 반)" value={form.classNum} onChange={v => set('classNum', v)} placeholder="예: 2" />
-            <Input label="번호" value={form.number} onChange={v => set('number', v)} placeholder="5" />
-            <Input label="이름" value={form.name} onChange={v => set('name', v)} placeholder="홍길동" required />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <Input label="학부모 전화번호" value={form.parentPhone} onChange={v => set('parentPhone', v)} placeholder="010-0000-0000" />
-            <Input label="학생 전화번호" value={form.studentPhone} onChange={v => set('studentPhone', v)} placeholder="010-0000-0000" />
-          </div>
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827', marginBottom: '8px' }}>수강 수업</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '160px', overflow: 'auto', padding: '2px' }}>
-              {classes.map(c => (
-                <Checkbox key={c.id}
-                  checked={form.classIds?.includes(c.id)}
-                  onChange={v => set('classIds', v ? [...(form.classIds || []), c.id] : (form.classIds || []).filter(id => id !== c.id))}
-                  label={`${c.organization} · ${c.className}${c.section ? ' ' + c.section + '반' : ''}`}
-                />
-              ))}
+
+          {/* ── 학생 기본 정보 */}
+          <div style={{ background: '#f8fafc', border: '1.5px solid #e5e7eb', borderRadius: '12px', padding: '14px 16px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280', marginBottom: '12px', letterSpacing: '0.05em' }}>👤 학생 정보</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+              <Input label="학교명" value={form.school} onChange={v => set('school', v)} required />
+              <Select label="학년" value={form.grade} onChange={v => set('grade', v)} options={GRADES.map(g => ({ value: g, label: g }))} required />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
+              <Input label="학급 반" value={form.classNum} onChange={v => set('classNum', v)} />
+              <Input label="번호" value={form.number} onChange={v => set('number', v)} />
+              <Input label="이름" value={form.name} onChange={v => set('name', v)} required />
+              <Input label="신청 순번" value={form.applyOrder} onChange={v => set('applyOrder', v)} />
             </div>
           </div>
-          <Textarea label="📌 특이사항 메모" value={form.memo} onChange={v => set('memo', v)} placeholder="예: 알레르기 있음 / 조기 귀가 필요 / 부모님 요청사항 등" rows={2} />
+
+          {/* ── 연락처 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <Input label="학부모 전화번호" value={form.parentPhone} onChange={v => set('parentPhone', v)} />
+            <Input label="학생 전화번호" value={form.studentPhone} onChange={v => set('studentPhone', v)} />
+          </div>
+
+          <Textarea label="📌 특이사항 메모" value={form.memo} onChange={v => set('memo', v)} rows={2} />
           <Select label="상태" value={form.status} onChange={v => set('status', v)}
             options={Object.entries(STUDENT_STATUS).map(([k, v]) => ({ value: k, label: v.label }))} />
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', paddingTop: '4px' }}>
