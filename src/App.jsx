@@ -22,6 +22,7 @@ import { Training }     from './pages/Training.jsx'
 import { Certificates } from './pages/Certificates.jsx'
 import { Career }       from './pages/Career.jsx'
 import { Jobs }         from './pages/Jobs.jsx'
+import { Revenue }      from './pages/Revenue.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
@@ -113,6 +114,7 @@ export default function App() {
       case 'certificates':   return <Certificates user={user} />
       case 'career':         return <Career       user={user} />
       case 'jobs':           return <Jobs         user={user} />
+      case 'revenue':        return <Revenue      user={user} />
       default:               return <Dashboard {...pageProps} />
     }
   }
