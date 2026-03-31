@@ -66,6 +66,8 @@ export function Students({ user, onNav }) {
   const [tick, setTick] = useState(0)
   const refresh = () => setTick(t => t + 1)
   const { showToast } = useToast()
+  // ✅ 삭제 확인
+  const [deleteTarget, setDeleteTarget] = useState(null) // { id, name }
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
@@ -243,6 +245,14 @@ export function Students({ user, onNav }) {
     refresh() // ✅ 즉시 리렌더
     const statusLabel = STUDENT_STATUS[status]?.label || status
     showToast(`✅ ${s.name} → "${statusLabel}" 변경 저장됐습니다.`, 'success')
+  }
+
+  const deleteStudent = () => {
+    if (!deleteTarget) return
+    StudentsDB.delete(deleteTarget.id)
+    setDeleteTarget(null)
+    refresh()
+    showToast(`🗑️ ${deleteTarget.name} 학생이 삭제됐습니다.`, 'success')
   }
 
   // ─── 엑셀 파싱
@@ -587,7 +597,10 @@ export function Students({ user, onNav }) {
                       }
                     </td>
                     <td style={{ padding: '11px 14px' }}>
-                      <Btn size="sm" variant="ghost" onClick={() => openEdit(s)}>편집</Btn>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <Btn size="sm" variant="ghost" onClick={() => openEdit(s)}>편집</Btn>
+                        <Btn size="sm" variant="outlineDanger" onClick={() => setDeleteTarget({ id: s.id, name: s.name })}>삭제</Btn>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -729,6 +742,18 @@ export function Students({ user, onNav }) {
             <Btn variant="ghost" onClick={() => setShowModal(false)}>취소</Btn>
             <Btn onClick={save}>{editId ? '저장' : '등록'}</Btn>
           </div>
+        </div>
+      </Modal>
+
+      {/* 삭제 확인 모달 */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="학생 삭제" width={380}>
+        <p style={{ fontSize: '14px', color: '#374151', marginBottom: '8px' }}>
+          <strong>{deleteTarget?.name}</strong> 학생을 삭제하시겠습니까?
+        </p>
+        <p style={{ fontSize: '13px', color: '#ef4444', marginBottom: '20px' }}>삭제 후 복구할 수 없습니다.</p>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+          <Btn variant="ghost" onClick={() => setDeleteTarget(null)}>취소</Btn>
+          <Btn variant="danger" onClick={deleteStudent}>삭제</Btn>
         </div>
       </Modal>
 
