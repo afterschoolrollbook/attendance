@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB } from '../lib/db.js'
 import { uid, now, calcSessionDates, today } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
@@ -17,6 +17,7 @@ function emptyForm() {
     promotionImgs: [],
     templateFile: null,
     cancelledDates: [],
+    alarm: { enabled: false, minutesBefore: 10 },
   }
 }
 
@@ -40,12 +41,46 @@ export function Classes({ user }) {
   const promoRef = useRef()
   const templateRef = useRef()
 
+  const [alarmToast, setAlarmToast] = useState(null) // { className, minutesBefore }
+
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const classes = ClassesDB.byTeacher(user.id)
   const t = today()
 
+  // 알람: 1분마다 수업 시작 시간 체크
+  useEffect(() => {
+    const check = () => {
+      const now = new Date()
+      const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+      const todayDay = ['일','월','화','수','목','금','토'][now.getDay()]
+      classes.forEach(cls => {
+        if (!cls.alarm?.enabled || !cls.time) return
+        if (!cls.days?.includes(todayDay)) return
+        const startTime = cls.time.includes('~') ? cls.time.split('~')[0].trim() : cls.time
+        const [sh, sm] = startTime.split(':').map(Number)
+        const alarmTime = new Date(now)
+        alarmTime.setHours(sh, sm - (cls.alarm.minutesBefore || 10), 0, 0)
+        const alarmHHMM = `${String(alarmTime.getHours()).padStart(2,'0')}:${String(alarmTime.getMinutes()).padStart(2,'0')}`
+        if (hhmm === alarmHHMM) {
+          setAlarmToast({ className: cls.className, minutesBefore: cls.alarm.minutesBefore })
+          setTimeout(() => setAlarmToast(null), 8000)
+          if (Notification.permission === 'granted') {
+            new Notification(`🔔 수업 알람`, { body: `${cls.className} 수업이 ${cls.alarm.minutesBefore}분 후 시작됩니다!`, icon: '/favicon.ico' })
+          } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission().then(p => {
+              if (p === 'granted') new Notification(`🔔 수업 알람`, { body: `${cls.className} 수업이 ${cls.alarm.minutesBefore}분 후 시작됩니다!` })
+            })
+          }
+        }
+      })
+    }
+    check()
+    const timer = setInterval(check, 60000)
+    return () => clearInterval(timer)
+  }, [classes])
+
   const openAdd = () => { setForm(emptyForm()); setEditId(null); setTab('info'); setShowModal(true) }
-  const openEdit = (cls) => { setForm({ ...cls, promotionImgs: cls.promotionImgs || [], templateFile: cls.templateFile || null }); setEditId(cls.id); setTab('info'); setShowModal(true) }
+  const openEdit = (cls) => { setForm({ ...cls, promotionImgs: cls.promotionImgs || [], templateFile: cls.templateFile || null, alarm: cls.alarm || { enabled: false, minutesBefore: 10 } }); setEditId(cls.id); setTab('info'); setShowModal(true) }
 
   const save = () => {
     if (!form.organization.trim() || !form.className.trim() || !form.days.length || !form.startDate || !form.endDate) {
@@ -107,6 +142,25 @@ export function Classes({ user }) {
 
   return (
     <div style={{ padding: '28px', maxWidth: '1100px' }}>
+      {/* 알람 토스트 */}
+      {alarmToast && (
+        <div style={{
+          position: 'fixed', top: '24px', right: '24px', zIndex: 9999,
+          background: '#1d4ed8', color: '#fff', padding: '16px 22px',
+          borderRadius: '14px', fontSize: '14px', fontWeight: 600,
+          boxShadow: '0 4px 24px rgba(29,78,216,0.35)',
+          display: 'flex', alignItems: 'center', gap: '10px',
+          animation: 'fadeIn 0.2s ease', maxWidth: '320px',
+        }}>
+          <span style={{ fontSize: '24px' }}>🔔</span>
+          <div>
+            <div style={{ fontSize: '15px', fontWeight: 700 }}>{alarmToast.className}</div>
+            <div style={{ fontSize: '13px', opacity: 0.9, marginTop: '2px' }}>수업이 {alarmToast.minutesBefore}분 후 시작됩니다!</div>
+          </div>
+          <button onClick={() => setAlarmToast(null)}
+            style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+        </div>
+      )}
       <PageHeader
         title="수업 관리"
         sub="수업을 등록하고 일정을 관리합니다."
@@ -175,6 +229,7 @@ export function Classes({ user }) {
                       <Tag color="#16a34a" bg="#f0fdf4">총 {sessions.length}차시</Tag>
                       {upcoming && <Tag color="#f59e0b" bg="#fffbeb">다음 {upcoming.slice(5)}</Tag>}
                       {hasTpl && <Tag color="#8b5cf6" bg="#f5f3ff">양식 ✓</Tag>}
+                      {cls.alarm?.enabled && <Tag color="#3b82f6" bg="#eff6ff">🔔 {cls.alarm.minutesBefore}분전</Tag>}
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }} onClick={e => e.stopPropagation()}>
@@ -231,7 +286,7 @@ export function Classes({ user }) {
             <div>
               <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827', marginBottom: '8px' }}>반복 패턴 <span style={{ color: '#ef4444' }}>*</span></div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {REPEAT_TYPES.map(rt => (
+                {[{ value: 'none', label: '해당없음' }, ...REPEAT_TYPES].map(rt => (
                   <button key={rt.value} type="button" onClick={() => set('repeatType', rt.value)}
                     style={{
                       padding: '7px 14px', borderRadius: '8px', border: `1.5px solid ${form.repeatType === rt.value ? '#f97316' : '#e5e7eb'}`,
@@ -242,12 +297,59 @@ export function Classes({ user }) {
                     }}>{rt.label}</button>
                 ))}
               </div>
-              {form.repeatType !== 'every' && (
+              {form.repeatType !== 'every' && form.repeatType !== 'none' && (
                 <div style={{ marginTop: '8px', fontSize: '12px', color: '#f97316', background: '#fff7ed', padding: '8px 12px', borderRadius: '7px', border: '1px solid #fed7aa' }}>
                   💡 선택된 패턴: <strong>{REPEAT_TYPES.find(r=>r.value===form.repeatType)?.label}</strong> — 수업 달력에서 실제 날짜를 확인하세요
                 </div>
               )}
+              {form.repeatType === 'none' && (
+                <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280', background: '#f9fafb', padding: '8px 12px', borderRadius: '7px', border: '1px solid #e5e7eb' }}>
+                  ℹ️ 반복 없음 — 수업 달력에서 날짜를 직접 지정하세요
+                </div>
+              )}
             </div>
+
+            {/* ── 알람 설정 */}
+            <div style={{ background: '#f8faff', border: '1.5px solid #dbeafe', borderRadius: '10px', padding: '14px 16px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#1d4ed8', marginBottom: '12px' }}>🔔 알람 설정</div>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: form.alarm?.enabled ? '12px' : '0' }}>
+                {[{ value: false, label: '선택안함' }, { value: true, label: '알람 설정' }].map(opt => (
+                  <button key={String(opt.value)} type="button"
+                    onClick={() => set('alarm', { ...(form.alarm || {}), enabled: opt.value })}
+                    style={{
+                      padding: '7px 16px', borderRadius: '8px', cursor: 'pointer',
+                      fontFamily: 'Noto Sans KR, sans-serif', fontSize: '13px', transition: 'all .15s',
+                      border: `1.5px solid ${form.alarm?.enabled === opt.value ? '#3b82f6' : '#e5e7eb'}`,
+                      background: form.alarm?.enabled === opt.value ? '#3b82f6' : '#fff',
+                      color: form.alarm?.enabled === opt.value ? '#fff' : '#374151',
+                      fontWeight: form.alarm?.enabled === opt.value ? 700 : 400,
+                    }}>{opt.label}</button>
+                ))}
+              </div>
+              {form.alarm?.enabled && (
+                <div>
+                  <div style={{ fontSize: '12px', color: '#374151', marginBottom: '8px', fontWeight: 500 }}>수업 시작 몇 분 전에 알릴까요?</div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {[5, 10, 15, 20, 30, 60].map(min => (
+                      <button key={min} type="button"
+                        onClick={() => set('alarm', { ...(form.alarm || {}), minutesBefore: min })}
+                        style={{
+                          padding: '6px 14px', borderRadius: '7px', cursor: 'pointer',
+                          fontFamily: 'Noto Sans KR, sans-serif', fontSize: '13px', transition: 'all .15s',
+                          border: `1.5px solid ${form.alarm?.minutesBefore === min ? '#3b82f6' : '#e5e7eb'}`,
+                          background: form.alarm?.minutesBefore === min ? '#dbeafe' : '#fff',
+                          color: form.alarm?.minutesBefore === min ? '#1d4ed8' : '#374151',
+                          fontWeight: form.alarm?.minutesBefore === min ? 700 : 400,
+                        }}>{min}분 전</button>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: '10px', fontSize: '12px', color: '#6b7280', background: '#eff6ff', padding: '8px 12px', borderRadius: '7px', border: '1px solid #bfdbfe' }}>
+                    🔔 수업 시작 <strong>{form.alarm?.minutesBefore}분 전</strong>에 알림이 표시됩니다.{!form.time && <span style={{ color: '#f97316' }}> (수업 시작시간을 입력하면 정확한 알림이 작동합니다)</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <Input label="수업 시작일" value={form.startDate} onChange={v => set('startDate', v)} type="date" required />
               <Input label="수업 종료일" value={form.endDate} onChange={v => set('endDate', v)} type="date" required />
