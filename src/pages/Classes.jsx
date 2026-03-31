@@ -17,6 +17,7 @@ function emptyForm() {
     promotionImgs: [],
     templateFile: null,
     cancelledDates: [],
+    makeupDates: [],
     alarm:    { enabled: false, minutesBefore: 10 },
     alarmEnd: { enabled: false, minutesBefore: 10 },
   }
