@@ -258,7 +258,7 @@ export function Classes({ user }) {
 
                     <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '10px' }}>
                       📅 {cls.startDate?.slice(5)} ~ {cls.endDate?.slice(5)}
-                      {cls.time && ` · 🕐 ${cls.time}`}
+                      {cls.time && ` · 🕐 ${cls.time}${cls.timeEnd ? ' ~ ' + cls.timeEnd : ''}`}
                     </div>
 
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
@@ -503,7 +503,68 @@ export function Classes({ user }) {
 
         {/* ── 수업 달력 */}
         {tab === 'calendar' && (
-          <ClassCalendar cls={form} onUpdate={updated => setForm(updated)} />
+          <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+            <ClassCalendar cls={form} onUpdate={updated => setForm(updated)} />
+
+            {/* 휴일 직접 추가 */}
+            <div style={{ background:'#fafafa', borderRadius:'12px', border:'1px solid #e5e7eb', padding:'16px' }}>
+              <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'12px' }}>📌 휴일 직접 추가 (개교기념일 등)</div>
+              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'12px' }}>
+                <input type="date"
+                  style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}
+                  min={form.startDate} max={form.endDate}
+                  onChange={e => {
+                    const date = e.target.value
+                    if (!date) return
+                    const already = (form.cancelledDates||[]).some(c => c.date === date)
+                    if (already) { alert('이미 추가된 날짜입니다.'); return }
+                    setForm(f => ({ ...f, cancelledDates: [...(f.cancelledDates||[]), { date, reason:'school_holiday', memo:'' }] }))
+                    e.target.value = ''
+                  }}
+                />
+                <select
+                  style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}
+                  onChange={e => {
+                    const date = e.target.value
+                    if (!date) return
+                    const already = (form.cancelledDates||[]).some(c => c.date === date)
+                    if (!already) setForm(f => ({ ...f, cancelledDates: [...(f.cancelledDates||[]), { date, reason:'public_holiday', memo:'공휴일' }] }))
+                    e.target.value = ''
+                  }}
+                  defaultValue="">
+                  <option value="">공휴일 빠른 추가</option>
+                  <option value="2026-01-01">신정 (1/1)</option>
+                  <option value="2026-01-28">설날 (1/28)</option>
+                  <option value="2026-01-29">설날 (1/29)</option>
+                  <option value="2026-01-30">설날 (1/30)</option>
+                  <option value="2026-03-01">삼일절 (3/1)</option>
+                  <option value="2026-05-05">어린이날 (5/5)</option>
+                  <option value="2026-05-24">부처님오신날 (5/24)</option>
+                  <option value="2026-06-06">현충일 (6/6)</option>
+                  <option value="2026-08-15">광복절 (8/15)</option>
+                  <option value="2026-09-24">추석 (9/24)</option>
+                  <option value="2026-09-25">추석 (9/25)</option>
+                  <option value="2026-09-26">추석 (9/26)</option>
+                  <option value="2026-10-03">개천절 (10/3)</option>
+                  <option value="2026-10-09">한글날 (10/9)</option>
+                  <option value="2026-12-25">성탄절 (12/25)</option>
+                </select>
+              </div>
+              {/* 추가된 휴일 목록 */}
+              {(form.cancelledDates||[]).length > 0 && (
+                <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                  {[...(form.cancelledDates||[])].sort((a,b) => a.date.localeCompare(b.date)).map((c, i) => (
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#fff', borderRadius:'8px', border:'1px solid #f3f4f6' }}>
+                      <span style={{ fontSize:'13px', fontWeight:600, color:'#374151', minWidth:'80px' }}>{c.date.slice(5)}</span>
+                      <span style={{ fontSize:'12px', color:'#6b7280', flex:1 }}>{c.memo || ({public_holiday:'공휴일', school_holiday:'학교재량휴일', teacher_absent:'강사사정', etc:'기타'}[c.reason] || c.reason)}</span>
+                      <button onClick={() => setForm(f => ({ ...f, cancelledDates: (f.cancelledDates||[]).filter((_,j) => j !== i) }))}
+                        style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'16px', padding:'0 4px' }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
