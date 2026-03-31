@@ -103,6 +103,24 @@ export function Classes({ user }) {
   }, [classes])
 
   const openAdd = () => { setForm(emptyForm()); setEditId(null); setTab('info'); setShowModal(true) }
+
+  const openCopy = (cls) => {
+    setForm({
+      ...cls,
+      promotionImgs: cls.promotionImgs || [],
+      templateFile: cls.templateFile || null,
+      alarm: cls.alarm || { enabled: false, minutesBefore: 10 },
+      alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 },
+      cancelledDates: cls.cancelledDates || [],
+      makeupDates: cls.makeupDates || [],
+      termCount: cls.termCount || 4,
+      termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
+    })
+    setEditId('__copy__')  // 복사 모드 표시
+    setTab('info')
+    setShowModal(true)
+  }
+
   const openEdit = (cls) => { setForm({ ...cls, promotionImgs: cls.promotionImgs || [], templateFile: cls.templateFile || null, alarm: cls.alarm || { enabled: false, minutesBefore: 10 }, alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 }, cancelledDates: cls.cancelledDates || [], makeupDates: cls.makeupDates || [], termCount: cls.termCount || 4, termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4] }); setEditId(cls.id); setTab('info'); setShowModal(true) }
 
   const save = () => {
@@ -110,7 +128,7 @@ export function Classes({ user }) {
       alert('필수 항목을 입력하세요 (단체명, 수업명, 요일, 기간).')
       return
     }
-    if (editId) {
+    if (editId && editId !== '__copy__') {
       ClassesDB.update(editId, { ...form })
     } else {
       ClassesDB.insert({ id: uid(), teacherId: user.id, ...form, createdAt: now() })
@@ -273,6 +291,7 @@ export function Classes({ user }) {
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }} onClick={e => e.stopPropagation()}>
                       <Btn size="sm" variant="ghost" onClick={() => openEdit(cls)}>편집</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => openCopy(cls)} style={{ color:'#3b82f6', borderColor:'#93c5fd' }}>복사</Btn>
                       <Btn size="sm" variant="outlineDanger" onClick={() => setDeleteId(cls.id)}>삭제</Btn>
                     </div>
                   </Card>
@@ -284,7 +303,7 @@ export function Classes({ user }) {
       )}
 
       {/* ─── 수업 등록/편집 모달 */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title={editId ? '수업 편집' : '수업 등록'} width={660}>
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={editId === '__copy__' ? '수업 복사' : editId ? '수업 편집' : '수업 등록'} width={660}>
         {/* 서브탭 */}
         <div style={{ display: 'flex', gap: '0', marginBottom: '20px', borderBottom: '1px solid #e5e7eb', overflowX: 'auto' }}>
           {[
@@ -612,7 +631,7 @@ export function Classes({ user }) {
 
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
           <Btn variant="ghost" onClick={() => setShowModal(false)}>취소</Btn>
-          <Btn onClick={save}>{editId ? '저장' : '등록'}</Btn>
+          <Btn onClick={save}>{editId === '__copy__' ? '복사 저장' : editId ? '저장' : '등록'}</Btn>
         </div>
       </Modal>
 
