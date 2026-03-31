@@ -131,7 +131,8 @@ export function Classes({ user }) {
     if (editId && editId !== '__copy__') {
       ClassesDB.update(editId, { ...form })
     } else {
-      ClassesDB.insert({ id: uid(), teacherId: user.id, ...form, createdAt: now() })
+      const { id: _oldId, ...formWithoutId } = form
+      ClassesDB.insert({ ...formWithoutId, id: uid(), teacherId: user.id, createdAt: now() })
     }
     setShowModal(false)
   }
