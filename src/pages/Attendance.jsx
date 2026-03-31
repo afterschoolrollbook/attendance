@@ -237,8 +237,9 @@ function StudentMemoModal({ student, onClose, onSave }) {
   )
 }
 
-// ─── 예정 수업 학생 행 (StudentRow와 동일한 그리드/디자인)
+// ─── 예정 수업 학생 행 — StudentRow 코드 완전 동일, 출석컬럼만 예정버튼으로 교체
 function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
+  const note = s.memo || ''
   const [showInfo, setShowInfo] = useState(false)
   const [memoOpen, setMemoOpen] = useState(false)
   const [memo, setMemo] = useState(s.memo || '')
@@ -249,60 +250,71 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
   }
 
   return (
-    <div style={{ borderBottom:'1px solid #f3f4f6', background:'#fff' }}>
-      <div style={{ display:'grid', gridTemplateColumns:'36px 90px 80px 120px 200px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px' }}>
-        {/* 순번 */}
-        <span style={{ fontSize:'12px', color:C.muted, textAlign:'center' }}>{idx+1}</span>
-        {/* 학년·반·번호 */}
-        <div style={{ textAlign:'center', fontSize:'12px', color:C.muted, lineHeight:1.4 }}>
-          {s.grade?s.grade+'학년':''}{s.classNum?' '+s.classNum+'반':''}{s.number?' '+s.number+'번':''}
+    <div style={{ borderBottom: '1px solid #f3f4f6', background: '#fff', borderLeft: '3px solid transparent', transition: 'all .12s' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '36px 90px 80px 120px 200px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
+
+        {/* 순번 — StudentRow 동일 */}
+        <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{idx+1}</span>
+
+        {/* 학년·반·번호 — StudentRow 동일 */}
+        <div style={{ textAlign: 'center', fontSize: '12px', color: C.muted, lineHeight: 1.4 }}>
+          {s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}
         </div>
-        {/* 이름 */}
-        <div style={{ textAlign:'center' }}>
+
+        {/* 이름 — StudentRow 동일 */}
+        <div style={{ textAlign: 'center' }}>
           <span onClick={() => onStudentClick(s)}
-            style={{ fontSize:'14px', fontWeight:700, color:C.primary, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:'2px' }}>{s.name}</span>
+            style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
         </div>
-        {/* 학부모전화 */}
-        <div style={{ textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:'2px' }}>
-          <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone)||'-'}</PhoneAction>
+
+        {/* 학부모 전화 — StudentRow 동일 */}
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+          <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone) || '-'}</PhoneAction>
           <button onClick={() => onMsgOpen(s)}
-            style={{ padding:'1px 6px', borderRadius:'4px', border:'1px solid #bfdbfe', background:'#eff6ff', color:'#3b82f6', fontSize:'10px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📱 문자</button>
+            style={{ padding: '1px 6px', borderRadius: '4px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', fontSize: '10px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+            📱 문자
+          </button>
         </div>
-        {/* 출석 — 예정 버튼 */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}>
+
+        {/* 출석컬럼만 다름: 예정 버튼 */}
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'center' }}>
           <button onClick={handlePredictClick}
-            style={{ padding:'4px 14px', borderRadius:'8px', border:'1.5px solid #93c5fd', background:'#eff6ff', color:'#3b82f6', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
+            style={{ padding: '4px 6px', borderRadius: '6px', border: '1.5px solid #93c5fd', background: '#eff6ff', color: '#3b82f6', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
             예정
           </button>
           {showInfo && (
-            <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:2000,
-              background:'rgba(30,30,30,0.88)', color:'#fff', borderRadius:'12px', padding:'14px 24px',
-              fontSize:'14px', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif', textAlign:'center',
-              boxShadow:'0 8px 32px rgba(0,0,0,0.25)', pointerEvents:'none' }}>
+            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 2000,
+              background: 'rgba(30,30,30,0.88)', color: '#fff', borderRadius: '12px', padding: '14px 24px',
+              fontSize: '14px', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif', textAlign: 'center',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.25)', pointerEvents: 'none' }}>
               🗓️ 아직 수업일이 아닙니다<br/>
-              <span style={{ fontSize:'12px', fontWeight:400, opacity:0.8 }}>당일부터 출석체크가 가능합니다</span>
+              <span style={{ fontSize: '12px', fontWeight: 400, opacity: 0.8 }}>당일부터 출석체크가 가능합니다</span>
             </div>
           )}
         </div>
-        {/* 메모 */}
+
+        {/* 특이사항·메모 — StudentRow NoteInline과 동일 구조 */}
         <div>
-          {s.memo && <div style={{ fontSize:'11px', color:'#92400e', background:'#fffbeb', padding:'3px 8px', borderRadius:'5px', marginBottom:'5px', display:'inline-block' }}>👤 {s.memo}</div>}
-          <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+          {s.memo && (
+            <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '5px', display: 'inline-block' }}>👤 {s.memo}</div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             {memo
-              ? <span style={{ fontSize:'12px', color:'#374151', background:'#fffbeb', padding:'3px 9px', borderRadius:'6px', border:'1px solid #fde68a' }}>📌 {memo}</span>
-              : <span style={{ fontSize:'11px', color:'#d1d5db' }}>메모 없음</span>
+              ? <span style={{ fontSize: '12px', color: '#374151', background: '#fffbeb', padding: '3px 9px', borderRadius: '6px', border: '1px solid #fde68a' }}>📌 {memo}</span>
+              : <span style={{ fontSize: '11px', color: '#d1d5db' }}>메모 없음</span>
             }
             <button onClick={() => setMemoOpen(true)}
-              style={{ fontSize:'11px', color:C.muted, background:'none', border:'none', cursor:'pointer', textDecoration:'underline', fontFamily:'Noto Sans KR, sans-serif' }}>
+              style={{ fontSize: '11px', color: C.muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'Noto Sans KR, sans-serif' }}>
               {memo ? '편집' : '+ 메모'}
             </button>
             {memo && (
               <button onClick={() => { setMemo(''); StudentsDB.update(s.id, { memo: '' }) }}
-                style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                style={{ fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>삭제</button>
             )}
           </div>
         </div>
       </div>
+
       {memoOpen && (
         <StudentMemoModal student={{ ...s, memo }} onClose={() => setMemoOpen(false)} onSave={v => setMemo(v)} />
       )}
