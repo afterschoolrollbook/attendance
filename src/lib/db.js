@@ -1,46 +1,124 @@
 /**
  * DB 레이어 — localStorage 캐시 + Supabase 동기화
- * 읽기: localStorage (즉시) / 쓰기: localStorage → Supabase 백그라운드 동기화
- * Supabase 미설정 시 localStorage 전용으로 동작
+ *
+ * 핵심 원칙:
+ *  - 모든 레코드에 updatedAt 자동 기록
+ *  - 로컬 vs Supabase merge 시 updatedAt 최신 레코드가 이김
+ *  - 삭제는 _deleted: true 소프트딜리트 → 실수로 살아나는 현상 방지
+ *  - Supabase sync 실패 시 pending 대기열(localStorage) 저장 → 재연결 시 자동 재전송
+ *  - Supabase 미설정 시 localStorage 단독으로 완전 동작
  */
 
 import { dbCall, isConfigured } from './supabase.js'
 import { uid, now } from './utils.js'
 
 const PREFIX = 'asa_'
+const PENDING_KEY = 'asa__pending_sync'
 const key = (t) => PREFIX + t
 
+// ─── localStorage 캐시
 const cache = {
   get(t)    { try { return JSON.parse(localStorage.getItem(key(t)) || '[]') } catch { return [] } },
   set(t, d) { localStorage.setItem(key(t), JSON.stringify(d)) },
 }
 
-function sync(action, table, payload) {
-  if (!isConfigured) return
-  dbCall(action, table, payload).catch(e =>
-    console.warn(`[Supabase sync] ${action}/${table}:`, e.message)
-  )
+// ─── 미sync 대기열
+const pendingQ = {
+  get()      { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]') } catch { return [] } },
+  push(item) { const q = this.get(); q.push(item); localStorage.setItem(PENDING_KEY, JSON.stringify(q)) },
+  clear()    { localStorage.removeItem(PENDING_KEY) },
 }
 
+// ─── Supabase 전송 (실패 시 대기열 저장)
+function sync(action, table, payload) {
+  if (!isConfigured) return
+  dbCall(action, table, payload).catch(e => {
+    console.warn(`[Supabase sync 실패] ${action}/${table}:`, e.message)
+    pendingQ.push({ action, table, payload, ts: Date.now() })
+  })
+}
+
+// ─── 대기열 재전송
+async function flushPending() {
+  if (!isConfigured) return
+  const q = pendingQ.get()
+  if (!q.length) return
+  pendingQ.clear()
+  const results = await Promise.allSettled(
+    q.map(({ action, table, payload }) =>
+      dbCall(action, table, payload).catch(e => {
+        console.warn(`[Supabase flush 실패] ${action}/${table}:`, e.message)
+        pendingQ.push({ action, table, payload, ts: Date.now() })
+        throw e
+      })
+    )
+  )
+  const ok = results.filter(r => r.status === 'fulfilled').length
+  console.log(`[Supabase] 대기열 재전송: ${ok}/${q.length}건 성공`)
+}
+
+// ─── updatedAt 기준 merge: 더 최신 레코드가 이김, _deleted 반영
+function mergeRecords(local, remote) {
+  const map = new Map()
+
+  local.forEach(r => map.set(r.id, r))
+
+  remote.forEach(r => {
+    const loc = map.get(r.id)
+    if (!loc) {
+      map.set(r.id, r)
+    } else {
+      const localTime  = new Date(loc.updatedAt  || loc.createdAt || 0).getTime()
+      const remoteTime = new Date(r.updatedAt    || r.createdAt   || 0).getTime()
+      if (remoteTime >= localTime) map.set(r.id, r)
+    }
+  })
+
+  // _deleted 소프트딜리트 레코드 제거 후 반환
+  return [...map.values()].filter(r => !r._deleted)
+}
+
+// ─── 초기화: Supabase 데이터와 로컬 merge
 export async function initFromSupabase() {
   if (!isConfigured) return false
   try {
+    // 1) 대기열 먼저 재전송 — 로컬에만 있는 최신 변경사항 올리기
+    await flushPending()
+
+    // 2) Supabase 데이터 가져와서 merge
     const tables = ['users','classes','students','attendance','notes','adSlots','attendanceTemplates']
     await Promise.all(tables.map(async (t) => {
-      try { const r = await dbCall('getAll', t); if (Array.isArray(r)) cache.set(t, r) } catch {}
+      try {
+        const remote = await dbCall('getAll', t)
+        if (!Array.isArray(remote)) return
+        const local  = cache.get(t)
+        const merged = mergeRecords(local, remote)
+        cache.set(t, merged)
+
+        // 로컬에만 있는 레코드(Supabase sync 실패분) → Supabase 재전송
+        const remoteIds = new Set(remote.map(r => r.id))
+        local.filter(r => !remoteIds.has(r.id) && !r._deleted).forEach(r => {
+          console.log(`[Supabase] 미sync 재전송: ${t}/${r.id}`)
+          sync('insert', t, { data: r })
+        })
+      } catch (e) {
+        console.warn(`[Supabase] ${t} 동기화 실패 — 로컬 데이터 유지:`, e.message)
+        // 실패해도 로컬 데이터 절대 건드리지 않음
+      }
     }))
 
-    // ✅ settings 로딩 추가 — 모든 기기에서 관리자 설정(소셜로그인 키 등)을 읽어옴
+    // 3) settings merge
     try {
       const settings = await dbCall('getAll', 'settings')
       if (Array.isArray(settings)) {
         settings.forEach(row => {
-          if (row.key && row.value) {
-            const localKey = 'asa_settings_' + row.key
-            // 로컬에 이미 있으면 덮어쓰지 않음 — 로컬이 최신
-            if (!localStorage.getItem(localKey)) {
-              localStorage.setItem(localKey, JSON.stringify(row.value))
-            }
+          if (!row.key || !row.value) return
+          const lk        = 'asa_settings_' + row.key
+          const localRaw  = localStorage.getItem(lk)
+          const localTime = localRaw ? (JSON.parse(localRaw)?._updatedAt || 0) : 0
+          const remoteTime = row.updatedAt ? new Date(row.updatedAt).getTime() : 0
+          if (!localRaw || remoteTime > localTime) {
+            localStorage.setItem(lk, JSON.stringify(row.value))
           }
         })
         console.log('[Supabase] settings 동기화 완료')
@@ -51,29 +129,53 @@ export async function initFromSupabase() {
 
     console.log('[Supabase] 데이터 동기화 완료')
     return true
-  } catch { return false }
+  } catch (e) {
+    console.warn('[Supabase] 전체 실패 — 로컬 데이터로 동작:', e.message)
+    return false
+  }
 }
 
+// ─── 핵심 DB 메서드
 export const db = {
-  get:    (t)      => cache.get(t),
-  set:    (t, d)   => cache.set(t, d),
-  getOne: (t, id)  => cache.get(t).find(r => r.id === id) || null,
+  get:    (t)     => cache.get(t).filter(r => !r._deleted),
+  set:    (t, d)  => cache.set(t, d),
+  getOne: (t, id) => cache.get(t).find(r => r.id === id && !r._deleted) || null,
+
   insert(t, record) {
-    const rows = cache.get(t); rows.push(record); cache.set(t, rows)
-    sync('insert', t, { data: record }); return record
+    const r = { ...record, updatedAt: now() }
+    const rows = cache.get(t)
+    rows.push(r)
+    cache.set(t, rows)
+    sync('insert', t, { data: r })
+    return r
   },
+
   update(t, id, patch) {
-    const rows = cache.get(t).map(r => r.id === id ? { ...r, ...patch } : r)
-    cache.set(t, rows); sync('update', t, { id, patch })
+    const updated = { ...patch, updatedAt: now() }
+    const rows = cache.get(t).map(r => r.id === id ? { ...r, ...updated } : r)
+    cache.set(t, rows)
+    sync('update', t, { id, patch: updated })
     return rows.find(r => r.id === id)
   },
+
+  // 소프트딜리트: _deleted 플래그 기록 → merge 시 양쪽에서 안전하게 제거
   delete(t, id) {
-    cache.set(t, cache.get(t).filter(r => r.id !== id))
+    const rows = cache.get(t).map(r =>
+      r.id === id ? { ...r, _deleted: true, updatedAt: now() } : r
+    )
+    cache.set(t, rows)
     sync('delete', t, { id })
   },
-  where: (t, fn) => cache.get(t).filter(fn),
-  clearAll() { Object.keys(localStorage).filter(k => k.startsWith(PREFIX)).forEach(k => localStorage.removeItem(k)) },
+
+  where:    (t, fn) => cache.get(t).filter(r => !r._deleted && fn(r)),
+  clearAll() {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(PREFIX))
+      .forEach(k => localStorage.removeItem(k))
+  },
 }
+
+// ─── 이하 기존 코드 동일 ───────────────────────────────────────
 
 export const Users = {
   all:         ()      => db.get('users'),
@@ -87,36 +189,36 @@ export const Users = {
 }
 
 export const Classes = {
-  all:       ()       => db.get('classes'),
-  find:      (id)     => db.getOne('classes', id),
-  byTeacher: (tid)    => db.where('classes', c => c.teacherId === tid),
-  insert:    (c)      => db.insert('classes', c),
-  update:    (id, p)  => db.update('classes', id, p),
-  delete:    (id)     => db.delete('classes', id),
+  all:       ()      => db.get('classes'),
+  find:      (id)    => db.getOne('classes', id),
+  byTeacher: (tid)   => db.where('classes', c => c.teacherId === tid),
+  insert:    (c)     => db.insert('classes', c),
+  update:    (id, p) => db.update('classes', id, p),
+  delete:    (id)    => db.delete('classes', id),
 }
 
 export const Students = {
-  all:       ()       => db.get('students'),
-  find:      (id)     => db.getOne('students', id),
-  byTeacher: (tid)    => db.where('students', s => s.teacherId === tid),
-  byClass:   (cid)    => db.where('students', s => s.classIds?.includes(cid)),
-  confirmed: (cid)    => db.where('students', s => s.classIds?.includes(cid) && s.status === 'confirmed'),
-  insert:    (s)      => db.insert('students', s),
-  update:    (id, p)  => db.update('students', id, p),
-  delete:    (id)     => db.delete('students', id),
+  all:       ()      => db.get('students'),
+  find:      (id)    => db.getOne('students', id),
+  byTeacher: (tid)   => db.where('students', s => s.teacherId === tid),
+  byClass:   (cid)   => db.where('students', s => s.classIds?.includes(cid)),
+  confirmed: (cid)   => db.where('students', s => s.classIds?.includes(cid) && s.status === 'confirmed'),
+  insert:    (s)     => db.insert('students', s),
+  update:    (id, p) => db.update('students', id, p),
+  delete:    (id)    => db.delete('students', id),
 }
 
 export const Attendance = {
-  all:            ()          => db.get('attendance'),
-  byClass:        (cid)       => db.where('attendance', a => a.classId === cid),
-  byClassDate:    (cid, date) => db.where('attendance', a => a.classId === cid && a.date === date),
-  byStudentClass: (sid, cid)  => db.where('attendance', a => a.studentId === sid && a.classId === cid),
+  all:            ()               => db.get('attendance'),
+  byClass:        (cid)            => db.where('attendance', a => a.classId === cid),
+  byClassDate:    (cid, date)      => db.where('attendance', a => a.classId === cid && a.date === date),
+  byStudentClass: (sid, cid)       => db.where('attendance', a => a.studentId === sid && a.classId === cid),
   find:           (cid, sid, date) => db.get('attendance').find(a => a.classId === cid && a.studentId === sid && a.date === date),
   upsert(record) {
     const ex = this.find(record.classId, record.studentId, record.date)
     if (ex) {
-      const updated = { ...ex, ...record }
-      cache.set('attendance', db.get('attendance').map(r => r.id === ex.id ? updated : r))
+      const updated = { ...ex, ...record, updatedAt: now() }
+      cache.set('attendance', cache.get('attendance').map(r => r.id === ex.id ? updated : r))
       sync('attendanceUpsert', 'attendance', { data: updated })
       return updated
     }
@@ -126,10 +228,10 @@ export const Attendance = {
 }
 
 export const AdSlots = {
-  all:    ()       => db.get('adSlots'),
-  find:   (id)     => db.getOne('adSlots', id),
-  update: (id, p)  => db.update('adSlots', id, p),
-  insert: (s)      => db.insert('adSlots', s),
+  all:    ()      => db.get('adSlots'),
+  find:   (id)    => db.getOne('adSlots', id),
+  update: (id, p) => db.update('adSlots', id, p),
+  insert: (s)     => db.insert('adSlots', s),
 }
 
 export const Templates = {
@@ -152,13 +254,15 @@ export const Notes = {
 export const Settings = {
   get(k)    { try { return JSON.parse(localStorage.getItem('asa_settings_' + k)) } catch { return null } },
   set(k, v) {
-    // 1) 로컬 즉시 저장
-    localStorage.setItem('asa_settings_' + k, JSON.stringify(v))
-    // 2) Supabase 동기화 (실패해도 로컬은 유지)
+    const val = typeof v === 'object' && v !== null ? { ...v, _updatedAt: Date.now() } : v
+    localStorage.setItem('asa_settings_' + k, JSON.stringify(val))
     if (isConfigured) {
       dbCall('settingSet', 'settings', { id: k, data: v })
         .then(() => console.log(`[Settings] "${k}" Supabase 저장 완료`))
-        .catch(e => console.warn(`[Settings] "${k}" Supabase 저장 실패:`, e.message))
+        .catch(e => {
+          console.warn(`[Settings] "${k}" Supabase 저장 실패:`, e.message)
+          pendingQ.push({ action: 'settingSet', table: 'settings', payload: { id: k, data: v }, ts: Date.now() })
+        })
     }
   },
   getAll() {
@@ -170,11 +274,11 @@ export const Settings = {
   },
 }
 
-// ─── 본사 학부모 회원 (절대 삭제 안됨)
+// ─── 본사 학부모 회원
 export const ParentMembers = {
-  all:        ()      => db.get('parentMembers'),
-  find:       (id)    => db.getOne('parentMembers', id),
-  findByPhone:(phone) => db.get('parentMembers').find(p => p.phone === phone?.replace(/[^0-9]/g, '')),
+  all:         ()      => db.get('parentMembers'),
+  find:        (id)    => db.getOne('parentMembers', id),
+  findByPhone: (phone) => db.get('parentMembers').find(p => p.phone === phone?.replace(/[^0-9]/g, '')),
 
   upsert(phone, name = '') {
     const clean = phone?.replace(/[^0-9]/g, '')
@@ -189,10 +293,10 @@ export const ParentMembers = {
 
 // ─── 선생님-학부모 연결
 export const TeacherParentLinks = {
-  all:       ()    => db.get('teacherParentLinks'),
-  byTeacher: (tid) => db.where('teacherParentLinks', l => l.teacherId === tid),
-  active:    (tid) => db.where('teacherParentLinks', l => l.teacherId === tid && l.status === 'active'),
-  activeCount:(tid)=> db.where('teacherParentLinks', l => l.teacherId === tid && l.status === 'active').length,
+  all:         ()    => db.get('teacherParentLinks'),
+  byTeacher:   (tid) => db.where('teacherParentLinks', l => l.teacherId === tid),
+  active:      (tid) => db.where('teacherParentLinks', l => l.teacherId === tid && l.status === 'active'),
+  activeCount: (tid) => db.where('teacherParentLinks', l => l.teacherId === tid && l.status === 'active').length,
 
   link(teacherId, student, classId) {
     if (!student.parentPhone) return
@@ -230,8 +334,8 @@ export const TeacherParentLinks = {
 
 // ─── 포인트
 export const Points = {
-  all:        ()    => db.get('points'),
-  byTeacher:  (tid) => db.where('points', p => p.teacherId === tid),
+  all:       ()    => db.get('points'),
+  byTeacher: (tid) => db.where('points', p => p.teacherId === tid),
 
   balance(tid) {
     const now_ = new Date().toISOString()
@@ -257,17 +361,13 @@ export const Points = {
 
 // ─── 지사
 export const Branches = {
-  all:        ()       => db.get('branches'),
-  find:       (id)     => db.getOne('branches', id),
-  active:     ()       => db.where('branches', b => b.active),
-  insert:     (b)      => db.insert('branches', b),
-  update:     (id, p)  => db.update('branches', id, p),
-  delete:     (id)     => db.delete('branches', id),
+  all:    ()      => db.get('branches'),
+  find:   (id)    => db.getOne('branches', id),
+  active: ()      => db.where('branches', b => b.active),
+  insert: (b)     => db.insert('branches', b),
+  update: (id, p) => db.update('branches', id, p),
+  delete: (id)    => db.delete('branches', id),
 
-  assignTeacher(branchId, teacherId) {
-    Users.update(teacherId, { branchId })
-  },
-  unassignTeacher(teacherId) {
-    Users.update(teacherId, { branchId: null })
-  },
+  assignTeacher(branchId, teacherId)  { Users.update(teacherId, { branchId }) },
+  unassignTeacher(teacherId)          { Users.update(teacherId, { branchId: null }) },
 }
