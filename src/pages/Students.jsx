@@ -562,7 +562,7 @@ export function Students({ user, onNav }) {
                       </div>
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: '13px', color: '#374151', whiteSpace: 'nowrap' }}>
-                      <span>{s.grade}</span>
+                      <span>{s.grade ? s.grade+'학년' : '-'}</span>
                       {s.classNum && <span style={{ marginLeft: '4px', padding: '1px 7px', borderRadius: '5px', background: '#f0fdf4', color: '#16a34a', fontWeight: 600, fontSize: '12px' }}>{s.classNum}반</span>}
                       {s.number && <span style={{ marginLeft: '4px', color: '#9ca3af', fontSize: '12px' }}>{s.number}번</span>}
                     </td>
@@ -903,7 +903,7 @@ export function Students({ user, onNav }) {
                             {r.name}
                             {r._dup && <span style={{ marginLeft:'5px', fontSize:'10px', fontWeight:700, color:'#fff', background:'#f59e0b', padding:'1px 5px', borderRadius:'4px' }}>중복의심</span>}
                           </td>
-                          <td style={{ padding:'7px 10px' }}>{r.grade||'-'}</td>
+                          <td style={{ padding:'7px 10px' }}>{r.grade ? r.grade+'학년' : '-'}</td>
                           <td style={{ padding:'7px 10px' }}>{r.classNum ? r.classNum+'반' : '-'}</td>
                           <td style={{ padding:'7px 10px' }}>{r.number||'-'}</td>
                           <td style={{ padding:'7px 10px' }}>{r.parentPhone||'-'}</td>
