@@ -47,22 +47,10 @@ export default function App() {
           const u = JSON.parse(saved)
           const fresh = Users.find(u.id)
           if (fresh) setUser(fresh)
-          else sessionStorage.removeItem('asa_user') // 유저 없으면 세션 제거 → 로그인 화면
-        } catch {
-          sessionStorage.removeItem('asa_user')
-        }
+        } catch {}
       }
     }
     init()
-
-    // ✅ 30초마다 세션 체크 — 쿠키/세션 날아가면 로그인 화면으로
-    const sessionTimer = setInterval(() => {
-      const saved = sessionStorage.getItem('asa_user')
-      if (!saved) {
-        setUser(null)
-      }
-    }, 30000)
-    return () => clearInterval(sessionTimer)
   }, [])
 
   const handleLogin = (u) => {
