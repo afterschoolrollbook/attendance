@@ -12,10 +12,10 @@ const MAX_PROMO_IMAGES = 2
 function emptyForm() {
   return {
     organization: '', className: '', section: '',
-    termType: 'semester', days: [], repeatType: 'every', time: '',
+    termType: 'semester', days: [], repeatType: 'every', time: '', timeEnd: '',
     startDate: '', endDate: '', description: '',
-    promotionImgs: [],   // 최대 2장 base64[]
-    templateFile: null,  // { name, type, data(base64) }
+    promotionImgs: [],
+    templateFile: null,
     cancelledDates: [],
   }
 }
@@ -213,12 +213,15 @@ export function Classes({ user }) {
         {tab === 'info' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <Input label="단체명(학교명)" value={form.organization} onChange={v => set('organization', v)} placeholder="판교초등학교" required />
-              <Input label="수업명(과목)" value={form.className} onChange={v => set('className', v)} placeholder="로봇과학" required />
+              <Input label="단체명(학교명)" value={form.organization} onChange={v => set('organization', v)} required />
+              <Input label="수업명(과목)" value={form.className} onChange={v => set('className', v)} required />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <Input label="반 (선택)" value={form.section} onChange={v => set('section', v)} placeholder="A" />
-              <Input label="수업 시간 (선택)" value={form.time} onChange={v => set('time', v)} placeholder="14:00" />
+              <Input label="반 (선택)" value={form.section} onChange={v => set('section', v)} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <Input label="수업 시작시간 (선택)" value={form.time} onChange={v => set('time', v)} />
+                <Input label="종료시간 (선택)" value={form.timeEnd} onChange={v => set('timeEnd', v)} />
+              </div>
             </div>
             <Select label="수업 운영 방식" value={form.termType} onChange={v => set('termType', v)} options={TERM_TYPES} required />
             <div>
