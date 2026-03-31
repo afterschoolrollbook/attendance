@@ -297,13 +297,28 @@ export function Students({ user, onNav }) {
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
 
-      // 헤더 행 스킵
-      const firstCell = String(rows[0]?.[0] || '').trim()
-      const startRow = firstCell.includes('학년') || firstCell.includes('이름') || firstCell.includes('번호') ? 1 : 0
+      // 헤더 행 찾기: '학년' 또는 '이름'이 포함된 행을 헤더로 판단, 그 다음부터 데이터
+      let startRow = 0
+      for (let i = 0; i < Math.min(rows.length, 10); i++) {
+        const cell0 = String(rows[i]?.[0] || '').trim()
+        const cell3 = String(rows[i]?.[3] || '').trim()
+        if (cell0.includes('학년') || cell3.includes('이름')) {
+          startRow = i + 1
+          break
+        }
+      }
       const dataRows = rows.slice(startRow)
 
+      // 안내 문구 행 및 빈 행 필터링
+      // 이름(r[3])이 있고, '★', '←', '※', '필수', '입력' 등 안내 텍스트가 아닌 행만 통과
+      const skipPatterns = ['★', '←', '※', '필수', '입력', '삭제', '안내', '학부모']
       const parsed = dataRows
-        .filter(r => String(r[3] || '').trim().length > 0)
+        .filter(r => {
+          const name = String(r[3] || '').trim()
+          if (!name) return false
+          if (skipPatterns.some(p => name.includes(p))) return false
+          return true
+        })
         .map(r => ({
           grade:        String(r[0] || '').trim(),
           classNum:     String(r[1] || '').trim(),
@@ -312,10 +327,25 @@ export function Students({ user, onNav }) {
           parentPhone:  String(r[4] || '').trim(),
           studentPhone: String(r[5] || '').trim(),
         }))
-        .filter(r => r.name)
 
       if (parsed.length === 0) { alert('등록할 학생 데이터가 없습니다.\n샘플 파일을 확인해주세요.'); return }
-      setExcelPreview(parsed); setExcelStep(2)
+
+      // 중복 체크: 같은 수업 내 이름+학년+반+번호 동일한 기존 학생
+      const selCls = classes.find(c => c.id === excelClassId)
+      const existingStudents = StudentsDB.byTeacher(user.id).filter(s =>
+        s.school === (selCls?.organization || '') && s.classIds?.includes(excelClassId)
+      )
+
+      const withDupFlag = parsed.map(r => {
+        const isDup = existingStudents.some(s =>
+          s.name === r.name &&
+          s.grade === r.grade &&
+          s.classNum === r.classNum
+        )
+        return { ...r, _dup: isDup }
+      })
+
+      setExcelPreview(withDupFlag); setExcelStep(2)
     } catch { alert('파일을 읽을 수 없습니다.') }
   }
 
@@ -348,8 +378,9 @@ export function Students({ user, onNav }) {
 
   const importExcel = () => {
     const selCls = classes.find(c => c.id === excelClassId)
+    const toInsert = excelPreview.filter(r => !r._dup)
 
-    excelPreview.forEach(row => {
+    toInsert.forEach(row => {
       StudentsDB.insert({
         id: uid(), teacherId: user.id,
         school:       selCls?.organization || '',
@@ -366,7 +397,11 @@ export function Students({ user, onNav }) {
       })
     })
 
-    alert(`${excelPreview.length}명 등록 완료!`)
+    const dupCount = excelPreview.filter(r => r._dup).length
+    const msg = dupCount > 0
+      ? `${toInsert.length}명 등록 완료! (중복 ${dupCount}명 제외)`
+      : `${toInsert.length}명 등록 완료!`
+    alert(msg)
     setShowExcel(false); setExcelPreview([]); setExcelStep(0); setExcelClassId('')
     refresh()
   }
@@ -781,11 +816,22 @@ export function Students({ user, onNav }) {
                   {selCls.time && <span>⏰ {selCls.time}</span>}
                 </div>
               )}
-              <div style={{ padding: '20px', background: '#f9fafb', borderRadius: '12px', border: '2px dashed #d1d5db', textAlign: 'center' }}>
-                <div style={{ fontSize: '32px', marginBottom: '10px' }}>📂</div>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>엑셀 파일을 업로드하세요</div>
-                <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '16px' }}>지원 형식: .xlsx, .xls, .csv</div>
-                <Btn onClick={() => fileRef.current?.click()}>파일 선택</Btn>
+              <div
+                onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.background = '#fff7ed' }}
+                onDragLeave={e => { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.background = '#f9fafb' }}
+                onDrop={e => {
+                  e.preventDefault()
+                  e.currentTarget.style.borderColor = '#d1d5db'
+                  e.currentTarget.style.background = '#f9fafb'
+                  const file = e.dataTransfer.files[0]
+                  if (file) handleFile({ target: { files: [file], value: '' } })
+                }}
+                onClick={() => fileRef.current?.click()}
+                style={{ padding: '36px 20px', background: '#f9fafb', borderRadius: '12px', border: '2px dashed #d1d5db', textAlign: 'center', cursor: 'pointer', transition: 'all .15s' }}
+              >
+                <div style={{ fontSize: '36px', marginBottom: '10px' }}>📂</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>파일을 여기에 끌어다 놓거나 클릭하세요</div>
+                <div style={{ fontSize: '12px', color: '#9ca3af' }}>지원 형식: .xlsx, .xls, .csv</div>
               </div>
               <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} style={{ display: 'none' }} />
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
@@ -801,7 +847,10 @@ export function Students({ user, onNav }) {
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ padding: '10px 14px', background: '#f0fdf4', borderRadius: '10px', border: '1.5px solid #86efac', display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center', fontSize: '13px', color: '#15803d' }}>
-                <span style={{ fontWeight:700 }}>✅ 등록 예정 {excelPreview.length}명</span>
+                <span style={{ fontWeight:700 }}>✅ 등록 예정 {excelPreview.filter(r => !r._dup).length}명</span>
+                {excelPreview.some(r => r._dup) && (
+                  <span style={{ color: '#dc2626', fontWeight: 600 }}>⚠️ 중복 {excelPreview.filter(r => r._dup).length}명 제외</span>
+                )}
                 {selCls && <span>🏫 {selCls.organization} · {selCls.className}{selCls.section ? ` ${selCls.section}반` : ''}</span>}
               </div>
               <div style={{ maxHeight: '300px', overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: '10px' }}>
@@ -815,9 +864,11 @@ export function Students({ user, onNav }) {
                   </thead>
                   <tbody>
                     {excelPreview.map((r, i) => (
-                      <tr key={i} style={{ borderBottom:'1px solid #f3f4f6',background:i%2===0?'#fff':'#fafafa' }}>
+                      <tr key={i} style={{ borderBottom:'1px solid #f3f4f6', background: r._dup ? '#fef2f2' : i%2===0?'#fff':'#fafafa', opacity: r._dup ? 0.6 : 1 }}>
                         <td style={{ padding:'7px 10px',color:'#9ca3af' }}>{i+1}</td>
-                        <td style={{ padding:'7px 10px',fontWeight:700 }}>{r.name}</td>
+                        <td style={{ padding:'7px 10px',fontWeight:700, color: r._dup ? '#dc2626' : '#111827' }}>
+                          {r.name}{r._dup && <span style={{ marginLeft:'4px', fontSize:'11px', color:'#dc2626' }}>중복</span>}
+                        </td>
                         <td style={{ padding:'7px 10px' }}>{r.grade||'-'}</td>
                         <td style={{ padding:'7px 10px' }}>{r.classNum ? r.classNum+'반' : '-'}</td>
                         <td style={{ padding:'7px 10px' }}>{r.number||'-'}</td>
@@ -830,7 +881,7 @@ export function Students({ user, onNav }) {
               </div>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
                 <Btn variant="ghost" onClick={() => { setExcelStep(1); setExcelPreview([]) }}>← 다시 선택</Btn>
-                <Btn onClick={importExcel}>✅ {excelPreview.length}명 등록 확정</Btn>
+                <Btn disabled={excelPreview.filter(r => !r._dup).length === 0} onClick={importExcel}>✅ {excelPreview.filter(r => !r._dup).length}명 등록 확정</Btn>
               </div>
             </div>
           )
