@@ -542,36 +542,6 @@ function UnifiedPanel({ cls, date, students, user }) {
     </div>
   )
 }
-  const [tick, setTick] = useState(0)
-  const [msgStudent, setMsgStudent] = useState(null)
-  const [selStudent, setSelStudent] = useState(null)
-  const [showInactive, setShowInactive] = useState(false)
-  const today = todayStr()
-
-  const activeStudents   = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
-  const inactiveStudents = students.filter(s => ['cancelled','waiting'].includes(s.status))
-
-  const records = AttendanceDB.byClassDate(cls.id, date)
-  const getRec = (sid) => records.find(r => r.studentId === sid)
-  const session = getSession(cls, date)
-  const isPast = date < today
-
-  const mark = (studentId, status, extra = {}) => {
-    const existing = getRec(studentId)
-    AttendanceDB.upsert({
-      id: existing?.id || uid(),
-      classId: cls.id, studentId, date,
-      session: session || 0, status,
-      note: existing?.note || '',
-      absentReason: existing?.absentReason || '',
-      homeReturn: existing?.homeReturn || '',
-      ...extra,
-      markedAt: now(),
-    })
-    setTick(t => t+1)
-  }
-
-  const markAll = (status) => activeStudents.forEach(s => mark(s.id, status))
 
 function StudentDetailModal({ student, onClose }) {
   return (
