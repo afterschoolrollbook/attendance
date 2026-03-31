@@ -579,6 +579,11 @@ export function Attendance({ user, pageParams = {} }) {
   }
   const termInRange = (cls) => {
     if (!selTerm) return true
+    // 분기제 필터(q1~q4)는 분기제 수업에만, 학기제 필터(s1~s2)는 학기제 수업에만 적용
+    const isQuarter = selTerm.startsWith('q')
+    const isSemester = selTerm.startsWith('s')
+    if (isQuarter && cls.termType !== 'quarter') return false
+    if (isSemester && cls.termType === 'quarter') return false
     const r = TERM_RANGES[selTerm]
     if (!r) return true
     const y = selTerm === 's2' ? String(Number(selYear)) : selYear
@@ -595,7 +600,10 @@ export function Attendance({ user, pageParams = {} }) {
     termInRange(c)
   ))
   const selClass = allClasses.find(c => c.id === selClassId)
-  const sessionDates = selClass ? calcSessionDates(selClass) : []
+  // 달력 표시용 수업일: 선택된 수업이 있으면 그 수업일만, 없으면 필터된 전체 수업일 합산
+  const sessionDates = selClass
+    ? calcSessionDates(selClass)
+    : [...new Set(schoolClasses.flatMap(c => calcSessionDates(c)))].sort()
   // 수업 선택 시 해당 수업의 반 목록 (같은 학교+수업명 내 section 목록)
   // 같은 학교+수업명 내 반 목록 (section 기준)
   const sectionClasses = selClassId
@@ -704,7 +712,7 @@ export function Attendance({ user, pageParams = {} }) {
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
           <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>수업</label>
-          <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelSection(''); setDateClicked(false) }} style={selSt}>
+          <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelSection(''); setSelTerm(''); setDateClicked(false) }} style={selSt}>
             <option value="">전체 수업</option>
             {schoolClasses.map(c => <option key={c.id} value={c.id}>{c.className}{c.section?' '+c.section+'반':''}</option>)}
           </select>
@@ -720,16 +728,21 @@ export function Attendance({ user, pageParams = {} }) {
           <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>기간</label>
           <select value={selTerm} onChange={e => setSelTerm(e.target.value)} style={selSt}>
             <option value="">전체 기간</option>
-            <optgroup label="── 분기제 ──">
-              <option value="q1">1분기 (1~3월)</option>
-              <option value="q2">2분기 (4~6월)</option>
-              <option value="q3">3분기 (7~9월)</option>
-              <option value="q4">4분기 (10~12월)</option>
-            </optgroup>
-            <optgroup label="── 학기제 ──">
-              <option value="s1">1학기 (3~8월)</option>
-              <option value="s2">2학기 (9~2월)</option>
-            </optgroup>
+            {/* 수업 선택 시 해당 termType만, 미선택 시 전체 표시 */}
+            {(!selClass || selClass.termType === 'quarter') && (
+              <optgroup label="── 분기제 ──">
+                <option value="q1">1분기 (1~3월)</option>
+                <option value="q2">2분기 (4~6월)</option>
+                <option value="q3">3분기 (7~9월)</option>
+                <option value="q4">4분기 (10~12월)</option>
+              </optgroup>
+            )}
+            {(!selClass || selClass.termType !== 'quarter') && (
+              <optgroup label="── 학기제 ──">
+                <option value="s1">1학기 (3~8월)</option>
+                <option value="s2">2학기 (9~2월)</option>
+              </optgroup>
+            )}
           </select>
         </div>
         {selClass && <div style={{ fontSize:'13px', color:C.muted, marginBottom:'4px' }}>📅 {selClass.startDate} ~ {selClass.endDate} · 총 {sessionDates.length}차시</div>}

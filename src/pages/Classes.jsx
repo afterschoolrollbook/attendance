@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB } from '../lib/db.js'
-import { uid, now, calcSessionDates, today } from '../lib/utils.js'
+import { uid, now, calcSessionDates, sortClasses, today } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
 import { ClassCalendar } from '../components/ClassCalendar.jsx'
 import { TERM_TYPES, REPEAT_TYPES } from '../constants/config.js'
@@ -105,8 +105,9 @@ export function Classes({ user }) {
   const openAdd = () => { setForm(emptyForm()); setEditId(null); setTab('info'); setShowModal(true) }
 
   const openCopy = (cls) => {
+    const { id: _removeId, createdAt: _removeCreatedAt, ...clsWithoutId } = cls
     setForm({
-      ...cls,
+      ...clsWithoutId,
       promotionImgs: cls.promotionImgs || [],
       templateFile: cls.templateFile || null,
       alarm: cls.alarm || { enabled: false, minutesBefore: 10 },
