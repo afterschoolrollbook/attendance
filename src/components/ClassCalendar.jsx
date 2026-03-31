@@ -5,6 +5,17 @@ import { Modal, Select, Input, Btn } from './Atoms.jsx'
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
+// 텀별 색상 팔레트
+const TERM_COLORS = [
+  { bg:'#fff7ed', border:'#f97316', badge:'#f97316', text:'#ea580c' },  // 1텀 - 주황
+  { bg:'#f0fdf4', border:'#16a34a', badge:'#16a34a', text:'#15803d' },  // 2텀 - 초록
+  { bg:'#eff6ff', border:'#3b82f6', badge:'#3b82f6', text:'#1d4ed8' },  // 3텀 - 파랑
+  { bg:'#fdf4ff', border:'#a855f7', badge:'#a855f7', text:'#7e22ce' },  // 4텀 - 보라
+  { bg:'#fff1f2', border:'#f43f5e', badge:'#f43f5e', text:'#be123c' },  // 5텀 - 핑크
+  { bg:'#fefce8', border:'#eab308', badge:'#eab308', text:'#a16207' },  // 6텀 - 노랑
+]
+const getTermColor = (termNum) => TERM_COLORS[(termNum - 1) % TERM_COLORS.length] || TERM_COLORS[0]
+
 function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, makeupDates, termMap, onDateClick }) {
   const firstDay = new Date(year, month, 1).getDay()
   const lastDate = new Date(year, month + 1, 0).getDate()
@@ -68,18 +79,21 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
 
           // 정규 수업일
           if (isSession) {
+            const tc = getTermColor(sessInfo.termNum)
             return (
               <button key={day} onClick={() => onDateClick(dateStr, 'session')}
-                title={`${sessInfo?.total}차시 (${sessInfo?.termNum}텀 ${sessInfo?.termSess}차시) — 클릭하면 처리`}
+                title={`전체 ${sessInfo.total}차시 | ${sessInfo.termNum}텀 ${sessInfo.termSess}차시 — 클릭하면 처리`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
-                  background:'#fff7ed', outline:'1.5px solid #f97316', outlineOffset:'-1px',
+                  background: tc.bg, outline:`1.5px solid ${tc.border}`, outlineOffset:'-1px',
                   textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
                 <div style={{ fontSize:'12px', fontWeight:700, color: isSun?'#ef4444': isSat?'#3b82f6':'#111827' }}>{day}</div>
-                <div style={{ fontSize:'10px', color:'#f97316', fontWeight:700, lineHeight:1.2 }}>{session}차</div>
-                {termNum && (
-                  <div style={{ fontSize:'9px', color:'#fff', background:'#f97316', borderRadius:'4px',
-                    padding:'0 3px', marginTop:'1px', lineHeight:'14px' }}>{termNum}텀</div>
-                )}
+                <div style={{ fontSize:'10px', color: tc.text, fontWeight:700, lineHeight:1.3 }}>
+                  {sessInfo.total}차시
+                </div>
+                <div style={{ fontSize:'9px', color:'#fff', background: tc.badge, borderRadius:'4px',
+                  padding:'0 3px', marginTop:'1px', lineHeight:'14px', whiteSpace:'nowrap' }}>
+                  {sessInfo.termNum}텀{sessInfo.termSess}차
+                </div>
               </button>
             )
           }
@@ -214,15 +228,18 @@ export function ClassCalendar({ cls, onUpdate }) {
     <div>
       {/* 요약 */}
       <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'16px', alignItems:'center' }}>
-        {termSummary.map(t => (
-          <div key={t.num} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px',
-            background:'#fff7ed', border:'1.5px solid #f97316', borderRadius:'20px' }}>
-            <span style={{ fontSize:'12px', fontWeight:700, color:'#ea580c' }}>{t.num}텀</span>
-            <span style={{ fontSize:'11px', color:'#6b7280', fontWeight:600 }}>{t.active}회</span>
-            <span style={{ fontSize:'10px', color:'#d1d5db' }}>|</span>
-            <span style={{ fontSize:'10px', color:'#9ca3af' }}>{t.globalStart}~{t.globalEnd}차시</span>
-          </div>
-        ))}
+        {termSummary.map(t => {
+          const tc = getTermColor(t.num)
+          return (
+            <div key={t.num} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px',
+              background: tc.bg, border:`1.5px solid ${tc.border}`, borderRadius:'20px' }}>
+              <span style={{ fontSize:'12px', fontWeight:700, color: tc.text }}>{t.num}텀</span>
+              <span style={{ fontSize:'11px', color:'#6b7280', fontWeight:600 }}>{t.active}회</span>
+              <span style={{ fontSize:'10px', color:'#d1d5db' }}>|</span>
+              <span style={{ fontSize:'10px', color:'#9ca3af' }}>{t.globalStart}~{t.globalEnd}차시</span>
+            </div>
+          )
+        })}
         <div style={{ display:'flex', gap:'8px', fontSize:'12px', marginLeft:'4px' }}>
           <span style={{ color:'#f97316', fontWeight:600 }}>수업 {activeCount}회</span>
           {cancelCount > 0 && <span style={{ color:'#ef4444' }}>휴일 {cancelCount}회</span>}
@@ -249,19 +266,22 @@ export function ClassCalendar({ cls, onUpdate }) {
       </div>
 
       {/* 범례 */}
-      <div style={{ display:'flex', gap:'14px', marginTop:'12px', fontSize:'11px', color:'#9ca3af', flexWrap:'wrap' }}>
-        {[
-          { bg:'#fff7ed', border:'#f97316', label:'수업일 (클릭→취소)' },
-          { bg:'#fef2f2', border:'#fca5a5', label:'휴일 (클릭→복원)' },
-          { bg:'#eff6ff', border:'#3b82f6', label:'보강일 (클릭→삭제)' },
-          { bg:'transparent', border:'none', label:'일반날 (클릭→보강추가)', color:'#9ca3af' },
-        ].map(item => (
-          <span key={item.label} style={{ display:'flex', alignItems:'center', gap:'4px' }}>
-            <span style={{ width:'14px', height:'14px', borderRadius:'4px', background:item.bg,
-              border:`1.5px solid ${item.border}`, display:'inline-block', flexShrink:0 }} />
-            {item.label}
+      <div style={{ display:'flex', gap:'12px', marginTop:'12px', fontSize:'11px', color:'#9ca3af', flexWrap:'wrap' }}>
+        {TERM_COLORS.slice(0, termSizes.length).map((tc, i) => (
+          <span key={i} style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+            <span style={{ width:'14px', height:'14px', borderRadius:'4px', background: tc.bg,
+              border:`1.5px solid ${tc.border}`, display:'inline-block', flexShrink:0 }} />
+            {i+1}텀 수업
           </span>
         ))}
+        <span style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+          <span style={{ width:'14px', height:'14px', borderRadius:'4px', background:'#fef2f2',
+            border:'1.5px solid #fca5a5', display:'inline-block', flexShrink:0 }} />휴일
+        </span>
+        <span style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+          <span style={{ width:'14px', height:'14px', borderRadius:'4px', background:'#eff6ff',
+            border:'1.5px solid #3b82f6', display:'inline-block', flexShrink:0 }} />보강
+        </span>
       </div>
 
       {/* 수업일 액션 선택 모달 */}
