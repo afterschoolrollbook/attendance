@@ -330,19 +330,21 @@ export function Students({ user, onNav }) {
 
       if (parsed.length === 0) { alert('등록할 학생 데이터가 없습니다.\n샘플 파일을 확인해주세요.'); return }
 
-      // 중복 체크: 같은 수업 내 이름+학년+반+번호 동일한 기존 학생
+      // 중복 체크: 같은 수업 내 이름+학년+반 동일한 기존 학생
+      // grade, classNum 정규화: '1학년'→'1', '1반'→'1' 로 통일 후 비교
+      const normalize = v => String(v || '').trim().replace(/학년|반/g, '')
       const selCls = classes.find(c => c.id === excelClassId)
       const existingStudents = StudentsDB.byTeacher(user.id).filter(s =>
-        s.school === (selCls?.organization || '') && s.classIds?.includes(excelClassId)
+        s.classIds?.includes(excelClassId)
       )
 
       const withDupFlag = parsed.map(r => {
         const isDup = existingStudents.some(s =>
           s.name === r.name &&
-          s.grade === r.grade &&
-          s.classNum === r.classNum
+          normalize(s.grade) === normalize(r.grade) &&
+          normalize(s.classNum) === normalize(r.classNum)
         )
-        return { ...r, _dup: isDup }
+        return { ...r, _dup: isDup, _checked: !isDup }
       })
 
       setExcelPreview(withDupFlag); setExcelStep(2)
@@ -378,7 +380,7 @@ export function Students({ user, onNav }) {
 
   const importExcel = () => {
     const selCls = classes.find(c => c.id === excelClassId)
-    const toInsert = excelPreview.filter(r => !r._dup)
+    const toInsert = excelPreview.filter(r => r._checked !== false)
 
     toInsert.forEach(row => {
       StudentsDB.insert({
@@ -397,9 +399,9 @@ export function Students({ user, onNav }) {
       })
     })
 
-    const dupCount = excelPreview.filter(r => r._dup).length
-    const msg = dupCount > 0
-      ? `${toInsert.length}명 등록 완료! (중복 ${dupCount}명 제외)`
+    const skipped = excelPreview.length - toInsert.length
+    const msg = skipped > 0
+      ? `${toInsert.length}명 등록 완료! (${skipped}명 제외)`
       : `${toInsert.length}명 등록 완료!`
     alert(msg)
     setShowExcel(false); setExcelPreview([]); setExcelStep(0); setExcelClassId('')
@@ -844,44 +846,67 @@ export function Students({ user, onNav }) {
         {/* Step 2: 미리보기 */}
         {excelStep === 2 && (() => {
           const selCls = classes.find(c => c.id === excelClassId)
+          const checkedCount = excelPreview.filter(r => r._checked !== false).length
+          const dupCount = excelPreview.filter(r => r._dup).length
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ padding: '10px 14px', background: '#f0fdf4', borderRadius: '10px', border: '1.5px solid #86efac', display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center', fontSize: '13px', color: '#15803d' }}>
-                <span style={{ fontWeight:700 }}>✅ 등록 예정 {excelPreview.filter(r => !r._dup).length}명</span>
-                {excelPreview.some(r => r._dup) && (
-                  <span style={{ color: '#dc2626', fontWeight: 600 }}>⚠️ 중복 {excelPreview.filter(r => r._dup).length}명 제외</span>
+                <span style={{ fontWeight:700 }}>✅ 등록 예정 {checkedCount}명</span>
+                {dupCount > 0 && (
+                  <span style={{ color: '#b45309', fontWeight: 600 }}>⚠️ 중복 의심 {dupCount}명 — 직접 확인 후 체크하세요</span>
                 )}
                 {selCls && <span>🏫 {selCls.organization} · {selCls.className}{selCls.section ? ` ${selCls.section}반` : ''}</span>}
               </div>
+              {dupCount > 0 && (
+                <div style={{ padding: '10px 14px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fde68a', fontSize: '12px', color: '#92400e', lineHeight: 1.6 }}>
+                  🔶 <strong>중복 의심 학생</strong>은 이미 같은 수업에 등록된 학생과 이름·학년·반이 동일합니다.<br />
+                  실제 중복이면 체크 해제, 새로 등록할 학생이면 체크 유지 후 확정하세요.
+                </div>
+              )}
               <div style={{ maxHeight: '300px', overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: '10px' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                   <thead style={{ background: '#f9fafb', position: 'sticky', top: 0 }}>
                     <tr>
+                      <th style={{ padding:'8px 10px', borderBottom:'1px solid #e5e7eb', width: '32px' }}>
+                        <input type="checkbox"
+                          checked={excelPreview.every(r => r._checked !== false)}
+                          onChange={e => setExcelPreview(prev => prev.map(r => ({ ...r, _checked: e.target.checked })))}
+                        />
+                      </th>
                       {['#', '이름', '학년', '학급반', '번호', '학부모전화', '학생전화'].map(h => (
                         <th key={h} style={{ padding:'8px 10px',textAlign:'left',fontWeight:600,color:'#6b7280',whiteSpace:'nowrap',borderBottom:'1px solid #e5e7eb' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {excelPreview.map((r, i) => (
-                      <tr key={i} style={{ borderBottom:'1px solid #f3f4f6', background: r._dup ? '#fef2f2' : i%2===0?'#fff':'#fafafa', opacity: r._dup ? 0.6 : 1 }}>
-                        <td style={{ padding:'7px 10px',color:'#9ca3af' }}>{i+1}</td>
-                        <td style={{ padding:'7px 10px',fontWeight:700, color: r._dup ? '#dc2626' : '#111827' }}>
-                          {r.name}{r._dup && <span style={{ marginLeft:'4px', fontSize:'11px', color:'#dc2626' }}>중복</span>}
-                        </td>
-                        <td style={{ padding:'7px 10px' }}>{r.grade||'-'}</td>
-                        <td style={{ padding:'7px 10px' }}>{r.classNum ? r.classNum+'반' : '-'}</td>
-                        <td style={{ padding:'7px 10px' }}>{r.number||'-'}</td>
-                        <td style={{ padding:'7px 10px' }}>{r.parentPhone||'-'}</td>
-                        <td style={{ padding:'7px 10px' }}>{r.studentPhone||'-'}</td>
-                      </tr>
-                    ))}
+                    {excelPreview.map((r, i) => {
+                      const checked = r._checked !== false
+                      return (
+                        <tr key={i} style={{ borderBottom:'1px solid #f3f4f6', background: r._dup ? '#fffbeb' : i%2===0?'#fff':'#fafafa', opacity: checked ? 1 : 0.4 }}>
+                          <td style={{ padding:'7px 10px', textAlign:'center' }}>
+                            <input type="checkbox" checked={checked}
+                              onChange={e => setExcelPreview(prev => prev.map((row, idx) => idx === i ? { ...row, _checked: e.target.checked } : row))}
+                            />
+                          </td>
+                          <td style={{ padding:'7px 10px',color:'#9ca3af' }}>{i+1}</td>
+                          <td style={{ padding:'7px 10px',fontWeight:700, color: r._dup ? '#b45309' : '#111827' }}>
+                            {r.name}
+                            {r._dup && <span style={{ marginLeft:'5px', fontSize:'10px', fontWeight:700, color:'#fff', background:'#f59e0b', padding:'1px 5px', borderRadius:'4px' }}>중복의심</span>}
+                          </td>
+                          <td style={{ padding:'7px 10px' }}>{r.grade||'-'}</td>
+                          <td style={{ padding:'7px 10px' }}>{r.classNum ? r.classNum+'반' : '-'}</td>
+                          <td style={{ padding:'7px 10px' }}>{r.number||'-'}</td>
+                          <td style={{ padding:'7px 10px' }}>{r.parentPhone||'-'}</td>
+                          <td style={{ padding:'7px 10px' }}>{r.studentPhone||'-'}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
                 <Btn variant="ghost" onClick={() => { setExcelStep(1); setExcelPreview([]) }}>← 다시 선택</Btn>
-                <Btn disabled={excelPreview.filter(r => !r._dup).length === 0} onClick={importExcel}>✅ {excelPreview.filter(r => !r._dup).length}명 등록 확정</Btn>
+                <Btn disabled={checkedCount === 0} onClick={importExcel}>✅ {checkedCount}명 등록 확정</Btn>
               </div>
             </div>
           )
