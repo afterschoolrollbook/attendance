@@ -105,6 +105,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
 export function ClassCalendar({ cls, onUpdate }) {
   const [selectedDate,  setSelectedDate]  = useState(null)
   const [clickType,     setClickType]     = useState(null)
+  const [showSessionAction, setShowSessionAction] = useState(false)  // 수업일 클릭 액션 선택
   const [showCancel,    setShowCancel]    = useState(false)
   const [showMakeup,    setShowMakeup]    = useState(false)
   const [reason,        setReason]        = useState('public_holiday')
@@ -159,9 +160,9 @@ export function ClassCalendar({ cls, onUpdate }) {
       // 보강 삭제
       onUpdate({ ...cls, makeupDates: makeupDates.filter(m => m.date !== date) })
     } else if (type === 'session') {
-      // 수업일 → 취소 모달
+      // 수업일 → 액션 선택 모달
       setReason('public_holiday'); setMemo('')
-      setShowCancel(true)
+      setShowSessionAction(true)
     } else if (type === 'normal') {
       // 일반날 → 보강 추가 모달
       setMemo('')
@@ -240,6 +241,38 @@ export function ClassCalendar({ cls, onUpdate }) {
           </span>
         ))}
       </div>
+
+      {/* 수업일 액션 선택 모달 */}
+      <Modal open={showSessionAction} onClose={() => setShowSessionAction(false)} title="수업일 처리" width={380}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+          <div style={{ fontSize:'14px', color:'#374151', marginBottom:'4px' }}>
+            <strong>{selectedDate}</strong> ({selectedDate && getDayLabel(selectedDate)}요일) 수업을 어떻게 처리할까요?
+          </div>
+          <button onClick={() => { setShowSessionAction(false); setShowCancel(true) }}
+            style={{ padding:'14px 16px', borderRadius:'12px', border:'1.5px solid #fca5a5', background:'#fef2f2',
+              cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}
+            onMouseEnter={e => e.currentTarget.style.background='#fee2e2'}
+            onMouseLeave={e => e.currentTarget.style.background='#fef2f2'}>
+            <div style={{ fontSize:'14px', fontWeight:700, color:'#ef4444', marginBottom:'3px' }}>🚫 휴일 처리</div>
+            <div style={{ fontSize:'12px', color:'#9ca3af' }}>공휴일, 재량휴일, 강사사정 등으로 수업 취소</div>
+          </button>
+          <button onClick={() => {
+            // 수업일을 보강일로 전환: cancelledDates에 추가 + makeupDates에 추가
+            const newCancelled = [...cancelledDates, { date: selectedDate, reason: 'etc', memo: '보강으로 전환' }]
+            const newMakeup    = [...makeupDates, { date: selectedDate, memo: '보강' }]
+            onUpdate({ ...cls, cancelledDates: newCancelled, makeupDates: newMakeup })
+            setShowSessionAction(false)
+          }}
+            style={{ padding:'14px 16px', borderRadius:'12px', border:'1.5px solid #93c5fd', background:'#eff6ff',
+              cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}
+            onMouseEnter={e => e.currentTarget.style.background='#dbeafe'}
+            onMouseLeave={e => e.currentTarget.style.background='#eff6ff'}>
+            <div style={{ fontSize:'14px', fontWeight:700, color:'#3b82f6', marginBottom:'3px' }}>🔄 보강으로 변경</div>
+            <div style={{ fontSize:'12px', color:'#9ca3af' }}>이 날을 보강일로 전환 (파란색으로 표시)</div>
+          </button>
+          <Btn variant="ghost" onClick={() => setShowSessionAction(false)}>닫기</Btn>
+        </div>
+      </Modal>
 
       {/* 취소 모달 */}
       <Modal open={showCancel} onClose={() => setShowCancel(false)} title="휴일 처리" width={400}>
