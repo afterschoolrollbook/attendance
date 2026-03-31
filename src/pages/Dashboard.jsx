@@ -10,7 +10,7 @@ const C = {
   border: '#e5e7eb', text: '#111827', muted: '#6b7280', card: '#fff',
 }
 
-function todayStr() { return new Date().toISOString().slice(0, 10) }
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
 
 function formatDateKo(dateStr) {
   const d = new Date(dateStr + 'T00:00:00')
@@ -260,6 +260,7 @@ export function Dashboard({ user, onNav }) {
 
   const classes = ClassesDB.byTeacher(user.id)
   const classDates = new Set()
+  // calcSessionDates가 makeupDates 포함 → 보강일도 달력에 표시
   classes.forEach(cls => calcSessionDates(cls).forEach(s => classDates.add(s)))
 
   const prevMonth = () => { if (calMonth === 0) { setCalYear(y=>y-1); setCalMonth(11) } else setCalMonth(m=>m-1) }
