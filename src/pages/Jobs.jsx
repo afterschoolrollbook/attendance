@@ -235,7 +235,7 @@ export function Jobs({ user }) {
           ) : (
             <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
               {subs.map(s => (
-                <div key={s.id} style={{ background:C.card, borderRadius:'12px', border:`1.5px solid ${s.active?'#fed7aa':C.border}`, padding:'14px 18px', background: s.active?'#fffbf5':C.card }}>
+                <div key={s.id} style={{ borderRadius:'12px', border:`1.5px solid ${s.active?'#fed7aa':C.border}`, padding:'14px 18px', background: s.active?'#fffbf5':C.card }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'12px' }}>
                     <div>
                       <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'5px', flexWrap:'wrap' }}>
