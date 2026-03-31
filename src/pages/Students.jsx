@@ -65,9 +65,9 @@ export function Students({ user, onNav }) {
   // ✅ 실시간 반영용 강제 리렌더 트리거
   const [tick, setTick] = useState(0)
   const refresh = () => setTick(t => t + 1)
-  const { showToast } = useToast()
+  const { success: showToast } = useToast()
   // ✅ 삭제 확인
-  const [deleteTarget, setDeleteTarget] = useState(null) // { id, name }
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
@@ -218,7 +218,7 @@ export function Students({ user, onNav }) {
     }
     setShowModal(false)
     refresh() // ✅ 즉시 리렌더
-    showToast(`✅ ${form.name} 학생 정보가 저장됐습니다.`, 'success')
+    showToast(`✅ ${form.name} 학생 정보가 저장됐습니다.`)
   }
 
   // ✅ 상태 변경 시 대기자 자동 승격 처리
@@ -244,7 +244,7 @@ export function Students({ user, onNav }) {
     }
     refresh() // ✅ 즉시 리렌더
     const statusLabel = STUDENT_STATUS[status]?.label || status
-    showToast(`✅ ${s.name} → "${statusLabel}" 변경 저장됐습니다.`, 'success')
+    showToast(`✅ ${s.name} → "${statusLabel}" 변경 저장됐습니다.`)
   }
 
   const deleteStudent = () => {
@@ -252,7 +252,7 @@ export function Students({ user, onNav }) {
     StudentsDB.delete(deleteTarget.id)
     setDeleteTarget(null)
     refresh()
-    showToast(`🗑️ ${deleteTarget.name} 학생이 삭제됐습니다.`, 'success')
+    showToast(`🗑️ ${deleteTarget.name} 학생이 삭제됐습니다.`)
   }
 
   // ─── 엑셀 파싱
