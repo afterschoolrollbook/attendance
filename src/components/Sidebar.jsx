@@ -4,13 +4,13 @@ import { can, FEATURES } from '../constants/permissions.js'
 
 const NAV = [
   { path: 'dashboard',  label: '대시보드',        icon: '🏠', feature: null },
+  { path: 'attendance', label: '출석부',           icon: '✅', feature: FEATURES.ATTENDANCE },
   { path: 'classes',    label: '수업 관리',        icon: '📚', feature: FEATURES.MANAGE_CLASS },
   { path: 'students',   label: '학생 관리',        icon: '👥', feature: FEATURES.ADD_STUDENT },
-  { path: 'attendance', label: '출석체크',          icon: '✅', feature: FEATURES.ATTENDANCE },
   { path: 'reports',    label: '출석 리포트',       icon: '📊', feature: FEATURES.VIEW_REPORT },
   { path: 'templates',  label: '출석부 양식',       icon: '📄', feature: FEATURES.MANAGE_TEMPLATE },
   { path: 'printsetup', label: '출석부 출력',       icon: '🖨️', feature: FEATURES.PRINT_ATTENDANCE },
-  { path: 'profile',    label: '내 정보',            icon: '👤', feature: null },
+  { path: 'profile',    label: '내 정보',           icon: '👤', feature: null },
 ]
 
 const ADMIN_NAV = [
