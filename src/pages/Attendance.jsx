@@ -54,7 +54,15 @@ function AttCalendar({ year, month, selectedDate, sessionDates, onSelect, onPrev
           const isPast = dateStr < today
           const isSun = (firstDay + day - 1) % 7 === 0
           const isSat = (firstDay + day - 1) % 7 === 6
-          if (!isSession) return <div key={day} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '12px', color: '#e5e7eb', borderRadius: '6px' }}>{day}</div>
+          // 수업 미선택 시 모든 날짜 클릭 가능, 선택 시 수업일만 활성
+          if (!isSession) return (
+            <button key={day} onClick={() => onSelect(dateStr)} style={{
+              padding: '6px 2px', textAlign: 'center', fontSize: '12px', border: 'none', borderRadius: '6px',
+              background: isSel ? '#e5e7eb' : 'transparent',
+              color: isSun ? '#fca5a5' : isSat ? '#93c5fd' : '#9ca3af',
+              cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+            }}>{day}</button>
+          )
           return (
             <button key={day} onClick={() => onSelect(dateStr)} style={{
               position: 'relative', padding: '7px 2px', border: 'none', borderRadius: '8px', cursor: 'pointer',
@@ -559,6 +567,7 @@ export function Attendance({ user, pageParams = {} }) {
   const [selTerm,    setSelTerm]    = useState('')
   const [selDate,    setSelDate]    = useState(() => pageParams.date || today)
   const [dateClicked, setDateClicked] = useState(false)  // 달력에서 직접 클릭했는지 여부
+  const [selStudent,  setSelStudent]  = useState(null)  // 학생 상세보기
   const [calYear,    setCalYear]    = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getFullYear() })
   const [calMonth,   setCalMonth]   = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getMonth() })
 
@@ -594,8 +603,27 @@ export function Attendance({ user, pageParams = {} }) {
     : []
   const sections = [...new Set(sectionClasses.map(c => c.section).filter(Boolean))]
 
+  // 정렬: Students.jsx 와 동일하게 학교→수업→반→학년→학급반→번호→이름
+  const sortStudents = (arr) => [...arr].sort((a, b) => {
+    const aClass = allClasses.find(c => c.id === a.classIds?.[0])
+    const bClass = allClasses.find(c => c.id === b.classIds?.[0])
+    const schoolCmp = (a.school||'').localeCompare(b.school||'','ko')
+    if (schoolCmp !== 0) return schoolCmp
+    const classCmp = (aClass?.className||'').localeCompare(bClass?.className||'','ko')
+    if (classCmp !== 0) return classCmp
+    const sectionCmp = (aClass?.section||'').localeCompare(bClass?.section||'','ko')
+    if (sectionCmp !== 0) return sectionCmp
+    const gradeCmp = (a.grade||'').localeCompare(b.grade||'','ko')
+    if (gradeCmp !== 0) return gradeCmp
+    const classNumCmp = parseInt(a.classNum||'0') - parseInt(b.classNum||'0')
+    if (classNumCmp !== 0) return classNumCmp
+    const numCmp = parseInt(a.number||'0') - parseInt(b.number||'0')
+    if (numCmp !== 0) return numCmp
+    return (a.name||'').localeCompare(b.name||'','ko')
+  })
+
   // ★ 핵심: 필터 순서대로 좁혀가되 classIds 없는 학생은 학교명으로 보완 매칭
-  const students = allStudents.filter(s => {
+  const students = sortStudents(allStudents.filter(s => {
     const hasClassIds = s.classIds?.length > 0
     // 년도 필터
     if (selYear) {
@@ -632,7 +660,7 @@ export function Attendance({ user, pageParams = {} }) {
       }
     }
     return true
-  })
+  }))
 
   const handleSchoolChange = (school) => {
     setSelSchool(school)
@@ -775,7 +803,10 @@ export function Attendance({ user, pageParams = {} }) {
                 {activeStudents.map((s, i, arr) => {
                   const cls = allClasses.find(c => s.classIds?.includes(c.id))
                   return (
-                    <div key={s.id} style={{ display:'grid', gridTemplateColumns:'32px 1fr 120px 120px', gap:'8px', alignItems:'center', padding:'10px 20px', borderBottom:i<arr.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa' }}>
+                    <div key={s.id} onClick={() => setSelStudent(s)}
+                      style={{ display:'grid', gridTemplateColumns:'32px 1fr 120px 120px', gap:'8px', alignItems:'center', padding:'10px 20px', borderBottom:i<arr.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', cursor:'pointer', transition:'background .1s' }}
+                      onMouseEnter={e => e.currentTarget.style.background='#fff7ed'}
+                      onMouseLeave={e => e.currentTarget.style.background=i%2===0?'#fff':'#fafafa'}>
                       <span style={{ fontSize:'13px', color:C.muted, textAlign:'center' }}>{i+1}</span>
                       <div>
                         <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{s.name}</span>
@@ -791,6 +822,35 @@ export function Attendance({ user, pageParams = {} }) {
           })()}
         </div>
       </div>
+      {/* 학생 상세 모달 */}
+      {selStudent && (
+        <div onClick={() => setSelStudent(null)}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background:'#fff', borderRadius:'18px', padding:'28px', minWidth:'340px', maxWidth:'480px', width:'90%', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+              <span style={{ fontSize:'18px', fontWeight:700, color:'#18181b' }}>{selStudent.name}</span>
+              <button onClick={() => setSelStudent(null)} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#9ca3af' }}>×</button>
+            </div>
+            {[
+              ['학교', selStudent.school],
+              ['학년', selStudent.grade],
+              ['학급반', selStudent.classNum ? selStudent.classNum+'반' : '-'],
+              ['번호', selStudent.number || '-'],
+              ['수업', allClasses.filter(c => selStudent.classIds?.includes(c.id)).map(c => `${c.className}${c.section?' '+c.section+'반':''}`).join(', ') || '-'],
+              ['학부모 전화', fmtPhone(selStudent.parentPhone)],
+              ['학생 전화', fmtPhone(selStudent.studentPhone)],
+              ['상태', selStudent.status],
+              ['메모', selStudent.memo || '-'],
+            ].map(([label, value]) => (
+              <div key={label} style={{ display:'flex', gap:'12px', padding:'8px 0', borderBottom:'1px solid #f3f4f6', fontSize:'14px' }}>
+                <span style={{ color:'#9ca3af', fontWeight:600, minWidth:'90px' }}>{label}</span>
+                <span style={{ color:'#18181b' }}>{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
