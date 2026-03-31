@@ -182,6 +182,9 @@ export function Classes({ user }) {
     return a.localeCompare(b)
   })
 
+  // 그룹 내 카드 정렬: sortClasses 공통 함수 사용
+  sortedKeys.forEach(key => { grouped[key] = sortClasses(grouped[key]) })
+
   return (
     <div style={{ padding: '28px', maxWidth: '1100px' }}>
       {/* 알람 토스트 */}

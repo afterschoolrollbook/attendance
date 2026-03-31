@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes } from '../lib/db.js'
-import { uid, now, calcSessionDates, getSession, fmtPhone } from '../lib/utils.js'
+import { uid, now, calcSessionDates, sortClasses, getSession, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, ABSENT_REASONS, HOME_RETURN_TYPES } from '../constants/config.js'
 
 const DAYS_KO = ['일','월','화','수','목','금','토']
@@ -589,11 +589,11 @@ export function Attendance({ user, pageParams = {} }) {
   }
 
   // 필터 적용된 수업 목록 (년도 + 학교 + 기간)
-  const schoolClasses = allClasses.filter(c =>
+  const schoolClasses = sortClasses(allClasses.filter(c =>
     (!selYear   || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) &&
     (!selSchool || c.organization === selSchool) &&
     termInRange(c)
-  )
+  ))
   const selClass = allClasses.find(c => c.id === selClassId)
   const sessionDates = selClass ? calcSessionDates(selClass) : []
   // 수업 선택 시 해당 수업의 반 목록 (같은 학교+수업명 내 section 목록)

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes } from '../lib/db.js'
-import { calcSessionDates, uid, now } from '../lib/utils.js'
+import { calcSessionDates, sortClasses, uid, now } from '../lib/utils.js'
 
 const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토']
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
@@ -126,7 +126,7 @@ function DayDetail({ date, user, classes, onNav }) {
     setNewNote(''); setAddingNote(false)
   }, [date, user.id])
 
-  const dayClasses = classes.filter(cls => calcSessionDates(cls).includes(date))
+  const dayClasses = sortClasses(classes.filter(cls => calcSessionDates(cls).includes(date)))
 
   const addNote = () => {
     if (!newNote.trim()) return
@@ -140,6 +140,7 @@ function DayDetail({ date, user, classes, onNav }) {
 
   const schools = {}
   dayClasses.forEach(cls => { if (!schools[cls.organization]) schools[cls.organization] = []; schools[cls.organization].push(cls) })
+  Object.keys(schools).forEach(k => { schools[k] = sortClasses(schools[k]) })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -258,7 +259,7 @@ export function Dashboard({ user, onNav }) {
   const [selectedDate, setSelectedDate] = useState(today)
   const weather = useWeather()
 
-  const classes = ClassesDB.byTeacher(user.id)
+  const classes = sortClasses(ClassesDB.byTeacher(user.id))
   const classDates = new Set()
   // calcSessionDates가 makeupDates 포함 → 보강일도 달력에 표시
   classes.forEach(cls => calcSessionDates(cls).forEach(s => classDates.add(s)))

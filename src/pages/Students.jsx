@@ -75,7 +75,7 @@ export function Students({ user, onNav }) {
   const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
   const yearClasses = ctxYear ? classes.filter(c => c.startDate?.startsWith(ctxYear) || c.endDate?.startsWith(ctxYear)) : classes
   const schools = [...new Set(yearClasses.map(c => c.organization).filter(Boolean))]
-  const filteredClasses = ctxSchool ? yearClasses.filter(c => c.organization === ctxSchool) : yearClasses
+  const filteredClasses = sortClasses(ctxSchool ? yearClasses.filter(c => c.organization === ctxSchool) : yearClasses)
   const sections = ctxClass
     ? [...new Set(classes.filter(c => c.id === ctxClass).map(c => c.section).filter(Boolean))]
     : []
