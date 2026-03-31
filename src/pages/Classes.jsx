@@ -103,7 +103,7 @@ export function Classes({ user }) {
   }, [classes])
 
   const openAdd = () => { setForm(emptyForm()); setEditId(null); setTab('info'); setShowModal(true) }
-  const openEdit = (cls) => { setForm({ ...cls, promotionImgs: cls.promotionImgs || [], templateFile: cls.templateFile || null, alarm: cls.alarm || { enabled: false, minutesBefore: 10 }, alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 } }); setEditId(cls.id); setTab('info'); setShowModal(true) }
+  const openEdit = (cls) => { setForm({ ...cls, promotionImgs: cls.promotionImgs || [], templateFile: cls.templateFile || null, alarm: cls.alarm || { enabled: false, minutesBefore: 10 }, alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 }, cancelledDates: cls.cancelledDates || [], makeupDates: cls.makeupDates || [], termCount: cls.termCount || 4, termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4] }); setEditId(cls.id); setTab('info'); setShowModal(true) }
 
   const save = () => {
     if (!form.organization.trim() || !form.className.trim() || !form.days.length || !form.startDate || !form.endDate) {
