@@ -25,10 +25,11 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
         {cells.map((day, idx) => {
           if (!day) return <div key={'e'+idx} />
           const dateStr = year+'-'+String(month+1).padStart(2,'0')+'-'+String(day).padStart(2,'0')
-          const session  = sessionMap[dateStr]
+          const sessInfo = sessionMap[dateStr]
+          const session  = sessInfo  // 하위 호환
           const isCancelled = cancelled.has(dateStr)
           const isMakeup    = makeupSet.has(dateStr)
-          const isSession   = !!session
+          const isSession   = !!sessInfo && !isCancelled
           const cancelInfo  = cancelledDates.find(c => c.date === dateStr)
           const makeupInfo  = makeupDates.find(m => m.date === dateStr)
           const reasonLabel = CANCEL_REASONS.find(r => r.value === cancelInfo?.reason)?.label
@@ -40,7 +41,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           if (isMakeup) {
             return (
               <button key={day} onClick={() => onDateClick(dateStr, 'makeup')}
-                title={`보강일: ${makeupInfo?.memo||''} — 클릭하면 삭제`}
+                title={`보강 ${sessInfo?.total||''}차시: ${makeupInfo?.memo||''} — 클릭하면 삭제`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                   background:'#eff6ff', outline:'1.5px solid #3b82f6', outlineOffset:'-1px',
                   textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
@@ -69,7 +70,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           if (isSession) {
             return (
               <button key={day} onClick={() => onDateClick(dateStr, 'session')}
-                title={`${session}차시 — 클릭하면 취소`}
+                title={`${sessInfo?.total}차시 (${sessInfo?.termNum}텀 ${sessInfo?.termSess}차시) — 클릭하면 처리`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                   background:'#fff7ed', outline:'1.5px solid #f97316', outlineOffset:'-1px',
                   textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
@@ -121,25 +122,41 @@ export function ClassCalendar({ cls, onUpdate }) {
   const makeupDates   = cls.makeupDates || []
 
   // 보강 차시는 취소된 차시 이후 번호 부여
-  const sessionMap = {}
-  let si = 1
-  sessions.forEach(d => {
-    if (!cancelled.has(d)) sessionMap[d] = si++
-  })
-  // 보강일도 차시 부여
-  makeupDates.forEach(m => { sessionMap[m.date] = si++ })
-
   const termSizes = cls.termSizes?.length
     ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length)
     : [cls.termSize || 4]
 
-  const termMap = {}
-  let cursor = 0
+  // sessionMap: 날짜 → { total: 전체차시, termNum: 텀번호, termSess: 텀내차시 }
+  const sessionMap = {}
+  const termMap    = {}
+  let totalIdx = 1
+  let cursor   = 0
   termSizes.forEach((size, ti) => {
-    sessions.slice(cursor, cursor + size).forEach(d => { termMap[d] = ti + 1 })
+    let termIdx = 1
+    sessions.slice(cursor, cursor + size).forEach(d => {
+      if (!cancelled.has(d)) {
+        sessionMap[d] = { total: totalIdx++, termNum: ti+1, termSess: termIdx++ }
+        termMap[d] = ti + 1
+      } else {
+        termMap[d] = ti + 1
+      }
+    })
     cursor += size
   })
-  if (cursor < sessions.length) sessions.slice(cursor).forEach(d => { termMap[d] = termSizes.length })
+  // 남은 차시
+  if (cursor < sessions.length) {
+    let termIdx = 1
+    sessions.slice(cursor).forEach(d => {
+      if (!cancelled.has(d)) {
+        sessionMap[d] = { total: totalIdx++, termNum: termSizes.length, termSess: termIdx++ }
+      }
+      termMap[d] = termSizes.length
+    })
+  }
+  // 보강일
+  makeupDates.forEach(m => {
+    sessionMap[m.date] = { total: totalIdx++, termNum: 0, termSess: 0, isMakeup: true }
+  })
 
   const startD = new Date(cls.startDate + 'T00:00:00')
   const endD   = new Date(cls.endDate   + 'T00:00:00')
@@ -186,8 +203,11 @@ export function ClassCalendar({ cls, onUpdate }) {
 
   const termSummary = termSizes.map((size, ti) => {
     const start = termSizes.slice(0,ti).reduce((a,b)=>a+b,0)
+    const globalStart = start + 1
+    const globalEnd   = start + size
     const termSessions = sessions.slice(start, start + size)
-    return { num: ti+1, active: termSessions.filter(d=>!cancelled.has(d)).length, total: termSessions.length }
+    const active = termSessions.filter(d => !cancelled.has(d)).length
+    return { num: ti+1, active, total: size, globalStart, globalEnd }
   })
 
   return (
@@ -195,10 +215,12 @@ export function ClassCalendar({ cls, onUpdate }) {
       {/* 요약 */}
       <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'16px', alignItems:'center' }}>
         {termSummary.map(t => (
-          <div key={t.num} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 10px',
+          <div key={t.num} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px',
             background:'#fff7ed', border:'1.5px solid #f97316', borderRadius:'20px' }}>
             <span style={{ fontSize:'12px', fontWeight:700, color:'#ea580c' }}>{t.num}텀</span>
-            <span style={{ fontSize:'11px', color:'#9ca3af' }}>{t.active}/{t.total}차시</span>
+            <span style={{ fontSize:'11px', color:'#6b7280', fontWeight:600 }}>{t.active}회</span>
+            <span style={{ fontSize:'10px', color:'#d1d5db' }}>|</span>
+            <span style={{ fontSize:'10px', color:'#9ca3af' }}>{t.globalStart}~{t.globalEnd}차시</span>
           </div>
         ))}
         <div style={{ display:'flex', gap:'8px', fontSize:'12px', marginLeft:'4px' }}>
