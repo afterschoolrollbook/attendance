@@ -740,22 +740,20 @@ export function Attendance({ user, pageParams = {} }) {
           {(() => {
             const activeStudents = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
 
-            // 달력에서 수업일 클릭 → 출석체크 패널
-            if (dateClicked && isSessionDate) {
+            // 수업 선택 + 달력에서 날짜 클릭 → 출석체크 패널
+            if (dateClicked && selClassId) {
+              if (!isSessionDate) {
+                return (
+                  <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
+                    <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
+                    <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업이 없는 날입니다</div>
+                    <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
+                  </div>
+                )
+              }
               return isPast
                 ? <AttendancePanel cls={selClass} date={selDate} students={students} user={user} key={selDate+selClassId} />
                 : <RosterPanel cls={selClass} date={selDate} students={students} key={selDate+selClassId} />
-            }
-
-            // 달력에서 수업일 클릭했는데 수업 없는 날
-            if (dateClicked && !isSessionDate && selClassId) {
-              return (
-                <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
-                  <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
-                  <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업이 없는 날입니다</div>
-                  <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
-                </div>
-              )
             }
 
             // 날짜 미선택 → 필터에 맞는 학생 목록 표시
