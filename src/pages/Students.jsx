@@ -662,32 +662,22 @@ export function Students({ user, onNav }) {
             {classes.length > 0 && (
               <div style={{ marginBottom: '12px' }}>
                 <div style={{ fontSize: '12px', color: '#ea580c', fontWeight: 600, marginBottom: '8px' }}>📚 수강할 수업 선택 <span style={{ color: '#ef4444' }}>*필수</span> (복수 선택 가능)</div>
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  {classes.map(c => {
-                    const selected = form.classIds?.includes(c.id)
-                    return (
-                      <button key={c.id} type="button" onClick={() => {
-                        const newIds = selected
-                          ? (form.classIds || []).filter(id => id !== c.id)
-                          : [...(form.classIds || []), c.id]
-                        const firstCls = ClassesDB.byTeacher(user.id).find(cl => cl.id === newIds[0])
-                        set('classIds', newIds)
-                        if (firstCls?.organization) set('school', firstCls.organization)
-                      }} style={{
-                        padding: '8px 14px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer',
-                        fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .1s',
-                        border: `1.5px solid ${selected ? '#f97316' : '#e5e7eb'}`,
-                        background: selected ? '#f97316' : '#fff',
-                        color: selected ? '#fff' : '#374151',
-                        fontWeight: selected ? 700 : 400,
-                      }}>
-                        <span style={{ opacity: selected ? 0.85 : 0.55, fontSize: '11px', marginRight: '5px' }}>{c.organization}</span>
-                        {c.className}{c.section ? ` ${c.section}반` : ''}
-                        {c.days?.length ? <span style={{ marginLeft: '5px', opacity: 0.7, fontSize: '11px' }}>{c.days.join('')} {c.time}</span> : ''}
-                      </button>
-                    )
-                  })}
-                </div>
+                <select
+                  value={form.classIds?.[0] || ''}
+                  onChange={e => {
+                    const cid = e.target.value
+                    const cls = ClassesDB.byTeacher(user.id).find(c => c.id === cid)
+                    set('classIds', cid ? [cid] : [])
+                    if (cls?.organization) set('school', cls.organization)
+                  }}
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', color:'#111827', outline:'none', cursor:'pointer' }}>
+                  <option value=''>-- 수업 선택 --</option>
+                  {classes.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.organization} · {c.className}{c.section ? ' '+c.section+'반' : ''} {c.days?.length ? '('+c.days.join('')+' '+c.time+')' : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
 
