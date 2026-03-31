@@ -605,6 +605,14 @@ export function Attendance({ user, pageParams = {} }) {
         : yearCls.some(c => c.organization === s.school)  // classIds 없으면 학교명으로 매칭
       if (!inYear) return false
     }
+    // 기간 필터: 해당 기간에 해당하는 수업의 학생만
+    if (selTerm) {
+      const termCls = allClasses.filter(c => termInRange(c))
+      const inTerm = hasClassIds
+        ? termCls.some(c => s.classIds.includes(c.id))
+        : termCls.some(c => c.organization === s.school)
+      if (!inTerm) return false
+    }
     // 학교 필터
     if (selSchool && s.school !== selSchool) return false
     // 수업 필터
