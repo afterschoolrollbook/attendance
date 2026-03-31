@@ -17,7 +17,8 @@ function emptyForm() {
     promotionImgs: [],
     templateFile: null,
     cancelledDates: [],
-    alarm: { enabled: false, minutesBefore: 10 },
+    alarm:    { enabled: false, minutesBefore: 10 },
+    alarmEnd: { enabled: false, minutesBefore: 10 },
   }
 }
 
@@ -41,36 +42,54 @@ export function Classes({ user }) {
   const promoRef = useRef()
   const templateRef = useRef()
 
-  const [alarmToast, setAlarmToast] = useState(null) // { className, minutesBefore }
+  const [alarmToast, setAlarmToast] = useState(null) // { className, minutesBefore, type: 'start'|'end' }
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const classes = ClassesDB.byTeacher(user.id)
   const t = today()
 
-  // 알람: 1분마다 수업 시작 시간 체크
+  // 알람: 1분마다 시작/종료 시간 체크
   useEffect(() => {
+    const fireAlarm = (cls, type, minutesBefore) => {
+      setAlarmToast({ className: cls.className, minutesBefore, type })
+      setTimeout(() => setAlarmToast(null), 8000)
+      const body = type === 'start'
+        ? `${cls.className} 수업이 ${minutesBefore}분 후 시작됩니다!`
+        : `${cls.className} 수업이 ${minutesBefore}분 후 종료됩니다!`
+      if (Notification.permission === 'granted') {
+        new Notification('🔔 수업 알람', { body, icon: '/favicon.ico' })
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(p => {
+          if (p === 'granted') new Notification('🔔 수업 알람', { body })
+        })
+      }
+    }
+
     const check = () => {
       const now = new Date()
       const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
       const todayDay = ['일','월','화','수','목','금','토'][now.getDay()]
+
       classes.forEach(cls => {
-        if (!cls.alarm?.enabled || !cls.time) return
         if (!cls.days?.includes(todayDay)) return
-        const startTime = cls.time.includes('~') ? cls.time.split('~')[0].trim() : cls.time
-        const [sh, sm] = startTime.split(':').map(Number)
-        const alarmTime = new Date(now)
-        alarmTime.setHours(sh, sm - (cls.alarm.minutesBefore || 10), 0, 0)
-        const alarmHHMM = `${String(alarmTime.getHours()).padStart(2,'0')}:${String(alarmTime.getMinutes()).padStart(2,'0')}`
-        if (hhmm === alarmHHMM) {
-          setAlarmToast({ className: cls.className, minutesBefore: cls.alarm.minutesBefore })
-          setTimeout(() => setAlarmToast(null), 8000)
-          if (Notification.permission === 'granted') {
-            new Notification(`🔔 수업 알람`, { body: `${cls.className} 수업이 ${cls.alarm.minutesBefore}분 후 시작됩니다!`, icon: '/favicon.ico' })
-          } else if (Notification.permission !== 'denied') {
-            Notification.requestPermission().then(p => {
-              if (p === 'granted') new Notification(`🔔 수업 알람`, { body: `${cls.className} 수업이 ${cls.alarm.minutesBefore}분 후 시작됩니다!` })
-            })
-          }
+
+        // ── 시작 알람
+        if (cls.alarm?.enabled && cls.time) {
+          const startTime = cls.time.includes('~') ? cls.time.split('~')[0].trim() : cls.time
+          const [sh, sm] = startTime.split(':').map(Number)
+          const alarmTime = new Date(now)
+          alarmTime.setHours(sh, sm - (cls.alarm.minutesBefore || 10), 0, 0)
+          const alarmHHMM = `${String(alarmTime.getHours()).padStart(2,'0')}:${String(alarmTime.getMinutes()).padStart(2,'0')}`
+          if (hhmm === alarmHHMM) fireAlarm(cls, 'start', cls.alarm.minutesBefore)
+        }
+
+        // ── 종료 알람
+        if (cls.alarmEnd?.enabled && cls.timeEnd) {
+          const [eh, em] = cls.timeEnd.split(':').map(Number)
+          const alarmTime = new Date(now)
+          alarmTime.setHours(eh, em - (cls.alarmEnd.minutesBefore || 10), 0, 0)
+          const alarmHHMM = `${String(alarmTime.getHours()).padStart(2,'0')}:${String(alarmTime.getMinutes()).padStart(2,'0')}`
+          if (hhmm === alarmHHMM) fireAlarm(cls, 'end', cls.alarmEnd.minutesBefore)
         }
       })
     }
@@ -80,7 +99,7 @@ export function Classes({ user }) {
   }, [classes])
 
   const openAdd = () => { setForm(emptyForm()); setEditId(null); setTab('info'); setShowModal(true) }
-  const openEdit = (cls) => { setForm({ ...cls, promotionImgs: cls.promotionImgs || [], templateFile: cls.templateFile || null, alarm: cls.alarm || { enabled: false, minutesBefore: 10 } }); setEditId(cls.id); setTab('info'); setShowModal(true) }
+  const openEdit = (cls) => { setForm({ ...cls, promotionImgs: cls.promotionImgs || [], templateFile: cls.templateFile || null, alarm: cls.alarm || { enabled: false, minutesBefore: 10 }, alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 } }); setEditId(cls.id); setTab('info'); setShowModal(true) }
 
   const save = () => {
     if (!form.organization.trim() || !form.className.trim() || !form.days.length || !form.startDate || !form.endDate) {
@@ -146,16 +165,21 @@ export function Classes({ user }) {
       {alarmToast && (
         <div style={{
           position: 'fixed', top: '24px', right: '24px', zIndex: 9999,
-          background: '#1d4ed8', color: '#fff', padding: '16px 22px',
+          background: alarmToast.type === 'end' ? '#7c3aed' : '#1d4ed8',
+          color: '#fff', padding: '16px 22px',
           borderRadius: '14px', fontSize: '14px', fontWeight: 600,
-          boxShadow: '0 4px 24px rgba(29,78,216,0.35)',
+          boxShadow: `0 4px 24px ${alarmToast.type === 'end' ? 'rgba(124,58,237,0.35)' : 'rgba(29,78,216,0.35)'}`,
           display: 'flex', alignItems: 'center', gap: '10px',
           animation: 'fadeIn 0.2s ease', maxWidth: '320px',
         }}>
-          <span style={{ fontSize: '24px' }}>🔔</span>
+          <span style={{ fontSize: '24px' }}>{alarmToast.type === 'end' ? '🔕' : '🔔'}</span>
           <div>
             <div style={{ fontSize: '15px', fontWeight: 700 }}>{alarmToast.className}</div>
-            <div style={{ fontSize: '13px', opacity: 0.9, marginTop: '2px' }}>수업이 {alarmToast.minutesBefore}분 후 시작됩니다!</div>
+            <div style={{ fontSize: '13px', opacity: 0.9, marginTop: '2px' }}>
+              {alarmToast.type === 'end'
+                ? `수업 종료 ${alarmToast.minutesBefore}분 전입니다!`
+                : `수업 시작 ${alarmToast.minutesBefore}분 전입니다!`}
+            </div>
           </div>
           <button onClick={() => setAlarmToast(null)}
             style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
@@ -229,7 +253,8 @@ export function Classes({ user }) {
                       <Tag color="#16a34a" bg="#f0fdf4">총 {sessions.length}차시</Tag>
                       {upcoming && <Tag color="#f59e0b" bg="#fffbeb">다음 {upcoming.slice(5)}</Tag>}
                       {hasTpl && <Tag color="#8b5cf6" bg="#f5f3ff">양식 ✓</Tag>}
-                      {cls.alarm?.enabled && <Tag color="#3b82f6" bg="#eff6ff">🔔 {cls.alarm.minutesBefore}분전</Tag>}
+                      {cls.alarm?.enabled && <Tag color="#3b82f6" bg="#eff6ff">🔔 시작 {cls.alarm.minutesBefore}분전</Tag>}
+                      {cls.alarmEnd?.enabled && <Tag color="#7c3aed" bg="#ede9fe">🔕 종료 {cls.alarmEnd.minutesBefore}분전</Tag>}
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }} onClick={e => e.stopPropagation()}>
@@ -311,43 +336,87 @@ export function Classes({ user }) {
 
             {/* ── 알람 설정 */}
             <div style={{ background: '#f8faff', border: '1.5px solid #dbeafe', borderRadius: '10px', padding: '14px 16px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#1d4ed8', marginBottom: '12px' }}>🔔 알람 설정</div>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: form.alarm?.enabled ? '12px' : '0' }}>
-                {[{ value: false, label: '선택안함' }, { value: true, label: '알람 설정' }].map(opt => (
-                  <button key={String(opt.value)} type="button"
-                    onClick={() => set('alarm', { ...(form.alarm || {}), enabled: opt.value })}
-                    style={{
-                      padding: '7px 16px', borderRadius: '8px', cursor: 'pointer',
-                      fontFamily: 'Noto Sans KR, sans-serif', fontSize: '13px', transition: 'all .15s',
-                      border: `1.5px solid ${form.alarm?.enabled === opt.value ? '#3b82f6' : '#e5e7eb'}`,
-                      background: form.alarm?.enabled === opt.value ? '#3b82f6' : '#fff',
-                      color: form.alarm?.enabled === opt.value ? '#fff' : '#374151',
-                      fontWeight: form.alarm?.enabled === opt.value ? 700 : 400,
-                    }}>{opt.label}</button>
-                ))}
-              </div>
-              {form.alarm?.enabled && (
-                <div>
-                  <div style={{ fontSize: '12px', color: '#374151', marginBottom: '8px', fontWeight: 500 }}>수업 시작 몇 분 전에 알릴까요?</div>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {[5, 10, 15, 20, 30, 60].map(min => (
-                      <button key={min} type="button"
-                        onClick={() => set('alarm', { ...(form.alarm || {}), minutesBefore: min })}
-                        style={{
-                          padding: '6px 14px', borderRadius: '7px', cursor: 'pointer',
-                          fontFamily: 'Noto Sans KR, sans-serif', fontSize: '13px', transition: 'all .15s',
-                          border: `1.5px solid ${form.alarm?.minutesBefore === min ? '#3b82f6' : '#e5e7eb'}`,
-                          background: form.alarm?.minutesBefore === min ? '#dbeafe' : '#fff',
-                          color: form.alarm?.minutesBefore === min ? '#1d4ed8' : '#374151',
-                          fontWeight: form.alarm?.minutesBefore === min ? 700 : 400,
-                        }}>{min}분 전</button>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: '10px', fontSize: '12px', color: '#6b7280', background: '#eff6ff', padding: '8px 12px', borderRadius: '7px', border: '1px solid #bfdbfe' }}>
-                    🔔 수업 시작 <strong>{form.alarm?.minutesBefore}분 전</strong>에 알림이 표시됩니다.{!form.time && <span style={{ color: '#f97316' }}> (수업 시작시간을 입력하면 정확한 알림이 작동합니다)</span>}
-                  </div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#1d4ed8', marginBottom: '14px' }}>🔔 알람 설정</div>
+
+              {/* 시작 알람 */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>🟢 수업 시작 알람</div>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: form.alarm?.enabled ? '10px' : '0' }}>
+                  {[{ value: false, label: '선택안함' }, { value: true, label: '알람 설정' }].map(opt => (
+                    <button key={String(opt.value)} type="button"
+                      onClick={() => set('alarm', { ...(form.alarm || {}), enabled: opt.value })}
+                      style={{
+                        padding: '6px 14px', borderRadius: '8px', cursor: 'pointer',
+                        fontFamily: 'Noto Sans KR, sans-serif', fontSize: '13px', transition: 'all .15s',
+                        border: `1.5px solid ${form.alarm?.enabled === opt.value ? '#3b82f6' : '#e5e7eb'}`,
+                        background: form.alarm?.enabled === opt.value ? '#3b82f6' : '#fff',
+                        color: form.alarm?.enabled === opt.value ? '#fff' : '#374151',
+                        fontWeight: form.alarm?.enabled === opt.value ? 700 : 400,
+                      }}>{opt.label}</button>
+                  ))}
                 </div>
-              )}
+                {form.alarm?.enabled && (
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '6px' }}>수업 시작 몇 분 전?</div>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {[5, 10, 15, 20, 30, 60].map(min => (
+                        <button key={min} type="button"
+                          onClick={() => set('alarm', { ...(form.alarm || {}), minutesBefore: min })}
+                          style={{
+                            padding: '5px 12px', borderRadius: '7px', cursor: 'pointer',
+                            fontFamily: 'Noto Sans KR, sans-serif', fontSize: '13px', transition: 'all .15s',
+                            border: `1.5px solid ${form.alarm?.minutesBefore === min ? '#3b82f6' : '#e5e7eb'}`,
+                            background: form.alarm?.minutesBefore === min ? '#dbeafe' : '#fff',
+                            color: form.alarm?.minutesBefore === min ? '#1d4ed8' : '#374151',
+                            fontWeight: form.alarm?.minutesBefore === min ? 700 : 400,
+                          }}>{min}분 전</button>
+                      ))}
+                    </div>
+                    {!form.time && <div style={{ marginTop: '6px', fontSize: '11px', color: '#f97316' }}>⚠️ 수업 시작시간을 입력해야 알람이 작동합니다</div>}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ height: '1px', background: '#dbeafe', margin: '4px 0 14px' }} />
+
+              {/* 종료 알람 */}
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>🔴 수업 종료 알람</div>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: form.alarmEnd?.enabled ? '10px' : '0' }}>
+                  {[{ value: false, label: '선택안함' }, { value: true, label: '알람 설정' }].map(opt => (
+                    <button key={String(opt.value)} type="button"
+                      onClick={() => set('alarmEnd', { ...(form.alarmEnd || {}), enabled: opt.value })}
+                      style={{
+                        padding: '6px 14px', borderRadius: '8px', cursor: 'pointer',
+                        fontFamily: 'Noto Sans KR, sans-serif', fontSize: '13px', transition: 'all .15s',
+                        border: `1.5px solid ${form.alarmEnd?.enabled === opt.value ? '#7c3aed' : '#e5e7eb'}`,
+                        background: form.alarmEnd?.enabled === opt.value ? '#7c3aed' : '#fff',
+                        color: form.alarmEnd?.enabled === opt.value ? '#fff' : '#374151',
+                        fontWeight: form.alarmEnd?.enabled === opt.value ? 700 : 400,
+                      }}>{opt.label}</button>
+                  ))}
+                </div>
+                {form.alarmEnd?.enabled && (
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '6px' }}>수업 종료 몇 분 전?</div>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {[5, 10, 15, 20, 30, 60].map(min => (
+                        <button key={min} type="button"
+                          onClick={() => set('alarmEnd', { ...(form.alarmEnd || {}), minutesBefore: min })}
+                          style={{
+                            padding: '5px 12px', borderRadius: '7px', cursor: 'pointer',
+                            fontFamily: 'Noto Sans KR, sans-serif', fontSize: '13px', transition: 'all .15s',
+                            border: `1.5px solid ${form.alarmEnd?.minutesBefore === min ? '#7c3aed' : '#e5e7eb'}`,
+                            background: form.alarmEnd?.minutesBefore === min ? '#ede9fe' : '#fff',
+                            color: form.alarmEnd?.minutesBefore === min ? '#6d28d9' : '#374151',
+                            fontWeight: form.alarmEnd?.minutesBefore === min ? 700 : 400,
+                          }}>{min}분 전</button>
+                      ))}
+                    </div>
+                    {!form.timeEnd && <div style={{ marginTop: '6px', fontSize: '11px', color: '#f97316' }}>⚠️ 종료시간을 입력해야 알람이 작동합니다</div>}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
