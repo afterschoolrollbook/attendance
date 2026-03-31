@@ -41,6 +41,7 @@ function promoteNextWaiting(classId) {
 export function Students({ user, onNav }) {
   const classes = ClassesDB.byTeacher(user.id)
 
+  const [ctxYear,    setCtxYear]    = useState('')
   const [ctxSchool,  setCtxSchool]  = useState('')
   const [ctxClass,   setCtxClass]   = useState('')
   const [ctxSection, setCtxSection] = useState('')
@@ -71,14 +72,20 @@ export function Students({ user, onNav }) {
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
-  const schools = [...new Set(classes.map(c => c.organization).filter(Boolean))]
-  const filteredClasses = ctxSchool ? classes.filter(c => c.organization === ctxSchool) : classes
+  const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
+  const yearClasses = ctxYear ? classes.filter(c => c.startDate?.startsWith(ctxYear) || c.endDate?.startsWith(ctxYear)) : classes
+  const schools = [...new Set(yearClasses.map(c => c.organization).filter(Boolean))]
+  const filteredClasses = ctxSchool ? yearClasses.filter(c => c.organization === ctxSchool) : yearClasses
   const sections = ctxClass
     ? [...new Set(classes.filter(c => c.id === ctxClass).map(c => c.section).filter(Boolean))]
     : []
 
   const allStudents = StudentsDB.byTeacher(user.id)
   const filtered = allStudents.filter(s => {
+    if (ctxYear) {
+      const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
+      if (!inYear) return false
+    }
     if (ctxClass && !s.classIds?.includes(ctxClass)) return false
     if (ctxSchool && s.school !== ctxSchool) return false
     if (ctxSection && s.classNum !== ctxSection) return false
@@ -131,6 +138,10 @@ export function Students({ user, onNav }) {
   })
 
   const ctxBase = allStudents.filter(s => {
+    if (ctxYear) {
+      const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
+      if (!inYear) return false
+    }
     if (ctxClass && !s.classIds?.includes(ctxClass)) return false
     if (ctxSchool && s.school !== ctxSchool) return false
     if (ctxSection && s.classNum !== ctxSection) return false
@@ -492,6 +503,13 @@ export function Students({ user, onNav }) {
         <div style={{ fontSize: '12px', fontWeight: 700, color: '#9ca3af', marginBottom: '10px', letterSpacing: '0.05em' }}>📍 학생 보기 범위 선택</div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>년도</label>
+            <select value={ctxYear} onChange={e => { setCtxYear(e.target.value); setCtxSchool(''); setCtxClass(''); setCtxSection('') }} style={selSt}>
+              <option value="">전체 년도</option>
+              {years.map(y => <option key={y} value={y}>{y}년</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>학교</label>
             <select value={ctxSchool} onChange={e => { setCtxSchool(e.target.value); setCtxClass(''); setCtxSection('') }} style={selSt}>
               <option value="">전체 학교</option>
@@ -516,12 +534,13 @@ export function Students({ user, onNav }) {
               </select>
             </div>
           )}
-          {(ctxSchool || ctxClass) && (
+          {(ctxYear || ctxSchool || ctxClass) && (
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1px' }}>
+              {ctxYear && <Tag color="#059669" bg="#ecfdf5" size="md">📅 {ctxYear}년</Tag>}
               {ctxSchool && <Tag color="#3b82f6" bg="#eff6ff" size="md">🏫 {ctxSchool}</Tag>}
               {ctxClass && selectedCls && <Tag color="#f97316" bg="#fff7ed" size="md">📚 {selectedCls.className}</Tag>}
               {ctxSection && <Tag color="#8b5cf6" bg="#f5f3ff" size="md">📋 {ctxSection}반</Tag>}
-              <button onClick={() => { setCtxSchool(''); setCtxClass(''); setCtxSection('') }}
+              <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxClass(''); setCtxSection('') }}
                 style={{ fontSize: '11px', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'Noto Sans KR, sans-serif' }}>초기화</button>
             </div>
           )}

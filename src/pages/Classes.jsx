@@ -33,7 +33,8 @@ async function toBase64(file) {
 }
 
 export function Classes({ user }) {
-  const [view, setView] = useState('요일별')
+  const [view,    setView]    = useState('요일별')
+  const [selYear, setSelYear] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState(emptyForm())
@@ -45,7 +46,9 @@ export function Classes({ user }) {
   const [alarmToast, setAlarmToast] = useState(null) // { className, minutesBefore, type: 'start'|'end' }
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
-  const classes = ClassesDB.byTeacher(user.id)
+  const allClasses = ClassesDB.byTeacher(user.id)
+  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
+  const classes = selYear ? allClasses.filter(c => c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) : allClasses
   const t = today()
 
   // 알람: 1분마다 시작/종료 시간 체크
@@ -190,6 +193,16 @@ export function Classes({ user }) {
         sub="수업을 등록하고 일정을 관리합니다."
         right={<Btn onClick={openAdd}>+ 수업 등록</Btn>}
       />
+
+      {/* 년도 필터 */}
+      {years.length > 0 && (
+        <div style={{ display:'flex', gap:'8px', marginBottom:'12px', flexWrap:'wrap' }}>
+          <button onClick={() => setSelYear('')} style={{ padding:'6px 14px', borderRadius:'8px', border:'none', cursor:'pointer', background:selYear===''?'#18181b':'#f3f4f6', color:selYear===''?'#fff':'#374151', fontWeight:selYear===''?700:400, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>전체</button>
+          {years.map(y => (
+            <button key={y} onClick={() => setSelYear(y)} style={{ padding:'6px 14px', borderRadius:'8px', border:'none', cursor:'pointer', background:selYear===y?'#18181b':'#f3f4f6', color:selYear===y?'#fff':'#374151', fontWeight:selYear===y?700:400, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>{y}년</button>
+          ))}
+        </div>
+      )}
 
       {/* 뷰 탭 */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
