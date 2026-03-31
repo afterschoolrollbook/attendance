@@ -41,6 +41,16 @@ function promoteNextWaiting(classId) {
 export function Students({ user, onNav }) {
   const classes = ClassesDB.byTeacher(user.id)
 
+  // 기존 '1학년' 형태 grade 데이터 → 숫자로 마이그레이션
+  React.useEffect(() => {
+    const all = StudentsDB.byTeacher(user.id)
+    all.forEach(s => {
+      if (s.grade && s.grade.includes('학년')) {
+        StudentsDB.update(s.id, { grade: s.grade.replace('학년', '').trim() })
+      }
+    })
+  }, [])
+
   const [ctxYear,    setCtxYear]    = useState('')
   const [ctxSchool,  setCtxSchool]  = useState('')
   const [ctxClass,   setCtxClass]   = useState('')
