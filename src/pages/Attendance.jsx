@@ -539,27 +539,75 @@ export function Attendance({ user, pageParams = {} }) {
   const today = todayStr()
   const now_ = new Date()
   const allClasses = ClassesDB.byTeacher(user.id)
+  const allStudents = StudentsDB.byTeacher(user.id)
   const schools = [...new Set(allClasses.map(c => c.organization).filter(Boolean))]
 
-  const [selSchool, setSelSchool] = useState(() => {
-    if (pageParams.classId) { const cls = allClasses.find(c=>c.id===pageParams.classId); return cls?.organization || schools[0] || '' }
-    return schools[0] || ''
+  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
+  const currentYear = String(now_.getFullYear())
+  if (!years.includes(currentYear)) years.unshift(currentYear)
+
+  const [selYear,    setSelYear]    = useState(() => {
+    if (pageParams.classId) { const cls = allClasses.find(c=>c.id===pageParams.classId); return cls?.startDate?.slice(0,4) || currentYear }
+    return currentYear
+  })
+  const [selSchool,  setSelSchool]  = useState(() => {
+    if (pageParams.classId) { const cls = allClasses.find(c=>c.id===pageParams.classId); return cls?.organization || '' }
+    return ''
   })
   const [selClassId, setSelClassId] = useState(() => pageParams.classId || '')
-  const [selDate, setSelDate] = useState(() => pageParams.date || today)
-  const [calYear,  setCalYear]  = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getFullYear() })
-  const [calMonth, setCalMonth] = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getMonth() })
+  const [selSection, setSelSection] = useState('')
+  const [selTerm,    setSelTerm]    = useState('')
+  const [selDate,    setSelDate]    = useState(() => pageParams.date || today)
+  const [calYear,    setCalYear]    = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getFullYear() })
+  const [calMonth,   setCalMonth]   = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getMonth() })
 
-  const schoolClasses = allClasses.filter(c => !selSchool || c.organization === selSchool)
+  // 기간 필터 날짜 범위 계산
+  const TERM_RANGES = {
+    q1: ['-01-01', '-03-31'], q2: ['-04-01', '-06-30'],
+    q3: ['-07-01', '-09-30'], q4: ['-10-01', '-12-31'],
+    s1: ['-03-01', '-08-31'], s2: ['-09-01', '-02-28'],
+  }
+  const termInRange = (cls) => {
+    if (!selTerm) return true
+    const r = TERM_RANGES[selTerm]
+    if (!r) return true
+    const y = selTerm === 's2' ? String(Number(selYear)) : selYear
+    const nextY = String(Number(selYear) + 1)
+    const from = selTerm === 's2' ? y + r[0] : selYear + r[0]
+    const to   = selTerm === 's2' ? nextY + r[1] : selYear + r[1]
+    return (cls.startDate || '') <= to && (cls.endDate || '') >= from
+  }
+
+  // 필터 적용된 수업 목록 (년도 + 학교 + 기간)
+  const schoolClasses = allClasses.filter(c =>
+    (!selYear   || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) &&
+    (!selSchool || c.organization === selSchool) &&
+    termInRange(c)
+  )
   const selClass = allClasses.find(c => c.id === selClassId)
   const sessionDates = selClass ? calcSessionDates(selClass) : []
-  const students = selClassId ? StudentsDB.byClass(selClassId) : []
+  // 수업 선택 시 해당 수업의 반 목록 (같은 학교+수업명 내 section 목록)
+  const sections = selClassId
+    ? [...new Set(schoolClasses.filter(c => c.className === selClass?.className && c.organization === selClass?.organization).map(c => c.section).filter(Boolean))]
+    : []
+
+  // ★ 핵심: 수업 미선택이면 전체 학생, 선택하면 해당 수업+반 학생만
+  const students = selClassId
+    ? allStudents.filter(s => {
+        if (!s.classIds?.includes(selClassId)) return false
+        if (selSection && s.classNum !== selSection) return false
+        return true
+      })
+    : selSchool
+      ? allStudents.filter(s => {
+          const cls = allClasses.find(c => c.organization === selSchool && s.classIds?.includes(c.id))
+          return !!cls
+        })
+      : allStudents
 
   const handleSchoolChange = (school) => {
     setSelSchool(school)
-    const first = allClasses.find(c => c.organization === school)
-    setSelClassId(first?.id || '')
-    setSelDate(today)
+    setSelClassId('')  // 수업 초기화 → 해당 학교 전체 학생 표시
   }
 
   const handleSelectDate = (date) => {
@@ -570,9 +618,9 @@ export function Attendance({ user, pageParams = {} }) {
 
   const prevMonth = () => { if (calMonth===0){setCalYear(y=>y-1);setCalMonth(11)}else setCalMonth(m=>m-1) }
   const nextMonth = () => { if (calMonth===11){setCalYear(y=>y+1);setCalMonth(0)}else setCalMonth(m=>m+1) }
-  const goToday = () => { const d=new Date(); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); setSelDate(today) }
+  const goToday   = () => { const d=new Date(); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); setSelDate(today) }
 
-  const isSessionDate = sessionDates.includes(selDate)
+  const isSessionDate = selClass ? sessionDates.includes(selDate) : true  // 수업 미선택 시 날짜 제한 없음
   const isPast = selDate <= today
   const monthSessions = sessionDates.filter(d => d.startsWith(`${calYear}-${String(calMonth+1).padStart(2,'0')}`))
 
@@ -580,31 +628,64 @@ export function Attendance({ user, pageParams = {} }) {
     <div style={{ padding:'24px', maxWidth:'1100px', display:'flex', flexDirection:'column', gap:'20px' }}>
       <div style={{ fontSize:'22px', fontWeight:700, color:C.text }}>출석부</div>
 
-      {/* 수업 선택 */}
+      {/* 필터 — 년도 / 학교 / 수업 / 반 / 기간 */}
       <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px 20px', display:'flex', gap:'12px', flexWrap:'wrap', alignItems:'flex-end' }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+          <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>년도</label>
+          <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelClassId(''); setSelTerm('') }} style={selSt}>
+            {years.map(y => <option key={y} value={y}>{y}년</option>)}
+          </select>
+        </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
           <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>학교</label>
           <select value={selSchool} onChange={e => handleSchoolChange(e.target.value)} style={selSt}>
-            <option value="">전체</option>
-            {schools.map(s => <option key={s} value={s}>{s}</option>)}
+            <option value="">전체 학교</option>
+            {[...new Set(allClasses.filter(c => !selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)).map(c => c.organization).filter(Boolean))].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
           <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>수업</label>
-          <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelDate(today) }} style={selSt}>
-            <option value="">-- 선택 --</option>
+          <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelSection('') }} style={selSt}>
+            <option value="">전체 수업</option>
             {schoolClasses.map(c => <option key={c.id} value={c.id}>{c.className}{c.section?' '+c.section+'반':''}</option>)}
           </select>
         </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+          <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>반</label>
+          <select value={selSection} onChange={e => setSelSection(e.target.value)} style={{ ...selSt, minWidth:'110px' }} disabled={!selClassId || sections.length === 0}>
+            <option value="">전체 반</option>
+            {sections.map(s => <option key={s} value={s}>{s}반</option>)}
+          </select>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+          <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>기간</label>
+          <select value={selTerm} onChange={e => { setSelTerm(e.target.value); setSelClassId('') }} style={selSt}>
+            <option value="">전체 기간</option>
+            <optgroup label="── 분기제 ──">
+              <option value="q1">1분기 (1~3월)</option>
+              <option value="q2">2분기 (4~6월)</option>
+              <option value="q3">3분기 (7~9월)</option>
+              <option value="q4">4분기 (10~12월)</option>
+            </optgroup>
+            <optgroup label="── 학기제 ──">
+              <option value="s1">1학기 (3~8월)</option>
+              <option value="s2">2학기 (9~2월)</option>
+            </optgroup>
+          </select>
+        </div>
         {selClass && <div style={{ fontSize:'13px', color:C.muted, marginBottom:'4px' }}>📅 {selClass.startDate} ~ {selClass.endDate} · 총 {sessionDates.length}차시</div>}
+        <div style={{ fontSize:'13px', color:C.muted, marginBottom:'4px', marginLeft:'auto' }}>
+          👥 {students.filter(s => ['applied','selected','confirmed'].includes(s.status)).length}명
+        </div>
       </div>
 
+      {/* 항상 달력 + 패널 레이아웃 */}
       <div style={{ display:'grid', gridTemplateColumns:'300px 1fr', gap:'20px', alignItems:'start' }}>
-        {/* 달력 — 항상 표시 */}
+        {/* 달력 */}
         <div style={{ background:C.card, borderRadius:'16px', border:`1px solid ${C.border}`, padding:'20px', position:'sticky', top:'24px' }}>
           <AttCalendar year={calYear} month={calMonth} selectedDate={selDate} sessionDates={sessionDates}
             onSelect={handleSelectDate} onPrevMonth={prevMonth} onNextMonth={nextMonth} onToday={goToday} />
-          {selClassId && (
+          {selClassId && monthSessions.length > 0 && (
             <div style={{ marginTop:'14px', padding:'12px 14px', background:'#fff7ed', borderRadius:'10px' }}>
               <div style={{ fontSize:'12px', fontWeight:700, color:'#92400e', marginBottom:'6px' }}>이달 수업 {monthSessions.length}회</div>
               {monthSessions.slice(0,8).map(d => {
@@ -625,23 +706,43 @@ export function Attendance({ user, pageParams = {} }) {
 
         {/* 오른쪽 패널 */}
         <div>
-          {!selClassId ? (
-            <div style={{ textAlign:'center', padding:'80px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
-              <div style={{ fontSize:'44px', marginBottom:'12px' }}>✅</div>
-              <div style={{ fontSize:'16px', fontWeight:600, color:'#374151' }}>학교와 수업을 선택하세요</div>
-              <div style={{ fontSize:'13px', marginTop:'6px' }}>위에서 학교·수업을 선택하면 출석체크가 시작됩니다</div>
+          {students.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
+              <div style={{ fontSize:'36px', marginBottom:'10px' }}>👥</div>
+              <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>학생이 없습니다</div>
+              <div style={{ fontSize:'13px', marginTop:'6px' }}>학생 관리에서 학생을 먼저 등록해 주세요</div>
+            </div>
+          ) : !selClassId ? (
+            // 수업 미선택: 전체/학교별 학생 목록만 표시 (출석체크는 수업 선택 후)
+            <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+              <div style={{ padding:'14px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>📋 전체 학생 목록</span>
+                <span style={{ fontSize:'13px', color:C.muted }}>출석체크하려면 수업을 선택하세요</span>
+              </div>
+              {students.filter(s => ['applied','selected','confirmed'].includes(s.status)).map((s, i, arr) => {
+                const cls = allClasses.find(c => s.classIds?.includes(c.id))
+                return (
+                  <div key={s.id} style={{ display:'grid', gridTemplateColumns:'32px 1fr 100px 120px 80px', gap:'8px', alignItems:'center', padding:'10px 20px', borderBottom: i<arr.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa' }}>
+                    <span style={{ fontSize:'13px', color:C.muted, textAlign:'center' }}>{i+1}</span>
+                    <div>
+                      <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{s.name}</span>
+                      <span style={{ fontSize:'12px', color:C.muted, marginLeft:'8px' }}>{s.school} {s.grade}</span>
+                    </div>
+                    <span style={{ fontSize:'12px', color:'#6b7280' }}>{cls ? `${cls.className}${cls.section?' '+cls.section+'반':''}` : '-'}</span>
+                    <span style={{ fontSize:'12px', color:'#6b7280' }}>{fmtPhone(s.parentPhone)}</span>
+                    <button onClick={() => setSelClassId(cls?.id || '')} disabled={!cls}
+                      style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background:cls?C.primary:'#e5e7eb', color:cls?'#fff':'#9ca3af', fontSize:'11px', fontWeight:600, cursor:cls?'pointer':'default', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      출석체크
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           ) : !isSessionDate ? (
             <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
               <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
               <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업이 없는 날입니다</div>
               <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
-            </div>
-          ) : students.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
-              <div style={{ fontSize:'36px', marginBottom:'10px' }}>👥</div>
-              <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>등록된 학생이 없습니다</div>
-              <div style={{ fontSize:'13px', marginTop:'6px', color:C.muted }}>학생 관리에서 이 수업에 학생을 추가하세요</div>
             </div>
           ) : isPast ? (
             <AttendancePanel cls={selClass} date={selDate} students={students} user={user} key={selDate+selClassId} />
