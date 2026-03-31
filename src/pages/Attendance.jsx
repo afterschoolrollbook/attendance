@@ -599,17 +599,12 @@ export function Attendance({ user, pageParams = {} }) {
         {selClass && <div style={{ fontSize:'13px', color:C.muted, marginBottom:'4px' }}>📅 {selClass.startDate} ~ {selClass.endDate} · 총 {sessionDates.length}차시</div>}
       </div>
 
-      {!selClassId ? (
-        <div style={{ textAlign:'center', padding:'80px 20px', color:C.muted }}>
-          <div style={{ fontSize:'44px', marginBottom:'12px' }}>✅</div>
-          <div style={{ fontSize:'16px', fontWeight:600, color:'#374151' }}>학교와 수업을 선택하세요</div>
-        </div>
-      ) : (
-        <div style={{ display:'grid', gridTemplateColumns:'300px 1fr', gap:'20px', alignItems:'start' }}>
-          {/* 달력 */}
-          <div style={{ background:C.card, borderRadius:'16px', border:`1px solid ${C.border}`, padding:'20px', position:'sticky', top:'24px' }}>
-            <AttCalendar year={calYear} month={calMonth} selectedDate={selDate} sessionDates={sessionDates}
-              onSelect={handleSelectDate} onPrevMonth={prevMonth} onNextMonth={nextMonth} onToday={goToday} />
+      <div style={{ display:'grid', gridTemplateColumns:'300px 1fr', gap:'20px', alignItems:'start' }}>
+        {/* 달력 — 항상 표시 */}
+        <div style={{ background:C.card, borderRadius:'16px', border:`1px solid ${C.border}`, padding:'20px', position:'sticky', top:'24px' }}>
+          <AttCalendar year={calYear} month={calMonth} selectedDate={selDate} sessionDates={sessionDates}
+            onSelect={handleSelectDate} onPrevMonth={prevMonth} onNextMonth={nextMonth} onToday={goToday} />
+          {selClassId && (
             <div style={{ marginTop:'14px', padding:'12px 14px', background:'#fff7ed', borderRadius:'10px' }}>
               <div style={{ fontSize:'12px', fontWeight:700, color:'#92400e', marginBottom:'6px' }}>이달 수업 {monthSessions.length}회</div>
               {monthSessions.slice(0,8).map(d => {
@@ -625,30 +620,36 @@ export function Attendance({ user, pageParams = {} }) {
                 )
               })}
             </div>
-          </div>
-
-          {/* 오른쪽 패널 */}
-          <div>
-            {!isSessionDate ? (
-              <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
-                <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
-                <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업이 없는 날입니다</div>
-                <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
-              </div>
-            ) : students.length === 0 ? (
-              <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
-                <div style={{ fontSize:'36px', marginBottom:'10px' }}>👥</div>
-                <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>등록된 학생이 없습니다</div>
-                <div style={{ fontSize:'13px', marginTop:'6px', color:C.muted }}>학생 관리에서 이 수업에 학생을 추가하세요</div>
-              </div>
-            ) : isPast ? (
-              <AttendancePanel cls={selClass} date={selDate} students={students} user={user} key={selDate+selClassId} />
-            ) : (
-              <RosterPanel cls={selClass} date={selDate} students={students} key={selDate+selClassId} />
-            )}
-          </div>
+          )}
         </div>
-      )}
+
+        {/* 오른쪽 패널 */}
+        <div>
+          {!selClassId ? (
+            <div style={{ textAlign:'center', padding:'80px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
+              <div style={{ fontSize:'44px', marginBottom:'12px' }}>✅</div>
+              <div style={{ fontSize:'16px', fontWeight:600, color:'#374151' }}>학교와 수업을 선택하세요</div>
+              <div style={{ fontSize:'13px', marginTop:'6px' }}>위에서 학교·수업을 선택하면 출석체크가 시작됩니다</div>
+            </div>
+          ) : !isSessionDate ? (
+            <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
+              <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
+              <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업이 없는 날입니다</div>
+              <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
+            </div>
+          ) : students.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
+              <div style={{ fontSize:'36px', marginBottom:'10px' }}>👥</div>
+              <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>등록된 학생이 없습니다</div>
+              <div style={{ fontSize:'13px', marginTop:'6px', color:C.muted }}>학생 관리에서 이 수업에 학생을 추가하세요</div>
+            </div>
+          ) : isPast ? (
+            <AttendancePanel cls={selClass} date={selDate} students={students} user={user} key={selDate+selClassId} />
+          ) : (
+            <RosterPanel cls={selClass} date={selDate} students={students} key={selDate+selClassId} />
+          )}
+        </div>
+      </div>
     </div>
   )
 }
