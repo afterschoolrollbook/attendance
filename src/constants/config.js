@@ -1,7 +1,7 @@
 export const DAYS = ['월', '화', '수', '목', '금', '토', '일']
 export const DAY_MAP = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 }
 
-export const GRADES = ['1학년', '2학년', '3학년', '4학년', '5학년', '6학년']
+export const GRADES = ['1', '2', '3', '4', '5', '6']
 
 export const TERM_TYPES = [
   { value: 'quarter', label: '분기제' },
