@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { uid, now } from '../lib/utils.js'
-import { supabase } from '../lib/supabase.js'
+
 
 const C = { primary:'#f97316', success:'#16a34a', danger:'#ef4444', border:'#e5e7eb', text:'#111827', muted:'#6b7280', card:'#fff' }
 const STORAGE_KEY = 'asa_career'
@@ -41,6 +41,7 @@ export function Career({ user }) {
     setUploading(true)
     try {
       const path = `career/${user.id}/${careerId}/${file.name}`
+      const { supabase } = await import('../lib/supabase.js')
       const { error } = await supabase.storage.from('teacher-files').upload(path, file, { upsert:true })
       if (error) throw error
       const { data } = supabase.storage.from('teacher-files').getPublicUrl(path)
@@ -88,7 +89,7 @@ export function Career({ user }) {
                 <div style={{ width:'38px', height:'38px', borderRadius:'50%', background: r.isCurrent ? C.primary : '#f3f4f6', border:`2px solid ${r.isCurrent ? C.primary : C.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, zIndex:1 }}>
                   <span style={{ fontSize:'16px' }}>{r.isCurrent ? '🏫' : '🏛'}</span>
                 </div>
-                <div style={{ flex:1, background:C.card, borderRadius:'12px', border:`1.5px solid ${r.isCurrent ? '#fed7aa' : C.border}`, padding:'14px 16px', background: r.isCurrent ? '#fffbf5' : C.card }}>
+                <div style={{ flex:1, borderRadius:'12px', border:`1.5px solid ${r.isCurrent ? '#fed7aa' : C.border}`, padding:'14px 16px', background: r.isCurrent ? '#fffbf5' : C.card }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px', marginBottom:'6px' }}>
                     <div>
                       <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>

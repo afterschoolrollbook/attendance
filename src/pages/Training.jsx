@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { uid, now } from '../lib/utils.js'
-import { supabase } from '../lib/supabase.js'
 
 const C = {
   primary:'#f97316', success:'#16a34a', danger:'#ef4444',
@@ -117,6 +116,7 @@ export function Training({ user }) {
     if (!file) return
     setUploading(true)
     try {
+      const { supabase } = await import('../lib/supabase.js')
       const path = `training/${user.id}/${trainingId}/${file.name}`
       const { error } = await supabase.storage.from('teacher-files').upload(path, file, { upsert:true })
       if (error) throw error

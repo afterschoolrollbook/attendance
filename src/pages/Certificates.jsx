@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { uid, now } from '../lib/utils.js'
-import { supabase } from '../lib/supabase.js'
+
 
 const C = { primary:'#f97316', success:'#16a34a', danger:'#ef4444', border:'#e5e7eb', text:'#111827', muted:'#6b7280', card:'#fff' }
 const STORAGE_KEY = 'asa_certificates'
@@ -46,6 +46,7 @@ export function Certificates({ user }) {
     setUploading(true)
     try {
       const path = `certificates/${user.id}/${certId}/${file.name}`
+      const { supabase } = await import('../lib/supabase.js')
       const { error } = await supabase.storage.from('teacher-files').upload(path, file, { upsert:true })
       if (error) throw error
       const { data } = supabase.storage.from('teacher-files').getPublicUrl(path)
