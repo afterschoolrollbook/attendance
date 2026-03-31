@@ -588,9 +588,11 @@ export function Attendance({ user, pageParams = {} }) {
   const selClass = allClasses.find(c => c.id === selClassId)
   const sessionDates = selClass ? calcSessionDates(selClass) : []
   // 수업 선택 시 해당 수업의 반 목록 (같은 학교+수업명 내 section 목록)
-  const sections = selClassId
-    ? [...new Set(schoolClasses.filter(c => c.className === selClass?.className && c.organization === selClass?.organization).map(c => c.section).filter(Boolean))]
+  // 같은 학교+수업명 내 반 목록 (section 기준)
+  const sectionClasses = selClassId
+    ? schoolClasses.filter(c => c.className === selClass?.className && c.organization === selClass?.organization)
     : []
+  const sections = [...new Set(sectionClasses.map(c => c.section).filter(Boolean))]
 
   // ★ 핵심: 필터 순서대로 좁혀가되 classIds 없는 학생은 학교명으로 보완 매칭
   const students = allStudents.filter(s => {
@@ -612,8 +614,15 @@ export function Attendance({ user, pageParams = {} }) {
         : selClass?.organization === s.school  // classIds 없으면 학교명으로 매칭
       if (!inClass) return false
     }
-    // 반 필터
-    if (selSection && s.classNum !== selSection) return false
+    // 반 필터: selSection은 수업 section(A/B반), 해당 section의 수업 ID로 매칭
+    if (selSection) {
+      const sectionCls = sectionClasses.find(c => c.section === selSection)
+      if (sectionCls) {
+        const inSection = s.classIds?.includes(sectionCls.id) ||
+          (!s.classIds?.length && selClass?.organization === s.school)
+        if (!inSection) return false
+      }
+    }
     return true
   })
 
