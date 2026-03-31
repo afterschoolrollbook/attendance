@@ -122,10 +122,8 @@ function PhoneAction({ phone, children }) {
         <>
           <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:999 }} />
           <div style={{ position:'absolute', top:'100%', left:0, zIndex:1000, background:'#fff', borderRadius:'10px', boxShadow:'0 4px 20px rgba(0,0,0,0.15)', border:'1px solid #e5e7eb', overflow:'hidden', minWidth:'130px', marginTop:'4px' }}>
-            {isMobile && (
-              <button onClick={() => { window.location.href=`tel:${raw}`; setOpen(false) }}
-                style={phoneActionBtn}>📞 전화하기</button>
-            )}
+            <button onClick={() => { window.location.href=`tel:${raw}`; setOpen(false) }}
+              style={phoneActionBtn}>📞 전화하기</button>
             <button onClick={() => { window.open(`sms:${raw}`); setOpen(false) }}
               style={phoneActionBtn}>💬 문자 보내기</button>
             <button onClick={() => { window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${raw}`); setOpen(false) }}
@@ -271,15 +269,19 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
             style={{ padding:'1px 6px', borderRadius:'4px', border:'1px solid #bfdbfe', background:'#eff6ff', color:'#3b82f6', fontSize:'10px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📱 문자</button>
         </div>
         {/* 출석 — 예정 버튼 */}
-        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'3px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}>
           <button onClick={handlePredictClick}
             style={{ padding:'4px 14px', borderRadius:'8px', border:'1.5px solid #93c5fd', background:'#eff6ff', color:'#3b82f6', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
             예정
           </button>
           {showInfo && (
-            <span style={{ fontSize:'10px', color:'#6b7280', textAlign:'center', lineHeight:1.3, padding:'2px 6px', background:'#f3f4f6', borderRadius:'4px' }}>
-              아직 수업일이 아닙니다
-            </span>
+            <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:2000,
+              background:'rgba(30,30,30,0.88)', color:'#fff', borderRadius:'12px', padding:'14px 24px',
+              fontSize:'14px', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif', textAlign:'center',
+              boxShadow:'0 8px 32px rgba(0,0,0,0.25)', pointerEvents:'none' }}>
+              🗓️ 아직 수업일이 아닙니다<br/>
+              <span style={{ fontSize:'12px', fontWeight:400, opacity:0.8 }}>당일부터 출석체크가 가능합니다</span>
+            </div>
           )}
         </div>
         {/* 메모 */}
@@ -546,18 +548,9 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
         {sorted.length === 0
           ? <div style={{ padding:'24px', textAlign:'center', color:C.muted, fontSize:'13px' }}>등록된 학생이 없습니다</div>
           : sorted.map((s, i) =>
-              isFuture ? (
-                <div key={s.id} style={{ display:'grid', gridTemplateColumns:'36px 90px 80px 120px 200px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom:i<sorted.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
-                  <span style={{ fontSize:'12px', color:C.muted }}>{i+1}</span>
-                  <span style={{ fontSize:'12px', color:C.muted }}>{s.grade?s.grade+'학년':''}{s.classNum?' '+s.classNum+'반':''}{s.number?' '+s.number+'번':''}</span>
-                  <span onClick={() => setSelStudent(s)} style={{ fontSize:'14px', fontWeight:700, color:C.primary, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:'2px' }}>{s.name}</span>
-                  <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone)||'-'}</PhoneAction>
-                  <span style={{ fontSize:'12px', color:'#3b82f6' }}>예정</span>
-                  <span style={{ fontSize:'11px', color:'#92400e', textAlign:'left' }}>{s.memo?'📌 '+s.memo:'-'}</span>
-                </div>
-              ) : (
-                <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
-              )
+              isFuture
+                ? <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
+                : <StudentRow      key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
             )
         }
         {inactiveStudents.length > 0 && (
