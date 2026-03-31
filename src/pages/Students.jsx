@@ -334,10 +334,8 @@ export function Students({ user, onNav }) {
         [`학교: ${schoolName}`, `과목: ${subjectName}`, `요일: ${daysStr}`, `시간: ${timeStr}`, '', ''],
         ['※ 위 정보는 자동 적용됩니다. 아래 학생 정보만 입력하세요.', '', '', '', '', ''],
         [''],
-        ['학년', '학급반(예:2)', '번호', '이름 ★필수', '학부모전화번호', '학생전화번호'],
-        ['3학년', '2', '5', '홍길동', '010-1234-5678', ''],
-        ['4학년', '1', '12', '이영희', '010-9876-5432', '010-1111-2222'],
-        ['3학년', '3', '8', '박철수', '010-5555-6666', ''],
+        ['학년(숫자만)', '학급반(예:2)', '번호', '이름 ★필수', '학부모전화번호', '학생전화번호'],
+        ['← 이 행을 삭제하고 학생 정보를 입력하세요', '', '', '', '', ''],
       ]
       const ws = XLSX.utils.aoa_to_sheet(rows)
       ws['!cols'] = [{wch:8},{wch:8},{wch:6},{wch:14},{wch:16},{wch:16}]
@@ -750,7 +748,7 @@ export function Students({ user, onNav }) {
                   샘플에서 <strong>학년 / 학급반 / 번호 / 이름 / 학부모전화번호</strong>만 채워서 업로드하세요.
                 </div>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                  {['학년', '학급반(예:2)', '번호', '이름 ★', '학부모전화번호', '학생전화번호'].map((c, i) => (
+                  {['학년(숫자만)', '학급반(예:2)', '번호', '이름 ★', '학부모전화번호', '학생전화번호'].map((c, i) => (
                     <span key={c} style={{ padding:'3px 9px',borderRadius:'5px',fontSize:'12px',fontWeight:600,background:i===3?'#fff7ed':'#f3f4f6',border:i===3?'1.5px solid #fed7aa':'1px solid #e5e7eb',color:i===3?'#c2410c':'#374151' }}>{c}</span>
                   ))}
                 </div>
