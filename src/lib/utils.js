@@ -111,6 +111,30 @@ export function getSession(cls, date) {
   return idx === -1 ? null : idx + 1
 }
 
+// 특정 날짜의 상세 차시 정보 { total, termNum, termSess }
+export function getSessionInfo(cls, date) {
+  const sessions = calcSessionDates(cls)
+  const cancelled = new Set((cls.cancelledDates || []).map(c => c.date))
+  const termSizes = (cls.termSizes?.length > 0)
+    ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length).map(n => Number(n) || 4)
+    : [cls.termSize ? Number(cls.termSize) : 4]
+
+  let totalIdx = 1, cursor = 0
+  for (let ti = 0; ti < termSizes.length; ti++) {
+    const size = termSizes[ti]
+    let termIdx = 1
+    const slice = sessions.slice(cursor, cursor + size)
+    for (const d of slice) {
+      if (!cancelled.has(d)) {
+        if (d === date) return { total: totalIdx, termNum: ti + 1, termSess: termIdx }
+        totalIdx++; termIdx++
+      }
+    }
+    cursor += size
+  }
+  return null
+}
+
 // 출석률 계산
 export function calcRate(records) {
   if (!records.length) return 0
