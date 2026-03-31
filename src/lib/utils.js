@@ -90,7 +90,13 @@ export function calcSessionDates(cls) {
     }
     cur.setDate(cur.getDate() + 1)
   }
-  return result
+  // 보강일 추가 (makeupDates)
+  const makeupSet = (cls.makeupDates || []).map(m => m.date)
+  makeupSet.forEach(d => {
+    if (d && !cancelled.has(d) && !result.includes(d)) result.push(d)
+  })
+
+  return result.sort()
 }
 
 // 해당 날짜가 그 달의 몇 번째 같은 요일인지 반환
