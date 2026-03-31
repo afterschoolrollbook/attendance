@@ -360,8 +360,203 @@ function InactiveStudentRow({ s, idx }) {
   )
 }
 
-// ─── 출석체크 패널 (오늘/과거)
-function AttendancePanel({ cls, date, students, user }) {
+// ─── 통합 패널 (수강생 명단 + 수업준비메모 + 출석체크 — 모드에 따라 표시)
+function UnifiedPanel({ cls, date, students, user }) {
+  const today = todayStr()
+  const isSessionDate = cls ? calcSessionDates(cls).includes(date) : false
+  const isFuture = date > today
+  const isPast   = date < today
+  const isToday  = date === today
+  const showAttendance = isSessionDate && !isFuture  // 오늘 or 과거 수업일
+
+  const [tick,         setTick]         = useState(0)
+  const [msgStudent,   setMsgStudent]   = useState(null)
+  const [selStudent,   setSelStudent]   = useState(null)
+  const [showInactive, setShowInactive] = useState(false)
+
+  // 수업 준비 메모 (미래 수업일 때만 사용)
+  const noteKey = cls ? date+'_'+cls.id : null
+  const [notes,   setNotes]   = useState(() => noteKey ? Notes.byTeacherDate(cls.teacherId, noteKey) : [])
+  const [newNote, setNewNote] = useState('')
+  const [adding,  setAdding]  = useState(false)
+  const inputRef = useRef()
+  const addNote = () => {
+    if (!newNote.trim() || !cls) return
+    Notes.insert({ id: uid(), teacherId: cls.teacherId, date: noteKey, content: newNote.trim(), createdAt: now() })
+    setNotes(Notes.byTeacherDate(cls.teacherId, noteKey))
+    setNewNote(''); setAdding(false)
+  }
+  const delNote = (id) => { Notes.delete(id); setNotes(Notes.byTeacherDate(cls.teacherId, noteKey)) }
+
+  // 출석 처리
+  const records = (cls && showAttendance) ? AttendanceDB.byClassDate(cls.id, date) : []
+  const getRec  = (sid) => records.find(r => r.studentId === sid)
+  const session = cls ? getSession(cls, date) : null
+  const mark = (studentId, status, extra = {}) => {
+    if (!cls) return
+    const existing = getRec(studentId)
+    AttendanceDB.upsert({
+      id: existing?.id || uid(),
+      classId: cls.id, studentId, date,
+      session: session || 0, status,
+      note: existing?.note || '',
+      absentReason: existing?.absentReason || '',
+      homeReturn: existing?.homeReturn || '',
+      ...extra, markedAt: now(),
+    })
+    setTick(t => t+1)
+  }
+  const markAll = (status) => activeStudents.forEach(s => mark(s.id, status))
+
+  const activeStudents   = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
+  const inactiveStudents = students.filter(s => ['cancelled','waiting'].includes(s.status))
+
+  const counts = { pending:0, present:0, absent:0, late:0, early:0 }
+  if (showAttendance) activeStudents.forEach(s => { const st = getRec(s.id)?.status || 'pending'; counts[st]++ })
+  const done = activeStudents.length - counts.pending
+  const rate = activeStudents.length > 0 ? Math.round((counts.present + counts.late) / activeStudents.length * 100) : 0
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+
+      {/* ── 헤더 */}
+      {cls && date && (
+        <div style={{ padding:'14px 18px', borderRadius:'12px', border:`1.5px solid ${showAttendance ? (isPast?C.border:'#fed7aa') : '#86efac'}`, background: showAttendance ? (isPast?'#f9fafb':'linear-gradient(135deg,#fff7ed,#fff)') : 'linear-gradient(135deg,#f0fdf4,#fff)' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
+            <div>
+              <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>
+                {date} ({DAYS_KO[new Date(date+'T00:00:00').getDay()]}요일)
+                {session && <span style={{ marginLeft:'10px', fontSize:'13px', color:showAttendance?C.primary:'#16a34a', fontWeight:600 }}>{session}차시{isFuture?' 예정':''}</span>}
+              </div>
+              <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>{cls.organization} · {cls.className}{cls.section?' '+cls.section+'반':''} · {activeStudents.length}명</div>
+            </div>
+            <span style={{ fontSize:'12px', padding:'4px 10px', borderRadius:'6px', fontWeight:600,
+              background: isToday?'#f0fdf4': isPast?'#f3f4f6':'#eff6ff',
+              color:       isToday?'#16a34a': isPast?C.muted:'#3b82f6' }}>
+              {isToday?'오늘 수업': isPast?'지난 수업':'예정 수업'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── 수업 준비 메모 (미래 수업일만) */}
+      {cls && isFuture && isSessionDate && (
+        <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+          <div style={{ padding:'11px 16px', background:'#fffbeb', borderBottom:'1px solid #fde68a', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <span style={{ fontSize:'13px', fontWeight:700, color:'#92400e' }}>📝 수업 준비 메모</span>
+            <button onClick={() => { setAdding(true); setTimeout(() => inputRef.current?.focus(), 30) }}
+              style={{ padding:'3px 10px', borderRadius:'6px', border:'1.5px solid #fbbf24', background:'#fff', color:'#b45309', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
+          </div>
+          <div style={{ padding:'10px 16px', display:'flex', flexDirection:'column', gap:'7px' }}>
+            {notes.length === 0 && !adding && <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'10px 0' }}>준비사항을 기록하세요</div>}
+            {notes.map(n => (
+              <div key={n.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px', background:'#fffbeb', borderRadius:'7px', border:'1px solid #fde68a', fontSize:'13px', color:'#374151' }}>
+                <span>📌 {n.content}</span>
+                <button onClick={() => delNote(n.id)} style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'14px' }}>×</button>
+              </div>
+            ))}
+            {adding && (
+              <div style={{ display:'flex', gap:'6px' }}>
+                <input ref={inputRef} value={newNote} onChange={e => setNewNote(e.target.value)} placeholder="예: 교구 준비 / 배터리 충전"
+                  onKeyDown={e => { if (e.key==='Enter') addNote(); if (e.key==='Escape') { setAdding(false); setNewNote('') } }}
+                  style={{ flex:1, border:`1.5px solid ${C.primary}`, borderRadius:'7px', padding:'7px 11px', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                <button onClick={addNote} style={sm('#f97316','#fff')}>저장</button>
+                <button onClick={() => { setAdding(false); setNewNote('') }} style={sm('#f3f4f6','#374151')}>취소</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 출석 통계 + 일괄 버튼 (출석체크 모드만) */}
+      {showAttendance && (
+        <>
+          <div style={{ display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+              {Object.entries(ATTENDANCE_STATUS).map(([k,v]) => (
+                <div key={k} style={{ padding:'5px 10px', borderRadius:'7px', background:v.bg, border:`1px solid ${v.color}30`, fontSize:'12px', fontWeight:600, color:v.color }}>
+                  {v.emoji} {v.label} {counts[k]||0}
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:'6px' }}>
+              <button onClick={() => markAll('present')} style={actionBtn('#f0fdf4','#16a34a','#86efac')}>전체 출석</button>
+              <button onClick={() => markAll('absent')}  style={actionBtn('#fef2f2','#ef4444','#fca5a5')}>전체 결석</button>
+            </div>
+          </div>
+          <div>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px', color:C.muted, marginBottom:'5px' }}>
+              <span>처리 {done}/{activeStudents.length}</span>
+              <span style={{ fontWeight:700, color: rate>=80?'#16a34a':C.warning }}>출석률 {rate}%</span>
+            </div>
+            <div style={{ height:'6px', background:'#f3f4f6', borderRadius:'999px', overflow:'hidden' }}>
+              <div style={{ width:`${activeStudents.length ? done/activeStudents.length*100 : 0}%`, height:'100%', background:C.primary, borderRadius:'999px', transition:'width .4s' }} />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── 학생 리스트 헤더 */}
+      <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+        <div style={{ padding:'10px 16px', background:'#f9fafb', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
+            📋 {showAttendance ? '출석체크' : '수강생 명단'} ({activeStudents.length}명)
+          </span>
+          {!cls && <span style={{ fontSize:'12px', color:C.muted }}>수업을 선택하면 출석체크를 시작할 수 있습니다</span>}
+        </div>
+
+        {/* 컬럼 헤더 */}
+        <div style={{ display:'grid', gridTemplateColumns: showAttendance ? '28px 1fr 60px 60px 110px 1fr' : '28px 1fr 60px 60px 110px auto', gap:'8px', padding:'8px 16px', background:'#fafafa', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted }}>
+          <span>번호</span><span>이름</span><span>학년</span><span>반</span><span>학부모전화</span>
+          <span>{showAttendance ? '출석 상태' : '특이사항'}</span>
+        </div>
+
+        {/* 학생 행 */}
+        {activeStudents.length === 0 ? (
+          <div style={{ padding:'40px', textAlign:'center', color:C.muted, fontSize:'14px' }}>학생이 없습니다</div>
+        ) : (
+          <div>
+            {activeStudents.map((s, i) => (
+              showAttendance
+                ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
+                : (
+                  <div key={s.id} style={{ display:'grid', gridTemplateColumns:'28px 1fr 60px 60px 110px auto', gap:'8px', alignItems:'center', padding:'10px 16px', borderBottom: i<activeStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa' }}>
+                    <span style={{ fontSize:'12px', color:C.muted, textAlign:'center' }}>{s.number||i+1}</span>
+                    <span onClick={() => setSelStudent(s)} style={{ fontSize:'14px', fontWeight:700, color:C.primary, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:'2px' }}>{s.name}</span>
+                    <span style={{ fontSize:'12px', color:C.muted }}>{s.grade ? s.grade+'학년' : '-'}</span>
+                    <span style={{ fontSize:'12px', color:C.muted }}>{s.classNum ? s.classNum+'반' : '-'}</span>
+                    <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone)||'-'}</PhoneAction>
+                    <span style={{ fontSize:'11px', color:'#92400e', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{s.memo ? '📌 '+s.memo : '-'}</span>
+                  </div>
+                )
+            ))}
+          </div>
+        )}
+
+        {/* 취소/대기 학생 */}
+        {inactiveStudents.length > 0 && (
+          <div style={{ borderTop:`1.5px dashed #e5e7eb` }}>
+            <button onClick={() => setShowInactive(v=>!v)}
+              style={{ display:'flex', alignItems:'center', gap:'6px', background:'#fafafa', border:'none', cursor:'pointer', padding:'10px 16px', fontFamily:'Noto Sans KR, sans-serif', width:'100%', textAlign:'left' }}>
+              <span style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af' }}>
+                {showInactive ? '▼' : '▶'} 취소·대기 {inactiveStudents.length}명
+              </span>
+              <span style={{ fontSize:'11px', color:'#d1d5db' }}>(출석 처리 제외)</span>
+            </button>
+            {showInactive && (
+              <div style={{ display:'flex', flexDirection:'column', gap:'5px', padding:'0 8px 8px' }}>
+                {inactiveStudents.map((s,i) => <InactiveStudentRow key={s.id} s={s} idx={i} />)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {msgStudent  && <MsgModal student={msgStudent} onClose={() => setMsgStudent(null)} />}
+      {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
+    </div>
+  )
+}
   const [tick, setTick] = useState(0)
   const [msgStudent, setMsgStudent] = useState(null)
   const [selStudent, setSelStudent] = useState(null)
@@ -393,94 +588,9 @@ function AttendancePanel({ cls, date, students, user }) {
 
   const markAll = (status) => activeStudents.forEach(s => mark(s.id, status))
 
-  const counts = { pending:0, present:0, absent:0, late:0, early:0 }
-  activeStudents.forEach(s => { const st = getRec(s.id)?.status || 'pending'; counts[st]++ })
-  const done = activeStudents.length - counts.pending
-  const rate = activeStudents.length > 0 ? Math.round((counts.present + counts.late) / activeStudents.length * 100) : 0
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
-      {/* 헤더 */}
-      <div style={{ padding:'14px 18px', background: isPast?'#f9fafb':'linear-gradient(135deg,#fff7ed,#fff)', borderRadius:'12px', border:`1.5px solid ${isPast?C.border:'#fed7aa'}` }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
-          <div>
-            <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>
-              {date} ({DAYS_KO[new Date(date+'T00:00:00').getDay()]}요일)
-              {session ? <span style={{ marginLeft:'10px', fontSize:'13px', color:C.primary, fontWeight:600 }}>{session}차시</span> : null}
-            </div>
-            <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>{cls.organization} · {cls.className}{cls.section?' '+cls.section+'반':''} · {activeStudents.length}명</div>
-          </div>
-          {isPast ? <span style={{ fontSize:'12px', background:'#f3f4f6', color:C.muted, padding:'4px 10px', borderRadius:'6px', fontWeight:600 }}>지난 수업</span>
-                  : <span style={{ fontSize:'12px', background:'#f0fdf4', color:'#16a34a', padding:'4px 10px', borderRadius:'6px', fontWeight:600 }}>오늘 수업</span>}
-        </div>
-      </div>
-
-      {/* 통계 + 일괄 */}
-      <div style={{ display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap', justifyContent:'space-between' }}>
-        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-          {Object.entries(ATTENDANCE_STATUS).map(([k,v]) => (
-            <div key={k} style={{ padding:'5px 10px', borderRadius:'7px', background:v.bg, border:`1px solid ${v.color}30`, fontSize:'12px', fontWeight:600, color:v.color }}>
-              {v.emoji} {v.label} {counts[k]||0}
-            </div>
-          ))}
-        </div>
-        <div style={{ display:'flex', gap:'6px' }}>
-          <button onClick={() => markAll('present')} style={actionBtn('#f0fdf4','#16a34a','#86efac')}>전체 출석</button>
-          <button onClick={() => markAll('absent')}  style={actionBtn('#fef2f2','#ef4444','#fca5a5')}>전체 결석</button>
-        </div>
-      </div>
-
-      {/* 진행률 */}
-      <div>
-        <div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px', color:C.muted, marginBottom:'5px' }}>
-          <span>처리 {done}/{activeStudents.length}</span>
-          <span style={{ fontWeight:700, color: rate>=80?'#16a34a':C.warning }}>출석률 {rate}%</span>
-        </div>
-        <div style={{ height:'6px', background:'#f3f4f6', borderRadius:'999px', overflow:'hidden' }}>
-          <div style={{ width:`${activeStudents.length ? done/activeStudents.length*100 : 0}%`, height:'100%', background:C.primary, borderRadius:'999px', transition:'width .4s' }} />
-        </div>
-      </div>
-
-      {/* 컬럼 헤더 */}
-      <div style={{ display:'grid', gridTemplateColumns:'22px 70px 90px 1fr', gap:'8px', padding:'0 14px', fontSize:'11px', fontWeight:700, color:C.muted }}>
-        <span>번호</span><span>이름</span><span>학부모</span><span style={{textAlign:'right'}}>출석 상태</span>
-      </div>
-
-      {/* 활성 학생 목록 */}
-      <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-        {activeStudents.map((s, i) => (
-          <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
-        ))}
-      </div>
-
-      {/* 취소/대기 학생 분리 섹션 */}
-      {inactiveStudents.length > 0 && (
-        <div style={{ borderTop:`1.5px dashed #e5e7eb`, paddingTop:'12px' }}>
-          <button onClick={() => setShowInactive(v=>!v)}
-            style={{ display:'flex', alignItems:'center', gap:'6px', background:'none', border:'none', cursor:'pointer', padding:'4px 0', fontFamily:'Noto Sans KR, sans-serif', marginBottom: showInactive?'10px':'0' }}>
-            <span style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af' }}>
-              {showInactive ? '▼' : '▶'} 취소·대기 학생 {inactiveStudents.length}명
-            </span>
-            <span style={{ fontSize:'11px', color:'#d1d5db' }}>(출석 처리 제외)</span>
-          </button>
-          {showInactive && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-              {inactiveStudents.map((s,i) => <InactiveStudentRow key={s.id} s={s} idx={i} />)}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 메시지 모달 */}
-      {msgStudent && <MsgModal student={msgStudent} onClose={() => setMsgStudent(null)} />}
-
-      {/* 학생 상세 팝업 */}
-      {selStudent && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
-    </div>
-  )
+function actionBtn(bg,color,border) {
+  return { padding:'6px 12px', borderRadius:'7px', border:`1.5px solid ${border}`, background:bg, color, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }
 }
-
-// ─── 학생 상세 팝업
 function StudentDetailModal({ student, onClose }) {
   return (
     <div onClick={onClose}
@@ -517,116 +627,6 @@ function actionBtn(bg,color,border) {
   return { padding:'6px 12px', borderRadius:'7px', border:`1.5px solid ${border}`, background:bg, color, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }
 }
 
-// ─── 미래 수업 명단 패널
-function RosterPanel({ cls, date, students }) {
-  const [showInactive, setShowInactive] = useState(false)
-  const [selStudent, setSelStudent] = useState(null)
-  const activeStudents   = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
-  const inactiveStudents = students.filter(s => ['cancelled','waiting'].includes(s.status))
-  const session = getSession(cls, date)
-  const [notes, setNotes] = useState(() => Notes.byTeacherDate(cls.teacherId, date+'_'+cls.id))
-  const [newNote, setNewNote] = useState(''); const [adding, setAdding] = useState(false)
-  const inputRef = useRef()
-
-  const addNote = () => {
-    if (!newNote.trim()) return
-    Notes.insert({ id: uid(), teacherId: cls.teacherId, date: date+'_'+cls.id, content: newNote.trim(), createdAt: now() })
-    setNotes(Notes.byTeacherDate(cls.teacherId, date+'_'+cls.id))
-    setNewNote(''); setAdding(false)
-  }
-  const delNote = (id) => { Notes.delete(id); setNotes(Notes.byTeacherDate(cls.teacherId, date+'_'+cls.id)) }
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
-      <div style={{ padding:'14px 18px', background:'linear-gradient(135deg,#f0fdf4,#fff)', borderRadius:'12px', border:'1.5px solid #86efac' }}>
-        <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>
-          {date} ({DAYS_KO[new Date(date+'T00:00:00').getDay()]}요일)
-          {session ? <span style={{ marginLeft:'10px', fontSize:'13px', color:'#16a34a', fontWeight:600 }}>{session}차시 예정</span> : null}
-        </div>
-        <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>{cls.organization} · {cls.className}{cls.section?' '+cls.section+'반':''} · {activeStudents.length}명</div>
-      </div>
-
-      {/* 수업 준비 메모 */}
-      <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-        <div style={{ padding:'11px 16px', background:'#fffbeb', borderBottom:'1px solid #fde68a', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <span style={{ fontSize:'13px', fontWeight:700, color:'#92400e' }}>📝 수업 준비 메모</span>
-          <button onClick={() => { setAdding(true); setTimeout(() => inputRef.current?.focus(), 30) }}
-            style={{ padding:'3px 10px', borderRadius:'6px', border:'1.5px solid #fbbf24', background:'#fff', color:'#b45309', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
-        </div>
-        <div style={{ padding:'10px 16px', display:'flex', flexDirection:'column', gap:'7px' }}>
-          {notes.length === 0 && !adding && <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'10px 0' }}>준비사항을 기록하세요</div>}
-          {notes.map(n => (
-            <div key={n.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px', background:'#fffbeb', borderRadius:'7px', border:'1px solid #fde68a', fontSize:'13px', color:'#374151' }}>
-              <span>📌 {n.content}</span>
-              <button onClick={() => delNote(n.id)} style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'14px' }}>×</button>
-            </div>
-          ))}
-          {adding && (
-            <div style={{ display:'flex', gap:'6px' }}>
-              <input ref={inputRef} value={newNote} onChange={e => setNewNote(e.target.value)} placeholder="예: 교구 준비 / 배터리 충전"
-                onKeyDown={e => { if (e.key==='Enter') addNote(); if (e.key==='Escape') { setAdding(false); setNewNote('') } }}
-                style={{ flex:1, border:`1.5px solid ${C.primary}`, borderRadius:'7px', padding:'7px 11px', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-              <button onClick={addNote} style={sm('#f97316','#fff')}>저장</button>
-              <button onClick={() => { setAdding(false); setNewNote('') }} style={sm('#f3f4f6','#374151')}>취소</button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 명단 */}
-      <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-        <div style={{ padding:'11px 16px', background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
-          <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>📋 수강생 명단 ({activeStudents.length}명)</span>
-        </div>
-        {/* 컬럼 헤더 */}
-        <div style={{ display:'grid', gridTemplateColumns:'28px 1fr 60px 60px 60px auto', gap:'8px', padding:'8px 16px', background:'#fafafa', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted }}>
-          <span>번호</span><span>이름</span><span>학년</span><span>반</span><span>학부모전화</span><span>특이사항</span>
-        </div>
-        {activeStudents.map((s, i) => (
-          <div key={s.id} style={{ display:'grid', gridTemplateColumns:'28px 1fr 60px 60px 110px auto', gap:'8px', alignItems:'center', padding:'10px 16px', borderBottom: i<activeStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa' }}>
-            <span style={{ fontSize:'12px', color:C.muted, textAlign:'center' }}>{s.number||i+1}</span>
-            <span onClick={() => setSelStudent(s)}
-              style={{ fontSize:'14px', fontWeight:700, color:C.primary, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:'2px' }}>{s.name}</span>
-            <span style={{ fontSize:'12px', color:C.muted }}>{s.grade ? s.grade+'학년' : '-'}</span>
-            <span style={{ fontSize:'12px', color:C.muted }}>{s.classNum?s.classNum+'반':'-'}</span>
-            <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone)||'-'}</PhoneAction>
-            <span style={{ fontSize:'11px', color:'#92400e', maxWidth:'120px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-              {s.memo ? '📌 '+s.memo : '-'}
-            </span>
-          </div>
-        ))}
-
-        {/* 취소/대기 학생 분리 섹션 */}
-        {inactiveStudents.length > 0 && (
-          <div style={{ borderTop:`1.5px dashed #e5e7eb` }}>
-            <button onClick={() => setShowInactive(v=>!v)}
-              style={{ display:'flex', alignItems:'center', gap:'6px', background:'#fafafa', border:'none', cursor:'pointer', padding:'10px 16px', fontFamily:'Noto Sans KR, sans-serif', width:'100%', textAlign:'left' }}>
-              <span style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af' }}>
-                {showInactive ? '▼' : '▶'} 취소·대기 {inactiveStudents.length}명
-              </span>
-            </button>
-            {showInactive && inactiveStudents.map((s,i) => (
-              <div key={s.id} style={{ display:'grid', gridTemplateColumns:'28px 1fr 60px 60px 100px auto', gap:'8px', alignItems:'center', padding:'9px 16px', borderTop:`1px solid #f3f4f6`, background:'#fafafa', opacity:0.65 }}>
-                <span style={{ fontSize:'12px', color:'#d1d5db', textAlign:'center' }}>{s.number||i+1}</span>
-                <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                  <span style={{ fontSize:'14px', fontWeight:700, color:'#9ca3af' }}>{s.name}</span>
-                  <span style={{ fontSize:'11px', padding:'1px 7px', borderRadius:'5px', background: s.status==='cancelled'?'#fef2f2':'#fffbeb', color: s.status==='cancelled'?'#ef4444':'#f59e0b', fontWeight:700, border:`1px solid ${s.status==='cancelled'?'#fca5a5':'#fde68a'}` }}>
-                    {s.status==='cancelled'?'취소':'대기'}
-                  </span>
-                </div>
-                <span style={{ fontSize:'12px', color:'#d1d5db' }}>{s.grade}</span>
-                <span style={{ fontSize:'12px', color:'#d1d5db' }}>{s.classNum?s.classNum+'반':'-'}</span>
-                <span style={{ fontSize:'11px', color:'#d1d5db' }}>{fmtPhone(s.parentPhone)||'-'}</span>
-                <span style={{ fontSize:'11px', color:'#d1d5db' }}>{s.memo?'📌 '+s.memo:'-'}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      {selStudent && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
-    </div>
-  )
-}
 export function Attendance({ user, pageParams = {} }) {
   const today = todayStr()
   const now_ = new Date()
@@ -650,8 +650,7 @@ export function Attendance({ user, pageParams = {} }) {
   const [selSection, setSelSection] = useState('')
   const [selTerm,    setSelTerm]    = useState('')
   const [selDate,    setSelDate]    = useState(() => pageParams.date || today)
-  const [dateClicked, setDateClicked] = useState(false)  // 달력에서 직접 클릭했는지 여부
-  const [selStudent,  setSelStudent]  = useState(null)  // 학생 상세보기
+  const [dateClicked, setDateClicked] = useState(false)
   const [calYear,    setCalYear]    = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getFullYear() })
   const [calMonth,   setCalMonth]   = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getMonth() })
 
@@ -860,98 +859,25 @@ export function Attendance({ user, pageParams = {} }) {
           )}
         </div>
 
-        {/* 오른쪽 패널 */}
+        {/* 오른쪽 패널 — 항상 UnifiedPanel */}
         <div>
-          {(() => {
-            const activeStudents = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
-
-            // 수업 선택 + 달력에서 날짜 클릭 → 출석체크 패널
-            if (dateClicked && selClassId) {
-              if (!isSessionDate) {
-                return (
-                  <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
-                    <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
-                    <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업이 없는 날입니다</div>
-                    <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
-                  </div>
-                )
-              }
-              return isPast
-                ? <AttendancePanel cls={selClass} date={selDate} students={students} user={user} key={selDate+selClassId} />
-                : <RosterPanel cls={selClass} date={selDate} students={students} key={selDate+selClassId} />
-            }
-
-            // 날짜 미선택 → 필터에 맞는 학생 목록 표시
-            if (activeStudents.length === 0) {
-              return (
-                <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
-                  <div style={{ fontSize:'36px', marginBottom:'10px' }}>👥</div>
-                  <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>학생이 없습니다</div>
-                </div>
-              )
-            }
-
-            return (
-              <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-                <div style={{ padding:'12px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>📋 학생 목록 ({activeStudents.length}명)</span>
-                  <span style={{ fontSize:'13px', color:C.muted }}>달력에서 수업일을 클릭하면 출석체크가 시작됩니다</span>
-                </div>
-                <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                  <thead>
-                    <tr style={{ background:'#f9fafb', borderBottom:'1px solid #e5e7eb' }}>
-                      {['순번','학교','수업 · 반','학년 / 반 / 번호','이름','학부모 전화','상태'].map(h => (
-                        <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', whiteSpace:'nowrap' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeStudents.map((s, i) => {
-                      const sClasses = (s.classIds||[]).map(cid => {
-                        const cls = allClasses.find(c => c.id === cid)
-                        return cls ? cls.className+(cls.section?' '+cls.section+'반':'') : null
-                      }).filter(Boolean)
-                      const STATUS_LABEL = { applied:'신청', waiting:'대기', selected:'추첨완료', confirmed:'최종확정', cancelled:'취소' }
-                      const STATUS_COLOR = { applied:'#3b82f6', waiting:'#f59e0b', selected:'#8b5cf6', confirmed:'#16a34a', cancelled:'#9ca3af' }
-                      return (
-                        <tr key={s.id} onClick={() => setSelStudent(s)}
-                          style={{ borderBottom:'1px solid #f3f4f6', background:i%2===0?'#fff':'#fafafa', cursor:'pointer' }}
-                          onMouseEnter={e => e.currentTarget.style.background='#fff7ed'}
-                          onMouseLeave={e => e.currentTarget.style.background=i%2===0?'#fff':'#fafafa'}>
-                          <td style={{ padding:'10px 14px', fontSize:'13px', color:'#9ca3af', textAlign:'center' }}>{i+1}</td>
-                          <td style={{ padding:'10px 14px', fontSize:'13px', color:'#6b7280', whiteSpace:'nowrap' }}>{s.school}</td>
-                          <td style={{ padding:'10px 14px' }}>
-                            <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
-                              {sClasses.map(c => (
-                                <span key={c} style={{ fontSize:'12px', color:'#6b7280', background:'#f3f4f6', padding:'2px 8px', borderRadius:'6px' }}>{c}</span>
-                              ))}
-                            </div>
-                          </td>
-                          <td style={{ padding:'10px 14px', fontSize:'13px', color:'#374151', whiteSpace:'nowrap' }}>
-                            {s.grade ? s.grade+'학년' : '-'}
-                            {s.classNum && <span style={{ marginLeft:'4px', padding:'1px 7px', borderRadius:'5px', background:'#f0fdf4', color:'#16a34a', fontWeight:600, fontSize:'12px' }}>{s.classNum}반</span>}
-                            {s.number && <span style={{ marginLeft:'4px', color:'#9ca3af', fontSize:'12px' }}>{s.number}번</span>}
-                          </td>
-                          <td style={{ padding:'10px 14px', fontSize:'14px', fontWeight:700, color:'#111827', whiteSpace:'nowrap' }}>{s.name}</td>
-                          <td style={{ padding:'10px 14px', fontSize:'13px', color:'#6b7280', whiteSpace:'nowrap' }}>{fmtPhone(s.parentPhone)||'-'}</td>
-                          <td style={{ padding:'10px 14px' }}>
-                            <span style={{ padding:'3px 10px', borderRadius:'6px', fontSize:'12px', fontWeight:600,
-                              background: STATUS_COLOR[s.status]+'18', color: STATUS_COLOR[s.status]||'#9ca3af' }}>
-                              {STATUS_LABEL[s.status]||s.status}
-                            </span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )
-          })()}
+          {selClassId && !isSessionDate && dateClicked ? (
+            <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
+              <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
+              <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업이 없는 날입니다</div>
+              <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
+            </div>
+          ) : (
+            <UnifiedPanel
+              cls={selClass || null}
+              date={selDate}
+              students={students}
+              user={user}
+              key={selDate + selClassId}
+            />
+          )}
         </div>
       </div>
-      {/* 학생 상세 모달 */}
-      {selStudent && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
     </div>
   )
 }
