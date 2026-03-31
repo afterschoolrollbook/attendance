@@ -1,7 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, fmtPhone } from '../lib/utils.js'
-import { ATTENDANCE_STATUS, ABSENT_REASONS, HOME_RETURN_TYPES } from '../constants/config.js'
+import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
+
+// 결석 사유 (출석체크용 확장)
+const ABSENT_REASONS = [
+  { value: '',           label: '사유 없음' },
+  { value: 'sick',       label: '질병' },
+  { value: 'field_trip', label: '현장학습' },
+  { value: 'exp_trip',   label: '체험학습' },
+  { value: 'condolence', label: '경조사' },
+  { value: 'personal',   label: '개인사유' },
+  { value: 'unexcused',  label: '무단' },
+  { value: 'infection',  label: '법정감염병' },
+  { value: 'etc',        label: '기타' },
+]
 
 const DAYS_KO = ['일','월','화','수','목','금','토']
 const MONTHS  = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
@@ -88,6 +101,38 @@ function AttCalendar({ year, month, selectedDate, sessionDates, onSelect, onPrev
 
 const navBtn = { width:'28px',height:'28px',borderRadius:'7px',border:'1px solid #e5e7eb',background:'#fff',cursor:'pointer',fontSize:'16px',display:'flex',alignItems:'center',justifyContent:'center' }
 
+// ─── 전화번호 클릭 액션 (문자/전화/카톡)
+function PhoneAction({ phone, children }) {
+  const [open, setOpen] = useState(false)
+  const raw = (phone || '').replace(/[^0-9]/g, '')
+  if (!raw) return <span style={{ fontSize:'11px', color:'#9ca3af' }}>-</span>
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  return (
+    <div style={{ position:'relative', display:'inline-block' }}>
+      <span onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+        style={{ fontSize:'11px', color:'#3b82f6', cursor:'pointer', textDecoration:'underline', textUnderlineOffset:'2px' }}>
+        {children}
+      </span>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:999 }} />
+          <div style={{ position:'absolute', top:'100%', left:0, zIndex:1000, background:'#fff', borderRadius:'10px', boxShadow:'0 4px 20px rgba(0,0,0,0.15)', border:'1px solid #e5e7eb', overflow:'hidden', minWidth:'130px', marginTop:'4px' }}>
+            {isMobile && (
+              <button onClick={() => { window.location.href=`tel:${raw}`; setOpen(false) }}
+                style={phoneActionBtn}>📞 전화하기</button>
+            )}
+            <button onClick={() => { window.open(`sms:${raw}`); setOpen(false) }}
+              style={phoneActionBtn}>💬 문자 보내기</button>
+            <button onClick={() => { window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${raw}`); setOpen(false) }}
+              style={phoneActionBtn}>💛 카톡 보내기</button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+const phoneActionBtn = { display:'block', width:'100%', padding:'9px 14px', background:'none', border:'none', cursor:'pointer', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', textAlign:'left', color:'#374151', borderBottom:'1px solid #f3f4f6' }
+
 // ─── 학부모 메시지 발송
 function MsgModal({ student, onClose }) {
   const [text, setText] = useState('')
@@ -160,7 +205,7 @@ function MsgModal({ student, onClose }) {
 }
 
 // ─── 단일 학생 출석 행
-function StudentRow({ s, idx, rec, onMark, onMsgOpen }) {
+function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
   const [showDetail, setShowDetail] = useState(false)
   const status = rec?.status || 'pending'
   const cfg = ATTENDANCE_STATUS[status]
@@ -181,17 +226,18 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen }) {
         {/* 번호 */}
         <div style={{ fontSize: '12px', color: C.muted, minWidth: '22px', textAlign: 'center', flexShrink: 0 }}>{s.number || idx+1}</div>
 
-        {/* 이름 + 학년/반 */}
+        {/* 이름 클릭 → 상세 팝업 */}
         <div style={{ minWidth: '70px', flexShrink: 0 }}>
-          <div style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>{s.name}</div>
+          <div onClick={() => onStudentClick(s)}
+            style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</div>
           <div style={{ fontSize: '11px', color: C.muted }}>
-            {s.grade}{s.classNum ? ' '+s.classNum+'반' : ''}
+            {s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}
           </div>
         </div>
 
         {/* 학부모 전화 + 메시지 버튼 */}
         <div style={{ minWidth: '90px', flexShrink: 0 }}>
-          <div style={{ fontSize: '11px', color: C.muted }}>{fmtPhone(s.parentPhone) || '-'}</div>
+          <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone) || '-'}</PhoneAction>
           <button onClick={() => onMsgOpen(s)}
             style={{ marginTop: '2px', padding: '2px 7px', borderRadius: '5px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', fontSize: '10px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
             📱 메시지
@@ -318,6 +364,7 @@ function InactiveStudentRow({ s, idx }) {
 function AttendancePanel({ cls, date, students, user }) {
   const [tick, setTick] = useState(0)
   const [msgStudent, setMsgStudent] = useState(null)
+  const [selStudent, setSelStudent] = useState(null)
   const [showInactive, setShowInactive] = useState(false)
   const today = todayStr()
 
@@ -402,7 +449,7 @@ function AttendancePanel({ cls, date, students, user }) {
       {/* 활성 학생 목록 */}
       <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
         {activeStudents.map((s, i) => (
-          <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} />
+          <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
         ))}
       </div>
 
@@ -426,6 +473,42 @@ function AttendancePanel({ cls, date, students, user }) {
 
       {/* 메시지 모달 */}
       {msgStudent && <MsgModal student={msgStudent} onClose={() => setMsgStudent(null)} />}
+
+      {/* 학생 상세 팝업 */}
+      {selStudent && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
+    </div>
+  )
+}
+
+// ─── 학생 상세 팝업
+function StudentDetailModal({ student, onClose }) {
+  return (
+    <div onClick={onClose}
+      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background:'#fff', borderRadius:'18px', padding:'24px', width:'100%', maxWidth:'400px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'18px' }}>
+          <span style={{ fontSize:'18px', fontWeight:700, color:'#18181b' }}>{student.name}</span>
+          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#9ca3af' }}>×</button>
+        </div>
+        {[
+          ['학교', student.school || '-'],
+          ['학년', student.grade ? student.grade+'학년' : '-'],
+          ['학급반', student.classNum ? student.classNum+'반' : '-'],
+          ['번호', student.number || '-'],
+          ['학부모 전화', student.parentPhone || '-'],
+          ['학생 전화', student.studentPhone || '-'],
+          ['메모', student.memo || '-'],
+        ].map(([label, value]) => (
+          <div key={label} style={{ display:'flex', gap:'12px', padding:'9px 0', borderBottom:'1px solid #f3f4f6', fontSize:'14px' }}>
+            <span style={{ color:'#9ca3af', fontWeight:600, minWidth:'90px', flexShrink:0 }}>{label}</span>
+            {label.includes('전화') && value !== '-'
+              ? <PhoneAction phone={value}><span style={{ color:'#3b82f6' }}>{fmtPhone(value)}</span></PhoneAction>
+              : <span style={{ color:'#18181b' }}>{value}</span>
+            }
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -437,6 +520,7 @@ function actionBtn(bg,color,border) {
 // ─── 미래 수업 명단 패널
 function RosterPanel({ cls, date, students }) {
   const [showInactive, setShowInactive] = useState(false)
+  const [selStudent, setSelStudent] = useState(null)
   const activeStudents   = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
   const inactiveStudents = students.filter(s => ['cancelled','waiting'].includes(s.status))
   const session = getSession(cls, date)
@@ -499,12 +583,13 @@ function RosterPanel({ cls, date, students }) {
           <span>번호</span><span>이름</span><span>학년</span><span>반</span><span>학부모전화</span><span>특이사항</span>
         </div>
         {activeStudents.map((s, i) => (
-          <div key={s.id} style={{ display:'grid', gridTemplateColumns:'28px 1fr 60px 60px 100px auto', gap:'8px', alignItems:'center', padding:'10px 16px', borderBottom: i<activeStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa' }}>
+          <div key={s.id} style={{ display:'grid', gridTemplateColumns:'28px 1fr 60px 60px 110px auto', gap:'8px', alignItems:'center', padding:'10px 16px', borderBottom: i<activeStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa' }}>
             <span style={{ fontSize:'12px', color:C.muted, textAlign:'center' }}>{s.number||i+1}</span>
-            <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{s.name}</span>
-            <span style={{ fontSize:'12px', color:C.muted }}>{s.grade}</span>
+            <span onClick={() => setSelStudent(s)}
+              style={{ fontSize:'14px', fontWeight:700, color:C.primary, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:'2px' }}>{s.name}</span>
+            <span style={{ fontSize:'12px', color:C.muted }}>{s.grade ? s.grade+'학년' : '-'}</span>
             <span style={{ fontSize:'12px', color:C.muted }}>{s.classNum?s.classNum+'반':'-'}</span>
-            <span style={{ fontSize:'11px', color:C.muted }}>{fmtPhone(s.parentPhone)||'-'}</span>
+            <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone)||'-'}</PhoneAction>
             <span style={{ fontSize:'11px', color:'#92400e', maxWidth:'120px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
               {s.memo ? '📌 '+s.memo : '-'}
             </span>
@@ -538,11 +623,10 @@ function RosterPanel({ cls, date, students }) {
           </div>
         )}
       </div>
+      {selStudent && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
     </div>
   )
 }
-
-// ─── 메인
 export function Attendance({ user, pageParams = {} }) {
   const today = todayStr()
   const now_ = new Date()
@@ -844,7 +928,7 @@ export function Attendance({ user, pageParams = {} }) {
                             </div>
                           </td>
                           <td style={{ padding:'10px 14px', fontSize:'13px', color:'#374151', whiteSpace:'nowrap' }}>
-                            {s.grade}
+                            {s.grade ? s.grade+'학년' : '-'}
                             {s.classNum && <span style={{ marginLeft:'4px', padding:'1px 7px', borderRadius:'5px', background:'#f0fdf4', color:'#16a34a', fontWeight:600, fontSize:'12px' }}>{s.classNum}반</span>}
                             {s.number && <span style={{ marginLeft:'4px', color:'#9ca3af', fontSize:'12px' }}>{s.number}번</span>}
                           </td>
@@ -867,34 +951,7 @@ export function Attendance({ user, pageParams = {} }) {
         </div>
       </div>
       {/* 학생 상세 모달 */}
-      {selStudent && (
-        <div onClick={() => setSelStudent(null)}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <div onClick={e => e.stopPropagation()}
-            style={{ background:'#fff', borderRadius:'18px', padding:'28px', minWidth:'340px', maxWidth:'480px', width:'90%', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
-              <span style={{ fontSize:'18px', fontWeight:700, color:'#18181b' }}>{selStudent.name}</span>
-              <button onClick={() => setSelStudent(null)} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#9ca3af' }}>×</button>
-            </div>
-            {[
-              ['학교', selStudent.school],
-              ['학년', selStudent.grade],
-              ['학급반', selStudent.classNum ? selStudent.classNum+'반' : '-'],
-              ['번호', selStudent.number || '-'],
-              ['수업', allClasses.filter(c => selStudent.classIds?.includes(c.id)).map(c => `${c.className}${c.section?' '+c.section+'반':''}`).join(', ') || '-'],
-              ['학부모 전화', fmtPhone(selStudent.parentPhone)],
-              ['학생 전화', fmtPhone(selStudent.studentPhone)],
-              ['상태', selStudent.status],
-              ['메모', selStudent.memo || '-'],
-            ].map(([label, value]) => (
-              <div key={label} style={{ display:'flex', gap:'12px', padding:'8px 0', borderBottom:'1px solid #f3f4f6', fontSize:'14px' }}>
-                <span style={{ color:'#9ca3af', fontWeight:600, minWidth:'90px' }}>{label}</span>
-                <span style={{ color:'#18181b' }}>{value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {selStudent && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
     </div>
   )
 }
