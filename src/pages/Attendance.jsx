@@ -573,9 +573,6 @@ function UnifiedPanel({ cls, date, students, user }) {
 
   const markAll = (status) => activeStudents.forEach(s => mark(s.id, status))
 
-function actionBtn(bg,color,border) {
-  return { padding:'6px 12px', borderRadius:'7px', border:`1.5px solid ${border}`, background:bg, color, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }
-}
 function StudentDetailModal({ student, onClose }) {
   return (
     <div onClick={onClose}
