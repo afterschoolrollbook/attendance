@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes } from '../lib/db.js'
-import { uid, now, calcSessionDates, sortClasses, getSession, fmtPhone } from '../lib/utils.js'
+import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 
 // 결석 사유 (출석체크용 확장)
@@ -478,7 +478,15 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
   const [showInactive, setShowInactive] = useState(false)
 
   const isFuture = date > today
-  const session  = getSession(cls, date)
+  const sessInfo = getSessionInfo(cls, date)
+  const TERM_COLORS = [
+    { bg:'#fff7ed', border:'#f97316', text:'#ea580c' },
+    { bg:'#f0fdf4', border:'#16a34a', text:'#15803d' },
+    { bg:'#eff6ff', border:'#3b82f6', text:'#1d4ed8' },
+    { bg:'#fdf4ff', border:'#a855f7', text:'#7e22ce' },
+  ]
+  const tc = sessInfo ? TERM_COLORS[(sessInfo.termNum - 1) % TERM_COLORS.length] : null
+  const startTime = cls.time || ''; const endTime = cls.timeEnd || ''
 
   const activeStudents = allStudents.filter(s =>
     s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status)
@@ -523,9 +531,16 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
           <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', marginBottom:'4px' }}>
             <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>수업 과목 · {cls.className}</span>
             {cls.section && <span style={{ fontSize:'12px', background:C.primary, color:'#fff', borderRadius:'6px', padding:'1px 8px', fontWeight:600 }}>{cls.section}반</span>}
-            {session > 0 && <span style={{ fontSize:'11px', color:C.muted, background:'#f3f4f6', padding:'1px 7px', borderRadius:'5px' }}>{session}차시</span>}
+            {sessInfo && (
+              <>
+                <span style={{ fontSize:'11px', color:C.muted, background:'#f3f4f6', padding:'1px 7px', borderRadius:'5px' }}>{sessInfo.total}차시</span>
+                <span style={{ fontSize:'11px', fontWeight:700, color:tc?.text, background:tc?.bg, border:`1px solid ${tc?.border}`, padding:'1px 7px', borderRadius:'5px' }}>
+                  {sessInfo.termNum}텀 {sessInfo.termSess}차시
+                </span>
+              </>
+            )}
           </div>
-          {cls.time && <div style={{ fontSize:'12px', color:C.muted }}>🕐 {cls.time}{cls.endTime ? ` ~ ${cls.endTime}` : ''}</div>}
+          {startTime && <div style={{ fontSize:'12px', color:C.muted }}>🕐 {startTime}{endTime ? ` ~ ${endTime}` : ''}</div>}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
           <div style={{ textAlign:'center' }}>
@@ -706,9 +721,24 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
         <div style={{ padding:'14px 18px', borderRadius:'12px', border:`1.5px solid ${showAttendance ? (isPast?C.border:'#fed7aa') : '#86efac'}`, background: showAttendance ? (isPast?'#f9fafb':'linear-gradient(135deg,#fff7ed,#fff)') : 'linear-gradient(135deg,#f0fdf4,#fff)' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
             <div>
-              <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>
-                {date} ({DAYS_KO[new Date(date+'T00:00:00').getDay()]}요일)
-                {session && <span style={{ marginLeft:'10px', fontSize:'13px', color:showAttendance?C.primary:'#16a34a', fontWeight:600 }}>{session}차시{isFuture?' 예정':''}</span>}
+              <div style={{ fontSize:'16px', fontWeight:700, color:C.text, display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                <span>{date} ({DAYS_KO[new Date(date+'T00:00:00').getDay()]}요일)</span>
+                {session && (() => {
+                  const si = getSessionInfo(cls, date)
+                  const TC = [
+                    { bg:'#fff7ed', border:'#f97316', text:'#ea580c' },
+                    { bg:'#f0fdf4', border:'#16a34a', text:'#15803d' },
+                    { bg:'#eff6ff', border:'#3b82f6', text:'#1d4ed8' },
+                    { bg:'#fdf4ff', border:'#a855f7', text:'#7e22ce' },
+                  ]
+                  const tc = si ? TC[(si.termNum-1) % TC.length] : null
+                  return (
+                    <>
+                      <span style={{ fontSize:'13px', color:showAttendance?C.primary:'#16a34a', fontWeight:600 }}>{session}차시{isFuture?' 예정':''}</span>
+                      {si && <span style={{ fontSize:'12px', fontWeight:700, color:tc?.text, background:tc?.bg, border:`1px solid ${tc?.border}`, padding:'1px 8px', borderRadius:'5px' }}>{si.termNum}텀 {si.termSess}차시</span>}
+                    </>
+                  )
+                })()}
               </div>
               <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>{cls.organization} · {cls.className}{cls.section?' '+cls.section+'반':''} · {activeStudents.length}명</div>
             </div>

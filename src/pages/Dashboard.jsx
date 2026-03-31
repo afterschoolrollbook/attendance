@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes } from '../lib/db.js'
-import { calcSessionDates, sortClasses, uid, now } from '../lib/utils.js'
+import { calcSessionDates, sortClasses, uid, now, getSessionInfo } from '../lib/utils.js'
 
 const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토']
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
@@ -177,8 +177,15 @@ function DayDetail({ date, user, classes, onNav }) {
               const presentCnt = attRecords.filter(a => a.status === 'present' || a.status === 'late').length
               const doneCnt = attRecords.filter(a => a.status !== 'pending').length
               const pendingCnt = students.length - doneCnt
-              const sessions = calcSessionDates(cls)
-              const session = sessions.indexOf(date) + 1
+              const sessInfo = getSessionInfo(cls, date)
+              const TERM_COLORS = [
+                { bg:'#fff7ed', border:'#f97316', text:'#ea580c' },
+                { bg:'#f0fdf4', border:'#16a34a', text:'#15803d' },
+                { bg:'#eff6ff', border:'#3b82f6', text:'#1d4ed8' },
+                { bg:'#fdf4ff', border:'#a855f7', text:'#7e22ce' },
+              ]
+              const tc = sessInfo ? (TERM_COLORS[(sessInfo.termNum-1) % TERM_COLORS.length]) : null
+              const startTime = cls.time || ''; const endTime = cls.timeEnd || ''
 
               return (
                 <div key={cls.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: '10px', background: '#fff7ed', border: '1px solid #fed7aa', gap: '12px', flexWrap: 'wrap' }}>
@@ -189,10 +196,17 @@ function DayDetail({ date, user, classes, onNav }) {
                       {cls.section && (
                         <span style={{ fontSize: '12px', background: C.primary, color: '#fff', borderRadius: '6px', padding: '1px 8px', fontWeight: 600 }}>{cls.section}반</span>
                       )}
-                      {session > 0 && <span style={{ fontSize: '11px', color: C.muted, background: '#f3f4f6', padding: '1px 7px', borderRadius: '5px' }}>{session}차시</span>}
+                      {sessInfo && (
+                        <>
+                          <span style={{ fontSize: '11px', color: C.muted, background: '#f3f4f6', padding: '1px 7px', borderRadius: '5px' }}>{sessInfo.total}차시</span>
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: tc?.text, background: tc?.bg, border: `1px solid ${tc?.border}`, padding: '1px 7px', borderRadius: '5px' }}>
+                            {sessInfo.termNum}텀 {sessInfo.termSess}차시
+                          </span>
+                        </>
+                      )}
                     </div>
-                    {cls.time && (
-                      <div style={{ fontSize: '12px', color: C.muted }}>🕐 {cls.time}{cls.endTime ? ` ~ ${cls.endTime}` : ''}</div>
+                    {startTime && (
+                      <div style={{ fontSize: '12px', color: C.muted }}>🕐 {startTime}{endTime ? ` ~ ${endTime}` : ''}</div>
                     )}
                   </div>
 
