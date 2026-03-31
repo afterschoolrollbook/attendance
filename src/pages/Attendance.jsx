@@ -204,96 +204,80 @@ function MsgModal({ student, onClose }) {
   )
 }
 
-// ─── 단일 학생 출석 행
+// ─── 단일 학생 출석 행 (출석체크 모드 — 리스트 행과 동일한 grid 구조)
 function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
   const [showDetail, setShowDetail] = useState(false)
   const status = rec?.status || 'pending'
   const cfg = ATTENDANCE_STATUS[status]
   const isPending = status === 'pending'
-
-  const absentReason  = rec?.absentReason || ''
-  const homeReturn    = rec?.homeReturn   || ''
-  const note          = rec?.note         || ''
-
-  const setField = (field, val) => {
-    onMark(s.id, status === 'pending' ? 'present' : status, { [field]: val })
-  }
+  const absentReason = rec?.absentReason || ''
+  const homeReturn   = rec?.homeReturn   || ''
+  const note         = rec?.note         || ''
+  const setField = (field, val) => onMark(s.id, status === 'pending' ? 'present' : status, { [field]: val })
 
   return (
-    <div style={{ borderRadius: '12px', border: `1.5px solid ${isPending ? C.border : cfg.color+'50'}`, background: isPending ? '#fff' : cfg.bg, overflow: 'hidden', transition: 'all .12s' }}>
-      {/* ── 메인 행 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '11px 14px', flexWrap: 'nowrap' }}>
+    <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>
+      {/* ── 메인 행: grid 컬럼 통일 (번호 / 이름+학년반 / 학부모전화 / 출석버튼) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 110px auto', gap: '8px', alignItems: 'center', padding: '10px 16px' }}>
         {/* 번호 */}
-        <div style={{ fontSize: '12px', color: C.muted, minWidth: '22px', textAlign: 'center', flexShrink: 0 }}>{s.number || idx+1}</div>
+        <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{s.number || idx+1}</span>
 
-        {/* 이름 클릭 → 상세 팝업 */}
-        <div style={{ minWidth: '70px', flexShrink: 0 }}>
-          <div onClick={() => onStudentClick(s)}
-            style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</div>
-          <div style={{ fontSize: '11px', color: C.muted }}>
+        {/* 이름 + 학년/반 */}
+        <div>
+          <span onClick={() => onStudentClick(s)}
+            style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
+          <span style={{ fontSize: '11px', color: C.muted, marginLeft: '6px' }}>
             {s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}
-          </div>
+          </span>
         </div>
 
-        {/* 학부모 전화 + 메시지 버튼 */}
-        <div style={{ minWidth: '90px', flexShrink: 0 }}>
+        {/* 학부모 전화 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone) || '-'}</PhoneAction>
           <button onClick={() => onMsgOpen(s)}
-            style={{ marginTop: '2px', padding: '2px 7px', borderRadius: '5px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', fontSize: '10px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
-            📱 메시지
+            style={{ padding: '1px 6px', borderRadius: '4px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', fontSize: '10px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', width: 'fit-content' }}>
+            📱 문자
           </button>
         </div>
 
-        {/* 출석 상태 버튼들 */}
-        <div style={{ display: 'flex', gap: '4px', flex: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {/* 메인 출석 버튼 */}
+        {/* 출석 버튼들 */}
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
           <button onClick={() => onMark(s.id, isPending ? 'present' : 'pending')}
-            style={{ width: '46px', height: '46px', borderRadius: '10px', border: 'none', cursor: 'pointer', background: isPending ? C.primary : '#16a34a', color: '#fff', fontSize: '18px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .12s' }}>
+            style={{ width: '40px', height: '40px', borderRadius: '9px', border: 'none', cursor: 'pointer', background: isPending ? C.primary : '#16a34a', color: '#fff', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .12s' }}>
             {isPending ? '○' : '✓'}
           </button>
-          {/* 세부 상태 */}
-          {[
-            { s:'absent', label:'결석', c:'#ef4444' },
-            { s:'late',   label:'지각', c:'#f59e0b' },
-            { s:'early',  label:'조퇴', c:'#8b5cf6' },
-          ].map(btn => (
+          {[{ s:'absent', label:'결석', c:'#ef4444' }, { s:'late', label:'지각', c:'#f59e0b' }, { s:'early', label:'조퇴', c:'#8b5cf6' }].map(btn => (
             <button key={btn.s} onClick={() => onMark(s.id, status === btn.s ? 'pending' : btn.s)}
-              style={{ padding: '5px 8px', borderRadius: '7px', border: `1.5px solid ${status===btn.s ? btn.c : C.border}`, background: status===btn.s ? btn.c : '#fff', color: status===btn.s ? '#fff' : C.muted, fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .12s' }}>
+              style={{ padding: '4px 7px', borderRadius: '6px', border: `1.5px solid ${status===btn.s ? btn.c : C.border}`, background: status===btn.s ? btn.c : '#fff', color: status===btn.s ? '#fff' : C.muted, fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
               {btn.label}
             </button>
           ))}
-          {/* 상세 토글 */}
           <button onClick={() => setShowDetail(v => !v)}
-            style={{ padding: '5px 8px', borderRadius: '7px', border: `1px solid ${C.border}`, background: showDetail ? '#f3f4f6' : '#fff', color: C.muted, fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+            style={{ padding: '4px 7px', borderRadius: '6px', border: `1px solid ${C.border}`, background: showDetail ? '#f3f4f6' : '#fff', color: C.muted, fontSize: '11px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
             {showDetail ? '▲' : '▼'}
           </button>
         </div>
       </div>
 
-      {/* ── 상세 행 (결석사유 / 귀가방법 / 메모) */}
+      {/* ── 상세 행 */}
       {showDetail && (
-        <div style={{ padding: '10px 14px 14px', borderTop: `1px solid ${C.border}`, background: '#fafafa', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ padding: '10px 16px 14px', borderTop: `1px solid ${C.border}`, background: '#fafafa', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {/* 결석/지각/조퇴 사유 */}
             {['absent','late','early'].includes(status) && (
               <div style={{ flex: 1, minWidth: '150px' }}>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '5px' }}>사유</label>
-                <select value={absentReason} onChange={e => setField('absentReason', e.target.value)}
-                  style={selSm}>
+                <select value={absentReason} onChange={e => setField('absentReason', e.target.value)} style={selSm}>
                   {ABSENT_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
               </div>
             )}
-            {/* 귀가방법 */}
             <div style={{ flex: 1, minWidth: '150px' }}>
               <label style={{ fontSize: '12px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '5px' }}>귀가방법</label>
-              <select value={homeReturn} onChange={e => setField('homeReturn', e.target.value)}
-                style={selSm}>
+              <select value={homeReturn} onChange={e => setField('homeReturn', e.target.value)} style={selSm}>
                 {HOME_RETURN_TYPES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
             </div>
           </div>
-          {/* 메모 */}
           <NoteInline note={note} onSave={v => setField('note', v)} studentMemo={s.memo} />
         </div>
       )}
@@ -505,9 +489,9 @@ function UnifiedPanel({ cls, date, students, user }) {
           {!cls && <span style={{ fontSize:'12px', color:C.muted }}>수업을 선택하면 출석체크를 시작할 수 있습니다</span>}
         </div>
 
-        {/* 컬럼 헤더 */}
-        <div style={{ display:'grid', gridTemplateColumns: showAttendance ? '28px 1fr 60px 60px 110px 1fr' : '28px 1fr 60px 60px 110px auto', gap:'8px', padding:'8px 16px', background:'#fafafa', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted }}>
-          <span>번호</span><span>이름</span><span>학년</span><span>반</span><span>학부모전화</span>
+        {/* 컬럼 헤더 — 모드 무관하게 동일한 grid */}
+        <div style={{ display:'grid', gridTemplateColumns:'28px 1fr 110px auto', gap:'8px', padding:'8px 16px', background:'#fafafa', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted }}>
+          <span>번호</span><span>이름 · 학년/반</span><span>학부모전화</span>
           <span>{showAttendance ? '출석 상태' : '특이사항'}</span>
         </div>
 
@@ -520,11 +504,12 @@ function UnifiedPanel({ cls, date, students, user }) {
               showAttendance
                 ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
                 : (
-                  <div key={s.id} style={{ display:'grid', gridTemplateColumns:'28px 1fr 60px 60px 110px auto', gap:'8px', alignItems:'center', padding:'10px 16px', borderBottom: i<activeStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa' }}>
+                  <div key={s.id} style={{ display:'grid', gridTemplateColumns:'28px 1fr 110px auto', gap:'8px', alignItems:'center', padding:'10px 16px', borderBottom: i<activeStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa' }}>
                     <span style={{ fontSize:'12px', color:C.muted, textAlign:'center' }}>{s.number||i+1}</span>
-                    <span onClick={() => setSelStudent(s)} style={{ fontSize:'14px', fontWeight:700, color:C.primary, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:'2px' }}>{s.name}</span>
-                    <span style={{ fontSize:'12px', color:C.muted }}>{s.grade ? s.grade+'학년' : '-'}</span>
-                    <span style={{ fontSize:'12px', color:C.muted }}>{s.classNum ? s.classNum+'반' : '-'}</span>
+                    <div>
+                      <span onClick={() => setSelStudent(s)} style={{ fontSize:'14px', fontWeight:700, color:C.primary, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:'2px' }}>{s.name}</span>
+                      <span style={{ fontSize:'11px', color:C.muted, marginLeft:'6px' }}>{s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}</span>
+                    </div>
                     <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone)||'-'}</PhoneAction>
                     <span style={{ fontSize:'11px', color:'#92400e', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{s.memo ? '📌 '+s.memo : '-'}</span>
                   </div>
