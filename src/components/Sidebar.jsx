@@ -13,6 +13,13 @@ const NAV = [
   { path: 'profile',    label: '내 정보',           icon: '👤', feature: null },
 ]
 
+const MY_NAV = [
+  { path: 'training',     label: '연수관리',   icon: '🎓', feature: null },
+  { path: 'certificates', label: '자격증관리', icon: '🏆', feature: null },
+  { path: 'career',       label: '이력관리',   icon: '📋', feature: null },
+  { path: 'jobs',         label: '공고관리',   icon: '📢', feature: null },
+]
+
 const ADMIN_NAV = [
   { path: 'admin',           label: '관리자',      icon: '⚙️',  feature: FEATURES.APPROVE_TEACHER },
   { path: 'admin_settings',  label: '서비스 설정',  icon: '🔧',  feature: FEATURES.MANAGE_AD },
@@ -73,6 +80,15 @@ export function Sidebar({ user, currentPage, onNav, onLogout }) {
           return (
             <NavItem key={item.path} item={item} active={active} onClick={() => onNav(item.path)} />
           )
+        })}
+
+        {/* 내 관리 섹션 */}
+        <div style={{ fontSize: '11px', color: '#52525b', padding: '12px 20px 4px', fontWeight: 600, letterSpacing: '0.05em' }}>
+          내 관리
+        </div>
+        {MY_NAV.map(item => {
+          const active = currentPage === item.path
+          return <NavItem key={item.path} item={item} active={active} onClick={() => onNav(item.path)} />
         })}
 
         {user?.role === 'admin' && (
