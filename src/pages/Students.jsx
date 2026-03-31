@@ -185,6 +185,12 @@ export function Students({ user, onNav }) {
 
     let classIds = [...(form.classIds || [])]
 
+    // 수업 미선택 + 수업명 직접 입력 없음 → 경고
+    if (classIds.length === 0 && !form._newClassName?.trim()) {
+      alert('수업을 선택하거나 수업명을 입력해주세요.\n수업이 없으면 출석부에서 학생을 찾을 수 없습니다.')
+      return
+    }
+
     // 수업 미선택 + 수업명 직접 입력 → 수업 자동 생성
     if (classIds.length === 0 && form._newClassName?.trim()) {
       const org = form._newOrganization?.trim() || ''
@@ -655,7 +661,7 @@ export function Students({ user, onNav }) {
             {/* 등록된 수업 선택 버튼 */}
             {classes.length > 0 && (
               <div style={{ marginBottom: '12px' }}>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>수강할 수업 선택 (복수 선택 가능)</div>
+                <div style={{ fontSize: '12px', color: '#ea580c', fontWeight: 600, marginBottom: '8px' }}>📚 수강할 수업 선택 <span style={{ color: '#ef4444' }}>*필수</span> (복수 선택 가능)</div>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {classes.map(c => {
                     const selected = form.classIds?.includes(c.id)

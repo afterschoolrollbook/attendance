@@ -592,19 +592,21 @@ export function Attendance({ user, pageParams = {} }) {
     ? [...new Set(schoolClasses.filter(c => c.className === selClass?.className && c.organization === selClass?.organization).map(c => c.section).filter(Boolean))]
     : []
 
-  // ★ 핵심: 수업 미선택이면 전체 학생, 선택하면 해당 수업+반 학생만
-  const students = selClassId
-    ? allStudents.filter(s => {
-        if (!s.classIds?.includes(selClassId)) return false
-        if (selSection && s.classNum !== selSection) return false
-        return true
-      })
-    : selSchool
-      ? allStudents.filter(s => {
-          const cls = allClasses.find(c => c.organization === selSchool && s.classIds?.includes(c.id))
-          return !!cls
-        })
-      : allStudents
+  // ★ 핵심: 필터 순서대로 좁혀가되 각 조건은 독립적으로 적용
+  const students = allStudents.filter(s => {
+    // 년도 필터: 해당 년도 수업에 등록된 학생
+    if (selYear) {
+      const yearCls = allClasses.filter(c => c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear))
+      if (!yearCls.some(c => s.classIds?.includes(c.id))) return false
+    }
+    // 학교 필터
+    if (selSchool && s.school !== selSchool) return false
+    // 수업 필터
+    if (selClassId && !s.classIds?.includes(selClassId)) return false
+    // 반 필터
+    if (selSection && s.classNum !== selSection) return false
+    return true
+  })
 
   const handleSchoolChange = (school) => {
     setSelSchool(school)
