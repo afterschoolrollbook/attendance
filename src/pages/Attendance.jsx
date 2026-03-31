@@ -796,27 +796,58 @@ export function Attendance({ user, pageParams = {} }) {
 
             return (
               <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-                <div style={{ padding:'14px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ padding:'12px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>📋 학생 목록 ({activeStudents.length}명)</span>
                   <span style={{ fontSize:'13px', color:C.muted }}>달력에서 수업일을 클릭하면 출석체크가 시작됩니다</span>
                 </div>
-                {activeStudents.map((s, i, arr) => {
-                  const cls = allClasses.find(c => s.classIds?.includes(c.id))
-                  return (
-                    <div key={s.id} onClick={() => setSelStudent(s)}
-                      style={{ display:'grid', gridTemplateColumns:'32px 1fr 120px 120px', gap:'8px', alignItems:'center', padding:'10px 20px', borderBottom:i<arr.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', cursor:'pointer', transition:'background .1s' }}
-                      onMouseEnter={e => e.currentTarget.style.background='#fff7ed'}
-                      onMouseLeave={e => e.currentTarget.style.background=i%2===0?'#fff':'#fafafa'}>
-                      <span style={{ fontSize:'13px', color:C.muted, textAlign:'center' }}>{i+1}</span>
-                      <div>
-                        <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{s.name}</span>
-                        <span style={{ fontSize:'12px', color:C.muted, marginLeft:'8px' }}>{s.school} {s.grade}</span>
-                      </div>
-                      <span style={{ fontSize:'12px', color:'#6b7280' }}>{cls ? `${cls.className}${cls.section?' '+cls.section+'반':''}` : '-'}</span>
-                      <span style={{ fontSize:'12px', color:'#6b7280' }}>{fmtPhone(s.parentPhone)}</span>
-                    </div>
-                  )
-                })}
+                <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                  <thead>
+                    <tr style={{ background:'#f9fafb', borderBottom:'1px solid #e5e7eb' }}>
+                      {['순번','학교','수업 · 반','학년 / 반 / 번호','이름','학부모 전화','상태'].map(h => (
+                        <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', whiteSpace:'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeStudents.map((s, i) => {
+                      const sClasses = (s.classIds||[]).map(cid => {
+                        const cls = allClasses.find(c => c.id === cid)
+                        return cls ? cls.className+(cls.section?' '+cls.section+'반':'') : null
+                      }).filter(Boolean)
+                      const STATUS_LABEL = { applied:'신청', waiting:'대기', selected:'추첨완료', confirmed:'최종확정', cancelled:'취소' }
+                      const STATUS_COLOR = { applied:'#3b82f6', waiting:'#f59e0b', selected:'#8b5cf6', confirmed:'#16a34a', cancelled:'#9ca3af' }
+                      return (
+                        <tr key={s.id} onClick={() => setSelStudent(s)}
+                          style={{ borderBottom:'1px solid #f3f4f6', background:i%2===0?'#fff':'#fafafa', cursor:'pointer' }}
+                          onMouseEnter={e => e.currentTarget.style.background='#fff7ed'}
+                          onMouseLeave={e => e.currentTarget.style.background=i%2===0?'#fff':'#fafafa'}>
+                          <td style={{ padding:'10px 14px', fontSize:'13px', color:'#9ca3af', textAlign:'center' }}>{i+1}</td>
+                          <td style={{ padding:'10px 14px', fontSize:'13px', color:'#6b7280', whiteSpace:'nowrap' }}>{s.school}</td>
+                          <td style={{ padding:'10px 14px' }}>
+                            <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
+                              {sClasses.map(c => (
+                                <span key={c} style={{ fontSize:'12px', color:'#6b7280', background:'#f3f4f6', padding:'2px 8px', borderRadius:'6px' }}>{c}</span>
+                              ))}
+                            </div>
+                          </td>
+                          <td style={{ padding:'10px 14px', fontSize:'13px', color:'#374151', whiteSpace:'nowrap' }}>
+                            {s.grade}
+                            {s.classNum && <span style={{ marginLeft:'4px', padding:'1px 7px', borderRadius:'5px', background:'#f0fdf4', color:'#16a34a', fontWeight:600, fontSize:'12px' }}>{s.classNum}반</span>}
+                            {s.number && <span style={{ marginLeft:'4px', color:'#9ca3af', fontSize:'12px' }}>{s.number}번</span>}
+                          </td>
+                          <td style={{ padding:'10px 14px', fontSize:'14px', fontWeight:700, color:'#111827', whiteSpace:'nowrap' }}>{s.name}</td>
+                          <td style={{ padding:'10px 14px', fontSize:'13px', color:'#6b7280', whiteSpace:'nowrap' }}>{fmtPhone(s.parentPhone)||'-'}</td>
+                          <td style={{ padding:'10px 14px' }}>
+                            <span style={{ padding:'3px 10px', borderRadius:'6px', fontSize:'12px', fontWeight:600,
+                              background: STATUS_COLOR[s.status]+'18', color: STATUS_COLOR[s.status]||'#9ca3af' }}>
+                              {STATUS_LABEL[s.status]||s.status}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             )
           })()}
