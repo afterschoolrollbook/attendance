@@ -7,7 +7,8 @@ const C = {
   border:'#e5e7eb', text:'#111827', muted:'#6b7280', card:'#fff',
 }
 
-const TRAINING_SITES = [
+// 관리자 등록 연수기관 불러오기 (없으면 기본값 사용)
+const DEFAULT_TRAINING_SITES = [
   {
     name: '경기도교육청남부연수원',
     url: 'https://www.gtie.go.kr/',
@@ -52,6 +53,15 @@ const TRAINING_SITES = [
   },
 ]
 
+function loadTrainingSites() {
+  try {
+    const ts = JSON.parse(localStorage.getItem('asa_settings_teacherService') || 'null')
+    const adminSites = ts?.trainingSites || []
+    // 관리자 등록 기관이 있으면 앞에, 없으면 기본 목록만
+    return adminSites.length > 0 ? [...adminSites, ...DEFAULT_TRAINING_SITES] : DEFAULT_TRAINING_SITES
+  } catch { return DEFAULT_TRAINING_SITES }
+}
+
 const STORAGE_KEY = 'asa_training'
 
 function loadData(teacherId) {
@@ -79,6 +89,7 @@ export function Training({ user }) {
   const [editId, setEditId] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [fileMap, setFileMap] = useState({})
+  const [trainingSites, setTrainingSites] = useState(() => loadTrainingSites())
   const fileRef = useRef()
 
   const reload = () => setRecords(loadData(user.id))
@@ -210,24 +221,29 @@ export function Training({ user }) {
       {tab === 'sites' && (
         <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
           <div style={{ fontSize:'13px', color:C.muted, marginBottom:'4px' }}>방과후 강사 의무연수를 받을 수 있는 공인 연수 기관 목록입니다.</div>
-          {TRAINING_SITES.map(s => (
-            <div key={s.name} style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px 20px' }}>
+          {trainingSites.map((s, idx) => (
+            <div key={s.id || s.name} style={{ background:C.card, borderRadius:'12px', border:`1px solid ${s.id ? '#fed7aa' : C.border}`, padding:'16px 20px' }}>
               <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'12px', flexWrap:'wrap' }}>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'3px' }}>{s.name}</div>
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'3px' }}>
+                    <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{s.name}</div>
+                    {s.id && <span style={{ fontSize:'10px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px', fontWeight:700 }}>관리자 등록</span>}
+                  </div>
                   <div style={{ fontSize:'12px', color:C.muted, marginBottom:'8px' }}>{s.desc}</div>
                   <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
-                    {s.courses.map(c => (
+                    {(s.courses || []).map(c => (
                       <span key={c} style={{ fontSize:'11px', background:'#fff7ed', color:'#92400e', border:'1px solid #fde68a', borderRadius:'5px', padding:'2px 8px' }}>
                         {c}
                       </span>
                     ))}
                   </div>
                 </div>
-                <a href={s.url} target="_blank" rel="noopener noreferrer"
-                  style={{ padding:'8px 18px', borderRadius:'9px', background:'#f0fdf4', border:'1.5px solid #86efac', color:C.success, fontSize:'13px', fontWeight:700, textDecoration:'none', flexShrink:0 }}>
-                  🔗 바로가기
-                </a>
+                {s.url && (
+                  <a href={s.url} target="_blank" rel="noopener noreferrer"
+                    style={{ padding:'8px 18px', borderRadius:'9px', background:'#f0fdf4', border:'1.5px solid #86efac', color:C.success, fontSize:'13px', fontWeight:700, textDecoration:'none', flexShrink:0 }}>
+                    🔗 바로가기
+                  </a>
+                )}
               </div>
             </div>
           ))}

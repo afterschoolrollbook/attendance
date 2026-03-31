@@ -5,6 +5,13 @@ import { supabase } from '../lib/supabase.js'
 const C = { primary:'#f97316', success:'#16a34a', danger:'#ef4444', border:'#e5e7eb', text:'#111827', muted:'#6b7280', card:'#fff', warning:'#f59e0b' }
 const STORAGE_KEY = 'asa_job_subs'
 
+function loadAdminJobPostings() {
+  try {
+    const ts = JSON.parse(localStorage.getItem('asa_settings_teacherService') || 'null')
+    return ts?.jobPostings || []
+  } catch { return [] }
+}
+
 function loadSubs(tid) { return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]').filter(r=>r.teacherId===tid) }
 function saveSub(item) { const a=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); const i=a.findIndex(r=>r.id===item.id); if(i>=0)a[i]=item; else a.push(item); localStorage.setItem(STORAGE_KEY,JSON.stringify(a)) }
 function deleteSub(id) { localStorage.setItem(STORAGE_KEY,JSON.stringify(JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]').filter(r=>r.id!==id))) }
@@ -31,6 +38,7 @@ export function Jobs({ user }) {
   const [tab, setTab]       = useState('postings')
   const [subs, setSubs]     = useState([])
   const [postings, setPostings] = useState([])
+  const [adminPostings, setAdminPostings] = useState(() => loadAdminJobPostings())
   const [loading, setLoading] = useState(false)
   const [modal, setModal]   = useState(false)
   const [form, setForm]     = useState(EMPTY_SUB)
@@ -102,16 +110,58 @@ export function Jobs({ user }) {
       {/* 공고 조회 탭 */}
       {tab === 'postings' && (
         <>
-          {subs.length === 0 ? (
+          {/* 관리자 직접 등록 공고 */}
+          {adminPostings.length > 0 && (
+            <div style={{ marginBottom:'20px' }}>
+              <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'10px', display:'flex', alignItems:'center', gap:'6px' }}>
+                📌 관리자 등록 공고
+                <span style={{ fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{adminPostings.length}건</span>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                {adminPostings.map((j, i) => {
+                  const isOver = j.deadline && j.deadline < new Date().toISOString().slice(0,10)
+                  return (
+                    <div key={j.id||i} style={{ background: isOver?'#f9fafb':C.card, borderRadius:'12px', border:`1px solid ${isOver?C.border:'#fed7aa'}`, padding:'14px 20px', opacity: isOver?0.7:1 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'12px' }}>
+                        <div>
+                          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'5px', flexWrap:'wrap' }}>
+                            <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{j.title}</span>
+                            {j.subject && <span style={{ fontSize:'12px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{j.subject}</span>}
+                            {isOver && <span style={{ fontSize:'11px', background:'#fef2f2', color:C.danger, border:'1px solid #fca5a5', borderRadius:'5px', padding:'1px 6px', fontWeight:700 }}>마감</span>}
+                          </div>
+                          <div style={{ display:'flex', gap:'12px', fontSize:'12px', color:C.muted, flexWrap:'wrap' }}>
+                            {j.office && <span>🏛 {j.office}</span>}
+                            {j.school && <span>🏫 {j.school}</span>}
+                            {j.deadline && <span>⏰ 마감: {j.deadline}</span>}
+                            {j.memo && <span>📌 {j.memo}</span>}
+                          </div>
+                        </div>
+                        {j.url && (
+                          <a href={j.url} target="_blank" rel="noopener noreferrer"
+                            style={{ padding:'6px 14px', borderRadius:'8px', background:'#f0fdf4', border:'1px solid #86efac', color:C.success, fontSize:'12px', fontWeight:700, textDecoration:'none', flexShrink:0 }}>
+                            공고 보기
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* NEIS 자동 조회 공고 */}
+          {subs.length === 0 && adminPostings.length === 0 ? (
             <div style={{ textAlign:'center', padding:'60px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
               <div style={{ fontSize:'36px', marginBottom:'10px' }}>🔔</div>
               <div style={{ fontSize:'15px', fontWeight:600 }}>구독 설정이 없습니다</div>
               <div style={{ fontSize:'13px', marginTop:'6px' }}>구독 설정 탭에서 관심 지역과 과목을 등록하세요</div>
               <button onClick={()=>setTab('subs')} style={{ marginTop:'16px', padding:'9px 20px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>구독 설정하기</button>
             </div>
-          ) : (
+          ) : subs.length > 0 ? (
             <>
-              <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center' }}>
+              <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'10px' }}>🔍 NEIS 자동 조회 공고</div>
+              <div style={{ display:'flex', gap:'8px', marginBottom:'12px', flexWrap:'wrap', alignItems:'center' }}>
                 <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
                   {subs.filter(s=>s.active).map(s => (
                     <span key={s.id} style={{ fontSize:'12px', padding:'4px 10px', borderRadius:'6px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', fontWeight:600 }}>
@@ -159,7 +209,7 @@ export function Jobs({ user }) {
                 </div>
               )}
             </>
-          )}
+          ) : null}
         </>
       )}
 
