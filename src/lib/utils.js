@@ -160,3 +160,15 @@ export function relativeDate(dateStr) {
   if (diff > 0) return `${diff}일 후`
   return `${-diff}일 전`
 }
+
+// ─── 수업 정렬: 시작시간 빠른 순 → 같으면 반(section) 순 → 수업명 순
+export function sortClasses(classes) {
+  return [...classes].sort((a, b) => {
+    const ta = (a.time || '99:99').split('~')[0].trim()
+    const tb = (b.time || '99:99').split('~')[0].trim()
+    if (ta !== tb) return ta.localeCompare(tb)
+    const sa = (a.section || '').localeCompare(b.section || '')
+    if (sa !== 0) return sa
+    return (a.className || '').localeCompare(b.className || '', 'ko')
+  })
+}
