@@ -110,6 +110,20 @@ export function Students({ user, onNav }) {
       // 이름
       return (a.name || '').localeCompare(b.name || '', 'ko')
     }
+    // 요일순
+    if (sortOrder === 'day') {
+      const DAY_ORDER = ['월','화','수','목','금','토','일']
+      const aClass = classes.find(c => c.id === a.classIds?.[0])
+      const bClass = classes.find(c => c.id === b.classIds?.[0])
+      const aDay = DAY_ORDER.indexOf(aClass?.days?.[0] ?? '')
+      const bDay = DAY_ORDER.indexOf(bClass?.days?.[0] ?? '')
+      const dayCmp = (aDay === -1 ? 99 : aDay) - (bDay === -1 ? 99 : bDay)
+      if (dayCmp !== 0) return dayCmp
+      // 같은 요일이면 학교 → 수업명 순
+      const schoolCmp = (a.school || '').localeCompare(b.school || '', 'ko')
+      if (schoolCmp !== 0) return schoolCmp
+      return (aClass?.className || '').localeCompare(bClass?.className || '', 'ko')
+    }
     // 신청순/최신순
     const ta = new Date(a.createdAt).getTime()
     const tb = new Date(b.createdAt).getTime()
@@ -536,6 +550,7 @@ export function Students({ user, onNav }) {
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
           <button onClick={() => setSortOrder('name')} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '12px', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: sortOrder === 'name' ? 700 : 400, background: sortOrder === 'name' ? '#18181b' : '#f3f4f6', color: sortOrder === 'name' ? '#fff' : '#374151', transition: 'all .15s' }}>학교·수업순</button>
+          <button onClick={() => setSortOrder('day')} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '12px', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: sortOrder === 'day' ? 700 : 400, background: sortOrder === 'day' ? '#18181b' : '#f3f4f6', color: sortOrder === 'day' ? '#fff' : '#374151', transition: 'all .15s' }}>요일순</button>
           <button onClick={() => setSortOrder('asc')} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '12px', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: sortOrder === 'asc' ? 700 : 400, background: sortOrder === 'asc' ? '#18181b' : '#f3f4f6', color: sortOrder === 'asc' ? '#fff' : '#374151', transition: 'all .15s' }}>신청순 ↑</button>
           <button onClick={() => setSortOrder('desc')} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '12px', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: sortOrder === 'desc' ? 700 : 400, background: sortOrder === 'desc' ? '#18181b' : '#f3f4f6', color: sortOrder === 'desc' ? '#fff' : '#374151', transition: 'all .15s' }}>최신순 ↓</button>
         </div>
