@@ -242,7 +242,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
   const note = s.memo || ''
   const [showInfo, setShowInfo] = useState(false)
   const [memoOpen, setMemoOpen] = useState(false)
-  const [memo, setMemo] = useState(s.memo || '')
+  const [memo, setMemo] = useState('')  // s.memo는 👤배지로만 표시, 여기선 별도 메모
 
   const handlePredictClick = () => {
     setShowInfo(true)
@@ -251,7 +251,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: '#fff', borderLeft: '3px solid transparent', transition: 'all .12s' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '36px 90px 80px 120px 200px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '30px 70px 65px 100px 190px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
 
         {/* 순번 — StudentRow 동일 */}
         <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{idx+1}</span>
@@ -331,7 +331,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '36px 90px 80px 120px 200px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '30px 70px 65px 100px 190px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
 
         {/* 순번 */}
         <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{idx+1}</span>
@@ -390,12 +390,19 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
           </div>
           <div style={{ flex: 2, minWidth: '200px' }}>
             <label style={{ fontSize: '11px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '3px' }}>연락 내역</label>
-            <div style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-              <button onClick={() => appendNote('📞통화완료')} style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid #d1d5db', background: '#fff', fontSize: '11px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>📞 통화</button>
-              <button onClick={() => appendNote('💬문자발송')} style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid #d1d5db', background: '#fff', fontSize: '11px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>💬 문자</button>
-              <button onClick={() => appendNote('💛카톡발송')} style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid #d1d5db', background: '#fff', fontSize: '11px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>💛 카톡</button>
+            <div style={{ display: 'flex', gap: '5px', marginBottom: '6px' }}>
+              {['📞 통화', '💬 문자', '💛 카톡'].map(method => {
+                const tag = method.split(' ')[1]
+                const active = note.startsWith(tag) || note.includes(' '+tag)
+                return (
+                  <button key={tag} onClick={() => appendNote(tag)}
+                    style={{ padding: '3px 10px', borderRadius: '5px', border: `1px solid ${active ? '#6b7280' : '#d1d5db'}`, background: active ? '#f3f4f6' : '#fff', fontSize: '11px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: active ? 700 : 400, color: active ? '#111827' : '#6b7280' }}>
+                    {method}
+                  </button>
+                )
+              })}
             </div>
-            {note && <div style={{ fontSize: '12px', color: '#374151', background: '#fffbeb', padding: '4px 9px', borderRadius: '6px', border: '1px solid #fde68a' }}>📌 {note}</div>}
+            <NoteInline note={note} onSave={v => setField('note', v)} placeholder="연락 내용 메모" />
           </div>
         </div>
       )}
@@ -518,7 +525,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
             {cls.section && <span style={{ fontSize:'12px', background:C.primary, color:'#fff', borderRadius:'6px', padding:'1px 8px', fontWeight:600 }}>{cls.section}반</span>}
             {session > 0 && <span style={{ fontSize:'11px', color:C.muted, background:'#f3f4f6', padding:'1px 7px', borderRadius:'5px' }}>{session}차시</span>}
           </div>
-          {cls.time && <div style={{ fontSize:'12px', color:C.muted }}>🕐 {cls.time}</div>}
+          {cls.time && <div style={{ fontSize:'12px', color:C.muted }}>🕐 {cls.time}{cls.endTime ? ` ~ ${cls.endTime}` : ''}</div>}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
           <div style={{ textAlign:'center' }}>
@@ -554,7 +561,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
           </div>
         )}
         {/* 컬럼 헤더 */}
-        <div style={{ display:'grid', gridTemplateColumns:'36px 90px 80px 120px 200px 1fr', gap:'6px', padding:'7px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 1fr', gap:'6px', padding:'7px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
           <span>순번</span><span>학년·반·번호</span><span>이름</span><span>학부모전화</span><span>출석·지각·조퇴·결석</span><span>특이사항·메모</span>
         </div>
         {sorted.length === 0
@@ -780,7 +787,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
         }))].sort()
 
         const ColHeader = () => (
-          <div style={{ display:'grid', gridTemplateColumns:'36px 90px 80px 120px 200px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
             <span>순번</span>
             <span>학년·반·번호</span>
             <span>이름</span>
@@ -812,7 +819,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                     showAttendance
                       ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
                       : (
-                        <div key={s.id} style={{ display:'grid', gridTemplateColumns:'36px 90px 80px 120px 200px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom: i<secStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
+                        <div key={s.id} style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom: i<secStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
                           <span style={{ fontSize:'12px', color:C.muted }}>{i+1}</span>
                           <span style={{ fontSize:'12px', color:C.muted }}>{s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}</span>
                           <span onClick={() => setSelStudent(s)} style={{ fontSize:'14px', fontWeight:700, color:C.primary, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:'2px' }}>{s.name}</span>

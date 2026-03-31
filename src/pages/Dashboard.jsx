@@ -192,7 +192,7 @@ function DayDetail({ date, user, classes, onNav }) {
                       {session > 0 && <span style={{ fontSize: '11px', color: C.muted, background: '#f3f4f6', padding: '1px 7px', borderRadius: '5px' }}>{session}차시</span>}
                     </div>
                     {cls.time && (
-                      <div style={{ fontSize: '12px', color: C.muted }}>🕐 {cls.time}</div>
+                      <div style={{ fontSize: '12px', color: C.muted }}>🕐 {cls.time}{cls.endTime ? ` ~ ${cls.endTime}` : ''}</div>
                     )}
                   </div>
 
