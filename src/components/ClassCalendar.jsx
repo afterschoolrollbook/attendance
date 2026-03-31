@@ -40,7 +40,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           const session  = sessInfo  // 하위 호환
           const isCancelled = cancelled.has(dateStr)
           const isMakeup    = makeupSet.has(dateStr)
-          const isSession   = !!sessInfo && !isCancelled
+          const isSession   = !!sessInfo && !isCancelled && !isMakeup
           const cancelInfo  = cancelledDates.find(c => c.date === dateStr)
           const makeupInfo  = makeupDates.find(m => m.date === dateStr)
           const reasonLabel = CANCEL_REASONS.find(r => r.value === cancelInfo?.reason)?.label
@@ -79,7 +79,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
 
           // 정규 수업일
           if (isSession) {
-            const tc = getTermColor(sessInfo.termNum)
+            const tc = getTermColor(sessInfo.termNum || 1)
             return (
               <button key={day} onClick={() => onDateClick(dateStr, 'session')}
                 title={`전체 ${sessInfo.total}차시 | ${sessInfo.termNum}텀 ${sessInfo.termSess}차시 — 클릭하면 처리`}
@@ -136,9 +136,9 @@ export function ClassCalendar({ cls, onUpdate }) {
   const makeupDates   = cls.makeupDates || []
 
   // 보강 차시는 취소된 차시 이후 번호 부여
-  const termSizes = cls.termSizes?.length
-    ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length)
-    : [cls.termSize || 4]
+  const termSizes = (cls.termSizes?.length > 0)
+    ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length).map(n => Number(n) || 4)
+    : [cls.termSize ? Number(cls.termSize) : 4]
 
   // sessionMap: 날짜 → { total: 전체차시, termNum: 텀번호, termSess: 텀내차시 }
   const sessionMap = {}
@@ -218,7 +218,7 @@ export function ClassCalendar({ cls, onUpdate }) {
   const termSummary = termSizes.map((size, ti) => {
     const start = termSizes.slice(0,ti).reduce((a,b)=>a+b,0)
     const globalStart = start + 1
-    const globalEnd   = start + size
+    const globalEnd   = Math.min(start + size, sessions.length)
     const termSessions = sessions.slice(start, start + size)
     const active = termSessions.filter(d => !cancelled.has(d)).length
     return { num: ti+1, active, total: size, globalStart, globalEnd }
