@@ -18,6 +18,10 @@ import { AdminSettings } from './pages/AdminSettings.jsx'
 import { Profile } from './pages/Profile.jsx'
 import { NaverCallback } from './pages/NaverCallback.jsx'
 import { KakaoCallback } from './pages/KakaoCallback.jsx'
+import { Training }     from './pages/Training.jsx'
+import { Certificates } from './pages/Certificates.jsx'
+import { Career }       from './pages/Career.jsx'
+import { Jobs }         from './pages/Jobs.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
@@ -105,6 +109,10 @@ export default function App() {
       case 'adsense':        return <Adsense {...pageProps} />
       case 'profile':        return <Profile {...pageProps} />
       case 'admin_settings': return <AdminSettings {...pageProps} />
+      case 'training':       return <Training     user={user} />
+      case 'certificates':   return <Certificates user={user} />
+      case 'career':         return <Career       user={user} />
+      case 'jobs':           return <Jobs         user={user} />
       default:               return <Dashboard {...pageProps} />
     }
   }
