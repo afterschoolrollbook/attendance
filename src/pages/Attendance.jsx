@@ -592,17 +592,26 @@ export function Attendance({ user, pageParams = {} }) {
     ? [...new Set(schoolClasses.filter(c => c.className === selClass?.className && c.organization === selClass?.organization).map(c => c.section).filter(Boolean))]
     : []
 
-  // ★ 핵심: 필터 순서대로 좁혀가되 각 조건은 독립적으로 적용
+  // ★ 핵심: 필터 순서대로 좁혀가되 classIds 없는 학생은 학교명으로 보완 매칭
   const students = allStudents.filter(s => {
-    // 년도 필터: 해당 년도 수업에 등록된 학생
+    const hasClassIds = s.classIds?.length > 0
+    // 년도 필터
     if (selYear) {
       const yearCls = allClasses.filter(c => c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear))
-      if (!yearCls.some(c => s.classIds?.includes(c.id))) return false
+      const inYear = hasClassIds
+        ? yearCls.some(c => s.classIds.includes(c.id))
+        : yearCls.some(c => c.organization === s.school)  // classIds 없으면 학교명으로 매칭
+      if (!inYear) return false
     }
     // 학교 필터
     if (selSchool && s.school !== selSchool) return false
     // 수업 필터
-    if (selClassId && !s.classIds?.includes(selClassId)) return false
+    if (selClassId) {
+      const inClass = hasClassIds
+        ? s.classIds.includes(selClassId)
+        : selClass?.organization === s.school  // classIds 없으면 학교명으로 매칭
+      if (!inClass) return false
+    }
     // 반 필터
     if (selSection && s.classNum !== selSection) return false
     return true
