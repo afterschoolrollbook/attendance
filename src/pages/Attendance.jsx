@@ -267,13 +267,9 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
             style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
         </div>
 
-        {/* 학부모 전화 — StudentRow 동일 */}
+        {/* 학부모 전화 — PhoneAction만 */}
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
           <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone) || '-'}</PhoneAction>
-          <button onClick={() => onMsgOpen(s)}
-            style={{ padding: '1px 6px', borderRadius: '4px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', fontSize: '10px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
-            📱 문자
-          </button>
         </div>
 
         {/* 출석컬럼만 다름: 예정 버튼 */}
@@ -323,20 +319,18 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
 }
 
 // ─── 단일 학생 출석 행
-// 컬럼: 순번 / 학년·반·번호 / 이름 / 학부모전화 / 출석·지각·조퇴·결석 / 특이사항·메모
 function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
   const status = rec?.status || 'pending'
   const cfg = ATTENDANCE_STATUS[status]
   const isPending = status === 'pending'
   const absentReason = rec?.absentReason || ''
-  const homeReturn   = rec?.homeReturn   || ''
   const note         = rec?.note         || ''
   const setField = (field, val) => onMark(s.id, status === 'pending' ? 'present' : status, { [field]: val })
   const isAbsent = ['absent','late','early'].includes(status)
+  const appendNote = (text) => setField('note', note ? note + ' / ' + text : text)
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>
-      {/* 메인 행: 순번 / 학년·반·번호 / 이름 / 학부모전화 / 출석버튼 / 특이사항·메모 */}
       <div style={{ display: 'grid', gridTemplateColumns: '36px 90px 80px 120px 200px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
 
         {/* 순번 */}
@@ -353,22 +347,19 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
             style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
         </div>
 
-        {/* 학부모 전화 */}
+        {/* 학부모 전화 — 문자버튼 제거, PhoneAction만 */}
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
           <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone) || '-'}</PhoneAction>
-          <button onClick={() => onMsgOpen(s)}
-            style={{ padding: '1px 6px', borderRadius: '4px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', fontSize: '10px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
-            📱 문자
-          </button>
         </div>
 
-        {/* 출석·지각·조퇴·결석 버튼 */}
+        {/* 출석·지각·조퇴·결석 — 모두 동일한 텍스트 버튼 스타일 */}
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'center' }}>
-          <button onClick={() => onMark(s.id, isPending ? 'present' : 'pending')}
-            style={{ width: '36px', height: '36px', borderRadius: '8px', border: 'none', cursor: 'pointer', background: isPending ? C.primary : '#16a34a', color: '#fff', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .12s' }}>
-            {isPending ? '○' : '✓'}
-          </button>
-          {[{ s:'late', label:'지각', c:'#f59e0b' }, { s:'early', label:'조퇴', c:'#8b5cf6' }, { s:'absent', label:'결석', c:'#ef4444' }].map(btn => (
+          {[
+            { s:'present', label:'출석', c:'#16a34a' },
+            { s:'late',    label:'지각', c:'#f59e0b' },
+            { s:'early',   label:'조퇴', c:'#8b5cf6' },
+            { s:'absent',  label:'결석', c:'#ef4444' },
+          ].map(btn => (
             <button key={btn.s} onClick={() => onMark(s.id, status === btn.s ? 'pending' : btn.s)}
               style={{ padding: '4px 6px', borderRadius: '6px', border: `1.5px solid ${status===btn.s ? btn.c : C.border}`, background: status===btn.s ? btn.c : '#fff', color: status===btn.s ? '#fff' : C.muted, fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
               {btn.label}
@@ -376,26 +367,35 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
           ))}
         </div>
 
-        {/* 특이사항·메모 */}
+        {/* 특이사항·메모 (귀가방법 배지 포함) */}
         <div>
-          <NoteInline note={note} onSave={v => setField('note', v)} studentMemo={s.memo} />
+          {s.memo && (
+            <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-block' }}>👤 {s.memo}</div>
+          )}
+          {s.homeReturn && (
+            <div style={{ fontSize: '11px', color: '#1d4ed8', background: '#eff6ff', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-block', marginLeft: s.memo ? '4px' : 0 }}>🚌 {s.homeReturn}</div>
+          )}
+          <NoteInline note={note} onSave={v => setField('note', v)} placeholder="연락 내역 메모" />
         </div>
       </div>
 
-      {/* 결석/지각/조퇴 시 사유 + 귀가방법 인라인 */}
+      {/* 결석/지각/조퇴 시 — 사유 + 연락 내역 빠른버튼 */}
       {isAbsent && (
-        <div style={{ padding: '6px 14px 10px', borderTop: `1px solid ${C.border}`, background: '#fafafa', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ padding: '6px 14px 10px', borderTop: `1px solid ${C.border}`, background: '#fafafa', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ flex: 1, minWidth: '150px' }}>
             <label style={{ fontSize: '11px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '3px' }}>사유</label>
             <select value={absentReason} onChange={e => setField('absentReason', e.target.value)} style={selSm}>
               {ABSENT_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </div>
-          <div style={{ flex: 1, minWidth: '150px' }}>
-            <label style={{ fontSize: '11px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '3px' }}>귀가방법</label>
-            <select value={homeReturn} onChange={e => setField('homeReturn', e.target.value)} style={selSm}>
-              {HOME_RETURN_TYPES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
+          <div style={{ flex: 2, minWidth: '200px' }}>
+            <label style={{ fontSize: '11px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '3px' }}>연락 내역</label>
+            <div style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+              <button onClick={() => appendNote('📞통화완료')} style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid #d1d5db', background: '#fff', fontSize: '11px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>📞 통화</button>
+              <button onClick={() => appendNote('💬문자발송')} style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid #d1d5db', background: '#fff', fontSize: '11px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>💬 문자</button>
+              <button onClick={() => appendNote('💛카톡발송')} style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid #d1d5db', background: '#fff', fontSize: '11px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>💛 카톡</button>
+            </div>
+            {note && <div style={{ fontSize: '12px', color: '#374151', background: '#fffbeb', padding: '4px 9px', borderRadius: '6px', border: '1px solid #fde68a' }}>📌 {note}</div>}
           </div>
         </div>
       )}
@@ -404,7 +404,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
 }
 
 // 인라인 메모
-function NoteInline({ note, onSave, studentMemo }) {
+function NoteInline({ note, onSave, studentMemo, placeholder = '특이사항 메모' }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(note)
   const ref = useRef()
@@ -417,7 +417,7 @@ function NoteInline({ note, onSave, studentMemo }) {
       )}
       {editing ? (
         <div style={{ display: 'flex', gap: '5px' }}>
-          <input ref={ref} value={val} onChange={e => setVal(e.target.value)} autoFocus placeholder="특이사항 메모"
+          <input ref={ref} value={val} onChange={e => setVal(e.target.value)} autoFocus placeholder={placeholder}
             onKeyDown={e => { if (e.key==='Enter') save(); if (e.key==='Escape') { setEditing(false); setVal(note) } }}
             style={{ flex:1, border:`1.5px solid ${C.primary}`, borderRadius:'6px', padding:'4px 9px', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
           <button onClick={save} style={sm('#f97316','#fff')}>저장</button>
