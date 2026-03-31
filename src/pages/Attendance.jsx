@@ -635,7 +635,7 @@ export function Attendance({ user, pageParams = {} }) {
       <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px 20px', display:'flex', gap:'12px', flexWrap:'wrap', alignItems:'flex-end' }}>
         <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
           <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>년도</label>
-          <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelClassId(''); setSelTerm('') }} style={selSt}>
+          <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelClassId(''); setSelSection(''); setSelTerm('') }} style={selSt}>
             {years.map(y => <option key={y} value={y}>{y}년</option>)}
           </select>
         </div>
@@ -662,7 +662,7 @@ export function Attendance({ user, pageParams = {} }) {
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
           <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>기간</label>
-          <select value={selTerm} onChange={e => { setSelTerm(e.target.value); setSelClassId('') }} style={selSt}>
+          <select value={selTerm} onChange={e => setSelTerm(e.target.value)} style={selSt}>
             <option value="">전체 기간</option>
             <optgroup label="── 분기제 ──">
               <option value="q1">1분기 (1~3월)</option>
