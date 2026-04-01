@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { uid, now } from '../lib/utils.js'
 import { Trainings } from '../lib/db.js'
+import { ToastContainer } from '../components/Atoms.jsx'
+import { useToast } from '../hooks/useToast.js'
 
 const C = {
   primary:'#f97316', success:'#16a34a', danger:'#ef4444',
@@ -104,6 +106,8 @@ export function Training({ user }) {
   const [modalDrag, setModalDrag] = useState(false)
   const [trainingSites]           = useState(() => loadTrainingSites())
   const [preview, setPreview]     = useState(null)
+  const { toasts, success, error: toastError, info } = useToast()
+  const [confirm, setConfirm]     = useState(null) // { msg, onOk }
   const currentYear               = String(new Date().getFullYear())
   const [selYear, setSelYear]     = useState(currentYear)
 
@@ -129,14 +133,14 @@ export function Training({ user }) {
 
   const validateFile = (file) => {
     const allowed = ['image/jpeg','image/png','image/gif','image/webp','application/pdf']
-    if (!allowed.includes(file.type)) { alert('이미지(JPG·PNG·GIF·WEBP) 또는 PDF 파일만 업로드 가능합니다'); return false }
-    if (file.size > 10 * 1024 * 1024) { alert('10MB 이하 파일만 업로드 가능합니다'); return false }
+    if (!allowed.includes(file.type)) { toastError('이미지·PDF 파일만 업로드 가능합니다'); return false }
+    if (file.size > 10 * 1024 * 1024) { toastError('10MB 이하 파일만 업로드 가능합니다'); return false }
     return true
   }
 
   // 저장: db.js Trainings 사용 + 파일 있으면 Storage 업로드
   const save = async () => {
-    if (!form.title.trim()) { alert('연수명을 입력하세요'); return }
+    if (!form.title.trim()) { toastError('연수명을 입력하세요'); return }
     setUploading(true)
     try {
       const itemId = editId || uid()
@@ -163,20 +167,21 @@ export function Training({ user }) {
       else Trainings.insert(item)
 
       reload()
+      success(editId ? '수정됐어요' : '등록됐어요 ✅')
       setModal(false)
       setModalFile(null)
       setSelYear(form.year)
     } catch(e) {
-      alert('저장 실패: ' + e.message)
+      toastError('저장 실패: ' + e.message)
     } finally {
       setUploading(false)
     }
   }
 
   const deleteRecord = (id) => {
-    if (!confirm('삭제할까요?')) return
-    Trainings.delete(id)
-    reload()
+    setConfirm({ msg:'이 연수 기록을 삭제할까요?', onOk: () => {
+      Trainings.delete(id); reload(); info('삭제됐어요')
+    }})
   }
 
   // 기존 기록에 파일 업로드/교체
@@ -187,17 +192,19 @@ export function Training({ user }) {
       const fileUrl  = await uploadToStorage(user.id, trainingId, file)
       Trainings.update(trainingId, { fileUrl, fileName: file.name, fileType: file.type })
       reload()
+      success('파일이 저장됐어요 📎')
     } catch(e) {
-      alert('파일 업로드 실패: ' + e.message)
+      toastError('파일 업로드 실패: ' + e.message)
     } finally {
       setUploading(false)
     }
   }
 
   const deleteFile = (trainingId) => {
-    if (!confirm('첨부파일을 삭제할까요?')) return
-    Trainings.update(trainingId, { fileUrl: null, fileName: null, fileType: null })
-    reload()
+    setConfirm({ msg:'첨부파일을 삭제할까요?', onOk: () => {
+      Trainings.update(trainingId, { fileUrl: null, fileName: null, fileType: null })
+      reload(); info('파일을 삭제했어요')
+    }})
   }
 
   const openPreview = (r) => {
@@ -445,6 +452,24 @@ export function Training({ user }) {
           </div>
         </div>
       )}
+
+      {/* 확인 모달 */}
+      {confirm && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:4000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
+          <div style={{ background:'#fff', borderRadius:'14px', padding:'24px', maxWidth:'320px', width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', textAlign:'center' }}>
+            <div style={{ fontSize:'32px', marginBottom:'12px' }}>🗑</div>
+            <div style={{ fontSize:'15px', fontWeight:600, color:'#111827', marginBottom:'20px' }}>{confirm.msg}</div>
+            <div style={{ display:'flex', gap:'8px', justifyContent:'center' }}>
+              <button onClick={() => setConfirm(null)}
+                style={{ padding:'9px 20px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
+              <button onClick={() => { confirm.onOk(); setConfirm(null) }}
+                style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#ef4444', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ToastContainer toasts={toasts} />
 
       {uploading && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center' }}>
