@@ -47,7 +47,7 @@ const EMPTY_EDU = {
 const EMPTY_FORM = {
   orgName:'', jobType:'방과후 강사', schoolType:'초등', customSchoolType:'',
   role:'', subject:'', startDate:'', endDate:'',
-  isCurrent: false, description:''
+  isCurrent: false, isOneDay: false, description:''
 }
 
 export function Career({ user }) {
@@ -76,16 +76,21 @@ export function Career({ user }) {
   const sorted = [...records].sort((a, b) => {
     if (a.isCurrent && !b.isCurrent) return -1
     if (!a.isCurrent && b.isCurrent) return 1
-    return (a.startDate || '').localeCompare(b.startDate || '')
+    return (b.startDate || '').localeCompare(a.startDate || '')
   })
+
+  // 진행중 여부: isCurrent이거나, endDate 없고 시작일이 있는 경우
+  const isOngoing = r => r.isCurrent || (!r.endDate && !!r.startDate && !r.isOneDay)
 
   const getDuration = r => {
     if (!r.startDate) return ''
+    if (r.isOneDay) return '하루'
     const start  = new Date(r.startDate)
-    const end    = r.isCurrent ? new Date() : new Date(r.endDate || new Date())
+    const end    = isOngoing(r) ? new Date() : new Date(r.endDate || new Date())
     const months = Math.round((end - start) / (1000 * 60 * 60 * 24 * 30))
+    if (months < 1) return '1개월 미만'
     if (months < 12) return `${months}개월`
-    return `${Math.floor(months / 12)}년 ${months % 12}개월`
+    return `${Math.floor(months / 12)}년 ${months % 12 ? ` ${months % 12}개월` : ''}`
   }
 
   const openAdd  = () => { setForm(EMPTY_FORM); setEditId(null); setModalFile(null); setModal(true) }
@@ -97,7 +102,7 @@ export function Career({ user }) {
       customSchoolType: r.customSchoolType || '',
       role: r.role || '', subject: r.subject || '',
       startDate: r.startDate || '', endDate: r.endDate || '',
-      isCurrent: !!r.isCurrent, description: r.description || ''
+      isCurrent: !!r.isCurrent, isOneDay: !!r.isOneDay, description: r.description || ''
     })
     setEditId(r.id); setModalFile(null); setModal(true)
   }
@@ -123,10 +128,14 @@ export function Career({ user }) {
         fileType = modalFile.type
       }
 
+      // 하루짜리 특강이면 endDate = startDate
+      const finalEndDate = form.isOneDay ? form.startDate : form.endDate
+
       const item = {
         id: itemId,
         teacherId: user.id,
         ...form,
+        endDate: finalEndDate,
         ...(fileUrl && { fileUrl, fileName, fileType }),
         ...(!editId && { createdAt: now() }),
       }
@@ -210,9 +219,9 @@ export function Career({ user }) {
       '역할': r.role || '',
       '담당과목': r.subject || '',
       '시작일': r.startDate || '',
-      '종료일': r.isCurrent ? '현재' : (r.endDate || ''),
+      '종료일': r.isOneDay ? r.startDate : (isOngoing(r) ? '진행중' : (r.endDate || '')),
       '재직기간': getDuration(r),
-      '재직여부': r.isCurrent ? '재직중' : '퇴직',
+      '재직여부': r.isCurrent ? '재직중' : (isOngoing(r) ? '진행중' : '종료'),
       '주요업무': r.description || '',
     }))
 
@@ -251,6 +260,15 @@ export function Career({ user }) {
 
     XLSX.writeFile(wb, `이력및학력_${today}.xlsx`)
     success('엑셀 다운로드 완료 📊')
+  }
+
+  // 날짜 표시 헬퍼
+  const getDateLabel = r => {
+    if (!r.startDate) return ''
+    if (r.isOneDay) return `📅 ${r.startDate} (하루)`
+    if (r.isCurrent) return `📅 ${r.startDate} ~ 현재 ${getDuration(r) ? `(${getDuration(r)})` : ''}`
+    if (!r.endDate) return `📅 ${r.startDate} ~ 진행중 ${getDuration(r) ? `(${getDuration(r)})` : ''}`
+    return `📅 ${r.startDate} ~ ${r.endDate} ${getDuration(r) ? `(${getDuration(r)})` : ''}`
   }
 
   return (
@@ -295,8 +313,8 @@ export function Career({ user }) {
             {sorted.map(r => (
               <div key={r.id} style={{ display:'flex', gap:'16px', alignItems:'flex-start' }}>
                 {/* 타임라인 점 */}
-                <div style={{ width:'38px', height:'38px', borderRadius:'50%', background: r.isCurrent ? C.primary : '#f3f4f6', border:`2px solid ${r.isCurrent ? C.primary : C.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, zIndex:1 }}>
-                  <span style={{ fontSize:'16px' }}>{r.isCurrent ? '🏫' : '🏛'}</span>
+                <div style={{ width:'38px', height:'38px', borderRadius:'50%', background: isOngoing(r) ? C.primary : '#f3f4f6', border:`2px solid ${isOngoing(r) ? C.primary : C.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, zIndex:1 }}>
+                  <span style={{ fontSize:'16px' }}>{r.isOneDay ? '⚡' : isOngoing(r) ? '🏫' : '🏛'}</span>
                 </div>
                 {/* 카드 */}
                 <div
@@ -304,7 +322,7 @@ export function Career({ user }) {
                   onDragOver={e => { e.preventDefault(); setDragOverId(r.id) }}
                   onDragLeave={() => setDragOverId(null)}
                   onDrop={e => { e.preventDefault(); setDragOverId(null); const f = e.dataTransfer.files[0]; if(f) uploadFile(r.id, f) }}
-                  style={{ flex:1, borderRadius:'12px', border: dragOverId===r.id ? `2px dashed ${C.primary}` : `1.5px solid ${r.isCurrent ? '#fed7aa' : C.border}`, padding:'14px 16px', background: dragOverId===r.id ? '#fff7ed' : r.isCurrent ? '#fffbf5' : C.card, cursor: r.fileUrl ? 'pointer' : 'default', transition:'box-shadow 0.15s, border 0.15s' }}
+                  style={{ flex:1, borderRadius:'12px', border: dragOverId===r.id ? `2px dashed ${C.primary}` : `1.5px solid ${isOngoing(r) ? '#fed7aa' : C.border}`, padding:'14px 16px', background: dragOverId===r.id ? '#fff7ed' : isOngoing(r) ? '#fffbf5' : C.card, cursor: r.fileUrl ? 'pointer' : 'default', transition:'box-shadow 0.15s, border 0.15s' }}
                   onMouseEnter={e => { if(r.fileUrl && dragOverId!==r.id) e.currentTarget.style.boxShadow='0 2px 12px rgba(249,115,22,0.15)' }}
                   onMouseLeave={e => { e.currentTarget.style.boxShadow='' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px' }}>
@@ -314,13 +332,15 @@ export function Career({ user }) {
                         <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{r.orgName}</span>
                         {r.jobType && <span style={{ fontSize:'11px', background:'#eff6ff', color:'#1d4ed8', border:'1px solid #bfdbfe', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{r.jobType}</span>}
                         {(r.schoolType) && <span style={{ fontSize:'11px', background:'#f5f3ff', color:'#7c3aed', border:'1px solid #ddd6fe', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{r.schoolType === '직접입력' ? (r.customSchoolType || r.schoolType) : r.schoolType}</span>}
-                        {r.isCurrent && <span style={{ fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>재직중</span>}
+                        {r.isOneDay && <span style={{ fontSize:'11px', background:'#fef9c3', color:'#854d0e', border:'1px solid #fde047', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>하루특강</span>}
+                        {!r.isOneDay && r.isCurrent && <span style={{ fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>재직중</span>}
+                        {!r.isOneDay && !r.isCurrent && !r.endDate && r.startDate && <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>진행중</span>}
                       </div>
                       {/* 상세 */}
                       <div style={{ display:'flex', gap:'12px', fontSize:'12px', color:C.muted, flexWrap:'wrap' }}>
                         {r.role    && <span>💼 {r.role}</span>}
                         {r.subject && <span>📚 {r.subject}</span>}
-                        {r.startDate && <span>📅 {r.startDate} ~ {r.isCurrent ? '현재' : (r.endDate || '?')} {getDuration(r) && `(${getDuration(r)})`}</span>}
+                        {r.startDate && <span>{getDateLabel(r)}</span>}
                       </div>
                       {r.description && <div style={{ fontSize:'12px', color:'#374151', marginTop:'6px', lineHeight:1.5 }}>{r.description}</div>}
                       {/* 첨부파일 */}
@@ -377,7 +397,7 @@ export function Career({ user }) {
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
                 <div>
                   <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>이력 분류</label>
-                  <select value={form.jobType} onChange={e => setForm(v => ({...v, jobType:e.target.value}))}
+                  <select value={form.jobType} onChange={e => setForm(v => ({...v, jobType:e.target.value, isOneDay: e.target.value !== '특강' ? false : v.isOneDay}))}
                     style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', boxSizing:'border-box' }}>
                     {['방과후 강사','특강','늘봄','돌봄'].map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
@@ -399,27 +419,72 @@ export function Career({ user }) {
                 </div>
               )}
 
+              {/* 담당 역할 / 과목 */}
               {[
                 { label:'담당 역할', key:'role', placeholder:'예: 방과후 강사' },
                 { label:'담당 과목', key:'subject', placeholder:'예: 로봇과학, 코딩' },
-                { label:'시작일', key:'startDate', type:'date' },
-                { label:'종료일', key:'endDate', type:'date' },
-                { label:'주요 업무 / 설명', key:'description', placeholder:'담당 내용을 적어주세요' },
               ].map(f => (
                 <div key={f.key}>
                   <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>{f.label}</label>
-                  <input type={f.type || 'text'} value={form[f.key]}
+                  <input type="text" value={form[f.key]}
                     onChange={e => setForm(v => ({...v, [f.key]: e.target.value}))}
-                    disabled={f.key === 'endDate' && form.isCurrent}
-                    placeholder={f.placeholder || ''}
-                    style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', opacity: f.key==='endDate' && form.isCurrent ? 0.4 : 1 }} />
+                    placeholder={f.placeholder}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
                 </div>
               ))}
-              <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                <input type="checkbox" checked={form.isCurrent}
-                  onChange={e => setForm(v => ({...v, isCurrent: e.target.checked, endDate: e.target.checked ? '' : v.endDate}))} />
-                현재 재직중
-              </label>
+
+              {/* 특강일 때 하루짜리 체크박스 */}
+              {form.jobType === '특강' && (
+                <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', background:'#fef9c3', border:'1px solid #fde047', borderRadius:'8px', padding:'8px 12px' }}>
+                  <input type="checkbox" checked={form.isOneDay}
+                    onChange={e => setForm(v => ({
+                      ...v,
+                      isOneDay: e.target.checked,
+                      endDate: e.target.checked ? '' : v.endDate,
+                      isCurrent: e.target.checked ? false : v.isCurrent,
+                    }))} />
+                  <span>⚡ 하루짜리 특강 <span style={{ color:'#92400e', fontSize:'11px' }}>(시작일 = 종료일로 자동 저장)</span></span>
+                </label>
+              )}
+
+              {/* 시작일 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>
+                  {form.isOneDay ? '특강 날짜' : '시작일'}
+                </label>
+                <input type="date" value={form.startDate}
+                  onChange={e => setForm(v => ({...v, startDate:e.target.value}))}
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+              </div>
+
+              {/* 종료일 — 하루특강이면 숨김 */}
+              {!form.isOneDay && (
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>종료일</label>
+                  <input type="date" value={form.endDate}
+                    onChange={e => setForm(v => ({...v, endDate:e.target.value}))}
+                    disabled={form.isCurrent}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', opacity: form.isCurrent ? 0.4 : 1 }} />
+                </div>
+              )}
+
+              {/* 재직중 체크 — 하루특강이면 숨김 */}
+              {!form.isOneDay && (
+                <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  <input type="checkbox" checked={form.isCurrent}
+                    onChange={e => setForm(v => ({...v, isCurrent: e.target.checked, endDate: e.target.checked ? '' : v.endDate}))} />
+                  현재 재직중
+                </label>
+              )}
+
+              {/* 주요 업무 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>주요 업무 / 설명</label>
+                <input type="text" value={form.description}
+                  onChange={e => setForm(v => ({...v, description:e.target.value}))}
+                  placeholder="담당 내용을 적어주세요"
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+              </div>
 
               {/* 파일 첨부 (드래그앤드롭) */}
               <div>
