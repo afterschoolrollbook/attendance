@@ -1020,22 +1020,35 @@ export function Revenue({ user }) {
                       {terms.map(t=>{
                         const isSel=String(payForm.termNo)===String(t.termNo)
                         const isCur=isTermCurrent(t)
+                        const td=today()
+                        const isPast=t.endDate < td   // 종료된 텀 — 선택 가능
+                        const isFuture=t.startDate > td // 예정 텀 — 선택 불가
+                        const isDisabled=isCur||isFuture // 진행중·예정 비활성
                         const f=feeMap[selCls?.id]
                         const c=confirmedCount[selCls?.id]||0
                         const ps=f?perSessionFee(f,t,selCls):0
                         const exp=ps*c*t.sessions.length
                         return (
-                          <div key={t.termNo} onClick={()=>setPayForm(pf=>({...pf,termNo:String(t.termNo)}))}
-                            style={{ padding:'12px 14px', borderRadius:'12px', border:`2px solid ${isSel?C.primary:isCur?'#86efac':C.border}`, background:isSel?'#fff7ed':isCur?'#f0fdf4':'#fafafa', cursor:'pointer', transition:'all .15s', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                          <div key={t.termNo}
+                            onClick={()=>{ if(!isDisabled) setPayForm(pf=>({...pf,termNo:String(t.termNo)})) }}
+                            style={{ padding:'12px 14px', borderRadius:'12px',
+                              border:`2px solid ${isSel?C.primary:isCur?'#86efac':isFuture?'#e5e7eb':C.border}`,
+                              background:isSel?'#fff7ed':isCur?'#f0fdf4':isFuture?'#f9fafb':'#fafafa',
+                              cursor:isDisabled?'not-allowed':'pointer',
+                              opacity:isDisabled?0.5:1,
+                              transition:'all .15s', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                             <div>
-                              <div style={{ fontSize:'14px', fontWeight:700, color:isSel?C.primary:isCur?C.success:C.text }}>
-                                {t.label} {isCur&&<span style={{ fontSize:'11px', background:'#dcfce7', color:C.success, borderRadius:'4px', padding:'1px 5px' }}>진행중</span>}
+                              <div style={{ fontSize:'14px', fontWeight:700, color:isSel?C.primary:isCur?C.success:isFuture?C.muted:C.text }}>
+                                {t.label}
+                                {isCur&&<span style={{ fontSize:'11px', background:'#dcfce7', color:C.success, borderRadius:'4px', padding:'1px 5px', marginLeft:'6px' }}>진행중</span>}
+                                {isFuture&&<span style={{ fontSize:'11px', background:'#f3f4f6', color:C.muted, borderRadius:'4px', padding:'1px 5px', marginLeft:'6px' }}>예정</span>}
+                                {isPast&&<span style={{ fontSize:'11px', background:'#eff6ff', color:C.blue, borderRadius:'4px', padding:'1px 5px', marginLeft:'6px' }}>수업종료</span>}
                               </div>
                               <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
                                 {t.startDate?.slice(5)} ~ {t.endDate?.slice(5)} · {t.sessions.length}회
                               </div>
                             </div>
-                            {exp>0&&<div style={{ fontSize:'13px', fontWeight:700, color:isSel?C.primary:C.muted }}>{fmt(exp)}원</div>}
+                            {exp>0&&<div style={{ fontSize:'13px', fontWeight:700, color:isSel?C.primary:isDisabled?'#d1d5db':C.muted }}>{fmt(exp)}원</div>}
                           </div>
                         )
                       })}
