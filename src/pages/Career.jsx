@@ -65,6 +65,8 @@ export function Career({ user }) {
   const [eduModal, setEduModal]     = useState(false)
   const [eduForm, setEduForm]       = useState(EMPTY_EDU)
   const [eduEditId, setEduEditId]   = useState(null)
+  const [eduModalFile, setEduModalFile] = useState(null)
+  const [eduModalDrag, setEduModalDrag] = useState(false)
   const { toasts, success, error: toastError, info } = useToast()
 
   const reload = () => {
@@ -194,21 +196,50 @@ export function Career({ user }) {
     setPreview({ url: r.fileUrl, type: r.fileType || '', name: r.fileName || '첨부파일' })
   }
 
-  const openEduAdd  = () => { setEduForm(EMPTY_EDU); setEduEditId(null); setEduModal(true) }
+  const openEduAdd  = () => { setEduForm(EMPTY_EDU); setEduEditId(null); setEduModalFile(null); setEduModal(true) }
   const openEduEdit = r => {
     setEduForm({
       schoolName: r.schoolName, eduType: r.eduType || '대학교',
       major: r.major || '', admissionDate: r.admissionDate || '',
       graduationDate: r.graduationDate || '', status: r.status || '졸업', memo: r.memo || ''
     })
-    setEduEditId(r.id); setEduModal(true)
+    setEduEditId(r.id); setEduModalFile(null); setEduModal(true)
   }
-  const saveEdu = () => {
+  const saveEdu = async () => {
     if (!eduForm.schoolName.trim()) { toastError('학교명을 입력하세요'); return }
-    const item = { id: eduEditId || uid(), teacherId: user.id, ...eduForm, ...(!eduEditId && { createdAt: now() }) }
-    if (eduEditId) Educations.update(eduEditId, item)
-    else Educations.insert(item)
-    reload(); success(eduEditId ? '수정됐어요' : '등록됐어요 ✅'); setEduModal(false)
+    setUploading(true)
+    try {
+      const itemId = eduEditId || uid()
+      let fileUrl = null, fileName = null, fileType = null
+
+      if (eduModalFile) {
+        if (!validateFile(eduModalFile)) { setUploading(false); return }
+        fileUrl  = await uploadToStorage(user.id, itemId, eduModalFile)
+        fileName = eduModalFile.name
+        fileType = eduModalFile.type
+      }
+
+      const item = {
+        id: itemId, teacherId: user.id, ...eduForm,
+        ...(fileUrl && { fileUrl, fileName, fileType }),
+        ...(!eduEditId && { createdAt: now() }),
+      }
+      if (eduEditId) Educations.update(eduEditId, item)
+      else Educations.insert(item)
+      reload(); success(eduEditId ? '수정됐어요' : '등록됐어요 ✅')
+      setEduModal(false); setEduModalFile(null)
+    } catch(e) {
+      toastError('저장 실패: ' + e.message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const deleteEduFile = eduId => {
+    setConfirm({ msg:'첨부파일을 삭제할까요?', onOk: () => {
+      Educations.update(eduId, { fileUrl: null, fileName: null, fileType: null })
+      reload(); info('파일을 삭제했어요')
+    }})
   }
   const deleteEdu = id => {
     setConfirm({ msg:'이 학력을 삭제할까요?', onOk: () => {
@@ -599,7 +630,7 @@ export function Career({ user }) {
         ) : (
           <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
             {eduSorted.map(r => (
-              <div key={r.id} style={{ background:C.card, borderRadius:'12px', border:`1.5px solid ${C.border}`, padding:'14px 18px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'12px' }}>
+              <div key={r.id} style={{ background:C.card, borderRadius:'12px', border:`1.5px solid ${C.border}`, padding:'14px 18px', display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'12px' }}>
                 <div style={{ flex:1 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', marginBottom:'4px' }}>
                     <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{r.schoolName}</span>
@@ -611,8 +642,35 @@ export function Career({ user }) {
                     {r.admissionDate && <span>📅 {r.admissionDate} ~ {r.status==='재학중' ? '현재' : (r.graduationDate || '?')}</span>}
                     {r.memo && <span>📌 {r.memo}</span>}
                   </div>
+                  {/* 첨부파일 */}
+                  {r.fileUrl && (
+                    <div style={{ display:'flex', alignItems:'center', gap:'8px', marginTop:'8px' }}>
+                      <button onClick={() => setPreview({ url:r.fileUrl, type:r.fileType||'', name:r.fileName||'졸업증명서' })}
+                        style={{ fontSize:'12px', color:'#3b82f6', background:'none', border:'none', cursor:'pointer', padding:0, fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', gap:'4px' }}>
+                        {r.fileType?.startsWith('image/') ? '🖼' : '📄'} {r.fileName || '졸업증명서'}
+                      </button>
+                      <span style={{ fontSize:'11px', color:C.primary, background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>클릭하여 미리보기</span>
+                      <button onClick={() => deleteEduFile(r.id)}
+                        style={{ fontSize:'11px', color:C.danger, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                    </div>
+                  )}
                 </div>
                 <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+                  <label style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted, whiteSpace:'nowrap' }}>
+                    {r.fileUrl ? '🔄 교체' : '📎 증명서'}
+                    <input type="file" accept="image/*,application/pdf" style={{ display:'none' }}
+                      onChange={async e => {
+                        const f = e.target.files[0]; if(!f) return
+                        if (!validateFile(f)) return
+                        setUploading(true)
+                        try {
+                          const url = await uploadToStorage(user.id, r.id, f)
+                          Educations.update(r.id, { fileUrl:url, fileName:f.name, fileType:f.type })
+                          reload(); success('파일이 저장됐어요 📎')
+                        } catch(err) { toastError('업로드 실패: ' + err.message) }
+                        finally { setUploading(false) }
+                      }} />
+                  </label>
                   <button onClick={() => openEduEdit(r)}
                     style={{ padding:'4px 10px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
                   <button onClick={() => deleteEdu(r.id)}
@@ -680,6 +738,34 @@ export function Career({ user }) {
                 <input value={eduForm.memo} onChange={e => setEduForm(v => ({...v, memo:e.target.value}))}
                   placeholder="비고"
                   style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+              </div>
+
+              {/* 졸업증명서 첨부 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>졸업증명서 (이미지·PDF)</label>
+                <div
+                  onDragOver={e => { e.preventDefault(); setEduModalDrag(true) }}
+                  onDragLeave={() => setEduModalDrag(false)}
+                  onDrop={e => { e.preventDefault(); setEduModalDrag(false); const f = e.dataTransfer.files[0]; if(f) setEduModalFile(f) }}
+                  style={{ border: eduModalDrag ? `2px dashed ${C.primary}` : `1.5px dashed ${C.border}`, borderRadius:'9px', padding:'16px', textAlign:'center', background: eduModalDrag ? '#fff7ed' : '#fafafa', transition:'all 0.15s' }}>
+                  {eduModalFile ? (
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
+                      <span style={{ fontSize:'13px', color:C.text, fontWeight:600 }}>
+                        {eduModalFile.type.startsWith('image/') ? '🖼' : '📄'} {eduModalFile.name}
+                      </span>
+                      <button onClick={() => setEduModalFile(null)}
+                        style={{ fontSize:'11px', color:C.danger, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>제거</button>
+                    </div>
+                  ) : (
+                    <label style={{ cursor:'pointer', display:'block' }}>
+                      <div style={{ fontSize:'22px', marginBottom:'4px' }}>📎</div>
+                      <div style={{ fontSize:'12px', color:C.muted }}>클릭하거나 파일을 여기에 끌어다 놓으세요</div>
+                      <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>JPG·PNG·PDF · 10MB 이하</div>
+                      <input type="file" accept="image/*,application/pdf" style={{ display:'none' }}
+                        onChange={e => e.target.files[0] && setEduModalFile(e.target.files[0])} />
+                    </label>
+                  )}
+                </div>
               </div>
               <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
                 <button onClick={saveEdu}
