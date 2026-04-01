@@ -580,169 +580,159 @@ export function Revenue({ user }) {
 
       {/* ── 텀 크로스체크 탭 */}
       {tab === 'terms' && (() => {
-        // 전체 텀 기준 합계 (월 무관)
-        let totalAllExpected = 0, totalAllPaid = 0
+        // 전체 텀 번호 목록 수집 (1텀, 2텀, ... 순서대로)
+        const allTermNos = []
         sorted.forEach(cls => {
-          const fee = feeMap[cls.id], cnt = confirmedCount[cls.id]||0
-          if (!fee || !cnt) return
-          getTerms(cls).forEach(term => {
-            const ps = perSessionFee(fee, term)
-            const exp = ps * cnt * term.sessions.length
-            const paid = (payByClass[cls.id]||[]).filter(p=>payMatchesTerm(p,term)).reduce((s,p)=>s+p.amount,0)
-            totalAllExpected += exp
-            totalAllPaid += paid
+          getTerms(cls).forEach(t => {
+            if (!allTermNos.includes(t.termNo)) allTermNos.push(t.termNo)
           })
         })
-        const totalAllUnpaid = totalAllExpected - totalAllPaid
+        allTermNos.sort((a,b) => a-b)
 
-        // 선택 월의 첫날/마지막날
-        const [vy, vm] = curYM.split('-').map(Number)
-        const monthStart = curYM + '-01'
-        const monthEnd = `${curYM}-${String(new Date(vy, vm, 0).getDate()).padStart(2,'0')}`
-
-        // 텀 상태 판단 (선택 월 기준)
-        function termStatus(term) {
-          if (term.endDate < monthStart) return 'done'       // 이 달 이전에 종료
-          if (term.startDate > monthEnd) return 'upcoming'   // 이 달 이후 시작
-          return 'active'                                     // 이 달에 진행중
-        }
+        // 전체 합계
+        let totalAllExpected=0, totalAllPaid=0
+        sorted.forEach(cls => {
+          const fee=feeMap[cls.id], cnt=confirmedCount[cls.id]||0
+          if(!fee||!cnt) return
+          getTerms(cls).forEach(term => {
+            const ps=perSessionFee(fee,term)
+            const exp=ps*cnt*term.sessions.length
+            const paid=(payByClass[cls.id]||[]).filter(p=>payMatchesTerm(p,term)).reduce((s,p)=>s+p.amount,0)
+            totalAllExpected+=exp; totalAllPaid+=paid
+          })
+        })
+        const totalAllUnpaid=totalAllExpected-totalAllPaid
 
         return (
         <div>
-          {/* 상단: 월 이동 + 전체 합계 */}
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', flexWrap:'wrap', gap:'12px' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-              <button onClick={() => { const d=new Date(curYM+'-01'); d.setMonth(d.getMonth()-1); setCurDate(localDateStr(d)) }}
-                style={{ background:'none', border:`1px solid ${C.border}`, borderRadius:'6px', padding:'6px 12px', cursor:'pointer', fontSize:'14px' }}>‹</button>
-              <span style={{ fontSize:'15px', fontWeight:700, color:C.text, minWidth:'100px', textAlign:'center' }}>{curYM.replace('-','년 ')}월</span>
-              <button onClick={() => { const d=new Date(curYM+'-01'); d.setMonth(d.getMonth()+1); setCurDate(localDateStr(d)) }}
-                style={{ background:'none', border:`1px solid ${C.border}`, borderRadius:'6px', padding:'6px 12px', cursor:'pointer', fontSize:'14px' }}>›</button>
-              {curYM === toYM(today()) && <span style={{ fontSize:'12px', background:'#dcfce7', color:C.success, border:'1px solid #86efac', borderRadius:'6px', padding:'2px 8px', fontWeight:700 }}>이번달</span>}
-            </div>
-            <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
-              {[
-                { label:'전체 예상', value:fmt(totalAllExpected)+'원', color:C.primary, bg:'#fff7ed', border:'#fed7aa' },
-                { label:'총 입금', value:fmt(totalAllPaid)+'원', color:C.success, bg:'#f0fdf4', border:'#86efac' },
-                { label:'총 미수금', value:fmt(totalAllUnpaid)+'원', color:totalAllUnpaid>0?C.danger:C.muted, bg:totalAllUnpaid>0?'#fef2f2':'#f9fafb', border:totalAllUnpaid>0?'#fca5a5':C.border },
-              ].map(s => (
-                <div key={s.label} style={{ padding:'8px 16px', borderRadius:'10px', background:s.bg, border:`1px solid ${s.border}` }}>
-                  <div style={{ fontSize:'16px', fontWeight:700, color:s.color }}>{s.value}</div>
-                  <div style={{ fontSize:'11px', color:C.muted }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
+          {/* 상단 합계 */}
+          <div style={{ display:'flex', gap:'10px', marginBottom:'20px', flexWrap:'wrap' }}>
+            {[
+              { label:'전체 예상', value:fmt(totalAllExpected)+'원', color:C.primary, bg:'#fff7ed', border:'#fed7aa' },
+              { label:'총 입금', value:fmt(totalAllPaid)+'원', color:C.success, bg:'#f0fdf4', border:'#86efac' },
+              { label:'총 미수금', value:fmt(totalAllUnpaid)+'원', color:totalAllUnpaid>0?C.danger:C.muted, bg:totalAllUnpaid>0?'#fef2f2':'#f9fafb', border:totalAllUnpaid>0?'#fca5a5':C.border },
+            ].map(s=>(
+              <div key={s.label} style={{ padding:'10px 18px', borderRadius:'10px', background:s.bg, border:`1px solid ${s.border}` }}>
+                <div style={{ fontSize:'18px', fontWeight:700, color:s.color }}>{s.value}</div>
+                <div style={{ fontSize:'11px', color:C.muted }}>{s.label}</div>
+              </div>
+            ))}
           </div>
 
-          {sorted.length === 0
+          {allTermNos.length===0
             ? <div style={{ textAlign:'center', padding:'60px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
                 <div style={{ fontSize:'36px', marginBottom:'10px' }}>📊</div>
                 <div style={{ fontSize:'15px', fontWeight:600 }}>등록된 수업이 없습니다</div>
               </div>
-            : sorted.map(cls => {
-                const fee = feeMap[cls.id], cnt = confirmedCount[cls.id]||0
-                const terms = getTerms(cls)
-                const clsPays = payByClass[cls.id]||[]
-                const isExpanded = expandedClass===cls.id
-
-                const termRows = terms.map(term => {
-                  const ps = perSessionFee(fee, term)
-                  const expected = ps*cnt*term.sessions.length
-                  const tagged = clsPays.filter(p=>payMatchesTerm(p, term))
-                  const paid = tagged.reduce((s,p)=>s+p.amount,0)
-                  return { term, expected, paid, unpaid:expected-paid, payments:tagged }
+            : allTermNos.map(termNo => {
+                // 이 텀 번호를 가진 모든 수업+텀 row 수집
+                const rows = []
+                sorted.forEach(cls => {
+                  const fee=feeMap[cls.id], cnt=confirmedCount[cls.id]||0
+                  const terms=getTerms(cls)
+                  const term=terms.find(t=>t.termNo===termNo)
+                  if(!term) return
+                  const clsPays=payByClass[cls.id]||[]
+                  const tagged=clsPays.filter(p=>payMatchesTerm(p,term))
+                  const ps=perSessionFee(fee,term)
+                  const expected=fee&&cnt ? ps*cnt*term.sessions.length : 0
+                  const paid=tagged.reduce((s,p)=>s+p.amount,0)
+                  rows.push({ cls, fee, cnt, term, expected, paid, unpaid:expected-paid, payments:tagged })
                 })
-                const totalPaid = termRows.reduce((s,r)=>s+r.paid,0)
-                const totalUnpaid = termRows.reduce((s,r)=>s+r.unpaid,0)
-                // 선택 월 기준 수업 상태
-                const hasActiveTerm  = terms.some(t => termStatus(t) === 'active')
-                const hasUpcoming    = terms.some(t => termStatus(t) === 'upcoming')
-                const hasUnpaid = totalUnpaid > 0 && fee && cnt
+                if(rows.length===0) return null
+
+                // 이 텀의 날짜 범위 (수업마다 다를 수 있으니 대표값)
+                const termDates = rows.map(r=>r.term)
+                const termStart = termDates.map(t=>t.startDate).sort()[0]
+                const termEnd   = termDates.map(t=>t.endDate).sort().reverse()[0]
+
+                // 텀 상태: today 기준
+                const t0 = today()
+                const termSt = termEnd < t0 ? 'done' : termStart > t0 ? 'upcoming' : 'active'
+
+                const termExpTotal = rows.reduce((s,r)=>s+r.expected,0)
+                const termPaidTotal= rows.reduce((s,r)=>s+r.paid,0)
+                const termUnpaidTotal=termExpTotal-termPaidTotal
+
+                const hdrBg    = termSt==='active'?'#f0fdf4': termSt==='upcoming'?'#eff6ff':'#f9fafb'
+                const hdrBorder= termSt==='active'?'#86efac': termSt==='upcoming'?'#bfdbfe': termUnpaidTotal>0?'#fca5a5':C.border
+
+                const isExpanded = expandedClass === ('term_'+termNo)
 
                 return (
-                  <div key={cls.id} style={{ marginBottom:'12px', background:C.card, borderRadius:'14px', border:`1.5px solid ${hasActiveTerm?'#86efac':hasUpcoming?'#bfdbfe':hasUnpaid?'#fca5a5':C.border}`, overflow:'hidden' }}>
-                    <div onClick={()=>setExpandedClass(isExpanded?null:cls.id)}
-                      style={{ padding:'14px 20px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'10px', background:hasActiveTerm?'#f0fdf4':hasUpcoming?'#eff6ff':hasUnpaid?'#fef2f2':'#fafafa', borderBottom:isExpanded?`1px solid ${C.border}`:'none' }}>
-                      <div>
-                        <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-                          <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>🏫 {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}</span>
-                          {hasActiveTerm &&<span style={{ fontSize:'11px', background:'#dcfce7', color:C.success, border:'1px solid #86efac', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>진행중</span>}
-                          {!hasActiveTerm&&hasUpcoming&&<span style={{ fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>인원모집</span>}
-                          {hasUnpaid&&<span style={{ fontSize:'11px', background:'#fef2f2', color:C.danger, border:'1px solid #fca5a5', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>미수금</span>}
-                          {!fee&&<span style={{ fontSize:'11px', background:'#f3f4f6', color:C.muted, border:`1px solid ${C.border}`, borderRadius:'5px', padding:'1px 7px' }}>수강료 미설정</span>}
-                        </div>
-                        <div style={{ fontSize:'12px', color:C.muted, marginTop:'4px' }}>
-                          {cnt}명 · {terms.length}텀{cls.time?` · ${cls.time}`:''}
-                          {fee&&<> · <span style={{ color:C.primary, fontWeight:600 }}>{fmt(fee.amount)}원/{fee.feeType==='per_session'?'회차':'텀'}</span></>}
-                        </div>
+                  <div key={termNo} style={{ marginBottom:'14px', borderRadius:'14px', border:`1.5px solid ${hdrBorder}`, overflow:'hidden', background:C.card }}>
+                    {/* 텀 헤더 */}
+                    <div onClick={()=>setExpandedClass(isExpanded?null:'term_'+termNo)}
+                      style={{ padding:'14px 20px', background:hdrBg, cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'10px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                        <span style={{ fontSize:'17px', fontWeight:800, color:termSt==='active'?C.success:termSt==='upcoming'?C.blue:C.text }}>
+                          {termNo}텀
+                        </span>
+                        <span style={{ fontSize:'12px', color:C.muted }}>{termStart?.slice(5)} ~ {termEnd?.slice(5)}</span>
+                        {termSt==='active'  &&<span style={{ fontSize:'12px', background:'#dcfce7', color:C.success, border:'1px solid #86efac', borderRadius:'6px', padding:'2px 8px', fontWeight:700 }}>진행중</span>}
+                        {termSt==='done'    &&<span style={{ fontSize:'12px', background:'#f3f4f6', color:C.muted, border:`1px solid ${C.border}`, borderRadius:'6px', padding:'2px 8px' }}>수업완료</span>}
+                        {termSt==='upcoming'&&<span style={{ fontSize:'12px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'6px', padding:'2px 8px', fontWeight:700 }}>예정</span>}
+                        {termUnpaidTotal>0&&termSt!=='upcoming'&&<span style={{ fontSize:'12px', background:'#fef2f2', color:C.danger, border:'1px solid #fca5a5', borderRadius:'6px', padding:'2px 8px', fontWeight:700 }}>미수금</span>}
                       </div>
                       <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
-                        {fee&&cnt>0&&<>
-                          <div style={{ textAlign:'right' }}><div style={{ fontSize:'11px', color:C.muted }}>입금</div><div style={{ fontSize:'14px', fontWeight:700, color:C.success }}>{fmt(totalPaid)}원</div></div>
-                          {totalUnpaid>0&&<div style={{ textAlign:'right' }}><div style={{ fontSize:'11px', color:C.muted }}>미수금</div><div style={{ fontSize:'14px', fontWeight:700, color:C.danger }}>{fmt(totalUnpaid)}원</div></div>}
+                        {termExpTotal>0&&<>
+                          <div style={{ textAlign:'right' }}><div style={{ fontSize:'11px', color:C.muted }}>예상</div><div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{fmt(termExpTotal)}원</div></div>
+                          <div style={{ textAlign:'right' }}><div style={{ fontSize:'11px', color:C.muted }}>입금</div><div style={{ fontSize:'14px', fontWeight:700, color:C.success }}>{fmt(termPaidTotal)}원</div></div>
+                          {termUnpaidTotal>0&&termSt!=='upcoming'&&<div style={{ textAlign:'right' }}><div style={{ fontSize:'11px', color:C.muted }}>미수금</div><div style={{ fontSize:'14px', fontWeight:700, color:C.danger }}>{fmt(termUnpaidTotal)}원</div></div>}
                         </>}
-                        <span style={{ fontSize:'20px', color:C.muted, transition:'transform .2s', display:'inline-block', transform:isExpanded?'rotate(90deg)':'none' }}>›</span>
+                        <span style={{ fontSize:'20px', color:C.muted, display:'inline-block', transform:isExpanded?'rotate(90deg)':'none', transition:'transform .2s' }}>›</span>
                       </div>
                     </div>
 
+                    {/* 텀 내 수업 목록 */}
                     {isExpanded&&(
                       <div style={{ padding:'12px 20px', display:'flex', flexDirection:'column', gap:'10px' }}>
-                        <div style={{ display:'flex', justifyContent:'flex-end' }}>
-                          <button onClick={()=>{ setFeeTarget({classId:cls.id,org:cls.organization,className:cls.className}); setFeeForm({feeType:fee?.feeType||'per_session',amount:String(fee?.amount||'')}); setFeeModal(true) }}
-                            style={{ padding:'6px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#f9fafb', color:fee?C.primary:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                            {fee?`⚙️ ${fmt(fee.amount)}원/${fee.feeType==='per_session'?'회차':'텀'}`:'⚙️ 수강료 설정'}
-                          </button>
-                        </div>
-                        {termRows.map(({ term, expected, paid, unpaid, payments:tPays }) => {
-                          const st = termStatus(term)  // 'done' | 'active' | 'upcoming'
-                          const isActive = st === 'active'
-                          const isDone   = st === 'done'
-                          const isUpcoming = st === 'upcoming'
-                          const hasUnpaid = unpaid > 0 && !isUpcoming
-                          const borderColor = isActive ? '#86efac' : hasUnpaid ? '#fca5a5' : C.border
-                          const bgColor     = isActive ? '#f0fdf4' : hasUnpaid ? '#fef2f2' : '#f9fafb'
-                          const labelColor  = isActive ? C.success  : hasUnpaid ? C.danger  : C.text
+                        {rows.map(({ cls, fee, cnt, term, expected, paid, unpaid, payments:tPays }) => {
+                          const hasUnpaidRow = unpaid>0&&termSt!=='upcoming'
+                          const days = cls.days?.join('·') || ''
                           return (
-                            <div key={term.termNo} style={{ borderRadius:'10px', border:`1.5px solid ${borderColor}`, overflow:'hidden' }}>
-                              <div style={{ padding:'10px 14px', background:bgColor, display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px' }}>
-                                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                                  <span style={{ fontSize:'14px', fontWeight:700, color:labelColor }}>{term.label}</span>
-                                  <span style={{ fontSize:'11px', color:C.muted }}>{term.startDate?.slice(5)} ~ {term.endDate?.slice(5)} · {term.sessions.length}회차</span>
-                                  {isActive  && <span style={{ fontSize:'11px', background:'#dcfce7', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'1px 6px', fontWeight:700 }}>진행중</span>}
-                                  {isDone    && <span style={{ fontSize:'11px', background:'#f3f4f6', color:C.muted, border:`1px solid ${C.border}`, borderRadius:'4px', padding:'1px 6px' }}>종료</span>}
-                                  {isUpcoming&& <span style={{ fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 6px' }}>인원모집</span>}
+                            <div key={cls.id} style={{ borderRadius:'10px', border:`1px solid ${hasUnpaidRow?'#fca5a5':C.border}`, overflow:'hidden' }}>
+                              {/* 수업 행 헤더 */}
+                              <div style={{ padding:'10px 14px', background:hasUnpaidRow?'#fef2f2':'#fafafa', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px' }}>
+                                <div>
+                                  <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
+                                    🏫 {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}
+                                  </div>
+                                  <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
+                                    {cnt}명 확정 · {term.sessions.length}회차 · {days}요일
+                                    {term.startDate&&<> · {term.startDate.slice(5)}~{term.endDate.slice(5)}</>}
+                                  </div>
                                 </div>
-                                <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+                                <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
                                   {fee&&cnt>0&&<>
                                     <span style={{ fontSize:'12px', color:C.muted }}>예상 {fmt(expected)}원</span>
                                     <span style={{ fontSize:'12px', fontWeight:700, color:C.success }}>입금 {fmt(paid)}원</span>
-                                    {unpaid>0&&<span style={{ fontSize:'12px', fontWeight:700, color:isUpcoming?C.muted:C.danger }}>미수 {fmt(unpaid)}원</span>}
+                                    {unpaid>0&&termSt!=='upcoming'&&<span style={{ fontSize:'12px', fontWeight:700, color:C.danger }}>미수 {fmt(unpaid)}원</span>}
                                   </>}
-                                  {!isUpcoming&&<button onClick={()=>openPayModal(today(),cls.id,term.termNo)}
+                                  {!fee&&<span style={{ fontSize:'11px', color:C.muted }}>수강료 미설정</span>}
+                                  {termSt!=='upcoming'&&<button onClick={()=>openPayModal(today(),cls.id,term.termNo)}
                                     style={{ padding:'4px 10px', borderRadius:'7px', border:'none', background:C.primary, color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                     + 입금
                                   </button>}
                                 </div>
                               </div>
-                              {tPays.length>0
-                                ? <div style={{ padding:'4px 14px 8px' }}>
-                                    {[...tPays].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(p=>(
-                                      <div key={p.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', padding:'7px 0', borderBottom:`1px solid #f3f4f6` }}>
-                                        <div style={{ flex:1 }}>
-                                          <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-                                            <span style={{ fontSize:'13px', color:C.text, fontWeight:600 }}>{p.date?.replace(/-/g,'.').slice(2)}</span>
-                                            {p.memo&&<span style={{ fontSize:'12px', color:C.muted }}>{p.memo}</span>}
-                                          </div>
-                                          {p.reason&&<div style={{ fontSize:'11px', color:C.warning, marginTop:'3px', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'5px', padding:'2px 8px', display:'inline-block' }}>📝 {p.reason}</div>}
-                                        </div>
-                                        <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
-                                          <span style={{ fontSize:'14px', fontWeight:700, color:C.success }}>+{fmt(p.amount)}원</span>
-                                          <button onClick={()=>{ if(window.confirm('입금 내역을 삭제할까요?')) deletePayment(p.id) }} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'16px', lineHeight:1, padding:0 }} title="삭제">×</button>
-                                        </div>
+                              {/* 입금 내역 */}
+                              {tPays.length>0&&(
+                                <div style={{ padding:'4px 14px 8px' }}>
+                                  {[...tPays].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(p=>(
+                                    <div key={p.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0', borderBottom:`1px solid #f3f4f6` }}>
+                                      <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                                        <span style={{ fontSize:'13px', color:C.text, fontWeight:600 }}>{p.date?.replace(/-/g,'.').slice(2)}</span>
+                                        {p.memo&&<span style={{ fontSize:'12px', color:C.muted }}>{p.memo}</span>}
                                       </div>
-                                    ))}
-                                  </div>
-                                : <div style={{ padding:'8px 14px', fontSize:'12px', color:C.muted }}>입금 내역 없음</div>
-                              }
+                                      <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                                        <span style={{ fontSize:'13px', fontWeight:700, color:C.success }}>+{fmt(p.amount)}원</span>
+                                        <button onClick={()=>{ if(window.confirm('삭제할까요?')) deletePayment(p.id) }} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'16px', lineHeight:1, padding:0 }}>×</button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )
                         })}
@@ -786,6 +776,22 @@ export function Revenue({ user }) {
                           확정 {cnt}명 · {sessions.length}회차 · {terms.length}텀
                           {fee&&<> · 기대수익 <strong style={{ color:C.primary }}>{fmt(totalExpected)}원</strong></>}
                         </div>
+                        {/* 텀별 회차/금액 */}
+                        {fee&&terms.length>0&&(
+                          <div style={{ display:'flex', gap:'6px', marginTop:'6px', flexWrap:'wrap' }}>
+                            {terms.map(term=>{
+                              const ps=perSessionFee(fee,term)
+                              const termAmt=ps*term.sessions.length
+                              const isCur=isTermCurrent(term)
+                              return (
+                                <span key={term.termNo} style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'5px', border:`1px solid ${isCur?'#86efac':C.border}`, background:isCur?'#f0fdf4':'#f9fafb', color:isCur?C.success:C.text, fontWeight:isCur?700:400 }}>
+                                  {term.label} {term.sessions.length}회차 {fmt(termAmt)}원
+                                  {isCur&&' 📍'}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                       <button onClick={()=>{ setFeeTarget({classId:cls.id,org:cls.organization,className:cls.className}); setFeeForm({feeType:fee?.feeType||'per_session',amount:String(fee?.amount||'')}); setFeeModal(true) }}
                         style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:fee?'#fff7ed':'#f9fafb', color:fee?C.primary:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
