@@ -73,6 +73,7 @@ export function Training({ user }) {
   const [form, setForm]           = useState(EMPTY_FORM)
   const [editId, setEditId]       = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [dragOverId, setDragOverId] = useState(null)
   const [trainingSites]           = useState(() => loadTrainingSites())
   const [preview, setPreview]     = useState(null)
   const currentYear               = String(new Date().getFullYear())
@@ -264,8 +265,11 @@ export function Training({ user }) {
               {filtered.map(r => (
                 <div key={r.id}
                   onClick={() => r.fileUrl && openPreview(r)}
-                  style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px 20px', cursor: r.fileUrl ? 'pointer' : 'default', transition:'box-shadow 0.15s' }}
-                  onMouseEnter={e => { if(r.fileUrl) e.currentTarget.style.boxShadow='0 2px 12px rgba(249,115,22,0.15)' }}
+                  onDragOver={e => { e.preventDefault(); setDragOverId(r.id) }}
+                  onDragLeave={() => setDragOverId(null)}
+                  onDrop={e => { e.preventDefault(); setDragOverId(null); const file = e.dataTransfer.files[0]; if(file) uploadFile(r.id, file) }}
+                  style={{ background: dragOverId===r.id ? '#fff7ed' : C.card, borderRadius:'12px', border: dragOverId===r.id ? `2px dashed ${C.primary}` : `1px solid ${C.border}`, padding:'16px 20px', cursor: r.fileUrl ? 'pointer' : 'default', transition:'box-shadow 0.15s, border 0.15s, background 0.15s' }}
+                  onMouseEnter={e => { if(r.fileUrl && dragOverId!==r.id) e.currentTarget.style.boxShadow='0 2px 12px rgba(249,115,22,0.15)' }}
                   onMouseLeave={e => { e.currentTarget.style.boxShadow='' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'12px' }}>
                     <div style={{ flex:1 }}>
