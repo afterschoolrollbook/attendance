@@ -35,9 +35,11 @@ async function uploadToStorage(userId, awardId, file) {
 
 const AWARD_TYPES = ['표창', '우수상', '최우수상', '대상', '장려상', '감사패', '공로상', '기타']
 
+const DIVISIONS = ['초등부', '중등부', '고등부', '대학부', '일반부', '기타']
+
 const EMPTY_FORM = {
   year: String(new Date().getFullYear()),
-  title: '', awardType: '표창', host: '', awardedAt: '', memo: ''
+  contestName: '', title: '', awardType: '표창', division: '', host: '', awardedAt: '', memo: ''
 }
 
 export function AwardsPage({ user }) {
@@ -66,7 +68,8 @@ export function AwardsPage({ user }) {
   const openAdd  = () => { setForm(EMPTY_FORM); setEditId(null); setModalFile(null); setModal(true) }
   const openEdit = r => {
     setForm({
-      year: r.year, title: r.title, awardType: r.awardType || '표창',
+      year: r.year, contestName: r.contestName || '', title: r.title,
+      awardType: r.awardType || '표창', division: r.division || '',
       host: r.host || '', awardedAt: r.awardedAt || '', memo: r.memo || ''
     })
     setEditId(r.id); setModalFile(null); setModal(true)
@@ -147,14 +150,16 @@ export function AwardsPage({ user }) {
       .map((r, i) => ({
         'No': i + 1,
         '연도': r.year || '',
+        '대회명': r.contestName || '',
         '수상명': r.title || '',
         '수상종류': r.awardType || '',
+        '부문': r.division || '',
         '수여기관': r.host || '',
         '수상일': r.awardedAt || '',
         '메모': r.memo || '',
       }))
     const ws = XLSX.utils.json_to_sheet(rows)
-    ws['!cols'] = [{ wch:5 },{ wch:10 },{ wch:30 },{ wch:12 },{ wch:20 },{ wch:12 },{ wch:20 }]
+    ws['!cols'] = [{ wch:5 },{ wch:10 },{ wch:25 },{ wch:25 },{ wch:12 },{ wch:10 },{ wch:20 },{ wch:12 },{ wch:20 }]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '수상경력')
     XLSX.writeFile(wb, `수상경력_${today}.xlsx`)
@@ -231,11 +236,17 @@ export function AwardsPage({ user }) {
                         {r.awardType}
                       </span>
                     )}
+                    {r.division && (
+                      <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>
+                        {r.division}
+                      </span>
+                    )}
                   </div>
                   <div style={{ display:'flex', gap:'16px', fontSize:'12px', color:C.muted, flexWrap:'wrap' }}>
-                    {r.host      && <span>🏛 {r.host}</span>}
-                    {r.awardedAt && <span>📅 {r.awardedAt}</span>}
-                    {r.memo      && <span>📌 {r.memo}</span>}
+                    {r.contestName && <span>🏆 {r.contestName}</span>}
+                    {r.host        && <span>🏛 {r.host}</span>}
+                    {r.awardedAt   && <span>📅 {r.awardedAt}</span>}
+                    {r.memo        && <span>📌 {r.memo}</span>}
                   </div>
                   {r.fileUrl && (
                     <div style={{ display:'flex', alignItems:'center', gap:'8px', marginTop:'8px' }}>
@@ -282,6 +293,13 @@ export function AwardsPage({ user }) {
                   placeholder="예: 2025"
                   style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
               </div>
+              {/* 대회명 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>대회명</label>
+                <input value={form.contestName} onChange={e => setForm(v => ({...v, contestName:e.target.value}))}
+                  placeholder="예: 전국 방과후 강사 경진대회"
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+              </div>
               {/* 수상명 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>수상명 *</label>
@@ -289,13 +307,23 @@ export function AwardsPage({ user }) {
                   placeholder="예: 우수 방과후 강사 표창"
                   style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
               </div>
-              {/* 수상 종류 */}
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>수상 종류</label>
-                <select value={form.awardType} onChange={e => setForm(v => ({...v, awardType:e.target.value}))}
-                  style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', boxSizing:'border-box' }}>
-                  {AWARD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+              {/* 수상 종류 + 부문 */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>수상 종류</label>
+                  <select value={form.awardType} onChange={e => setForm(v => ({...v, awardType:e.target.value}))}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', boxSizing:'border-box' }}>
+                    {AWARD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>부문</label>
+                  <select value={form.division} onChange={e => setForm(v => ({...v, division:e.target.value}))}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', boxSizing:'border-box' }}>
+                    <option value=''>선택 안함</option>
+                    {DIVISIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
               </div>
               {/* 수여기관 */}
               <div>
