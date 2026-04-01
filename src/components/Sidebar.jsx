@@ -10,11 +10,15 @@ const NAV = [
   { path: 'reports',    label: '출석 리포트', icon: '📊', feature: FEATURES.VIEW_REPORT },
   { path: 'templates',  label: '출석부 양식', icon: '📄', feature: FEATURES.MANAGE_TEMPLATE },
   { path: 'printsetup', label: '출석부 출력', icon: '🖨️', feature: FEATURES.PRINT_ATTENDANCE },
-  { path: 'revenue',    label: '수익관리',    icon: '💰', feature: null },
   { path: 'profile',    label: '내 정보',     icon: '👤', feature: null },
 ]
 
-// 내 관리 메뉴 — menuKey가 관리자 ON/OFF 키와 매핑됨
+// 수익관리 — menuKey 없음. 관리자 ON/OFF 대상 아님, 모든 사용자에게 항상 표시
+const MY_NAV_FIXED = [
+  { path: 'revenue', label: '수익관리', icon: '💰' },
+]
+
+// 나머지 내 관리 메뉴 — 관리자 페이지에서 ON/OFF 가능
 const MY_NAV = [
   { path: 'training',     label: '연수관리',   icon: '🎓', menuKey: 'training' },
   { path: 'certificates', label: '자격증관리', icon: '🏆', menuKey: 'certificates' },
@@ -28,7 +32,6 @@ const ADMIN_NAV = [
   { path: 'adsense',        label: '광고 관리',  icon: '📢', feature: FEATURES.MANAGE_AD },
 ]
 
-// 관리자 메뉴 ON/OFF 설정 읽기
 const KEY_MENU = 'asa_mymenu_settings'
 function getMenuConfig() {
   return JSON.parse(localStorage.getItem(KEY_MENU) || '{"training":true,"certificates":true,"career":true,"jobs":true}')
@@ -41,7 +44,6 @@ export function Sidebar({ user, currentPage, onNav, onLogout }) {
   const levelColors = { 1:'#9ca3af', 2:'#f97316', 3:'#16a34a', 4:'#8b5cf6', 5:'#ef4444' }
   const levelLabels = { 1:'Lv.1 미인증', 2:'Lv.2 인증', 3:'Lv.3 우수', 4:'Lv.4 파트너', 5:'Lv.5 관리자' }
 
-  // ON인 내 관리 메뉴만 필터
   const visibleMyNav = MY_NAV.filter(item => menuCfg[item.menuKey] !== false)
 
   return (
@@ -93,17 +95,20 @@ export function Sidebar({ user, currentPage, onNav, onLogout }) {
           return <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} />
         })}
 
-        {/* 내 관리 섹션 — ON인 메뉴만 표시 */}
-        {visibleMyNav.length > 0 && (
-          <>
-            <div style={{ fontSize:'11px', color:'#52525b', padding:'12px 20px 4px', fontWeight:600, letterSpacing:'0.05em' }}>
-              내 관리
-            </div>
-            {visibleMyNav.map(item => (
-              <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} />
-            ))}
-          </>
-        )}
+        {/* 내 관리 섹션 */}
+        <div style={{ fontSize:'11px', color:'#52525b', padding:'12px 20px 4px', fontWeight:600, letterSpacing:'0.05em' }}>
+          내 관리
+        </div>
+
+        {/* 수익관리 — 항상 고정 */}
+        {MY_NAV_FIXED.map(item => (
+          <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} />
+        ))}
+
+        {/* 나머지 내 관리 — 관리자 ON/OFF 적용 */}
+        {visibleMyNav.map(item => (
+          <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} />
+        ))}
 
         {/* 관리자 메뉴 */}
         {user?.role === 'admin' && (
