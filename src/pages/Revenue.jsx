@@ -605,19 +605,7 @@ export function Revenue({ user }) {
 
         return (
         <div>
-          {/* 상단 합계 */}
-          <div style={{ display:'flex', gap:'10px', marginBottom:'20px', flexWrap:'wrap' }}>
-            {[
-              { label:'전체 예상', value:fmt(totalAllExpected)+'원', color:C.primary, bg:'#fff7ed', border:'#fed7aa' },
-              { label:'총 입금', value:fmt(totalAllPaid)+'원', color:C.success, bg:'#f0fdf4', border:'#86efac' },
-              { label:'총 미수금', value:fmt(totalAllUnpaid)+'원', color:totalAllUnpaid>0?C.danger:C.muted, bg:totalAllUnpaid>0?'#fef2f2':'#f9fafb', border:totalAllUnpaid>0?'#fca5a5':C.border },
-            ].map(s=>(
-              <div key={s.label} style={{ padding:'10px 18px', borderRadius:'10px', background:s.bg, border:`1px solid ${s.border}` }}>
-                <div style={{ fontSize:'18px', fontWeight:700, color:s.color }}>{s.value}</div>
-                <div style={{ fontSize:'11px', color:C.muted }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
+
 
           {allTermNos.length===0
             ? <div style={{ textAlign:'center', padding:'60px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
@@ -647,8 +635,19 @@ export function Revenue({ user }) {
                 const termEnd   = termDates.map(t=>t.endDate).sort().reverse()[0]
 
                 // 텀 상태: today 기준
+                // 텀 상태: 텀 순서 기준 (allTermNos 전체 기준으로 계산)
+                // 모든 수업의 텀별 endDate를 모아서, 해당 텀번호의 수업들이 전부 종료됐으면 done
+                // done 다음 첫번째 텀이 active, 나머지 upcoming
                 const t0 = today()
-                const termSt = termEnd < t0 ? 'done' : termStart > t0 ? 'upcoming' : 'active'
+                const lastDoneTermNo = allTermNos.filter(n => {
+                  const endsForN = sorted.flatMap(cls => {
+                    const t = getTerms(cls).find(t=>t.termNo===n)
+                    return t ? [t.endDate] : []
+                  })
+                  return endsForN.length > 0 && endsForN.every(e => e < t0)
+                }).reduce((max,n)=>Math.max(max,n), 0)
+                const activeTermNo = lastDoneTermNo + 1
+                const termSt = termNo < activeTermNo ? 'done' : termNo === activeTermNo ? 'active' : 'upcoming'
 
                 const termExpTotal = rows.reduce((s,r)=>s+r.expected,0)
                 const termPaidTotal= rows.reduce((s,r)=>s+r.paid,0)
@@ -662,44 +661,44 @@ export function Revenue({ user }) {
                 return (
                   <div key={termNo} style={{ marginBottom:'14px', borderRadius:'14px', border:`1.5px solid ${hdrBorder}`, overflow:'hidden', background:C.card }}>
                     {/* 텀 헤더 */}
-                    <div onClick={()=>setExpandedClass(isExpanded?null:'term_'+termNo)}
-                      style={{ padding:'14px 20px', background:hdrBg, cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'10px' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-                        <span style={{ fontSize:'17px', fontWeight:800, color:termSt==='active'?C.success:termSt==='upcoming'?C.blue:C.text }}>
-                          {termNo}텀
-                        </span>
-                        <span style={{ fontSize:'12px', color:C.muted }}>{termStart?.slice(5)} ~ {termEnd?.slice(5)}</span>
-                        {termSt==='active'  &&<span style={{ fontSize:'12px', background:'#dcfce7', color:C.success, border:'1px solid #86efac', borderRadius:'6px', padding:'2px 8px', fontWeight:700 }}>진행중</span>}
-                        {termSt==='done'    &&<span style={{ fontSize:'12px', background:'#f3f4f6', color:C.muted, border:`1px solid ${C.border}`, borderRadius:'6px', padding:'2px 8px' }}>수업완료</span>}
-                        {termSt==='upcoming'&&<span style={{ fontSize:'12px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'6px', padding:'2px 8px', fontWeight:700 }}>예정</span>}
-                        {termUnpaidTotal>0&&termSt!=='upcoming'&&<span style={{ fontSize:'12px', background:'#fef2f2', color:C.danger, border:'1px solid #fca5a5', borderRadius:'6px', padding:'2px 8px', fontWeight:700 }}>미수금</span>}
-                      </div>
-                      <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
-                        {termExpTotal>0&&<>
-                          <div style={{ textAlign:'right' }}><div style={{ fontSize:'11px', color:C.muted }}>예상</div><div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{fmt(termExpTotal)}원</div></div>
-                          <div style={{ textAlign:'right' }}><div style={{ fontSize:'11px', color:C.muted }}>입금</div><div style={{ fontSize:'14px', fontWeight:700, color:C.success }}>{fmt(termPaidTotal)}원</div></div>
-                          {termUnpaidTotal>0&&termSt!=='upcoming'&&<div style={{ textAlign:'right' }}><div style={{ fontSize:'11px', color:C.muted }}>미수금</div><div style={{ fontSize:'14px', fontWeight:700, color:C.danger }}>{fmt(termUnpaidTotal)}원</div></div>}
-                        </>}
-                        <span style={{ fontSize:'20px', color:C.muted, display:'inline-block', transform:isExpanded?'rotate(90deg)':'none', transition:'transform .2s' }}>›</span>
+                    <div style={{ padding:'12px 20px', background:hdrBg, borderBottom:`1px solid ${hdrBorder}` }}>
+                      {/* 텀 번호 + 상태 + 합계 */}
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                          <span style={{ fontSize:'16px', fontWeight:800, color:termSt==='active'?C.success:termSt==='upcoming'?C.muted:C.text }}>{termNo}텀</span>
+                          <span style={{ fontSize:'12px', color:C.muted }}>{termStart?.slice(5)} ~ {termEnd?.slice(5)}</span>
+                          {termSt==='active'  &&<span style={{ fontSize:'11px', background:'#dcfce7', color:C.success, border:'1px solid #86efac', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>진행중</span>}
+                          {termSt==='done'    &&<span style={{ fontSize:'11px', background:'#f3f4f6', color:C.muted, border:`1px solid ${C.border}`, borderRadius:'5px', padding:'1px 7px' }}>수업완료</span>}
+                          {termSt==='upcoming'&&<span style={{ fontSize:'11px', background:'#f3f4f6', color:C.muted, border:`1px solid ${C.border}`, borderRadius:'5px', padding:'1px 7px' }}>예정</span>}
+                          {termUnpaidTotal>0&&termSt!=='upcoming'&&<span style={{ fontSize:'11px', background:'#fef2f2', color:C.danger, border:'1px solid #fca5a5', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>미수금</span>}
+                        </div>
+                        {termExpTotal>0&&<div style={{ display:'flex', gap:'14px', alignItems:'center' }}>
+                          <span style={{ fontSize:'12px', color:C.muted }}>예상 <strong style={{color:C.text}}>{fmt(termExpTotal)}원</strong></span>
+                          <span style={{ fontSize:'12px', color:C.muted }}>입금 <strong style={{color:C.success}}>{fmt(termPaidTotal)}원</strong></span>
+                          {termUnpaidTotal>0&&termSt!=='upcoming'&&<span style={{ fontSize:'12px', color:C.muted }}>미수 <strong style={{color:C.danger}}>{fmt(termUnpaidTotal)}원</strong></span>}
+                        </div>}
                       </div>
                     </div>
 
-                    {/* 텀 내 수업 목록 */}
-                    {isExpanded&&(
-                      <div style={{ padding:'12px 20px', display:'flex', flexDirection:'column', gap:'10px' }}>
-                        {rows.map(({ cls, fee, cnt, term, expected, paid, unpaid, payments:tPays }) => {
+                    {/* 텀 내 수업 목록 — 항상 펼쳐서 표시 */}
+                    <div style={{ padding:'10px 16px', display:'flex', flexDirection:'column', gap:'8px' }}>
+                      {rows.map(({ cls, fee, cnt, term, expected, paid, unpaid, payments:tPays }) => {
                           const hasUnpaidRow = unpaid>0&&termSt!=='upcoming'
                           const days = cls.days?.join('·') || ''
+                          const termType = cls.termType==='semester'?'학기제':'분기제'
+                          const isRowExpanded = expandedClass === (cls.id+'_'+termNo)
                           return (
                             <div key={cls.id} style={{ borderRadius:'10px', border:`1px solid ${hasUnpaidRow?'#fca5a5':C.border}`, overflow:'hidden' }}>
-                              {/* 수업 행 헤더 */}
-                              <div style={{ padding:'10px 14px', background:hasUnpaidRow?'#fef2f2':'#fafafa', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px' }}>
+                              {/* 수업 행 헤더 — 클릭하면 입금내역 펼침 */}
+                              <div onClick={()=>setExpandedClass(isRowExpanded?null:cls.id+'_'+termNo)}
+                                style={{ padding:'10px 14px', background:hasUnpaidRow?'#fef2f2':'#fafafa', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px', cursor:'pointer' }}>
                                 <div>
                                   <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
                                     🏫 {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}
+                                    <span style={{ marginLeft:'6px', fontSize:'11px', color:C.muted, fontWeight:400 }}>{termType}</span>
                                   </div>
                                   <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
-                                    {cnt}명 확정 · {term.sessions.length}회차 · {days}요일
+                                    {cnt}명 확정 · {termNo}텀 {term.sessions.length}회차 · {days}요일
                                     {term.startDate&&<> · {term.startDate.slice(5)}~{term.endDate.slice(5)}</>}
                                   </div>
                                 </div>
@@ -710,34 +709,36 @@ export function Revenue({ user }) {
                                     {unpaid>0&&termSt!=='upcoming'&&<span style={{ fontSize:'12px', fontWeight:700, color:C.danger }}>미수 {fmt(unpaid)}원</span>}
                                   </>}
                                   {!fee&&<span style={{ fontSize:'11px', color:C.muted }}>수강료 미설정</span>}
-                                  {termSt!=='upcoming'&&<button onClick={()=>openPayModal(today(),cls.id,term.termNo)}
+                                  {termSt!=='upcoming'&&<button onClick={e=>{e.stopPropagation();openPayModal(today(),cls.id,term.termNo)}}
                                     style={{ padding:'4px 10px', borderRadius:'7px', border:'none', background:C.primary, color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                     + 입금
                                   </button>}
                                 </div>
                               </div>
-                              {/* 입금 내역 */}
-                              {tPays.length>0&&(
+                              {/* 입금 내역 — 수업 행 클릭 시 펼침 */}
+                              {isRowExpanded&&(
                                 <div style={{ padding:'4px 14px 8px' }}>
-                                  {[...tPays].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(p=>(
-                                    <div key={p.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0', borderBottom:`1px solid #f3f4f6` }}>
-                                      <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                                        <span style={{ fontSize:'13px', color:C.text, fontWeight:600 }}>{p.date?.replace(/-/g,'.').slice(2)}</span>
-                                        {p.memo&&<span style={{ fontSize:'12px', color:C.muted }}>{p.memo}</span>}
+                                  {tPays.length===0
+                                    ? <div style={{ padding:'8px 0', fontSize:'12px', color:C.muted }}>입금 내역 없음</div>
+                                    : [...tPays].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(p=>(
+                                      <div key={p.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0', borderBottom:`1px solid #f3f4f6` }}>
+                                        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                                          <span style={{ fontSize:'13px', color:C.text, fontWeight:600 }}>{p.date?.replace(/-/g,'.').slice(2)}</span>
+                                          {p.memo&&<span style={{ fontSize:'12px', color:C.muted }}>{p.memo}</span>}
+                                        </div>
+                                        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                                          <span style={{ fontSize:'13px', fontWeight:700, color:C.success }}>+{fmt(p.amount)}원</span>
+                                          <button onClick={()=>{ if(window.confirm('삭제할까요?')) deletePayment(p.id) }} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'16px', lineHeight:1, padding:0 }}>×</button>
+                                        </div>
                                       </div>
-                                      <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                                        <span style={{ fontSize:'13px', fontWeight:700, color:C.success }}>+{fmt(p.amount)}원</span>
-                                        <button onClick={()=>{ if(window.confirm('삭제할까요?')) deletePayment(p.id) }} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'16px', lineHeight:1, padding:0 }}>×</button>
-                                      </div>
-                                    </div>
-                                  ))}
+                                    ))
+                                  }
                                 </div>
                               )}
                             </div>
                           )
                         })}
-                      </div>
-                    )}
+                    </div>
                   </div>
                 )
               })
