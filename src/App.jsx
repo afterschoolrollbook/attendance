@@ -21,6 +21,8 @@ import { KakaoCallback } from './pages/KakaoCallback.jsx'
 import { Training }     from './pages/Training.jsx'
 import { Certificates } from './pages/Certificates.jsx'
 import { Career }       from './pages/Career.jsx'
+import { AwardsPage }   from './pages/Awards.jsx'
+import { Proposals }    from './pages/Proposals.jsx'
 import { Jobs }         from './pages/Jobs.jsx'
 import { Revenue }      from './pages/Revenue.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
@@ -113,6 +115,8 @@ export default function App() {
       case 'training':       return <Training     user={user} />
       case 'certificates':   return <Certificates user={user} />
       case 'career':         return <Career       user={user} />
+      case 'awards':         return <AwardsPage   user={user} />
+      case 'proposals':      return <Proposals    user={user} />
       case 'jobs':           return <Jobs         user={user} />
       case 'revenue':        return <Revenue      user={user} />
       default:               return <Dashboard {...pageProps} />
