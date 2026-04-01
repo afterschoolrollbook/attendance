@@ -477,7 +477,7 @@ export function Revenue({ user }) {
                             <span style={{ marginLeft:'6px', fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>{item.term.label} {item.term.sessions.length}회</span>
                           </div>
                           <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
-                            {item.term.startDate?.slice(5)} ~ {item.term.endDate?.slice(5)} · {item.confirmed}명 확정
+                            {item.term.startDate?.slice(5)} ~ {item.term.endDate?.slice(5)} · {item.confirmed}명
                           </div>
                         </div>
                         <div style={{ textAlign:'right', flexShrink:0 }}>
@@ -698,7 +698,7 @@ export function Revenue({ user }) {
                                     <span style={{ marginLeft:'6px', fontSize:'11px', color:C.muted, fontWeight:400 }}>{termType}</span>
                                   </div>
                                   <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
-                                    {cnt}명 확정 · {termNo}텀 {term.sessions.length}회차 · {days}요일
+                                    현재 {cnt}명 · {termType} · {termNo}텀 {term.sessions.length}회차 · {days}요일
                                     {term.startDate&&<> · {term.startDate.slice(5)}~{term.endDate.slice(5)}</>}
                                   </div>
                                 </div>
@@ -774,15 +774,16 @@ export function Revenue({ user }) {
                           {cls.time&&<span style={{ fontSize:'12px', color:C.muted, fontWeight:400, marginLeft:'8px' }}>{cls.time}</span>}
                         </div>
                         <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>
-                          확정 {cnt}명 · {sessions.length}회차 · {terms.length}텀
+                          현재 {cnt}명 · {cls.termType==='semester'?'학기제':'분기제'} · {sessions.length}회차 · {terms.length}텀
                           {fee&&<> · 기대수익 <strong style={{ color:C.primary }}>{fmt(totalExpected)}원</strong></>}
                         </div>
                         {/* 텀별 회차/금액 */}
                         {fee&&terms.length>0&&(
                           <div style={{ display:'flex', gap:'6px', marginTop:'6px', flexWrap:'wrap' }}>
                             {terms.map(term=>{
-                              const ps=perSessionFee(fee,term)
-                              const termAmt=ps*term.sessions.length
+                              // perSessionFee: per_term → amount/회차수, per_session → amount 그대로
+                              // termAmt = 회차당 × 회차수 = 이 텀 총 금액
+                              const termAmt = perSessionFee(fee, term) * term.sessions.length
                               const isCur=isTermCurrent(term)
                               return (
                                 <span key={term.termNo} style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'5px', border:`1px solid ${isCur?'#86efac':C.border}`, background:isCur?'#f0fdf4':'#f9fafb', color:isCur?C.success:C.text, fontWeight:isCur?700:400 }}>
@@ -993,7 +994,7 @@ export function Revenue({ user }) {
                                 {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}
                               </div>
                               <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                                {c}명 확정{cls.time?` · ${cls.time}`:''}{f?` · ${fmt(f.amount)}원/${f.feeType==='per_session'?'회차':'텀'}`:''}
+                                현재 {c}명{cls.time?` · ${cls.time}`:''}{f?` · ${fmt(f.amount)}원/${f.feeType==='per_session'?'회차':'텀'}`:''}
                               </div>
                             </div>
                           )
