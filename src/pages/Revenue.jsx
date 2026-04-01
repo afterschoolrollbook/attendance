@@ -346,7 +346,7 @@ export function Revenue({ user }) {
                 {/* 예상수익 */}
                 {dayRev > 0 && (
                   <div style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#ffffffcc' : C.success, marginBottom: '2px' }}>
-                    {fmtShort(dayRev)}원
+                    {fmt(dayRev)}
                   </div>
                 )}
                 {/* 수업 태그 */}
@@ -381,7 +381,7 @@ export function Revenue({ user }) {
                 {/* 입금 표시 */}
                 {paidAmt > 0 && (
                   <div style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#ffffffcc' : C.blue, marginTop: '1px' }}>
-                    입{fmtShort(paidAmt)}
+                    입{fmt(paidAmt)}
                   </div>
                 )}
               </div>
@@ -392,7 +392,7 @@ export function Revenue({ user }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px', marginTop: '4px', borderTop: `1px solid ${C.border}`, paddingTop: '4px' }}>
           {weekDayRevenue.map((rev, i) => (
             <div key={i} style={{ textAlign: 'center', fontSize: '10px', fontWeight: rev > 0 ? 700 : 400, color: rev > 0 ? C.primary : '#d1d5db', padding: '2px 0' }}>
-              {rev > 0 ? fmtShort(rev) : '–'}
+              {rev > 0 ? fmt(rev) : '–'}
             </div>
           ))}
         </div>
@@ -452,7 +452,7 @@ export function Revenue({ user }) {
             {allUnpaidList.length > 0 && (
               <div style={{ background:'#fef2f2', borderRadius:'14px', border:'1.5px solid #fca5a5', padding:'14px 16px' }}>
                 <div style={{ fontSize:'14px', fontWeight:700, color:C.danger, marginBottom:'10px' }}>
-                  ⚠️ 미수금 {allUnpaidList.length}건 · 합계 {fmt(allUnpaidList.reduce((s,r)=>s+r.unpaid,0))}원
+                  ⚠️ {allUnpaidList.map(r=>r.term.label).filter((v,i,a)=>a.indexOf(v)===i).join(', ')} 미수금 {allUnpaidList.length}건 · 합계 {fmt(allUnpaidList.reduce((s,r)=>s+r.unpaid,0))}원
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
                   {allUnpaidList.map((item, idx) => (
@@ -463,7 +463,7 @@ export function Revenue({ user }) {
                         <div>
                           <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
                             {item.cls.organization} · {item.cls.className}{item.cls.section?' '+item.cls.section:''}
-                            <span style={{ marginLeft:'6px', fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>{item.term.label}</span>
+                            <span style={{ marginLeft:'6px', fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>{item.term.label} {item.term.sessions.length}회</span>
                           </div>
                           <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
                             {item.term.startDate?.slice(5)} ~ {item.term.endDate?.slice(5)} · {item.confirmed}명 확정
@@ -480,38 +480,51 @@ export function Revenue({ user }) {
               </div>
             )}
 
-            {/* 선택 날짜 수업 */}
+            {/* 이달 수업 예상 현황 */}
             <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px' }}>
-              <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'10px' }}>📅 {curDate.replace(/-/g,'.').slice(2)} 수업</div>
-              {dayClasses.length === 0
-                ? <div style={{ textAlign:'center', padding:'14px', color:C.muted, fontSize:'13px' }}>수업 없음</div>
-                : <div style={{ display:'flex', flexDirection:'column', gap:'7px' }}>
-                    {dayClasses.map(cls => {
-                      const fee = feeMap[cls.id], cnt = confirmedCount[cls.id]||0
-                      const terms = getTerms(cls)
-                      const term = terms.find(t=>t.sessions.includes(curDate)) || terms[0]
-                      const ps = perSessionFee(fee, term)
-                      const dayRev = ps * cnt
-                      return (
-                        <div key={cls.id} style={{ padding:'10px 12px', borderRadius:'10px', border:`1px solid ${C.border}`, background:'#fafafa' }}>
-                          <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'3px' }}>
-                            🏫 {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}
+              <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'10px' }}>📅 {curYM.slice(5)}월 수업 현황</div>
+              {(() => {
+                // 이번달에 수업이 있는 항목만
+                const monthItems = []
+                sorted.forEach(cls => {
+                  const fee = feeMap[cls.id]
+                  const cnt = confirmedCount[cls.id] || 0
+                  const terms = getTerms(cls)
+                  terms.forEach(term => {
+                    const monthSessions = term.sessions.filter(d => d.slice(0,7) === curYM)
+                    if (monthSessions.length === 0) return
+                    const ps = perSessionFee(fee, term)
+                    monthItems.push({ cls, term, fee, cnt, monthSessions, monthRev: ps * cnt * monthSessions.length })
+                  })
+                })
+                if (monthItems.length === 0) return (
+                  <div style={{ textAlign:'center', padding:'14px', color:C.muted, fontSize:'13px' }}>이번달 수업 없음</div>
+                )
+                return (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                    {monthItems.map((item, i) => (
+                      <div key={i} style={{ padding:'8px 10px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fafafa', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                        <div>
+                          <div style={{ fontSize:'12px', fontWeight:700, color:C.text }}>
+                            {item.cls.organization} · {item.cls.className}{item.cls.section?' '+item.cls.section:''}
                           </div>
-                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                            <span style={{ fontSize:'12px', color:C.muted }}>{cnt}명{cls.time?` · ${cls.time}`:''} · {term?.label}</span>
-                            {dayRev > 0
-                              ? <span style={{ fontSize:'13px', fontWeight:700, color:C.success }}>+{fmt(dayRev)}원</span>
-                              : <button onClick={() => { setFeeTarget({classId:cls.id,org:cls.organization,className:cls.className}); setFeeForm({feeType:'per_session',amount:''}); setFeeModal(true) }}
-                                  style={{ fontSize:'11px', padding:'3px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
-                                  수강료 설정
-                                </button>
-                            }
+                          <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
+                            {item.term.label} · {item.monthSessions.length}회차 · {item.cnt}명
+                            <span style={{ marginLeft:'4px', color:C.muted }}>({item.monthSessions[0]?.slice(5)}~{item.monthSessions[item.monthSessions.length-1]?.slice(5)})</span>
                           </div>
                         </div>
-                      )
-                    })}
+                        <div style={{ fontSize:'13px', fontWeight:700, color: item.fee ? C.success : C.muted, flexShrink:0 }}>
+                          {item.fee ? fmt(item.monthRev)+'원' : '수강료미설정'}
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:'8px', marginTop:'2px', display:'flex', justifyContent:'space-between', fontSize:'13px', fontWeight:700 }}>
+                      <span style={{ color:C.muted }}>{curYM.slice(5)}월 예상 합계</span>
+                      <span style={{ color:C.success }}>{fmt(monthTotal)}원</span>
+                    </div>
                   </div>
-              }
+                )
+              })()}
             </div>
 
             {/* 선택 날짜 입금 내역 */}
