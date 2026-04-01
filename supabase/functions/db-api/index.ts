@@ -157,6 +157,22 @@ serve(async (req) => {
         result = rows?.[0] ? toCamel(rows[0]) : null
         break
       }
+      case 'storageUpload': {
+        // base64 → Uint8Array 변환 후 Storage에 업로드 (service_role 키로 실행되므로 RLS 우회)
+        const { bucket, path: filePath, base64, contentType } = body
+        const binaryStr = atob(base64)
+        const bytes = new Uint8Array(binaryStr.length)
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i)
+
+        const { error: upErr } = await supabase.storage
+          .from(bucket)
+          .upload(filePath, bytes, { contentType, upsert: true })
+        if (upErr) throw upErr
+
+        const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(filePath)
+        result = { url: urlData.publicUrl }
+        break
+      }
       case 'attendanceUpsert': {
         const snakeData = toSnake(data)
         const { data: row, error } = await supabase
