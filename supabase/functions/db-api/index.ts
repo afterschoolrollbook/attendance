@@ -34,6 +34,12 @@ const TABLE_MAP: Record<string, string> = {
   teacherParentLinks:   'teacher_parent_links',
 }
 
+// 컬럼이 camelCase로 저장된 테이블 — snake 변환 없이 그대로 사용
+const CAMEL_TABLES = new Set([
+  'revenueFees', 'revenuePayments',
+  'trainings', 'careers', 'certificates', 'jobSubs',
+])
+
 // camelCase → snake_case 변환
 function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
@@ -75,50 +81,58 @@ serve(async (req) => {
     const tbl = TABLE_MAP[table]
     if (!tbl) throw new Error(`Unknown table: ${table}`)
 
+    // camelCase 테이블 여부 확인 (원래 테이블 키로 판단)
+    const isCamelTable = CAMEL_TABLES.has(table)
+
+    // 데이터 변환 함수: camelCase 테이블은 변환 없이 그대로
+    const toDb  = (obj: Record<string, unknown>) => isCamelTable ? obj : toSnake(obj)
+    const fromDb = (obj: Record<string, unknown>) => isCamelTable ? obj : toCamel(obj)
+
     let result: unknown
 
     switch (action) {
       case 'getAll': {
         const { data: rows, error } = await supabase.from(tbl).select('*')
         if (error) throw error
-        result = rows.map(toCamel)
+        result = rows.map(fromDb)
         break
       }
       case 'getOne': {
         const { data: row, error } = await supabase.from(tbl).select('*').eq('id', id).single()
         if (error) throw error
-        result = row ? toCamel(row) : null
+        result = row ? fromDb(row) : null
         break
       }
       case 'where': {
         let q = supabase.from(tbl).select('*')
         for (const [col, val] of Object.entries(where || {})) {
-          q = q.eq(col.replace(/[A-Z]/g, c => '_' + c.toLowerCase()), val)
+          const dbCol = isCamelTable ? col : col.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
+          q = q.eq(dbCol, val)
         }
         const { data: rows, error } = await q
         if (error) throw error
-        result = rows.map(toCamel)
+        result = rows.map(fromDb)
         break
       }
       case 'insert': {
-        const snakeData = toSnake(data)
-        const { data: row, error } = await supabase.from(tbl).insert(snakeData).select().single()
+        const dbData = toDb(data)
+        const { data: row, error } = await supabase.from(tbl).insert(dbData).select().single()
         if (error) throw error
-        result = row ? toCamel(row) : null
+        result = row ? fromDb(row) : null
         break
       }
       case 'upsert': {
-        const snakeData = toSnake(data)
-        const { data: row, error } = await supabase.from(tbl).upsert(snakeData).select().single()
+        const dbData = toDb(data)
+        const { data: row, error } = await supabase.from(tbl).upsert(dbData).select().single()
         if (error) throw error
-        result = row ? toCamel(row) : null
+        result = row ? fromDb(row) : null
         break
       }
       case 'update': {
-        const snakePatch = toSnake(patch)
-        const { data: row, error } = await supabase.from(tbl).update(snakePatch).eq('id', id).select().single()
+        const dbPatch = toDb(patch)
+        const { data: row, error } = await supabase.from(tbl).update(dbPatch).eq('id', id).select().single()
         if (error) throw error
-        result = row ? toCamel(row) : null
+        result = row ? fromDb(row) : null
         break
       }
       case 'delete': {
