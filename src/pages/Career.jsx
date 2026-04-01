@@ -73,11 +73,20 @@ export function Career({ user }) {
   }
   useEffect(() => { reload() }, [])
 
-  const sorted = [...records].sort((a, b) => {
-    if (a.isCurrent && !b.isCurrent) return -1
-    if (!a.isCurrent && b.isCurrent) return 1
-    return (b.startDate || '').localeCompare(a.startDate || '')
-  })
+  const GROUP_ORDER = ['방과후 강사', '늘봄', '돌봄', '특강']
+  const GROUP_LABEL = { '방과후 강사':'📋 방과후 강사', '특강':'⚡ 특강', '늘봄':'🌱 늘봄', '돌봄':'💛 돌봄' }
+
+  // 그룹별로 묶고, 각 그룹 내 오래된 것 먼저(startDate 오름차순)
+  const grouped = GROUP_ORDER.reduce((acc, type) => {
+    const items = records
+      .filter(r => (r.jobType || '방과후 강사') === type)
+      .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''))
+    if (items.length > 0) acc.push({ type, label: GROUP_LABEL[type] || type, items })
+    return acc
+  }, [])
+
+  // 엑셀용 flat 배열 (그룹 순서 유지)
+  const sorted = grouped.flatMap(g => g.items)
 
   // 진행중 여부: isCurrent이거나, endDate 없고 시작일이 있는 경우
   const isOngoing = r => r.isCurrent || (!r.endDate && !!r.startDate && !r.isOneDay)
@@ -207,6 +216,7 @@ export function Career({ user }) {
     }})
   }
 
+  // 학력: 오래된 것(입학일) 먼저
   const eduSorted = [...eduRecords].sort((a, b) => (a.admissionDate || '').localeCompare(b.admissionDate || ''))
 
   const downloadExcel = () => {
@@ -298,80 +308,91 @@ export function Career({ user }) {
         </div>
       </div>
 
-      {/* 목록 */}
-      {sorted.length === 0 ? (
+      {/* 이력 목록 — 그룹별 */}
+      {records.length === 0 ? (
         <div style={{ textAlign:'center', padding:'60px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
           <div style={{ fontSize:'36px', marginBottom:'10px' }}>📋</div>
           <div style={{ fontSize:'15px', fontWeight:600 }}>등록된 이력이 없습니다</div>
           <div style={{ fontSize:'13px', marginTop:'6px' }}>+ 이력 추가 버튼으로 경력을 등록하세요</div>
         </div>
       ) : (
-        <div style={{ position:'relative' }}>
-          {/* 타임라인 선 */}
-          <div style={{ position:'absolute', left:'19px', top:'24px', bottom:'24px', width:'2px', background:'#e5e7eb' }} />
-          <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-            {sorted.map(r => (
-              <div key={r.id} style={{ display:'flex', gap:'16px', alignItems:'flex-start' }}>
-                {/* 타임라인 점 */}
-                <div style={{ width:'38px', height:'38px', borderRadius:'50%', background: isOngoing(r) ? C.primary : '#f3f4f6', border:`2px solid ${isOngoing(r) ? C.primary : C.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, zIndex:1 }}>
-                  <span style={{ fontSize:'16px' }}>{r.isOneDay ? '⚡' : isOngoing(r) ? '🏫' : '🏛'}</span>
-                </div>
-                {/* 카드 */}
-                <div
-                  onClick={() => r.fileUrl && openPreview(r)}
-                  onDragOver={e => { e.preventDefault(); setDragOverId(r.id) }}
-                  onDragLeave={() => setDragOverId(null)}
-                  onDrop={e => { e.preventDefault(); setDragOverId(null); const f = e.dataTransfer.files[0]; if(f) uploadFile(r.id, f) }}
-                  style={{ flex:1, borderRadius:'12px', border: dragOverId===r.id ? `2px dashed ${C.primary}` : `1.5px solid ${isOngoing(r) ? '#fed7aa' : C.border}`, padding:'14px 16px', background: dragOverId===r.id ? '#fff7ed' : isOngoing(r) ? '#fffbf5' : C.card, cursor: r.fileUrl ? 'pointer' : 'default', transition:'box-shadow 0.15s, border 0.15s' }}
-                  onMouseEnter={e => { if(r.fileUrl && dragOverId!==r.id) e.currentTarget.style.boxShadow='0 2px 12px rgba(249,115,22,0.15)' }}
-                  onMouseLeave={e => { e.currentTarget.style.boxShadow='' }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px' }}>
-                    <div style={{ flex:1 }}>
-                      {/* 기관명 + 뱃지 */}
-                      <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', marginBottom:'6px' }}>
-                        <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{r.orgName}</span>
-                        {r.jobType && <span style={{ fontSize:'11px', background:'#eff6ff', color:'#1d4ed8', border:'1px solid #bfdbfe', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{r.jobType}</span>}
-                        {(r.schoolType) && <span style={{ fontSize:'11px', background:'#f5f3ff', color:'#7c3aed', border:'1px solid #ddd6fe', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{r.schoolType === '직접입력' ? (r.customSchoolType || r.schoolType) : r.schoolType}</span>}
-                        {r.isOneDay && <span style={{ fontSize:'11px', background:'#fef9c3', color:'#854d0e', border:'1px solid #fde047', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>하루특강</span>}
-                        {!r.isOneDay && r.isCurrent && <span style={{ fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>재직중</span>}
-                        {!r.isOneDay && !r.isCurrent && !r.endDate && r.startDate && <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>진행중</span>}
+        <div style={{ display:'flex', flexDirection:'column', gap:'28px' }}>
+          {grouped.map(group => (
+            <div key={group.type}>
+              {/* 그룹 헤더 */}
+              <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px' }}>
+                <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{group.label}</span>
+                <span style={{ fontSize:'12px', color:C.muted, background:'#f3f4f6', borderRadius:'20px', padding:'1px 10px', fontWeight:600 }}>{group.items.length}건</span>
+                <div style={{ flex:1, height:'1px', background:C.border }} />
+              </div>
+              {/* 타임라인 */}
+              <div style={{ position:'relative' }}>
+                <div style={{ position:'absolute', left:'19px', top:'24px', bottom:'24px', width:'2px', background:'#e5e7eb' }} />
+                <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                  {group.items.map(r => (
+                    <div key={r.id} style={{ display:'flex', gap:'16px', alignItems:'flex-start' }}>
+                      {/* 타임라인 점 */}
+                      <div style={{ width:'38px', height:'38px', borderRadius:'50%', background: isOngoing(r) ? C.primary : '#f3f4f6', border:`2px solid ${isOngoing(r) ? C.primary : C.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, zIndex:1 }}>
+                        <span style={{ fontSize:'16px' }}>{r.isOneDay ? '⚡' : isOngoing(r) ? '🏫' : '🏛'}</span>
                       </div>
-                      {/* 상세 */}
-                      <div style={{ display:'flex', gap:'12px', fontSize:'12px', color:C.muted, flexWrap:'wrap' }}>
-                        {r.role    && <span>💼 {r.role}</span>}
-                        {r.subject && <span>📚 {r.subject}</span>}
-                        {r.startDate && <span>{getDateLabel(r)}</span>}
-                      </div>
-                      {r.description && <div style={{ fontSize:'12px', color:'#374151', marginTop:'6px', lineHeight:1.5 }}>{r.description}</div>}
-                      {/* 첨부파일 */}
-                      {r.fileUrl && (
-                        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginTop:'8px' }}>
-                          <span style={{ fontSize:'12px', color:'#3b82f6' }}>
-                            {r.fileType?.startsWith('image/') ? '🖼' : '📄'} {r.fileName || '첨부파일'}
-                          </span>
-                          <span style={{ fontSize:'11px', color:C.primary, background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>클릭하여 미리보기</span>
-                          <button onClick={e => { e.stopPropagation(); deleteFile(r.id) }}
-                            style={{ fontSize:'11px', color:C.danger, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                      {/* 카드 */}
+                      <div
+                        onClick={() => r.fileUrl && openPreview(r)}
+                        onDragOver={e => { e.preventDefault(); setDragOverId(r.id) }}
+                        onDragLeave={() => setDragOverId(null)}
+                        onDrop={e => { e.preventDefault(); setDragOverId(null); const f = e.dataTransfer.files[0]; if(f) uploadFile(r.id, f) }}
+                        style={{ flex:1, borderRadius:'12px', border: dragOverId===r.id ? `2px dashed ${C.primary}` : `1.5px solid ${isOngoing(r) ? '#fed7aa' : C.border}`, padding:'14px 16px', background: dragOverId===r.id ? '#fff7ed' : isOngoing(r) ? '#fffbf5' : C.card, cursor: r.fileUrl ? 'pointer' : 'default', transition:'box-shadow 0.15s, border 0.15s' }}
+                        onMouseEnter={e => { if(r.fileUrl && dragOverId!==r.id) e.currentTarget.style.boxShadow='0 2px 12px rgba(249,115,22,0.15)' }}
+                        onMouseLeave={e => { e.currentTarget.style.boxShadow='' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px' }}>
+                          <div style={{ flex:1 }}>
+                            {/* 기관명 + 뱃지 */}
+                            <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', marginBottom:'6px' }}>
+                              <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{r.orgName}</span>
+                              {r.schoolType && <span style={{ fontSize:'11px', background:'#f5f3ff', color:'#7c3aed', border:'1px solid #ddd6fe', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{r.schoolType === '직접입력' ? (r.customSchoolType || r.schoolType) : r.schoolType}</span>}
+                              {r.isOneDay && <span style={{ fontSize:'11px', background:'#fef9c3', color:'#854d0e', border:'1px solid #fde047', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>하루특강</span>}
+                              {!r.isOneDay && r.isCurrent && <span style={{ fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>재직중</span>}
+                              {!r.isOneDay && !r.isCurrent && !r.endDate && r.startDate && <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>진행중</span>}
+                            </div>
+                            {/* 상세 */}
+                            <div style={{ display:'flex', gap:'12px', fontSize:'12px', color:C.muted, flexWrap:'wrap' }}>
+                              {r.role    && <span>💼 {r.role}</span>}
+                              {r.subject && <span>📚 {r.subject}</span>}
+                              {r.startDate && <span>{getDateLabel(r)}</span>}
+                            </div>
+                            {r.description && <div style={{ fontSize:'12px', color:'#374151', marginTop:'6px', lineHeight:1.5 }}>{r.description}</div>}
+                            {/* 첨부파일 */}
+                            {r.fileUrl && (
+                              <div style={{ display:'flex', alignItems:'center', gap:'8px', marginTop:'8px' }}>
+                                <span style={{ fontSize:'12px', color:'#3b82f6' }}>
+                                  {r.fileType?.startsWith('image/') ? '🖼' : '📄'} {r.fileName || '첨부파일'}
+                                </span>
+                                <span style={{ fontSize:'11px', color:C.primary, background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>클릭하여 미리보기</span>
+                                <button onClick={e => { e.stopPropagation(); deleteFile(r.id) }}
+                                  style={{ fontSize:'11px', color:C.danger, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                              </div>
+                            )}
+                          </div>
+                          {/* 버튼 */}
+                          <div style={{ display:'flex', gap:'6px', flexShrink:0 }} onClick={e => e.stopPropagation()}>
+                            <label style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted, whiteSpace:'nowrap' }}>
+                              {r.fileUrl ? '🔄 교체' : '📎 파일'}
+                              <input type="file" accept="image/*,application/pdf" style={{ display:'none' }}
+                                onChange={e => e.target.files[0] && uploadFile(r.id, e.target.files[0])} />
+                            </label>
+                            <button onClick={() => openEdit(r)}
+                              style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
+                            <button onClick={() => deleteRecord(r.id)}
+                              style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
+                          </div>
                         </div>
-                      )}
+                      </div>
                     </div>
-                    {/* 버튼 */}
-                    <div style={{ display:'flex', gap:'6px', flexShrink:0 }} onClick={e => e.stopPropagation()}>
-                      <label style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted, whiteSpace:'nowrap' }}>
-                        {r.fileUrl ? '🔄 교체' : '📎 파일'}
-                        <input type="file" accept="image/*,application/pdf" style={{ display:'none' }}
-                          onChange={e => e.target.files[0] && uploadFile(r.id, e.target.files[0])} />
-                      </label>
-                      <button onClick={() => openEdit(r)}
-                        style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
-                      <button onClick={() => deleteRecord(r.id)}
-                        style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -564,8 +585,10 @@ export function Career({ user }) {
 
       {/* 학력 섹션 */}
       <div style={{ marginTop:'32px' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px' }}>
-          <h2 style={{ fontSize:'17px', fontWeight:700, color:C.text, margin:0 }}>🎓 학력</h2>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'14px' }}>
+          <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>🎓 학력</span>
+          {eduSorted.length > 0 && <span style={{ fontSize:'12px', color:C.muted, background:'#f3f4f6', borderRadius:'20px', padding:'1px 10px', fontWeight:600 }}>{eduSorted.length}건</span>}
+          <div style={{ flex:1, height:'1px', background:C.border }} />
         </div>
         {eduSorted.length === 0 ? (
           <div style={{ textAlign:'center', padding:'40px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
