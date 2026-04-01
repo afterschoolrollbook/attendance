@@ -222,7 +222,9 @@ export function Revenue({ user }) {
         )
         const paid = tagged.reduce((s, p) => s + p.amount, 0)
         const unpaid = expected - paid
-        if (unpaid > 0) {
+        // 텀이 아직 시작 안 했으면 미수금 아님 (오늘 기준 startDate가 미래면 제외)
+        const termStarted = term.startDate && term.startDate <= today()
+        if (unpaid > 0 && termStarted) {
           list.push({
             cls, term, fee, cnt,
             expected, paid, unpaid,
