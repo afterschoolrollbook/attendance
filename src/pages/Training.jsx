@@ -82,15 +82,15 @@ async function uploadToStorage(userId, trainingId, file) {
     )
   }
 
-  const bucket = 'trainings'
+  const bucket = 'teacher-files'
 
   // 업로드 전 버킷 존재 여부 먼저 확인
   const bucketExists = await checkBucketExists(SUPABASE_URL, SUPABASE_ANON, bucket)
   if (!bucketExists) {
     throw new Error(
-      '⚠️ Supabase "trainings" 버킷이 없습니다.\n\n' +
+      '⚠️ Supabase "teacher-files" 버킷이 없습니다.\n\n' +
       'Supabase 대시보드 → Storage → New bucket\n' +
-      '이름: trainings / Public 체크 ON 후 생성해주세요.'
+      '이름: teacher-files / Public 체크 ON 후 생성해주세요.'
     )
   }
 
@@ -145,12 +145,12 @@ export function Training({ user }) {
   const reload = () => setRecords(Trainings.byTeacher(user.id))
   useEffect(() => { reload() }, [])
 
-  // 마운트 시 trainings 버킷 존재 여부 확인
+  // 마운트 시 teacher-files 버킷 존재 여부 확인
   useEffect(() => {
     const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
     const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
     if (!SUPABASE_URL || !SUPABASE_ANON) { setBucketOk(false); return }
-    checkBucketExists(SUPABASE_URL, SUPABASE_ANON, 'trainings')
+    checkBucketExists(SUPABASE_URL, SUPABASE_ANON, 'teacher-files')
       .then(ok => setBucketOk(ok))
       .catch(() => setBucketOk(false))
   }, [])
@@ -259,8 +259,8 @@ export function Training({ user }) {
         <div style={{ background:'#fff7ed', border:'1.5px solid #fb923c', borderRadius:'10px', padding:'12px 18px', marginBottom:'18px', display:'flex', alignItems:'flex-start', gap:'10px' }}>
           <span style={{ fontSize:'20px', flexShrink:0 }}>⚠️</span>
           <div>
-            <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>Supabase "trainings" 버킷이 없습니다 — 파일 첨부가 동작하지 않아요</div>
-            <div style={{ fontSize:'12px', color:'#b45309', lineHeight:'1.6' }}>Supabase 대시보드 → Storage → New bucket<br/>이름: trainings / Public bucket 체크 ON 후 생성해주세요.</div>
+            <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>Supabase "teacher-files" 버킷이 없습니다 — 파일 첨부가 동작하지 않아요</div>
+            <div style={{ fontSize:'12px', color:'#b45309', lineHeight:'1.6' }}>Supabase 대시보드 → Storage → New bucket<br/>이름: teacher-files / Public bucket 체크 ON 후 생성해주세요.</div>
           </div>
         </div>
       )}
