@@ -19,6 +19,19 @@ const TABLE_MAP: Record<string, string> = {
   adSlots:              'ad_slots',
   attendanceTemplates:  'attendance_templates',
   settings:             'settings',
+  // 수익 관리
+  revenueFees:          'revenueFees',
+  revenuePayments:      'revenuePayments',
+  // 내 관리 (강사 관련)
+  trainings:            'trainings',
+  careers:              'careers',
+  certificates:         'certificates',
+  jobSubs:              'jobSubs',
+  // 기타
+  branches:             'branches',
+  points:               'points',
+  parentMembers:        'parent_members',
+  teacherParentLinks:   'teacher_parent_links',
 }
 
 // camelCase → snake_case 변환
