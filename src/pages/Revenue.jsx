@@ -702,7 +702,7 @@ export function Revenue({ user }) {
                                     <span style={{ marginLeft:'6px', fontSize:'11px', color:C.muted, fontWeight:400 }}>{termType}</span>
                                   </div>
                                   <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
-                                    현재 {cnt}명 · {termType} · {termNo}텀 {term.sessions.length}회차 · {days}요일
+                                    현재 {cnt}명 · {term.label} {term.sessions.length}회 · {days}요일
                                     {term.startDate&&<> · {term.startDate.slice(5)}~{term.endDate.slice(5)}</>}
                                   </div>
                                 </div>
@@ -793,7 +793,7 @@ export function Revenue({ user }) {
                                 const isCur = isTermCurrent(term)
                                 return (
                                   <span key={term.termNo} style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'5px', border:`1px solid ${isCur?'#86efac':C.border}`, background:isCur?'#f0fdf4':'#f9fafb', color:isCur?C.success:C.text, fontWeight:isCur?700:400 }}>
-                                    {term.label} {term.sessions.length}회차 {fmt(termAmt)}원
+                                    {term.label} {term.sessions.length}회 {fmt(termAmt)}원
                                     {isCur&&' 📍'}
                                   </span>
                                 )
