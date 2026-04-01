@@ -459,3 +459,13 @@ export const Educations = {
   update:    (id, p) => db.update('educations', id, p),
   delete:    (id)  => db.delete('educations', id),
 }
+
+// ─── 수상경력 ─────────────────────────────────────────────────
+export const Awards = {
+  all:       ()    => db.get('awards'),
+  byTeacher: (tid) => db.where('awards', r => r.teacherId === tid),
+  find:      (id)  => db.getOne('awards', id),
+  insert:    (r)   => db.insert('awards', r),
+  update:    (id, p) => db.update('awards', id, p),
+  delete:    (id)  => db.delete('awards', id),
+}
