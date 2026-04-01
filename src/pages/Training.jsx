@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { uid, now } from '../lib/utils.js'
 
 const C = {
@@ -6,7 +6,6 @@ const C = {
   border:'#e5e7eb', text:'#111827', muted:'#6b7280', card:'#fff',
 }
 
-// 관리자 등록 연수기관 불러오기 (없으면 기본값 사용)
 const DEFAULT_TRAINING_SITES = [
   {
     name: '경기도교육청남부연수원',
@@ -56,84 +55,163 @@ function loadTrainingSites() {
   try {
     const ts = JSON.parse(localStorage.getItem('asa_settings_teacherService') || 'null')
     const adminSites = ts?.trainingSites || []
-    // 관리자 등록 기관이 있으면 앞에, 없으면 기본 목록만
     return adminSites.length > 0 ? [...adminSites, ...DEFAULT_TRAINING_SITES] : DEFAULT_TRAINING_SITES
   } catch { return DEFAULT_TRAINING_SITES }
 }
 
-const STORAGE_KEY = 'asa_training'
-
-function loadData(teacherId) {
-  const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-  return all.filter(r => r.teacherId === teacherId)
+const EMPTY_FORM = {
+  year: String(new Date().getFullYear()),
+  title:'', provider:'', providerUrl:'',
+  completionNum:'', completedAt:'', hours:'', memo:''
 }
-function saveItem(item) {
-  const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-  const idx = all.findIndex(r => r.id === item.id)
-  if (idx >= 0) all[idx] = item; else all.push(item)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
-}
-function deleteItem(id) {
-  const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all.filter(r => r.id !== id)))
-}
-
-const EMPTY_FORM = { year: String(new Date().getFullYear()), title:'', provider:'', providerUrl:'', completionNum:'', completedAt:'', hours:'', memo:'' }
 
 export function Training({ user }) {
-  const [tab, setTab]       = useState('list')
-  const [records, setRecords] = useState([])
-  const [modal, setModal]   = useState(false)
-  const [form, setForm]     = useState(EMPTY_FORM)
-  const [editId, setEditId] = useState(null)
+  const [tab, setTab]             = useState('list')
+  const [records, setRecords]     = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [modal, setModal]         = useState(false)
+  const [form, setForm]           = useState(EMPTY_FORM)
+  const [editId, setEditId]       = useState(null)
   const [uploading, setUploading] = useState(false)
-  const [fileMap, setFileMap] = useState({})
-  const [trainingSites, setTrainingSites] = useState(() => loadTrainingSites())
-  const fileRef = useRef()
+  const [trainingSites]           = useState(() => loadTrainingSites())
+  const [preview, setPreview]     = useState(null)
+  const currentYear               = String(new Date().getFullYear())
+  const [selYear, setSelYear]     = useState(currentYear)
 
-  const reload = () => setRecords(loadData(user.id))
-  useEffect(() => { reload() }, [])
-
-  const years = [...new Set(records.map(r => r.year))].sort().reverse()
-  const currentYear = String(new Date().getFullYear())
-  if (!years.includes(currentYear)) years.unshift(currentYear)
-  const [selYear, setSelYear] = useState(currentYear)
-  const filtered = records.filter(r => !selYear || r.year === selYear)
-    .sort((a,b) => (b.completedAt||'').localeCompare(a.completedAt||''))
-
-  const openAdd = () => { setForm(EMPTY_FORM); setEditId(null); setModal(true) }
-  const openEdit = (r) => { setForm({ year:r.year, title:r.title, provider:r.provider||'', providerUrl:r.providerUrl||'', completionNum:r.completionNum||'', completedAt:r.completedAt||'', hours:String(r.hours||''), memo:r.memo||'' }); setEditId(r.id); setModal(true) }
-
-  const save = () => {
-    if (!form.title.trim()) { alert('연수명을 입력하세요'); return }
-    const item = { id: editId||uid(), teacherId: user.id, ...form, hours: Number(form.hours)||0, updatedAt: now() }
-    if (!editId) item.createdAt = now()
-    saveItem(item)
-    reload(); setModal(false)
+  // Supabase에서 데이터 로드
+  const reload = async () => {
+    setLoading(true)
+    try {
+      const { supabase } = await import('../lib/supabase.js')
+      const { data, error } = await supabase
+        .from('trainings')
+        .select('*')
+        .eq('teacherId', user.id)
+        .is('_deleted', null)
+        .order('completedAt', { ascending: false })
+      if (error) throw error
+      setRecords(data || [])
+    } catch(e) {
+      console.error('연수 로드 실패:', e.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
+  useEffect(() => { reload() }, [])
+
+  const years = [...new Set([currentYear, ...records.map(r => r.year)])].sort().reverse()
+  const filtered = records.filter(r => !selYear || r.year === selYear)
+  const totalHours = filtered.reduce((s,r) => s + (Number(r.hours)||0), 0)
+
+  const openAdd  = () => { setForm(EMPTY_FORM); setEditId(null); setModal(true) }
+  const openEdit = (r) => {
+    setForm({
+      year: r.year, title: r.title, provider: r.provider||'',
+      providerUrl: r.providerUrl||'', completionNum: r.completionNum||'',
+      completedAt: r.completedAt||'', hours: String(r.hours||''), memo: r.memo||''
+    })
+    setEditId(r.id)
+    setModal(true)
+  }
+
+  // 저장 (Supabase upsert)
+  const save = async () => {
+    if (!form.title.trim()) { alert('연수명을 입력하세요'); return }
+    try {
+      const { supabase } = await import('../lib/supabase.js')
+      const item = {
+        id: editId || uid(),
+        teacherId: user.id,
+        ...form,
+        hours: Number(form.hours) || 0,
+        updatedAt: now(),
+        ...(!editId && { createdAt: now() })
+      }
+      const { error } = await supabase.from('trainings').upsert(item)
+      if (error) throw error
+      await reload()
+      setModal(false)
+      setSelYear(form.year) // 입력한 연도 탭으로 자동 이동
+    } catch(e) {
+      alert('저장 실패: ' + e.message)
+    }
+  }
+
+  // 삭제
+  const deleteRecord = async (id) => {
+    if (!confirm('삭제할까요?')) return
+    try {
+      const { supabase } = await import('../lib/supabase.js')
+      const { error } = await supabase.from('trainings').update({ _deleted: true }).eq('id', id)
+      if (error) throw error
+      await reload()
+    } catch(e) {
+      alert('삭제 실패: ' + e.message)
+    }
+  }
+
+  // 파일 업로드: Supabase Storage → trainings 테이블 업데이트
   const uploadFile = async (trainingId, file) => {
     if (!file) return
+    const allowed = ['image/jpeg','image/png','image/gif','image/webp','application/pdf']
+    if (!allowed.includes(file.type)) {
+      alert('이미지(JPG·PNG·GIF·WEBP) 또는 PDF 파일만 업로드 가능합니다')
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) { alert('10MB 이하 파일만 업로드 가능합니다'); return }
+
     setUploading(true)
     try {
       const { supabase } = await import('../lib/supabase.js')
-      const path = `training/${user.id}/${trainingId}/${file.name}`
-      const { error } = await supabase.storage.from('teacher-files').upload(path, file, { upsert:true })
-      if (error) throw error
+      const ext = file.name.split('.').pop()
+      const path = `training/${user.id}/${trainingId}/${Date.now()}.${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('teacher-files')
+        .upload(path, file, { upsert: true })
+      if (uploadError) throw uploadError
+
       const { data } = supabase.storage.from('teacher-files').getPublicUrl(path)
-      const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-      const idx = all.findIndex(r => r.id === trainingId)
-      if (idx >= 0) { all[idx].fileUrl = data.publicUrl; all[idx].fileName = file.name }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
-      reload()
-    } catch(e) { alert('파일 업로드 실패: ' + e.message) }
-    finally { setUploading(false) }
+
+      const { error: updateError } = await supabase
+        .from('trainings')
+        .update({ fileUrl: data.publicUrl, fileName: file.name, fileType: file.type })
+        .eq('id', trainingId)
+      if (updateError) throw updateError
+
+      await reload()
+    } catch(e) {
+      alert('파일 업로드 실패: ' + e.message)
+    } finally {
+      setUploading(false)
+    }
   }
 
-  const totalHours = filtered.reduce((s,r) => s + (r.hours||0), 0)
+  // 파일 삭제
+  const deleteFile = async (trainingId) => {
+    if (!confirm('첨부파일을 삭제할까요?')) return
+    try {
+      const { supabase } = await import('../lib/supabase.js')
+      const { error } = await supabase
+        .from('trainings')
+        .update({ fileUrl: null, fileName: null, fileType: null })
+        .eq('id', trainingId)
+      if (error) throw error
+      await reload()
+    } catch(e) {
+      alert('파일 삭제 실패: ' + e.message)
+    }
+  }
+
+  const openPreview = (r) => {
+    if (!r.fileUrl) return
+    setPreview({ url: r.fileUrl, type: r.fileType || '', name: r.fileName || '첨부파일' })
+  }
 
   return (
     <div style={{ padding:'24px', maxWidth:'1000px' }}>
+      {/* 헤더 */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
         <div>
           <h1 style={{ fontSize:'22px', fontWeight:700, color:C.text, margin:0 }}>📚 연수관리</h1>
@@ -151,12 +229,12 @@ export function Training({ user }) {
 
       {tab === 'list' && (
         <>
-          {/* 통계 + 필터 */}
+          {/* 연도 탭 + 통계 + 추가 버튼 */}
           <div style={{ display:'flex', gap:'12px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center' }}>
-            <div style={{ display:'flex', gap:'8px' }}>
+            <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
               {years.map(y => (
                 <button key={y} onClick={() => setSelYear(y)}
-                  style={{ padding:'6px 14px', borderRadius:'8px', border:`1.5px solid ${selYear===y?C.primary:C.border}`, background: selYear===y?'#fff7ed':'#fff', color: selYear===y?C.primary:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  style={{ padding:'6px 14px', borderRadius:'8px', border:`1.5px solid ${selYear===y ? C.primary : C.border}`, background: selYear===y ? '#fff7ed' : '#fff', color: selYear===y ? C.primary : C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   {y}년
                 </button>
               ))}
@@ -173,7 +251,9 @@ export function Training({ user }) {
           </div>
 
           {/* 목록 */}
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div style={{ textAlign:'center', padding:'60px', color:C.muted, fontSize:'14px' }}>불러오는 중...</div>
+          ) : filtered.length === 0 ? (
             <div style={{ textAlign:'center', padding:'60px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
               <div style={{ fontSize:'36px', marginBottom:'10px' }}>📚</div>
               <div style={{ fontSize:'15px', fontWeight:600 }}>이수 기록이 없습니다</div>
@@ -182,7 +262,11 @@ export function Training({ user }) {
           ) : (
             <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
               {filtered.map(r => (
-                <div key={r.id} style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px 20px' }}>
+                <div key={r.id}
+                  onClick={() => r.fileUrl && openPreview(r)}
+                  style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px 20px', cursor: r.fileUrl ? 'pointer' : 'default', transition:'box-shadow 0.15s' }}
+                  onMouseEnter={e => { if(r.fileUrl) e.currentTarget.style.boxShadow='0 2px 12px rgba(249,115,22,0.15)' }}
+                  onMouseLeave={e => { e.currentTarget.style.boxShadow='' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'12px' }}>
                     <div style={{ flex:1 }}>
                       <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'6px', flexWrap:'wrap' }}>
@@ -191,24 +275,35 @@ export function Training({ user }) {
                         {r.completionNum && <span style={{ fontSize:'11px', color:'#1d4ed8', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'6px', padding:'1px 8px' }}>이수번호: {r.completionNum}</span>}
                       </div>
                       <div style={{ display:'flex', gap:'16px', fontSize:'12px', color:C.muted, flexWrap:'wrap' }}>
-                        {r.provider && <span>🏛 {r.provider}</span>}
+                        {r.provider    && <span>🏛 {r.provider}</span>}
                         {r.completedAt && <span>📅 {r.completedAt}</span>}
-                        {r.memo && <span>📌 {r.memo}</span>}
+                        {r.memo        && <span>📌 {r.memo}</span>}
                       </div>
                       {r.fileUrl && (
-                        <a href={r.fileUrl} target="_blank" rel="noopener noreferrer"
-                          style={{ display:'inline-flex', alignItems:'center', gap:'4px', marginTop:'8px', fontSize:'12px', color:'#3b82f6', textDecoration:'none' }}>
-                          📎 {r.fileName || '첨부파일'} 보기
-                        </a>
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginTop:'8px' }}>
+                          <span style={{ fontSize:'12px', color:'#3b82f6' }}>
+                            {r.fileType?.startsWith('image/') ? '🖼' : '📄'} {r.fileName || '첨부파일'}
+                          </span>
+                          <span style={{ fontSize:'11px', color:C.primary, background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>
+                            클릭하여 미리보기
+                          </span>
+                          <button onClick={e => { e.stopPropagation(); deleteFile(r.id) }}
+                            style={{ fontSize:'11px', color:C.danger, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                            삭제
+                          </button>
+                        </div>
                       )}
                     </div>
-                    <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
-                      <label style={{ padding:'5px 10px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
-                        📎 파일
-                        <input type="file" style={{ display:'none' }} onChange={e => e.target.files[0] && uploadFile(r.id, e.target.files[0])} />
+                    <div style={{ display:'flex', gap:'6px', flexShrink:0 }} onClick={e => e.stopPropagation()}>
+                      <label style={{ padding:'5px 10px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted, whiteSpace:'nowrap' }}>
+                        {r.fileUrl ? '🔄 교체' : '📎 파일'}
+                        <input type="file" accept="image/*,application/pdf" style={{ display:'none' }}
+                          onChange={e => e.target.files[0] && uploadFile(r.id, e.target.files[0])} />
                       </label>
-                      <button onClick={() => openEdit(r)} style={{ padding:'5px 10px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
-                      <button onClick={() => { if(confirm('삭제할까요?')) { deleteItem(r.id); reload() } }} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
+                      <button onClick={() => openEdit(r)}
+                        style={{ padding:'5px 10px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
+                      <button onClick={() => deleteRecord(r.id)}
+                        style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
                     </div>
                   </div>
                 </div>
@@ -221,7 +316,7 @@ export function Training({ user }) {
       {tab === 'sites' && (
         <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
           <div style={{ fontSize:'13px', color:C.muted, marginBottom:'4px' }}>방과후 강사 의무연수를 받을 수 있는 공인 연수 기관 목록입니다.</div>
-          {trainingSites.map((s, idx) => (
+          {trainingSites.map((s) => (
             <div key={s.id || s.name} style={{ background:C.card, borderRadius:'12px', border:`1px solid ${s.id ? '#fed7aa' : C.border}`, padding:'16px 20px' }}>
               <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'12px', flexWrap:'wrap' }}>
                 <div style={{ flex:1 }}>
@@ -232,9 +327,7 @@ export function Training({ user }) {
                   <div style={{ fontSize:'12px', color:C.muted, marginBottom:'8px' }}>{s.desc}</div>
                   <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
                     {(s.courses || []).map(c => (
-                      <span key={c} style={{ fontSize:'11px', background:'#fff7ed', color:'#92400e', border:'1px solid #fde68a', borderRadius:'5px', padding:'2px 8px' }}>
-                        {c}
-                      </span>
+                      <span key={c} style={{ fontSize:'11px', background:'#fff7ed', color:'#92400e', border:'1px solid #fde68a', borderRadius:'5px', padding:'2px 8px' }}>{c}</span>
                     ))}
                   </div>
                 </div>
@@ -261,7 +354,7 @@ export function Training({ user }) {
             </div>
             <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
               {[
-                { label:'연수년도', key:'year', placeholder:'2026' },
+                { label:'연수년도', key:'year', placeholder:'예: 2025', type:'number' },
                 { label:'연수명 *', key:'title', placeholder:'예: 인공지능 기초 직무연수' },
                 { label:'연수기관', key:'provider', placeholder:'예: 한국교원연수원' },
                 { label:'기관 홈페이지', key:'providerUrl', placeholder:'https://' },
@@ -272,21 +365,63 @@ export function Training({ user }) {
               ].map(f => (
                 <div key={f.key}>
                   <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>{f.label}</label>
-                  <input type={f.type||'text'} value={form[f.key]} onChange={e => setForm(v=>({...v,[f.key]:e.target.value}))}
+                  <input type={f.type||'text'} value={form[f.key]}
+                    onChange={e => setForm(v=>({...v,[f.key]:e.target.value}))}
                     placeholder={f.placeholder}
                     style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
                 </div>
               ))}
               <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
-                <button onClick={save} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
-                <button onClick={() => setModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
+                <button onClick={save}
+                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+                <button onClick={() => setModal(false)}
+                  style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* 미리보기 모달 */}
+      {preview && (
+        <div onClick={e => { if(e.target===e.currentTarget) setPreview(null) }}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:2000, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'16px' }}>
+          <div style={{ background:'#fff', borderRadius:'14px', overflow:'hidden', maxWidth:'800px', width:'100%', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 60px rgba(0,0,0,0.4)' }}>
+            <div style={{ padding:'12px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+              <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>
+                {preview.type?.startsWith('image/') ? '🖼' : '📄'} {preview.name}
+              </span>
+              <div style={{ display:'flex', gap:'8px' }}>
+                <a href={preview.url} download={preview.name} target="_blank" rel="noopener noreferrer"
+                  style={{ padding:'6px 14px', borderRadius:'8px', background:'#f0fdf4', border:'1.5px solid #86efac', color:C.success, fontSize:'12px', fontWeight:700, textDecoration:'none' }}>
+                  ⬇ 다운로드
+                </a>
+                <button onClick={() => setPreview(null)}
+                  style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:C.muted, lineHeight:1 }}>×</button>
+              </div>
+            </div>
+            <div style={{ overflow:'auto', flex:1, display:'flex', alignItems:'center', justifyContent:'center', background:'#f9fafb', padding:'16px' }}>
+              {preview.type?.startsWith('image/') ? (
+                <img src={preview.url} alt={preview.name}
+                  style={{ maxWidth:'100%', maxHeight:'100%', borderRadius:'8px', boxShadow:'0 4px 20px rgba(0,0,0,0.15)', objectFit:'contain' }} />
+              ) : preview.type === 'application/pdf' ? (
+                <iframe src={preview.url} title={preview.name}
+                  style={{ width:'100%', height:'600px', border:'none', borderRadius:'8px' }} />
+              ) : (
+                <div style={{ textAlign:'center', color:C.muted }}>
+                  <div style={{ fontSize:'40px', marginBottom:'12px' }}>📄</div>
+                  <div style={{ fontSize:'14px' }}>미리보기를 지원하지 않는 파일 형식입니다</div>
+                  <a href={preview.url} download={preview.name}
+                    style={{ display:'inline-block', marginTop:'12px', color:C.primary, fontSize:'13px' }}>다운로드하여 확인하기</a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {uploading && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div style={{ background:'#fff', borderRadius:'12px', padding:'24px 36px', fontSize:'14px', fontWeight:600 }}>📤 파일 업로드 중...</div>
         </div>
       )}
