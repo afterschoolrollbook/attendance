@@ -13,17 +13,19 @@ const NAV = [
   { path: 'profile',    label: '내 정보',     icon: '👤', feature: null },
 ]
 
-// 수익관리 — menuKey 없음. 관리자 ON/OFF 대상 아님, 모든 사용자에게 항상 표시
+// 수익관리 — 항상 표시
 const MY_NAV_FIXED = [
   { path: 'revenue', label: '수익관리', icon: '💰' },
 ]
 
-// 나머지 내 관리 메뉴 — 관리자 페이지에서 ON/OFF 가능
+// 내 관리 메뉴 — 관리자 ON/OFF 가능
 const MY_NAV = [
-  { path: 'training',     label: '연수관리',   icon: '🎓', menuKey: 'training' },
-  { path: 'certificates', label: '자격증관리', icon: '🏆', menuKey: 'certificates' },
-  { path: 'career',       label: '이력관리',   icon: '📋', menuKey: 'career' },
-  { path: 'jobs',         label: '공고관리',   icon: '📢', menuKey: 'jobs' },
+  { path: 'training',     label: '연수관리',        icon: '🎓', menuKey: 'training' },
+  { path: 'certificates', label: '자격증관리',      icon: '🏆', menuKey: 'certificates' },
+  { path: 'career',       label: '학력 및 이력관리', icon: '📋', menuKey: 'career' },
+  { path: 'awards',       label: '수상경력',         icon: '🏅', menuKey: 'awards' },
+  { path: 'proposals',    label: '제안서·자기소개서', icon: '📝', menuKey: 'proposals' },
+  { path: 'jobs',         label: '공고관리',         icon: '📢', menuKey: 'jobs' },
 ]
 
 const ADMIN_NAV = [
@@ -34,7 +36,7 @@ const ADMIN_NAV = [
 
 const KEY_MENU = 'asa_mymenu_settings'
 function getMenuConfig() {
-  return JSON.parse(localStorage.getItem(KEY_MENU) || '{"training":true,"certificates":true,"career":true,"jobs":true}')
+  return JSON.parse(localStorage.getItem(KEY_MENU) || '{"training":true,"certificates":true,"career":true,"awards":true,"proposals":true,"jobs":true}')
 }
 
 export function Sidebar({ user, currentPage, onNav, onLogout }) {
