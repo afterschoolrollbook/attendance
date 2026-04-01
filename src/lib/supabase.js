@@ -1,16 +1,10 @@
 // Supabase 클라이언트 + Edge Function 호출 헬퍼
-import { createClient } from '@supabase/supabase-js'
 
 const SUPABASE_URL    = import.meta.env.VITE_SUPABASE_URL    || ''
 const SUPABASE_ANON   = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 const FUNCTIONS_BASE  = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1` : ''
 
 const isConfigured = !!SUPABASE_URL && !!SUPABASE_ANON
-
-// ─── Supabase 클라이언트 (DB 직접 접근 + Storage)
-export const supabase = isConfigured
-  ? createClient(SUPABASE_URL, SUPABASE_ANON)
-  : null
 
 // ─── Edge Function 호출 공통 함수
 async function callFunction(name, body) {
