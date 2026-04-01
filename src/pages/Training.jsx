@@ -83,26 +83,25 @@ async function uploadToStorage(userId, trainingId, file) {
 
   const ext      = file.name.split('.').pop().toLowerCase()
   const filePath = `training/${userId}/${trainingId}/${Date.now()}.${ext}`
-  const base64   = await fileToBase64(file)
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/db-api`, {
+  // sb_publishable_... 키는 JWT가 아니므로 apikey 헤더로 함께 전달해야 함
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/teacher-files/${filePath}`, {
     method: 'POST',
     headers: {
+      'apikey': SUPABASE_ANON,
       'Authorization': `Bearer ${SUPABASE_ANON}`,
-      'Content-Type': 'application/json',
+      'Content-Type': file.type,
+      'x-upsert': 'true',
     },
-    body: JSON.stringify({
-      action:      'storageUpload',
-      bucket:      'teacher-files',
-      path:        filePath,
-      base64:      base64,
-      contentType: file.type,
-    }),
+    body: file,
   })
 
-  const data = await res.json()
-  if (!data.success) throw new Error(`파일 업로드 실패: ${data.error}`)
-  return data.data.url
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(`파일 업로드 실패: ${err?.message || err?.error || res.statusText}`)
+  }
+
+  return `${SUPABASE_URL}/storage/v1/object/public/teacher-files/${filePath}`
 }
 
 const EMPTY_FORM = {
