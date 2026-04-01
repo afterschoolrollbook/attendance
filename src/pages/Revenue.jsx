@@ -40,9 +40,11 @@ function getTerms(cls) {
   if (!termSizes) return [{ termNo: 1, label: '전체', sessions, startDate: sessions[0] || '', endDate: sessions[sessions.length - 1] || '' }]
   const terms = []
   let idx = 0
+  const startMonth = cls.startDate ? parseInt(cls.startDate.slice(5, 7)) : 3
+  const semesterNum = (startMonth >= 3 && startMonth <= 8) ? 1 : 2
   termSizes.forEach((size, i) => {
     const slice = sessions.slice(idx, idx + size)
-    if (slice.length > 0) terms.push({ termNo: i + 1, label: cls?.termType==='semester'?`${i+1}학기 ${i+1}텀`:`${i+1}분기 ${i+1}텀`, sessions: slice, startDate: slice[0], endDate: slice[slice.length - 1] })
+    if (slice.length > 0) terms.push({ termNo: i + 1, label: cls?.termType==='semester'?`${semesterNum}학기 ${i+1}텀`:`${i+1}분기 ${i+1}텀`, sessions: slice, startDate: slice[0], endDate: slice[slice.length - 1] })
     idx += size
   })
   if (idx < sessions.length && terms.length > 0) {
@@ -773,7 +775,7 @@ export function Revenue({ user }) {
                       <div>
                         <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>
                           🏫 {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}
-                          {cls.time&&<span style={{ fontSize:'12px', color:C.muted, fontWeight:400, marginLeft:'8px' }}>{cls.time}</span>}
+                          {cls.time&&<span style={{ fontSize:'12px', color:C.muted, fontWeight:400, marginLeft:'8px' }}>{cls.time}{cls.timeEnd?' ~ '+cls.timeEnd:''}</span>}
                         </div>
                         <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>
                           현재 {cnt}명 · {cls.termType==='semester'?'학기제':'분기제'} · {terms.length}텀 총 {sessions.length}회차
@@ -791,7 +793,7 @@ export function Revenue({ user }) {
                                 const isCur = isTermCurrent(term)
                                 return (
                                   <span key={term.termNo} style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'5px', border:`1px solid ${isCur?'#86efac':C.border}`, background:isCur?'#f0fdf4':'#f9fafb', color:isCur?C.success:C.text, fontWeight:isCur?700:400 }}>
-                                    {term.label} {term.sessions.length}회차 {fmt(termAmt)}원
+                                    {term.label} {term.termNo}텀 {term.sessions.length}회차 {fmt(termAmt)}원
                                     {isCur&&' 📍'}
                                   </span>
                                 )
