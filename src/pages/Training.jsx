@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs'
 import { uid, now } from '../lib/utils.js'
 import { Trainings } from '../lib/db.js'
 import { ToastContainer } from '../components/Atoms.jsx'
@@ -228,6 +229,41 @@ export function Training({ user }) {
     setPreview({ url: r.fileUrl, type: r.fileType || '', name: r.fileName || '첨부파일' })
   }
 
+  const downloadExcel = () => {
+    const today = new Date().toISOString().slice(0, 10)
+    const rows = [...records]
+      .sort((a, b) => (a.completedAt || '').localeCompare(b.completedAt || ''))
+      .map((r, i) => ({
+        'No': i + 1,
+        '연수년도': r.year || '',
+        '연수명': r.title || '',
+        '연수기관': r.provider || '',
+        '기관홈페이지': r.providerUrl || '',
+        '이수번호': r.completionNum || '',
+        '이수일': r.completedAt || '',
+        '이수시간(h)': r.hours || '',
+        '메모': r.memo || '',
+      }))
+
+    const ws = XLSX.utils.json_to_sheet(rows)
+    ws['!cols'] = [
+      { wch: 5 },  // No
+      { wch: 10 }, // 연수년도
+      { wch: 30 }, // 연수명
+      { wch: 20 }, // 연수기관
+      { wch: 25 }, // 기관홈페이지
+      { wch: 20 }, // 이수번호
+      { wch: 12 }, // 이수일
+      { wch: 12 }, // 이수시간
+      { wch: 20 }, // 메모
+    ]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '연수이수목록')
+    XLSX.writeFile(wb, `연수이수목록_${today}.xlsx`)
+    success('엑셀 다운로드 완료 📊')
+  }
+
   return (
     <div style={{ padding:'24px', maxWidth:'1000px' }}>
       {/* 헤더 */}
@@ -262,6 +298,12 @@ export function Training({ user }) {
               <div style={{ marginLeft:'auto', fontSize:'13px', color:C.success, fontWeight:700, background:'#f0fdf4', padding:'6px 14px', borderRadius:'8px', border:'1px solid #86efac' }}>
                 ✅ {selYear}년 총 {totalHours}시간 이수
               </div>
+            )}
+            {records.length > 0 && (
+              <button onClick={downloadExcel}
+                style={{ padding:'8px 18px', borderRadius:'9px', border:'1.5px solid #86efac', background:'#f0fdf4', color:'#15803d', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                📊 목록 받기
+              </button>
             )}
             <button onClick={openAdd}
               style={{ padding:'8px 18px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
