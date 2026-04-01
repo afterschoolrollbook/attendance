@@ -71,9 +71,10 @@ serve(async (req) => {
     const url  = new URL(req.url)
     const body = req.method !== 'GET' ? await req.json() : {}
 
+    const svcKey = Deno.env.get('SVC_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SVC_ROLE_KEY')!,
+      svcKey,
     )
 
     const { action, table, data, id, where, patch } = body
