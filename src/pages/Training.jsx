@@ -74,6 +74,8 @@ export function Training({ user }) {
   const [editId, setEditId]       = useState(null)
   const [uploading, setUploading] = useState(false)
   const [dragOverId, setDragOverId] = useState(null)
+  const [modalFile, setModalFile]   = useState(null) // 모달에서 선택한 파일
+  const [modalDrag, setModalDrag]   = useState(false) // 모달 드래그 중
   const [trainingSites]           = useState(() => loadTrainingSites())
   const [preview, setPreview]     = useState(null)
   const currentYear               = String(new Date().getFullYear())
@@ -105,7 +107,7 @@ export function Training({ user }) {
   const filtered = records.filter(r => !selYear || r.year === selYear)
   const totalHours = filtered.reduce((s,r) => s + (Number(r.hours)||0), 0)
 
-  const openAdd  = () => { setForm(EMPTY_FORM); setEditId(null); setModal(true) }
+  const openAdd  = () => { setForm(EMPTY_FORM); setEditId(null); setModalFile(null); setModal(true) }
   const openEdit = (r) => {
     setForm({
       year: r.year, title: r.title, provider: r.provider||'',
@@ -113,6 +115,7 @@ export function Training({ user }) {
       completedAt: r.completedAt||'', hours: String(r.hours||''), memo: r.memo||''
     })
     setEditId(r.id)
+    setModalFile(null)
     setModal(true)
   }
 
@@ -131,8 +134,11 @@ export function Training({ user }) {
       }
       const { error } = await supabase.from('trainings').upsert(item)
       if (error) throw error
-      await reload()
+      // 모달에서 파일 선택한 경우 바로 업로드
+      if (modalFile) await uploadFile(item.id, modalFile)
+      else await reload()
       setModal(false)
+      setModalFile(null)
       setSelYear(form.year) // 입력한 연도 탭으로 자동 이동
     } catch(e) {
       alert('저장 실패: ' + e.message)
@@ -375,6 +381,33 @@ export function Training({ user }) {
                     style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
                 </div>
               ))}
+              {/* 파일 첨부 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>첨부파일 (이미지·PDF)</label>
+                <div
+                  onDragOver={e => { e.preventDefault(); setModalDrag(true) }}
+                  onDragLeave={() => setModalDrag(false)}
+                  onDrop={e => { e.preventDefault(); setModalDrag(false); const f = e.dataTransfer.files[0]; if(f) setModalFile(f) }}
+                  style={{ border: modalDrag ? `2px dashed ${C.primary}` : `1.5px dashed ${C.border}`, borderRadius:'9px', padding:'16px', textAlign:'center', background: modalDrag ? '#fff7ed' : '#fafafa', transition:'all 0.15s', cursor:'pointer' }}>
+                  {modalFile ? (
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
+                      <span style={{ fontSize:'13px', color:C.text, fontWeight:600 }}>
+                        {modalFile.type.startsWith('image/') ? '🖼' : '📄'} {modalFile.name}
+                      </span>
+                      <button onClick={() => setModalFile(null)}
+                        style={{ fontSize:'11px', color:C.danger, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>제거</button>
+                    </div>
+                  ) : (
+                    <label style={{ cursor:'pointer' }}>
+                      <div style={{ fontSize:'22px', marginBottom:'4px' }}>📎</div>
+                      <div style={{ fontSize:'12px', color:C.muted }}>클릭하거나 파일을 여기에 끌어다 놓으세요</div>
+                      <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>JPG·PNG·PDF · 10MB 이하</div>
+                      <input type="file" accept="image/*,application/pdf" style={{ display:'none' }}
+                        onChange={e => e.target.files[0] && setModalFile(e.target.files[0])} />
+                    </label>
+                  )}
+                </div>
+              </div>
               <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
                 <button onClick={save}
                   style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
