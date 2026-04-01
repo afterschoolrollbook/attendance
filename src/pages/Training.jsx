@@ -62,41 +62,47 @@ function loadTrainingSites() {
   } catch { return DEFAULT_TRAINING_SITES }
 }
 
-// Supabase Storage에 파일 업로드 후 public URL 반환
+// 파일을 base64로 변환
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload  = () => resolve(reader.result.split(',')[1])
+    reader.onerror = () => reject(new Error('파일 읽기 실패'))
+    reader.readAsDataURL(file)
+  })
+}
+
+// db-api Edge Function을 통해 Storage에 업로드 (service_role 키 사용)
 async function uploadToStorage(userId, trainingId, file) {
   const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
   const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
   if (!SUPABASE_URL || !SUPABASE_ANON) {
-    throw new Error(
-      'Supabase 환경변수(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)가 설정되지 않았습니다.\n' +
-      '.env 파일과 Vercel 환경변수를 확인해주세요.'
-    )
+    throw new Error('Supabase 환경변수가 설정되지 않았습니다.')
   }
 
-  const bucket = 'teacher-files'
-  const ext  = file.name.split('.').pop().toLowerCase()
-  const path = `training/${userId}/${trainingId}/${Date.now()}.${ext}`
+  const ext      = file.name.split('.').pop().toLowerCase()
+  const filePath = `training/${userId}/${trainingId}/${Date.now()}.${ext}`
+  const base64   = await fileToBase64(file)
 
-  const res = await fetch(
-    `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SUPABASE_ANON}`,
-        'Content-Type': file.type,
-        'x-upsert': 'true',
-      },
-      body: file,
-    }
-  )
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/db-api`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_ANON}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      action:      'storageUpload',
+      bucket:      'teacher-files',
+      path:        filePath,
+      base64:      base64,
+      contentType: file.type,
+    }),
+  })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(`파일 업로드 실패: ${err?.message || err?.error || res.statusText}`)
-  }
-
-  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`
+  const data = await res.json()
+  if (!data.success) throw new Error(`파일 업로드 실패: ${data.error}`)
+  return data.data.url
 }
 
 const EMPTY_FORM = {
