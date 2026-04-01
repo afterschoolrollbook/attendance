@@ -78,6 +78,17 @@ function mergeRecords(local, remote) {
   return [...map.values()].filter(r => !r._deleted)
 }
 
+// ─── 동기화 대상 테이블 목록
+// 기존 핵심 테이블 + 내 관리 / 수익 관련 테이블 추가
+const SYNC_TABLES = [
+  // 기존
+  'users', 'classes', 'students', 'attendance', 'notes',
+  'adSlots', 'attendanceTemplates',
+  // 신규 — 내 관리 / 수익
+  'revenueFees', 'revenuePayments',
+  'trainings', 'careers', 'certificates', 'jobSubs',
+]
+
 // ─── 초기화: Supabase 데이터와 로컬 merge
 export async function initFromSupabase() {
   if (!isConfigured) return false
@@ -86,8 +97,7 @@ export async function initFromSupabase() {
     await flushPending()
 
     // 2) Supabase 데이터 가져와서 merge
-    const tables = ['users','classes','students','attendance','notes','adSlots','attendanceTemplates']
-    await Promise.all(tables.map(async (t) => {
+    await Promise.all(SYNC_TABLES.map(async (t) => {
       try {
         const remote = await dbCall('getAll', t)
         if (!Array.isArray(remote)) return
@@ -103,7 +113,6 @@ export async function initFromSupabase() {
         })
       } catch (e) {
         console.warn(`[Supabase] ${t} 동기화 실패 — 로컬 데이터 유지:`, e.message)
-        // 실패해도 로컬 데이터 절대 건드리지 않음
       }
     }))
 
@@ -175,7 +184,7 @@ export const db = {
   },
 }
 
-// ─── 이하 기존 코드 동일 ───────────────────────────────────────
+// ─── 기존 테이블 ───────────────────────────────────────────────
 
 export const Users = {
   all:         ()      => db.get('users'),
@@ -370,4 +379,73 @@ export const Branches = {
 
   assignTeacher(branchId, teacherId)  { Users.update(teacherId, { branchId }) },
   unassignTeacher(teacherId)          { Users.update(teacherId, { branchId: null }) },
+}
+
+// ─── 수익관리 ─────────────────────────────────────────────────
+
+// 수강료 설정 (수업별)
+export const RevenueFees = {
+  all:       ()    => db.get('revenueFees'),
+  byTeacher: (tid) => db.where('revenueFees', r => r.teacherId === tid),
+  byClass:   (cid) => db.get('revenueFees').find(r => r.classId === cid && !r._deleted) || null,
+  insert:    (r)   => db.insert('revenueFees', r),
+  update:    (id, p) => db.update('revenueFees', id, p),
+  delete:    (id)  => db.delete('revenueFees', id),
+
+  // 수업별 fee upsert (기존 있으면 update, 없으면 insert)
+  upsert(record) {
+    const ex = this.byClass(record.classId)
+    if (ex) return db.update('revenueFees', ex.id, record)
+    return db.insert('revenueFees', { id: uid(), ...record, createdAt: now() })
+  },
+}
+
+// 입금 내역
+export const RevenuePayments = {
+  all:       ()    => db.get('revenuePayments'),
+  byTeacher: (tid) => db.where('revenuePayments', r => r.teacherId === tid),
+  byClass:   (cid) => db.where('revenuePayments', r => r.classId === cid),
+  insert:    (r)   => db.insert('revenuePayments', r),
+  update:    (id, p) => db.update('revenuePayments', id, p),
+  delete:    (id)  => db.delete('revenuePayments', id),
+}
+
+// ─── 연수관리 ─────────────────────────────────────────────────
+export const Trainings = {
+  all:       ()    => db.get('trainings'),
+  byTeacher: (tid) => db.where('trainings', r => r.teacherId === tid),
+  find:      (id)  => db.getOne('trainings', id),
+  insert:    (r)   => db.insert('trainings', r),
+  update:    (id, p) => db.update('trainings', id, p),
+  delete:    (id)  => db.delete('trainings', id),
+}
+
+// ─── 이력관리 ─────────────────────────────────────────────────
+export const Careers = {
+  all:       ()    => db.get('careers'),
+  byTeacher: (tid) => db.where('careers', r => r.teacherId === tid),
+  find:      (id)  => db.getOne('careers', id),
+  insert:    (r)   => db.insert('careers', r),
+  update:    (id, p) => db.update('careers', id, p),
+  delete:    (id)  => db.delete('careers', id),
+}
+
+// ─── 자격증관리 ───────────────────────────────────────────────
+export const Certificates = {
+  all:       ()    => db.get('certificates'),
+  byTeacher: (tid) => db.where('certificates', r => r.teacherId === tid),
+  find:      (id)  => db.getOne('certificates', id),
+  insert:    (r)   => db.insert('certificates', r),
+  update:    (id, p) => db.update('certificates', id, p),
+  delete:    (id)  => db.delete('certificates', id),
+}
+
+// ─── 공고 구독 설정 ───────────────────────────────────────────
+export const JobSubs = {
+  all:       ()    => db.get('jobSubs'),
+  byTeacher: (tid) => db.where('jobSubs', r => r.teacherId === tid),
+  find:      (id)  => db.getOne('jobSubs', id),
+  insert:    (r)   => db.insert('jobSubs', r),
+  update:    (id, p) => db.update('jobSubs', id, p),
+  delete:    (id)  => db.delete('jobSubs', id),
 }
