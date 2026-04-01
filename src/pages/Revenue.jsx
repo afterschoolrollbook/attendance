@@ -1,35 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { uid, now, today, localDateStr, calcSessionDates } from '../lib/utils.js'
-import { Classes, Students } from '../lib/db.js'
+import { Classes, Students, RevenueFees, RevenuePayments } from '../lib/db.js'
 
 const C = {
   primary: '#f97316', success: '#16a34a', danger: '#ef4444',
   border: '#e5e7eb', text: '#111827', muted: '#6b7280', card: '#fff',
   warning: '#f59e0b', blue: '#3b82f6',
-}
-
-const FEE_KEY = 'asa_revenue_fees'
-const PAY_KEY = 'asa_revenue_payments'
-
-// ── 스토리지 헬퍼
-function loadFees(tid)     { try { return JSON.parse(localStorage.getItem(FEE_KEY) || '[]').filter(r => r.teacherId === tid) } catch { return [] } }
-function loadPayments(tid) { try { return JSON.parse(localStorage.getItem(PAY_KEY) || '[]').filter(r => r.teacherId === tid) } catch { return [] } }
-function saveFeeDB(item)   { const a = JSON.parse(localStorage.getItem(FEE_KEY) || '[]'); const i = a.findIndex(r => r.id === item.id); if (i >= 0) a[i] = item; else a.push(item); localStorage.setItem(FEE_KEY, JSON.stringify(a)) }
-function savePayDB(item)   { const a = JSON.parse(localStorage.getItem(PAY_KEY) || '[]'); const i = a.findIndex(r => r.id === item.id); if (i >= 0) a[i] = item; else a.push(item); localStorage.setItem(PAY_KEY, JSON.stringify(a)) }
-function deletePayDB(id)   { localStorage.setItem(PAY_KEY, JSON.stringify(JSON.parse(localStorage.getItem(PAY_KEY) || '[]').filter(r => r.id !== id))) }
-
-// ── 일별 수익 맵 생성
-// feeType: 'per_session' = 회차별 단가, 'per_term' = 텀 전체 금액 → 회차 수로 나눔
-function calcDailyRevenue(cls, fee, studentCount) {
-  if (!fee || !studentCount) return {}
-  const sessions = calcSessionDates(cls)
-  if (!sessions.length) return {}
-  const perSession = fee.feeType === 'per_session'
-    ? Number(fee.amount)
-    : Math.round(Number(fee.amount) / sessions.length)
-  const result = {}
-  sessions.forEach(d => { result[d] = (result[d] || 0) + perSession * studentCount })
-  return result
 }
 
 // ── 유틸
@@ -47,6 +23,21 @@ function getMonthDates(ym) {
   return Array.from({ length: new Date(y, m, 0).getDate() }, (_, i) => `${ym}-${String(i + 1).padStart(2, '0')}`)
 }
 function toYM(d) { return d.slice(0, 7) }
+
+// ── 일별 수익 맵 생성
+function calcDailyRevenue(cls, fee, studentCount) {
+  if (!fee || !studentCount) return {}
+  const sessions = calcSessionDates(cls)
+  if (!sessions.length) return {}
+  const perSession = fee.feeType === 'per_session'
+    ? Number(fee.amount)
+    : Math.round(Number(fee.amount) / sessions.length)
+  const result = {}
+  sessions.forEach(d => { result[d] = (result[d] || 0) + perSession * studentCount })
+  return result
+}
+
+const iStyle = { width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none', boxSizing: 'border-box' }
 
 export function Revenue({ user }) {
   const [tab, setTab]         = useState('calendar')
@@ -66,8 +57,8 @@ export function Revenue({ user }) {
   const [payForm, setPayForm]     = useState({ date: today(), amount: '', termLabel: '', memo: '' })
 
   const reload = () => {
-    setFees(loadFees(user.id))
-    setPayments(loadPayments(user.id))
+    setFees(RevenueFees.byTeacher(user.id))
+    setPayments(RevenuePayments.byTeacher(user.id))
     setClasses(Classes.byTeacher(user.id))
     setStudents(Students.byTeacher(user.id))
   }
@@ -128,100 +119,94 @@ export function Revenue({ user }) {
   // 수강료 저장
   const saveFeeForm = () => {
     if (!feeForm.amount) { alert('금액을 입력하세요'); return }
-    saveFeeDB({ id: feeMap[feeTarget.classId]?.id || uid(), teacherId: user.id, classId: feeTarget.classId, feeType: feeForm.feeType, amount: Number(feeForm.amount), updatedAt: now() })
+    RevenueFees.upsert({
+      teacherId: user.id,
+      classId: feeTarget.classId,
+      feeType: feeForm.feeType,
+      amount: Number(feeForm.amount),
+      updatedAt: now(),
+    })
     reload(); setFeeModal(false)
   }
 
   // 입금 저장
   const savePayForm = () => {
     if (!payForm.amount) { alert('금액을 입력하세요'); return }
-    savePayDB({ id: uid(), teacherId: user.id, classId: payTarget, date: payForm.date, amount: Number(payForm.amount), termLabel: payForm.termLabel, memo: payForm.memo, createdAt: now() })
+    RevenuePayments.insert({
+      id: uid(),
+      teacherId: user.id,
+      classId: payTarget,
+      date: payForm.date,
+      amount: Number(payForm.amount),
+      termLabel: payForm.termLabel,
+      memo: payForm.memo,
+      createdAt: now(),
+    })
     reload(); setPayModal(false)
-    setPayForm({ date: today(), amount: '', termLabel: '', memo: '' })
   }
 
-  // 달력 네비
-  const navDate = (dir) => {
-    const d = new Date(curDate + 'T00:00:00')
-    if (calView === 'day')   d.setDate(d.getDate() + dir)
-    if (calView === 'week')  d.setDate(d.getDate() + dir * 7)
-    if (calView === 'month') d.setMonth(d.getMonth() + dir)
-    setCurDate(localDateStr(d))
-  }
-  const navLabel = () => {
-    if (calView === 'month') return `${curYM.replace('-', '년 ')}월`
-    if (calView === 'week')  { const w = getWeekDates(curDate); return `${w[0].slice(5).replace('-', '/')} ~ ${w[6].slice(5).replace('-', '/')}` }
-    return curDate.replace(/-/g, '.')
+  // 입금 삭제
+  const deletePayment = (id) => {
+    RevenuePayments.delete(id)
+    reload()
   }
 
-  // ── 월 달력
-  const renderMonthView = () => {
+  // 달력 렌더
+  const renderMonthCalendar = () => {
     const [y, m] = curYM.split('-').map(Number)
-    const firstDow = new Date(y, m - 1, 1).getDay()
+    const firstDay = new Date(y, m - 1, 1).getDay()
     const totalDays = new Date(y, m, 0).getDate()
-    const cells = [...Array(firstDow).fill(null), ...Array.from({ length: totalDays }, (_, i) => `${curYM}-${String(i + 1).padStart(2, '0')}`)]
+    const cells = []
+    for (let i = 0; i < firstDay; i++) cells.push(null)
+    for (let d = 1; d <= totalDays; d++) cells.push(`${curYM}-${String(d).padStart(2, '0')}`)
 
     return (
       <div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: '4px' }}>
-          {DAY_LABELS.map((l, i) => (
-            <div key={l} style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: i === 0 ? C.danger : i === 6 ? C.blue : C.muted, padding: '6px 0' }}>{l}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px', marginBottom: '4px' }}>
+          {DAY_LABELS.map((d, i) => (
+            <div key={d} style={{ textAlign: 'center', fontSize: '11px', fontWeight: 600, color: i === 0 ? '#ef4444' : i === 6 ? '#3b82f6' : C.muted, padding: '4px 0' }}>{d}</div>
           ))}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px' }}>
-          {cells.map((d, i) => {
-            if (!d) return <div key={i} />
-            const rev = allDailyRevenue[d] || 0
-            const isToday = d === today()
-            const dow = new Date(d + 'T00:00:00').getDay()
+          {cells.map((date, i) => {
+            if (!date) return <div key={i} />
+            const rev = allDailyRevenue[date] || 0
+            const isToday = date === today()
+            const isSel = date === curDate
+            const dow = new Date(date + 'T00:00:00').getDay()
             return (
-              <div key={d} onClick={() => { setCurDate(d); setCalView('day') }}
-                style={{ padding: '6px 4px', borderRadius: '8px', background: isToday ? '#fff7ed' : C.card, border: `1px solid ${isToday ? C.primary : C.border}`, cursor: 'pointer', minHeight: '52px', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', fontWeight: isToday ? 700 : 400, color: dow === 0 ? C.danger : dow === 6 ? C.blue : C.text }}>{d.slice(8)}</div>
-                {rev > 0 && <div style={{ fontSize: '10px', fontWeight: 700, color: C.success, marginTop: '2px', lineHeight: 1.3 }}>{fmt(rev)}</div>}
+              <div key={date} onClick={() => setCurDate(date)}
+                style={{ borderRadius: '8px', padding: '6px 4px', cursor: 'pointer', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}`, minHeight: '52px', transition: 'all .1s' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: isSel ? '#fff' : dow === 0 ? '#ef4444' : dow === 6 ? '#3b82f6' : C.text, marginBottom: '2px' }}>
+                  {Number(date.slice(-2))}
+                </div>
+                {rev > 0 && (
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: isSel ? '#fff' : C.success, lineHeight: 1.2 }}>
+                    +{fmt(rev)}
+                  </div>
+                )}
               </div>
             )
           })}
-        </div>
-        {/* 요일별 수익 */}
-        <div style={{ marginTop: '16px', background: C.card, borderRadius: '12px', border: `1px solid ${C.border}`, padding: '14px 18px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: C.text, marginBottom: '10px' }}>이번 달 요일별 수익</div>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {DAY_LABELS.map((l, i) => (
-              <div key={l} style={{ flex: 1, textAlign: 'center', padding: '10px 4px', borderRadius: '10px', background: weekDayRevenue[i] > 0 ? '#fff7ed' : '#f9fafb', border: `1px solid ${weekDayRevenue[i] > 0 ? '#fed7aa' : C.border}` }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: i === 0 ? C.danger : i === 6 ? C.blue : C.muted }}>{l}</div>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: C.success, marginTop: '4px' }}>{weekDayRevenue[i] > 0 ? fmt(weekDayRevenue[i]) : '-'}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     )
   }
 
-  // ── 주 달력
-  const renderWeekView = () => {
+  const renderWeekCalendar = () => {
     const weekDates = getWeekDates(curDate)
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '6px' }}>
-        {weekDates.map(d => {
-          const rev = allDailyRevenue[d] || 0
-          const isToday = d === today()
-          const dow = new Date(d + 'T00:00:00').getDay()
-          const dayCls = classes.filter(c => calcSessionDates(c).includes(d))
+        {weekDates.map((date, i) => {
+          const rev = allDailyRevenue[date] || 0
+          const isToday = date === today()
+          const isSel = date === curDate
           return (
-            <div key={d} onClick={() => { setCurDate(d); setCalView('day') }}
-              style={{ padding: '10px 6px', borderRadius: '12px', background: isToday ? '#fff7ed' : C.card, border: `1.5px solid ${isToday ? C.primary : C.border}`, cursor: 'pointer', textAlign: 'center', minHeight: '90px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: dow === 0 ? C.danger : dow === 6 ? C.blue : C.muted }}>{DAY_LABELS[dow]}</div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: C.text, margin: '3px 0' }}>{d.slice(8)}</div>
-              {rev > 0
-                ? <div style={{ fontSize: '12px', fontWeight: 700, color: C.success }}>{fmt(rev)}</div>
-                : <div style={{ fontSize: '11px', color: '#d1d5db' }}>-</div>}
-              {dayCls.map(c => (
-                <div key={c.id} style={{ fontSize: '10px', color: C.muted, marginTop: '3px', background: '#f3f4f6', borderRadius: '4px', padding: '1px 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {c.className}
-                </div>
-              ))}
+            <div key={date} onClick={() => setCurDate(date)}
+              style={{ borderRadius: '10px', padding: '10px 6px', cursor: 'pointer', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1.5px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}`, textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: isSel ? '#fff' : C.muted, marginBottom: '4px' }}>{DAY_LABELS[i === 6 ? 0 : i + 1]}</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: isSel ? '#fff' : C.text }}>{Number(date.slice(-2))}</div>
+              {rev > 0 && <div style={{ fontSize: '10px', color: isSel ? '#fff' : C.success, marginTop: '3px', fontWeight: 700 }}>+{fmt(rev)}</div>}
             </div>
           )
         })}
@@ -229,53 +214,21 @@ export function Revenue({ user }) {
     )
   }
 
-  // ── 일 보기
-  const renderDayView = () => {
-    const rev = allDailyRevenue[curDate] || 0
-    const dayCls = classes.filter(c => calcSessionDates(c).includes(curDate))
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <div style={{ padding: '16px 20px', borderRadius: '14px', background: rev > 0 ? '#f0fdf4' : '#f9fafb', border: `1.5px solid ${rev > 0 ? '#86efac' : C.border}` }}>
-          <div style={{ fontSize: '13px', color: C.muted, marginBottom: '4px' }}>{curDate.replace(/-/g, '.')} 예상 수익</div>
-          <div style={{ fontSize: '30px', fontWeight: 700, color: rev > 0 ? C.success : C.muted }}>{fmt(rev)}원</div>
-        </div>
-        {dayCls.length === 0
-          ? <div style={{ textAlign: 'center', padding: '30px', color: C.muted, fontSize: '14px', background: C.card, borderRadius: '12px', border: `1px solid ${C.border}` }}>수업 없는 날</div>
-          : dayCls.map(cls => {
-            const fee = feeMap[cls.id]; const cnt = confirmedCount[cls.id] || 0
-            const dr = fee && cnt ? calcDailyRevenue(cls, fee, cnt) : {}
-            const dayRev = dr[curDate] || 0
-            return (
-              <div key={cls.id} style={{ padding: '14px 18px', borderRadius: '12px', background: C.card, border: `1px solid ${C.border}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>{cls.organization} · {cls.className}{cls.section ? ' ' + cls.section : ''}</div>
-                    <div style={{ fontSize: '12px', color: C.muted, marginTop: '3px' }}>확정 {cnt}명 {cls.time ? '· ' + cls.time : ''}</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '17px', fontWeight: 700, color: dayRev > 0 ? C.success : C.muted }}>{dayRev > 0 ? fmt(dayRev) + '원' : '수강료 미설정'}</div>
-                    {fee && <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>{fee.feeType === 'per_session' ? '회차별' : '텀별'} {fmt(fee.amount)}원</div>}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-      </div>
-    )
-  }
-
-  const iStyle = { width: '100%', padding: '9px 12px', borderRadius: '9px', border: `1.5px solid ${C.border}`, fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none', boxSizing: 'border-box' }
+  // 선택 날짜의 수업 목록
+  const dayClasses = classes.filter(cls => {
+    const sessions = calcSessionDates(cls)
+    return sessions.includes(curDate)
+  })
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1000px' }}>
-      {/* 헤더 */}
+    <div style={{ padding: '24px', maxWidth: '1100px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 700, color: C.text, margin: 0 }}>💰 수익관리</h1>
-          <p style={{ fontSize: '14px', color: C.muted, marginTop: '4px' }}>수업별 수강료 및 입금 내역 관리</p>
+          <p style={{ fontSize: '14px', color: C.muted, marginTop: '4px' }}>수업별 수강료 설정 및 입금 현황 관리</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {[['calendar', '📅 수익 달력'], ['fees', '⚙️ 수강료 설정'], ['payments', '💳 입금 관리']].map(([t, label]) => (
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {[['calendar', '📅 달력'], ['list', '📋 수업별'], ['unpaid', '⚠️ 미입금']].map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
               style={{ padding: '8px 16px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 600, fontSize: '13px', background: tab === t ? C.primary : '#f3f4f6', color: tab === t ? '#fff' : C.muted }}>
               {label}
@@ -284,70 +237,96 @@ export function Revenue({ user }) {
         </div>
       </div>
 
-      {/* 요약 카드 */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {[
-          { label: '이번 달 예상 수익', value: fmt(monthTotal) + '원', color: C.success, bg: '#f0fdf4', border: '#86efac' },
-          { label: '수강료 설정 수업', value: fees.length + '개', color: C.primary, bg: '#fff7ed', border: '#fed7aa' },
-          { label: '미입금 학교', value: unpaidList.length + '곳', color: unpaidList.length > 0 ? C.danger : C.muted, bg: unpaidList.length > 0 ? '#fef2f2' : '#f9fafb', border: unpaidList.length > 0 ? '#fca5a5' : C.border },
-          { label: '미입금 합계', value: fmt(unpaidList.reduce((s, r) => s + r.unpaid, 0)) + '원', color: unpaidList.length > 0 ? C.danger : C.muted, bg: unpaidList.length > 0 ? '#fef2f2' : '#f9fafb', border: unpaidList.length > 0 ? '#fca5a5' : C.border },
-        ].map(s => (
-          <div key={s.label} style={{ padding: '12px 18px', borderRadius: '12px', background: s.bg, border: `1px solid ${s.border}`, flex: 1, minWidth: '130px' }}>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
       {/* ── 달력 탭 */}
       {tab === 'calendar' && (
-        <div style={{ background: C.card, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {[['month', '월별'], ['week', '주별'], ['day', '일별']].map(([v, l]) => (
-                <button key={v} onClick={() => setCalView(v)}
-                  style={{ padding: '6px 14px', borderRadius: '8px', border: `1.5px solid ${calView === v ? C.primary : C.border}`, background: calView === v ? '#fff7ed' : '#fff', color: calView === v ? C.primary : C.muted, fontWeight: calView === v ? 700 : 400, fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
-                  {l}
-                </button>
-              ))}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px', alignItems: 'start' }}>
+          <div style={{ background: C.card, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '20px' }}>
+            {/* 헤더 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {[['month', '월'], ['week', '주']].map(([v, l]) => (
+                  <button key={v} onClick={() => setCalView(v)}
+                    style={{ padding: '5px 14px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontSize: '13px', fontWeight: 600, background: calView === v ? C.primary : '#f3f4f6', color: calView === v ? '#fff' : C.muted }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button onClick={() => {
+                  const d = new Date(curDate + 'T00:00:00')
+                  if (calView === 'month') d.setMonth(d.getMonth() - 1); else d.setDate(d.getDate() - 7)
+                  setCurDate(localDateStr(d))
+                }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontSize: '14px' }}>‹</button>
+                <span style={{ fontSize: '15px', fontWeight: 700, color: C.text, minWidth: '90px', textAlign: 'center' }}>
+                  {calView === 'month' ? `${curYM.replace('-', '년 ')}월` : `${curDate.slice(5).replace('-', '/')} 주`}
+                </span>
+                <button onClick={() => {
+                  const d = new Date(curDate + 'T00:00:00')
+                  if (calView === 'month') d.setMonth(d.getMonth() + 1); else d.setDate(d.getDate() + 7)
+                  setCurDate(localDateStr(d))
+                }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontSize: '14px' }}>›</button>
+              </div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: C.success }}>
+                {calView === 'month' ? `${curYM.slice(5)}월 예상 ` : ''}{fmt(calView === 'month' ? monthTotal : getWeekDates(curDate).reduce((s, d) => s + (allDailyRevenue[d] || 0), 0))}원
+              </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button onClick={() => navDate(-1)} style={{ padding: '6px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, background: '#fff', fontSize: '16px', cursor: 'pointer' }}>‹</button>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: C.text, minWidth: '150px', textAlign: 'center' }}>{navLabel()}</span>
-              <button onClick={() => navDate(1)}  style={{ padding: '6px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, background: '#fff', fontSize: '16px', cursor: 'pointer' }}>›</button>
-              <button onClick={() => setCurDate(today())} style={{ padding: '6px 10px', borderRadius: '8px', border: `1px solid ${C.border}`, background: '#fff', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', color: C.muted }}>오늘</button>
-            </div>
+            {calView === 'month' ? renderMonthCalendar() : renderWeekCalendar()}
           </div>
 
-          {calView === 'month' && monthTotal > 0 && (
-            <div style={{ padding: '10px 16px', borderRadius: '10px', background: '#fff7ed', border: '1px solid #fed7aa', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '13px', color: C.muted }}>{curYM.replace('-', '년 ')}월 총 예상 수익</span>
-              <span style={{ fontSize: '18px', fontWeight: 700, color: C.primary }}>{fmt(monthTotal)}원</span>
+          {/* 선택 날짜 수업 */}
+          <div style={{ background: C.card, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '16px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: C.text, marginBottom: '12px' }}>
+              📅 {curDate.replace(/-/g, '.').slice(2)} 수업
             </div>
-          )}
+            {dayClasses.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px', color: C.muted, fontSize: '13px' }}>수업 없음</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {dayClasses.map(cls => {
+                  const fee = feeMap[cls.id]
+                  const cnt = confirmedCount[cls.id] || 0
+                  const dayRev = fee && cnt ? (fee.feeType === 'per_session' ? fee.amount * cnt : Math.round(fee.amount / calcSessionDates(cls).length) * cnt) : 0
+                  return (
+                    <div key={cls.id} style={{ padding: '12px 14px', borderRadius: '10px', border: `1px solid ${C.border}`, background: '#fafafa' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: C.text, marginBottom: '4px' }}>
+                        🏫 {cls.organization} · {cls.className}{cls.section ? ' ' + cls.section : ''}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', color: C.muted }}>{cnt}명</span>
+                        {dayRev > 0
+                          ? <span style={{ fontSize: '13px', fontWeight: 700, color: C.success }}>+{fmt(dayRev)}원</span>
+                          : <button onClick={() => { setFeeTarget({ classId: cls.id, org: cls.organization, className: cls.className }); setFeeForm({ feeType: 'per_session', amount: '' }); setFeeModal(true) }}
+                              style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, background: '#f9fafb', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', color: C.muted }}>
+                              수강료 설정
+                            </button>
+                        }
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
 
-          {fees.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '50px', color: C.muted, background: '#f9fafb', borderRadius: '12px', border: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: '32px', marginBottom: '10px' }}>⚙️</div>
-              <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>수강료를 먼저 설정해주세요</div>
-              <button onClick={() => setTab('fees')} style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: C.primary, color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>수강료 설정하러 가기</button>
+            {/* 요일별 통계 */}
+            <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '8px' }}>{curYM.slice(5)}월 요일별 수익</div>
+              {weekDayRevenue.map((v, i) => v > 0 && (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
+                  <span style={{ width: '20px', fontSize: '12px', color: i === 0 ? '#ef4444' : i === 6 ? '#3b82f6' : C.muted, textAlign: 'center' }}>{DAY_LABELS[i]}</span>
+                  <div style={{ flex: 1, height: '6px', borderRadius: '3px', background: '#f3f4f6', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.round(v / Math.max(...weekDayRevenue) * 100)}%`, background: C.primary, borderRadius: '3px' }} />
+                  </div>
+                  <span style={{ fontSize: '11px', color: C.text, fontWeight: 600, minWidth: '60px', textAlign: 'right' }}>{fmt(v)}원</span>
+                </div>
+              ))}
             </div>
-          ) : (
-            <>
-              {calView === 'month' && renderMonthView()}
-              {calView === 'week'  && renderWeekView()}
-              {calView === 'day'   && renderDayView()}
-            </>
-          )}
+          </div>
         </div>
       )}
 
-      {/* ── 수강료 설정 탭 */}
-      {tab === 'fees' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ fontSize: '13px', color: C.muted, marginBottom: '4px' }}>
-            수업별 수강료를 설정하면 달력에서 예상 수익을 확인할 수 있습니다.
-          </div>
+      {/* ── 수업별 탭 */}
+      {tab === 'list' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {classes.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px', background: C.card, borderRadius: '14px', border: `1px solid ${C.border}`, color: C.muted }}>
               <div style={{ fontSize: '36px', marginBottom: '10px' }}>📚</div>
@@ -357,102 +336,27 @@ export function Revenue({ user }) {
             const fee = feeMap[cls.id]
             const cnt = confirmedCount[cls.id] || 0
             const sessions = calcSessionDates(cls)
-            return (
-              <div key={cls.id} style={{ padding: '16px 20px', background: fee ? '#fffbf5' : C.card, borderRadius: '12px', border: `1.5px solid ${fee ? '#fed7aa' : C.border}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
-                      <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>{cls.organization}</span>
-                      <span style={{ fontSize: '13px', color: C.muted }}>· {cls.className}{cls.section ? ' ' + cls.section : ''}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: C.muted, flexWrap: 'wrap' }}>
-                      <span>👥 확정 {cnt}명</span>
-                      <span>📅 총 {sessions.length}회차</span>
-                      {cls.startDate && <span>{cls.startDate} ~ {cls.endDate}</span>}
-                    </div>
-                    {fee && (
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '12px', background: '#fff7ed', color: C.primary, border: '1px solid #fed7aa', borderRadius: '6px', padding: '2px 10px', fontWeight: 700 }}>
-                          {fee.feeType === 'per_session' ? '회차별' : '텀별'} {fmt(fee.amount)}원
-                        </span>
-                        {fee.feeType === 'per_term' && sessions.length > 0 && (
-                          <span style={{ fontSize: '12px', color: C.muted, background: '#f3f4f6', borderRadius: '6px', padding: '2px 10px' }}>
-                            회차당 ≈ {fmt(Math.round(fee.amount / sessions.length))}원
-                          </span>
-                        )}
-                        {cnt > 0 && (
-                          <span style={{ fontSize: '12px', color: C.success, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '6px', padding: '2px 10px', fontWeight: 700 }}>
-                            {fee.feeType === 'per_session' ? `회차 수익 ${fmt(fee.amount * cnt)}원` : `텀 총수익 ${fmt(fee.amount * cnt)}원`}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => { setFeeTarget({ classId: cls.id, org: cls.organization, className: cls.className + (cls.section ? ' ' + cls.section : '') }); setFeeForm({ feeType: fee?.feeType || 'per_session', amount: fee?.amount || '' }); setFeeModal(true) }}
-                    style={{ padding: '7px 16px', borderRadius: '9px', border: `1.5px solid ${fee ? C.primary : C.border}`, background: fee ? '#fff7ed' : '#f9fafb', color: fee ? C.primary : C.muted, fontWeight: 700, fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
-                    {fee ? '수정' : '+ 수강료 설정'}
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* ── 입금 관리 탭 */}
-      {tab === 'payments' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* 미입금 알림 */}
-          {unpaidList.length > 0 && (
-            <div style={{ background: '#fef2f2', borderRadius: '12px', border: '1px solid #fca5a5', padding: '16px 20px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: C.danger, marginBottom: '12px' }}>⚠️ 미입금 학교 {unpaidList.length}곳</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {unpaidList.map(({ cls, unpaid, paid, expected }) => (
-                  <div key={cls.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fff', borderRadius: '9px', border: '1px solid #fca5a5', gap: '12px', flexWrap: 'wrap' }}>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>{cls.organization}</div>
-                      <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>
-                        {cls.className}{cls.section ? ' ' + cls.section : ''} · 기대 {fmt(expected)}원 / 입금 {fmt(paid)}원
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '15px', fontWeight: 700, color: C.danger }}>미입금 {fmt(unpaid)}원</span>
-                      <button
-                        onClick={() => { setPayTarget(cls.id); setPayForm({ date: today(), amount: String(unpaid), termLabel: '', memo: '' }); setPayModal(true) }}
-                        style={{ padding: '5px 14px', borderRadius: '7px', border: 'none', background: C.success, color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
-                        입금 처리
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 수업별 입금 내역 */}
-          {classes.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px', background: C.card, borderRadius: '14px', border: `1px solid ${C.border}`, color: C.muted }}>
-              <div style={{ fontSize: '36px', marginBottom: '10px' }}>💳</div>
-              <div>등록된 수업이 없습니다</div>
-            </div>
-          ) : classes.map(cls => {
-            const clsPays = [...(paymentMap[cls.id] || [])].sort((a, b) => b.date.localeCompare(a.date))
-            const paid = clsPays.reduce((s, p) => s + p.amount, 0)
-            const fee = feeMap[cls.id]; const cnt = confirmedCount[cls.id] || 0
-            const sessions = calcSessionDates(cls)
             const expected = fee ? (fee.feeType === 'per_term' ? fee.amount * cnt : fee.amount * cnt * sessions.length) : 0
+            const clsPays = paymentMap[cls.id] || []
+            const paid = clsPays.reduce((s, p) => s + p.amount, 0)
             return (
               <div key={cls.id} style={{ background: C.card, borderRadius: '14px', border: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                <div style={{ padding: '14px 20px', background: '#f9fafb', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ padding: '14px 20px', background: '#fafafa', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                   <div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>{cls.organization}</div>
-                    <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>
-                      {cls.className}{cls.section ? ' ' + cls.section : ''} · 확정 {cnt}명
+                    <div style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>
+                      🏫 {cls.organization} · {cls.className}{cls.section ? ' ' + cls.section : ''}
+                    </div>
+                    <div style={{ fontSize: '12px', color: C.muted, marginTop: '3px' }}>
+                      확정 {cnt}명 · 총 {sessions.length}차시
                       {fee && <> · 기대수익 <strong style={{ color: C.primary }}>{fmt(expected)}원</strong></>}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button
+                      onClick={() => { setFeeTarget({ classId: cls.id, org: cls.organization, className: cls.className }); setFeeForm({ feeType: fee?.feeType || 'per_session', amount: String(fee?.amount || '') }); setFeeModal(true) }}
+                      style={{ padding: '6px 12px', borderRadius: '7px', border: `1px solid ${C.border}`, background: '#f9fafb', color: C.muted, fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+                      ⚙️ 수강료
+                    </button>
                     {paid > 0 && <span style={{ fontSize: '14px', fontWeight: 700, color: C.success }}>입금 {fmt(paid)}원</span>}
                     <button
                       onClick={() => { setPayTarget(cls.id); setPayForm({ date: today(), amount: fee ? String(fee.amount * cnt) : '', termLabel: '', memo: '' }); setPayModal(true) }}
@@ -476,7 +380,7 @@ export function Revenue({ user }) {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <span style={{ fontSize: '15px', fontWeight: 700, color: C.success }}>+{fmt(p.amount)}원</span>
-                          <button onClick={() => { deletePayDB(p.id); reload() }} style={{ background: 'none', border: 'none', color: '#d1d5db', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: 0 }}>×</button>
+                          <button onClick={() => { deletePayment(p.id) }} style={{ background: 'none', border: 'none', color: '#d1d5db', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: 0 }}>×</button>
                         </div>
                       </div>
                     ))}
@@ -485,6 +389,41 @@ export function Revenue({ user }) {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* ── 미입금 탭 */}
+      {tab === 'unpaid' && (
+        <div>
+          {unpaidList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px', background: C.card, borderRadius: '14px', border: `1px solid ${C.border}`, color: C.muted }}>
+              <div style={{ fontSize: '36px', marginBottom: '10px' }}>✅</div>
+              <div style={{ fontSize: '15px', fontWeight: 600 }}>미입금 수업이 없습니다</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {unpaidList.map(({ cls, fee, cnt, expected, paid, unpaid }) => (
+                <div key={cls.id} style={{ background: C.card, borderRadius: '12px', border: '1.5px solid #fca5a5', padding: '16px 20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>🏫 {cls.organization} · {cls.className}</div>
+                      <div style={{ fontSize: '12px', color: C.muted, marginTop: '4px' }}>
+                        기대 {fmt(expected)}원 · 입금 {fmt(paid)}원
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '16px', fontWeight: 700, color: C.danger }}>미입금 {fmt(unpaid)}원</span>
+                      <button
+                        onClick={() => { setPayTarget(cls.id); setPayForm({ date: today(), amount: String(unpaid), termLabel: '', memo: '' }); setPayModal(true) }}
+                        style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: C.primary, color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+                        입금 등록
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
