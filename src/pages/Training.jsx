@@ -62,7 +62,7 @@ function loadTrainingSites() {
   } catch { return DEFAULT_TRAINING_SITES }
 }
 
-// Supabase Storage REST API로 파일 업로드 (anon key 사용)
+// Edge Function을 통한 파일 업로드
 async function uploadToStorage(userId, trainingId, file) {
   const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
   const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
@@ -70,22 +70,23 @@ async function uploadToStorage(userId, trainingId, file) {
 
   const ext  = file.name.split('.').pop()
   const path = `training/${userId}/${trainingId}/${Date.now()}.${ext}`
-  const url  = `${SUPABASE_URL}/storage/v1/object/teacher-files/${path}`
 
-  const res = await fetch(url, {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('path', path)
+
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/db-api`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${SUPABASE_ANON}`,
-      'Content-Type': file.type,
-      'x-upsert': 'true',
+      'x-file-path': path,
+      'x-file-type': file.type,
     },
-    body: file,
+    body: formData,
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.message || `업로드 실패 (${res.status})`)
-  }
-  return `${SUPABASE_URL}/storage/v1/object/public/teacher-files/${path}`
+  const data = await res.json()
+  if (!data.success) throw new Error(data.error || '업로드 실패')
+  return data.data.url
 }
 
 const EMPTY_FORM = {
