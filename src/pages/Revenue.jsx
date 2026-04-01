@@ -778,7 +778,7 @@ export function Revenue({ user }) {
                           {cls.time&&<span style={{ fontSize:'12px', color:C.muted, fontWeight:400, marginLeft:'8px' }}>{cls.time}{cls.timeEnd?' ~ '+cls.timeEnd:''}</span>}
                         </div>
                         <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>
-                          현재 {cnt}명 · {cls.termType==='semester'?'학기제':'분기제'} · {terms.length}텀 총 {sessions.length}회차
+                          현재 {cnt}명 · {cls.termType==='semester'?'학기제':'분기제'} · {terms.length}텀 총 {sessions.length}회
                         </div>
                         {/* 텀별 회차당 금액 */}
                         {fee&&terms.length>0&&(
@@ -804,7 +804,7 @@ export function Revenue({ user }) {
                       </div>
                       <button onClick={()=>{ setFeeTarget({classId:cls.id,org:cls.organization,className:cls.className}); setFeeForm({feeType:fee?.feeType||'per_session',amount:String(fee?.amount||'')}); setFeeModal(true) }}
                         style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:fee?'#fff7ed':'#f9fafb', color:fee?C.primary:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                        {fee?`⚙️ ${fmt(fee.amount)}원/${fee.feeType==='per_session'?'회차':'텀'}`:'⚙️ 수강료 설정'}
+                        {fee?`⚙️ ${fmt(fee.amount)}원/${fee.feeType==='per_session'?'회':'텀'}`:'⚙️ 수강료 설정'}
                       </button>
                     </div>
                     {clsPays.length>0&&(
@@ -1022,7 +1022,7 @@ export function Revenue({ user }) {
                         const isCur=isTermCurrent(t)
                         const f=feeMap[selCls?.id]
                         const c=confirmedCount[selCls?.id]||0
-                        const ps=f?perSessionFee(f,t):0
+                        const ps=f?perSessionFee(f,t,selCls):0
                         const exp=ps*c*t.sessions.length
                         return (
                           <div key={t.termNo} onClick={()=>setPayForm(pf=>({...pf,termNo:String(t.termNo)}))}
@@ -1121,7 +1121,7 @@ export function Revenue({ user }) {
                   <span style={{ marginLeft:'8px', fontSize:'12px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'5px', padding:'1px 7px' }}>{unpaidDetail.term.label}</span>
                 </div>
                 <div style={{ fontSize:'12px', color:C.muted }}>
-                  {unpaidDetail.term.startDate?.slice(5)} ~ {unpaidDetail.term.endDate?.slice(5)} · {unpaidDetail.term.sessions.length}회차
+                  {unpaidDetail.term.startDate?.slice(5)} ~ {unpaidDetail.term.endDate?.slice(5)} · {unpaidDetail.term.sessions.length}회
                 </div>
               </div>
               {/* 인원 현황 */}
