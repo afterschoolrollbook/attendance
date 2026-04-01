@@ -17,14 +17,6 @@ function fmtShort(n) {
 
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일']
 
-function getWeekDates(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00')
-  const dow = d.getDay()
-  const mon = new Date(d); mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
-  return Array.from({ length: 7 }, (_, i) => {
-    const dd = new Date(mon); dd.setDate(mon.getDate() + i); return localDateStr(dd)
-  })
-}
 function getMonthDates(ym) {
   const [y, m] = ym.split('-').map(Number)
   return Array.from({ length: new Date(y, m, 0).getDate() }, (_, i) =>
@@ -73,7 +65,6 @@ const iStyle = {
 
 export function Revenue({ user }) {
   const [tab, setTab]           = useState('calendar')
-  const [calView, setCalView]   = useState('month')
   const [curDate, setCurDate]   = useState(today())
   const [fees, setFees]         = useState([])
   const [payments, setPayments] = useState([])
@@ -85,9 +76,10 @@ export function Revenue({ user }) {
   const [feeTarget, setFeeTarget] = useState(null)
   const [feeForm, setFeeForm]     = useState({ feeType: 'per_session', amount: '' })
 
-  const [payModal, setPayModal] = useState(false)
-  const [payDate, setPayDate]   = useState(today())
-  const [payForm, setPayForm]   = useState({ classId: '', termNo: '', amount: '', memo: '', reason: '' })
+  const [payWizard, setPayWizard] = useState(false)
+  const [payStep, setPayStep]     = useState(1) // 1=날짜, 2=학교, 3=텀, 4=금액, 5=메모
+  const [payDate, setPayDate]     = useState(today())
+  const [payForm, setPayForm]     = useState({ classId: '', termNo: '', amount: '', memo: '' })
 
   const [expandedClass, setExpandedClass] = useState(null)
 
@@ -230,7 +222,9 @@ export function Revenue({ user }) {
         )
         const paid = tagged.reduce((s, p) => s + p.amount, 0)
         const unpaid = expected - paid
-        if (unpaid > 0) {
+        // 텀이 아직 시작 안 했으면 미수금 아님 (오늘 기준 startDate가 미래면 제외)
+        const termStarted = term.startDate && term.startDate <= today()
+        if (unpaid > 0 && termStarted) {
           list.push({
             cls, term, fee, cnt,
             expected, paid, unpaid,
@@ -287,13 +281,11 @@ export function Revenue({ user }) {
       date: payDate,
       amount: Number(payForm.amount),
       memo: payForm.memo,
-      reason: payForm.reason,
+      reason: '',
       createdAt: now(),
     })
-    reload(); setPayModal(false)
+    reload(); setPayWizard(false)
   }
-
-  const deletePayment = (id) => { RevenuePayments.delete(id); reload() }
 
   const openPayModal = (date, classId = '', termNo = '') => {
     let autoTermNo = termNo
@@ -306,9 +298,15 @@ export function Revenue({ user }) {
       }
     }
     setPayDate(date)
-    setPayForm({ classId: classId || (sorted[0]?.id || ''), termNo: String(autoTermNo), amount: '', memo: '', reason: '' })
-    setPayModal(true)
+    setPayForm({ classId: classId || '', termNo: String(autoTermNo), amount: '', memo: '' })
+    // 진입 시작 스텝 결정
+    if (classId && autoTermNo) setPayStep(4)
+    else if (classId) setPayStep(3)
+    else setPayStep(2)
+    setPayWizard(true)
   }
+
+  const deletePayment = (id) => { RevenuePayments.delete(id); reload() }
 
   // 월 달력 렌더
   const renderMonthCalendar = () => {
@@ -348,7 +346,7 @@ export function Revenue({ user }) {
                 {/* 예상수익 */}
                 {dayRev > 0 && (
                   <div style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#ffffffcc' : C.success, marginBottom: '2px' }}>
-                    {fmtShort(dayRev)}원
+                    {fmt(dayRev)}
                   </div>
                 )}
                 {/* 수업 태그 */}
@@ -383,7 +381,7 @@ export function Revenue({ user }) {
                 {/* 입금 표시 */}
                 {paidAmt > 0 && (
                   <div style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#ffffffcc' : C.blue, marginTop: '1px' }}>
-                    입{fmtShort(paidAmt)}
+                    입{fmt(paidAmt)}
                   </div>
                 )}
               </div>
@@ -394,7 +392,7 @@ export function Revenue({ user }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px', marginTop: '4px', borderTop: `1px solid ${C.border}`, paddingTop: '4px' }}>
           {weekDayRevenue.map((rev, i) => (
             <div key={i} style={{ textAlign: 'center', fontSize: '10px', fontWeight: rev > 0 ? 700 : 400, color: rev > 0 ? C.primary : '#d1d5db', padding: '2px 0' }}>
-              {rev > 0 ? fmtShort(rev) : '–'}
+              {rev > 0 ? fmt(rev) : '–'}
             </div>
           ))}
         </div>
@@ -403,57 +401,6 @@ export function Revenue({ user }) {
           <span style={{ color: C.success }}>■</span> 입금완료 &nbsp;
           <span style={{ color: C.danger }}>■</span> 미수금 &nbsp;
           <span style={{ color: C.muted }}>■</span> 수강료 미설정
-        </div>
-      </div>
-    )
-  }
-
-  // 주 달력 렌더
-  const renderWeekCalendar = () => {
-    const weekDates = getWeekDates(curDate)
-    return (
-      <div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '6px' }}>
-          {weekDates.map((date, i) => {
-            const dayItems = dailyClasses[date] || []
-            const pays     = payByDate[date] || []
-            const isSel = date === curDate, isToday = date === today()
-            const dayRev = allDailyRevenue[date] || 0
-            const paidAmt = pays.reduce((s, p) => s + p.amount, 0)
-            return (
-              <div key={date} onClick={() => { setCurDate(date); openPayModal(date) }}
-                style={{ borderRadius: '10px', padding: '8px 5px', cursor: 'pointer', textAlign: 'center', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1.5px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}`, minHeight: '80px' }}>
-                <div style={{ fontSize: '11px', color: isSel ? '#fff' : i === 5 ? C.blue : i === 6 ? C.danger : C.muted, marginBottom: '2px' }}>{DAY_LABELS[i]}</div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: isSel ? '#fff' : C.text, marginBottom: '3px' }}>{Number(date.slice(-2))}</div>
-                {dayRev > 0 && <div style={{ fontSize: '9px', color: isSel ? '#ffffffcc' : C.success, fontWeight: 700, marginBottom: '2px' }}>{fmtShort(dayRev)}원</div>}
-                {dayItems.map((item, idx) => {
-                  const org = item.cls.organization?.slice(0, 3) || ''
-                  const name = item.cls.className?.slice(0, 3) || ''
-                  const sec = item.cls.section || ''
-                  const label = `${org}/${name}${sec ? '/' + sec : ''}`
-                  const bgColor = item.noFee ? (isSel?'rgba(255,255,255,0.15)':'#f3f4f6') : item.unpaid ? (isSel?'rgba(239,68,68,0.3)':'#fef2f2') : (isSel?'rgba(255,255,255,0.2)':'#f0fdf4')
-                  const txtColor = item.noFee ? (isSel?'#ffffffaa':C.muted) : item.unpaid ? (isSel?'#fca5a5':C.danger) : (isSel?'#fff':C.success)
-                  return (
-                    <div key={idx} style={{ fontSize: '9px', fontWeight: 600, padding: '1px 3px', borderRadius: '3px', background: bgColor, color: txtColor, lineHeight: 1.4, marginBottom: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {label}
-                    </div>
-                  )
-                })}
-                {paidAmt > 0 && <div style={{ fontSize: '9px', color: isSel ? '#ffffffcc' : C.blue, fontWeight: 700, marginTop: '2px' }}>입{fmtShort(paidAmt)}</div>}
-              </div>
-            )
-          })}
-        </div>
-        {/* 주간 요일별 합계 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '6px', marginTop: '4px' }}>
-          {weekDates.map((date, i) => {
-            const rev = allDailyRevenue[date] || 0
-            return (
-              <div key={i} style={{ textAlign: 'center', fontSize: '10px', fontWeight: rev > 0 ? 700 : 400, color: rev > 0 ? C.primary : '#d1d5db' }}>
-                {rev > 0 ? fmtShort(rev) : '–'}
-              </div>
-            )
-          })}
         </div>
       </div>
     )
@@ -485,26 +432,18 @@ export function Revenue({ user }) {
           {/* 달력 */}
           <div style={{ background: C.card, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                {[['month','월'],['week','주']].map(([v,l]) => (
-                  <button key={v} onClick={() => setCalView(v)}
-                    style={{ padding: '5px 14px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontSize: '13px', fontWeight: 600, background: calView===v?C.primary:'#f3f4f6', color: calView===v?'#fff':C.muted }}>
-                    {l}
-                  </button>
-                ))}
-              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button onClick={() => { const d=new Date(curDate+'T00:00:00'); calView==='month'?d.setMonth(d.getMonth()-1):d.setDate(d.getDate()-7); setCurDate(localDateStr(d)) }}
+                <button onClick={() => { const d=new Date(curDate+'T00:00:00'); d.setMonth(d.getMonth()-1); setCurDate(localDateStr(d)) }}
                   style={{ background:'none', border:`1px solid ${C.border}`, borderRadius:'6px', padding:'4px 10px', cursor:'pointer', fontSize:'14px' }}>‹</button>
                 <span style={{ fontSize:'15px', fontWeight:700, color:C.text, minWidth:'90px', textAlign:'center' }}>
-                  {calView==='month'?`${curYM.replace('-','년 ')}월`:`${curDate.slice(5).replace('-','/')} 주`}
+                  {`${curYM.replace('-','년 ')}월`}
                 </span>
-                <button onClick={() => { const d=new Date(curDate+'T00:00:00'); calView==='month'?d.setMonth(d.getMonth()+1):d.setDate(d.getDate()+7); setCurDate(localDateStr(d)) }}
+                <button onClick={() => { const d=new Date(curDate+'T00:00:00'); d.setMonth(d.getMonth()+1); setCurDate(localDateStr(d)) }}
                   style={{ background:'none', border:`1px solid ${C.border}`, borderRadius:'6px', padding:'4px 10px', cursor:'pointer', fontSize:'14px' }}>›</button>
               </div>
               <div style={{ fontSize:'14px', fontWeight:700, color:C.success }}>{curYM.slice(5)}월 예상 {fmt(monthTotal)}원</div>
             </div>
-            {calView === 'month' ? renderMonthCalendar() : renderWeekCalendar()}
+            {renderMonthCalendar()}
           </div>
 
           {/* 우측 패널 */}
@@ -513,7 +452,7 @@ export function Revenue({ user }) {
             {allUnpaidList.length > 0 && (
               <div style={{ background:'#fef2f2', borderRadius:'14px', border:'1.5px solid #fca5a5', padding:'14px 16px' }}>
                 <div style={{ fontSize:'14px', fontWeight:700, color:C.danger, marginBottom:'10px' }}>
-                  ⚠️ 미수금 {allUnpaidList.length}건 · 합계 {fmt(allUnpaidList.reduce((s,r)=>s+r.unpaid,0))}원
+                  ⚠️ {allUnpaidList.map(r=>r.term.label).filter((v,i,a)=>a.indexOf(v)===i).join(', ')} 미수금 {allUnpaidList.length}건 · 합계 {fmt(allUnpaidList.reduce((s,r)=>s+r.unpaid,0))}원
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
                   {allUnpaidList.map((item, idx) => (
@@ -524,7 +463,7 @@ export function Revenue({ user }) {
                         <div>
                           <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
                             {item.cls.organization} · {item.cls.className}{item.cls.section?' '+item.cls.section:''}
-                            <span style={{ marginLeft:'6px', fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>{item.term.label}</span>
+                            <span style={{ marginLeft:'6px', fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>{item.term.label} {item.term.sessions.length}회</span>
                           </div>
                           <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
                             {item.term.startDate?.slice(5)} ~ {item.term.endDate?.slice(5)} · {item.confirmed}명 확정
@@ -541,38 +480,51 @@ export function Revenue({ user }) {
               </div>
             )}
 
-            {/* 선택 날짜 수업 */}
+            {/* 이달 수업 예상 현황 */}
             <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px' }}>
-              <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'10px' }}>📅 {curDate.replace(/-/g,'.').slice(2)} 수업</div>
-              {dayClasses.length === 0
-                ? <div style={{ textAlign:'center', padding:'14px', color:C.muted, fontSize:'13px' }}>수업 없음</div>
-                : <div style={{ display:'flex', flexDirection:'column', gap:'7px' }}>
-                    {dayClasses.map(cls => {
-                      const fee = feeMap[cls.id], cnt = confirmedCount[cls.id]||0
-                      const terms = getTerms(cls)
-                      const term = terms.find(t=>t.sessions.includes(curDate)) || terms[0]
-                      const ps = perSessionFee(fee, term)
-                      const dayRev = ps * cnt
-                      return (
-                        <div key={cls.id} style={{ padding:'10px 12px', borderRadius:'10px', border:`1px solid ${C.border}`, background:'#fafafa' }}>
-                          <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'3px' }}>
-                            🏫 {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}
+              <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'10px' }}>📅 {curYM.slice(5)}월 수업 현황</div>
+              {(() => {
+                // 이번달에 수업이 있는 항목만
+                const monthItems = []
+                sorted.forEach(cls => {
+                  const fee = feeMap[cls.id]
+                  const cnt = confirmedCount[cls.id] || 0
+                  const terms = getTerms(cls)
+                  terms.forEach(term => {
+                    const monthSessions = term.sessions.filter(d => d.slice(0,7) === curYM)
+                    if (monthSessions.length === 0) return
+                    const ps = perSessionFee(fee, term)
+                    monthItems.push({ cls, term, fee, cnt, monthSessions, monthRev: ps * cnt * monthSessions.length })
+                  })
+                })
+                if (monthItems.length === 0) return (
+                  <div style={{ textAlign:'center', padding:'14px', color:C.muted, fontSize:'13px' }}>이번달 수업 없음</div>
+                )
+                return (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                    {monthItems.map((item, i) => (
+                      <div key={i} style={{ padding:'8px 10px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fafafa', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                        <div>
+                          <div style={{ fontSize:'12px', fontWeight:700, color:C.text }}>
+                            {item.cls.organization} · {item.cls.className}{item.cls.section?' '+item.cls.section:''}
                           </div>
-                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                            <span style={{ fontSize:'12px', color:C.muted }}>{cnt}명{cls.time?` · ${cls.time}`:''} · {term?.label}</span>
-                            {dayRev > 0
-                              ? <span style={{ fontSize:'13px', fontWeight:700, color:C.success }}>+{fmt(dayRev)}원</span>
-                              : <button onClick={() => { setFeeTarget({classId:cls.id,org:cls.organization,className:cls.className}); setFeeForm({feeType:'per_session',amount:''}); setFeeModal(true) }}
-                                  style={{ fontSize:'11px', padding:'3px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
-                                  수강료 설정
-                                </button>
-                            }
+                          <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
+                            {item.term.label} · {item.monthSessions.length}회차 · {item.cnt}명
+                            <span style={{ marginLeft:'4px', color:C.muted }}>({item.monthSessions[0]?.slice(5)}~{item.monthSessions[item.monthSessions.length-1]?.slice(5)})</span>
                           </div>
                         </div>
-                      )
-                    })}
+                        <div style={{ fontSize:'13px', fontWeight:700, color: item.fee ? C.success : C.muted, flexShrink:0 }}>
+                          {item.fee ? fmt(item.monthRev)+'원' : '수강료미설정'}
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:'8px', marginTop:'2px', display:'flex', justifyContent:'space-between', fontSize:'13px', fontWeight:700 }}>
+                      <span style={{ color:C.muted }}>{curYM.slice(5)}월 예상 합계</span>
+                      <span style={{ color:C.success }}>{fmt(monthTotal)}원</span>
+                    </div>
                   </div>
-              }
+                )
+              })()}
             </div>
 
             {/* 선택 날짜 입금 내역 */}
@@ -859,83 +811,195 @@ export function Revenue({ user }) {
       )}
 
       {/* ── 입금 등록 모달 */}
-      {payModal&&(
-        <div onClick={e=>{ if(e.target===e.currentTarget) setPayModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'460px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>💵 입금 등록</span>
-              <button onClick={()=>setPayModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'13px' }}>
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>입금일</label>
-                <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={iStyle} />
-              </div>
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>수업 *</label>
-                <select value={payForm.classId} onChange={e=>{
-                  const cls=sorted.find(c=>c.id===e.target.value)
-                  const terms=cls?getTerms(cls):[]
-                  const cur=terms.find(isTermCurrent)||terms[0]
-                  setPayForm(f=>({...f,classId:e.target.value,termNo:String(cur?.termNo||'')}))
-                }} style={iStyle}>
-                  <option value="">수업을 선택하세요</option>
-                  {sorted.map(cls=>(
-                    <option key={cls.id} value={cls.id}>
-                      {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}{cls.time?` (${cls.time})`:''}
-                    </option>
+      {/* ── 입금 등록 Wizard */}
+      {payWizard&&(()=>{
+        const selCls = sorted.find(c=>c.id===payForm.classId)
+        const terms  = selCls ? getTerms(selCls) : []
+        const selTerm= terms.find(t=>String(t.termNo)===String(payForm.termNo))
+        const fee    = selCls ? feeMap[selCls.id] : null
+        const cnt    = selCls ? (confirmedCount[selCls.id]||0) : 0
+        const expectedAmt = (fee && selTerm) ? perSessionFee(fee,selTerm)*cnt*selTerm.sessions.length : 0
+
+        const hasTerm = terms.length > 1
+        const STEPS = hasTerm ? ['날짜','학교','텀','금액','메모'] : ['날짜','학교','금액','메모']
+        const totalSteps = STEPS.length
+        const displayStep = (!hasTerm && payStep >= 3) ? payStep - 1 : payStep
+
+        const goNext = () => {
+          if (payStep === 2 && !payForm.classId) { alert('수업을 선택해주세요'); return }
+          if (hasTerm && payStep === 3 && !payForm.termNo) {
+            if (terms.length===1) { setPayForm(f=>({...f,termNo:String(terms[0].termNo)})) }
+            else { alert('텀을 선택해주세요'); return }
+          }
+          const nextStep = (!hasTerm && payStep === 2) ? 4 : payStep + 1
+          if (nextStep > 5) { savePayForm(); return }
+          setPayStep(nextStep)
+        }
+        const goBack = () => {
+          const prevStep = (!hasTerm && payStep === 4) ? 2 : payStep - 1
+          setPayStep(Math.max(1, prevStep))
+        }
+        const canNext = payStep===1 ? !!payDate
+          : payStep===2 ? !!payForm.classId
+          : (hasTerm && payStep===3) ? !!payForm.termNo
+          : payStep===4 ? !!payForm.amount
+          : true
+
+        return (
+          <div onClick={e=>{ if(e.target===e.currentTarget) setPayWizard(false) }}
+            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
+            <div style={{ background:'#fff', borderRadius:'20px', width:'100%', maxWidth:'400px', boxShadow:'0 24px 64px rgba(0,0,0,0.22)', overflow:'hidden' }}>
+              {/* 헤더 */}
+              <div style={{ padding:'18px 20px 14px', borderBottom:`1px solid ${C.border}` }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
+                  <span style={{ fontSize:'16px', fontWeight:700, color:C.text }}>💵 입금 등록</span>
+                  <button onClick={()=>setPayWizard(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted, lineHeight:1 }}>×</button>
+                </div>
+                <div style={{ display:'flex', gap:'4px' }}>
+                  {STEPS.map((s,i)=>(
+                    <div key={s} style={{ flex:1, height:'4px', borderRadius:'2px', background: displayStep > i ? C.primary : '#e5e7eb', opacity: displayStep === i+1 ? 1 : displayStep > i ? 0.7 : 0.25, transition:'all .3s' }} />
                   ))}
-                </select>
+                </div>
+                <div style={{ marginTop:'6px', fontSize:'11px', color:C.muted }}>
+                  {displayStep} / {totalSteps} &nbsp;—&nbsp; <strong style={{color:C.text}}>{STEPS[displayStep-1]}</strong>
+                </div>
               </div>
-              {payForm.classId&&(()=>{
-                const cls=sorted.find(c=>c.id===payForm.classId)
-                const terms=cls?getTerms(cls):[]
-                if(terms.length<=1) return null
-                return (
+
+              <div style={{ padding:'24px 20px', minHeight:'160px' }}>
+                {payStep===1&&(
                   <div>
-                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>몇 텀 수강료?</label>
-                    <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                    <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>📅 언제 입금됐나요?</div>
+                    <div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>입금 받은 날짜를 선택하세요</div>
+                    <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={{...iStyle,fontSize:'16px',fontWeight:600}} />
+                  </div>
+                )}
+                {payStep===2&&(
+                  <div>
+                    <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>🏫 어느 학교 수업인가요?</div>
+                    <div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>{payDate.replace(/-/g,'.')} 입금</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'8px', maxHeight:'220px', overflowY:'auto' }}>
+                      {sorted.length===0
+                        ? <div style={{ textAlign:'center', padding:'20px', color:C.muted, fontSize:'13px' }}>등록된 수업이 없습니다</div>
+                        : sorted.map(cls=>{
+                          const isSel = payForm.classId === cls.id
+                          const f = feeMap[cls.id]
+                          const c = confirmedCount[cls.id]||0
+                          return (
+                            <div key={cls.id} onClick={()=>{
+                              const ts = getTerms(cls)
+                              const cur = ts.find(isTermCurrent)||ts[0]
+                              setPayForm(pf=>({...pf,classId:cls.id,termNo:String(cur?.termNo||'')}))
+                            }}
+                              style={{ padding:'12px 14px', borderRadius:'12px', border:`2px solid ${isSel?C.primary:C.border}`, background:isSel?'#fff7ed':'#fafafa', cursor:'pointer', transition:'all .15s' }}>
+                              <div style={{ fontSize:'14px', fontWeight:700, color:isSel?C.primary:C.text }}>
+                                {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}
+                              </div>
+                              <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+                                {c}명 확정{cls.time?` · ${cls.time}`:''}{f?` · ${fmt(f.amount)}원/${f.feeType==='per_session'?'회차':'텀'}`:''}
+                              </div>
+                            </div>
+                          )
+                        })
+                      }
+                    </div>
+                  </div>
+                )}
+                {payStep===3&&hasTerm&&(
+                  <div>
+                    <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>📚 몇 텀 수강료인가요?</div>
+                    <div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>
+                      {selCls?.organization} · {selCls?.className}{selCls?.section?' '+selCls?.section:''}
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
                       {terms.map(t=>{
-                        const isCur=isTermCurrent(t), isSel=String(payForm.termNo)===String(t.termNo)
+                        const isSel=String(payForm.termNo)===String(t.termNo)
+                        const isCur=isTermCurrent(t)
+                        const f=feeMap[selCls?.id]
+                        const c=confirmedCount[selCls?.id]||0
+                        const ps=f?perSessionFee(f,t):0
+                        const exp=ps*c*t.sessions.length
                         return (
-                          <button key={t.termNo} onClick={()=>setPayForm(f=>({...f,termNo:String(t.termNo)}))}
-                            style={{ padding:'6px 12px', borderRadius:'8px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', fontWeight:600, border:`1.5px solid ${isSel?C.primary:isCur?'#86efac':C.border}`, background:isSel?'#fff7ed':isCur?'#f0fdf4':'#f9fafb', color:isSel?C.primary:isCur?C.success:C.muted }}>
-                            {t.label}{isCur?' 🟢':''}
-                            <span style={{ fontSize:'10px', display:'block', fontWeight:400, color:C.muted }}>{t.startDate?.slice(5)}~{t.endDate?.slice(5)}</span>
-                          </button>
+                          <div key={t.termNo} onClick={()=>setPayForm(pf=>({...pf,termNo:String(t.termNo)}))}
+                            style={{ padding:'12px 14px', borderRadius:'12px', border:`2px solid ${isSel?C.primary:isCur?'#86efac':C.border}`, background:isSel?'#fff7ed':isCur?'#f0fdf4':'#fafafa', cursor:'pointer', transition:'all .15s', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                            <div>
+                              <div style={{ fontSize:'14px', fontWeight:700, color:isSel?C.primary:isCur?C.success:C.text }}>
+                                {t.label} {isCur&&<span style={{ fontSize:'11px', background:'#dcfce7', color:C.success, borderRadius:'4px', padding:'1px 5px' }}>진행중</span>}
+                              </div>
+                              <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+                                {t.startDate?.slice(5)} ~ {t.endDate?.slice(5)} · {t.sessions.length}회차
+                              </div>
+                            </div>
+                            {exp>0&&<div style={{ fontSize:'13px', fontWeight:700, color:isSel?C.primary:C.muted }}>{fmt(exp)}원</div>}
+                          </div>
                         )
                       })}
                     </div>
                   </div>
-                )
-              })()}
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>입금 금액 (원) *</label>
-                <input type="number" value={payForm.amount} onChange={e=>setPayForm(f=>({...f,amount:e.target.value}))}
-                  placeholder="예: 750000" style={iStyle} />
+                )}
+                {payStep===4&&(
+                  <div>
+                    <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>💰 입금 금액이 얼마인가요?</div>
+                    {expectedAmt>0&&(
+                      <div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>
+                        예상 수강료: <strong style={{color:C.primary}}>{fmt(expectedAmt)}원</strong>
+                        <span onClick={()=>setPayForm(pf=>({...pf,amount:String(expectedAmt)}))}
+                          style={{ marginLeft:'8px', fontSize:'12px', color:C.primary, cursor:'pointer', textDecoration:'underline' }}>그대로 입력</span>
+                      </div>
+                    )}
+                    {!expectedAmt&&<div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>
+                      {selCls?.organization} · {selCls?.className}{selTerm?` · ${selTerm.label}`:''}
+                    </div>}
+                    <input type="number" value={payForm.amount} onChange={e=>setPayForm(pf=>({...pf,amount:e.target.value}))}
+                      placeholder="예: 750000" style={{...iStyle,fontSize:'18px',fontWeight:700}} autoFocus />
+                    {payForm.amount>0&&(
+                      <div style={{ marginTop:'10px', padding:'10px 14px', background:'#f0fdf4', borderRadius:'10px', fontSize:'15px', fontWeight:700, color:C.success }}>
+                        ✅ {fmt(payForm.amount)}원
+                      </div>
+                    )}
+                  </div>
+                )}
+                {payStep===5&&(
+                  <div>
+                    <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>📝 특이사항 메모 (선택)</div>
+                    <div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>건너뛰어도 됩니다</div>
+                    <input value={payForm.memo} onChange={e=>setPayForm(pf=>({...pf,memo:e.target.value}))}
+                      placeholder="예: 1분기 수강료 전액, 분할납부 1회차 등" style={iStyle} autoFocus />
+                    <div style={{ marginTop:'16px', padding:'12px 14px', background:'#f9fafb', borderRadius:'12px', display:'flex', flexDirection:'column', gap:'6px' }}>
+                      <div style={{ fontSize:'12px', color:C.muted, display:'flex', justifyContent:'space-between' }}>
+                        <span>날짜</span><span style={{color:C.text,fontWeight:600}}>{payDate.replace(/-/g,'.')}</span>
+                      </div>
+                      <div style={{ fontSize:'12px', color:C.muted, display:'flex', justifyContent:'space-between' }}>
+                        <span>수업</span><span style={{color:C.text,fontWeight:600,textAlign:'right',maxWidth:'200px'}}>{selCls?.organization} · {selCls?.className}{selCls?.section?' '+selCls?.section:''}</span>
+                      </div>
+                      {selTerm&&<div style={{ fontSize:'12px', color:C.muted, display:'flex', justifyContent:'space-between' }}>
+                        <span>텀</span><span style={{color:C.text,fontWeight:600}}>{selTerm.label}</span>
+                      </div>}
+                      <div style={{ fontSize:'13px', color:C.muted, display:'flex', justifyContent:'space-between', borderTop:`1px solid ${C.border}`, paddingTop:'6px', marginTop:'2px' }}>
+                        <span style={{fontWeight:600}}>입금액</span><span style={{color:C.success,fontWeight:700,fontSize:'15px'}}>{fmt(payForm.amount)}원</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>메모 (선택)</label>
-                <input value={payForm.memo} onChange={e=>setPayForm(f=>({...f,memo:e.target.value}))}
-                  placeholder="예: 1분기 수강료 전액" style={iStyle} />
-              </div>
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:600, color:C.warning, display:'block', marginBottom:'5px' }}>📝 지연/변동 사유 (선택)</label>
-                <input value={payForm.reason} onChange={e=>setPayForm(f=>({...f,reason:e.target.value}))}
-                  placeholder="예: 학교 행정 지연, 분할 입금, 금액 조정 등"
-                  style={{...iStyle,borderColor:payForm.reason?'#fde68a':C.border}} />
-              </div>
-              <div style={{ display:'flex', gap:'8px' }}>
-                <button onClick={savePayForm} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.success, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>입금 등록</button>
-                <button onClick={()=>setPayModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
+
+              <div style={{ padding:'0 20px 20px', display:'flex', gap:'8px' }}>
+                {payStep > 1 && (
+                  <button onClick={goBack}
+                    style={{ padding:'12px 16px', borderRadius:'12px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
+                    ← 이전
+                  </button>
+                )}
+                <button onClick={goNext} disabled={!canNext}
+                  style={{ flex:1, padding:'12px', borderRadius:'12px', border:'none', background: canNext ? (payStep===totalSteps ? C.success : C.primary) : '#e5e7eb', color: canNext ? '#fff' : C.muted, fontSize:'15px', fontWeight:700, cursor: canNext ? 'pointer' : 'not-allowed', fontFamily:'Noto Sans KR, sans-serif', transition:'all .2s' }}>
+                  {payStep===totalSteps ? '✅ 입금 등록 완료' : '다음 →'}
+                </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
-      {/* ── 미수금 상세 팝업 */}
+            {/* ── 미수금 상세 팝업 */}
       {unpaidDetail&&(
         <div onClick={e=>{ if(e.target===e.currentTarget) setUnpaidDetail(null) }}
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
