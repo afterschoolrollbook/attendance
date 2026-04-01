@@ -61,7 +61,7 @@ const CERT_TYPES = ['국가자격증', '민간자격증', '기타']
 
 const EMPTY_FORM = {
   name: '', issuer: '', certType: '국가자격증', grade: '',
-  certNumber: '', issuedAt: '', expiresAt: '', noExpiry: false, memo: '',
+  certNumber: '', privateRegNum: '', issuedAt: '', expiresAt: '', noExpiry: false, memo: '',
 }
 
 export function Certificates({ user }) {
@@ -79,10 +79,21 @@ export function Certificates({ user }) {
   const [confirm, setConfirm]       = useState(null)
   const { toasts, success, error: toastError, info } = useToast()
 
+  const [selYear, setSelYear] = useState('전체')
+
   const reload = () => setRecords(CertDB.byTeacher(user.id))
   useEffect(() => { reload() }, [])
 
-  const sorted = [...records].sort((a, b) => (b.issuedAt || '').localeCompare(a.issuedAt || ''))
+  // 취득일 기준 연도 목록 자동 추출
+  const years = ['전체', ...new Set(
+    records.map(r => r.issuedAt ? r.issuedAt.slice(0, 4) : null).filter(Boolean)
+  )].sort((a, b) => a === '전체' ? -1 : b === '전체' ? 1 : b.localeCompare(a))
+
+  const filtered = selYear === '전체'
+    ? records
+    : records.filter(r => (r.issuedAt || '').slice(0, 4) === selYear)
+
+  const sorted = [...filtered].sort((a, b) => (b.issuedAt || '').localeCompare(a.issuedAt || ''))
 
   const isExpired    = r => !r.noExpiry && r.expiresAt && r.expiresAt < new Date().toISOString().slice(0, 10)
   const expiringSoon = r => {
@@ -95,7 +106,7 @@ export function Certificates({ user }) {
   const openEdit = r => {
     setForm({
       name: r.name, issuer: r.issuer || '', certType: r.certType || '국가자격증',
-      grade: r.grade || '', certNumber: r.certNumber || '',
+      grade: r.grade || '', certNumber: r.certNumber || '', privateRegNum: r.privateRegNum || '',
       issuedAt: r.issuedAt || '', expiresAt: r.expiresAt || '',
       noExpiry: r.noExpiry || false, memo: r.memo || '',
     })
@@ -202,6 +213,16 @@ export function Certificates({ user }) {
       {/* ── 내 자격증 탭 */}
       {tab === 'list' && (
         <>
+          {/* 연도 탭 */}
+          <div style={{ display:'flex', gap:'8px', marginBottom:'14px', flexWrap:'wrap', alignItems:'center' }}>
+            {years.map(y => (
+              <button key={y} onClick={() => setSelYear(y)}
+                style={{ padding:'6px 14px', borderRadius:'8px', border:`1.5px solid ${selYear===y ? C.primary : C.border}`, background: selYear===y ? '#fff7ed' : '#fff', color: selYear===y ? C.primary : C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                {y === '전체' ? '전체' : `${y}년`}
+              </button>
+            ))}
+          </div>
+
           {/* 통계 + 추가 버튼 */}
           <div style={{ display:'flex', gap:'10px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center' }}>
             {records.length > 0 && (
@@ -267,6 +288,7 @@ export function Certificates({ user }) {
                         <div style={{ display:'flex', gap:'16px', fontSize:'12px', color:C.muted, flexWrap:'wrap' }}>
                           {r.issuer     && <span>🏛 {r.issuer}</span>}
                           {r.certNumber && <span>🔢 {r.certNumber}</span>}
+                          {r.privateRegNum && <span>📋 민간등록번호: {r.privateRegNum}</span>}
                           {r.issuedAt   && <span>📅 취득: {r.issuedAt}</span>}
                           {r.noExpiry
                             ? <span>♾ 영구유효</span>
@@ -394,6 +416,7 @@ export function Certificates({ user }) {
               {[
                 { label:'발급기관', key:'issuer', placeholder:'예: 한국로봇산업협회' },
                 { label:'자격번호', key:'certNumber', placeholder:'자격증 번호' },
+                { label:'민간자격등록번호', key:'privateRegNum', placeholder:'민간자격 등록번호 (해당 시 입력)' },
               ].map(f => (
                 <div key={f.key}>
                   <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>{f.label}</label>
