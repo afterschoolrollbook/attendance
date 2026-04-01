@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs'
 import { uid, now } from '../lib/utils.js'
 import { Certificates as CertDB } from '../lib/db.js'
 import { ToastContainer } from '../components/Atoms.jsx'
@@ -93,7 +94,7 @@ export function Certificates({ user }) {
     ? records
     : records.filter(r => (r.issuedAt || '').slice(0, 4) === selYear)
 
-  const sorted = [...filtered].sort((a, b) => (b.issuedAt || '').localeCompare(a.issuedAt || ''))
+  const sorted = [...filtered].sort((a, b) => (a.issuedAt || '').localeCompare(b.issuedAt || ''))
 
   const isExpired    = r => !r.noExpiry && r.expiresAt && r.expiresAt < new Date().toISOString().slice(0, 10)
   const expiringSoon = r => {
@@ -191,6 +192,47 @@ export function Certificates({ user }) {
     setPreview({ url: r.fileUrl, type: r.fileType || '', name: r.fileName || '첨부파일' })
   }
 
+  const downloadExcel = () => {
+    const today = new Date().toISOString().slice(0, 10)
+    const rows = [...records]
+      .sort((a, b) => (a.issuedAt || '').localeCompare(b.issuedAt || ''))
+      .map((r, i) => ({
+        'No': i + 1,
+        '자격증명': r.name || '',
+        '종류': r.certType || '',
+        '급수': r.grade || '',
+        '발급기관': r.issuer || '',
+        '자격번호': r.certNumber || '',
+        '민간자격등록번호': r.privateRegNum || '',
+        '취득일': r.issuedAt || '',
+        '만료일': r.noExpiry ? '영구유효' : (r.expiresAt || ''),
+        '상태': r.noExpiry ? '유효' : !r.expiresAt ? '유효' : isExpired(r) ? '만료' : expiringSoon(r) ? '만료임박' : '유효',
+        '메모': r.memo || '',
+      }))
+
+    const ws = XLSX.utils.json_to_sheet(rows)
+
+    // 컬럼 너비 설정
+    ws['!cols'] = [
+      { wch: 5 },  // No
+      { wch: 25 }, // 자격증명
+      { wch: 12 }, // 종류
+      { wch: 8 },  // 급수
+      { wch: 20 }, // 발급기관
+      { wch: 18 }, // 자격번호
+      { wch: 20 }, // 민간자격등록번호
+      { wch: 12 }, // 취득일
+      { wch: 12 }, // 만료일
+      { wch: 10 }, // 상태
+      { wch: 20 }, // 메모
+    ]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '보유자격증')
+    XLSX.writeFile(wb, `보유자격증_${today}.xlsx`)
+    success('엑셀 다운로드 완료 📊')
+  }
+
   return (
     <div style={{ padding:'24px', maxWidth:'1000px' }}>
 
@@ -207,6 +249,12 @@ export function Certificates({ user }) {
               {label}
             </button>
           ))}
+          {records.length > 0 && (
+            <button onClick={downloadExcel}
+              style={{ padding:'8px 18px', borderRadius:'9px', border:'1.5px solid #86efac', background:'#f0fdf4', color:'#15803d', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              📊 목록 받기
+            </button>
+          )}
         </div>
       </div>
 
