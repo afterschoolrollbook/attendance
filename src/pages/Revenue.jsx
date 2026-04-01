@@ -151,6 +151,48 @@ export function Revenue({ user }) {
   const monthDates = getMonthDates(curYM)
   const monthTotal = monthDates.reduce((s, d) => s + (allDailyRevenue[d] || 0), 0)
 
+  // 날짜별 수업 목록 + 텀/회차 정보 + 수강료 미수 여부
+  // { date: [{ cls, termNo, termLabel, sessionNo, unpaid }] }
+  const dailyClasses = useMemo(() => {
+    const map = {}
+    sorted.forEach(cls => {
+      const sessions = calcSessionDates(cls)
+      const terms = getTerms(cls)
+      const fee = feeMap[cls.id]
+      const cnt = confirmedCount[cls.id] || 0
+      const clsPays = payByClass[cls.id] || []
+      const perSession = fee ? (fee.feeType === 'per_session' ? Number(fee.amount) : Math.round(Number(fee.amount) / sessions.length)) : 0
+
+      sessions.forEach((date, idx) => {
+        // 이 날짜가 몇 텀 몇 회차인지
+        const term = terms.find(t => t.sessions.includes(date)) || terms[0]
+        const termSessionNo = term ? term.sessions.indexOf(date) + 1 : idx + 1
+
+        // 해당 텀 미수 여부
+        let termUnpaid = false
+        if (fee && cnt && term) {
+          const tagged = clsPays.filter(p =>
+            p.termNo === term.termNo ||
+            (!p.termNo && p.date >= term.startDate && p.date <= term.endDate)
+          )
+          const termExpected = perSession * cnt * term.sessions.length
+          const termPaid = tagged.reduce((s, p) => s + p.amount, 0)
+          termUnpaid = termPaid < termExpected
+        }
+
+        if (!map[date]) map[date] = []
+        map[date].push({
+          cls,
+          termLabel: term?.label || '',
+          termSessionNo,
+          unpaid: termUnpaid,
+          noFee: !fee,
+        })
+      })
+    })
+    return map
+  }, [sorted, feeMap, confirmedCount, payByClass])
+
   const weekDayRevenue = useMemo(() => {
     const wdr = Array(7).fill(0)
     monthDates.forEach(d => {
@@ -250,26 +292,68 @@ export function Revenue({ user }) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px' }}>
           {cells.map((date, i) => {
-            if (!date) return <div key={i} />
-            const rev  = allDailyRevenue[date] || 0
-            const pays = payByDate[date] || []
-            const isToday = date === today()
-            const isSel   = date === curDate
-            const dow = new Date(date + 'T00:00:00').getDay()
+            if (!date) return <div key={i} style={{ minHeight: '90px' }} />
+            const rev      = allDailyRevenue[date] || 0
+            const pays     = payByDate[date] || []
+            const dayItems = dailyClasses[date] || []
+            const isToday  = date === today()
+            const isSel    = date === curDate
+            const dow      = new Date(date + 'T00:00:00').getDay()
+            const paidAmt  = pays.reduce((s, p) => s + p.amount, 0)
             return (
               <div key={date} onClick={() => { setCurDate(date); openPayModal(date) }}
                 title="클릭 → 입금 등록"
-                style={{ borderRadius: '8px', padding: '5px 4px', cursor: 'pointer', minHeight: '52px', transition: 'all .1s', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}` }}>
-                <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '2px', color: isSel ? '#fff' : dow === 6 ? C.blue : dow === 0 ? C.danger : C.text }}>
+                style={{ borderRadius: '8px', padding: '5px 4px', cursor: 'pointer', minHeight: '90px', transition: 'all .1s', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}` }}>
+                {/* 날짜 숫자 */}
+                <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '3px', color: isSel ? '#fff' : dow === 6 ? C.blue : dow === 0 ? C.danger : C.text }}>
                   {Number(date.slice(-2))}
                 </div>
-                {rev > 0 && <div style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#fff' : C.success, lineHeight: 1.3 }}>예{fmt(rev)}</div>}
-                {pays.length > 0 && <div style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#ffffffcc' : C.blue, lineHeight: 1.3 }}>입{fmt(pays.reduce((s, p) => s + p.amount, 0))}</div>}
+                {/* 수업 태그 */}
+                {dayItems.map((item, idx) => {
+                  const org   = item.cls.organization?.slice(0, 3) || ''
+                  const name  = item.cls.className?.slice(0, 3) || ''
+                  const sec   = item.cls.section || ''
+                  const label = `${org}/${name}${sec ? '/' + sec : ''}`
+                  const bgColor = item.noFee
+                    ? '#f3f4f6'
+                    : item.unpaid
+                      ? (isSel ? 'rgba(239,68,68,0.25)' : '#fef2f2')
+                      : (isSel ? 'rgba(255,255,255,0.2)' : '#f0fdf4')
+                  const textColor = item.noFee
+                    ? (isSel ? '#ffffffaa' : C.muted)
+                    : item.unpaid
+                      ? (isSel ? '#fca5a5' : C.danger)
+                      : (isSel ? '#fff' : C.success)
+                  return (
+                    <div key={idx} style={{ marginBottom: '2px' }}>
+                      {/* 텀/회차 — 같은 날 첫 번째 수업에만 표시 (같은 텀이면 한 번만) */}
+                      {idx === 0 && (
+                        <div style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#ffffffcc' : C.blue, lineHeight: 1.3, marginBottom: '1px' }}>
+                          {item.termLabel}{item.termSessionNo}회
+                        </div>
+                      )}
+                      <div style={{ fontSize: '9px', fontWeight: 600, padding: '1px 3px', borderRadius: '3px', background: bgColor, color: textColor, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {label}
+                      </div>
+                    </div>
+                  )
+                })}
+                {/* 입금 표시 */}
+                {paidAmt > 0 && (
+                  <div style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#ffffffcc' : C.blue, lineHeight: 1.3, marginTop: '2px' }}>
+                    입{fmt(paidAmt)}
+                  </div>
+                )}
               </div>
             )
           })}
         </div>
-        <div style={{ marginTop: '8px', fontSize: '11px', color: C.muted, textAlign: 'center' }}>날짜 클릭 → 입금 등록 · 예=예상 · 입=입금</div>
+        <div style={{ marginTop: '8px', fontSize: '11px', color: C.muted }}>
+          날짜 클릭 → 입금 등록 &nbsp;·&nbsp;
+          <span style={{ color: C.success }}>■</span> 입금완료 &nbsp;
+          <span style={{ color: C.danger }}>■</span> 미수금 &nbsp;
+          <span style={{ color: C.muted }}>■</span> 수강료 미설정
+        </div>
       </div>
     )
   }
@@ -279,16 +363,29 @@ export function Revenue({ user }) {
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '6px' }}>
         {weekDates.map((date, i) => {
-          const rev  = allDailyRevenue[date] || 0
-          const pays = payByDate[date] || []
-          const isSel = date === curDate, isToday = date === today()
+          const pays     = payByDate[date] || []
+          const dayItems = dailyClasses[date] || []
+          const isSel    = date === curDate, isToday = date === today()
+          const paidAmt  = pays.reduce((s, p) => s + p.amount, 0)
           return (
             <div key={date} onClick={() => { setCurDate(date); openPayModal(date) }}
-              style={{ borderRadius: '10px', padding: '10px 6px', cursor: 'pointer', textAlign: 'center', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1.5px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}` }}>
-              <div style={{ fontSize: '11px', color: isSel ? '#fff' : i === 5 ? C.blue : i === 6 ? C.danger : C.muted, marginBottom: '4px' }}>{DAY_LABELS[i]}</div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: isSel ? '#fff' : C.text }}>{Number(date.slice(-2))}</div>
-              {rev > 0 && <div style={{ fontSize: '9px', color: isSel ? '#fff' : C.success, marginTop: '3px', fontWeight: 700 }}>예{fmt(rev)}</div>}
-              {pays.length > 0 && <div style={{ fontSize: '9px', color: isSel ? '#ffffffcc' : C.blue, fontWeight: 700 }}>입{fmt(pays.reduce((s, p) => s + p.amount, 0))}</div>}
+              style={{ borderRadius: '10px', padding: '8px 5px', cursor: 'pointer', textAlign: 'center', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1.5px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}`, minHeight: '80px' }}>
+              <div style={{ fontSize: '11px', color: isSel ? '#fff' : i === 5 ? C.blue : i === 6 ? C.danger : C.muted, marginBottom: '2px' }}>{DAY_LABELS[i]}</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: isSel ? '#fff' : C.text, marginBottom: '4px' }}>{Number(date.slice(-2))}</div>
+              {dayItems.map((item, idx) => {
+                const org   = item.cls.organization?.slice(0, 3) || ''
+                const name  = item.cls.className?.slice(0, 3) || ''
+                const sec   = item.cls.section || ''
+                const label = `${org}/${name}${sec ? '/' + sec : ''}`
+                const bgColor = item.noFee ? (isSel?'rgba(255,255,255,0.15)':'#f3f4f6') : item.unpaid ? (isSel?'rgba(239,68,68,0.25)':'#fef2f2') : (isSel?'rgba(255,255,255,0.2)':'#f0fdf4')
+                const textColor = item.noFee ? (isSel?'#ffffffaa':C.muted) : item.unpaid ? (isSel?'#fca5a5':C.danger) : (isSel?'#fff':C.success)
+                return (
+                  <div key={idx} style={{ fontSize: '9px', fontWeight: 600, padding: '1px 3px', borderRadius: '3px', background: bgColor, color: textColor, lineHeight: 1.4, marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {idx === 0 && item.termLabel ? `${item.termLabel}${item.termSessionNo}회` : ''}{idx === 0 ? <br/> : ''}{label}
+                  </div>
+                )
+              })}
+              {paidAmt > 0 && <div style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#ffffffcc' : C.blue, marginTop: '2px' }}>입{fmt(paidAmt)}</div>}
             </div>
           )
         })}
