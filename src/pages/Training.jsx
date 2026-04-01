@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { uid, now } from '../lib/utils.js'
+import { Trainings } from '../lib/db.js'
 
 const C = {
   primary:'#f97316', success:'#16a34a', danger:'#ef4444',
@@ -59,6 +60,32 @@ function loadTrainingSites() {
   } catch { return DEFAULT_TRAINING_SITES }
 }
 
+// Supabase Storage REST API로 파일 업로드 (anon key 사용)
+async function uploadToStorage(userId, trainingId, file) {
+  const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
+  const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+  if (!SUPABASE_URL || !SUPABASE_ANON) throw new Error('Supabase 환경변수가 설정되지 않았습니다.')
+
+  const ext  = file.name.split('.').pop()
+  const path = `training/${userId}/${trainingId}/${Date.now()}.${ext}`
+  const url  = `${SUPABASE_URL}/storage/v1/object/teacher-files/${path}`
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_ANON}`,
+      'Content-Type': file.type,
+      'x-upsert': 'true',
+    },
+    body: file,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.message || `업로드 실패 (${res.status})`)
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/teacher-files/${path}`
+}
+
 const EMPTY_FORM = {
   year: String(new Date().getFullYear()),
   title:'', provider:'', providerUrl:'',
@@ -68,43 +95,24 @@ const EMPTY_FORM = {
 export function Training({ user }) {
   const [tab, setTab]             = useState('list')
   const [records, setRecords]     = useState([])
-  const [loading, setLoading]     = useState(true)
   const [modal, setModal]         = useState(false)
   const [form, setForm]           = useState(EMPTY_FORM)
   const [editId, setEditId]       = useState(null)
   const [uploading, setUploading] = useState(false)
   const [dragOverId, setDragOverId] = useState(null)
-  const [modalFile, setModalFile]   = useState(null) // 모달에서 선택한 파일
-  const [modalDrag, setModalDrag]   = useState(false) // 모달 드래그 중
+  const [modalFile, setModalFile] = useState(null)
+  const [modalDrag, setModalDrag] = useState(false)
   const [trainingSites]           = useState(() => loadTrainingSites())
   const [preview, setPreview]     = useState(null)
   const currentYear               = String(new Date().getFullYear())
   const [selYear, setSelYear]     = useState(currentYear)
 
-  // Supabase에서 데이터 로드
-  const reload = async () => {
-    setLoading(true)
-    try {
-      const { supabase } = await import('../lib/supabase.js')
-      const { data, error } = await supabase
-        .from('trainings')
-        .select('*')
-        .eq('teacherId', user.id)
-        .is('_deleted', null)
-        .order('completedAt', { ascending: false })
-      if (error) throw error
-      setRecords(data || [])
-    } catch(e) {
-      console.error('연수 로드 실패:', e.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  const reload = () => setRecords(Trainings.byTeacher(user.id))
   useEffect(() => { reload() }, [])
 
-  const years = [...new Set([currentYear, ...records.map(r => r.year)])].sort().reverse()
+  const years   = [...new Set([currentYear, ...records.map(r => r.year)])].sort().reverse()
   const filtered = records.filter(r => !selYear || r.year === selYear)
+                          .sort((a,b) => (b.completedAt||'').localeCompare(a.completedAt||''))
   const totalHours = filtered.reduce((s,r) => s + (Number(r.hours)||0), 0)
 
   const openAdd  = () => { setForm(EMPTY_FORM); setEditId(null); setModalFile(null); setModal(true) }
@@ -119,75 +127,66 @@ export function Training({ user }) {
     setModal(true)
   }
 
-  // 저장 (Supabase upsert)
+  const validateFile = (file) => {
+    const allowed = ['image/jpeg','image/png','image/gif','image/webp','application/pdf']
+    if (!allowed.includes(file.type)) { alert('이미지(JPG·PNG·GIF·WEBP) 또는 PDF 파일만 업로드 가능합니다'); return false }
+    if (file.size > 10 * 1024 * 1024) { alert('10MB 이하 파일만 업로드 가능합니다'); return false }
+    return true
+  }
+
+  // 저장: db.js Trainings 사용 + 파일 있으면 Storage 업로드
   const save = async () => {
     if (!form.title.trim()) { alert('연수명을 입력하세요'); return }
+    setUploading(true)
     try {
-      const { supabase } = await import('../lib/supabase.js')
+      const itemId = editId || uid()
+      let fileUrl = null, fileName = null, fileType = null
+
+      // 파일 먼저 업로드
+      if (modalFile) {
+        if (!validateFile(modalFile)) { setUploading(false); return }
+        fileUrl  = await uploadToStorage(user.id, itemId, modalFile)
+        fileName = modalFile.name
+        fileType = modalFile.type
+      }
+
       const item = {
-        id: editId || uid(),
+        id: itemId,
         teacherId: user.id,
         ...form,
         hours: Number(form.hours) || 0,
-        updatedAt: now(),
+        ...(fileUrl && { fileUrl, fileName, fileType }),
         ...(!editId && { createdAt: now() })
       }
-      const { error } = await supabase.from('trainings').upsert(item)
-      if (error) throw error
-      // 모달에서 파일 선택한 경우 바로 업로드
-      if (modalFile) await uploadFile(item.id, modalFile)
-      else await reload()
+
+      if (editId) Trainings.update(editId, item)
+      else Trainings.insert(item)
+
+      reload()
       setModal(false)
       setModalFile(null)
-      setSelYear(form.year) // 입력한 연도 탭으로 자동 이동
+      setSelYear(form.year)
     } catch(e) {
       alert('저장 실패: ' + e.message)
+    } finally {
+      setUploading(false)
     }
   }
 
-  // 삭제
-  const deleteRecord = async (id) => {
+  const deleteRecord = (id) => {
     if (!confirm('삭제할까요?')) return
-    try {
-      const { supabase } = await import('../lib/supabase.js')
-      const { error } = await supabase.from('trainings').update({ _deleted: true }).eq('id', id)
-      if (error) throw error
-      await reload()
-    } catch(e) {
-      alert('삭제 실패: ' + e.message)
-    }
+    Trainings.delete(id)
+    reload()
   }
 
-  // 파일 업로드: Supabase Storage → trainings 테이블 업데이트
+  // 기존 기록에 파일 업로드/교체
   const uploadFile = async (trainingId, file) => {
-    if (!file) return
-    const allowed = ['image/jpeg','image/png','image/gif','image/webp','application/pdf']
-    if (!allowed.includes(file.type)) {
-      alert('이미지(JPG·PNG·GIF·WEBP) 또는 PDF 파일만 업로드 가능합니다')
-      return
-    }
-    if (file.size > 10 * 1024 * 1024) { alert('10MB 이하 파일만 업로드 가능합니다'); return }
-
+    if (!validateFile(file)) return
     setUploading(true)
     try {
-      const { supabase } = await import('../lib/supabase.js')
-      const ext = file.name.split('.').pop()
-      const path = `training/${user.id}/${trainingId}/${Date.now()}.${ext}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('teacher-files')
-        .upload(path, file, { upsert: true })
-      if (uploadError) throw uploadError
-
-      const { data } = supabase.storage.from('teacher-files').getPublicUrl(path)
-
-      const { error: updateError } = await supabase
-        .from('trainings')
-        .update({ fileUrl: data.publicUrl, fileName: file.name, fileType: file.type })
-        .eq('id', trainingId)
-      if (updateError) throw updateError
-
-      await reload()
+      const fileUrl  = await uploadToStorage(user.id, trainingId, file)
+      Trainings.update(trainingId, { fileUrl, fileName: file.name, fileType: file.type })
+      reload()
     } catch(e) {
       alert('파일 업로드 실패: ' + e.message)
     } finally {
@@ -195,20 +194,10 @@ export function Training({ user }) {
     }
   }
 
-  // 파일 삭제
-  const deleteFile = async (trainingId) => {
+  const deleteFile = (trainingId) => {
     if (!confirm('첨부파일을 삭제할까요?')) return
-    try {
-      const { supabase } = await import('../lib/supabase.js')
-      const { error } = await supabase
-        .from('trainings')
-        .update({ fileUrl: null, fileName: null, fileType: null })
-        .eq('id', trainingId)
-      if (error) throw error
-      await reload()
-    } catch(e) {
-      alert('파일 삭제 실패: ' + e.message)
-    }
+    Trainings.update(trainingId, { fileUrl: null, fileName: null, fileType: null })
+    reload()
   }
 
   const openPreview = (r) => {
@@ -258,9 +247,7 @@ export function Training({ user }) {
           </div>
 
           {/* 목록 */}
-          {loading ? (
-            <div style={{ textAlign:'center', padding:'60px', color:C.muted, fontSize:'14px' }}>불러오는 중...</div>
-          ) : filtered.length === 0 ? (
+          {filtered.length === 0 ? (
             <div style={{ textAlign:'center', padding:'60px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
               <div style={{ fontSize:'36px', marginBottom:'10px' }}>📚</div>
               <div style={{ fontSize:'15px', fontWeight:600 }}>이수 기록이 없습니다</div>
@@ -273,7 +260,7 @@ export function Training({ user }) {
                   onClick={() => r.fileUrl && openPreview(r)}
                   onDragOver={e => { e.preventDefault(); setDragOverId(r.id) }}
                   onDragLeave={() => setDragOverId(null)}
-                  onDrop={e => { e.preventDefault(); setDragOverId(null); const file = e.dataTransfer.files[0]; if(file) uploadFile(r.id, file) }}
+                  onDrop={e => { e.preventDefault(); setDragOverId(null); const f = e.dataTransfer.files[0]; if(f) uploadFile(r.id, f) }}
                   style={{ background: dragOverId===r.id ? '#fff7ed' : C.card, borderRadius:'12px', border: dragOverId===r.id ? `2px dashed ${C.primary}` : `1px solid ${C.border}`, padding:'16px 20px', cursor: r.fileUrl ? 'pointer' : 'default', transition:'box-shadow 0.15s, border 0.15s, background 0.15s' }}
                   onMouseEnter={e => { if(r.fileUrl && dragOverId!==r.id) e.currentTarget.style.boxShadow='0 2px 12px rgba(249,115,22,0.15)' }}
                   onMouseLeave={e => { e.currentTarget.style.boxShadow='' }}>
@@ -357,8 +344,8 @@ export function Training({ user }) {
       {modal && (
         <div onClick={e => { if(e.target===e.currentTarget) setModal(false) }}
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'480px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'480px', maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'#fff', zIndex:1 }}>
               <span style={{ fontSize:'16px', fontWeight:700 }}>{editId ? '연수 편집' : '연수 추가'}</span>
               <button onClick={() => setModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
             </div>
@@ -381,6 +368,7 @@ export function Training({ user }) {
                     style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
                 </div>
               ))}
+
               {/* 파일 첨부 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>첨부파일 (이미지·PDF)</label>
@@ -388,7 +376,7 @@ export function Training({ user }) {
                   onDragOver={e => { e.preventDefault(); setModalDrag(true) }}
                   onDragLeave={() => setModalDrag(false)}
                   onDrop={e => { e.preventDefault(); setModalDrag(false); const f = e.dataTransfer.files[0]; if(f) setModalFile(f) }}
-                  style={{ border: modalDrag ? `2px dashed ${C.primary}` : `1.5px dashed ${C.border}`, borderRadius:'9px', padding:'16px', textAlign:'center', background: modalDrag ? '#fff7ed' : '#fafafa', transition:'all 0.15s', cursor:'pointer' }}>
+                  style={{ border: modalDrag ? `2px dashed ${C.primary}` : `1.5px dashed ${C.border}`, borderRadius:'9px', padding:'16px', textAlign:'center', background: modalDrag ? '#fff7ed' : '#fafafa', transition:'all 0.15s' }}>
                   {modalFile ? (
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
                       <span style={{ fontSize:'13px', color:C.text, fontWeight:600 }}>
@@ -398,7 +386,7 @@ export function Training({ user }) {
                         style={{ fontSize:'11px', color:C.danger, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>제거</button>
                     </div>
                   ) : (
-                    <label style={{ cursor:'pointer' }}>
+                    <label style={{ cursor:'pointer', display:'block' }}>
                       <div style={{ fontSize:'22px', marginBottom:'4px' }}>📎</div>
                       <div style={{ fontSize:'12px', color:C.muted }}>클릭하거나 파일을 여기에 끌어다 놓으세요</div>
                       <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>JPG·PNG·PDF · 10MB 이하</div>
@@ -408,6 +396,7 @@ export function Training({ user }) {
                   )}
                 </div>
               </div>
+
               <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
                 <button onClick={save}
                   style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
@@ -459,7 +448,7 @@ export function Training({ user }) {
 
       {uploading && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <div style={{ background:'#fff', borderRadius:'12px', padding:'24px 36px', fontSize:'14px', fontWeight:600 }}>📤 파일 업로드 중...</div>
+          <div style={{ background:'#fff', borderRadius:'12px', padding:'24px 36px', fontSize:'14px', fontWeight:600 }}>📤 저장 중...</div>
         </div>
       )}
     </div>
