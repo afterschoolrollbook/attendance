@@ -53,16 +53,17 @@ export function AwardsPage({ user }) {
   const [modalDrag, setModalDrag]   = useState(false)
   const [preview, setPreview]       = useState(null)
   const [confirm, setConfirm]       = useState(null)
-  const currentYear                 = String(new Date().getFullYear())
-  const [selYear, setSelYear]       = useState(currentYear)
+  const currentYear = String(new Date().getFullYear())
+  const [selYear, setSelYear] = useState(currentYear)
+
   const { toasts, success, error: toastError, info } = useToast()
 
   const reload = () => setRecords(Awards.byTeacher(user.id))
   useEffect(() => { reload() }, [])
 
-  const years    = [...new Set([currentYear, ...records.map(r => r.year)])].sort().reverse()
+  const years    = [...new Set(records.map(r => r.year))].filter(Boolean).sort()
   const filtered = records
-    .filter(r => !selYear || r.year === selYear)
+    .filter(r => years.length === 0 || r.year === selYear)
     .sort((a, b) => (b.awardedAt || '').localeCompare(a.awardedAt || ''))
 
   const openAdd  = () => { setForm(EMPTY_FORM); setEditId(null); setModalFile(null); setModal(true) }
