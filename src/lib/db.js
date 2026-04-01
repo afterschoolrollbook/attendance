@@ -449,3 +449,13 @@ export const JobSubs = {
   update:    (id, p) => db.update('jobSubs', id, p),
   delete:    (id)  => db.delete('jobSubs', id),
 }
+
+// ─── 학력관리 ─────────────────────────────────────────────────
+export const Educations = {
+  all:       ()    => db.get('educations'),
+  byTeacher: (tid) => db.where('educations', r => r.teacherId === tid),
+  find:      (id)  => db.getOne('educations', id),
+  insert:    (r)   => db.insert('educations', r),
+  update:    (id, p) => db.update('educations', id, p),
+  delete:    (id)  => db.delete('educations', id),
+}
