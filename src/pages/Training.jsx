@@ -62,31 +62,60 @@ function loadTrainingSites() {
   } catch { return DEFAULT_TRAINING_SITES }
 }
 
-// Edge Function을 통한 파일 업로드
+// Supabase Storage에 파일 업로드 후 public URL 반환
+// 버킷 존재 여부 사전 확인
+async function checkBucketExists(supabaseUrl, anonKey, bucket) {
+  const res = await fetch(`${supabaseUrl}/storage/v1/bucket/${bucket}`, {
+    headers: { 'Authorization': `Bearer ${anonKey}` }
+  })
+  return res.ok
+}
+
 async function uploadToStorage(userId, trainingId, file) {
   const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
   const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-  if (!SUPABASE_URL || !SUPABASE_ANON) throw new Error('Supabase 환경변수가 설정되지 않았습니다.')
 
-  const ext  = file.name.split('.').pop()
+  if (!SUPABASE_URL || !SUPABASE_ANON) {
+    throw new Error(
+      'Supabase 환경변수(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)가 설정되지 않았습니다.\n' +
+      '.env 파일과 Vercel 환경변수를 확인해주세요.'
+    )
+  }
+
+  const bucket = 'trainings'
+
+  // 업로드 전 버킷 존재 여부 먼저 확인
+  const bucketExists = await checkBucketExists(SUPABASE_URL, SUPABASE_ANON, bucket)
+  if (!bucketExists) {
+    throw new Error(
+      '⚠️ Supabase "trainings" 버킷이 없습니다.\n\n' +
+      'Supabase 대시보드 → Storage → New bucket\n' +
+      '이름: trainings / Public 체크 ON 후 생성해주세요.'
+    )
+  }
+
+  const ext  = file.name.split('.').pop().toLowerCase()
   const path = `training/${userId}/${trainingId}/${Date.now()}.${ext}`
 
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('path', path)
+  const res = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON}`,
+        'Content-Type': file.type,
+        'x-upsert': 'true',
+      },
+      body: file,
+    }
+  )
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/db-api`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${SUPABASE_ANON}`,
-      'x-file-path': path,
-      'x-file-type': file.type,
-    },
-    body: formData,
-  })
-  const data = await res.json()
-  if (!data.success) throw new Error(data.error || '업로드 실패')
-  return data.data.url
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(`파일 업로드 실패: ${err?.message || err?.error || res.statusText}`)
+  }
+
+  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`
 }
 
 const EMPTY_FORM = {
@@ -109,11 +138,22 @@ export function Training({ user }) {
   const [preview, setPreview]     = useState(null)
   const { toasts, success, error: toastError, info } = useToast()
   const [confirm, setConfirm]     = useState(null) // { msg, onOk }
+  const [bucketOk, setBucketOk]   = useState(null) // null=확인중, true=OK, false=없음
   const currentYear               = String(new Date().getFullYear())
   const [selYear, setSelYear]     = useState(currentYear)
 
   const reload = () => setRecords(Trainings.byTeacher(user.id))
   useEffect(() => { reload() }, [])
+
+  // 마운트 시 trainings 버킷 존재 여부 확인
+  useEffect(() => {
+    const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
+    const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+    if (!SUPABASE_URL || !SUPABASE_ANON) { setBucketOk(false); return }
+    checkBucketExists(SUPABASE_URL, SUPABASE_ANON, 'trainings')
+      .then(ok => setBucketOk(ok))
+      .catch(() => setBucketOk(false))
+  }, [])
 
   const years   = [...new Set([currentYear, ...records.map(r => r.year)])].sort().reverse()
   const filtered = records.filter(r => !selYear || r.year === selYear)
@@ -215,6 +255,15 @@ export function Training({ user }) {
 
   return (
     <div style={{ padding:'24px', maxWidth:'1000px' }}>
+      {bucketOk === false && (
+        <div style={{ background:'#fff7ed', border:'1.5px solid #fb923c', borderRadius:'10px', padding:'12px 18px', marginBottom:'18px', display:'flex', alignItems:'flex-start', gap:'10px' }}>
+          <span style={{ fontSize:'20px', flexShrink:0 }}>⚠️</span>
+          <div>
+            <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>Supabase "trainings" 버킷이 없습니다 — 파일 첨부가 동작하지 않아요</div>
+            <div style={{ fontSize:'12px', color:'#b45309', lineHeight:'1.6' }}>Supabase 대시보드 → Storage → New bucket<br/>이름: trainings / Public bucket 체크 ON 후 생성해주세요.</div>
+          </div>
+        </div>
+      )}
       {/* 헤더 */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
         <div>
