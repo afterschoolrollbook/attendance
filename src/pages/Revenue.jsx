@@ -58,10 +58,12 @@ function isTermCurrent(term) { const t = today(); return term.startDate <= t && 
 // ★ 핵심: 텀별 1회차당 금액 계산
 // per_session → fee.amount 그대로
 // per_term    → fee.amount / 해당 텀 회차 수  (전체 회차로 나누는 것이 아님!)
-function perSessionFee(fee, term) {
+function perSessionFee(fee, term, cls) {
   if (!fee) return 0
   if (fee.feeType === 'per_session') return Number(fee.amount)
-  return term.sessions.length > 0 ? Math.round(Number(fee.amount) / term.sessions.length) : 0
+  // per_term: 1텀(baseCount) 기준으로 비례 계산 → 회차당 금액
+  const baseCount = Number(cls?.termSizes?.[0]) || term.sessions.length || 1
+  return baseCount > 0 ? Math.round(Number(fee.amount) / baseCount) : 0
 }
 
 const iStyle = {
@@ -152,7 +154,7 @@ export function Revenue({ user }) {
       const terms = getTerms(cls)
       const addedDates = new Set()
       terms.forEach(term => {
-        const ps = perSessionFee(fee, term)
+        const ps = perSessionFee(fee, term, cls)
         term.sessions.forEach(d => {
           if (addedDates.has(d)) return  // 중복 날짜 방지
           addedDates.add(d)
@@ -190,7 +192,7 @@ export function Revenue({ user }) {
       const terms = getTerms(cls)
 
       terms.forEach(term => {
-        const ps = perSessionFee(fee, term)
+        const ps = perSessionFee(fee, term, cls)
         const termExpected = ps * cnt * term.sessions.length
         const tagged = clsPays.filter(p =>
           payMatchesTerm(p, term)
@@ -227,7 +229,7 @@ export function Revenue({ user }) {
       const terms = getTerms(cls)
       const clsPays = payByClass[cls.id] || []
       terms.forEach(term => {
-        const ps = perSessionFee(fee, term)
+        const ps = perSessionFee(fee, term, cls)
         const expected = ps * cnt * term.sessions.length
         const tagged = clsPays.filter(p =>
           payMatchesTerm(p, term)
@@ -262,7 +264,7 @@ export function Revenue({ user }) {
       const clsPays = payByClass[cls.id] || []
       terms.forEach(term => {
         if (!term.sessions.some(d => d.slice(0, 7) === curYM)) return
-        const ps = perSessionFee(fee, term)
+        const ps = perSessionFee(fee, term, cls)
         expected += ps * cnt * term.sessions.length
         const tagged = clsPays.filter(p =>
           payMatchesTerm(p, term)
@@ -504,7 +506,7 @@ export function Revenue({ user }) {
                   terms.forEach(term => {
                     const monthSessions = term.sessions.filter(d => d.slice(0,7) === curYM)
                     if (monthSessions.length === 0) return
-                    const ps = perSessionFee(fee, term)
+                    const ps = perSessionFee(fee, term, cls)
                     monthItems.push({ cls, term, fee, cnt, monthSessions, monthRev: ps * cnt * monthSessions.length })
                   })
                 })
@@ -595,7 +597,7 @@ export function Revenue({ user }) {
           const fee=feeMap[cls.id], cnt=confirmedCount[cls.id]||0
           if(!fee||!cnt) return
           getTerms(cls).forEach(term => {
-            const ps=perSessionFee(fee,term)
+            const ps=perSessionFee(fee,term,cls)
             const exp=ps*cnt*term.sessions.length
             const paid=(payByClass[cls.id]||[]).filter(p=>payMatchesTerm(p,term)).reduce((s,p)=>s+p.amount,0)
             totalAllExpected+=exp; totalAllPaid+=paid
@@ -622,7 +624,7 @@ export function Revenue({ user }) {
                   if(!term) return
                   const clsPays=payByClass[cls.id]||[]
                   const tagged=clsPays.filter(p=>payMatchesTerm(p,term))
-                  const ps=perSessionFee(fee,term)
+                  const ps=perSessionFee(fee,term,cls)
                   const expected=fee&&cnt ? ps*cnt*term.sessions.length : 0
                   const paid=tagged.reduce((s,p)=>s+p.amount,0)
                   rows.push({ cls, fee, cnt, term, expected, paid, unpaid:expected-paid, payments:tagged })
@@ -762,7 +764,7 @@ export function Revenue({ user }) {
                 const clsPays=(payByClass[cls.id]||[]).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
                 const paid=clsPays.reduce((s,p)=>s+p.amount,0)
                 const totalExpected=terms.reduce((s,term)=>{
-                  const ps=perSessionFee(fee,term)
+                  const ps=perSessionFee(fee,term,cls)
                   return s+ps*cnt*term.sessions.length
                 },0)
                 return (
@@ -779,16 +781,22 @@ export function Revenue({ user }) {
                         {/* 텀별 회차당 금액 */}
                         {fee&&terms.length>0&&(
                           <div style={{ display:'flex', gap:'6px', marginTop:'6px', flexWrap:'wrap' }}>
-                            {terms.map(term=>{
-                              const perSess = perSessionFee(fee, term)
-                              const isCur = isTermCurrent(term)
-                              return (
-                                <span key={term.termNo} style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'5px', border:`1px solid ${isCur?'#86efac':C.border}`, background:isCur?'#f0fdf4':'#f9fafb', color:isCur?C.success:C.text, fontWeight:isCur?700:400 }}>
-                                  {term.label} {term.sessions.length}회차 {fmt(perSess)}원/회
-                                  {isCur&&' 📍'}
-                                </span>
-                              )
-                            })}
+                            {(()=>{
+                              // 기준 회차 = 1텀(termSizes[0]) 회차수
+                              const baseCount = Number(cls.termSizes?.[0]) || terms[0]?.sessions.length || 1
+                              return terms.map(term=>{
+                                const termAmt = fee.feeType==='per_term'
+                                  ? Math.round(Number(fee.amount) / baseCount * term.sessions.length)
+                                  : Number(fee.amount) * term.sessions.length
+                                const isCur = isTermCurrent(term)
+                                return (
+                                  <span key={term.termNo} style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'5px', border:`1px solid ${isCur?'#86efac':C.border}`, background:isCur?'#f0fdf4':'#f9fafb', color:isCur?C.success:C.text, fontWeight:isCur?700:400 }}>
+                                    {term.label} {term.sessions.length}회차 {fmt(termAmt)}원
+                                    {isCur&&' 📍'}
+                                  </span>
+                                )
+                              })
+                            })()}
                           </div>
                         )}
                       </div>
@@ -914,7 +922,7 @@ export function Revenue({ user }) {
         const selTerm= terms.find(t=>String(t.termNo)===String(payForm.termNo))
         const fee    = selCls ? feeMap[selCls.id] : null
         const cnt    = selCls ? (confirmedCount[selCls.id]||0) : 0
-        const expectedAmt = (fee && selTerm) ? perSessionFee(fee,selTerm)*cnt*selTerm.sessions.length : 0
+        const expectedAmt = (fee && selTerm) ? perSessionFee(fee,selTerm,selCls)*cnt*selTerm.sessions.length : 0
 
         const hasTerm = terms.length > 1
         const STEPS = hasTerm ? ['날짜','학교','텀','금액','메모'] : ['날짜','학교','금액','메모']
