@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs'
 import { uid, now } from '../lib/utils.js'
-import { Careers } from '../lib/db.js'
+import { Careers, Educations } from '../lib/db.js'
 import { ToastContainer } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 
@@ -36,6 +36,14 @@ async function uploadToStorage(userId, careerId, file) {
   return `${SUPABASE_URL}/storage/v1/object/public/teacher-files/${filePath}`
 }
 
+const EDU_TYPES = ['대학원(박사)', '대학원(석사)', '대학교', '전문대학', '고등학교', '기타']
+const EDU_STATUS = ['졸업', '재학중', '중퇴', '수료']
+
+const EMPTY_EDU = {
+  schoolName: '', eduType: '대학교', major: '', admissionDate: '',
+  graduationDate: '', status: '졸업', memo: ''
+}
+
 const EMPTY_FORM = {
   orgName:'', jobType:'방과후 강사', schoolType:'초등', customSchoolType:'',
   role:'', subject:'', startDate:'', endDate:'',
@@ -53,9 +61,16 @@ export function Career({ user }) {
   const [modalDrag, setModalDrag]   = useState(false)
   const [preview, setPreview]       = useState(null)
   const [confirm, setConfirm]       = useState(null)
+  const [eduRecords, setEduRecords] = useState([])
+  const [eduModal, setEduModal]     = useState(false)
+  const [eduForm, setEduForm]       = useState(EMPTY_EDU)
+  const [eduEditId, setEduEditId]   = useState(null)
   const { toasts, success, error: toastError, info } = useToast()
 
-  const reload = () => setRecords(Careers.byTeacher(user.id))
+  const reload = () => {
+    setRecords(Careers.byTeacher(user.id))
+    setEduRecords(Educations.byTeacher(user.id))
+  }
   useEffect(() => { reload() }, [])
 
   const sorted = [...records].sort((a, b) => {
@@ -161,6 +176,30 @@ export function Career({ user }) {
     setPreview({ url: r.fileUrl, type: r.fileType || '', name: r.fileName || '첨부파일' })
   }
 
+  const openEduAdd  = () => { setEduForm(EMPTY_EDU); setEduEditId(null); setEduModal(true) }
+  const openEduEdit = r => {
+    setEduForm({
+      schoolName: r.schoolName, eduType: r.eduType || '대학교',
+      major: r.major || '', admissionDate: r.admissionDate || '',
+      graduationDate: r.graduationDate || '', status: r.status || '졸업', memo: r.memo || ''
+    })
+    setEduEditId(r.id); setEduModal(true)
+  }
+  const saveEdu = () => {
+    if (!eduForm.schoolName.trim()) { toastError('학교명을 입력하세요'); return }
+    const item = { id: eduEditId || uid(), teacherId: user.id, ...eduForm, ...(!eduEditId && { createdAt: now() }) }
+    if (eduEditId) Educations.update(eduEditId, item)
+    else Educations.insert(item)
+    reload(); success(eduEditId ? '수정됐어요' : '등록됐어요 ✅'); setEduModal(false)
+  }
+  const deleteEdu = id => {
+    setConfirm({ msg:'이 학력을 삭제할까요?', onOk: () => {
+      Educations.delete(id); reload(); info('삭제됐어요')
+    }})
+  }
+
+  const eduSorted = [...eduRecords].sort((a, b) => (a.admissionDate || '').localeCompare(b.admissionDate || ''))
+
   const downloadExcel = () => {
     const today = new Date().toISOString().slice(0, 10)
     const rows = sorted.map((r, i) => ({
@@ -192,7 +231,25 @@ export function Career({ user }) {
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '이력목록')
-    XLSX.writeFile(wb, `이력목록_${today}.xlsx`)
+
+    // 학력 시트 추가
+    if (eduRecords.length > 0) {
+      const eduRows = eduSorted.map((r, i) => ({
+        'No': i + 1,
+        '학교명': r.schoolName || '',
+        '구분': r.eduType || '',
+        '전공': r.major || '',
+        '입학일': r.admissionDate || '',
+        '졸업일': r.status === '재학중' ? '재학중' : (r.graduationDate || ''),
+        '상태': r.status || '',
+        '메모': r.memo || '',
+      }))
+      const wsEdu = XLSX.utils.json_to_sheet(eduRows)
+      wsEdu['!cols'] = [{ wch:5 },{ wch:20 },{ wch:12 },{ wch:18 },{ wch:12 },{ wch:12 },{ wch:10 },{ wch:20 }]
+      XLSX.utils.book_append_sheet(wb, wsEdu, '학력목록')
+    }
+
+    XLSX.writeFile(wb, `이력및학력_${today}.xlsx`)
     success('엑셀 다운로드 완료 📊')
   }
 
@@ -202,8 +259,8 @@ export function Career({ user }) {
       {/* 헤더 */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
         <div>
-          <h1 style={{ fontSize:'22px', fontWeight:700, color:C.text, margin:0 }}>📋 이력관리</h1>
-          <p style={{ fontSize:'14px', color:C.muted, marginTop:'4px' }}>강사 활동 이력 및 관련 서류 관리</p>
+          <h1 style={{ fontSize:'22px', fontWeight:700, color:C.text, margin:0 }}>📋 이력 및 학력관리</h1>
+          <p style={{ fontSize:'14px', color:C.muted, marginTop:'4px' }}>강사 활동 이력 및 학력 관리</p>
         </div>
         <div style={{ display:'flex', gap:'8px' }}>
           {records.length > 0 && (
@@ -212,6 +269,10 @@ export function Career({ user }) {
               📊 목록 받기
             </button>
           )}
+          <button onClick={openEduAdd}
+            style={{ padding:'8px 18px', borderRadius:'9px', border:`1.5px solid ${C.primary}`, background:'#fff', color:C.primary, fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            + 학력 추가
+          </button>
           <button onClick={openAdd}
             style={{ padding:'8px 18px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             + 이력 추가
@@ -431,6 +492,113 @@ export function Career({ user }) {
                     style={{ color:C.primary, fontSize:'13px' }}>다운로드하여 확인하기</a>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 학력 섹션 */}
+      <div style={{ marginTop:'32px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px' }}>
+          <h2 style={{ fontSize:'17px', fontWeight:700, color:C.text, margin:0 }}>🎓 학력</h2>
+        </div>
+        {eduSorted.length === 0 ? (
+          <div style={{ textAlign:'center', padding:'40px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
+            <div style={{ fontSize:'30px', marginBottom:'8px' }}>🎓</div>
+            <div style={{ fontSize:'14px', fontWeight:600 }}>등록된 학력이 없습니다</div>
+            <div style={{ fontSize:'12px', marginTop:'4px' }}>+ 학력 추가 버튼으로 등록하세요</div>
+          </div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+            {eduSorted.map(r => (
+              <div key={r.id} style={{ background:C.card, borderRadius:'12px', border:`1.5px solid ${C.border}`, padding:'14px 18px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'12px' }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', marginBottom:'4px' }}>
+                    <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{r.schoolName}</span>
+                    <span style={{ fontSize:'11px', background:'#eff6ff', color:'#1d4ed8', border:'1px solid #bfdbfe', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{r.eduType}</span>
+                    <span style={{ fontSize:'11px', background: r.status==='재학중'?'#fff7ed':'#f3f4f6', color: r.status==='재학중'?C.primary:'#374151', border:`1px solid ${r.status==='재학중'?'#fed7aa':'#d1d5db'}`, borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{r.status}</span>
+                  </div>
+                  <div style={{ display:'flex', gap:'12px', fontSize:'12px', color:C.muted, flexWrap:'wrap' }}>
+                    {r.major && <span>📖 {r.major}</span>}
+                    {r.admissionDate && <span>📅 {r.admissionDate} ~ {r.status==='재학중' ? '현재' : (r.graduationDate || '?')}</span>}
+                    {r.memo && <span>📌 {r.memo}</span>}
+                  </div>
+                </div>
+                <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+                  <button onClick={() => openEduEdit(r)}
+                    style={{ padding:'4px 10px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
+                  <button onClick={() => deleteEdu(r.id)}
+                    style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 학력 모달 */}
+      {eduModal && (
+        <div onClick={e => { if(e.target===e.currentTarget) setEduModal(false) }}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
+          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'440px', maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'#fff', zIndex:1 }}>
+              <span style={{ fontSize:'16px', fontWeight:700 }}>{eduEditId ? '학력 편집' : '학력 추가'}</span>
+              <button onClick={() => setEduModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
+            </div>
+            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>학교명 *</label>
+                <input value={eduForm.schoolName} onChange={e => setEduForm(v => ({...v, schoolName:e.target.value}))}
+                  placeholder="예: 한국대학교"
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>구분</label>
+                  <select value={eduForm.eduType} onChange={e => setEduForm(v => ({...v, eduType:e.target.value}))}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', boxSizing:'border-box' }}>
+                    {EDU_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>상태</label>
+                  <select value={eduForm.status} onChange={e => setEduForm(v => ({...v, status:e.target.value}))}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', boxSizing:'border-box' }}>
+                    {EDU_STATUS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>전공</label>
+                <input value={eduForm.major} onChange={e => setEduForm(v => ({...v, major:e.target.value}))}
+                  placeholder="예: 음악교육학과"
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>입학일</label>
+                  <input type="date" value={eduForm.admissionDate} onChange={e => setEduForm(v => ({...v, admissionDate:e.target.value}))}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>졸업일</label>
+                  <input type="date" value={eduForm.graduationDate} onChange={e => setEduForm(v => ({...v, graduationDate:e.target.value}))}
+                    disabled={eduForm.status === '재학중'}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', opacity: eduForm.status==='재학중' ? 0.4 : 1 }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>메모</label>
+                <input value={eduForm.memo} onChange={e => setEduForm(v => ({...v, memo:e.target.value}))}
+                  placeholder="비고"
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+              </div>
+              <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
+                <button onClick={saveEdu}
+                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+                <button onClick={() => setEduModal(false)}
+                  style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
+              </div>
             </div>
           </div>
         </div>
