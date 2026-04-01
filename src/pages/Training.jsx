@@ -63,14 +63,6 @@ function loadTrainingSites() {
 }
 
 // Supabase Storage에 파일 업로드 후 public URL 반환
-// 버킷 존재 여부 사전 확인
-async function checkBucketExists(supabaseUrl, anonKey, bucket) {
-  const res = await fetch(`${supabaseUrl}/storage/v1/bucket/${bucket}`, {
-    headers: { 'Authorization': `Bearer ${anonKey}` }
-  })
-  return res.ok
-}
-
 async function uploadToStorage(userId, trainingId, file) {
   const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
   const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
@@ -83,17 +75,6 @@ async function uploadToStorage(userId, trainingId, file) {
   }
 
   const bucket = 'teacher-files'
-
-  // 업로드 전 버킷 존재 여부 먼저 확인
-  const bucketExists = await checkBucketExists(SUPABASE_URL, SUPABASE_ANON, bucket)
-  if (!bucketExists) {
-    throw new Error(
-      '⚠️ Supabase "teacher-files" 버킷이 없습니다.\n\n' +
-      'Supabase 대시보드 → Storage → New bucket\n' +
-      '이름: teacher-files / Public 체크 ON 후 생성해주세요.'
-    )
-  }
-
   const ext  = file.name.split('.').pop().toLowerCase()
   const path = `training/${userId}/${trainingId}/${Date.now()}.${ext}`
 
@@ -138,22 +119,11 @@ export function Training({ user }) {
   const [preview, setPreview]     = useState(null)
   const { toasts, success, error: toastError, info } = useToast()
   const [confirm, setConfirm]     = useState(null) // { msg, onOk }
-  const [bucketOk, setBucketOk]   = useState(null) // null=확인중, true=OK, false=없음
   const currentYear               = String(new Date().getFullYear())
   const [selYear, setSelYear]     = useState(currentYear)
 
   const reload = () => setRecords(Trainings.byTeacher(user.id))
   useEffect(() => { reload() }, [])
-
-  // 마운트 시 teacher-files 버킷 존재 여부 확인
-  useEffect(() => {
-    const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
-    const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-    if (!SUPABASE_URL || !SUPABASE_ANON) { setBucketOk(false); return }
-    checkBucketExists(SUPABASE_URL, SUPABASE_ANON, 'teacher-files')
-      .then(ok => setBucketOk(ok))
-      .catch(() => setBucketOk(false))
-  }, [])
 
   const years   = [...new Set([currentYear, ...records.map(r => r.year)])].sort().reverse()
   const filtered = records.filter(r => !selYear || r.year === selYear)
@@ -255,15 +225,6 @@ export function Training({ user }) {
 
   return (
     <div style={{ padding:'24px', maxWidth:'1000px' }}>
-      {bucketOk === false && (
-        <div style={{ background:'#fff7ed', border:'1.5px solid #fb923c', borderRadius:'10px', padding:'12px 18px', marginBottom:'18px', display:'flex', alignItems:'flex-start', gap:'10px' }}>
-          <span style={{ fontSize:'20px', flexShrink:0 }}>⚠️</span>
-          <div>
-            <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>Supabase "teacher-files" 버킷이 없습니다 — 파일 첨부가 동작하지 않아요</div>
-            <div style={{ fontSize:'12px', color:'#b45309', lineHeight:'1.6' }}>Supabase 대시보드 → Storage → New bucket<br/>이름: teacher-files / Public bucket 체크 ON 후 생성해주세요.</div>
-          </div>
-        </div>
-      )}
       {/* 헤더 */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
         <div>
