@@ -524,7 +524,7 @@ export function Revenue({ user }) {
                             {item.cls.organization} · {item.cls.className}{item.cls.section?' '+item.cls.section:''}
                           </div>
                           <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
-                            {item.term.label} · {item.monthSessions.length}회차 · {item.cnt}명
+                            {item.term.label} · {item.monthSessions.length}회 · {item.cnt}명
                             <span style={{ marginLeft:'4px', color:C.muted }}>({item.monthSessions[0]?.slice(5)}~{item.monthSessions[item.monthSessions.length-1]?.slice(5)})</span>
                           </div>
                         </div>
@@ -1001,7 +1001,7 @@ export function Revenue({ user }) {
                                 {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}
                               </div>
                               <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                                현재 {c}명{cls.time?` · ${cls.time}`:''}{f?` · ${fmt(f.amount)}원/${f.feeType==='per_session'?'회차':'텀'}`:''}
+                                현재 {c}명{cls.time?` · ${cls.time}${cls.timeEnd?' ~ '+cls.timeEnd:''}`:''}{f?` · ${fmt(f.amount)}원/${f.feeType==='per_session'?'회':'텀'}`:''}
                               </div>
                             </div>
                           )
@@ -1032,7 +1032,7 @@ export function Revenue({ user }) {
                                 {t.label} {isCur&&<span style={{ fontSize:'11px', background:'#dcfce7', color:C.success, borderRadius:'4px', padding:'1px 5px' }}>진행중</span>}
                               </div>
                               <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                                {t.startDate?.slice(5)} ~ {t.endDate?.slice(5)} · {t.sessions.length}회차
+                                {t.startDate?.slice(5)} ~ {t.endDate?.slice(5)} · {t.sessions.length}회
                               </div>
                             </div>
                             {exp>0&&<div style={{ fontSize:'13px', fontWeight:700, color:isSel?C.primary:C.muted }}>{fmt(exp)}원</div>}
