@@ -143,9 +143,14 @@ export function Revenue({ user }) {
       const cnt = confirmedCount[cls.id] || 0
       if (!fee || !cnt) return
       const terms = getTerms(cls)
+      const addedDates = new Set()
       terms.forEach(term => {
         const ps = perSessionFee(fee, term)
-        term.sessions.forEach(d => { result[d] = (result[d] || 0) + ps * cnt })
+        term.sessions.forEach(d => {
+          if (addedDates.has(d)) return  // 중복 날짜 방지
+          addedDates.add(d)
+          result[d] = (result[d] || 0) + ps * cnt
+        })
       })
     })
     return result
@@ -189,6 +194,8 @@ export function Revenue({ user }) {
 
         term.sessions.forEach((date, i) => {
           if (!map[date]) map[date] = []
+          // 같은 날짜에 같은 수업 중복 방지 (getTerms의 extra 중복 버그 대응)
+          if (map[date].some(x => x.cls.id === cls.id)) return
           map[date].push({
             cls, fee,
             termLabel: term.label,
@@ -765,7 +772,17 @@ export function Revenue({ user }) {
       )}
 
       {/* ── 수강료 설정 모달 */}
-      {feeModal&&feeTarget&&(
+      {feeModal&&feeTarget&&(()=>{
+        const targetCls = sorted.find(c=>c.id===feeTarget.classId)
+        const terms = targetCls ? getTerms(targetCls) : []
+        // 텀별 회차 수 (텀마다 다를 수 있으니 평균 or 현재텀 기준 — 첫 텀 기준)
+        const termSessionCount = terms[0]?.sessions.length || 4
+        const amt = Number(feeForm.amount) || 0
+        const perSession = feeForm.feeType === 'per_session' ? amt : (termSessionCount > 0 ? Math.round(amt / termSessionCount) : 0)
+        const perTerm    = feeForm.feeType === 'per_term'    ? amt : amt * termSessionCount
+        const confirmedCnt = confirmedCount[feeTarget.classId] || 0
+
+        return (
         <div onClick={e=>{ if(e.target===e.currentTarget) setFeeModal(false) }}
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
           <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'440px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
@@ -776,31 +793,56 @@ export function Revenue({ user }) {
             <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
               <div style={{ padding:'11px 16px', background:'#f9fafb', borderRadius:'10px', fontSize:'14px', fontWeight:600, color:C.text }}>
                 📚 {feeTarget.org} · {feeTarget.className}
+                {terms.length > 0 && <span style={{ fontSize:'12px', color:C.muted, fontWeight:400, marginLeft:'8px' }}>{terms.length}텀 · 텀당 {termSessionCount}회차</span>}
               </div>
+
+              {/* 방식 선택 */}
               <div>
-                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'8px' }}>수강료 방식</label>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'8px' }}>입력 방식</label>
                 <div style={{ display:'flex', gap:'8px' }}>
-                  {[['per_session','회차별 단가'],['per_term','텀 전체 금액']].map(([v,l])=>(
+                  {[['per_session','회차당 입력'],['per_term','텀당 입력']].map(([v,l])=>(
                     <button key={v} onClick={()=>setFeeForm(f=>({...f,feeType:v}))}
                       style={{ flex:1, padding:'10px', borderRadius:'9px', border:`2px solid ${feeForm.feeType===v?C.primary:C.border}`, background:feeForm.feeType===v?'#fff7ed':'#fff', color:feeForm.feeType===v?C.primary:C.muted, fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                       {l}
                     </button>
                   ))}
                 </div>
-                {feeForm.feeType==='per_term'&&(
-                  <div style={{ marginTop:'8px', fontSize:'12px', color:'#92400e', padding:'8px 12px', background:'#fff7ed', borderRadius:'8px' }}>
-                    💡 텀당 받는 금액을 입력하세요. 텀별 회차 수로 나눠서 일별 수익이 계산됩니다.
-                  </div>
-                )}
               </div>
+
+              {/* 금액 입력 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>
-                  {feeForm.feeType==='per_session'?'회차당 수강료':'텀당 수강료'} (원)
+                  {feeForm.feeType==='per_session' ? '1회차당 수강료' : '1텀 전체 수강료'} (원)
                 </label>
                 <input type="number" value={feeForm.amount} onChange={e=>setFeeForm(f=>({...f,amount:e.target.value}))}
-                  placeholder="예: 50000" style={{...iStyle,fontSize:'16px'}} />
-                {feeForm.amount>0&&<div style={{ fontSize:'13px', color:C.success, marginTop:'6px', fontWeight:600 }}>= {fmt(feeForm.amount)}원/{feeForm.feeType==='per_session'?'회차':'텀'}</div>}
+                  placeholder={feeForm.feeType==='per_session' ? '예: 7500' : '예: 30000'} style={{...iStyle,fontSize:'16px'}} />
               </div>
+
+              {/* 자동 환산 표시 */}
+              {amt > 0 && (
+                <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'10px', padding:'12px 14px', display:'flex', flexDirection:'column', gap:'6px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:'13px' }}>
+                    <span style={{ color:C.muted }}>회차당</span>
+                    <span style={{ fontWeight:700, color:C.text }}>{fmt(perSession)}원</span>
+                  </div>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:'13px' }}>
+                    <span style={{ color:C.muted }}>텀당 ({termSessionCount}회 기준)</span>
+                    <span style={{ fontWeight:700, color:C.text }}>{fmt(perTerm)}원</span>
+                  </div>
+                  {confirmedCnt > 0 && <>
+                    <div style={{ height:'1px', background:'#86efac', margin:'2px 0' }} />
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:'13px' }}>
+                      <span style={{ color:C.muted }}>회차 전체 수익 ({confirmedCnt}명)</span>
+                      <span style={{ fontWeight:700, color:C.success }}>{fmt(perSession * confirmedCnt)}원</span>
+                    </div>
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:'13px' }}>
+                      <span style={{ color:C.muted }}>텀 전체 수익 ({confirmedCnt}명)</span>
+                      <span style={{ fontWeight:700, color:C.success }}>{fmt(perTerm * confirmedCnt)}원</span>
+                    </div>
+                  </>}
+                </div>
+              )}
+
               <div style={{ display:'flex', gap:'8px' }}>
                 <button onClick={saveFeeForm} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
                 <button onClick={()=>setFeeModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
@@ -808,7 +850,8 @@ export function Revenue({ user }) {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* ── 입금 등록 모달 */}
       {/* ── 입금 등록 Wizard */}
