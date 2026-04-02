@@ -64,11 +64,13 @@ export function Templates({ user }) {
 
   const del = (id) => {
     showConfirm('이 양식을 삭제할까요?', () => {
-    TemplatesDB.delete(id)
-    reload()
+      TemplatesDB.delete(id)
+      reload()
+    })
   }
 
   return (
+    <>
     <div style={{ padding: '28px', maxWidth: '900px' }}>
       <PageHeader
         title="출석부 양식 관리"
@@ -136,5 +138,6 @@ export function Templates({ user }) {
     </div>
     {confirmDialog}
     <ToastContainer toasts={toasts} />
+    </>
   )
 }

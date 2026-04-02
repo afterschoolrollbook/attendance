@@ -1148,6 +1148,7 @@ export function Attendance({ user, pageParams = {} }) {
   const monthSessions = sessionDates.filter(d => d.startsWith(`${calYear}-${String(calMonth+1).padStart(2,'0')}`))
 
   return (
+    <>
     <div style={{ padding:'24px', maxWidth:'1100px', display:'flex', flexDirection:'column', gap:'20px' }}>
       <div style={{ fontSize:'22px', fontWeight:700, color:C.text }}>출석부</div>
 
@@ -1251,6 +1252,7 @@ export function Attendance({ user, pageParams = {} }) {
       </div>
     </div>
     <ToastContainer toasts={toasts} />
+  </>
   )
 }
 

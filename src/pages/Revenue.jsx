@@ -431,6 +431,7 @@ export function Revenue({ user }) {
   const dayPayments = payByDate[curDate] || []
 
   return (
+    <>
     <div style={{ padding: '24px', maxWidth: '1200px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
@@ -1184,5 +1185,6 @@ export function Revenue({ user }) {
 
       {confirmDialog}
       <ToastContainer toasts={toasts} />
+  </>
   )
 }

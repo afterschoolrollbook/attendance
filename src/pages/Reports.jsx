@@ -161,6 +161,7 @@ export function Reports({ user }) {
   }
 
   return (
+    <>
     <div style={{ padding: '28px', maxWidth: '1200px' }}>
       <PageHeader title="출석 리포트" sub="수업별 출석 현황을 확인합니다." />
       <AdSlot slotId="report_bottom" />
@@ -292,5 +293,6 @@ export function Reports({ user }) {
       )}
     </div>
     <ToastContainer toasts={toasts} />
+  </>
   )
 }

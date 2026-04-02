@@ -127,6 +127,7 @@ export function StudentConfirm({ user }) {
   const confirmableStudents = students.filter(s => s.status !== 'confirmed')
 
   return (
+    <>
     <div style={{ padding: '28px', maxWidth: '900px' }}>
       <PageHeader
         title="최종 인원 확정"
@@ -359,5 +360,6 @@ export function StudentConfirm({ user }) {
       `}</style>
     </div>
     <ToastContainer toasts={toasts} />
+  </>
   )
 }

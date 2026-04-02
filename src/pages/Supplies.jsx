@@ -304,7 +304,7 @@ export function Supplies({ user }) {
       planList.filter(p=>p.vendorId===id).forEach(p=>SupplyPlans.delete(p.id))
       productList.filter(p=>p.vendorId===id).forEach(p=>SupplyProducts.delete(p.id))
       reload(); showToastInfo('삭제가 완료되었습니다.')
-    }})
+    })
   }
 
   // 교구 등록
@@ -534,7 +534,7 @@ export function Supplies({ user }) {
       reload()
       if (selSubject===s) setSelSubject(subjects.filter(x=>x!==s)[0]||null)
       showToastInfo('삭제가 완료되었습니다.')
-    }})
+    })
   }
 
   const INNER_TABS = [

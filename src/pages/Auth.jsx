@@ -233,6 +233,7 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
   }
 
   return (
+    <>
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div style={{ textAlign: 'center', padding: '8px 0' }}>
         {profile.avatar && (
@@ -313,6 +314,8 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
         취소
       </button>
     </div>
+    <ToastContainer toasts={toasts} />
+  </>
   )
 }
 

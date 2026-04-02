@@ -225,6 +225,7 @@ export function PrintSetup({ user }) {
   }
 
   return (
+    <>
     <div style={{ padding: '28px', maxWidth: '900px' }}>
       <PageHeader title="출석부 출력" sub="AI가 양식을 분석하여 학생 정보와 수업 일정을 자동으로 삽입합니다." />
 
@@ -420,5 +421,6 @@ export function PrintSetup({ user }) {
       )}
     </div>
     <ToastContainer toasts={toasts} />
+  </>
   )
 }
