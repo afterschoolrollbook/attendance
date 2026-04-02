@@ -131,7 +131,7 @@ export function Training({ user }) {
   const reload = () => setRecords(Trainings.byTeacher(user.id))
   useEffect(() => { reload() }, [])
 
-  const years   = [...new Set([currentYear, ...records.map(r => r.year)])].sort().reverse()
+  const years   = [...new Set([currentYear, ...records.map(r => r.year)])].sort()
   const filtered = records.filter(r => !selYear || r.year === selYear)
                           .sort((a,b) => (b.completedAt||'').localeCompare(a.completedAt||''))
   const totalHours = filtered.reduce((s,r) => s + (Number(r.hours)||0), 0)

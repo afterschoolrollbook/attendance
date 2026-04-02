@@ -80,7 +80,7 @@ export function Students({ user, onNav }) {
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
-  const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
+  const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
   const yearClasses = ctxYear ? classes.filter(c => c.startDate?.startsWith(ctxYear) || c.endDate?.startsWith(ctxYear)) : classes
   const schools = [...new Set(yearClasses.map(c => c.organization).filter(Boolean))]
   const filteredClasses = sortClasses(ctxSchool ? yearClasses.filter(c => c.organization === ctxSchool) : yearClasses)
@@ -114,7 +114,7 @@ export function Students({ user, onNav }) {
       const sectionCmp = (aClass?.section || '').localeCompare(bClass?.section || '', 'ko')
       if (sectionCmp !== 0) return sectionCmp
       // 학년
-      const gradeCmp = (a.grade || '').localeCompare(b.grade || '', 'ko')
+      const gradeCmp = (parseInt(a.grade) || 0) - (parseInt(b.grade) || 0)
       if (gradeCmp !== 0) return gradeCmp
       // 학급 반
       const classNumCmp = parseInt(a.classNum || '0') - parseInt(b.classNum || '0')

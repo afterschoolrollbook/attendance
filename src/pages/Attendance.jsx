@@ -539,7 +539,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
     s.classIds?.includes(cls.id) && ['cancelled','waiting'].includes(s.status)
   )
   const sorted = [...activeStudents].sort((a, b) => {
-    const g = (a.grade||'').localeCompare(b.grade||'','ko'); if (g) return g
+    const g = (parseInt(a.grade)||0) - (parseInt(b.grade)||0); if (g) return g
     const c = parseInt(a.classNum||0) - parseInt(b.classNum||0); if (c) return c
     const n = parseInt(a.number||0) - parseInt(b.number||0); if (n) return n
     return (a.name||'').localeCompare(b.name||'','ko')
@@ -981,7 +981,7 @@ export function Attendance({ user, pageParams = {} }) {
   const allStudents = StudentsDB.byTeacher(user.id)
   const schools = [...new Set(allClasses.map(c => c.organization).filter(Boolean))]
 
-  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
+  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
   const currentYear = String(now_.getFullYear())
   if (!years.includes(currentYear)) years.unshift(currentYear)
 
@@ -1051,7 +1051,7 @@ export function Attendance({ user, pageParams = {} }) {
     if (classCmp !== 0) return classCmp
     const sectionCmp = (aClass?.section||'').localeCompare(bClass?.section||'','ko')
     if (sectionCmp !== 0) return sectionCmp
-    const gradeCmp = (a.grade||'').localeCompare(b.grade||'','ko')
+    const gradeCmp = (parseInt(a.grade)||0) - (parseInt(b.grade)||0)
     if (gradeCmp !== 0) return gradeCmp
     const classNumCmp = parseInt(a.classNum||'0') - parseInt(b.classNum||'0')
     if (classNumCmp !== 0) return classNumCmp

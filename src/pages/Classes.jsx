@@ -67,7 +67,7 @@ export function Classes({ user }) {
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const allClasses = ClassesDB.byTeacher(user.id)
-  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
+  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
   const classes = selYear ? allClasses.filter(c => c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) : allClasses
   const t = today()
 
