@@ -511,13 +511,15 @@ export const SupplyItems = {
 }
 
 export const SupplyPlans = {
-  all:        ()         => db.get('supplyPlans'),
-  byTeacher:  (tid)      => db.where('supplyPlans', r => r.teacherId === tid),
-  bySubject:  (tid, sub) => db.where('supplyPlans', r => r.teacherId === tid && r.subject === sub),
-  find:       (id)       => db.getOne('supplyPlans', id),
-  insert:     (r)        => db.insert('supplyPlans', r),
-  update:     (id, p)    => db.update('supplyPlans', id, p),
-  delete:     (id)       => db.delete('supplyPlans', id),
+  all:        ()              => db.get('supplyPlans'),
+  byTeacher:  (tid)           => db.where('supplyPlans', r => r.teacherId === tid),
+  bySubject:  (tid, sub)      => db.where('supplyPlans', r => r.teacherId === tid && r.subject === sub),
+  byProduct:  (productId)     => db.where('supplyPlans', r => r.productId === productId),
+  byVendor:   (vendorId)      => db.where('supplyPlans', r => r.vendorId === vendorId),
+  find:       (id)            => db.getOne('supplyPlans', id),
+  insert:     (r)             => db.insert('supplyPlans', r),
+  update:     (id, p)         => db.update('supplyPlans', id, p),
+  delete:     (id)            => db.delete('supplyPlans', id),
 }
 
 export const SupplyPromos = {
