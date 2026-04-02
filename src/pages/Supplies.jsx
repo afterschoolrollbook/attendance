@@ -103,8 +103,7 @@ export function Supplies({ user }) {
 
   // 교구 설정 모달
   const [supplyModal, setSupplyModal] = useState(false)
-  const [supplyForm, setSupplyForm]   = useState({ name:'', productId:'', stage:1, sessionCount:12, sessions:[] })
-  // sessions: [{ sessionNo:number, title:string }]
+  const [supplyForm, setSupplyForm]   = useState({ name:'', productId:'', stage:1 })
 
   // 진도 체크 모달 (학생별)
   const [progressModal, setProgressModal] = useState(false)
@@ -208,38 +207,7 @@ export function Supplies({ user }) {
         })
       }
     })
-    // 차시 제목 저장 (productId + stage 있을 때만)
-    if (supplyForm.productId && supplyForm.stage && supplyForm.sessions?.length > 0) {
-      supplyForm.sessions.forEach(sess => {
-        if (!sess.title.trim()) return
-        if (sess.planId) {
-          // 기존 차시 → update
-          SupplyProductPlans.update(sess.planId, { title: sess.title.trim() })
-        } else {
-          // 중복 체크 후 insert
-          const exists = productPlanList.find(p =>
-            p.productId === supplyForm.productId &&
-            p.stage === supplyForm.stage &&
-            p.sessionNo === sess.sessionNo
-          )
-          if (!exists) {
-            SupplyProductPlans.insert({
-              id: uid(), teacherId: user.id,
-              productId: supplyForm.productId,
-              stage: supplyForm.stage,
-              sessionNo: sess.sessionNo,
-              title: sess.title.trim(),
-              memo: '', fileUrl: null, fileName: null,
-              createdAt: now(),
-            })
-          } else {
-            // 이미 있는데 planId 없이 들어온 경우 → update
-            SupplyProductPlans.update(exists.id, { title: sess.title.trim() })
-          }
-        }
-      })
-    }
-    reload(); setSupplyModal(false); setSupplyForm({ name:'', productId:'', stage:1, sessionCount:12, sessions:[] })
+    reload(); setSupplyModal(false); setSupplyForm({ name:'', productId:'', stage:1 })
   }
 
   // ── 진도 체크 헬퍼
@@ -874,194 +842,136 @@ export function Supplies({ user }) {
       )}
 
       {/* ── 교구 설정 모달 */}
-      {supplyModal && (() => {
-        // 선택된 교구의 해당 단계에 이미 저장된 차시 목록
-        const savedPlans = (supplyForm.productId && supplyForm.stage)
-          ? productPlanList
-              .filter(p => p.productId === supplyForm.productId && p.stage === supplyForm.stage)
-              .sort((a,b) => a.sessionNo - b.sessionNo)
-          : []
+      {supplyModal && (
+        <div onClick={e=>{ if(e.target===e.currentTarget) setSupplyModal(false) }}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
+          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'420px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
 
-        // 차시 입력 배열 초기화 헬퍼 (단계 or 교구 바뀔 때 sessions 맞춤)
-        const buildSessions = (cnt, existing) =>
-          Array.from({ length: cnt }, (_, i) => ({
-            sessionNo: i + 1,
-            title: existing[i]?.title || '',
-            planId: existing[i]?.id || null,   // 기존 planId 보존 (수정용)
-          }))
+            {/* 헤더 */}
+            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:'16px', fontWeight:700 }}>🎒 교구 설정 ({checkedStudents.length}명)</span>
+              <button onClick={() => setSupplyModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
+            </div>
 
-        return (
-          <div onClick={e=>{ if(e.target===e.currentTarget) setSupplyModal(false) }}
-            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-            <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'560px', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
 
-              {/* 헤더 */}
-              <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
-                <span style={{ fontSize:'16px', fontWeight:700 }}>🎒 교구 설정 ({checkedStudents.length}명)</span>
-                <button onClick={() => setSupplyModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-              </div>
-
-              {/* 본문 (스크롤) */}
-              <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px', overflowY:'auto' }}>
-
-                {/* ① 교구명 */}
-                <div>
-                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교구명 *</label>
-                  <input
-                    value={supplyForm.name}
-                    onChange={e => setSupplyForm(v => ({ ...v, name: e.target.value, productId: '' }))}
-                    placeholder="예: 큐보 시리즈, 로봇 키트 A형 ..."
-                    style={iStyle}
-                    autoFocus
-                  />
-                </div>
-
-                {/* ② 등록된 교구 선택 (있을 때만) */}
-                {robotProducts.length > 0 && (
-                  <div>
-                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>
-                      또는 등록된 교구에서 선택
-                    </label>
-                    <select
-                      value={supplyForm.productId}
-                      onChange={e => {
-                        const pid = e.target.value
-                        const p = productList.find(x => x.id === pid)
-                        const cnt = p?.sessionsPerStage || 12
-                        setSupplyForm(v => ({
-                          ...v,
-                          productId: pid,
-                          name: p ? p.name : v.name,
-                          sessionCount: cnt,
-                          sessions: buildSessions(cnt, []),
-                        }))
-                      }}
-                      style={{ ...iStyle, background:'#fff' }}
-                    >
-                      <option value=''>-- 직접 입력 --</option>
-                      {robotProducts.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
+              {/* ① 교구 선택 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교구 선택 *</label>
+                <select
+                  value={supplyForm.productId}
+                  onChange={e => {
+                    const pid = e.target.value
+                    const p = productList.find(x => x.id === pid)
+                    setSupplyForm(v => ({ ...v, productId: pid, name: p ? p.name : '' }))
+                  }}
+                  style={{ ...iStyle, background:'#fff' }}
+                >
+                  <option value=''>-- 교구를 선택하세요 --</option>
+                  {robotProducts.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                {/* 교구 없으면 등록 링크 */}
+                {robotProducts.length === 0 && (
+                  <div style={{ marginTop:'6px', display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+                    <span style={{ fontSize:'12px', color:C.warning }}>⚠️ 등록된 교구가 없습니다.</span>
+                    <button
+                      onClick={() => { setSupplyModal(false); setInnerTab('vendor') }}
+                      style={{ fontSize:'12px', color:C.primary, background:'#fff7ed', border:`1px solid ${C.primary}`, borderRadius:'5px', padding:'2px 9px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                      🏢 교구업체·교구 등록하러 가기 →
+                    </button>
                   </div>
                 )}
-
-                {/* ③ 단계 + 차시 수 */}
-                <div style={{ display:'flex', gap:'10px' }}>
-                  <div style={{ flex:1 }}>
-                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>단계</label>
-                    <select
-                      value={supplyForm.stage}
-                      onChange={e => {
-                        const st = Number(e.target.value)
-                        // 단계 바뀌면 해당 단계 저장된 차시로 sessions 재구성
-                        const existingForStage = supplyForm.productId
-                          ? productPlanList
-                              .filter(p => p.productId === supplyForm.productId && p.stage === st)
-                              .sort((a,b) => a.sessionNo - b.sessionNo)
-                          : []
-                        const cnt = supplyForm.sessionCount || 12
-                        setSupplyForm(v => ({
-                          ...v,
-                          stage: st,
-                          sessions: buildSessions(cnt, existingForStage),
-                        }))
-                      }}
-                      style={{ ...iStyle, background:'#fff' }}
-                    >
-                      <option value=''>단계 없음</option>
-                      {STAGES.map(s => <option key={s} value={s}>{s}단계</option>)}
-                    </select>
-                  </div>
-                  <div style={{ flex:1 }}>
-                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>차시 수</label>
+                {/* 교구 있는데 직접 입력하고 싶을 때 */}
+                {robotProducts.length > 0 && (
+                  <div style={{ marginTop:'6px' }}>
                     <input
-                      type="number" min={1} max={50}
-                      value={supplyForm.sessionCount}
-                      onChange={e => {
-                        const cnt = Math.max(1, Number(e.target.value))
-                        setSupplyForm(v => ({
-                          ...v,
-                          sessionCount: cnt,
-                          sessions: buildSessions(cnt, savedPlans),
-                        }))
-                      }}
-                      style={{ ...iStyle, textAlign:'center' }}
+                      value={supplyForm.productId ? '' : supplyForm.name}
+                      onChange={e => setSupplyForm(v => ({ ...v, name: e.target.value, productId: '' }))}
+                      placeholder="또는 교구명 직접 입력"
+                      style={{ ...iStyle, fontSize:'12px', padding:'6px 10px', color: supplyForm.productId ? C.muted : C.text }}
+                      disabled={!!supplyForm.productId}
                     />
                   </div>
-                </div>
-
-                {/* ④ 차시별 제목 입력 — 단계가 선택된 경우 항상 표시 */}
-                {supplyForm.stage ? (
-                  <div style={{ border:`1px solid ${C.border}`, borderRadius:'10px', overflow:'hidden' }}>
-                    <div style={{ padding:'10px 14px', background:'#f9fafb', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                      <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
-                        📝 {supplyForm.stage}단계 차시별 제목
-                      </span>
-                      {savedPlans.length > 0 && (
-                        <span style={{ fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 8px', fontWeight:600 }}>
-                          {savedPlans.length}개 저장됨 — 수정 가능
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'5px', maxHeight:'260px', overflowY:'auto' }}>
-                      {(() => {
-                        const cnt = supplyForm.sessionCount || 12
-                        // sessions 배열이 cnt와 다르면 savedPlans 기반으로 재생성
-                        const sessions = supplyForm.sessions.length === cnt
-                          ? supplyForm.sessions
-                          : buildSessions(cnt, savedPlans)
-                        return sessions.map((sess, idx) => (
-                          <div key={idx} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                            <span style={{ minWidth:'46px', fontSize:'12px', fontWeight:700, color:C.primary, flexShrink:0 }}>
-                              {sess.sessionNo}차시
-                            </span>
-                            <input
-                              value={sess.title}
-                              onChange={e => {
-                                const val = e.target.value
-                                setSupplyForm(v => {
-                                  const s = v.sessions.length === cnt ? [...v.sessions] : buildSessions(cnt, savedPlans)
-                                  s[idx] = { ...s[idx], title: val }
-                                  return { ...v, sessions: s }
-                                })
-                              }}
-                              placeholder={`${sess.sessionNo}차시 제목 (선택)`}
-                              style={{ ...iStyle, padding:'5px 9px', fontSize:'12px' }}
-                            />
-                          </div>
-                        ))
-                      })()}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ fontSize:'12px', color:C.muted, background:'#f9fafb', padding:'10px 12px', borderRadius:'8px' }}>
-                    💡 단계를 선택하면 차시별 제목을 입력할 수 있습니다.
-                  </div>
                 )}
+              </div>
 
-                {/* 안내 */}
-                <div style={{ fontSize:'12px', color:C.muted, background:'#f9fafb', padding:'10px 12px', borderRadius:'8px' }}>
-                  선택된 <strong>{checkedStudents.length}명</strong>에게 동일하게 적용됩니다.
-                  차시 제목은 교구(productId)가 연결된 경우에만 저장됩니다.
-                </div>
+              {/* ② 단계 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>단계</label>
+                <select
+                  value={supplyForm.stage}
+                  onChange={e => setSupplyForm(v => ({ ...v, stage: Number(e.target.value) }))}
+                  style={{ ...iStyle, background:'#fff' }}
+                >
+                  <option value=''>단계 없음</option>
+                  {STAGES.map(s => <option key={s} value={s}>{s}단계</option>)}
+                </select>
+              </div>
 
-                {/* 버튼 */}
-                <div style={{ display:'flex', gap:'8px' }}>
-                  <button onClick={saveSupply}
-                    style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                    저장
-                  </button>
-                  <button onClick={() => setSupplyModal(false)}
-                    style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
-                    취소
-                  </button>
-                </div>
+              {/* ③ 선택된 교구+단계의 차시 제목 미리보기 */}
+              {supplyForm.productId && supplyForm.stage && (() => {
+                const plans = productPlanList
+                  .filter(p => p.productId === supplyForm.productId && p.stage === supplyForm.stage)
+                  .sort((a,b) => a.sessionNo - b.sessionNo)
+                const product = productList.find(p => p.id === supplyForm.productId)
+                const sessionsPerStage = product?.sessionsPerStage || 12
+
+                if (plans.length === 0) {
+                  return (
+                    <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px', flexWrap:'wrap' }}>
+                      <span style={{ fontSize:'12px', color:C.warning }}>⚠️ {supplyForm.stage}단계 차시 제목이 등록되지 않았습니다.</span>
+                      <button
+                        onClick={() => { setSupplyModal(false); setInnerTab('vendor'); openSessionPlan(supplyForm.productId, supplyForm.stage) }}
+                        style={{ fontSize:'12px', color:C.primary, background:'#fff7ed', border:`1px solid ${C.primary}`, borderRadius:'5px', padding:'2px 9px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600, whiteSpace:'nowrap' }}>
+                        📝 차시 제목 등록하러 가기 →
+                      </button>
+                    </div>
+                  )
+                }
+                return (
+                  <div style={{ border:`1px solid ${C.border}`, borderRadius:'8px', overflow:'hidden' }}>
+                    <div style={{ padding:'8px 12px', background:'#f0fdf4', borderBottom:`1px solid #86efac`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                      <span style={{ fontSize:'12px', fontWeight:600, color:C.success }}>✅ {supplyForm.stage}단계 차시 제목 {plans.length}/{sessionsPerStage}개 등록됨</span>
+                      <button
+                        onClick={() => { setSupplyModal(false); setInnerTab('vendor'); openSessionPlan(supplyForm.productId, supplyForm.stage) }}
+                        style={{ fontSize:'11px', color:C.muted, background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', textDecoration:'underline' }}>
+                        수정하러 가기
+                      </button>
+                    </div>
+                    <div style={{ padding:'8px 12px', display:'flex', flexDirection:'column', gap:'3px', maxHeight:'120px', overflowY:'auto' }}>
+                      {plans.map(p => (
+                        <div key={p.id} style={{ display:'flex', gap:'8px', fontSize:'12px' }}>
+                          <span style={{ color:C.primary, fontWeight:600, minWidth:'40px' }}>{p.sessionNo}차시</span>
+                          <span style={{ color:C.text }}>{p.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* 안내 */}
+              <div style={{ fontSize:'12px', color:C.muted, background:'#f9fafb', padding:'10px 12px', borderRadius:'8px' }}>
+                선택된 <strong>{checkedStudents.length}명</strong>에게 동일하게 적용됩니다.
+              </div>
+
+              {/* 버튼 */}
+              <div style={{ display:'flex', gap:'8px' }}>
+                <button onClick={saveSupply}
+                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  저장
+                </button>
+                <button onClick={() => setSupplyModal(false)}
+                  style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
+                  취소
+                </button>
               </div>
             </div>
           </div>
-        )
-      })()}
+        </div>
+      )}
 
       {/* ── 진도 체크 모달 */}
       {progressModal && progressStudent && (
