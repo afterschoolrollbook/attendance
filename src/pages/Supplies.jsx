@@ -135,6 +135,7 @@ export function Supplies({ user }) {
   const [vendorModal, setVendorModal] = useState(false)
   const [vendorForm, setVendorForm]   = useState({ name:'', managerName:'', contact:'', memo:'' })
   const [expandedVendor, setExpandedVendor] = useState(null)
+  const [expandedStage, setExpandedStage]   = useState(null)  // 진도체크 단계 펼침
 
   // 교구 등록/수정 모달
   const [productModal, setProductModal] = useState(false)
@@ -1009,14 +1010,14 @@ export function Supplies({ user }) {
                                         {/* 단계별 차시지도안 */}
                                         <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
                                           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
-                                            <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📝 단계별 차시지도안</span>
+                                            <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📊 단계별 진도체크</span>
                                             {(() => {
                                               const registeredStages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
                                               const nextStage = registeredStages.length > 0 ? Math.max(...registeredStages) + 1 : 1
                                               return nextStage <= (p.maxStage||10) ? (
                                                 <button onClick={() => openSessionPlan(p.id, nextStage)}
                                                   style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                                                  + {nextStage}단계 추가
+                                                  + 추가
                                                 </button>
                                               ) : null
                                             })()}
@@ -1037,7 +1038,7 @@ export function Supplies({ user }) {
                                                     <div key={stage} style={{ background:C.card, borderRadius:'9px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
                                                       {/* 단계 헤더 — 클릭하면 목차 토글 */}
                                                       <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', cursor:'pointer' }}
-                                                        onClick={() => setExpandedVendor(prev => prev === expandKey ? null : expandKey)}>
+                                                        onClick={() => setExpandedStage(prev => prev === expandKey ? null : expandKey)}>
                                                         <span style={{ fontSize:'16px', flexShrink:0 }}>📝</span>
                                                         <div style={{ flex:1 }}>
                                                           <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name} {stage}단계 차시지도안</span>
@@ -1047,10 +1048,14 @@ export function Supplies({ user }) {
                                                           style={{ padding:'3px 10px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
                                                           수정
                                                         </button>
-                                                        <span style={{ fontSize:'12px', color:C.muted }}>{expandedVendor===expandKey ? '▲' : '▼'}</span>
+                                                        <button onClick={e=>{ e.stopPropagation(); setDeleteConfirm({ msg:`${stage}단계 차시 진도체크 데이터를 삭제하시겠습니까?`, onOk: () => { productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage).forEach(pl=>SupplyProductPlans.delete(pl.id)); reload(); showToast('삭제가 완료되었습니다.','info') } }) }}
+                                                          style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                                          삭제
+                                                        </button>
+                                                        <span style={{ fontSize:'12px', color:C.muted, cursor:'pointer' }}>{expandedStage===expandKey ? '▲' : '▼'}</span>
                                                       </div>
                                                       {/* 차시 목차 — 펼쳤을 때만 */}
-                                                      {expandedVendor === expandKey && (
+                                                      {expandedStage === expandKey && (
                                                         <div style={{ padding:'6px 12px 10px', borderTop:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:'3px' }}>
                                                           {plans.map(pl => (
                                                             <div key={pl.id} style={{ display:'grid', gridTemplateColumns:'40px 1fr 1fr', gap:'6px', fontSize:'12px', padding:'4px 0', borderBottom:`1px solid #f9fafb` }}>
