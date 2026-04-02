@@ -1196,72 +1196,72 @@ export function Supplies({ user }) {
                   placeholder="예: 큐보 1단계, 로봇 키트 A형" style={iStyle} autoFocus />
               </div>
 
-              {/* 단계/차시/알림 설정 */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px' }}>
-                {[
-                  { label:'최대 단계', key:'maxStage' },
-                  { label:'단계당 차시 수', key:'sessionsPerStage' },
-                  { label:'준비 알림 차시', key:'alertSession' },
-                ].map(f => (
-                  <div key={f.key}>
-                    <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>{f.label}</label>
-                    <input type="number" min={1} max={f.key==='maxStage'?20:50}
-                      value={productForm[f.key]}
-                      onChange={e => {
-                        const val = Number(e.target.value)
-                        setProductForm(v => {
-                          const next = {...v, [f.key]: val}
-                          // sessionsPerStage 바뀌면 각 단계 titles 배열 길이 조정
-                          if (f.key === 'sessionsPerStage') {
-                            const newTitles = {}
-                            for (let s = 1; s <= next.maxStage; s++) {
-                              const cur = stageSessionTitles[s] || []
-                              newTitles[s] = Array.from({length: val}, (_, i) => cur[i] || '')
-                            }
-                            setStageSessionTitles(newTitles)
-                          }
-                          // maxStage 바뀌면 새 단계 titles 초기화
-                          if (f.key === 'maxStage') {
-                            setStageSessionTitles(prev => {
-                              const next2 = {...prev}
-                              for (let s = 1; s <= val; s++) {
-                                if (!next2[s]) next2[s] = Array(next.sessionsPerStage).fill('')
-                              }
-                              return next2
-                            })
-                            if (productStageTab > val) setProductStageTab(val)
-                          }
-                          return next
-                        })
-                      }}
-                      style={{ ...iStyle, textAlign:'center' }} />
-                  </div>
-                ))}
+              {/* 단계 선택 + 준비 알림 차시 */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>단계 선택 *</label>
+                  <select value={productStageTab}
+                    onChange={e => {
+                      const st = Number(e.target.value)
+                      setProductStageTab(st)
+                      // 해당 단계 titles 없으면 기본 12차시로 초기화
+                      setStageSessionTitles(prev => ({
+                        ...prev,
+                        [st]: prev[st] || Array(productForm.sessionsPerStage).fill('')
+                      }))
+                    }}
+                    style={{ ...iStyle, background:'#fff' }}>
+                    {Array.from({length: productForm.maxStage}, (_, i) => i+1).map(s => {
+                      const filled = (stageSessionTitles[s] || []).filter(t => t.trim()).length
+                      return <option key={s} value={s}>{s}단계 {filled > 0 ? `(${filled}개 입력됨)` : ''}</option>
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>최대 단계</label>
+                  <input type="number" min={1} max={20} value={productForm.maxStage}
+                    onChange={e => {
+                      const val = Number(e.target.value)
+                      setProductForm(v => ({...v, maxStage: val}))
+                      setStageSessionTitles(prev => {
+                        const next = {...prev}
+                        for (let s = 1; s <= val; s++) {
+                          if (!next[s]) next[s] = Array(productForm.sessionsPerStage).fill('')
+                        }
+                        return next
+                      })
+                      if (productStageTab > val) setProductStageTab(val)
+                    }}
+                    style={{ ...iStyle, textAlign:'center' }} />
+                </div>
               </div>
 
-              {/* 단계 탭 — 차시 제목 입력 */}
+              {/* 차시 제목 입력 */}
               <div style={{ border:`1px solid ${C.border}`, borderRadius:'10px', overflow:'hidden' }}>
-                {/* 단계 탭 버튼 */}
-                <div style={{ display:'flex', overflowX:'auto', borderBottom:`1px solid ${C.border}`, background:'#f9fafb' }}>
-                  {Array.from({length: productForm.maxStage}, (_, i) => i+1).map(s => {
-                    const filled = (stageSessionTitles[s] || []).filter(t => t.trim()).length
-                    const isActive = productStageTab === s
-                    return (
-                      <button key={s} onClick={() => setProductStageTab(s)}
-                        style={{ padding:'8px 14px', border:'none', borderBottom: isActive ? `2px solid ${C.primary}` : '2px solid transparent', background:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', fontWeight: isActive ? 700 : 400, color: isActive ? C.primary : C.muted, whiteSpace:'nowrap', flexShrink:0 }}>
-                        {s}단계 {filled > 0 ? `(${filled})` : ''}
-                      </button>
-                    )
-                  })}
+                {/* 헤더 */}
+                <div style={{ padding:'10px 14px', background:'#f9fafb', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
+                    📝 {productStageTab}단계 차시별 제목
+                  </span>
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                    <span style={{ fontSize:'11px', color:C.muted }}>
+                      {(stageSessionTitles[productStageTab]||[]).filter(t=>t.trim()).length} / {(stageSessionTitles[productStageTab]||[]).length}개 입력
+                    </span>
+                    <span style={{ fontSize:'11px', color:C.muted }}>준비알림</span>
+                    <input type="number" min={1} max={50} value={productForm.alertSession}
+                      onChange={e => setProductForm(v=>({...v, alertSession: Number(e.target.value)}))}
+                      style={{ ...iStyle, width:'52px', padding:'3px 6px', fontSize:'12px', textAlign:'center' }} />
+                    <span style={{ fontSize:'11px', color:C.muted }}>차시</span>
+                  </div>
                 </div>
 
-                {/* 현재 단계 차시 목록 */}
-                <div style={{ padding:'12px 14px', display:'flex', flexDirection:'column', gap:'5px', maxHeight:'280px', overflowY:'auto' }}>
-                  {Array.from({length: productForm.sessionsPerStage}, (_, i) => i).map(idx => (
+                {/* 차시 목록 */}
+                <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'5px', maxHeight:'300px', overflowY:'auto' }}>
+                  {(stageSessionTitles[productStageTab] || Array(productForm.sessionsPerStage).fill('')).map((title, idx) => (
                     <div key={idx} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                       <span style={{ minWidth:'46px', fontSize:'12px', fontWeight:700, color:C.primary, flexShrink:0 }}>{idx+1}차시</span>
                       <input
-                        value={(stageSessionTitles[productStageTab] || [])[idx] || ''}
+                        value={title}
                         onChange={e => {
                           const val = e.target.value
                           setStageSessionTitles(prev => {
@@ -1273,8 +1273,27 @@ export function Supplies({ user }) {
                         placeholder={`${idx+1}차시 제목 (선택)`}
                         style={{ ...iStyle, padding:'5px 9px', fontSize:'12px' }}
                       />
+                      {/* 마지막 행에서만 삭제 버튼 (기본 12개 초과분) */}
+                      {idx >= productForm.sessionsPerStage && (
+                        <button onClick={() => setStageSessionTitles(prev => {
+                          const cur = [...(prev[productStageTab]||[])]
+                          cur.splice(idx, 1)
+                          return {...prev, [productStageTab]: cur}
+                        })} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', flexShrink:0, padding:0 }}>×</button>
+                      )}
                     </div>
                   ))}
+                </div>
+
+                {/* 차시 추가 버튼 */}
+                <div style={{ padding:'8px 14px', borderTop:`1px solid ${C.border}` }}>
+                  <button onClick={() => setStageSessionTitles(prev => {
+                    const cur = [...(prev[productStageTab] || Array(productForm.sessionsPerStage).fill(''))]
+                    cur.push('')
+                    return {...prev, [productStageTab]: cur}
+                  })} style={{ width:'100%', padding:'7px', borderRadius:'7px', border:`1.5px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                    + 차시 추가
+                  </button>
                 </div>
               </div>
 
