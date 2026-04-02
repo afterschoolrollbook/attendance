@@ -33,7 +33,7 @@ async function uploadToStorage(userId, awardId, file) {
   return `${SUPABASE_URL}/storage/v1/object/public/teacher-files/${filePath}`
 }
 
-const AWARD_TYPES = ['표창', '우수상', '최우수상', '대상', '장려상', '감사패', '공로상', '기타']
+const AWARD_TYPES = ['표창', '우수상', '최우수상', '대상', '장려상', '감사패', '공로상', '심사위원', '기타']
 
 const DIVISIONS = ['초등부', '중등부', '고등부', '대학부', '일반부', '기타']
 
