@@ -145,6 +145,11 @@ export function Supplies({ user }) {
   const [subjectModal, setSubjectModal] = useState(false)
   const [newSubject, setNewSubject]     = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [toast, setToast] = useState(null) // { msg, type:'success'|'info' }
+  const showToast = (msg, type='success') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 2500)
+  }
 
   const schoolList = [...new Set(classes.map(c => c.organization).filter(Boolean))]
 
@@ -213,7 +218,7 @@ export function Supplies({ user }) {
         })
       }
     })
-    reload(); setSupplyModal(false); setSupplyForm({ name:'', productId:'', stage:1 })
+    reload(); setSupplyModal(false); setSupplyForm({ name:'', productId:'', stage:1 }); showToast('교구 설정이 저장되었습니다.')
   }
 
   // ── 진도 체크 헬퍼
@@ -274,14 +279,14 @@ export function Supplies({ user }) {
   const saveVendor = () => {
     if (!vendorForm.name) { alert('업체명을 입력하세요'); return }
     SupplyVendors.insert({ id: uid(), teacherId: user.id, subject: selSubject, ...vendorForm, createdAt: now() })
-    reload(); setVendorModal(false); setVendorForm({ name:'', managerName:'', contact:'', memo:'' })
+    reload(); setVendorModal(false); setVendorForm({ name:'', managerName:'', contact:'', memo:'' }); showToast('업체가 저장되었습니다.')
   }
   const deleteVendor = (id) => {
-    setDeleteConfirm({ msg:'이 업체를 삭제할까요?\n업체 파일도 함께 삭제됩니다.', onOk: () => {
+    setDeleteConfirm({ msg:'이 업체를 삭제하시겠습니까?\n업체 파일도 함께 삭제됩니다.', onOk: () => {
       SupplyVendors.delete(id)
       planList.filter(p=>p.vendorId===id).forEach(p=>SupplyPlans.delete(p.id))
       productList.filter(p=>p.vendorId===id).forEach(p=>SupplyProducts.delete(p.id))
-      reload()
+      reload(); showToast('삭제가 완료되었습니다.', 'info')
     }})
   }
 
@@ -294,16 +299,18 @@ export function Supplies({ user }) {
         const plans = productPlanList
           .filter(p => p.productId === existingProduct.id && p.stage === s)
           .sort((a,b) => a.sessionNo - b.sessionNo)
-        titles[s] = Array.from({ length: existingProduct.sessionsPerStage||12 }, (_, i) =>
-          plans[i]?.title || ''
-        )
+        titles[s] = Array.from({ length: existingProduct.sessionsPerStage||12 }, (_, i) => ({
+          title: plans[i]?.title || '',
+          memo:  plans[i]?.memo  || '',
+        }))
       }
       setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: existingProduct.maxStage||10, sessionsPerStage: existingProduct.sessionsPerStage||12, alertSession: existingProduct.alertSession||10 })
       setStageSessionTitles(titles)
     } else {
       const cnt = 12
+      const empty = () => Array.from({length: cnt}, () => ({ title:'', memo:'' }))
       const titles = {}
-      for (let s = 1; s <= 10; s++) titles[s] = Array(cnt).fill('')
+      for (let s = 1; s <= 10; s++) titles[s] = empty()
       setProductForm({ id:null, name:'', maxStage:10, sessionsPerStage:cnt, alertSession:10 })
       setStageSessionTitles(titles)
     }
@@ -328,22 +335,24 @@ export function Supplies({ user }) {
         createdAt: now(),
       })
     }
-    // 단계별 차시 제목 저장/수정
+    // 단계별 차시 제목+준비물 저장/수정
     for (let stage = 1; stage <= productForm.maxStage; stage++) {
-      const titles = stageSessionTitles[stage] || []
-      titles.forEach((title, idx) => {
-        if (!title.trim()) return
+      const items = stageSessionTitles[stage] || []
+      items.forEach((item, idx) => {
+        const t = typeof item === 'string' ? item : (item?.title || '')
+        const m = typeof item === 'string' ? '' : (item?.memo || '')
+        if (!t.trim()) return
         const sessionNo = idx + 1
         const existing = productPlanList.find(p =>
           p.productId === productId && p.stage === stage && p.sessionNo === sessionNo
         )
         if (existing) {
-          SupplyProductPlans.update(existing.id, { title: title.trim() })
+          SupplyProductPlans.update(existing.id, { title: t.trim(), memo: m.trim() })
         } else {
           SupplyProductPlans.insert({
             id: uid(), teacherId: user.id, productId,
-            stage, sessionNo, title: title.trim(),
-            memo: '', fileUrl: null, fileName: null, createdAt: now(),
+            stage, sessionNo, title: t.trim(),
+            memo: m.trim(), fileUrl: null, fileName: null, createdAt: now(),
           })
         }
       })
@@ -351,9 +360,10 @@ export function Supplies({ user }) {
     reload()
     setProductModal(false)
     setStageSessionTitles({})
+    showToast('교구가 저장되었습니다.')
   }
   const deleteProduct = (id) => {
-    setDeleteConfirm({ msg:'이 교구를 삭제할까요?', onOk: () => { SupplyProducts.delete(id); reload() } })
+    setDeleteConfirm({ msg:'이 교구를 삭제하시겠습니까?', onOk: () => { SupplyProducts.delete(id); reload(); showToast('삭제가 완료되었습니다.', 'info') } })
   }
 
   // 차시 지도안 열기
@@ -442,12 +452,12 @@ export function Supplies({ user }) {
           fileUrl, fileName, createdAt: now(),
         })
       })
-      reload(); setFileModal(false); setModalFile(null)
+      reload(); setFileModal(false); setModalFile(null); showToast('저장이 완료되었습니다.')
     } catch(e) { alert('업로드 실패: '+e.message) }
     finally { setUploading(false) }
   }
   const deleteFile = (id) => {
-    setDeleteConfirm({ msg:'이 파일을 삭제할까요?', onOk: () => { SupplyPlans.delete(id); reload() } })
+    setDeleteConfirm({ msg:'이 파일을 삭제하시겠습니까?', onOk: () => { SupplyPlans.delete(id); reload(); showToast('삭제가 완료되었습니다.', 'info') } })
   }
 
   // 과목 관리
@@ -1207,7 +1217,7 @@ export function Supplies({ user }) {
                       setStageSessionTitles(prev => {
                         const next = {...prev}
                         for (let s = 1; s <= val; s++) {
-                          if (!next[s]) next[s] = Array(productForm.sessionsPerStage).fill('')
+                          if (!next[s]) next[s] = Array.from({length: productForm.sessionsPerStage}, () => ({title:'', memo:''}))
                         }
                         return next
                       })
@@ -1225,7 +1235,7 @@ export function Supplies({ user }) {
                         const newTitles = {}
                         for (let s = 1; s <= productForm.maxStage; s++) {
                           const cur = prev[s] || []
-                          newTitles[s] = Array.from({length: val}, (_, i) => cur[i] || '')
+                          newTitles[s] = Array.from({length: val}, (_, i) => cur[i] || { title:'', memo:'' })
                         }
                         return newTitles
                       })
@@ -1249,7 +1259,7 @@ export function Supplies({ user }) {
                     setProductStageTab(st)
                     setStageSessionTitles(prev => ({
                       ...prev,
-                      [st]: prev[st] || Array(productForm.sessionsPerStage).fill('')
+                      [st]: prev[st] || Array.from({length: productForm.sessionsPerStage}, () => ({title:'', memo:''}))
                     }))
                   }}
                   style={{ ...iStyle, background:'#fff' }}>
@@ -1260,7 +1270,7 @@ export function Supplies({ user }) {
                 </select>
               </div>
 
-              {/* 차시 제목 입력 */}
+              {/* 차시 제목 + 준비물 입력 */}
               <div style={{ border:`1px solid ${C.border}`, borderRadius:'10px', overflow:'hidden' }}>
                 {/* 헤더 */}
                 <div style={{ padding:'10px 14px', background:'#f9fafb', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -1268,45 +1278,54 @@ export function Supplies({ user }) {
                     📝 {productStageTab}단계 차시별 제목
                   </span>
                   <span style={{ fontSize:'11px', color:C.muted }}>
-                    {(stageSessionTitles[productStageTab]||[]).filter(t=>t.trim()).length} / {(stageSessionTitles[productStageTab]||[]).length}개 입력
+                    {(stageSessionTitles[productStageTab]||[]).filter(i => (i?.title||i||'').trim()).length} / {(stageSessionTitles[productStageTab]||[]).length}개 입력
                   </span>
                 </div>
 
+                {/* 컬럼 헤더 */}
+                <div style={{ padding:'6px 14px', background:'#fafafa', borderBottom:`1px solid ${C.border}`, display:'grid', gridTemplateColumns:'46px 1fr 1fr 28px', gap:'6px' }}>
+                  <span style={{ fontSize:'11px', color:C.muted, fontWeight:600 }}>차시</span>
+                  <span style={{ fontSize:'11px', color:C.muted, fontWeight:600 }}>제목</span>
+                  <span style={{ fontSize:'11px', color:C.muted, fontWeight:600 }}>준비물</span>
+                  <span></span>
+                </div>
+
                 {/* 차시 목록 */}
-                <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'5px', maxHeight:'300px', overflowY:'auto' }}>
-                  {(stageSessionTitles[productStageTab] || Array(productForm.sessionsPerStage).fill('')).map((title, idx) => (
-                    <div key={idx} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                      <span style={{ minWidth:'46px', fontSize:'12px', fontWeight:700, color:C.primary, flexShrink:0 }}>{idx+1}차시</span>
-                      <input
-                        value={title}
-                        onChange={e => {
-                          const val = e.target.value
-                          setStageSessionTitles(prev => {
-                            const cur = [...(prev[productStageTab] || Array(productForm.sessionsPerStage).fill(''))]
-                            cur[idx] = val
-                            return {...prev, [productStageTab]: cur}
-                          })
-                        }}
-                        placeholder={`${idx+1}차시 제목 (선택)`}
-                        style={{ ...iStyle, padding:'5px 9px', fontSize:'12px' }}
-                      />
-                      {/* 마지막 행에서만 삭제 버튼 (기본 12개 초과분) */}
-                      {idx >= productForm.sessionsPerStage && (
+                <div style={{ padding:'8px 14px', display:'flex', flexDirection:'column', gap:'5px', maxHeight:'380px', overflowY:'auto' }}>
+                  {(stageSessionTitles[productStageTab] || Array.from({length: productForm.sessionsPerStage}, () => ({title:'', memo:''}))).map((item, idx) => {
+                    const t = typeof item === 'string' ? item : (item?.title || '')
+                    const m = typeof item === 'string' ? '' : (item?.memo || '')
+                    const updateItem = (field, val) => {
+                      setStageSessionTitles(prev => {
+                        const cur = [...(prev[productStageTab] || Array.from({length: productForm.sessionsPerStage}, () => ({title:'', memo:''})))]
+                        cur[idx] = { ...cur[idx], title: field==='title' ? val : t, memo: field==='memo' ? val : m }
+                        return {...prev, [productStageTab]: cur}
+                      })
+                    }
+                    return (
+                      <div key={idx} style={{ display:'grid', gridTemplateColumns:'46px 1fr 1fr 28px', gap:'6px', alignItems:'center' }}>
+                        <span style={{ fontSize:'12px', fontWeight:700, color:C.primary }}>{idx+1}차시</span>
+                        <input value={t} onChange={e => updateItem('title', e.target.value)}
+                          placeholder="제목 (선택)"
+                          style={{ ...iStyle, padding:'5px 8px', fontSize:'12px' }} />
+                        <input value={m} onChange={e => updateItem('memo', e.target.value)}
+                          placeholder="준비물 (선택)"
+                          style={{ ...iStyle, padding:'5px 8px', fontSize:'12px' }} />
                         <button onClick={() => setStageSessionTitles(prev => {
                           const cur = [...(prev[productStageTab]||[])]
                           cur.splice(idx, 1)
                           return {...prev, [productStageTab]: cur}
-                        })} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', flexShrink:0, padding:0 }}>×</button>
-                      )}
-                    </div>
-                  ))}
+                        })} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', padding:0, lineHeight:1 }}>×</button>
+                      </div>
+                    )
+                  })}
                 </div>
 
                 {/* 차시 추가 버튼 */}
                 <div style={{ padding:'8px 14px', borderTop:`1px solid ${C.border}` }}>
                   <button onClick={() => setStageSessionTitles(prev => {
-                    const cur = [...(prev[productStageTab] || Array(productForm.sessionsPerStage).fill(''))]
-                    cur.push('')
+                    const cur = [...(prev[productStageTab] || Array.from({length: productForm.sessionsPerStage}, () => ({title:'', memo:''})))]
+                    cur.push({ title:'', memo:'' })
                     return {...prev, [productStageTab]: cur}
                   })} style={{ width:'100%', padding:'7px', borderRadius:'7px', border:`1.5px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
                     + 차시 추가
@@ -1627,6 +1646,22 @@ export function Supplies({ user }) {
                 style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#ef4444', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── 토스트 알림 */}
+      {toast && (
+        <div style={{
+          position:'fixed', bottom:'32px', left:'50%', transform:'translateX(-50%)',
+          zIndex:9000, pointerEvents:'none',
+          background: toast.type === 'info' ? '#18181b' : C.success,
+          color:'#fff', borderRadius:'10px', padding:'12px 24px',
+          fontSize:'14px', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif',
+          boxShadow:'0 8px 24px rgba(0,0,0,0.18)',
+          display:'flex', alignItems:'center', gap:'8px',
+          animation:'fadeInUp .2s ease',
+        }}>
+          {toast.type === 'info' ? '🗑 ' : '✅ '}{toast.msg}
         </div>
       )}
 
