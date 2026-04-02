@@ -456,6 +456,7 @@ export function Supplies({ user }) {
       } else {
         const fileType = (mode==='promo' || mode==='product_promo') ? 'promo'
           : mode==='product_annual' ? 'annual'
+          : mode==='product_session' ? 'session'
           : 'annual'
         setFileForm({
           fileType,
@@ -481,10 +482,10 @@ export function Supplies({ user }) {
     const autoTitle = autoProduct
       ? (fileModalMode === 'promo' || fileForm.fileType === 'promo'
           ? `${autoProduct.name} 홍보물`
-          : isSession
+          : (isSession || fileModalMode === 'product_session')
             ? `${autoProduct.name} ${fileForm.stage}단계 차시별 지도안`
             : `${autoProduct.name} 연간지도안`)
-      : (fileForm.fileType === 'promo' ? '홍보물' : '지도안')
+      : (fileForm.fileType === 'promo' ? '홍보물' : fileForm.fileType === 'session' ? '차시별지도안' : '지도안')
     setUploading(true)
     try {
       let fileUrl=null, fileName=null
@@ -557,6 +558,8 @@ export function Supplies({ user }) {
       ? [{ v:'annual', l:'📅 연간지도안' }, { v:'session', l:'📝 차시별지도안' }, { v:'promo', l:'🖼 홍보물' }]
     : fileModalMode === 'product_annual'
       ? [{ v:'annual', l:'📅 연간지도안' }]
+    : fileModalMode === 'product_session'
+      ? [{ v:'session', l:'📝 차시별지도안' }]
     : fileModalMode === 'product_promo'
       ? [{ v:'promo', l:'🖼 홍보물' }]
     : innerTab === 'promo'
@@ -566,6 +569,7 @@ export function Supplies({ user }) {
   // 파일 모달 타이틀
   const fileModalTitle =
     fileModalMode === 'product_annual' ? '📅 연간지도안 등록'
+    : fileModalMode === 'product_session' ? '📝 차시별지도안 등록'
     : fileModalMode === 'product_promo' ? '🖼 홍보물 등록'
     : fileModalMode === 'vendor'        ? '🏢 업체 파일 추가'
     : innerTab === 'promo'              ? '🖼 홍보물 등록'
@@ -1081,6 +1085,30 @@ export function Supplies({ user }) {
                                             </div>
                                           )}
                                         </div>
+
+                                        {/* 차시별지도안 파일 */}
+                                        {(() => {
+                                          const sessionPlans = planList.filter(pl => pl.productId===p.id && (pl.fileType==='session'||pl.type==='session'))
+                                          const registeredStages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
+                                          return (
+                                            <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
+                                              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
+                                                <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📝 차시별지도안 파일</span>
+                                                <button onClick={() => openFileModal('product_session', v.id, p.id)}
+                                                  style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                                  + 추가
+                                                </button>
+                                              </div>
+                                              {sessionPlans.length === 0 ? (
+                                                <div style={{ fontSize:'12px', color:C.muted }}>등록된 차시별지도안 파일이 없습니다</div>
+                                              ) : (
+                                                <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                                                  {sessionPlans.map(f => <FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('product_session', null, item.productId, item)}/>)}
+                                                </div>
+                                              )}
+                                            </div>
+                                          )
+                                        })()}
                                         {/* 홍보물 */}
                                         <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
                                           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
