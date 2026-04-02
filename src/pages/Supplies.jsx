@@ -404,7 +404,7 @@ export function Supplies({ user }) {
   }
   const saveFile = async () => {
     // 교구 선택 필수 (plan/session 모드)
-    const needsProduct = ['plan','session'].includes(fileModalMode)
+    const needsProduct = ['plan','session','promo'].includes(fileModalMode)
     if (needsProduct && !fileForm.productId) { alert('교구를 선택하세요'); return }
     // 차시별 지도안이면 단계도 필수
     const isSession = fileModalMode === 'session' || (fileModalMode === 'plan' && fileForm.fileType === 'session')
@@ -412,8 +412,12 @@ export function Supplies({ user }) {
     // 제목 자동 생성
     const autoProduct = productList.find(p => p.id === (fileProductTarget || fileForm.productId))
     const autoTitle = autoProduct
-      ? (isSession ? `${autoProduct.name} ${fileForm.stage}단계 차시별 지도안` : `${autoProduct.name} 연간지도안`)
-      : (fileForm.title || '지도안')
+      ? (fileModalMode === 'promo' || fileForm.fileType === 'promo'
+          ? `${autoProduct.name} 홍보물`
+          : isSession
+            ? `${autoProduct.name} ${fileForm.stage}단계 차시별 지도안`
+            : `${autoProduct.name} 연간지도안`)
+      : (fileForm.fileType === 'promo' ? '홍보물' : '지도안')
     setUploading(true)
     try {
       let fileUrl=null, fileName=null
@@ -1380,7 +1384,7 @@ export function Supplies({ user }) {
                 )}
 
                 {/* 교구 선택 — plan/session 모드 */}
-                {['plan','session'].includes(fileModalMode) && (
+                {['plan','session','promo'].includes(fileModalMode) && (
                   <div>
                     <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>교구 선택 *</label>
                     {modalProducts.length === 0 ? (
