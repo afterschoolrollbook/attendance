@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyStudentProgress, SupplySessionChecks, SupplyProducts } from '../lib/db.js'
 import { calcSessionDates, sortClasses, uid, now, getSessionInfo } from '../lib/utils.js'
 
 const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토']
@@ -313,6 +313,25 @@ export function Dashboard({ user, onNav }) {
     return notSet.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: notSet.length, total: confirmed.length }] : []
   })
 
+  // 진도 마감 알림 — alertSession 이상 완료한 학생
+  const progressAlerts = classes.flatMap(cls => {
+    const confirmed = StudentsDB.confirmed(cls.id)
+    return confirmed.flatMap(student => {
+      const items = SupplyItems.byClassStudent(cls.id, student.id)
+      return items.flatMap(item => {
+        if (!item.productId) return []
+        const product = SupplyProducts.find(item.productId)
+        if (!product) return []
+        const checks = SupplySessionChecks.byProductStudent(item.productId, student.id, cls.id)
+        const checkedCount = checks.filter(c => c.checked).length
+        const isDone = checkedCount >= product.sessionsPerStage
+        const isAlert = checkedCount >= product.alertSession && !isDone
+        if (!isAlert && !isDone) return []
+        return [{ student, cls, item, product, checkedCount, isDone }]
+      })
+    })
+  })
+
   const prevMonth = () => { if (calMonth === 0) { setCalYear(y=>y-1); setCalMonth(11) } else setCalMonth(m=>m-1) }
   const nextMonth = () => { if (calMonth === 11) { setCalYear(y=>y+1); setCalMonth(0) } else setCalMonth(m=>m+1) }
   const goToday = () => { const t = new Date(); setCalYear(t.getFullYear()); setCalMonth(t.getMonth()); setSelectedDate(today) }
@@ -340,6 +359,34 @@ export function Dashboard({ user, onNav }) {
           )}
         </div>
       </div>
+
+      {/* 진도 마감 알림 */}
+      {progressAlerts.length > 0 && (
+        <div style={{ background: '#fffbeb', borderRadius: '12px', border: '1.5px solid #fbbf24', padding: '14px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+            <span style={{ fontSize: '16px' }}>📋</span>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: '#92400e' }}>진도 체크 필요 — 단계 전환 준비</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {progressAlerts.map(({ student, cls, item, product, checkedCount, isDone }) => (
+              <div key={`${student.id}-${item.id}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#fff', borderRadius: '8px', border: `1px solid ${isDone ? '#86efac' : '#fde68a'}`, gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: '13px', color: '#111827' }}>
+                  <span style={{ fontWeight: 700 }}>{cls.organization}</span>
+                  <span style={{ color: '#6b7280' }}> · {student.name}</span>
+                  <span style={{ fontSize: '12px', color: '#6b7280', marginLeft: '6px' }}>🎒 {item.name || product.name}</span>
+                </div>
+                <span style={{ fontSize: '12px', fontWeight: 700,
+                  color: isDone ? '#15803d' : '#b45309',
+                  background: isDone ? '#f0fdf4' : '#fffbeb',
+                  border: `1px solid ${isDone ? '#86efac' : '#fde68a'}`,
+                  borderRadius: '6px', padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                  {isDone ? '✅ 단계 완료! 다음 단계 준비' : `⚠️ ${checkedCount}/${product.sessionsPerStage}차시 — 단계 전환 임박`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 교구 준비 알림 */}
       {supplyAlerts.length > 0 && (

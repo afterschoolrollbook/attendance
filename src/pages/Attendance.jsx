@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyStudentProgress, SupplySessionChecks, SupplyProducts } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 
@@ -238,7 +238,7 @@ function StudentMemoModal({ student, onClose, onSave }) {
 }
 
 // ─── 예정 수업 학생 행 — StudentRow 코드 완전 동일, 출석컬럼만 예정버튼으로 교체
-function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
+function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId }) {
   const note = s.memo || ''
   const [showInfo, setShowInfo] = useState(false)
   const [memoOpen, setMemoOpen] = useState(false)
@@ -265,15 +265,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
         <div style={{ textAlign: 'center' }}>
           <span onClick={() => onStudentClick(s)}
             style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
-          {(() => {
-            const items = SupplyItems.byClassStudent(s.classIds?.[0] || '', s.id)
-            if (!items.length) return null
-            return items.map((item, i) => (
-              <div key={i} style={{ fontSize: '10px', color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '4px', padding: '1px 5px', marginTop: '2px', display: 'inline-block' }}>
-                🎒 {item.name}{item.stage ? ` · ${item.stage}` : ''}
-              </div>
-            ))
-          })()}
+          <SupplyProgressBadge studentId={s.id} classId={classId || s.classIds?.[0] || ''} />
         </div>
 
         {/* 학부모 전화 — PhoneAction만 */}
@@ -328,7 +320,49 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
 }
 
 // ─── 단일 학생 출석 행
-function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
+// ─── 교구 + 진도 배지 (출석부·학생관리 공통)
+function SupplyProgressBadge({ studentId, classId, onEdit }) {
+  const items = SupplyItems.byClassStudent(classId, studentId)
+  if (!items.length) return null
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'2px', marginTop:'3px' }}>
+      {items.map((item, i) => {
+        const product = item.productId ? SupplyProducts.find(item.productId) : null
+        if (!product) return (
+          <div key={i} style={{ fontSize:'10px', color:'#7c3aed', background:'#f5f3ff', border:'1px solid #ddd6fe', borderRadius:'4px', padding:'1px 5px', display:'inline-block' }}>
+            🎒 {item.name || '교구 설정됨'}{item.stage ? ` · ${item.stage}단계` : ''}
+          </div>
+        )
+        const checks = SupplySessionChecks.byProductStudent(product.id, studentId, classId)
+        const checkedCount = checks.filter(c => c.checked).length
+        const total = product.sessionsPerStage || 12
+        const isDone  = checkedCount >= total
+        const isAlert = checkedCount >= (product.alertSession || 10) && !isDone
+        const color   = isDone ? '#15803d' : isAlert ? '#b45309' : '#7c3aed'
+        const bg      = isDone ? '#f0fdf4' : isAlert ? '#fffbeb' : '#f5f3ff'
+        const border  = isDone ? '#86efac' : isAlert ? '#fde68a' : '#ddd6fe'
+        const progress = SupplyStudentProgress.byStudent(studentId, classId).find(p => p.productId === product.id)
+        const stage = progress?.stage || item.stage || 1
+        return (
+          <div key={i} style={{ display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap' }}>
+            <div style={{ fontSize:'10px', color, background:bg, border:`1px solid ${border}`, borderRadius:'4px', padding:'1px 6px', display:'inline-flex', alignItems:'center', gap:'3px' }}>
+              🎒 {item.name || product.name} · {stage}단계 {checkedCount}/{total}차시
+              {isDone && ' ✅'}{isAlert && ' ⚠️'}
+            </div>
+            {onEdit && (
+              <button onClick={() => onEdit({ item, product, stage, checkedCount })}
+                style={{ fontSize:'9px', color:'#6b7280', background:'#f3f4f6', border:'1px solid #e5e7eb', borderRadius:'3px', padding:'0 4px', cursor:'pointer', lineHeight:'16px', fontFamily:'Noto Sans KR, sans-serif' }}>
+                수정
+              </button>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, classId }) {
   const status = rec?.status || 'pending'
   const cfg = ATTENDANCE_STATUS[status]
   const isPending = status === 'pending'
@@ -354,15 +388,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
         <div style={{ textAlign: 'center' }}>
           <span onClick={() => onStudentClick(s)}
             style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
-          {(() => {
-            const items = SupplyItems.byClassStudent(s.classIds?.[0] || '', s.id)
-            if (!items.length) return null
-            return items.map((item, i) => (
-              <div key={i} style={{ fontSize: '10px', color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '4px', padding: '1px 5px', marginTop: '2px', display: 'inline-block' }}>
-                🎒 {item.name}{item.stage ? ` · ${item.stage}` : ''}
-              </div>
-            ))
-          })()}
+          <SupplyProgressBadge studentId={s.id} classId={classId || s.classIds?.[0] || ''} />
         </div>
 
         {/* 학부모 전화 — 문자버튼 제거, PhoneAction만 */}
@@ -601,8 +627,8 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
           ? <div style={{ padding:'24px', textAlign:'center', color:C.muted, fontSize:'13px' }}>등록된 학생이 없습니다</div>
           : sorted.map((s, i) =>
               isFuture
-                ? <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
-                : <StudentRow      key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
+                ? <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} classId={cls.id} />
+                : <StudentRow      key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} classId={cls.id} />
             )
         }
         {inactiveStudents.length > 0 && (
@@ -865,7 +891,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                 <div>
                   {secStudents.map((s, i) => (
                     showAttendance
-                      ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
+                      ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} classId={selClassId} />
                       : (
                         <div key={s.id} style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom: i<secStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
                           <span style={{ fontSize:'12px', color:C.muted }}>{i+1}</span>

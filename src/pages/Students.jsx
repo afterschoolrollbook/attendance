@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, SupplyItems, SupplyStudentProgress, SupplySessionChecks, SupplyProducts } from '../lib/db.js'
 import { uid, now, fmtPhone, sortClasses } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox, Textarea } from '../components/Atoms.jsx'
 import { STUDENT_STATUS, GRADES, DAYS } from '../constants/config.js'
@@ -533,7 +533,7 @@ export function Students({ user, onNav }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '상태', '메모', '작업'].map(h => (
+                {['순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '교구 · 진도', '상태', '메모', '작업'].map(h => (
                   <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -568,6 +568,42 @@ export function Students({ user, onNav }) {
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: '14px', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>{s.name}</td>
                     <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtPhone(s.parentPhone) || '-'}</td>
+                    <td style={{ padding: '8px 14px', maxWidth: '200px' }}>
+                      {(() => {
+                        const classIds = s.classIds || []
+                        if (!classIds.length) return <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>
+                        const allItems = classIds.flatMap(cid => SupplyItems.byClassStudent(cid, s.id).map(item => ({ ...item, cid })))
+                        if (!allItems.length) return <span style={{ fontSize:'12px', color:'#d1d5db' }}>미설정</span>
+                        return (
+                          <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                            {allItems.map((item, i) => {
+                              const product = item.productId ? SupplyProducts.find(item.productId) : null
+                              if (!product) return (
+                                <span key={i} style={{ fontSize:'11px', color:'#7c3aed', background:'#f5f3ff', border:'1px solid #ddd6fe', borderRadius:'4px', padding:'1px 6px', display:'inline-block' }}>
+                                  🎒 {item.name || '교구설정됨'}
+                                </span>
+                              )
+                              const checks = SupplySessionChecks.byProductStudent(product.id, s.id, item.cid)
+                              const checkedCount = checks.filter(c => c.checked).length
+                              const total = product.sessionsPerStage || 12
+                              const isDone  = checkedCount >= total
+                              const isAlert = checkedCount >= (product.alertSession || 10) && !isDone
+                              const color  = isDone ? '#15803d' : isAlert ? '#b45309' : '#7c3aed'
+                              const bg     = isDone ? '#f0fdf4' : isAlert ? '#fffbeb' : '#f5f3ff'
+                              const border = isDone ? '#86efac' : isAlert ? '#fde68a' : '#ddd6fe'
+                              const progress = SupplyStudentProgress.byStudent(s.id, item.cid).find(p => p.productId === product.id)
+                              const stage = progress?.stage || item.stage || 1
+                              return (
+                                <span key={i} style={{ fontSize:'11px', color, background:bg, border:`1px solid ${border}`, borderRadius:'4px', padding:'1px 6px', display:'inline-block', whiteSpace:'nowrap' }}>
+                                  🎒 {item.name || product.name} · {stage}단계 {checkedCount}/{total}
+                                  {isDone ? ' ✅' : isAlert ? ' ⚠️' : ''}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )
+                      })()}
+                    </td>
                     <td style={{ padding: '11px 14px' }}>
                       <select value={s.status} onChange={e => changeStatus(s.id, e.target.value)}
                         style={{ padding: '4px 8px', borderRadius: '6px', border: `1.5px solid ${cfg.color}50`, background: cfg.bg, color: cfg.color, fontSize: '12px', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif', cursor: 'pointer', outline: 'none' }}>
