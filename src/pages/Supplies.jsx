@@ -1002,37 +1002,60 @@ export function Supplies({ user }) {
                                           <button onClick={() => deleteProduct(p.id)}
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
                                         </div>
-                                        {/* 단계별 차시지도안 - 등록된 단계 + 새 단계 추가 버튼 */}
+                                        {/* 단계별 차시지도안 */}
                                         <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
-                                          <div style={{ fontSize:'11px', fontWeight:600, color:C.muted, marginBottom:'5px' }}>📝 단계별 차시지도안</div>
-                                          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap', alignItems:'center' }}>
+                                          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
+                                            <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📝 단계별 차시지도안</span>
                                             {(() => {
                                               const registeredStages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
                                               const nextStage = registeredStages.length > 0 ? Math.max(...registeredStages) + 1 : 1
-                                              return (
-                                                <>
-                                                  {registeredStages.length === 0 && (
-                                                    <span style={{ fontSize:'11px', color:C.muted }}>등록된 차시 없음</span>
-                                                  )}
-                                                  {registeredStages.map(stage => {
-                                                    const cnt = productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage).length
-                                                    return (
-                                                      <button key={stage} onClick={() => openSessionPlan(p.id, stage)}
-                                                        style={{ padding:'3px 7px', borderRadius:'5px', border:'1px solid #86efac', background:'#f0fdf4', color:C.success, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:700 }}>
-                                                        {stage}단계 ({cnt})
-                                                      </button>
-                                                    )
-                                                  })}
-                                                  {nextStage <= (p.maxStage||10) && (
-                                                    <button onClick={() => openSessionPlan(p.id, nextStage)}
-                                                      style={{ padding:'3px 7px', borderRadius:'5px', border:`1.5px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                                                      + {nextStage}단계 추가
-                                                    </button>
-                                                  )}
-                                                </>
-                                              )
+                                              return nextStage <= (p.maxStage||10) ? (
+                                                <button onClick={() => openSessionPlan(p.id, nextStage)}
+                                                  style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                                  + {nextStage}단계 추가
+                                                </button>
+                                              ) : null
                                             })()}
                                           </div>
+                                          {(() => {
+                                            const registeredStages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
+                                            if (registeredStages.length === 0) return (
+                                              <div style={{ fontSize:'12px', color:C.muted }}>등록된 차시지도안이 없습니다</div>
+                                            )
+                                            return (
+                                              <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                                                {registeredStages.map(stage => {
+                                                  const cnt = productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage).length
+                                                  const stageItem = {
+                                                    id: `stage_${p.id}_${stage}`,
+                                                    title: `${p.name} ${stage}단계 차시지도안`,
+                                                    fileType: 'session',
+                                                    stage,
+                                                    fileUrl: true, // 차시지도안은 파일 없어도 경고 안함
+                                                    fileName: `${cnt}차시 등록됨`,
+                                                    school: null,
+                                                  }
+                                                  return (
+                                                    <div key={stage} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:C.card, borderRadius:'9px', border:`1px solid ${C.border}` }}>
+                                                      <span style={{ fontSize:'18px', flexShrink:0 }}>📝</span>
+                                                      <div style={{ flex:1, minWidth:0 }}>
+                                                        <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name} {stage}단계 차시지도안</div>
+                                                        <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px', display:'flex', gap:'8px' }}>
+                                                          <span style={{ background:'#f3f4f6', borderRadius:'4px', padding:'0 5px' }}>차시별지도안</span>
+                                                          <span style={{ background:'#eff6ff', color:C.blue, borderRadius:'4px', padding:'0 5px' }}>{stage}단계</span>
+                                                          <span style={{ color:C.success }}>{cnt}차시 등록됨</span>
+                                                        </div>
+                                                      </div>
+                                                      <button onClick={() => openSessionPlan(p.id, stage)}
+                                                        style={{ padding:'4px 10px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                                        수정
+                                                      </button>
+                                                    </div>
+                                                  )
+                                                })}
+                                              </div>
+                                            )
+                                          })()}
                                         </div>
                                         {/* 연간지도안 */}
                                         <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
