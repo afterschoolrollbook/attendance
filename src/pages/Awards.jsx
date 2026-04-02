@@ -54,7 +54,7 @@ export function AwardsPage({ user }) {
   const [preview, setPreview]       = useState(null)
   const [confirm, setConfirm]       = useState(null)
   const currentYear = String(new Date().getFullYear())
-  const [selYear, setSelYear] = useState(currentYear)
+  const [selYear, setSelYear] = useState('')
 
   const { toasts, success, error: toastError, info } = useToast()
 
@@ -63,8 +63,8 @@ export function AwardsPage({ user }) {
 
   const years    = [...new Set(records.map(r => r.year))].filter(Boolean).sort()
   const filtered = records
-    .filter(r => years.length === 0 || r.year === selYear)
-    .sort((a, b) => (b.awardedAt || '').localeCompare(a.awardedAt || ''))
+    .filter(r => !selYear || r.year === selYear)
+    .sort((a, b) => (a.awardedAt || '').localeCompare(b.awardedAt || ''))
 
   const openAdd  = () => { setForm(EMPTY_FORM); setEditId(null); setModalFile(null); setModal(true) }
   const openEdit = r => {
@@ -186,8 +186,12 @@ export function AwardsPage({ user }) {
       {/* 연도 탭 + 버튼 */}
       <div style={{ display:'flex', gap:'12px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center' }}>
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+          <button onClick={() => setSelYear('')}
+            style={{ padding:'6px 14px', borderRadius:'8px', border:`1.5px solid ${!selYear ? C.primary : C.border}`, background: !selYear ? '#fff7ed' : '#fff', color: !selYear ? C.primary : C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            전체
+          </button>
           {years.map(y => (
-            <button key={y} onClick={() => setSelYear(y)}
+            <button key={y} onClick={() => setSelYear(prev => prev === y ? '' : y)}
               style={{ padding:'6px 14px', borderRadius:'8px', border:`1.5px solid ${selYear===y ? C.primary : C.border}`, background: selYear===y ? '#fff7ed' : '#fff', color: selYear===y ? C.primary : C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
               {y}년
             </button>
@@ -195,7 +199,7 @@ export function AwardsPage({ user }) {
         </div>
         {filtered.length > 0 && (
           <div style={{ marginLeft:'auto', fontSize:'13px', color:'#7c3aed', fontWeight:700, background:'#f5f3ff', padding:'6px 14px', borderRadius:'8px', border:'1px solid #ddd6fe' }}>
-            🏅 {selYear}년 {filtered.length}건
+            🏅 {selYear ? `${selYear}년 ` : '전체 '}{filtered.length}건
           </div>
         )}
         {records.length > 0 && (
