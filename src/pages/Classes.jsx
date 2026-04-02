@@ -8,13 +8,39 @@ import { TERM_TYPES, REPEAT_TYPES } from '../constants/config.js'
 const VIEW_TABS = ['요일별', '학교별', '과목별']
 const DAY_ORDER = ['월', '화', '수', '목', '금', '토', '일']
 const MAX_PROMO_IMAGES = 2
+const MAX_NOTICE_FILES = 3
+
+// Supabase Storage 업로드
+async function uploadToStorage(userId, classId, folder, file) {
+  const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
+  const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+  if (!SUPABASE_URL || !SUPABASE_ANON) throw new Error('Supabase 환경변수가 설정되지 않았습니다.')
+  const ext      = file.name.split('.').pop().toLowerCase()
+  const filePath = `classes/${userId}/${classId}/${folder}/${Date.now()}_${file.name}`
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/teacher-files/${filePath}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON,
+      'Authorization': `Bearer ${SUPABASE_ANON}`,
+      'Content-Type': file.type || 'application/octet-stream',
+      'x-upsert': 'true',
+    },
+    body: file,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(`업로드 실패: ${err?.message || res.statusText}`)
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/teacher-files/${filePath}`
+}
 
 function emptyForm() {
   return {
     organization: '', className: '', section: '',
     termType: 'semester', termCount: 4, termSizes: [4,4,4,4], days: [], repeatType: 'every', time: '', timeEnd: '',
     startDate: '', endDate: '', description: '',
-    promotionImgs: [],
+    promotionImgs: [],   // Supabase Storage URL 배열
+    noticeFiles: [],     // 안내장 파일 { url, name, fileType } 배열
     templateFile: null,
     cancelledDates: [],
     makeupDates: [],
@@ -23,25 +49,18 @@ function emptyForm() {
   }
 }
 
-// 이미지 base64 변환
-async function toBase64(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader()
-    r.onload = e => res(e.target.result)
-    r.onerror = rej
-    r.readAsDataURL(file)
-  })
-}
-
 export function Classes({ user }) {
   const [view,    setView]    = useState('요일별')
   const [selYear, setSelYear] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState(emptyForm())
-  const [tab, setTab] = useState('info') // 'info' | 'promo' | 'template' | 'calendar'
+  const [tab, setTab] = useState('info') // 'info' | 'promo' | 'notice' | 'template' | 'calendar'
   const [deleteId, setDeleteId] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [noticePreview, setNoticePreview] = useState(null)
   const promoRef = useRef()
+  const noticeRef = useRef()
   const templateRef = useRef()
 
   const [alarmToast, setAlarmToast] = useState(null) // { className, minutesBefore, type: 'start'|'end' }
@@ -109,6 +128,7 @@ export function Classes({ user }) {
     setForm({
       ...clsWithoutId,
       promotionImgs: cls.promotionImgs || [],
+      noticeFiles: cls.noticeFiles || [],
       templateFile: cls.templateFile || null,
       alarm: cls.alarm || { enabled: false, minutesBefore: 10 },
       alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 },
@@ -117,12 +137,28 @@ export function Classes({ user }) {
       termCount: cls.termCount || 4,
       termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
     })
-    setEditId('__copy__')  // 복사 모드 표시
+    setEditId('__copy__')
     setTab('info')
     setShowModal(true)
   }
 
-  const openEdit = (cls) => { setForm({ ...cls, promotionImgs: cls.promotionImgs || [], templateFile: cls.templateFile || null, alarm: cls.alarm || { enabled: false, minutesBefore: 10 }, alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 }, cancelledDates: cls.cancelledDates || [], makeupDates: cls.makeupDates || [], termCount: cls.termCount || 4, termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4] }); setEditId(cls.id); setTab('info'); setShowModal(true) }
+  const openEdit = (cls) => {
+    setForm({
+      ...cls,
+      promotionImgs: cls.promotionImgs || [],
+      noticeFiles: cls.noticeFiles || [],
+      templateFile: cls.templateFile || null,
+      alarm: cls.alarm || { enabled: false, minutesBefore: 10 },
+      alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 },
+      cancelledDates: cls.cancelledDates || [],
+      makeupDates: cls.makeupDates || [],
+      termCount: cls.termCount || 4,
+      termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
+    })
+    setEditId(cls.id)
+    setTab('info')
+    setShowModal(true)
+  }
 
   const save = () => {
     if (!form.organization.trim() || !form.className.trim() || !form.days.length || !form.startDate || !form.endDate) {
@@ -140,15 +176,20 @@ export function Classes({ user }) {
 
   const del = () => { ClassesDB.delete(deleteId); setDeleteId(null) }
 
-  // 홍보물 이미지 추가
+  // 홍보물 이미지 — Supabase Storage 업로드
   const handlePromoFile = async (e) => {
     const files = Array.from(e.target.files)
     const current = form.promotionImgs || []
     const remaining = MAX_PROMO_IMAGES - current.length
     if (remaining <= 0) { alert('최대 2장까지 등록 가능합니다.'); return }
     const toAdd = files.slice(0, remaining)
-    const bases = await Promise.all(toAdd.map(toBase64))
-    set('promotionImgs', [...current, ...bases])
+    const classId = editId && editId !== '__copy__' ? editId : ('tmp_' + uid())
+    setUploading(true)
+    try {
+      const urls = await Promise.all(toAdd.map(f => uploadToStorage(user.id, classId, 'promo', f)))
+      set('promotionImgs', [...current, ...urls])
+    } catch(err) { alert('업로드 실패: ' + err.message) }
+    finally { setUploading(false) }
     e.target.value = ''
   }
 
@@ -156,14 +197,47 @@ export function Classes({ user }) {
     set('promotionImgs', form.promotionImgs.filter((_, i) => i !== idx))
   }
 
-  // 출석부 양식 파일
+  // 안내장 파일 — Supabase Storage 업로드 (jpg/png/pdf)
+  const handleNoticeFile = async (e) => {
+    const files = Array.from(e.target.files)
+    const current = form.noticeFiles || []
+    const remaining = MAX_NOTICE_FILES - current.length
+    if (remaining <= 0) { alert(`최대 ${MAX_NOTICE_FILES}개까지 등록 가능합니다.`); return }
+    const allowed = ['image/jpeg','image/png','application/pdf']
+    const valid = files.filter(f => allowed.includes(f.type)).slice(0, remaining)
+    if (valid.length < files.length) alert('jpg, png, pdf 파일만 업로드 가능합니다.')
+    if (!valid.length) return
+    const classId = editId && editId !== '__copy__' ? editId : ('tmp_' + uid())
+    setUploading(true)
+    try {
+      const results = await Promise.all(valid.map(async f => ({
+        url: await uploadToStorage(user.id, classId, 'notice', f),
+        name: f.name,
+        fileType: f.type,
+      })))
+      set('noticeFiles', [...current, ...results])
+    } catch(err) { alert('업로드 실패: ' + err.message) }
+    finally { setUploading(false) }
+    e.target.value = ''
+  }
+
+  const removeNotice = (idx) => {
+    set('noticeFiles', (form.noticeFiles || []).filter((_, i) => i !== idx))
+  }
+
+  // 출석부 양식 — Supabase Storage 업로드
   const handleTemplateFile = async (e) => {
     const file = e.target.files[0]
     if (!file) return
     const ext = file.name.split('.').pop().toLowerCase()
     const fileType = (ext === 'hwp' || ext === 'hwpx') ? 'hwp' : 'xlsx'
-    const data = await toBase64(file)
-    set('templateFile', { name: file.name, fileType, data })
+    const classId = editId && editId !== '__copy__' ? editId : ('tmp_' + uid())
+    setUploading(true)
+    try {
+      const url = await uploadToStorage(user.id, classId, 'template', file)
+      set('templateFile', { name: file.name, fileType, url })
+    } catch(err) { alert('업로드 실패: ' + err.message) }
+    finally { setUploading(false) }
     e.target.value = ''
   }
 
@@ -315,6 +389,7 @@ export function Classes({ user }) {
             { key: 'info',     label: '기본 정보' },
             { key: 'calendar', label: '수업 달력' },
             { key: 'promo',    label: `홍보물 ${form.promotionImgs?.length ? `(${form.promotionImgs.length})` : ''}` },
+            { key: 'notice',   label: `안내장 ${form.noticeFiles?.length ? `(${form.noticeFiles.length})` : ''}` },
             { key: 'template', label: `출석부 양식 ${form.templateFile ? '✓' : ''}` },
           ].map(s => (
             <button key={s.key} onClick={() => setTab(s.key)} style={{
@@ -495,6 +570,41 @@ export function Classes({ user }) {
           </div>
         )}
 
+        {/* ── 안내장 */}
+        {tab === 'notice' && (
+          <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+            <div style={{ fontSize:'13px', color:'#6b7280', lineHeight:1.7, background:'#f9fafb', padding:'12px 14px', borderRadius:'8px' }}>
+              학교에서 받은 <strong>수업 안내장</strong>을 등록합니다.<br />
+              지원 형식: <strong>JPG, PNG, PDF</strong> · 최대 {MAX_NOTICE_FILES}개
+            </div>
+
+            <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+              {(form.noticeFiles || []).map((f, i) => (
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 16px', background:'#f9fafb', borderRadius:'10px', border:'1px solid #e5e7eb' }}>
+                  <span style={{ fontSize:'24px' }}>{f.fileType === 'application/pdf' ? '📄' : '🖼'}</span>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:'13px', fontWeight:600, color:'#111827' }}>{f.name}</div>
+                    <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>{f.fileType}</div>
+                  </div>
+                  <button onClick={() => setNoticePreview(f)}
+                    style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #bfdbfe', background:'#eff6ff', color:'#1d4ed8', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>미리보기</button>
+                  <button onClick={() => removeNotice(i)}
+                    style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                </div>
+              ))}
+              {(form.noticeFiles || []).length < MAX_NOTICE_FILES && (
+                <button onClick={() => noticeRef.current?.click()}
+                  style={{ padding:'24px', borderRadius:'10px', border:'2px dashed #e5e7eb', background:'#f9fafb', cursor:'pointer', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', color:'#9ca3af' }}>
+                  <div style={{ fontSize:'28px', marginBottom:'6px' }}>📎</div>
+                  <div style={{ fontSize:'13px', fontWeight:600 }}>안내장 추가</div>
+                  <div style={{ fontSize:'11px', marginTop:'3px' }}>JPG · PNG · PDF</div>
+                </button>
+              )}
+            </div>
+            <input ref={noticeRef} type="file" accept="image/jpeg,image/png,application/pdf" multiple onChange={handleNoticeFile} style={{ display:'none' }} />
+          </div>
+        )}
+
         {/* ── 출석부 양식 */}
         {tab === 'template' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -511,9 +621,16 @@ export function Classes({ user }) {
                   <div>
                     <div style={{ fontSize: '14px', fontWeight: 700, color: '#111827' }}>{form.templateFile.name}</div>
                     <div style={{ fontSize: '12px', color: '#16a34a' }}>.{form.templateFile.fileType} 양식 등록됨</div>
+                    {form.templateFile.url && (
+                      <a href={form.templateFile.url} download={form.templateFile.name} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: '11px', color: '#3b82f6', textDecoration: 'none', marginTop: '2px', display: 'inline-block' }}>⬇ 다운로드</a>
+                    )}
                   </div>
                 </div>
-                <Btn size="sm" variant="outlineDanger" onClick={() => set('templateFile', null)}>삭제</Btn>
+                <div style={{ display:'flex', gap:'8px' }}>
+                  <Btn size="sm" variant="ghost" onClick={() => templateRef.current?.click()}>교체</Btn>
+                  <Btn size="sm" variant="outlineDanger" onClick={() => set('templateFile', null)}>삭제</Btn>
+                </div>
               </div>
             ) : (
               <button onClick={() => templateRef.current?.click()}
@@ -648,6 +765,38 @@ export function Classes({ user }) {
           <Btn variant="danger" onClick={del}>삭제</Btn>
         </div>
       </Modal>
+
+      {/* 안내장 미리보기 모달 */}
+      {noticePreview && (
+        <div onClick={() => setNoticePreview(null)}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:3000, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'16px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:'14px', overflow:'hidden', maxWidth:'800px', width:'100%', maxHeight:'90vh', display:'flex', flexDirection:'column' }}>
+            <div style={{ padding:'12px 18px', borderBottom:'1px solid #e5e7eb', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:'14px', fontWeight:700 }}>{noticePreview.name}</span>
+              <div style={{ display:'flex', gap:'8px' }}>
+                <a href={noticePreview.url} download={noticePreview.name} target="_blank" rel="noopener noreferrer"
+                  style={{ padding:'6px 14px', borderRadius:'8px', background:'#f0fdf4', border:'1.5px solid #86efac', color:'#16a34a', fontSize:'12px', fontWeight:700, textDecoration:'none' }}>⬇ 다운로드</a>
+                <button onClick={() => setNoticePreview(null)}
+                  style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#6b7280' }}>×</button>
+              </div>
+            </div>
+            <div style={{ overflow:'auto', flex:1, display:'flex', alignItems:'center', justifyContent:'center', background:'#f9fafb', padding:'16px' }}>
+              {noticePreview.fileType === 'application/pdf' ? (
+                <iframe src={noticePreview.url} title={noticePreview.name} style={{ width:'100%', height:'600px', border:'none', borderRadius:'8px' }} />
+              ) : (
+                <img src={noticePreview.url} alt={noticePreview.name} style={{ maxWidth:'100%', maxHeight:'100%', borderRadius:'8px', objectFit:'contain' }} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 업로딩 오버레이 */}
+      {uploading && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:4000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div style={{ background:'#fff', borderRadius:'12px', padding:'24px 36px', fontSize:'14px', fontWeight:600 }}>📤 업로드 중...</div>
+        </div>
+      )}
     </div>
   )
 }
