@@ -983,11 +983,18 @@ export function Supplies({ user }) {
                                           <span style={{ fontSize:'18px' }}>🤖</span>
                                           <div style={{ flex:1 }}>
                                             <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name}</div>
-                                            <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
-                                              <span>최대 {p.maxStage||10}단계 · 단계당 {p.sessionsPerStage||12}차시</span>
-                                              {planCount > 0    && <span style={{ color:C.purple }}>차시지도안 {planCount}개</span>}
-                                              {annualPlans.length > 0 && <span style={{ color:C.blue }}>연간지도안 {annualPlans.length}개</span>}
-                                              {promos.length > 0      && <span style={{ color:C.success }}>홍보물 {promos.length}개</span>}
+                                            <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px', display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
+                                              {/* 등록된 단계별 차시 수 */}
+                                              {(() => {
+                                                const registeredStages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
+                                                if (registeredStages.length === 0) return <span style={{ color:C.danger }}>차시지도안 미등록</span>
+                                                return registeredStages.map(st => {
+                                                  const cnt = productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===st).length
+                                                  return <span key={st} style={{ background:'#f5f3ff', color:'#7c3aed', borderRadius:'4px', padding:'1px 6px' }}>{st}단계({cnt}차시)</span>
+                                                })
+                                              })()}
+                                              {annualPlans.length > 0 && <span style={{ background:'#eff6ff', color:C.blue, borderRadius:'4px', padding:'1px 6px' }}>연간지도안 {annualPlans.length}개</span>}
+                                              {promos.length > 0      && <span style={{ background:'#f0fdf4', color:C.success, borderRadius:'4px', padding:'1px 6px' }}>홍보물 {promos.length}개</span>}
                                             </div>
                                           </div>
                                           <button onClick={() => openProductModal(v.id, p)}
@@ -995,19 +1002,36 @@ export function Supplies({ user }) {
                                           <button onClick={() => deleteProduct(p.id)}
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
                                         </div>
-                                        {/* 단계별 차시지도안 */}
+                                        {/* 단계별 차시지도안 - 등록된 단계 + 새 단계 추가 버튼 */}
                                         <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
                                           <div style={{ fontSize:'11px', fontWeight:600, color:C.muted, marginBottom:'5px' }}>📝 단계별 차시지도안</div>
-                                          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
-                                            {STAGES.slice(0, p.maxStage||10).map(stage => {
-                                              const cnt = productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage).length
+                                          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap', alignItems:'center' }}>
+                                            {(() => {
+                                              const registeredStages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
+                                              const nextStage = registeredStages.length > 0 ? Math.max(...registeredStages) + 1 : 1
                                               return (
-                                                <button key={stage} onClick={() => openSessionPlan(p.id, stage)}
-                                                  style={{ padding:'3px 7px', borderRadius:'5px', border:`1px solid ${cnt>0?'#86efac':C.border}`, background: cnt>0?'#f0fdf4':'#fff', color: cnt>0?C.success:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: cnt>0?700:400 }}>
-                                                  {stage}단계{cnt>0?` (${cnt})`:''}
-                                                </button>
+                                                <>
+                                                  {registeredStages.length === 0 && (
+                                                    <span style={{ fontSize:'11px', color:C.muted }}>등록된 차시 없음</span>
+                                                  )}
+                                                  {registeredStages.map(stage => {
+                                                    const cnt = productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage).length
+                                                    return (
+                                                      <button key={stage} onClick={() => openSessionPlan(p.id, stage)}
+                                                        style={{ padding:'3px 7px', borderRadius:'5px', border:'1px solid #86efac', background:'#f0fdf4', color:C.success, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:700 }}>
+                                                        {stage}단계 ({cnt})
+                                                      </button>
+                                                    )
+                                                  })}
+                                                  {nextStage <= (p.maxStage||10) && (
+                                                    <button onClick={() => openSessionPlan(p.id, nextStage)}
+                                                      style={{ padding:'3px 7px', borderRadius:'5px', border:`1.5px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                                      + {nextStage}단계 추가
+                                                    </button>
+                                                  )}
+                                                </>
                                               )
-                                            })}
+                                            })()}
                                           </div>
                                         </div>
                                         {/* 연간지도안 */}
@@ -1051,23 +1075,7 @@ export function Supplies({ user }) {
                               )}
                             </div>
 
-                            {/* 업체 파일 */}
-                            <div style={{ padding:'14px 18px' }}>
-                              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
-                                <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>📄 업체 제공 자료</span>
-                                <button onClick={() => openFileModal('vendor', v.id)}
-                                  style={{ padding:'4px 12px', borderRadius:'6px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                                  + 파일 추가
-                                </button>
-                              </div>
-                              {vFiles.length === 0 ? (
-                                <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'12px 0' }}>등록된 파일이 없습니다</div>
-                              ) : (
-                                <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                                  {vFiles.map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('vendor', item.vendorId, null, item)}/>)}
-                                </div>
-                              )}
-                            </div>
+
                           </div>
                         )}
                       </div>
