@@ -79,14 +79,16 @@ function mergeRecords(local, remote) {
 }
 
 // ─── 동기화 대상 테이블 목록
-// 기존 핵심 테이블 + 내 관리 / 수익 관련 테이블 추가
 const SYNC_TABLES = [
-  // 기존
+  // 기존 핵심
   'users', 'classes', 'students', 'attendance', 'notes',
   'adSlots', 'attendanceTemplates',
-  // 신규 — 내 관리 / 수익
+  // 수익 관리
   'revenueFees', 'revenuePayments',
-  'trainings', 'careers', 'certificates', 'jobSubs',
+  // 내 관리 (강사)
+  'trainings', 'careers', 'educations', 'certificates', 'awards', 'jobSubs',
+  // 학부모 / 포인트 / 지사
+  'branches', 'points', 'parentMembers', 'teacherParentLinks',
   // 교구 관리
   'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
   // 로봇 교구 진도
