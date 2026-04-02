@@ -1539,7 +1539,7 @@ export function Supplies({ user }) {
                 </div>
 
                 {/* 차시 목록 */}
-                <div style={{ padding:'8px 14px', display:'flex', flexDirection:'column', gap:'5px', maxHeight:'380px', overflowY:'auto' }}>
+                <div style={{ padding:'8px 14px', display:'flex', flexDirection:'column', gap:'5px', maxHeight:'220px', overflowY:'auto' }}>
                   {(stageSessionTitles[productStageTab] || Array.from({length: productForm.sessionsPerStage}, () => ({title:'', memo:''}))).map((item, idx) => {
                     const t = typeof item === 'string' ? item : (item?.title || '')
                     const m = typeof item === 'string' ? '' : (item?.memo || '')
@@ -1581,17 +1581,18 @@ export function Supplies({ user }) {
                 </div>
               </div>
 
-              {/* 저장 버튼 */}
-              <div style={{ display:'flex', gap:'8px' }}>
-                <button onClick={saveProduct}
-                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                  저장
-                </button>
-                <button onClick={() => setProductModal(false)}
-                  style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
-                  취소
-                </button>
-              </div>
+            </div>
+
+            {/* 저장/취소 버튼 — footer 고정 */}
+            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, display:'flex', gap:'8px', flexShrink:0 }}>
+              <button onClick={saveProduct}
+                style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                저장
+              </button>
+              <button onClick={() => setProductModal(false)}
+                style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
+                취소
+              </button>
             </div>
           </div>
         </div>
