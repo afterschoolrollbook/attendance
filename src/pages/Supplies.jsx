@@ -513,7 +513,12 @@ export function Supplies({ user }) {
                       {robotProducts.length === 0 ? (
                         <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>
                           <div style={{ fontSize:'36px', marginBottom:'10px' }}>🤖</div>
-                          교구업체 탭에서 교구를 먼저 등록하세요
+                          <div style={{ marginBottom:'14px' }}>등록된 교구가 없습니다.</div>
+                          <button
+                            onClick={() => { setRobotView('assign'); setInnerTab('vendor') }}
+                            style={{ fontSize:'13px', color:C.primary, background:'#fff7ed', border:`1.5px solid ${C.primary}`, borderRadius:'8px', padding:'8px 18px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:700 }}>
+                            🏢 교구업체 · 교구 등록하러 가기 →
+                          </button>
                         </div>
                       ) : robotProducts.map(product => {
                         const sessionsPerStage = product.sessionsPerStage || 12
@@ -786,7 +791,14 @@ export function Supplies({ user }) {
                       ))}
                     </select>
                     {robotProducts.length === 0 && (
-                      <div style={{ fontSize:'11px', color:C.warning, marginTop:'4px' }}>교구업체 탭에서 교구를 먼저 등록하세요</div>
+                      <div style={{ fontSize:'12px', color:C.warning, marginTop:'6px', display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+                        <span>⚠️ 등록된 교구가 없습니다.</span>
+                        <button
+                          onClick={() => { setSupplyModal(false); setInnerTab('vendor') }}
+                          style={{ fontSize:'12px', color:C.primary, background:'#fff7ed', border:`1px solid ${C.primary}`, borderRadius:'5px', padding:'2px 9px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                          🏢 교구업체·교구 등록하러 가기 →
+                        </button>
+                      </div>
                     )}
                   </div>
                   <div>
