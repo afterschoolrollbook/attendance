@@ -158,7 +158,10 @@ export function Supplies({ user }) {
     } else {
       setSubjects(dbSubjects.sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0)).map(s=>s.name))
     }
-    setVendorList(SupplyVendors.byTeacher(user.id))
+    const vendors = SupplyVendors.byTeacher(user.id)
+    setVendorList(vendors)
+    // 첫 업체 자동 펼침 (아직 펼쳐진 것 없을 때만)
+    setExpandedVendor(prev => prev || (vendors.length > 0 ? vendors[0].id : null))
     setProductList(SupplyProducts.byTeacher(user.id))
     setProductPlanList(SupplyProductPlans.byTeacher(user.id))
     setItemList(SupplyItems.byTeacher(user.id))
@@ -759,10 +762,16 @@ export function Supplies({ user }) {
             <div>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
                 <div style={{ fontSize:'13px', color:C.muted }}>교구업체별 담당자 · 교구 목록 · 업체 제공 자료를 관리합니다.</div>
-                <button onClick={() => setVendorModal(true)}
-                  style={{ padding:'8px 18px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                  + 업체 등록
-                </button>
+                <div style={{ display:'flex', gap:'8px' }}>
+                  <button onClick={() => openProductModal(null)}
+                    style={{ padding:'8px 18px', borderRadius:'9px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                    + 교구 등록
+                  </button>
+                  <button onClick={() => setVendorModal(true)}
+                    style={{ padding:'8px 18px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                    + 업체 등록
+                  </button>
+                </div>
               </div>
 
               {subjectVendors.length === 0 ? (
@@ -1157,6 +1166,28 @@ export function Supplies({ user }) {
             </div>
 
             <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px', overflowY:'auto' }}>
+
+              {/* 업체 선택 — 업체 없이 열었을 때 */}
+              {!productVendorId && (
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>업체 선택</label>
+                  {subjectVendors.length === 0 ? (
+                    <div style={{ fontSize:'12px', color:C.warning, background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'8px 12px', display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                      <span>⚠️ 등록된 업체가 없습니다.</span>
+                      <button onClick={() => { setProductModal(false); setVendorModal(true) }}
+                        style={{ fontSize:'12px', color:C.primary, background:'#fff7ed', border:`1px solid ${C.primary}`, borderRadius:'5px', padding:'2px 9px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                        + 업체 먼저 등록하기
+                      </button>
+                    </div>
+                  ) : (
+                    <select value={productVendorId||''} onChange={e => setProductVendorId(e.target.value||null)}
+                      style={{ ...iStyle, background:'#fff' }}>
+                      <option value=''>-- 업체 선택 (선택 안 해도 됨) --</option>
+                      {subjectVendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    </select>
+                  )}
+                </div>
+              )}
 
               {/* 교구명 */}
               <div>
