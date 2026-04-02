@@ -35,19 +35,23 @@ async function uploadToStorage(userId, folder, file) {
 const iStyle = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
 
 // ── 파일 행
-function FileRow({ item, onDelete }) {
+function FileRow({ item, onDelete, onEdit }) {
   const icon = item.fileType === 'promo' ? '🖼' : '📄'
   const typeLabel = { annual:'연간지도안', session:'차시별지도안', promo:'홍보물' }[item.fileType] || ''
+  const noFile = !item.fileUrl
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:C.card, borderRadius:'9px', border:`1px solid ${C.border}` }}>
-      <span style={{ fontSize:'20px', flexShrink:0 }}>{icon}</span>
+    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:C.card, borderRadius:'9px', border:`1.5px solid ${noFile ? '#fca5a5' : C.border}` }}>
+      <span style={{ fontSize:'20px', flexShrink:0 }}>{noFile ? '⚠️' : icon}</span>
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ fontSize:'13px', fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</div>
-        <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
-          <span style={{ background:'#f3f4f6', borderRadius:'4px', padding:'0 5px' }}>{typeLabel}</span>
+        <div style={{ fontSize:'11px', marginTop:'2px', display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
+          <span style={{ background:'#f3f4f6', borderRadius:'4px', padding:'0 5px', color:C.muted }}>{typeLabel}</span>
           {item.stage && <span style={{ background:'#eff6ff', color:'#3b82f6', borderRadius:'4px', padding:'0 5px' }}>{item.stage}단계</span>}
-          {item.school && <span>🏫 {item.school}</span>}
-          {item.fileName && <span>{item.fileName}</span>}
+          {item.school && <span style={{ color:C.muted }}>🏫 {item.school}</span>}
+          {noFile
+            ? <span style={{ color:'#ef4444', fontWeight:600 }}>파일 업로드가 필요합니다</span>
+            : <span style={{ color:C.muted }}>{item.fileName}</span>
+          }
         </div>
       </div>
       <div style={{ display:'flex', gap:'5px', flexShrink:0 }}>
@@ -56,6 +60,12 @@ function FileRow({ item, onDelete }) {
             style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #86efac', background:'#f0fdf4', color:C.success, fontSize:'11px', fontWeight:600, textDecoration:'none' }}>
             ⬇ 다운
           </a>
+        )}
+        {onEdit && (
+          <button onClick={() => onEdit(item)}
+            style={{ padding:'4px 10px', borderRadius:'6px', border:`1px solid ${'#f97316'}`, background:'#fff7ed', color:'#f97316', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            수정
+          </button>
         )}
         <button onClick={() => onDelete(item.id)}
           style={{ padding:'4px 9px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
@@ -426,20 +436,34 @@ export function Supplies({ user }) {
   }
 
   // 파일 등록
-  const openFileModal = (mode, vendorId=null, productId=null) => {
+  const [fileEditId, setFileEditId] = useState(null)  // 수정 중인 파일 id
+
+  const openFileModal = (mode, vendorId=null, productId=null, editItem=null) => {
     try {
       setFileModalMode(mode)
       setFileTarget(vendorId || null)
       setFileProductTarget(productId || null)
-      const fileType = (mode==='promo' || mode==='product_promo') ? 'promo'
-        : mode==='product_annual' ? 'annual'
-        : 'annual'
-      setFileForm({
-        fileType,
-        schools:[], stage:'',
-        vendorId: vendorId||'',
-        productId: productId||'',
-      })
+      setFileEditId(editItem?.id || null)
+      if (editItem) {
+        // 수정 모드 — 기존 값 로드
+        setFileForm({
+          fileType: editItem.fileType || editItem.type || 'annual',
+          schools: editItem.school ? [editItem.school] : [],
+          stage: editItem.stage || '',
+          vendorId: editItem.vendorId || '',
+          productId: editItem.productId || '',
+        })
+      } else {
+        const fileType = (mode==='promo' || mode==='product_promo') ? 'promo'
+          : mode==='product_annual' ? 'annual'
+          : 'annual'
+        setFileForm({
+          fileType,
+          schools:[], stage:'',
+          vendorId: vendorId||'',
+          productId: productId||'',
+        })
+      }
       setModalFile(null); setFileModal(true)
     } catch(e) {
       console.error('openFileModal error:', e)
@@ -468,20 +492,34 @@ export function Supplies({ user }) {
         fileUrl = await uploadToStorage(user.id, `${selSubject}/${fileForm.fileType}`, modalFile)
         fileName = modalFile.name
       }
-      // 학교 다중 저장: schools 배열 각각 insert (빈 배열이면 schools=null로 1건)
-      const schoolsToSave = fileForm.schools.length > 0 ? fileForm.schools : [null]
-      schoolsToSave.forEach(school => {
-        SupplyPlans.insert({
-          id: uid(), teacherId: user.id, subject: selSubject,
-          type: fileForm.fileType, fileType: fileForm.fileType,
+      if (fileEditId) {
+        // 수정 모드 — 파일만 교체하거나 내용 업데이트
+        SupplyPlans.update(fileEditId, {
           title: autoTitle,
-          school: school || null,
-          vendorId: fileTarget||null,
+          fileType: fileForm.fileType,
+          type: fileForm.fileType,
+          school: fileForm.schools[0] || null,
           productId: fileProductTarget || fileForm.productId || null,
           stage: fileForm.stage || null,
-          fileUrl, fileName, createdAt: now(),
+          ...(fileUrl ? { fileUrl, fileName } : {}),
         })
-      })
+        setFileEditId(null)
+      } else {
+        // 학교 다중 저장: schools 배열 각각 insert (빈 배열이면 schools=null로 1건)
+        const schoolsToSave = fileForm.schools.length > 0 ? fileForm.schools : [null]
+        schoolsToSave.forEach(school => {
+          SupplyPlans.insert({
+            id: uid(), teacherId: user.id, subject: selSubject,
+            type: fileForm.fileType, fileType: fileForm.fileType,
+            title: autoTitle,
+            school: school || null,
+            vendorId: fileTarget||null,
+            productId: fileProductTarget || fileForm.productId || null,
+            stage: fileForm.stage || null,
+            fileUrl, fileName, createdAt: now(),
+          })
+        })
+      }
       reload(); setFileModal(false); setModalFile(null); showToast('저장이 완료되었습니다.')
     } catch(e) { alert('업로드 실패: '+e.message) }
     finally { setUploading(false) }
@@ -833,8 +871,8 @@ export function Supplies({ user }) {
                 const schools  = [...new Set(planItems.filter(p=>p.school).map(p=>p.school))]
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                    {noSchool.length > 0 && <div><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📁 공통 자료</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{noSchool.map(p=><FileRow key={p.id} item={p} onDelete={deleteFile}/>)}</div></div>}
-                    {schools.map(school => <div key={school}><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🏫 {school}</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{planItems.filter(p=>p.school===school).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile}/>)}</div></div>)}
+                    {noSchool.length > 0 && <div><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📁 공통 자료</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{noSchool.map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('plan', null, item.productId, item)}/>)}</div></div>}
+                    {schools.map(school => <div key={school}><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🏫 {school}</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{planItems.filter(p=>p.school===school).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('plan', null, item.productId, item)}/>)}</div></div>)}
                   </div>
                 )
               })()}
@@ -858,8 +896,8 @@ export function Supplies({ user }) {
                 const schools  = [...new Set(promoItems.filter(p=>p.school).map(p=>p.school))]
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                    {noSchool.length > 0 && <div><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📁 공통 홍보물</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{noSchool.map(p=><FileRow key={p.id} item={p} onDelete={deleteFile}/>)}</div></div>}
-                    {schools.map(school => <div key={school}><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🏫 {school}</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{promoItems.filter(p=>p.school===school).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile}/>)}</div></div>)}
+                    {noSchool.length > 0 && <div><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📁 공통 홍보물</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{noSchool.map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('promo', null, item.productId, item)}/>)}</div></div>}
+                    {schools.map(school => <div key={school}><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🏫 {school}</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{promoItems.filter(p=>p.school===school).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('promo', null, item.productId, item)}/>)}</div></div>)}
                   </div>
                 )
               })()}
@@ -985,7 +1023,7 @@ export function Supplies({ user }) {
                                             <div style={{ fontSize:'12px', color:C.muted }}>등록된 연간지도안이 없습니다</div>
                                           ) : (
                                             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                                              {annualPlans.map(f => <FileRow key={f.id} item={f} onDelete={deleteFile}/>)}
+                                              {annualPlans.map(f => <FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('product_annual', null, item.productId, item)}/>)}
                                             </div>
                                           )}
                                         </div>
@@ -1002,7 +1040,7 @@ export function Supplies({ user }) {
                                             <div style={{ fontSize:'12px', color:C.muted }}>등록된 홍보물이 없습니다</div>
                                           ) : (
                                             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                                              {promos.map(f => <FileRow key={f.id} item={f} onDelete={deleteFile}/>)}
+                                              {promos.map(f => <FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('product_promo', null, item.productId, item)}/>)}
                                             </div>
                                           )}
                                         </div>
@@ -1026,7 +1064,7 @@ export function Supplies({ user }) {
                                 <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'12px 0' }}>등록된 파일이 없습니다</div>
                               ) : (
                                 <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                                  {vFiles.map(f=><FileRow key={f.id} item={f} onDelete={deleteFile}/>)}
+                                  {vFiles.map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('vendor', item.vendorId, null, item)}/>)}
                                 </div>
                               )}
                             </div>
@@ -1569,7 +1607,7 @@ export function Supplies({ user }) {
               {/* 헤더 */}
               <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
                 <div>
-                  <span style={{ fontSize:'16px', fontWeight:700 }}>{fileModalTitle}</span>
+                  <span style={{ fontSize:'16px', fontWeight:700 }}>{fileEditId ? '✏️ ' : ''}{fileModalTitle}{fileEditId ? ' 수정' : ''}</span>
                   <span style={{ fontSize:'13px', color:C.muted, fontWeight:400, marginLeft:'6px' }}>— {selSubject}</span>
                 </div>
                 <button onClick={()=>{ setFileModal(false); setModalFile(null) }} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
