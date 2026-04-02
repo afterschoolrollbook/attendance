@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, SupplyItems, SupplyStudentProgress, SupplySessionChecks, SupplyProducts } from '../lib/db.js'
 import { uid, now, fmtPhone, sortClasses } from '../lib/utils.js'
-import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox, Textarea } from '../components/Atoms.jsx'
+import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox, Textarea, ToastContainer} from '../components/Atoms.jsx'
 import { STUDENT_STATUS, GRADES, DAYS } from '../constants/config.js'
 import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
 
 function emptyStudent() {
   return {
@@ -75,6 +76,7 @@ export function Students({ user, onNav }) {
   const [tick, setTick] = useState(0)
   const refresh = () => setTick(t => t + 1)
   const { success: showToast } = useToast()
+  const { confirm } = useConfirm()
   // ✅ 삭제 확인
   const [deleteTarget, setDeleteTarget] = useState(null)
 
@@ -189,13 +191,13 @@ export function Students({ user, onNav }) {
   }
 
   const save = () => {
-    if (!form.name.trim() || !form.grade) { alert('이름과 학년은 필수입니다.'); return }
+    if (!form.name.trim() || !form.grade) { toastError('이름과 학년은 필수입니다.'); return }
 
     let classIds = [...(form.classIds || [])]
 
     // 수업 미선택 + 수업명 직접 입력 없음 → 경고
     if (classIds.length === 0 && !form._newClassName?.trim()) {
-      alert('수업을 선택하거나 수업명을 입력해주세요.\n수업이 없으면 출석부에서 학생을 찾을 수 없습니다.')
+      toastError('수업을 선택하거나 수업명을 입력해주세요.')
       return
     }
 
@@ -338,7 +340,7 @@ export function Students({ user, onNav }) {
           studentPhone: String(r[5] || '').trim(),
         }))
 
-      if (parsed.length === 0) { alert('등록할 학생 데이터가 없습니다.\n샘플 파일을 확인해주세요.'); return }
+      if (parsed.length === 0) { toastError('등록할 학생 데이터가 없습니다. 샘플 파일을 확인해주세요.'); return }
 
       // 중복 체크: 같은 수업 내 이름+학년+반 동일한 기존 학생
       // grade, classNum 정규화: '1학년'→'1', '1반'→'1' 로 통일 후 비교
@@ -358,12 +360,12 @@ export function Students({ user, onNav }) {
       })
 
       setExcelPreview(withDupFlag); setExcelStep(2)
-    } catch { alert('파일을 읽을 수 없습니다.') }
+    } catch { toastError('파일을 읽을 수 없습니다.') }
   }
 
   const downloadSample = () => {
     const selCls = classes.find(c => c.id === excelClassId)
-    if (!selCls) { alert('먼저 수업을 선택해주세요.'); return }
+    if (!selCls) { toastError('먼저 수업을 선택해주세요.'); return }
 
     import('xlsx').then(XLSX => {
       const schoolName  = selCls.organization || ''
@@ -413,7 +415,7 @@ export function Students({ user, onNav }) {
     const msg = skipped > 0
       ? `${toInsert.length}명 등록 완료! (${skipped}명 제외)`
       : `${toInsert.length}명 등록 완료!`
-    alert(msg)
+    info(msg)
     setShowExcel(false); setExcelPreview([]); setExcelStep(0); setExcelClassId('')
     refresh()
   }

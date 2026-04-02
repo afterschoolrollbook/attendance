@@ -4,6 +4,7 @@ import { uid, now } from '../lib/utils.js'
 import { Awards } from '../lib/db.js'
 import { ToastContainer } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
 
 const C = {
   primary:'#f97316', success:'#16a34a', danger:'#ef4444',
@@ -52,11 +53,11 @@ export function AwardsPage({ user }) {
   const [modalFile, setModalFile]   = useState(null)
   const [modalDrag, setModalDrag]   = useState(false)
   const [preview, setPreview]       = useState(null)
-  const [confirm, setConfirm]       = useState(null)
   const currentYear = String(new Date().getFullYear())
   const [selYear, setSelYear] = useState('')
 
   const { toasts, success, error: toastError, info } = useToast()
+  const { confirm } = useConfirm()
 
   const reload = () => setRecords(Awards.byTeacher(user.id))
   useEffect(() => { reload() }, [])
@@ -113,9 +114,9 @@ export function AwardsPage({ user }) {
   }
 
   const deleteRecord = id => {
-    setConfirm({ msg:'이 수상 기록을 삭제할까요?', onOk: () => {
+    confirm('이 수상 기록을 삭제할까요?', () => {
       Awards.delete(id); reload(); info('삭제됐어요')
-    }})
+    }, { icon: '🗑', confirmLabel: '삭제' })
   }
 
   const uploadFile = async (awardId, file) => {
@@ -133,10 +134,10 @@ export function AwardsPage({ user }) {
   }
 
   const deleteFile = awardId => {
-    setConfirm({ msg:'첨부파일을 삭제할까요?', onOk: () => {
+    confirm('첨부파일을 삭제할까요?', () => {
       Awards.update(awardId, { fileUrl: null, fileName: null, fileType: null })
       reload(); info('파일을 삭제했어요')
-    }})
+    }, { icon: '🗑', confirmLabel: '삭제' })
   }
 
   const openPreview = r => {
@@ -427,28 +428,6 @@ export function AwardsPage({ user }) {
       )}
 
       {/* 확인 모달 */}
-      {confirm && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:4000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'14px', padding:'24px', maxWidth:'320px', width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', textAlign:'center' }}>
-            <div style={{ fontSize:'32px', marginBottom:'12px' }}>🗑</div>
-            <div style={{ fontSize:'15px', fontWeight:600, color:'#111827', marginBottom:'20px' }}>{confirm.msg}</div>
-            <div style={{ display:'flex', gap:'8px', justifyContent:'center' }}>
-              <button onClick={() => setConfirm(null)}
-                style={{ padding:'9px 20px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
-              <button onClick={() => { confirm.onOk(); setConfirm(null) }}
-                style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#ef4444', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ToastContainer toasts={toasts} />
-
-      {uploading && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <div style={{ background:'#fff', borderRadius:'12px', padding:'24px 36px', fontSize:'14px', fontWeight:600 }}>📤 저장 중...</div>
-        </div>
-      )}
     </div>
   )
 }

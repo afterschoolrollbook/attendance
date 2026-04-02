@@ -303,6 +303,39 @@ export function Toggle({ checked, onChange }) {
   )
 }
 
+// ─── 전역 확인 다이얼로그 (useConfirmDialog 훅과 함께 사용)
+export function ConfirmDialog({ open, msg, icon = '🗑', confirmLabel = '삭제', confirmVariant = 'danger', onOk, onClose }) {
+  if (!open) return null
+  const confirmStyle = {
+    danger:  { background: '#ef4444', color: '#fff' },
+    primary: { background: '#f97316', color: '#fff' },
+    success: { background: '#16a34a', color: '#fff' },
+  }[confirmVariant] || { background: '#ef4444', color: '#fff' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div style={{ background: '#fff', borderRadius: '16px', padding: '28px 24px', maxWidth: '320px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', textAlign: 'center' }}>
+        <div style={{ fontSize: '36px', marginBottom: '12px' }}>{icon}</div>
+        <div style={{ fontSize: '15px', fontWeight: 600, color: '#111827', marginBottom: '8px', whiteSpace: 'pre-line' }}>{msg}</div>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '20px' }}>
+          <button
+            onClick={onClose}
+            style={{ padding: '9px 22px', borderRadius: '9px', border: '1px solid #e5e7eb', background: '#fff', fontSize: '14px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', color: '#6b7280', fontWeight: 500 }}
+          >
+            취소
+          </button>
+          <button
+            onClick={() => { onOk(); onClose() }}
+            style={{ padding: '9px 22px', borderRadius: '9px', border: 'none', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', ...confirmStyle }}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // 페이지 헤더
 export function PageHeader({ title, sub, right }) {
   return (

@@ -4,6 +4,7 @@ import { uid, now } from '../lib/utils.js'
 import { Careers, Educations } from '../lib/db.js'
 import { ToastContainer } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
 
 const C = {
   primary:'#f97316', success:'#16a34a', danger:'#ef4444',
@@ -60,7 +61,6 @@ export function Career({ user }) {
   const [modalFile, setModalFile]   = useState(null)
   const [modalDrag, setModalDrag]   = useState(false)
   const [preview, setPreview]       = useState(null)
-  const [confirm, setConfirm]       = useState(null)
   const [eduRecords, setEduRecords] = useState([])
   const [eduModal, setEduModal]     = useState(false)
   const [eduForm, setEduForm]       = useState(EMPTY_EDU)
@@ -68,6 +68,7 @@ export function Career({ user }) {
   const [eduModalFile, setEduModalFile] = useState(null)
   const [eduModalDrag, setEduModalDrag] = useState(false)
   const { toasts, success, error: toastError, info } = useToast()
+  const { confirm } = useConfirm()
 
   const reload = () => {
     setRecords(Careers.byTeacher(user.id))
@@ -165,9 +166,9 @@ export function Career({ user }) {
   }
 
   const deleteRecord = id => {
-    setConfirm({ msg:'이 이력을 삭제할까요?', onOk: () => {
+    confirm('이 이력을 삭제할까요?', () => {
       Careers.delete(id); reload(); info('삭제됐어요')
-    }})
+    }, { icon: '🗑', confirmLabel: '삭제' })
   }
 
   const uploadFile = async (careerId, file) => {
@@ -185,10 +186,10 @@ export function Career({ user }) {
   }
 
   const deleteFile = careerId => {
-    setConfirm({ msg:'첨부파일을 삭제할까요?', onOk: () => {
+    confirm('첨부파일을 삭제할까요?', () => {
       Careers.update(careerId, { fileUrl: null, fileName: null, fileType: null })
       reload(); info('파일을 삭제했어요')
-    }})
+    }, { icon: '🗑', confirmLabel: '삭제' })
   }
 
   const openPreview = r => {
@@ -236,15 +237,15 @@ export function Career({ user }) {
   }
 
   const deleteEduFile = eduId => {
-    setConfirm({ msg:'첨부파일을 삭제할까요?', onOk: () => {
+    confirm('첨부파일을 삭제할까요?', () => {
       Educations.update(eduId, { fileUrl: null, fileName: null, fileType: null })
       reload(); info('파일을 삭제했어요')
-    }})
+    }, { icon: '🗑', confirmLabel: '삭제' })
   }
   const deleteEdu = id => {
-    setConfirm({ msg:'이 학력을 삭제할까요?', onOk: () => {
+    confirm('이 학력을 삭제할까요?', () => {
       Educations.delete(id); reload(); info('삭제됐어요')
-    }})
+    }, { icon: '🗑', confirmLabel: '삭제' })
   }
 
   // 학력: 오래된 것(입학일) 먼저
@@ -779,28 +780,6 @@ export function Career({ user }) {
       )}
 
       {/* 확인 모달 */}
-      {confirm && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:4000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'14px', padding:'24px', maxWidth:'320px', width:'100%', textAlign:'center' }}>
-            <div style={{ fontSize:'32px', marginBottom:'12px' }}>🗑</div>
-            <div style={{ fontSize:'15px', fontWeight:600, color:'#111827', marginBottom:'20px' }}>{confirm.msg}</div>
-            <div style={{ display:'flex', gap:'8px', justifyContent:'center' }}>
-              <button onClick={() => setConfirm(null)}
-                style={{ padding:'9px 20px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
-              <button onClick={() => { confirm.onOk(); setConfirm(null) }}
-                style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#ef4444', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ToastContainer toasts={toasts} />
-
-      {uploading && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <div style={{ background:'#fff', borderRadius:'12px', padding:'24px 36px', fontSize:'14px', fontWeight:600 }}>📤 저장 중...</div>
-        </div>
-      )}
     </div>
   )
 }

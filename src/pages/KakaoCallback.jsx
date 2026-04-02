@@ -1,4 +1,6 @@
 import React, { useEffect } from 'react'
+import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
 
 // 카카오 로그인 콜백 페이지 (팝업으로 열림)
 // code만 부모창으로 전달하고 닫힘 — 토큰 교환은 부모창(Auth.jsx)에서 처리

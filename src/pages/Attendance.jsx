@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { Btn } from '../components/Atoms.jsx'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyStudentProgress, SupplySessionChecks, SupplyProducts } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
+import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
 
 // 결석 사유 (출석체크용 확장)
 const ABSENT_REASONS = [
@@ -142,20 +145,20 @@ function MsgModal({ student, onClose }) {
   const phone = student.parentPhone?.replace(/[^0-9]/g, '') || ''
 
   const sendSMS = () => {
-    if (!phone) { alert('학부모 전화번호가 없습니다.'); return }
+    if (!phone) { toastError('학부모 전화번호가 없습니다.'); return }
     window.open(`sms:${phone}?body=${encodeURIComponent(text)}`)
     onClose()
   }
   const sendKakao = () => {
-    if (!phone) { alert('학부모 전화번호가 없습니다.'); return }
+    if (!phone) { toastError('학부모 전화번호가 없습니다.'); return }
     window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${phone}&message=${encodeURIComponent(text)}`)
     onClose()
   }
   const copyText = () => {
-    navigator.clipboard.writeText(text).then(() => alert('메시지가 복사되었습니다.')).catch(() => {
+    navigator.clipboard.writeText(text).then(() => success('메시지가 복사되었습니다.')).catch(() => {
       const ta = document.createElement('textarea'); ta.value = text
       document.body.appendChild(ta); ta.select(); document.execCommand('copy')
-      document.body.removeChild(ta); alert('복사되었습니다.')
+      document.body.removeChild(ta); success('복사되었습니다.')
     })
   }
 
@@ -228,7 +231,7 @@ function StudentMemoModal({ student, onClose, onSave }) {
             placeholder="메모를 입력하세요..."
             style={{ width:'100%', padding:'10px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical', outline:'none', boxSizing:'border-box' }} />
           <div style={{ display:'flex', gap:'8px' }}>
-            <button onClick={doSave} style={{ flex:1, padding:'10px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+            <Btn onClick={doSave} full>저장</Btn>
             <button onClick={onClose} style={{ padding:'10px 16px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
           </div>
         </div>
@@ -353,7 +356,7 @@ function SupplyProgressBadge({ studentId, classId, onEdit }) {
               <button onClick={() => onEdit({ item, product, stage, checkedCount })}
                 style={{ fontSize:'9px', color:'#6b7280', background:'#f3f4f6', border:'1px solid #e5e7eb', borderRadius:'3px', padding:'0 4px', cursor:'pointer', lineHeight:'16px', fontFamily:'Noto Sans KR, sans-serif' }}>
                 수정
-              </button>
+              </Btn>
             )}
           </div>
         )
@@ -471,7 +474,7 @@ function NoteInline({ note, onSave, studentMemo, placeholder = '특이사항 메
           <input ref={ref} value={val} onChange={e => setVal(e.target.value)} autoFocus placeholder={placeholder}
             onKeyDown={e => { if (e.key==='Enter') save(); if (e.key==='Escape') { setEditing(false); setVal(note) } }}
             style={{ flex:1, border:`1.5px solid ${C.primary}`, borderRadius:'6px', padding:'4px 9px', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-          <button onClick={save} style={sm('#f97316','#fff')}>저장</button>
+          <Btn onClick={save}>저장</Btn>
           <button onClick={() => { setEditing(false); setVal(note) }} style={sm('#f3f4f6','#374151')}>취소</button>
         </div>
       ) : (
@@ -482,7 +485,7 @@ function NoteInline({ note, onSave, studentMemo, placeholder = '특이사항 메
             style={{ fontSize:'11px', color:C.muted, background:'none', border:'none', cursor:'pointer', textDecoration:'underline', fontFamily:'Noto Sans KR, sans-serif' }}>
             {note ? '편집' : '+ 메모'}
           </button>
-          {note && <button onClick={() => onSave('')} style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>}
+          {note && <Btn size='sm' variant='outlineDanger' onClick={() => onSave('')}>삭제</Btn>}
         </div>
       )}
     </div>
@@ -808,7 +811,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
             {notes.map(n => (
               <div key={n.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px', background:'#fffbeb', borderRadius:'7px', border:'1px solid #fde68a', fontSize:'13px', color:'#374151' }}>
                 <span>📌 {n.content}</span>
-                <button onClick={() => delNote(n.id)} style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'14px' }}>×</button>
+                <Btn size='sm' variant='outlineDanger' onClick={() => confirm('메모를 삭제할까요?', () => delNote(n.id), { icon: '🗑', confirmLabel: '삭제' })}>삭제</Btn>
               </div>
             ))}
             {adding && (
@@ -816,7 +819,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                 <input ref={inputRef} value={newNote} onChange={e => setNewNote(e.target.value)} placeholder="예: 교구 준비 / 배터리 충전"
                   onKeyDown={e => { if (e.key==='Enter') addNote(); if (e.key==='Escape') { setAdding(false); setNewNote('') } }}
                   style={{ flex:1, border:`1.5px solid ${C.primary}`, borderRadius:'7px', padding:'7px 11px', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-                <button onClick={addNote} style={sm('#f97316','#fff')}>저장</button>
+                <Btn onClick={addNote}>저장</Btn>
                 <button onClick={() => { setAdding(false); setNewNote('') }} style={sm('#f3f4f6','#374151')}>취소</button>
               </div>
             )}
@@ -975,6 +978,8 @@ function actionBtn(bg,color,border) {
 }
 
 export function Attendance({ user, pageParams = {} }) {
+  const { success, error: toastError, warning, info } = useToast()
+  const { confirm } = useConfirm()
   const today = todayStr()
   const now_ = new Date()
   const allClasses = ClassesDB.byTeacher(user.id)

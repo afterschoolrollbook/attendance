@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { Btn } from '../components/Atoms.jsx'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyStudentProgress, SupplySessionChecks, SupplyProducts } from '../lib/db.js'
 import { calcSessionDates, sortClasses, uid, now, getSessionInfo } from '../lib/utils.js'
+import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
 
 const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토']
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
@@ -56,7 +59,7 @@ function NoteItem({ note, onDelete, onEdit }) {
           <input value={text} onChange={e => setText(e.target.value)} autoFocus
             onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }}
             style={{ flex: 1, border: '1.5px solid #f97316', borderRadius: '6px', padding: '4px 8px', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }} />
-          <button onClick={save} style={smBtn('#f97316','#fff')}>저장</button>
+          <Btn onClick={save}>저장</Btn>
           <button onClick={() => setEditing(false)} style={smBtn('#e5e7eb','#374151')}>취소</button>
         </div>
       ) : (
@@ -64,7 +67,7 @@ function NoteItem({ note, onDelete, onEdit }) {
           <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>{note.content}</span>
           <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
             <button onClick={() => setEditing(true)} style={smBtn('#f3f4f6','#6b7280')}>편집</button>
-            <button onClick={() => onDelete(note.id)} style={smBtn('#fef2f2','#ef4444')}>삭제</button>
+            <Btn size='sm' variant='outlineDanger' onClick={() => onDelete(note.id)}>삭제</Btn>
           </div>
         </div>
       )}
@@ -275,7 +278,7 @@ function DayDetail({ date, user, classes, onNav }) {
                 placeholder="예: 홍길동 로봇교구 준비 / 배터리 안내"
                 onKeyDown={e => { if (e.key === 'Enter') addNote(); if (e.key === 'Escape') { setAddingNote(false); setNewNote('') } }}
                 style={{ flex: 1, border: '1.5px solid #f97316', borderRadius: '8px', padding: '9px 13px', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }} />
-              <button onClick={addNote} style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: C.primary, color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>저장</button>
+              <Btn onClick={addNote}>저장</Btn>
               <button onClick={() => { setAddingNote(false); setNewNote('') }}
                 style={{ padding: '9px 13px', borderRadius: '8px', border: `1px solid ${C.border}`, background: '#fff', color: C.muted, fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>취소</button>
             </div>
@@ -287,6 +290,8 @@ function DayDetail({ date, user, classes, onNav }) {
 }
 
 export function Dashboard({ user, onNav }) {
+  const { success, error: toastError } = useToast()
+  const { confirm } = useConfirm()
   const today = todayStr()
   const d = new Date()
   const [calYear, setCalYear] = useState(d.getFullYear())

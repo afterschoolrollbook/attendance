@@ -27,8 +27,9 @@ import { Jobs }         from './pages/Jobs.jsx'
 import { Revenue }      from './pages/Revenue.jsx'
 import { Supplies }     from './pages/Supplies.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
-import { ToastContainer } from './components/Atoms.jsx'
+import { ToastContainer, ConfirmDialog } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
+import { useConfirmDialog } from './hooks/useConfirm.js'
 
 export default function App() {
   const [user, setUser] = useState(null)
@@ -36,6 +37,7 @@ export default function App() {
   const [pageParams, setPageParams] = useState({})
   const [dbReady, setDbReady] = useState(false)
   const { toasts } = useToast()
+  const confirmDialog = useConfirmDialog()
 
   // 네이버 콜백 페이지 처리 — 팝업으로 열린 경우 바로 렌더
   if (window.location.pathname === '/naver-callback') return <NaverCallback />
@@ -132,6 +134,7 @@ export default function App() {
         {renderPage()}
       </main>
       <ToastContainer toasts={toasts} />
+      <ConfirmDialog {...confirmDialog} />
     </div>
   )
 }

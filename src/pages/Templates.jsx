@@ -1,9 +1,14 @@
 import React, { useState, useRef } from 'react'
+import { Btn } from '../components/Atoms.jsx'
 import { Templates as TemplatesDB } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
-import { Btn, Card, Input, Modal, PageHeader, Tag, EmptyState, Toggle } from '../components/Atoms.jsx'
+import { Btn, Card, Input, Modal, PageHeader, Tag, EmptyState, Toggle , ToastContainer} from '../componimport { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
+ents/Atoms.jsx'
 
 export function Templates({ user }) {
+  const { success, error: toastError } = useToast()
+  const { confirm } = useConfirm()
   const [templates, setTemplates] = useState(() => TemplatesDB.all().filter(t => t.teacherId === user.id || user.role === 'admin'))
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ school: '', templateName: '', fileType: 'xlsx' })
@@ -25,7 +30,7 @@ export function Templates({ user }) {
 
   const save = async () => {
     if (!form.school.trim() || !form.templateName.trim()) {
-      alert('학교명과 양식 이름을 입력하세요.')
+      toastError('학교명과 양식 이름을 입력하세요.')
       return
     }
     let fileData = ''
@@ -59,7 +64,7 @@ export function Templates({ user }) {
   }
 
   const del = (id) => {
-    if (!confirm('삭제하시겠습니까?')) return
+    confirm('삭제하시겠습니까?', () => {
     TemplatesDB.delete(id)
     reload()
   }

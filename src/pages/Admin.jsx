@@ -1,8 +1,10 @@
 import React, { useState } from 'react'
 import { Users, Classes, Students, Attendance, Branches } from '../lib/db.js'  // ✅ 버그수정: Branches 추가, 중복 import 정리
 import { uid, now } from '../lib/utils.js'                                      // ✅ 버그수정: uid 추가
-import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard } from '../components/Atoms.jsx'
-import { LEVEL_NAMES, FEATURES, LEVEL_PERMISSIONS } from '../constants/permissions.js'
+import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard , ToastContainer} from '../components/Atoms.jsx'
+import { LEVEL_NAMES, FEATURES, LEVEL_PERMISSIONS } from '../constants/import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
+permissions.js'
 
 const FEATURE_LABELS = {
   [FEATURES.MANAGE_CLASS]:      '수업 등록/수정/삭제',
@@ -755,7 +757,7 @@ function BranchPanel({ branches, setBranches, teachers }) {
   const managers = teachers.filter(t => t.level >= 4)
 
   const save = () => {
-    if (!form.name.trim()) { alert('지사명을 입력하세요.'); return }
+    if (!form.name.trim()) { toastError('지사명을 입력하세요.'); return }
     if (editId) {
       Branches.update(editId, { name:form.name.trim(), managerId:form.managerId||null, memo:form.memo })
     } else {
@@ -771,7 +773,7 @@ function BranchPanel({ branches, setBranches, teachers }) {
   }
 
   const del = (id) => {
-    if (!window.confirm('삭제하시겠습니까?')) return
+    confirm('삭제하시겠습니까?', () => {
     Branches.delete(id); setBranches(Branches.all())
   }
 
@@ -843,8 +845,7 @@ function BranchPanel({ branches, setBranches, teachers }) {
                   {b.memo && <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>{b.memo}</div>}
                 </div>
                 <div style={{ display:'flex', gap:'8px' }}>
-                  <button onClick={() => startEdit(b)}
-                    style={{ padding:'5px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>수정</button>
+                  <Btn size='sm' variant='ghost' onClick={() => { setEditId(b.id); setForm({ name: b.name }) }}>수정</Btn>
                   <button onClick={() => del(b.id)}
                     style={{ padding:'5px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#ef4444' }}>삭제</button>
                 </div>
@@ -859,6 +860,8 @@ function BranchPanel({ branches, setBranches, teachers }) {
 
 
 export function Admin({ user: currentUser }) {
+  const { toasts, success, error: toastError, warning, info } = useToast()
+  const { confirm } = useConfirm()
   const [tab, setTab] = useState('pending')
   const [branches, setBranches] = useState(() => Branches.all())
   const [selectedUser, setSelectedUser] = useState(null)
@@ -986,7 +989,7 @@ export function Admin({ user: currentUser }) {
               {teachers.map((t, i) => {
                 const levelColors = { 1: '#9ca3af', 2: '#f97316', 3: '#16a34a', 4: '#8b5cf6', 5: '#ef4444' }
                 const deleteTeacher = () => {
-                  if (!window.confirm(`${t.name} 선생님을 삭제하시겠습니까?\n관련 수업·학생·출석 데이터는 유지됩니다.`)) return
+                  confirm('${t.name} 선생님을 삭제하시겠습니까?\n관련 수업·학생·출석 데이터는 유지됩니다.', () => {
                   Users.delete(t.id)
                   refresh()
                 }
@@ -1003,19 +1006,18 @@ export function Admin({ user: currentUser }) {
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <Btn size="sm" variant="ghost" onClick={() => openPerm(t)}>권한 설정</Btn>
                         <button onClick={() => {
-                          if (!t.phone) { alert('등록된 핸드폰 번호가 없어 초기화할 수 없습니다.'); return }
+                          if (!t.phone) { toastError('등록된 핸드폰 번호가 없어 초기화할 수 없습니다.'); return }
                           const normalized = t.phone.replace(/-/g, '').slice(0, 11)
-                          if (!window.confirm(`${t.name} 선생님의 비밀번호를\n핸드폰 번호(${normalized})로 초기화하시겠습니까?`)) return
+                          confirm('${t.name} 선생님의 비밀번호를\n핸드폰 번호(${normalized})로 초기화하시겠습니까?', () => {
                           Users.update(t.id, { pw: normalized })
-                          alert(`비밀번호가 ${normalized}(으)로 초기화되었습니다.`)
+                          success(`비밀번호가 ${normalized}(으)로 초기화되었습니다.`)
                         }}
                           style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', color: '#b45309', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
                           비번초기화
                         </button>
                         <button onClick={deleteTeacher}
                           style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fca5a5', background: '#fef2f2', color: '#ef4444', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
-                          삭제
-                        </button>
+                          삭제</Btn>
                       </div>
                     </td>
                   </tr>

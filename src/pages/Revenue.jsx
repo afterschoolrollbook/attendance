@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { Btn } from '../components/Atoms.jsx'
 import { uid, now, today, localDateStr, calcSessionDates, sortClasses } from '../lib/utils.js'
 import { Classes, Students, RevenueFees, RevenuePayments } from '../lib/db.js'
+import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
 
 const C = {
   primary: '#f97316', success: '#16a34a', danger: '#ef4444',
@@ -75,6 +78,8 @@ const iStyle = {
 }
 
 export function Revenue({ user }) {
+  const { success, error: toastError, warning } = useToast()
+  const { confirm } = useConfirm()
   const [tab, setTab]           = useState('calendar')
   const [curDate, setCurDate]   = useState(today())
   const [fees, setFees]         = useState([])
@@ -278,7 +283,7 @@ export function Revenue({ user }) {
   }, [sorted, feeMap, confirmedCount, payByClass, curYM])
 
   const saveFeeForm = () => {
-    if (!feeForm.amount) { alert('금액을 입력하세요'); return }
+    if (!feeForm.amount) { toastError('금액을 입력하세요'); return }
     RevenueFees.upsert({
       teacherId: user.id, classId: feeTarget.classId,
       feeType: feeForm.feeType, amount: Number(feeForm.amount), updatedAt: now(),
@@ -287,8 +292,8 @@ export function Revenue({ user }) {
   }
 
   const savePayForm = () => {
-    if (!payForm.classId) { alert('수업을 선택하세요'); return }
-    if (!payForm.amount)  { alert('금액을 입력하세요'); return }
+    if (!payForm.classId) { toastError('수업을 선택하세요'); return }
+    if (!payForm.amount)  { toastError('금액을 입력하세요'); return }
     RevenuePayments.insert({
       id: uid(), teacherId: user.id,
       classId: payForm.classId,
@@ -569,7 +574,7 @@ export function Revenue({ user }) {
                             </div>
                             <div style={{ display:'flex', alignItems:'center', gap:'6px', flexShrink:0 }}>
                               <span style={{ fontSize:'13px', fontWeight:700, color:C.success }}>+{fmt(p.amount)}원</span>
-                              <button onClick={()=>{ if(window.confirm('입금 내역을 삭제할까요?')) deletePayment(p.id) }} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'16px', lineHeight:1, padding:0 }} title="삭제">×</button>
+                              <Btn size='sm' variant='outlineDanger' onClick={() => confirm('입금 내역을 삭제할까요?', () => deletePayment(p.id), { icon: '🗑', confirmLabel: '삭제' })}>삭제</Btn>
                             </div>
                           </div>
                         </div>
@@ -732,7 +737,7 @@ export function Revenue({ user }) {
                                         </div>
                                         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                                           <span style={{ fontSize:'13px', fontWeight:700, color:C.success }}>+{fmt(p.amount)}원</span>
-                                          <button onClick={()=>{ if(window.confirm('삭제할까요?')) deletePayment(p.id) }} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'16px', lineHeight:1, padding:0 }}>×</button>
+                                          <Btn size='sm' variant='outlineDanger' onClick={() => confirm('삭제할까요?', () => deletePayment(p.id), { icon: '🗑', confirmLabel: '삭제' })}>삭제</Btn>
                                         </div>
                                       </div>
                                     ))
@@ -821,7 +826,7 @@ export function Revenue({ user }) {
                             </div>
                             <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
                               <span style={{ fontSize:'14px', fontWeight:700, color:C.success }}>+{fmt(p.amount)}원</span>
-                              <button onClick={()=>{ if(window.confirm('입금 내역을 삭제할까요?')) deletePayment(p.id) }} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'16px', lineHeight:1, padding:0 }} title="삭제">×</button>
+                              <Btn size='sm' variant='outlineDanger' onClick={() => confirm('입금 내역을 삭제할까요?', () => deletePayment(p.id), { icon: '🗑', confirmLabel: '삭제' })}>삭제</Btn>
                             </div>
                           </div>
                         ))}
@@ -907,7 +912,7 @@ export function Revenue({ user }) {
               )}
 
               <div style={{ display:'flex', gap:'8px' }}>
-                <button onClick={saveFeeForm} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+                <Btn onClick={saveFeeForm} full>저장</Btn>
                 <button onClick={()=>setFeeModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
             </div>
@@ -932,10 +937,10 @@ export function Revenue({ user }) {
         const displayStep = (!hasTerm && payStep >= 3) ? payStep - 1 : payStep
 
         const goNext = () => {
-          if (payStep === 2 && !payForm.classId) { alert('수업을 선택해주세요'); return }
+          if (payStep === 2 && !payForm.classId) { toastError('수업을 선택해주세요'); return }
           if (hasTerm && payStep === 3 && !payForm.termNo) {
             if (terms.length===1) { setPayForm(f=>({...f,termNo:String(terms[0].termNo)})) }
-            else { alert('텀을 선택해주세요'); return }
+            else { toastError('텀을 선택해주세요'); return }
           }
           const nextStep = (!hasTerm && payStep === 2) ? 4 : payStep + 1
           if (nextStep > 5) { savePayForm(); return }

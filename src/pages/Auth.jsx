@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Users } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
-import { Btn, Input } from '../components/Atoms.jsx'
+import { Btn, Input , ToastContainer} from '../components/Atoms.jsx'
 import { Settings } from '../lib/db.js'
-import { sendEmail, isConfigured } from '../lib/supabase.js'
+import { sendEmail, isConfigured } from '../limport { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
+ib/supabase.js'
 
 function getSocialConfig() {
   const saved = Settings.get('social') || {}
@@ -122,7 +124,7 @@ function useGoogleAuth(onSuccess, clientId) {
 // 카카오 로그인 훅
 function useKakaoAuth(onSuccess, restApiKey) {
   const loginWithKakao = () => {
-    if (!restApiKey) { alert('카카오 앱 키가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
+    if (!restApiKey) { toastError('카카오 앱 키가 설정되지 않았습니다. 관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
 
     const redirectUri = window.location.origin + '/kakao-callback'
     const kakaoAuthUrl = 'https://kauth.kakao.com/oauth/authorize?client_id=' + restApiKey + '&redirect_uri=' + encodeURIComponent(redirectUri) + '&response_type=code'
@@ -134,7 +136,7 @@ function useKakaoAuth(onSuccess, restApiKey) {
       window.removeEventListener('message', handleMessage)
 
       if (e.data.type === 'kakao_login_fail') {
-        alert('카카오 로그인에 실패했습니다.')
+        toastError('카카오 로그인에 실패했습니다.')
         return
       }
 
@@ -151,7 +153,7 @@ function useKakaoAuth(onSuccess, restApiKey) {
         onSuccess({ provider: 'kakao', email: data.data.email || '', name: data.data.name || '', avatar: data.data.profile_image || '', providerId: String(data.data.id) })
       } catch(err) {
         console.error('카카오 토큰 교환 실패:', err)
-        alert('카카오 로그인에 실패했습니다: ' + err.message)
+        toastError('카카오 로그인에 실패했습니다: ' + err.message)
       }
     }
 
@@ -163,7 +165,7 @@ function useKakaoAuth(onSuccess, restApiKey) {
 
 function useNaverAuth(onSuccess, clientId) {
   const loginWithNaver = () => {
-    if (!clientId) { alert('네이버 클라이언트 ID가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
+    if (!clientId) { toastError('네이버 클라이언트 ID가 설정되지 않았습니다. 관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
 
     const state = Math.random().toString(36).substring(2, 15)
     const redirectUri = window.location.origin + '/naver-callback'
@@ -179,7 +181,7 @@ function useNaverAuth(onSuccess, clientId) {
       window.removeEventListener('message', handleMessage)
 
       if (e.data.type === 'naver_login_fail') {
-        alert('네이버 로그인에 실패했습니다.')
+        toastError('네이버 로그인에 실패했습니다.')
         return
       }
 
@@ -234,6 +236,7 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <ToastContainer toasts={toasts} />
       <div style={{ textAlign: 'center', padding: '8px 0' }}>
         {profile.avatar && (
           <img src={profile.avatar} alt="" style={{ width: 56, height: 56, borderRadius: '50%', marginBottom: 8 }} />
@@ -385,6 +388,7 @@ function SocialProfileForm({ profile, onComplete }) {
 
 // ─── 메인 Auth 컴포넌트
 export function Auth({ onLogin }) {
+  const { toasts, error: toastError } = useToast()
   const [mode, setMode] = useState('login') // 'login' | 'register' | 'findId' | 'findPw'
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({ name: '', email: '', pw: '', pw2: '', phone: '' })
@@ -809,12 +813,12 @@ export function Auth({ onLogin }) {
                         <div ref={loginBtnRef} style={{ width: '100%', minHeight: '44px' }} />
                       ) : (
                         <SocialBtn icon="🔵" label="Google로 계속하기" color="#4285F4" bg="#fff" border="#dadce0"
-                          onClick={() => alert('Google 로그인을 사용하려면\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
+                          onClick={() => toastError('Google 로그인을 사용하려면 관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
                       )}
                       <SocialBtn icon="💛" label="카카오로 계속하기" color="#3C1E1E" bg="#FEE500" border="#FEE500"
-                        onClick={kakaoConfigured ? loginWithKakao : () => alert('카카오 로그인을 사용하려면\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
+                        onClick={kakaoConfigured ? loginWithKakao : () => toastError('카카오 로그인을 사용하려면 관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
                       <SocialBtn icon="🟢" label="네이버로 계속하기" color="#fff" bg="#03C75A" border="#03C75A"
-                        onClick={naverConfigured ? loginWithNaver : () => alert('네이버 로그인을 사용하려면\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
+                        onClick={naverConfigured ? loginWithNaver : () => toastError('네이버 로그인을 사용하려면 관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.')} />
                     </div>
                     <Divider label="또는 이메일로 로그인" />
                     <Input label="이메일" value={form.email} onChange={v => set('email', v)} placeholder="이메일 입력" type="email" />
@@ -838,12 +842,12 @@ export function Auth({ onLogin }) {
                         <div ref={registerBtnRef} style={{ width: '100%', minHeight: '44px' }} />
                       ) : (
                         <SocialBtn icon="🔵" label="Google로 간편가입" color="#4285F4" bg="#fff" border="#dadce0"
-                          onClick={() => alert('관리자 → 서비스설정 → 소셜 로그인에서 Google 키를 등록하세요.')} />
+                          onClick={() => toastError('관리자 → 서비스설정 → 소셜 로그인에서 Google 키를 등록하세요.')} />
                       )}
                       <SocialBtn icon="💛" label="카카오로 간편가입" color="#3C1E1E" bg="#FEE500" border="#FEE500"
-                        onClick={kakaoConfigured ? loginWithKakao : () => alert('관리자 → 서비스설정 → 소셜 로그인에서 카카오 키를 등록하세요.')} />
+                        onClick={kakaoConfigured ? loginWithKakao : () => toastError('관리자 → 서비스설정 → 소셜 로그인에서 카카오 키를 등록하세요.')} />
                       <SocialBtn icon="🟢" label="네이버로 간편가입" color="#fff" bg="#03C75A" border="#03C75A"
-                        onClick={naverConfigured ? loginWithNaver : () => alert('관리자 → 서비스설정 → 소셜 로그인에서 네이버 키를 등록하세요.')} />
+                        onClick={naverConfigured ? loginWithNaver : () => toastError('관리자 → 서비스설정 → 소셜 로그인에서 네이버 키를 등록하세요.')} />
                     </div>
                     <Divider label="또는 이메일로 가입" />
                     <Input label="이름" value={form.name} onChange={v => set('name', v)} placeholder="홍길동" required />

@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, today } from '../lib/utils.js'
-import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
+import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader , ToastContainer} from '../components/Atoms.jsx'
 import { ClassCalendar } from '../components/ClassCalendar.jsx'
-import { TERM_TYPES, REPEAT_TYPES } from '../constants/config.js'
+import { TERM_TYPES, REPEAT_TYPES } from '../constimport { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
+ants/config.js'
 
 const VIEW_TABS = ['요일별', '학교별', '과목별']
 const DAY_ORDER = ['월', '화', '수', '목', '금', '토', '일']
@@ -50,6 +52,8 @@ function emptyForm() {
 }
 
 export function Classes({ user }) {
+  const { success, error: toastError, warning } = useToast()
+  const { confirm } = useConfirm()
   const [view,    setView]    = useState('요일별')
   const [selYear, setSelYear] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -162,7 +166,7 @@ export function Classes({ user }) {
 
   const save = () => {
     if (!form.organization.trim() || !form.className.trim() || !form.days.length || !form.startDate || !form.endDate) {
-      alert('필수 항목을 입력하세요 (단체명, 수업명, 요일, 기간).')
+      toastError('필수 항목을 입력하세요 (단체명, 수업명, 요일, 기간).')
       return
     }
     if (editId && editId !== '__copy__') {
@@ -181,14 +185,14 @@ export function Classes({ user }) {
     const files = Array.from(e.target.files)
     const current = form.promotionImgs || []
     const remaining = MAX_PROMO_IMAGES - current.length
-    if (remaining <= 0) { alert('최대 2장까지 등록 가능합니다.'); return }
+    if (remaining <= 0) { toastError('최대 2장까지 등록 가능합니다.'); return }
     const toAdd = files.slice(0, remaining)
     const classId = editId && editId !== '__copy__' ? editId : ('tmp_' + uid())
     setUploading(true)
     try {
       const urls = await Promise.all(toAdd.map(f => uploadToStorage(user.id, classId, 'promo', f)))
       set('promotionImgs', [...current, ...urls])
-    } catch(err) { alert('업로드 실패: ' + err.message) }
+    } catch(err) { toastError('업로드 실패: ' + err.message) }
     finally { setUploading(false) }
     e.target.value = ''
   }
@@ -202,10 +206,10 @@ export function Classes({ user }) {
     const files = Array.from(e.target.files)
     const current = form.noticeFiles || []
     const remaining = MAX_NOTICE_FILES - current.length
-    if (remaining <= 0) { alert(`최대 ${MAX_NOTICE_FILES}개까지 등록 가능합니다.`); return }
+    if (remaining <= 0) { toastError(`최대 ${MAX_NOTICE_FILES}개까지 등록 가능합니다.`); return }
     const allowed = ['image/jpeg','image/png','application/pdf']
     const valid = files.filter(f => allowed.includes(f.type)).slice(0, remaining)
-    if (valid.length < files.length) alert('jpg, png, pdf 파일만 업로드 가능합니다.')
+    if (valid.length < files.length) toastError('jpg, png, pdf 파일만 업로드 가능합니다.')
     if (!valid.length) return
     const classId = editId && editId !== '__copy__' ? editId : ('tmp_' + uid())
     setUploading(true)
@@ -216,7 +220,7 @@ export function Classes({ user }) {
         fileType: f.type,
       })))
       set('noticeFiles', [...current, ...results])
-    } catch(err) { alert('업로드 실패: ' + err.message) }
+    } catch(err) { toastError('업로드 실패: ' + err.message) }
     finally { setUploading(false) }
     e.target.value = ''
   }
@@ -236,7 +240,7 @@ export function Classes({ user }) {
     try {
       const url = await uploadToStorage(user.id, classId, 'template', file)
       set('templateFile', { name: file.name, fileType, url })
-    } catch(err) { alert('업로드 실패: ' + err.message) }
+    } catch(err) { toastError('업로드 실패: ' + err.message) }
     finally { setUploading(false) }
     e.target.value = ''
   }
@@ -701,7 +705,7 @@ export function Classes({ user }) {
                     const date = e.target.value
                     if (!date) return
                     const already = (form.cancelledDates||[]).some(c => c.date === date)
-                    if (already) { alert('이미 추가된 날짜입니다.'); return }
+                    if (already) { toastError('이미 추가된 날짜입니다.'); return }
                     setForm(f => ({ ...f, cancelledDates: [...(f.cancelledDates||[]), { date, reason:'school_holiday', memo:'' }] }))
                     e.target.value = ''
                   }}

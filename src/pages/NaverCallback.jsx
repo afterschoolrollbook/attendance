@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react'
 import { naverOAuth } from '../lib/supabase.js'
+import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
 
 // 네이버 로그인 콜백 페이지
 // 팝업으로 열리고 처리 후 부모 창에 메시지 전송 후 닫힘

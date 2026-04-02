@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { uid, now, sortClasses } from '../lib/utils.js'
 import {
+import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
   Classes, Students,
   SupplySubjects, SupplyVendors, SupplyItems, SupplyPlans,
   SupplyProducts, SupplyProductPlans, SupplyStudentProgress, SupplySessionChecks,
@@ -93,6 +95,8 @@ function ProgressBadge({ checkedCount, totalCount, alertSession, sessionsPerStag
 }
 
 export function Supplies({ user }) {
+  const { success, error: toastError, warning } = useToast()
+  const { confirm } = useConfirm()
   // ── 기본 상태
   const [subjects, setSubjects]       = useState([])
   const [selSubject, setSelSubject]   = useState(null)
@@ -215,7 +219,7 @@ export function Supplies({ user }) {
   })
 
   const saveSupply = () => {
-    if (!supplyForm.name && !supplyForm.productId) { alert('교구명을 입력하거나 교구를 선택하세요'); return }
+    if (!supplyForm.name && !supplyForm.productId) { toastError('교구명을 입력하거나 교구를 선택하세요'); return }
     const product = productList.find(p => p.id === supplyForm.productId)
     const finalName = supplyForm.productId ? (product?.name || supplyForm.name) : supplyForm.name
     checkedStudents.forEach(sid => {
@@ -295,7 +299,7 @@ export function Supplies({ user }) {
   const vendorFiles    = (vendorId) => planList.filter(p => p.vendorId === vendorId)
 
   const saveVendor = () => {
-    if (!vendorForm.name) { alert('업체명을 입력하세요'); return }
+    if (!vendorForm.name) { toastError('업체명을 입력하세요'); return }
     SupplyVendors.insert({ id: uid(), teacherId: user.id, subject: selSubject, ...vendorForm, createdAt: now() })
     reload(); setVendorModal(false); setVendorForm({ name:'', managerName:'', contact:'', memo:'' }); showToast('업체가 등록되었습니다.')
   }
@@ -340,12 +344,12 @@ export function Supplies({ user }) {
       setProductModal(true)
     } catch(e) {
       console.error('openProductModal error:', e)
-      alert('오류가 발생했습니다: ' + e.message)
+      toastError('오류가 발생했습니다: ' + e.message)
     }
   }
 
   const saveProduct = () => {
-    if (!productForm.name) { alert('교구명을 입력하세요'); return }
+    if (!productForm.name) { toastError('교구명을 입력하세요'); return }
     const isEdit = !!productForm.id
     const productId = isEdit ? productForm.id : uid()
     if (isEdit) {
@@ -422,7 +426,7 @@ export function Supplies({ user }) {
       reload()
       showToast('저장되었습니다.')
       setSessionPlanModal(false)
-    } catch(e) { alert('저장 실패: '+e.message) }
+    } catch(e) { toastError('저장 실패: ' + e.message) }
     finally { setUploading(false) }
   }
 
@@ -464,10 +468,10 @@ export function Supplies({ user }) {
   const saveFile = async () => {
     // 교구 선택 필수 (plan/session 모드)
     const needsProduct = ['plan','session','promo'].includes(fileModalMode)
-    if (needsProduct && !fileForm.productId) { alert('교구를 선택하세요'); return }
+    if (needsProduct && !fileForm.productId) { toastError('교구를 선택하세요'); return }
     // 차시별 지도안이면 단계도 필수
     const isSession = fileModalMode === 'session' || (fileModalMode === 'plan' && fileForm.fileType === 'session')
-    if (isSession && !fileForm.stage) { alert('단계를 선택하세요'); return }
+    if (isSession && !fileForm.stage) { toastError('단계를 선택하세요'); return }
     // 제목 자동 생성
     const autoProduct = productList.find(p => p.id === (fileProductTarget || fileForm.productId))
     const autoTitle = autoProduct
@@ -513,7 +517,7 @@ export function Supplies({ user }) {
         })
       }
       reload(); setFileModal(false); setModalFile(null); setFileEditId(null); showToast(fileEditId ? '수정이 완료되었습니다.' : '저장이 완료되었습니다.')
-    } catch(e) { alert('업로드 실패: '+e.message) }
+    } catch(e) { toastError('업로드 실패: ' + e.message) }
     finally { setUploading(false) }
   }
   const deleteFile = (id) => {
@@ -524,7 +528,7 @@ export function Supplies({ user }) {
   const addSubject = () => {
     const s = newSubject.trim()
     if (!s) return
-    if (subjects.includes(s)) { alert('이미 있는 과목이에요'); return }
+    if (subjects.includes(s)) { toastError('이미 있는 과목이에요'); return }
     SupplySubjects.insert({ id: uid(), teacherId: user.id, name:s, sortOrder:subjects.length, createdAt:now() })
     reload(); setNewSubject(''); setSubjectModal(false); setSelSubject(s)
   }
