@@ -615,32 +615,58 @@ export function Supplies({ user }) {
                       </div>
                       {confirmedStudents.length === 0 ? (
                         <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>확정된 학생이 없습니다</div>
-                      ) : (
-                        <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                          {confirmedStudents.map(s => {
-                            const supply = getStudentSupply(s.id)
-                            const isChecked = checkedStudents.includes(s.id)
-                            return (
-                              <div key={s.id} onClick={() => toggleOne(s.id)}
-                                style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 16px', borderRadius:'10px', border:`1.5px solid ${isChecked ? C.primary : C.border}`, background: isChecked ? '#fff7ed' : C.card, cursor:'pointer', transition:'all .15s' }}>
-                                <input type="checkbox" checked={isChecked} onChange={() => toggleOne(s.id)}
-                                  onClick={e=>e.stopPropagation()} style={{ width:'16px', height:'16px', cursor:'pointer', flexShrink:0 }} />
-                                <div style={{ flex:1 }}>
-                                  <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>
-                                    {s.name}
-                                    <span style={{ fontSize:'12px', color:C.muted, fontWeight:400, marginLeft:'8px' }}>{s.grade} {s.classNum}반</span>
+                      ) : (() => {
+                        const selClass = classes.find(c => c.id === selClassId)
+                        return (
+                          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                            {/* 헤더 */}
+                            <div style={{ display:'grid', gridTemplateColumns:'32px 1fr 60px 60px 40px 1fr 1fr 80px', gap:'8px', padding:'6px 12px', background:'#f3f4f6', borderRadius:'8px', fontSize:'11px', fontWeight:600, color:C.muted }}>
+                              <span></span>
+                              <span>이름</span>
+                              <span>학년</span>
+                              <span>반</span>
+                              <span>번호</span>
+                              <span>교구명</span>
+                              <span>단계</span>
+                              <span></span>
+                            </div>
+                            {confirmedStudents.map(s => {
+                              const supply = getStudentSupply(s.id)
+                              const isChecked = checkedStudents.includes(s.id)
+                              const prog = progressList.find(p => p.studentId===s.id && p.classId===selClassId && p.productId===supply.productId)
+                              const curStage = prog?.curStage || supply.stage || '-'
+                              const stageChecks = checkList.filter(c => c.studentId===s.id && c.classId===selClassId && c.productId===supply.productId && c.stage===prog?.curStage).length
+                              const product = productList.find(p => p.id === supply.productId)
+                              const sps = product?.sessionsPerStage || 12
+                              return (
+                                <div key={s.id}
+                                  style={{ display:'grid', gridTemplateColumns:'32px 1fr 60px 60px 40px 1fr 1fr 80px', gap:'8px', alignItems:'center', padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${isChecked ? C.primary : C.border}`, background: isChecked ? '#fff7ed' : C.card, transition:'all .15s' }}>
+                                  <input type="checkbox" checked={isChecked} onChange={() => toggleOne(s.id)}
+                                    style={{ width:'16px', height:'16px', cursor:'pointer' }} />
+                                  <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{s.name}</span>
+                                  <span style={{ fontSize:'12px', color:C.muted }}>{s.grade}학년</span>
+                                  <span style={{ fontSize:'12px', color:C.muted }}>{s.classNum}반</span>
+                                  <span style={{ fontSize:'12px', color:C.muted }}>{s.number||'-'}</span>
+                                  <span style={{ fontSize:'12px', color: supply.name ? '#7c3aed' : C.muted }}>
+                                    {supply.name || <span style={{ color:C.danger }}>미설정</span>}
+                                  </span>
+                                  <span style={{ fontSize:'12px', color:C.text }}>
+                                    {supply.name
+                                      ? <>{curStage}단계 {prog ? <span style={{ color:C.muted }}>({stageChecks}/{sps}차시)</span> : ''}</>
+                                      : '-'}
+                                  </span>
+                                  <div style={{ display:'flex', gap:'4px' }}>
+                                    <button onClick={e => { e.stopPropagation(); setCheckedStudents([s.id]); setSupplyModal(true) }}
+                                      style={{ padding:'3px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                                      수정
+                                    </button>
                                   </div>
-                                  {supply.name
-                                    ? <div style={{ fontSize:'12px', color:'#7c3aed', marginTop:'2px' }}>🎒 {supply.name}{supply.stage ? ` · ${supply.stage}단계` : ''}</div>
-                                    : <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>교구 미설정</div>
-                                  }
                                 </div>
-                                {supply.name && <span style={{ fontSize:'11px', background:'#f5f3ff', color:'#7c3aed', border:'1px solid #ddd6fe', borderRadius:'5px', padding:'1px 7px', flexShrink:0 }}>설정완료</span>}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
+                              )
+                            })}
+                          </div>
+                        )
+                      })()}
                     </>
                   )}
 
@@ -657,69 +683,82 @@ export function Supplies({ user }) {
                             🏢 교구업체 · 교구 등록하러 가기 →
                           </button>
                         </div>
-                      ) : robotProducts.map(product => {
-                        const sessionsPerStage = product.sessionsPerStage || 12
-                        const alertSession     = product.alertSession || 10
-                        const sessions = productPlanList
-                          .filter(p=>p.productId===product.id)
-                          .sort((a,b)=> a.stage!==b.stage ? a.stage-b.stage : a.sessionNo-b.sessionNo)
-                        const stageList = [...new Set(sessions.map(s=>s.stage))].sort((a,b)=>a-b)
-                        // 차시 목록이 없으면 기본 표시
-                        const displayStages = stageList.length > 0 ? stageList : STAGES.slice(0, product.maxStage||10)
-                        const avg = avgProgress[product.id] || 0
+                      ) : (() => {
+                        // 이 수업에서 실제 배정된 교구 목록만 (학생별 supply 기준)
+                        const assignedProductIds = [...new Set(
+                          confirmedStudents
+                            .map(s => getStudentSupply(s.id).productId)
+                            .filter(Boolean)
+                        )]
+                        const assignedProducts = robotProducts.filter(p => assignedProductIds.includes(p.id))
 
-                        return (
-                          <div key={product.id} style={{ marginBottom:'24px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-                            {/* 교구 헤더 */}
-                            <div style={{ padding:'14px 18px', background:'#f9fafb', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
-                              <div>
-                                <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>🤖 {product.name}</span>
-                                <span style={{ fontSize:'12px', color:C.muted, marginLeft:'10px' }}>단계당 {sessionsPerStage}차시 기준 · {alertSession}차시 도달 시 준비 알림</span>
-                              </div>
-                              <span style={{ fontSize:'12px', color:C.blue, background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'6px', padding:'2px 8px', fontWeight:600 }}>
-                                평균 진도 {Math.round(avg * 10) / 10}차시
-                              </span>
-                            </div>
-
-                            {/* 학생별 진도 */}
-                            <div style={{ padding:'12px 18px', display:'flex', flexDirection:'column', gap:'8px' }}>
-                              {confirmedStudents.length === 0 ? (
-                                <div style={{ textAlign:'center', padding:'20px', color:C.muted, fontSize:'13px' }}>확정된 학생이 없습니다</div>
-                              ) : confirmedStudents.map(s => {
-                                const prog = getProgress(s.id, product.id)
-                                const curStage = prog?.curStage || 1
-                                const studentChecks = getStudentChecks(s.id, product.id)
-                                const curStageChecks = studentChecks.filter(c=>c.stage===curStage).length
-                                const totalChecked = studentChecks.length
-                                const totalSessions = (curStage-1)*sessionsPerStage + curStageChecks
-                                const isAhead  = totalSessions > avg + 2
-                                const isBehind = totalSessions < avg - 2
-
-                                return (
-                                  <div key={s.id} style={{ border:`1px solid ${C.border}`, borderRadius:'10px', overflow:'hidden' }}>
-                                    <div style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 14px', background:'#f9fafb', cursor:'pointer' }}
-                                      onClick={() => { setProgressStudent(s); setProgressProductId(product.id); setProgressModal(true) }}>
-                                      <div style={{ flex:1 }}>
-                                        <div style={{ fontSize:'14px', fontWeight:600, color:C.text, display:'flex', alignItems:'center', gap:'8px' }}>
-                                          {s.name}
-                                          <span style={{ fontSize:'12px', color:C.muted, fontWeight:400 }}>{s.grade} {s.classNum}반</span>
-                                          {isAhead  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'0 5px' }}>🚀 빠름</span>}
-                                          {isBehind && <span style={{ fontSize:'11px', background:'#fef2f2', color:C.danger,  border:'1px solid #fca5a5', borderRadius:'4px', padding:'0 5px' }}>🐌 느림</span>}
-                                        </div>
-                                        <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                                          {prog ? `${curStage}단계 · 이번 단계 ${curStageChecks}/${sessionsPerStage}차시 완료` : '진도 미설정'}
-                                        </div>
-                                      </div>
-                                      <ProgressBadge checkedCount={curStageChecks} totalCount={sessionsPerStage} alertSession={alertSession} sessionsPerStage={sessionsPerStage} />
-                                      <span style={{ fontSize:'12px', color:C.primary }}>체크 →</span>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
+                        if (assignedProducts.length === 0) return (
+                          <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>
+                            <div style={{ fontSize:'32px', marginBottom:'8px' }}>📋</div>
+                            <div>교구가 배정된 학생이 없습니다.</div>
+                            <div style={{ fontSize:'12px', marginTop:'4px' }}>교구 배정 탭에서 먼저 교구를 설정하세요.</div>
                           </div>
                         )
-                      })}
+
+                        return assignedProducts.map(product => {
+                          const sessionsPerStage = product.sessionsPerStage || 12
+                          const alertSession     = product.alertSession || 10
+                          const avg = avgProgress[product.id] || 0
+                          // 이 교구가 배정된 학생만
+                          const productStudents = confirmedStudents.filter(s => getStudentSupply(s.id).productId === product.id)
+
+                          return (
+                            <div key={product.id} style={{ marginBottom:'24px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                              {/* 교구 헤더 */}
+                              <div style={{ padding:'14px 18px', background:'#f9fafb', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
+                                <div>
+                                  <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>🤖 {product.name}</span>
+                                  <span style={{ fontSize:'12px', color:C.muted, marginLeft:'10px' }}>단계당 {sessionsPerStage}차시 기준 · {alertSession}차시 도달 시 준비 알림</span>
+                                </div>
+                                <span style={{ fontSize:'12px', color:C.blue, background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'6px', padding:'2px 8px', fontWeight:600 }}>
+                                  평균 진도 {Math.round(avg * 10) / 10}차시 · {productStudents.length}명
+                                </span>
+                              </div>
+
+                              {/* 학생별 진도 */}
+                              <div style={{ padding:'12px 18px', display:'flex', flexDirection:'column', gap:'8px' }}>
+                                {productStudents.map(s => {
+                                  const supply = getStudentSupply(s.id)
+                                  const assignedStage = Number(supply.stage) || 1
+                                  const prog = getProgress(s.id, product.id)
+                                  const curStage = prog?.curStage || assignedStage
+                                  const studentChecks = getStudentChecks(s.id, product.id)
+                                  const curStageChecks = studentChecks.filter(c=>c.stage===curStage).length
+                                  const totalSessions = (curStage-1)*sessionsPerStage + curStageChecks
+                                  const isAhead  = totalSessions > avg + 2
+                                  const isBehind = avg > 0 && totalSessions < avg - 2
+
+                                  return (
+                                    <div key={s.id} style={{ border:`1px solid ${C.border}`, borderRadius:'10px', overflow:'hidden' }}>
+                                      <div style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 14px', background:'#f9fafb', cursor:'pointer' }}
+                                        onClick={() => { setProgressStudent(s); setProgressProductId(product.id); setProgressModal(true) }}>
+                                        <div style={{ flex:1 }}>
+                                          <div style={{ fontSize:'14px', fontWeight:600, color:C.text, display:'flex', alignItems:'center', gap:'8px' }}>
+                                            {s.name}
+                                            <span style={{ fontSize:'12px', color:C.muted, fontWeight:400 }}>{s.grade} {s.classNum}반</span>
+                                            {isAhead  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'0 5px' }}>🚀 빠름</span>}
+                                            {isBehind && <span style={{ fontSize:'11px', background:'#fef2f2', color:C.danger,  border:'1px solid #fca5a5', borderRadius:'4px', padding:'0 5px' }}>🐌 느림</span>}
+                                          </div>
+                                          <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+                                            {curStage}단계 · {curStageChecks}/{sessionsPerStage}차시 완료
+                                          </div>
+                                        </div>
+                                        <ProgressBadge checkedCount={curStageChecks} totalCount={sessionsPerStage} alertSession={alertSession} sessionsPerStage={sessionsPerStage} />
+                                        <span style={{ fontSize:'12px', color:C.primary }}>체크 →</span>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })
+                      })()}
                     </div>
                   )}
                 </>
