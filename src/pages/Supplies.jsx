@@ -697,8 +697,6 @@ export function Supplies({ user }) {
                           </div>
                         )
                       })()}
-                    <>
-                      })()}
                     </>
                   )}
 
