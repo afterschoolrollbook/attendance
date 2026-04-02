@@ -1,12 +1,10 @@
 import React, { useState } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, TeacherParentLinks } from '../lib/db.js'
 import { now, fmtPhone } from '../lib/utils.js'
-import { Btn, Card, PageHeader, Tag, EmptyState, Modal, ToastContainer } from '../components/Atoms.jsx'
-import { useToast } from '../hooks/useToast.js'
+import { Btn, Card, PageHeader, Tag, EmptyState, Modal } from '../components/Atoms.jsx'
 import { STUDENT_STATUS } from '../constants/config.js'
 
 export function StudentConfirm({ user }) {
-  const { toasts, success: scSuccess, error: scError } = useToast()
   const [selectedClass, setSelectedClass] = useState('')
   const [selected, setSelected] = useState(new Set())
 
@@ -64,14 +62,14 @@ export function StudentConfirm({ user }) {
     if (!selected.size) return
     doConfirm([...selected])
     setSelected(new Set())
-    scSuccess(`${selected.size}명이 최종 확정되었습니다. ✅`)
+    alert(`${selected.size}명이 최종 확정되었습니다.`)
   }
 
   // ✅ 랜덤 추첨 실행
   const runLottery = () => {
     const count = parseInt(lotteryCount)
-    if (!count || count <= 0) { scError('추첨 인원을 입력하세요.'); return }
-    if (count > lotteryPool.length) { scError(`추첨 대상(${lotteryPool.length}명)보다 많은 인원을 뽑을 수 없습니다.`); return }
+    if (!count || count <= 0) { alert('추첨 인원을 입력하세요.'); return }
+    if (count > lotteryPool.length) { alert(`추첨 대상(${lotteryPool.length}명)보다 많은 인원을 뽑을 수 없습니다.`); return }
 
     setLotteryAnimating(true)
 
@@ -113,7 +111,7 @@ export function StudentConfirm({ user }) {
     setLotteryDone(false)
     setLotteryResult([])
     setLotteryCount('')
-    scSuccess(`추첨 완료! 선발 ${winners.length}명 / 대기 ${losers.length}명 🎉`)
+    alert(`추첨 완료! 선발 ${winners.length}명 / 대기 ${losers.length}명`)
   }
 
   const closeLottery = () => {
@@ -127,7 +125,6 @@ export function StudentConfirm({ user }) {
   const confirmableStudents = students.filter(s => s.status !== 'confirmed')
 
   return (
-    <>
     <div style={{ padding: '28px', maxWidth: '900px' }}>
       <PageHeader
         title="최종 인원 확정"
@@ -359,7 +356,5 @@ export function StudentConfirm({ user }) {
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
     </div>
-    <ToastContainer toasts={toasts} />
-  </>
   )
 }

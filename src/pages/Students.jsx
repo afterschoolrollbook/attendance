@@ -74,7 +74,7 @@ export function Students({ user, onNav }) {
   // ✅ 실시간 반영용 강제 리렌더 트리거
   const [tick, setTick] = useState(0)
   const refresh = () => setTick(t => t + 1)
-  const { success: showToast, error: showToastError } = useToast()
+  const { success: showToast } = useToast()
   // ✅ 삭제 확인
   const [deleteTarget, setDeleteTarget] = useState(null)
 
@@ -189,13 +189,13 @@ export function Students({ user, onNav }) {
   }
 
   const save = () => {
-    if (!form.name.trim() || !form.grade) { showToastError('이름과 학년은 필수입니다.'); return }
+    if (!form.name.trim() || !form.grade) { alert('이름과 학년은 필수입니다.'); return }
 
     let classIds = [...(form.classIds || [])]
 
     // 수업 미선택 + 수업명 직접 입력 없음 → 경고
     if (classIds.length === 0 && !form._newClassName?.trim()) {
-      showToastError('수업을 선택하거나 수업명을 입력해주세요.')
+      alert('수업을 선택하거나 수업명을 입력해주세요.\n수업이 없으면 출석부에서 학생을 찾을 수 없습니다.')
       return
     }
 
@@ -338,7 +338,7 @@ export function Students({ user, onNav }) {
           studentPhone: String(r[5] || '').trim(),
         }))
 
-      if (parsed.length === 0) { showToastError('등록할 학생 데이터가 없습니다. 샘플 파일을 확인해주세요.'); return }
+      if (parsed.length === 0) { alert('등록할 학생 데이터가 없습니다.\n샘플 파일을 확인해주세요.'); return }
 
       // 중복 체크: 같은 수업 내 이름+학년+반 동일한 기존 학생
       // grade, classNum 정규화: '1학년'→'1', '1반'→'1' 로 통일 후 비교
@@ -358,12 +358,12 @@ export function Students({ user, onNav }) {
       })
 
       setExcelPreview(withDupFlag); setExcelStep(2)
-    } catch { showToastError('파일을 읽을 수 없습니다.') }
+    } catch { alert('파일을 읽을 수 없습니다.') }
   }
 
   const downloadSample = () => {
     const selCls = classes.find(c => c.id === excelClassId)
-    if (!selCls) { showToastError('먼저 수업을 선택해주세요.'); return }
+    if (!selCls) { alert('먼저 수업을 선택해주세요.'); return }
 
     import('xlsx').then(XLSX => {
       const schoolName  = selCls.organization || ''
@@ -413,7 +413,7 @@ export function Students({ user, onNav }) {
     const msg = skipped > 0
       ? `${toInsert.length}명 등록 완료! (${skipped}명 제외)`
       : `${toInsert.length}명 등록 완료!`
-    showToast(msg)
+    alert(msg)
     setShowExcel(false); setExcelPreview([]); setExcelStep(0); setExcelClassId('')
     refresh()
   }

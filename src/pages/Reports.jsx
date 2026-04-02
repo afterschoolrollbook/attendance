@@ -1,8 +1,7 @@
 import React, { useState } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB } from '../lib/db.js'
 import { calcSessionDates, today, fmtDate } from '../lib/utils.js'
-import { Btn, Card, PageHeader, Tag, ProgressBar, EmptyState, ToastContainer } from '../components/Atoms.jsx'
-import { useToast } from '../hooks/useToast.js'
+import { Btn, Card, PageHeader, Tag, ProgressBar, EmptyState } from '../components/Atoms.jsx'
 import { ATTENDANCE_STATUS } from '../constants/config.js'
 import { AdSlot } from '../components/AdSlot.jsx'
 
@@ -11,7 +10,6 @@ const STATUS_TEXT = { present: '출석', absent: '결석', late: '지각', early
 const STATUS_EMOJI = { present: '✅', absent: '❌', late: '🕐', early: '🔜', pending: '-' }
 
 export function Reports({ user }) {
-  const { toasts, error: reportsError } = useToast()
   const [selectedClass, setSelectedClass] = useState('')
   const [downloading, setDownloading] = useState(false)
 
@@ -78,7 +76,7 @@ export function Reports({ user }) {
       const filename = `${cls.organization}_${cls.className}${cls.section ? '_'+cls.section+'반' : ''}_출석리포트_${today()}.xlsx`
       XLSX.writeFile(wb, filename)
     } catch (e) {
-      reportsError('엑셀 다운로드 중 오류가 발생했습니다.')
+      alert('엑셀 다운로드 중 오류가 발생했습니다.')
       console.error(e)
     } finally {
       setDownloading(false)
@@ -161,7 +159,6 @@ export function Reports({ user }) {
   }
 
   return (
-    <>
     <div style={{ padding: '28px', maxWidth: '1200px' }}>
       <PageHeader title="출석 리포트" sub="수업별 출석 현황을 확인합니다." />
       <AdSlot slotId="report_bottom" />
@@ -292,7 +289,5 @@ export function Reports({ user }) {
         </>
       )}
     </div>
-    <ToastContainer toasts={toasts} />
-  </>
   )
 }

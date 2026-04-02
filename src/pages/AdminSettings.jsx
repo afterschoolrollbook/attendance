@@ -1,8 +1,6 @@
 import React, { useState } from 'react'
 import { Settings } from '../lib/db.js'
-import { Card, PageHeader, Toggle, Btn, ToastContainer } from '../components/Atoms.jsx'
-import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.jsx'
+import { Card, PageHeader, Toggle, Btn } from '../components/Atoms.jsx'
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316', success:'#16a34a' }
 
@@ -413,8 +411,6 @@ function SolapiSection() {
 
 // ─── 섹션: 지역/학교 관리
 function RegionSection() {
-  const { error: regionToast } = useToast()
-  const { showConfirm: regionConfirm, confirmDialog: regionConfirmDialog } = useConfirm()
   const [regions,    setRegions]    = useState(() => (Settings.get('regionMap') || {}).regions    || [])
   const [neisApiKey, setNeisApiKey] = useState(() => (Settings.get('regionMap') || {}).neisApiKey || '')
   const [msg,        setMsg]        = useState(null)
@@ -541,8 +537,8 @@ function RegionSection() {
   const removeSchool = (name) => setSchools(p => p.filter(s => s.name !== name))
 
   const saveForm = () => {
-    if (!form.sido) { regionToast('시도를 선택하세요.'); return }
-    if (!form.support.trim()) { regionToast('교육지원청명을 입력하세요.'); return }
+    if (!form.sido) { alert('시도를 선택하세요.'); return }
+    if (!form.support.trim()) { alert('교육지원청명을 입력하세요.'); return }
     const entry = { id: editId || String(Date.now()), sido: form.sido, office: form.office.trim(), officeUrl: form.officeUrl.trim(), support: form.support.trim(), supportUrl: form.supportUrl.trim(), schools }
     if (editId) {
       setRegions(p => p.map(r => r.id === editId ? entry : r))
@@ -553,7 +549,8 @@ function RegionSection() {
   }
 
   const deleteRegion = (id) => {
-    regionConfirm('지역을 삭제할까요?', () => setRegions(p => p.filter(r => r.id !== id)))
+    if (!window.confirm('삭제하시겠습니까?')) return
+    setRegions(p => p.filter(r => r.id !== id))
   }
 
   return (
@@ -846,8 +843,6 @@ function SubTitle({ children }) {
 }
 
 function TeacherServiceSection() {
-  const { error: tsToast } = useToast()
-  const { showConfirm: tsConfirm, confirmDialog: tsConfirmDialog } = useConfirm()
   const [ts, setTs]       = useState(loadTS)
   const [msg, setMsg]     = useState(null)
   const [subtab, setSubtab] = useState('menu')
@@ -881,7 +876,7 @@ function TeacherServiceSection() {
 
   // ─ 연수기관 저장
   const saveSite = () => {
-    if (!siteForm.name.trim()) { tsToast('기관명을 입력하세요'); return }
+    if (!siteForm.name.trim()) { alert('기관명을 입력하세요'); return }
     const item = { ...siteForm, courses: siteForm.courses.split('\n').map(s=>s.trim()).filter(Boolean), id: siteEditIdx !== null ? ts.trainingSites[siteEditIdx].id : String(Date.now()) }
     const updated = siteEditIdx !== null
       ? ts.trainingSites.map((s,i) => i===siteEditIdx ? item : s)
@@ -896,12 +891,13 @@ function TeacherServiceSection() {
     setSiteEditIdx(i); setSiteModal(true)
   }
   const deleteSite = (i) => {
-    tsConfirm('연수기관을 삭제할까요?', () => save({ trainingSites: ts.trainingSites.filter((_,idx)=>idx!==i) }))
+    if (!confirm('삭제할까요?')) return
+    save({ trainingSites: ts.trainingSites.filter((_,idx)=>idx!==i) })
   }
 
   // ─ 자격증 제휴처 저장
   const savePartner = () => {
-    if (!partnerForm.name.trim()) { tsToast('기관명을 입력하세요'); return }
+    if (!partnerForm.name.trim()) { alert('기관명을 입력하세요'); return }
     const item = { ...partnerForm, subjects: partnerForm.subjects.split(',').map(s=>s.trim()).filter(Boolean), id: partnerEditIdx !== null ? ts.certPartners[partnerEditIdx].id : String(Date.now()) }
     const updated = partnerEditIdx !== null
       ? ts.certPartners.map((p,i) => i===partnerEditIdx ? item : p)
@@ -916,12 +912,13 @@ function TeacherServiceSection() {
     setPartnerEditIdx(i); setPartnerModal(true)
   }
   const deletePartner = (i) => {
-    tsConfirm('제휴처를 삭제할까요?', () => save({ certPartners: ts.certPartners.filter((_,idx)=>idx!==i) }))
+    if (!confirm('삭제할까요?')) return
+    save({ certPartners: ts.certPartners.filter((_,idx)=>idx!==i) })
   }
 
   // ─ 공고 직접 등록
   const saveJob = () => {
-    if (!jobForm.title.trim()) { tsToast('공고 제목을 입력하세요'); return }
+    if (!jobForm.title.trim()) { alert('공고 제목을 입력하세요'); return }
     const item = { ...jobForm, id: jobEditIdx !== null ? ts.jobPostings[jobEditIdx].id : String(Date.now()), createdAt: jobEditIdx !== null ? ts.jobPostings[jobEditIdx].createdAt : new Date().toISOString().slice(0,10) }
     const updated = jobEditIdx !== null
       ? ts.jobPostings.map((j,i) => i===jobEditIdx ? item : j)
@@ -932,7 +929,8 @@ function TeacherServiceSection() {
   const openAddJob = () => { setJobForm(EMPTY_JOB); setJobEditIdx(null); setJobModal(true) }
   const openEditJob = (i) => { setJobForm({ ...ts.jobPostings[i] }); setJobEditIdx(i); setJobModal(true) }
   const deleteJob = (i) => {
-    tsConfirm('공고를 삭제할까요?', () => save({ jobPostings: ts.jobPostings.filter((_,idx)=>idx!==i) }))
+    if (!confirm('삭제할까요?')) return
+    save({ jobPostings: ts.jobPostings.filter((_,idx)=>idx!==i) })
   }
 
   const fStyle = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
@@ -1217,7 +1215,6 @@ function TeacherServiceSection() {
       )}
 
       <SaveMsg data={msg} />
-      {tsConfirmDialog}
     </Card>
   )
 }
