@@ -25,6 +25,7 @@ import { AwardsPage }   from './pages/Awards.jsx'
 import { Proposals }    from './pages/Proposals.jsx'
 import { Jobs }         from './pages/Jobs.jsx'
 import { Revenue }      from './pages/Revenue.jsx'
+import { Supplies }     from './pages/Supplies.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
@@ -119,6 +120,7 @@ export default function App() {
       case 'proposals':      return <Proposals    user={user} />
       case 'jobs':           return <Jobs         user={user} />
       case 'revenue':        return <Revenue      user={user} />
+      case 'supplies':       return <Supplies     user={user} />
       default:               return <Dashboard {...pageProps} />
     }
   }
