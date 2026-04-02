@@ -133,7 +133,7 @@ export function Training({ user }) {
 
   const years   = [...new Set([currentYear, ...records.map(r => r.year)])].sort()
   const filtered = records.filter(r => !selYear || r.year === selYear)
-                          .sort((a,b) => (b.completedAt||'').localeCompare(a.completedAt||''))
+                          .sort((a,b) => (a.completedAt||'').localeCompare(b.completedAt||''))
   const totalHours = filtered.reduce((s,r) => s + (Number(r.hours)||0), 0)
 
   const openAdd  = () => { setForm(EMPTY_FORM); setEditId(null); setModalFile(null); setModal(true) }

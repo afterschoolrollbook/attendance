@@ -194,7 +194,15 @@ export function Supplies({ user }) {
   const isRobot = selSubject === '로봇'
 
   // ── 교구 배정
-  const confirmedStudents = students.filter(s => s.classIds?.includes(selClassId) && s.status === 'confirmed')
+  const confirmedStudents = students.filter(s => s.classIds?.includes(selClassId) && s.status === 'confirmed').sort((a, b) => {
+    const gradeCmp = (parseInt(a.grade) || 0) - (parseInt(b.grade) || 0)
+    if (gradeCmp !== 0) return gradeCmp
+    const classNumCmp = parseInt(a.classNum || '0') - parseInt(b.classNum || '0')
+    if (classNumCmp !== 0) return classNumCmp
+    const numCmp = parseInt(a.number || '0') - parseInt(b.number || '0')
+    if (numCmp !== 0) return numCmp
+    return (a.name || '').localeCompare(b.name || '', 'ko')
+  })
   const allChecked = confirmedStudents.length > 0 && checkedStudents.length === confirmedStudents.length
   const toggleAll  = () => setCheckedStudents(allChecked ? [] : confirmedStudents.map(s=>s.id))
   const toggleOne  = (id) => setCheckedStudents(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id])
