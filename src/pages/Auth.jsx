@@ -3,9 +3,9 @@ import { Users } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
 import { Btn, Input , ToastContainer} from '../components/Atoms.jsx'
 import { Settings } from '../lib/db.js'
-import { sendEmail, isConfigured } from '../limport { useToast } from '../hooks/useToast.js'
+import { sendEmail, isConfigured } from '../lib/supabase.js'
+import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
-ib/supabase.js'
 
 function getSocialConfig() {
   const saved = Settings.get('social') || {}
