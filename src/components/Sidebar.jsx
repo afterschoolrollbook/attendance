@@ -3,14 +3,15 @@ import { AdSlots } from '../lib/db.js'
 import { can, FEATURES } from '../constants/permissions.js'
 
 const NAV = [
-  { path: 'dashboard',  label: '대시보드',   icon: '🏠', feature: null },
-  { path: 'attendance', label: '출석부',      icon: '✅', feature: FEATURES.ATTENDANCE },
-  { path: 'classes',    label: '수업 관리',   icon: '📚', feature: FEATURES.MANAGE_CLASS },
-  { path: 'students',   label: '학생 관리',   icon: '👥', feature: FEATURES.ADD_STUDENT },
-  { path: 'reports',    label: '출석 리포트', icon: '📊', feature: FEATURES.VIEW_REPORT },
-  { path: 'templates',  label: '출석부 양식', icon: '📄', feature: FEATURES.MANAGE_TEMPLATE },
-  { path: 'printsetup', label: '출석부 출력', icon: '🖨️', feature: FEATURES.PRINT_ATTENDANCE },
-  { path: 'profile',    label: '내 정보',     icon: '👤', feature: null },
+  { path: 'dashboard',  label: '대시보드',        icon: '🏠', feature: null },
+  { path: 'attendance', label: '출석부',           icon: '✅', feature: FEATURES.ATTENDANCE },
+  { path: 'classes',    label: '수업등록 및 관리', icon: '📚', feature: FEATURES.MANAGE_CLASS },
+  { path: 'students',   label: '학생등록 및 관리', icon: '👥', feature: FEATURES.ADD_STUDENT },
+  { path: 'reports',    label: '출석 리포트',      icon: '📊', feature: FEATURES.VIEW_REPORT },
+  { path: 'templates',  label: '출석부 양식',      icon: '📄', feature: FEATURES.MANAGE_TEMPLATE },
+  { path: 'printsetup', label: '출석부 출력',      icon: '🖨️', feature: FEATURES.PRINT_ATTENDANCE },
+  { path: 'supplies',   label: '교구준비 및 관리', icon: '🎒', feature: null },
+  { path: 'profile',    label: '내 정보',          icon: '👤', feature: null },
 ]
 
 // 수익관리 — 항상 표시
@@ -97,9 +98,9 @@ export function Sidebar({ user, currentPage, onNav, onLogout }) {
           return <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} />
         })}
 
-        {/* 내 관리 섹션 */}
+        {/* 선생님 커리어 섹션 */}
         <div style={{ fontSize:'11px', color:'#52525b', padding:'12px 20px 4px', fontWeight:600, letterSpacing:'0.05em' }}>
-          내 관리
+          선생님 커리어
         </div>
 
         {/* 수익관리 — 항상 고정 */}
