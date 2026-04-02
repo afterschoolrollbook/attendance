@@ -1193,12 +1193,17 @@ export function Supplies({ user }) {
                 const prog             = getProgress(progressStudent.id, product.id)
                 const curStage         = prog?.curStage || 1
 
-                // 단계별로 그룹핑
+                // 이 학생에게 배정된 단계만
+                const supply = itemList.find(i => i.classId===selClassId && i.studentId===progressStudent.id)
+                const assignedStage = supply?.stage ? Number(supply.stage) : (prog?.curStage || 1)
+                // 배정 단계 기준으로 현재 단계만 표시 (완료된 이전 단계 포함)
+                const maxShowStage = Math.max(assignedStage, prog?.curStage || 1)
+                const showStages = STAGES.slice(0, maxShowStage)
+
                 const allSessions = productPlanList.filter(p=>p.productId===product.id).sort((a,b)=>a.stage!==b.stage?a.stage-b.stage:a.sessionNo-b.sessionNo)
                 const stageGroups = {}
-                STAGES.slice(0, product.maxStage||10).forEach(stage => {
+                showStages.forEach(stage => {
                   const stagePlans = allSessions.filter(p=>p.stage===stage)
-                  // 지도안이 없으면 숫자만
                   stageGroups[stage] = stagePlans.length > 0
                     ? stagePlans
                     : Array.from({length: sessionsPerStage}, (_, i) => ({ id:`dummy_${stage}_${i+1}`, stage, sessionNo:i+1, title:`${stage}단계 ${i+1}차시`, dummy:true }))
@@ -1207,9 +1212,9 @@ export function Supplies({ user }) {
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
                     <div style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', fontSize:'13px', color:C.muted }}>
-                      🤖 {product.name} · 단계당 {sessionsPerStage}차시 기준
+                      🤖 {product.name} · {assignedStage}단계 배정 · 단계당 {sessionsPerStage}차시 기준
                     </div>
-                    {STAGES.slice(0, product.maxStage||10).map(stage => {
+                    {showStages.map(stage => {
                       const sessions = stageGroups[stage]
                       const stageChecks = studentChecks.filter(c=>c.stage===stage)
                       const checkedNos  = new Set(stageChecks.map(c=>c.sessionNo))
