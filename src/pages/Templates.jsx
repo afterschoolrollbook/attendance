@@ -3,7 +3,7 @@ import { Templates as TemplatesDB } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
 import { Btn, Card, Input, Modal, PageHeader, Tag, EmptyState, Toggle, ToastContainer } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
+import { useConfirm } from '../hooks/useConfirm.jsx'
 
 export function Templates({ user }) {
   const { toasts, success: tplSuccess, error: tplError } = useToast()

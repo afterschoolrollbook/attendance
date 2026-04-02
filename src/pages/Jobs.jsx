@@ -3,7 +3,7 @@ import { uid, now } from '../lib/utils.js'
 import { supabase } from '../lib/supabase.js'
 import { Btn, ToastContainer } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
+import { useConfirm } from '../hooks/useConfirm.jsx'
 
 const C = { primary:'#f97316', success:'#16a34a', danger:'#ef4444', border:'#e5e7eb', text:'#111827', muted:'#6b7280', card:'#fff', warning:'#f59e0b' }
 const STORAGE_KEY = 'asa_job_subs'

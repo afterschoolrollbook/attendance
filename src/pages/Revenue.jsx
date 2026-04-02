@@ -3,7 +3,7 @@ import { uid, now, today, localDateStr, calcSessionDates, sortClasses } from '..
 import { Classes, Students, RevenueFees, RevenuePayments } from '../lib/db.js'
 import { ToastContainer } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
+import { useConfirm } from '../hooks/useConfirm.jsx'
 
 const C = {
   primary: '#f97316', success: '#16a34a', danger: '#ef4444',

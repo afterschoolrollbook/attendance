@@ -4,7 +4,7 @@ import { uid, now } from '../lib/utils.js'
 import { Awards } from '../lib/db.js'
 import { Btn, ToastContainer } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
+import { useConfirm } from '../hooks/useConfirm.jsx'
 
 const C = {
   primary:'#f97316', success:'#16a34a', danger:'#ef4444',

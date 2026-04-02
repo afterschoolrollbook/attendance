@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { uid, now, sortClasses } from '../lib/utils.js'
 import { Btn, ToastContainer } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
+import { useConfirm } from '../hooks/useConfirm.jsx'
 import {
   Classes, Students,
   SupplySubjects, SupplyVendors, SupplyItems, SupplyPlans,
