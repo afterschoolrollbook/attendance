@@ -607,7 +607,11 @@ export function Supplies({ user }) {
                         </label>
                         <div style={{ flex:1 }} />
                         {checkedStudents.length > 0 && (
-                          <button onClick={() => setSupplyModal(true)}
+                          <button onClick={() => {
+                            // 다중 선택 시 빈 폼으로 열기 (일괄 설정)
+                            setSupplyForm({ name:'', productId:'', stage:1 })
+                            setSupplyModal(true)
+                          }}
                             style={{ padding:'7px 16px', borderRadius:'8px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                             🎒 교구 설정 ({checkedStudents.length}명)
                           </button>
@@ -669,10 +673,24 @@ export function Supplies({ user }) {
                                       ? `${sps}차시 중 ${stageChecks}`
                                       : <span style={{ color:C.danger }}>없음</span>}
                                   </span>
-                                  <button onClick={e => { e.stopPropagation(); setCheckedStudents([s.id]); setSupplyModal(true) }}
-                                    style={{ padding:'4px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
-                                    수정
-                                  </button>
+                                  {hasSupply ? (
+                                    <button onClick={e => {
+                                      e.stopPropagation()
+                                      // 기존 설정값 로드해서 모달 열기
+                                      setCheckedStudents([s.id])
+                                      setSupplyForm({
+                                        name: supply.name || '',
+                                        productId: supply.productId || '',
+                                        stage: supply.stage ? Number(supply.stage) : 1,
+                                      })
+                                      setSupplyModal(true)
+                                    }}
+                                      style={{ padding:'4px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                                      수정
+                                    </button>
+                                  ) : (
+                                    <span style={{ fontSize:'11px', color:C.muted }}>—</span>
+                                  )}
                                 </div>
                               )
                             })}
