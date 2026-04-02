@@ -64,8 +64,9 @@ export function Templates({ user }) {
 
   const del = (id) => {
     confirm('삭제하시겠습니까?', () => {
-    TemplatesDB.delete(id)
-    reload()
+      TemplatesDB.delete(id)
+      reload()
+    }, { icon: '🗑', confirmLabel: '삭제' })
   }
 
   return (

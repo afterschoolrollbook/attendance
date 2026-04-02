@@ -552,8 +552,8 @@ function RegionSection() {
 
   const deleteRegion = (id) => {
     confirm('삭제하시겠습니까?', () => {
-    setRegions(p => p.filter(r => r.id !== id))
-  }
+      setRegions(p => p.filter(r => r.id !== id))
+    }, { icon: '🗑', confirmLabel: '삭제' })
 
   return (
     <Card style={{ marginBottom:'16px' }}>
@@ -892,8 +892,8 @@ function TeacherServiceSection() {
   }
   const deleteSite = (i) => {
     confirm('삭제할까요?', () => {
-    save({ trainingSites: ts.trainingSites.filter((_,idx)=>idx!==i) })
-  }
+      save({ trainingSites: ts.trainingSites.filter((_,idx)=>idx!==i) })
+    }, { icon: '🗑', confirmLabel: '삭제' })
 
   // ─ 자격증 제휴처 저장
   const savePartner = () => {
@@ -913,8 +913,8 @@ function TeacherServiceSection() {
   }
   const deletePartner = (i) => {
     confirm('삭제할까요?', () => {
-    save({ certPartners: ts.certPartners.filter((_,idx)=>idx!==i) })
-  }
+      save({ certPartners: ts.certPartners.filter((_,idx)=>idx!==i) })
+    }, { icon: '🗑', confirmLabel: '삭제' })
 
   // ─ 공고 직접 등록
   const saveJob = () => {
@@ -930,8 +930,8 @@ function TeacherServiceSection() {
   const openEditJob = (i) => { setJobForm({ ...ts.jobPostings[i] }); setJobEditIdx(i); setJobModal(true) }
   const deleteJob = (i) => {
     confirm('삭제할까요?', () => {
-    save({ jobPostings: ts.jobPostings.filter((_,idx)=>idx!==i) })
-  }
+      save({ jobPostings: ts.jobPostings.filter((_,idx)=>idx!==i) })
+    }, { icon: '🗑', confirmLabel: '삭제' })
 
   const fStyle = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
   const tagColors = { '제휴':'#eff6ff:#bfdbfe:#1d4ed8', '광고':'#fff7ed:#fed7aa:#9a3412', '공식':'#f0fdf4:#86efac:#15803d' }
