@@ -137,7 +137,7 @@ export function Supplies({ user }) {
   const [sessionPlanModal, setSessionPlanModal] = useState(false)
   const [sessionPlanTarget, setSessionPlanTarget] = useState({ productId:'', stage:1 })
   const [sessionPlanList, setSessionPlanList]   = useState([]) // 해당 단계 차시 목록
-  const [sessionPlanForm, setSessionPlanForm]   = useState({ sessionNo:1, title:'', memo:'' })
+  const [sessionPlanForm, setSessionPlanForm]   = useState({ editId:null, sessionNo:1, title:'', memo:'' })
   const [sessionPlanFile, setSessionPlanFile]   = useState(null)
   const sessionPlanFileRef = useRef()
 
@@ -378,7 +378,7 @@ export function Supplies({ user }) {
   const openSessionPlan = (productId, stage) => {
     setSessionPlanTarget({ productId, stage })
     setSessionPlanList(productPlanList.filter(p=>p.productId===productId && p.stage===stage).sort((a,b)=>a.sessionNo-b.sessionNo))
-    setSessionPlanForm({ sessionNo:1, title:'', memo:'' })
+    setSessionPlanForm({ editId:null, sessionNo:1, title:'', memo:'' })
     setSessionPlanFile(null)
     setSessionPlanModal(true)
   }
@@ -391,23 +391,38 @@ export function Supplies({ user }) {
         fileUrl = await uploadToStorage(user.id, `robot/${sessionPlanTarget.productId}`, sessionPlanFile)
         fileName = sessionPlanFile.name
       }
-      SupplyProductPlans.insert({
-        id: uid(), teacherId: user.id, productId: sessionPlanTarget.productId,
-        stage: sessionPlanTarget.stage, sessionNo: sessionPlanForm.sessionNo,
-        title: sessionPlanForm.title, memo: sessionPlanForm.memo,
-        fileUrl, fileName, createdAt: now(),
-      })
+      if (sessionPlanForm.editId) {
+        // 수정 모드
+        SupplyProductPlans.update(sessionPlanForm.editId, {
+          sessionNo: sessionPlanForm.sessionNo,
+          title: sessionPlanForm.title,
+          memo: sessionPlanForm.memo,
+          ...(fileUrl ? { fileUrl, fileName } : {}),
+        })
+      } else {
+        // 추가 모드
+        SupplyProductPlans.insert({
+          id: uid(), teacherId: user.id, productId: sessionPlanTarget.productId,
+          stage: sessionPlanTarget.stage, sessionNo: sessionPlanForm.sessionNo,
+          title: sessionPlanForm.title, memo: sessionPlanForm.memo,
+          fileUrl, fileName, createdAt: now(),
+        })
+      }
       reload()
       setSessionPlanList(SupplyProductPlans.byProductStage(sessionPlanTarget.productId, sessionPlanTarget.stage).sort((a,b)=>a.sessionNo-b.sessionNo))
-      setSessionPlanForm({ sessionNo: sessionPlanForm.sessionNo+1, title:'', memo:'' })
+      setSessionPlanForm({ editId:null, sessionNo: sessionPlanForm.editId ? sessionPlanForm.sessionNo : sessionPlanForm.sessionNo+1, title:'', memo:'' })
       setSessionPlanFile(null)
+      showToast(sessionPlanForm.editId ? '수정되었습니다.' : '차시가 추가되었습니다.')
     } catch(e) { alert('저장 실패: '+e.message) }
     finally { setUploading(false) }
   }
   const deleteSessionPlan = (id) => {
-    SupplyProductPlans.delete(id)
-    reload()
-    setSessionPlanList(prev => prev.filter(p=>p.id!==id))
+    setDeleteConfirm({ msg:'이 차시를 삭제하시겠습니까?', onOk: () => {
+      SupplyProductPlans.delete(id)
+      reload()
+      setSessionPlanList(prev => prev.filter(p=>p.id!==id))
+      showToast('삭제가 완료되었습니다.', 'info')
+    }})
   }
 
   // 파일 등록
@@ -1449,21 +1464,40 @@ export function Supplies({ user }) {
               {sessionPlanList.length > 0 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
                   {sessionPlanList.map(p => (
-                    <div key={p.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:'#f9fafb', borderRadius:'8px', border:`1px solid ${C.border}` }}>
-                      <span style={{ fontSize:'12px', fontWeight:700, color:C.primary, minWidth:'40px' }}>{p.sessionNo}차시</span>
-                      <span style={{ fontSize:'13px', flex:1, color:C.text }}>{p.title}</span>
-                      {p.memo && <span style={{ fontSize:'11px', color:C.muted }}>📌 {p.memo}</span>}
-                      {p.fileUrl && <a href={p.fileUrl} download target="_blank" rel="noopener noreferrer" style={{ fontSize:'11px', color:C.blue, textDecoration:'none' }}>📄 파일</a>}
-                      <button onClick={() => deleteSessionPlan(p.id)}
-                        style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', padding:0 }}>×</button>
+                    <div key={p.id} style={{ background:'#f9fafb', borderRadius:'8px', border:`1px solid ${sessionPlanForm.editId===p.id ? C.primary : C.border}`, overflow:'hidden' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px' }}>
+                        <span style={{ fontSize:'12px', fontWeight:700, color:C.primary, minWidth:'40px', flexShrink:0 }}>{p.sessionNo}차시</span>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:'13px', color:C.text, fontWeight:600 }}>{p.title}</div>
+                          {p.memo && <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>📌 준비물: {p.memo}</div>}
+                        </div>
+                        {p.fileUrl && <a href={p.fileUrl} download target="_blank" rel="noopener noreferrer" style={{ fontSize:'11px', color:C.blue, textDecoration:'none', flexShrink:0 }}>📄 파일</a>}
+                        <button
+                          onClick={() => setSessionPlanForm({ editId:p.id, sessionNo:p.sessionNo, title:p.title, memo:p.memo||'' })}
+                          style={{ padding:'3px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600, flexShrink:0 }}>
+                          수정
+                        </button>
+                        <button onClick={() => deleteSessionPlan(p.id)}
+                          style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600, flexShrink:0 }}>
+                          삭제
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* 새 차시 추가 */}
-              <div style={{ background:'#f9fafb', borderRadius:'10px', padding:'14px', border:`1px solid ${C.border}` }}>
-                <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'12px' }}>+ 차시 추가</div>
+              {/* 새 차시 추가 / 수정 */}
+              <div style={{ background: sessionPlanForm.editId ? '#fff7ed' : '#f9fafb', borderRadius:'10px', padding:'14px', border:`1.5px solid ${sessionPlanForm.editId ? C.primary : C.border}` }}>
+                <div style={{ fontSize:'13px', fontWeight:700, color: sessionPlanForm.editId ? C.primary : C.text, marginBottom:'12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span>{sessionPlanForm.editId ? '✏️ 차시 수정' : '+ 차시 추가'}</span>
+                  {sessionPlanForm.editId && (
+                    <button onClick={() => setSessionPlanForm({ editId:null, sessionNo: sessionPlanForm.sessionNo+1, title:'', memo:'' })}
+                      style={{ fontSize:'12px', color:C.muted, background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      취소
+                    </button>
+                  )}
+                </div>
                 <div style={{ display:'grid', gridTemplateColumns:'80px 1fr', gap:'8px', marginBottom:'8px' }}>
                   <div>
                     <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>차시번호</label>
@@ -1478,9 +1512,9 @@ export function Supplies({ user }) {
                   </div>
                 </div>
                 <div style={{ marginBottom:'8px' }}>
-                  <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>메모 (선택)</label>
+                  <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>준비물 (선택)</label>
                   <input value={sessionPlanForm.memo} onChange={e=>setSessionPlanForm(v=>({...v, memo:e.target.value}))}
-                    placeholder="준비물, 유의사항 등" style={iStyle} />
+                    placeholder="예: 가위, 색종이, 이쑤시개 4개" style={iStyle} />
                 </div>
                 {/* 파일 첨부 */}
                 <div style={{ marginBottom:'10px' }}>
@@ -1500,7 +1534,7 @@ export function Supplies({ user }) {
                 </div>
                 <button onClick={saveSessionPlan} disabled={uploading}
                   style={{ width:'100%', padding:'9px', borderRadius:'9px', border:'none', background: uploading?'#e5e7eb':C.primary, color: uploading?C.muted:'#fff', fontSize:'13px', fontWeight:700, cursor: uploading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                  {uploading ? '저장 중...' : '+ 차시 추가'}
+                  {uploading ? '저장 중...' : sessionPlanForm.editId ? '✏️ 수정 저장' : '+ 차시 추가'}
                 </button>
               </div>
             </div>
