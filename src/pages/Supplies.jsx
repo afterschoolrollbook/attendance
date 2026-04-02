@@ -114,8 +114,9 @@ export function Supplies({ user }) {
   // 파일 모달
   const [fileModal, setFileModal]     = useState(false)
   const [fileModalMode, setFileModalMode] = useState('plan')
-  const [fileForm, setFileForm]       = useState({ fileType:'annual', title:'', school:'', vendorId:'' })
-  const [fileTarget, setFileTarget]   = useState(null)
+  const [fileForm, setFileForm]       = useState({ fileType:'annual', title:'', school:'', vendorId:'', productId:'' })
+  const [fileTarget, setFileTarget]   = useState(null)   // vendorId
+  const [fileProductTarget, setFileProductTarget] = useState(null) // productId
   const [modalFile, setModalFile]     = useState(null)
   const [uploading, setUploading]     = useState(false)
   const fileRef = useRef()
@@ -360,9 +361,16 @@ export function Supplies({ user }) {
   }
 
   // 파일 등록
-  const openFileModal = (mode, vendorId=null) => {
-    setFileModalMode(mode); setFileTarget(vendorId)
-    setFileForm({ fileType: mode==='promo'?'promo':'annual', title:'', school:'', vendorId: vendorId||'' })
+  const openFileModal = (mode, vendorId=null, productId=null) => {
+    setFileModalMode(mode)
+    setFileTarget(vendorId)
+    setFileProductTarget(productId)
+    setFileForm({
+      fileType: mode==='promo' ? 'promo' : 'annual',
+      title:'', school:'',
+      vendorId: vendorId||'',
+      productId: productId||'',
+    })
     setModalFile(null); setFileModal(true)
   }
   const saveFile = async () => {
@@ -378,7 +386,9 @@ export function Supplies({ user }) {
         id: uid(), teacherId: user.id, subject: selSubject,
         type: fileForm.fileType, fileType: fileForm.fileType,
         title: fileForm.title, school: fileForm.school||null,
-        vendorId: fileTarget||null, fileUrl, fileName, createdAt: now(),
+        vendorId: fileTarget||null,
+        productId: fileProductTarget || fileForm.productId || null,
+        fileUrl, fileName, createdAt: now(),
       })
       reload(); setFileModal(false); setModalFile(null)
     } catch(e) { alert('업로드 실패: '+e.message) }
@@ -412,11 +422,29 @@ export function Supplies({ user }) {
     { key:'vendor', label:`🏢 교구업체(${selSubject||''})` },
   ]
 
-  const FILE_TYPE_OPTIONS = fileModalMode==='vendor'
-    ? [{ v:'annual', l:'📅 연간지도안' }, { v:'session', l:'📝 차시별지도안' }, { v:'promo', l:'🖼 홍보물' }]
-    : innerTab==='promo'
+  const FILE_TYPE_OPTIONS =
+    fileModalMode === 'vendor'
+      ? [{ v:'annual', l:'📅 연간지도안' }, { v:'session', l:'📝 차시별지도안' }, { v:'promo', l:'🖼 홍보물' }]
+    : fileModalMode === 'product_annual'
+      ? [{ v:'annual', l:'📅 연간지도안' }]
+    : fileModalMode === 'product_promo'
+      ? [{ v:'promo', l:'🖼 홍보물' }]
+    : innerTab === 'promo'
       ? [{ v:'promo', l:'🖼 홍보물' }]
       : [{ v:'annual', l:'📅 연간지도안' }, { v:'session', l:'📝 차시별지도안' }]
+
+  // 파일 모달 타이틀
+  const fileModalTitle =
+    fileModalMode === 'product_annual' ? '📅 연간지도안 등록'
+    : fileModalMode === 'product_promo' ? '🖼 홍보물 등록'
+    : fileModalMode === 'vendor'        ? '🏢 업체 파일 추가'
+    : innerTab === 'promo'              ? '🖼 홍보물 등록'
+    : '📋 지도안 등록'
+
+  // 연결 대상 교구명 (product_* 모드일 때)
+  const fileProductName = fileProductTarget
+    ? (productList.find(p => p.id === fileProductTarget)?.name || '')
+    : ''
 
   return (
     <div style={{ padding:'24px', maxWidth:'1200px' }}>
@@ -738,33 +766,77 @@ export function Supplies({ user }) {
                               {vProducts.length === 0 ? (
                                 <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'12px 0' }}>등록된 교구가 없습니다</div>
                               ) : (
-                                <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                                <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
                                   {vProducts.map(p => {
-                                    const planCount = productPlanList.filter(pl=>pl.productId===p.id).length
+                                    const planCount   = productPlanList.filter(pl=>pl.productId===p.id).length
+                                    const annualPlans = planList.filter(pl=>pl.productId===p.id && (pl.fileType==='annual'||pl.type==='annual'))
+                                    const promos      = planList.filter(pl=>pl.productId===p.id && (pl.fileType==='promo'||pl.type==='promo'))
                                     return (
-                                      <div key={p.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#f9fafb', borderRadius:'9px', border:`1px solid ${C.border}` }}>
-                                        <span style={{ fontSize:'18px' }}>🤖</span>
-                                        <div style={{ flex:1 }}>
-                                          <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name}</div>
-                                          <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
-                                            최대 {p.maxStage||10}단계 · 단계당 {p.sessionsPerStage||12}차시 · {p.alertSession||10}차시 알림
-                                            {planCount > 0 && <span style={{ marginLeft:'8px', color:C.purple }}>차시지도안 {planCount}개</span>}
+                                      <div key={p.id} style={{ background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                                        {/* 교구 헤더 */}
+                                        <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px' }}>
+                                          <span style={{ fontSize:'18px' }}>🤖</span>
+                                          <div style={{ flex:1 }}>
+                                            <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name}</div>
+                                            <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                                              <span>최대 {p.maxStage||10}단계 · 단계당 {p.sessionsPerStage||12}차시</span>
+                                              {planCount > 0    && <span style={{ color:C.purple }}>차시지도안 {planCount}개</span>}
+                                              {annualPlans.length > 0 && <span style={{ color:C.blue }}>연간지도안 {annualPlans.length}개</span>}
+                                              {promos.length > 0      && <span style={{ color:C.success }}>홍보물 {promos.length}개</span>}
+                                            </div>
+                                          </div>
+                                          <button onClick={() => deleteProduct(p.id)}
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
+                                        </div>
+                                        {/* 단계별 차시지도안 */}
+                                        <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
+                                          <div style={{ fontSize:'11px', fontWeight:600, color:C.muted, marginBottom:'5px' }}>📝 단계별 차시지도안</div>
+                                          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
+                                            {STAGES.slice(0, p.maxStage||10).map(stage => {
+                                              const cnt = productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage).length
+                                              return (
+                                                <button key={stage} onClick={() => openSessionPlan(p.id, stage)}
+                                                  style={{ padding:'3px 7px', borderRadius:'5px', border:`1px solid ${cnt>0?'#86efac':C.border}`, background: cnt>0?'#f0fdf4':'#fff', color: cnt>0?C.success:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: cnt>0?700:400 }}>
+                                                  {stage}단계{cnt>0?` (${cnt})`:''}
+                                                </button>
+                                              )
+                                            })}
                                           </div>
                                         </div>
-                                        {/* 단계별 차시 지도안 버튼 */}
-                                        <div style={{ display:'flex', gap:'4px', flexWrap:'wrap', maxWidth:'200px' }}>
-                                          {STAGES.slice(0, p.maxStage||10).map(stage => {
-                                            const cnt = productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage).length
-                                            return (
-                                              <button key={stage} onClick={() => openSessionPlan(p.id, stage)}
-                                                style={{ padding:'3px 7px', borderRadius:'5px', border:`1px solid ${cnt>0?'#86efac':C.border}`, background: cnt>0?'#f0fdf4':'#fff', color: cnt>0?C.success:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: cnt>0?700:400 }}>
-                                                {stage}단계{cnt>0?` (${cnt})`:''}
-                                              </button>
-                                            )
-                                          })}
+                                        {/* 연간지도안 */}
+                                        <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
+                                          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
+                                            <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📅 연간지도안</span>
+                                            <button onClick={() => openFileModal('product_annual', v.id, p.id)}
+                                              style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                              + 추가
+                                            </button>
+                                          </div>
+                                          {annualPlans.length === 0 ? (
+                                            <div style={{ fontSize:'12px', color:C.muted }}>등록된 연간지도안이 없습니다</div>
+                                          ) : (
+                                            <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                                              {annualPlans.map(f => <FileRow key={f.id} item={f} onDelete={deleteFile}/>)}
+                                            </div>
+                                          )}
                                         </div>
-                                        <button onClick={() => deleteProduct(p.id)}
-                                          style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
+                                        {/* 홍보물 */}
+                                        <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
+                                          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
+                                            <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>🖼 홍보물</span>
+                                            <button onClick={() => openFileModal('product_promo', v.id, p.id)}
+                                              style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                              + 추가
+                                            </button>
+                                          </div>
+                                          {promos.length === 0 ? (
+                                            <div style={{ fontSize:'12px', color:C.muted }}>등록된 홍보물이 없습니다</div>
+                                          ) : (
+                                            <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                                              {promos.map(f => <FileRow key={f.id} item={f} onDelete={deleteFile}/>)}
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     )
                                   })}
@@ -1202,30 +1274,39 @@ export function Supplies({ user }) {
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
           <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'460px', maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'#fff', zIndex:1 }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>
-                {fileModalMode==='vendor' ? '🏢 업체 파일 추가' : innerTab==='promo' ? '🖼 홍보물 등록' : '📋 지도안 등록'}
+              <div>
+                <span style={{ fontSize:'16px', fontWeight:700 }}>{fileModalTitle}</span>
                 <span style={{ fontSize:'13px', color:C.muted, fontWeight:400, marginLeft:'6px' }}>— {selSubject}</span>
-              </span>
+                {fileProductName && (
+                  <div style={{ fontSize:'12px', color:C.primary, fontWeight:600, marginTop:'2px' }}>
+                    🤖 {fileProductName}
+                  </div>
+                )}
+              </div>
               <button onClick={()=>{ setFileModal(false); setModalFile(null) }} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
             </div>
             <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>종류</label>
-                <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-                  {FILE_TYPE_OPTIONS.map(o => (
-                    <button key={o.v} onClick={()=>setFileForm(f=>({...f, fileType:o.v}))}
-                      style={{ padding:'7px 14px', borderRadius:'8px', border:`1.5px solid ${fileForm.fileType===o.v?C.primary:C.border}`, background: fileForm.fileType===o.v?'#fff7ed':'#fff', color: fileForm.fileType===o.v?C.primary:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                      {o.l}
-                    </button>
-                  ))}
+              {/* 종류 선택 — product_* 모드는 1개라 숨김 */}
+              {FILE_TYPE_OPTIONS.length > 1 && (
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>종류</label>
+                  <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                    {FILE_TYPE_OPTIONS.map(o => (
+                      <button key={o.v} onClick={()=>setFileForm(f=>({...f, fileType:o.v}))}
+                        style={{ padding:'7px 14px', borderRadius:'8px', border:`1.5px solid ${fileForm.fileType===o.v?C.primary:C.border}`, background: fileForm.fileType===o.v?'#fff7ed':'#fff', color: fileForm.fileType===o.v?C.primary:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                        {o.l}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>제목 *</label>
                 <input value={fileForm.title} onChange={e=>setFileForm(f=>({...f, title:e.target.value}))}
-                  placeholder="예: 2026년 로봇과학 연간지도안" style={iStyle} autoFocus />
+                  placeholder="예: 2026년 큐보 연간지도안" style={iStyle} autoFocus />
               </div>
-              {fileModalMode !== 'vendor' && (
+              {/* 학교 지정 — 교구 직접 연결 모드에서는 불필요 */}
+              {!['vendor','product_annual','product_promo'].includes(fileModalMode) && (
                 <div>
                   <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>
                     학교 지정 <span style={{ fontWeight:400 }}>(선택)</span>
