@@ -8,7 +8,7 @@ import { useConfirm } from '../hooks/useConfirm.js'
 
 export function StudentConfirm({ user }) {
   const { success, error: toastError, warning, info } = useToast()
-  const { confirm } = useConfirm()
+  const { confirm: confirmDialog } = useConfirm()
   const [selectedClass, setSelectedClass] = useState('')
   const [selected, setSelected] = useState(new Set())
 
@@ -62,7 +62,7 @@ export function StudentConfirm({ user }) {
     })
   }
 
-  const confirm = () => {
+  const handleConfirm = () => {
     if (!selected.size) return
     doConfirm([...selected])
     setSelected(new Set())
@@ -182,7 +182,7 @@ export function StudentConfirm({ user }) {
                 {selected.size === confirmableStudents.length && confirmableStudents.length > 0 ? '전체 해제' : '전체 선택'}
               </Btn>
               {selected.size > 0 && (
-                <Btn size="sm" onClick={confirm}>✅ {selected.size}명 최종 확정</Btn>
+                <Btn size="sm" onClick={handleConfirm}>✅ {selected.size}명 최종 확정</Btn>
               )}
             </div>
           </div>
