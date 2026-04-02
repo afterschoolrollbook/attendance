@@ -1488,7 +1488,7 @@ export function Supplies({ user }) {
                     📝 {productStageTab}단계 차시별 제목
                   </span>
                   <span style={{ fontSize:'11px', color:C.muted }}>
-                    {(stageSessionTitles[productStageTab]||[]).filter(i => (i?.title||i||'').trim()).length} / {(stageSessionTitles[productStageTab]||[]).length}개 입력
+                    {(stageSessionTitles[productStageTab]||[]).filter(i => (typeof i === 'string' ? i : i?.title || '').trim()).length} / {(stageSessionTitles[productStageTab]||[]).length}개 입력
                   </span>
                 </div>
 
