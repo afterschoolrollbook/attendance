@@ -89,6 +89,8 @@ const SYNC_TABLES = [
   'trainings', 'careers', 'certificates', 'jobSubs',
   // 교구 관리
   'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
+  // 로봇 교구 진도
+  'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress', 'supplyProgressLogs', 'supplySessionChecks',
 ]
 
 // ─── 초기화: Supabase 데이터와 로컬 merge
@@ -526,4 +528,81 @@ export const SupplyPromos = {
   insert:     (r)        => db.insert('supplyPromos', r),
   update:     (id, p)    => db.update('supplyPromos', id, p),
   delete:     (id)       => db.delete('supplyPromos', id),
+}
+
+// ─── 로봇 교구 진도 관리 ──────────────────────────────────────
+
+// 교구 목록 (업체별)
+export const SupplyProducts = {
+  all:          ()           => db.get('supplyProducts'),
+  byTeacher:    (tid)        => db.where('supplyProducts', r => r.teacherId === tid),
+  byVendor:     (vendorId)   => db.where('supplyProducts', r => r.vendorId === vendorId),
+  find:         (id)         => db.getOne('supplyProducts', id),
+  insert:       (r)          => db.insert('supplyProducts', r),
+  update:       (id, p)      => db.update('supplyProducts', id, p),
+  delete:       (id)         => db.delete('supplyProducts', id),
+}
+
+// 차시별 지도안 (교구 + 단계별)
+export const SupplyProductPlans = {
+  all:          ()            => db.get('supplyProductPlans'),
+  byTeacher:    (tid)         => db.where('supplyProductPlans', r => r.teacherId === tid),
+  byProduct:    (productId)   => db.where('supplyProductPlans', r => r.productId === productId),
+  byProductStage: (productId, stage) => db.where('supplyProductPlans', r => r.productId === productId && r.stage === stage),
+  find:         (id)          => db.getOne('supplyProductPlans', id),
+  insert:       (r)           => db.insert('supplyProductPlans', r),
+  update:       (id, p)       => db.update('supplyProductPlans', id, p),
+  delete:       (id)          => db.delete('supplyProductPlans', id),
+}
+
+// 학생별 현재 진도 (단계/차시)
+export const SupplyStudentProgress = {
+  all:          ()             => db.get('supplyStudentProgress'),
+  byTeacher:    (tid)          => db.where('supplyStudentProgress', r => r.teacherId === tid),
+  byClass:      (classId)      => db.where('supplyStudentProgress', r => r.classId === classId),
+  byStudent:    (studentId, classId) => db.where('supplyStudentProgress', r => r.studentId === studentId && r.classId === classId),
+  find:         (id)           => db.getOne('supplyStudentProgress', id),
+  insert:       (r)            => db.insert('supplyStudentProgress', r),
+  update:       (id, p)        => db.update('supplyStudentProgress', id, p),
+  delete:       (id)           => db.delete('supplyStudentProgress', id),
+  upsert(r) {
+    const existing = db.where('supplyStudentProgress', x =>
+      x.studentId === r.studentId && x.classId === r.classId && x.productId === r.productId
+    )[0]
+    if (existing) return db.update(existing.id, { ...r, updatedAt: r.updatedAt })
+    return db.insert({ ...r, id: r.id || uid() })
+  },
+}
+
+// 진도 이력 로그
+export const SupplyProgressLogs = {
+  all:          ()             => db.get('supplyProgressLogs'),
+  byTeacher:    (tid)          => db.where('supplyProgressLogs', r => r.teacherId === tid),
+  byStudent:    (studentId, classId) => db.where('supplyProgressLogs', r => r.studentId === studentId && r.classId === classId),
+  byProduct:    (productId)    => db.where('supplyProgressLogs', r => r.productId === productId),
+  find:         (id)           => db.getOne('supplyProgressLogs', id),
+  insert:       (r)            => db.insert('supplyProgressLogs', r),
+  delete:       (id)           => db.delete('supplyProgressLogs', id),
+}
+
+// 학생별 차시 완료 체크 (순서 무관)
+export const SupplySessionChecks = {
+  all:          ()             => db.get('supplySessionChecks'),
+  byTeacher:    (tid)          => db.where('supplySessionChecks', r => r.teacherId === tid),
+  byStudent:    (studentId, classId) => db.where('supplySessionChecks', r => r.studentId === studentId && r.classId === classId),
+  byProduct:    (productId)    => db.where('supplySessionChecks', r => r.productId === productId),
+  byProductStudent: (productId, studentId, classId) =>
+    db.where('supplySessionChecks', r => r.productId === productId && r.studentId === studentId && r.classId === classId),
+  find:         (id)           => db.getOne('supplySessionChecks', id),
+  insert:       (r)            => db.insert('supplySessionChecks', r),
+  update:       (id, p)        => db.update('supplySessionChecks', id, p),
+  delete:       (id)           => db.delete('supplySessionChecks', id),
+  upsert(r) {
+    const existing = db.where('supplySessionChecks', x =>
+      x.studentId === r.studentId && x.classId === r.classId &&
+      x.productId === r.productId && x.stage === r.stage && x.sessionNo === r.sessionNo
+    )[0]
+    if (existing) return db.update(existing.id, { ...r })
+    return db.insert({ ...r, id: r.id || uid() })
+  },
 }
