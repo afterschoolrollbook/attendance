@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { uid, now } from '../lib/utils.js'
+import { uid, now, sortClasses } from '../lib/utils.js'
 import { Classes, Students, SupplySubjects, SupplyVendors, SupplyItems, SupplyPlans } from '../lib/db.js'
 
 const C = {
@@ -122,7 +122,7 @@ export function Supplies({ user }) {
     setVendorList(SupplyVendors.byTeacher(user.id))
     setItemList(SupplyItems.byTeacher(user.id))
     setPlanList(SupplyPlans.byTeacher(user.id))
-    setClasses(Classes.byTeacher(user.id))
+    setClasses(sortClasses(Classes.byTeacher(user.id)))
     setStudents(Students.byTeacher(user.id))
   }
 
