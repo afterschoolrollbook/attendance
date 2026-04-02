@@ -1,13 +1,15 @@
 import React, { useState } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Templates } from '../lib/db.js'
 import { calcSessionDates, today, fmtDate } from '../lib/utils.js'
-import { Btn, Card, PageHeader, Tag, EmptyState } from '../components/Atoms.jsx'
+import { Btn, Card, PageHeader, Tag, EmptyState, ToastContainer } from '../components/Atoms.jsx'
+import { useToast } from '../hooks/useToast.js'
 import { can, FEATURES } from '../constants/permissions.js'
 
 // 출석 체크 칸 기호
 const BLANK = '□'
 
 export function PrintSetup({ user }) {
+  const { toasts, error: printError } = useToast()
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState('')
   const [step, setStep] = useState(1)
@@ -119,7 +121,7 @@ export function PrintSetup({ user }) {
       const filename = `${className}_출석부_${today()}.xlsx`
       XLSX.writeFile(wb, filename)
     } catch (e) {
-      alert('엑셀 생성 중 오류가 발생했습니다.')
+      printError('엑셀 생성 중 오류가 발생했습니다.')
       console.error(e)
     } finally {
       setDownloading('')
@@ -417,5 +419,6 @@ export function PrintSetup({ user }) {
         </Card>
       )}
     </div>
+    <ToastContainer toasts={toasts} />
   )
 }

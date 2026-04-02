@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyStudentProgress, SupplySessionChecks, SupplyProducts } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
+import { ToastContainer } from '../components/Atoms.jsx'
+import { useToast } from '../hooks/useToast.js'
 
 // 결석 사유 (출석체크용 확장)
 const ABSENT_REASONS = [
@@ -138,24 +140,25 @@ const phoneActionBtn = { display:'block', width:'100%', padding:'9px 14px', back
 
 // ─── 학부모 메시지 발송
 function MsgModal({ student, onClose }) {
+  const { success: toastMsg } = useToast()
   const [text, setText] = useState('')
   const phone = student.parentPhone?.replace(/[^0-9]/g, '') || ''
 
   const sendSMS = () => {
-    if (!phone) { alert('학부모 전화번호가 없습니다.'); return }
+    if (!phone) { toastMsg('학부모 전화번호가 없습니다.'); return }
     window.open(`sms:${phone}?body=${encodeURIComponent(text)}`)
     onClose()
   }
   const sendKakao = () => {
-    if (!phone) { alert('학부모 전화번호가 없습니다.'); return }
+    if (!phone) { toastMsg('학부모 전화번호가 없습니다.'); return }
     window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${phone}&message=${encodeURIComponent(text)}`)
     onClose()
   }
   const copyText = () => {
-    navigator.clipboard.writeText(text).then(() => alert('메시지가 복사되었습니다.')).catch(() => {
+    navigator.clipboard.writeText(text).then(() => toastMsg('복사됐어요 ✅')).catch(() => {
       const ta = document.createElement('textarea'); ta.value = text
       document.body.appendChild(ta); ta.select(); document.execCommand('copy')
-      document.body.removeChild(ta); alert('복사되었습니다.')
+      document.body.removeChild(ta); toastMsg('복사됐어요 ✅')
     })
   }
 
@@ -975,6 +978,7 @@ function actionBtn(bg,color,border) {
 }
 
 export function Attendance({ user, pageParams = {} }) {
+  const { toasts } = useToast()
   const today = todayStr()
   const now_ = new Date()
   const allClasses = ClassesDB.byTeacher(user.id)
@@ -1246,6 +1250,7 @@ export function Attendance({ user, pageParams = {} }) {
         </div>
       </div>
     </div>
+    <ToastContainer toasts={toasts} />
   )
 }
 

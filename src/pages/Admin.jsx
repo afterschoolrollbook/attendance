@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
 import { Users, Classes, Students, Attendance, Branches } from '../lib/db.js'  // ✅ 버그수정: Branches 추가, 중복 import 정리
 import { uid, now } from '../lib/utils.js'                                      // ✅ 버그수정: uid 추가
-import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard } from '../components/Atoms.jsx'
+import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard, ToastContainer } from '../components/Atoms.jsx'
+import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
 import { LEVEL_NAMES, FEATURES, LEVEL_PERMISSIONS } from '../constants/permissions.js'
 
 const FEATURE_LABELS = {
@@ -743,6 +745,8 @@ function StudentListPanel({ allStudents, allClasses, allTeachers, allBranches, S
 
 // ─── 지사 관리 패널
 function BranchPanel({ branches, setBranches, teachers }) {
+  const { error: branchToast, success: branchSuccess } = useToast()
+  const { showConfirm: branchConfirm, confirmDialog: branchConfirmDialog } = useConfirm()
   const [form, setForm] = useState({ name: '', managerId: '', memo: '' })
   const [editId, setEditId] = useState(null)
   const [showForm, setShowForm] = useState(false)
@@ -755,7 +759,7 @@ function BranchPanel({ branches, setBranches, teachers }) {
   const managers = teachers.filter(t => t.level >= 4)
 
   const save = () => {
-    if (!form.name.trim()) { alert('지사명을 입력하세요.'); return }
+    if (!form.name.trim()) { branchToast('지사명을 입력하세요.'); return }
     if (editId) {
       Branches.update(editId, { name:form.name.trim(), managerId:form.managerId||null, memo:form.memo })
     } else {
@@ -771,8 +775,7 @@ function BranchPanel({ branches, setBranches, teachers }) {
   }
 
   const del = (id) => {
-    if (!window.confirm('삭제하시겠습니까?')) return
-    Branches.delete(id); setBranches(Branches.all())
+    branchConfirm('지사를 삭제할까요?', () => { Branches.delete(id); setBranches(Branches.all()) })
   }
 
   const teacherCount = (branchId) => teachers.filter(t => t.branchId === branchId).length
@@ -853,6 +856,7 @@ function BranchPanel({ branches, setBranches, teachers }) {
           })}
         </div>
       )}
+      {branchConfirmDialog}
     </div>
   )
 }
@@ -861,6 +865,8 @@ function BranchPanel({ branches, setBranches, teachers }) {
 export function Admin({ user: currentUser }) {
   const [tab, setTab] = useState('pending')
   const [branches, setBranches] = useState(() => Branches.all())
+  const { toasts, success: adminSuccess, error: adminError } = useToast()
+  const { showConfirm: adminConfirm, confirmDialog: adminConfirmDialog } = useConfirm()
   const [selectedUser, setSelectedUser] = useState(null)
   const [showPermModal, setShowPermModal] = useState(false)
   const [lightboxImg, setLightboxImg] = useState(null)
@@ -986,9 +992,9 @@ export function Admin({ user: currentUser }) {
               {teachers.map((t, i) => {
                 const levelColors = { 1: '#9ca3af', 2: '#f97316', 3: '#16a34a', 4: '#8b5cf6', 5: '#ef4444' }
                 const deleteTeacher = () => {
-                  if (!window.confirm(`${t.name} 선생님을 삭제하시겠습니까?\n관련 수업·학생·출석 데이터는 유지됩니다.`)) return
-                  Users.delete(t.id)
-                  refresh()
+                  adminConfirm(`${t.name} 선생님을 삭제할까요?\n관련 수업·학생·출석 데이터는 유지됩니다.`, () => {
+                    Users.delete(t.id); refresh()
+                  })
                 }
                 return (
                   <tr key={t.id} style={{ borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
@@ -1003,11 +1009,12 @@ export function Admin({ user: currentUser }) {
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <Btn size="sm" variant="ghost" onClick={() => openPerm(t)}>권한 설정</Btn>
                         <button onClick={() => {
-                          if (!t.phone) { alert('등록된 핸드폰 번호가 없어 초기화할 수 없습니다.'); return }
+                          if (!t.phone) { adminError('등록된 핸드폰 번호가 없어 초기화할 수 없습니다.'); return }
                           const normalized = t.phone.replace(/-/g, '').slice(0, 11)
-                          if (!window.confirm(`${t.name} 선생님의 비밀번호를\n핸드폰 번호(${normalized})로 초기화하시겠습니까?`)) return
-                          Users.update(t.id, { pw: normalized })
-                          alert(`비밀번호가 ${normalized}(으)로 초기화되었습니다.`)
+                          adminConfirm(`${t.name} 선생님의 비밀번호를\n핸드폰 번호(${normalized})로 초기화할까요?`, () => {
+                            Users.update(t.id, { pw: normalized })
+                            adminSuccess(`비밀번호가 ${normalized}(으)로 초기화되었습니다.`)
+                          })
                         }}
                           style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', color: '#b45309', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
                           비번초기화
@@ -1066,6 +1073,9 @@ export function Admin({ user: currentUser }) {
           <img src={lightboxImg} alt="수업안내장" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: '12px', objectFit: 'contain' }} />
         </div>
       )}
+
+      {adminConfirmDialog}
+      <ToastContainer toasts={toasts} />
 
       {/* 권한 설정 모달 */}
       <Modal open={showPermModal} onClose={() => setShowPermModal(false)} title={`권한 설정 — ${selectedUser?.name}`} width={560}>

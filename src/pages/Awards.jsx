@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react'
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs'
 import { uid, now } from '../lib/utils.js'
 import { Awards } from '../lib/db.js'
-import { ToastContainer } from '../components/Atoms.jsx'
+import { Btn, ToastContainer } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
 
 const C = {
   primary:'#f97316', success:'#16a34a', danger:'#ef4444',
@@ -34,7 +35,6 @@ async function uploadToStorage(userId, awardId, file) {
 }
 
 const AWARD_TYPES = ['표창', '우수상', '최우수상', '대상', '장려상', '감사패', '공로상', '심사위원', '기타']
-
 const DIVISIONS = ['초등부', '중등부', '고등부', '대학부', '일반부', '기타']
 
 const EMPTY_FORM = {
@@ -52,11 +52,11 @@ export function AwardsPage({ user }) {
   const [modalFile, setModalFile]   = useState(null)
   const [modalDrag, setModalDrag]   = useState(false)
   const [preview, setPreview]       = useState(null)
-  const [confirm, setConfirm]       = useState(null)
   const currentYear = String(new Date().getFullYear())
   const [selYear, setSelYear] = useState('')
 
   const { toasts, success, error: toastError, info } = useToast()
+  const { showConfirm, confirmDialog } = useConfirm()
 
   const reload = () => setRecords(Awards.byTeacher(user.id))
   useEffect(() => { reload() }, [])
@@ -113,9 +113,9 @@ export function AwardsPage({ user }) {
   }
 
   const deleteRecord = id => {
-    setConfirm({ msg:'이 수상 기록을 삭제할까요?', onOk: () => {
+    showConfirm('이 수상 기록을 삭제할까요?', () => {
       Awards.delete(id); reload(); info('삭제됐어요')
-    }})
+    })
   }
 
   const uploadFile = async (awardId, file) => {
@@ -133,10 +133,10 @@ export function AwardsPage({ user }) {
   }
 
   const deleteFile = awardId => {
-    setConfirm({ msg:'첨부파일을 삭제할까요?', onOk: () => {
+    showConfirm('첨부파일을 삭제할까요?', () => {
       Awards.update(awardId, { fileUrl: null, fileName: null, fileType: null })
       reload(); info('파일을 삭제했어요')
-    }})
+    })
   }
 
   const openPreview = r => {
@@ -203,15 +203,9 @@ export function AwardsPage({ user }) {
           </div>
         )}
         {records.length > 0 && (
-          <button onClick={downloadExcel}
-            style={{ padding:'8px 18px', borderRadius:'9px', border:'1.5px solid #86efac', background:'#f0fdf4', color:'#15803d', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            📊 목록 받기
-          </button>
+          <Btn variant="ghost" size="sm" onClick={downloadExcel}>📊 목록 받기</Btn>
         )}
-        <button onClick={openAdd}
-          style={{ padding:'8px 18px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-          + 수상 추가
-        </button>
+        <Btn onClick={openAdd}>+ 수상 추가</Btn>
       </div>
 
       {/* 목록 */}
@@ -259,8 +253,7 @@ export function AwardsPage({ user }) {
                         {r.fileType?.startsWith('image/') ? '🖼' : '📄'} {r.fileName || '첨부파일'}
                       </span>
                       <span style={{ fontSize:'11px', color:C.primary, background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>클릭하여 미리보기</span>
-                      <button onClick={e => { e.stopPropagation(); deleteFile(r.id) }}
-                        style={{ fontSize:'11px', color:C.danger, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                      <Btn size="sm" variant="outlineDanger" onClick={e => { e.stopPropagation(); deleteFile(r.id) }}>삭제</Btn>
                     </div>
                   )}
                 </div>
@@ -270,10 +263,8 @@ export function AwardsPage({ user }) {
                     <input type="file" accept="image/*,application/pdf" style={{ display:'none' }}
                       onChange={e => e.target.files[0] && uploadFile(r.id, e.target.files[0])} />
                   </label>
-                  <button onClick={() => openEdit(r)}
-                    style={{ padding:'5px 10px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
-                  <button onClick={() => deleteRecord(r.id)}
-                    style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
+                  <Btn size="sm" variant="ghost" onClick={() => openEdit(r)}>편집</Btn>
+                  <Btn size="sm" variant="outlineDanger" onClick={() => deleteRecord(r.id)}>삭제</Btn>
                 </div>
               </div>
             </div>
@@ -291,28 +282,24 @@ export function AwardsPage({ user }) {
               <button onClick={() => setModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
             </div>
             <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
-              {/* 연도 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>연도</label>
                 <input type="number" value={form.year} onChange={e => setForm(v => ({...v, year:e.target.value}))}
                   placeholder="예: 2025"
                   style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
               </div>
-              {/* 대회명 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>대회명</label>
                 <input value={form.contestName} onChange={e => setForm(v => ({...v, contestName:e.target.value}))}
                   placeholder="예: 전국 방과후 강사 경진대회"
                   style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
               </div>
-              {/* 수상명 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>수상명 *</label>
                 <input value={form.title} onChange={e => setForm(v => ({...v, title:e.target.value}))}
                   placeholder="예: 우수 방과후 강사 표창"
                   style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
               </div>
-              {/* 수상 종류 + 부문 */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
                 <div>
                   <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>수상 종류</label>
@@ -330,20 +317,17 @@ export function AwardsPage({ user }) {
                   </select>
                 </div>
               </div>
-              {/* 수여기관 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>수여기관</label>
                 <input value={form.host} onChange={e => setForm(v => ({...v, host:e.target.value}))}
                   placeholder="예: 경기도교육청"
                   style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
               </div>
-              {/* 수상일 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>수상일</label>
                 <input type="date" value={form.awardedAt} onChange={e => setForm(v => ({...v, awardedAt:e.target.value}))}
                   style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
               </div>
-              {/* 메모 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>메모</label>
                 <input value={form.memo} onChange={e => setForm(v => ({...v, memo:e.target.value}))}
@@ -363,8 +347,7 @@ export function AwardsPage({ user }) {
                       <span style={{ fontSize:'13px', color:C.text, fontWeight:600 }}>
                         {modalFile.type.startsWith('image/') ? '🖼' : '📄'} {modalFile.name}
                       </span>
-                      <button onClick={() => setModalFile(null)}
-                        style={{ fontSize:'11px', color:C.danger, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>제거</button>
+                      <Btn size="sm" variant="outlineDanger" onClick={() => setModalFile(null)}>제거</Btn>
                     </div>
                   ) : (
                     <label style={{ cursor:'pointer', display:'block' }}>
@@ -378,10 +361,8 @@ export function AwardsPage({ user }) {
                 </div>
               </div>
               <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
-                <button onClick={save}
-                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
-                <button onClick={() => setModal(false)}
-                  style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
+                <Btn full onClick={save}>저장</Btn>
+                <Btn variant="ghost" onClick={() => setModal(false)}>취소</Btn>
               </div>
             </div>
           </div>
@@ -426,21 +407,8 @@ export function AwardsPage({ user }) {
         </div>
       )}
 
-      {/* 확인 모달 */}
-      {confirm && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:4000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'14px', padding:'24px', maxWidth:'320px', width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', textAlign:'center' }}>
-            <div style={{ fontSize:'32px', marginBottom:'12px' }}>🗑</div>
-            <div style={{ fontSize:'15px', fontWeight:600, color:'#111827', marginBottom:'20px' }}>{confirm.msg}</div>
-            <div style={{ display:'flex', gap:'8px', justifyContent:'center' }}>
-              <button onClick={() => setConfirm(null)}
-                style={{ padding:'9px 20px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
-              <button onClick={() => { confirm.onOk(); setConfirm(null) }}
-                style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#ef4444', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 삭제 확인 모달 */}
+      {confirmDialog}
 
       <ToastContainer toasts={toasts} />
 
