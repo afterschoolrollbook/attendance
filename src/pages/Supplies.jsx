@@ -616,56 +616,70 @@ export function Supplies({ user }) {
                       {confirmedStudents.length === 0 ? (
                         <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>확정된 학생이 없습니다</div>
                       ) : (() => {
-                        const selClass = classes.find(c => c.id === selClassId)
+                        const selClass   = classes.find(c => c.id === selClassId)
+                        const school     = selClass?.organization || '-'
+                        const classLabel = `${selClass?.className || ''}${selClass?.section ? ' '+selClass.section : ''}`
+                        const cols = '32px 100px 90px 56px 44px 40px 1fr 1fr 62px 110px 52px'
                         return (
-                          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                          <div style={{ display:'flex', flexDirection:'column', gap:'4px', overflowX:'auto' }}>
                             {/* 헤더 */}
-                            <div style={{ display:'grid', gridTemplateColumns:'32px 1fr 60px 60px 40px 1fr 1fr 80px', gap:'8px', padding:'6px 12px', background:'#f3f4f6', borderRadius:'8px', fontSize:'11px', fontWeight:600, color:C.muted }}>
+                            <div style={{ display:'grid', gridTemplateColumns:cols, gap:'8px', padding:'7px 12px', background:'#f3f4f6', borderRadius:'8px', fontSize:'11px', fontWeight:700, color:C.muted, minWidth:'900px' }}>
                               <span></span>
-                              <span>이름</span>
+                              <span>학교명</span>
+                              <span>수업반</span>
                               <span>학년</span>
                               <span>반</span>
                               <span>번호</span>
+                              <span>이름</span>
                               <span>교구명</span>
                               <span>단계</span>
+                              <span>진도</span>
                               <span></span>
                             </div>
                             {confirmedStudents.map(s => {
-                              const supply = getStudentSupply(s.id)
+                              const supply    = getStudentSupply(s.id)
                               const isChecked = checkedStudents.includes(s.id)
-                              const prog = progressList.find(p => p.studentId===s.id && p.classId===selClassId && p.productId===supply.productId)
-                              const curStage = prog?.curStage || supply.stage || '-'
-                              const stageChecks = checkList.filter(c => c.studentId===s.id && c.classId===selClassId && c.productId===supply.productId && c.stage===prog?.curStage).length
-                              const product = productList.find(p => p.id === supply.productId)
-                              const sps = product?.sessionsPerStage || 12
+                              const product   = productList.find(p => p.id === supply.productId)
+                              const sps       = product?.sessionsPerStage || 12
+                              const prog      = progressList.find(p => p.studentId===s.id && p.classId===selClassId && p.productId===supply.productId)
+                              const curStage  = prog?.curStage || (supply.stage ? Number(supply.stage) : null)
+                              const stageChecks = curStage
+                                ? checkList.filter(c => c.studentId===s.id && c.classId===selClassId && c.productId===supply.productId && c.stage===curStage).length
+                                : 0
+                              const hasSupply = !!supply.name
                               return (
                                 <div key={s.id}
-                                  style={{ display:'grid', gridTemplateColumns:'32px 1fr 60px 60px 40px 1fr 1fr 80px', gap:'8px', alignItems:'center', padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${isChecked ? C.primary : C.border}`, background: isChecked ? '#fff7ed' : C.card, transition:'all .15s' }}>
+                                  style={{ display:'grid', gridTemplateColumns:cols, gap:'8px', alignItems:'center', padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${isChecked ? C.primary : C.border}`, background: isChecked ? '#fff7ed' : C.card, minWidth:'900px' }}>
                                   <input type="checkbox" checked={isChecked} onChange={() => toggleOne(s.id)}
                                     style={{ width:'16px', height:'16px', cursor:'pointer' }} />
-                                  <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{s.name}</span>
+                                  <span style={{ fontSize:'12px', color:C.text }}>{school}</span>
+                                  <span style={{ fontSize:'12px', color:C.muted }}>{classLabel}</span>
                                   <span style={{ fontSize:'12px', color:C.muted }}>{s.grade}학년</span>
                                   <span style={{ fontSize:'12px', color:C.muted }}>{s.classNum}반</span>
                                   <span style={{ fontSize:'12px', color:C.muted }}>{s.number||'-'}</span>
-                                  <span style={{ fontSize:'12px', color: supply.name ? '#7c3aed' : C.muted }}>
-                                    {supply.name || <span style={{ color:C.danger }}>미설정</span>}
+                                  <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{s.name}</span>
+                                  <span style={{ fontSize:'12px', fontWeight:600, color: hasSupply ? '#7c3aed' : C.danger }}>
+                                    {hasSupply ? supply.name : '없음'}
                                   </span>
-                                  <span style={{ fontSize:'12px', color:C.text }}>
-                                    {supply.name
-                                      ? <>{curStage}단계 {prog ? <span style={{ color:C.muted }}>({stageChecks}/{sps}차시)</span> : ''}</>
-                                      : '-'}
+                                  <span style={{ fontSize:'12px', color: hasSupply && curStage ? C.text : C.danger }}>
+                                    {hasSupply && curStage ? `${curStage}단계` : <span style={{ color:C.danger }}>없음</span>}
                                   </span>
-                                  <div style={{ display:'flex', gap:'4px' }}>
-                                    <button onClick={e => { e.stopPropagation(); setCheckedStudents([s.id]); setSupplyModal(true) }}
-                                      style={{ padding:'3px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
-                                      수정
-                                    </button>
-                                  </div>
+                                  <span style={{ fontSize:'12px', color: hasSupply && curStage ? C.text : C.danger }}>
+                                    {hasSupply && curStage
+                                      ? `${sps}차시 중 ${stageChecks}`
+                                      : <span style={{ color:C.danger }}>없음</span>}
+                                  </span>
+                                  <button onClick={e => { e.stopPropagation(); setCheckedStudents([s.id]); setSupplyModal(true) }}
+                                    style={{ padding:'4px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                                    수정
+                                  </button>
                                 </div>
                               )
                             })}
                           </div>
                         )
+                      })()}
+                    <>
                       })()}
                     </>
                   )}
