@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { uid, now } from '../lib/utils.js'
-import { Classes, Students } from '../lib/db.js'
+import { Classes, Students, SupplySubjects, SupplyVendors, SupplyItems, SupplyPlans } from '../lib/db.js'
 
 const C = {
   primary: '#f97316', success: '#16a34a', danger: '#ef4444',
@@ -8,17 +8,7 @@ const C = {
   blue: '#3b82f6', purple: '#8b5cf6',
 }
 
-const KEY_SUBJECTS = 'asa_supplies_subjects'
-const KEY_VENDORS  = 'asa_supplies_vendors'
-const KEY_SUPPLIES = 'asa_supplies_items'
-const KEY_PLANS    = 'asa_supplies_plans'
-
 const DEFAULT_SUBJECTS = ['일반', '로봇', '항공', '보드게임']
-
-function load(key, def) {
-  try { return JSON.parse(localStorage.getItem(key) || 'null') ?? def } catch { return def }
-}
-function persist(key, val) { localStorage.setItem(key, JSON.stringify(val)) }
 
 async function uploadToStorage(userId, folder, file) {
   const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
@@ -46,37 +36,48 @@ const iStyle = {
 }
 
 export function Supplies({ user }) {
-  const [subjects, setSubjects]       = useState(() => load(KEY_SUBJECTS, DEFAULT_SUBJECTS))
-  const [selSubject, setSelSubject]   = useState(null)
-  const [vendors, setVendors]         = useState(() => load(KEY_VENDORS, {}))
-  const [supplyItems, setSupplyItems] = useState(() => load(KEY_SUPPLIES, {}))
-  const [plans, setPlans]             = useState(() => load(KEY_PLANS, {}))
-  const [classes, setClasses]         = useState([])
-  const [students, setStudents]       = useState([])
-  const [innerTab, setInnerTab]       = useState('supply')
-  const [selClassId, setSelClassId]   = useState('')
+  const [subjects, setSubjects]         = useState([])
+  const [selSubject, setSelSubject]     = useState(null)
+  const [vendorList, setVendorList]     = useState([])
+  const [itemList, setItemList]         = useState([])
+  const [planList, setPlanList]         = useState([])
+  const [classes, setClasses]           = useState([])
+  const [students, setStudents]         = useState([])
+  const [innerTab, setInnerTab]         = useState('supply')
+  const [selClassId, setSelClassId]     = useState('')
   const [checkedStudents, setCheckedStudents] = useState([])
-  const [supplyModal, setSupplyModal] = useState(false)
-  const [supplyForm, setSupplyForm]   = useState({ name: '', stage: '' })
-  const [vendorModal, setVendorModal] = useState(false)
-  const [vendorForm, setVendorForm]   = useState({ name: '', contact: '', memo: '' })
-  const [planModal, setPlanModal]     = useState(false)
-  const [planForm, setPlanForm]       = useState({ type: 'annual', title: '', vendorId: '' })
-  const [planFile, setPlanFile]       = useState(null)
-  const [uploading, setUploading]     = useState(false)
+  const [supplyModal, setSupplyModal]   = useState(false)
+  const [supplyForm, setSupplyForm]     = useState({ name: '', stage: '' })
+  const [vendorModal, setVendorModal]   = useState(false)
+  const [vendorForm, setVendorForm]     = useState({ name: '', managerName: '', contact: '', memo: '' })
+  const [planModal, setPlanModal]       = useState(false)
+  const [planForm, setPlanForm]         = useState({ type: 'annual', title: '', vendorId: '' })
+  const [planFile, setPlanFile]         = useState(null)
+  const [uploading, setUploading]       = useState(false)
   const [subjectModal, setSubjectModal] = useState(false)
-  const [newSubject, setNewSubject]   = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [newSubject, setNewSubject]     = useState('')
   const planFileRef = useRef()
 
-  useEffect(() => {
+  const reload = () => {
+    const dbSubjects = SupplySubjects.byTeacher(user.id)
+    if (dbSubjects.length === 0) {
+      DEFAULT_SUBJECTS.forEach((name, i) => {
+        SupplySubjects.insert({ id: uid(), teacherId: user.id, name, sortOrder: i, createdAt: now() })
+      })
+      setSubjects(DEFAULT_SUBJECTS)
+    } else {
+      setSubjects(dbSubjects.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).map(s => s.name))
+    }
+    setVendorList(SupplyVendors.byTeacher(user.id))
+    setItemList(SupplyItems.byTeacher(user.id))
+    setPlanList(SupplyPlans.byTeacher(user.id))
     setClasses(Classes.byTeacher(user.id))
     setStudents(Students.byTeacher(user.id))
-  }, [])
+  }
 
-  useEffect(() => {
-    if (subjects.length > 0 && !selSubject) setSelSubject(subjects[0])
-  }, [subjects])
-
+  useEffect(() => { reload() }, [])
+  useEffect(() => { if (subjects.length > 0 && !selSubject) setSelSubject(subjects[0]) }, [subjects])
   useEffect(() => { setCheckedStudents([]) }, [selClassId, selSubject])
 
   const confirmedStudents = students.filter(s =>
@@ -86,29 +87,35 @@ export function Supplies({ user }) {
   const toggleAll  = () => setCheckedStudents(allChecked ? [] : confirmedStudents.map(s => s.id))
   const toggleOne  = (id) => setCheckedStudents(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
 
-  const getStudentSupply = (sid) => supplyItems[`${selClassId}_${sid}`] || { name: '', stage: '' }
+  const getStudentSupply = (sid) =>
+    itemList.find(item => item.classId === selClassId && item.studentId === sid) || { name: '', stage: '' }
 
   const saveSupply = () => {
     if (!supplyForm.name) { alert('교구명을 입력하세요'); return }
-    const next = { ...supplyItems }
-    checkedStudents.forEach(sid => { next[`${selClassId}_${sid}`] = { name: supplyForm.name, stage: supplyForm.stage } })
-    setSupplyItems(next); persist(KEY_SUPPLIES, next)
+    checkedStudents.forEach(sid => {
+      SupplyItems.upsert({
+        id: uid(), teacherId: user.id, classId: selClassId, studentId: sid,
+        subject: selSubject, name: supplyForm.name, stage: supplyForm.stage, createdAt: now(),
+      })
+    })
+    reload()
     setSupplyModal(false); setSupplyForm({ name: '', stage: '' })
   }
 
-  const subjectVendors = vendors[selSubject] || []
+  const subjectVendors = vendorList.filter(v => v.subject === selSubject)
+
   const saveVendor = () => {
     if (!vendorForm.name) { alert('업체명을 입력하세요'); return }
-    const next = { ...vendors, [selSubject]: [...subjectVendors, { id: uid(), ...vendorForm }] }
-    setVendors(next); persist(KEY_VENDORS, next)
-    setVendorModal(false); setVendorForm({ name: '', contact: '', memo: '' })
+    SupplyVendors.insert({ id: uid(), teacherId: user.id, subject: selSubject, ...vendorForm, createdAt: now() })
+    reload()
+    setVendorModal(false); setVendorForm({ name: '', managerName: '', contact: '', memo: '' })
   }
   const deleteVendor = (id) => {
-    const next = { ...vendors, [selSubject]: subjectVendors.filter(v => v.id !== id) }
-    setVendors(next); persist(KEY_VENDORS, next)
+    setDeleteConfirm({ msg: '이 업체를 삭제할까요?', onOk: () => { SupplyVendors.delete(id); reload() } })
   }
 
-  const subjectPlans = plans[selSubject] || []
+  const subjectPlans = planList.filter(p => p.subject === selSubject)
+
   const savePlan = async () => {
     if (!planForm.title) { alert('제목을 입력하세요'); return }
     setUploading(true)
@@ -118,31 +125,35 @@ export function Supplies({ user }) {
         fileUrl  = await uploadToStorage(user.id, `plans/${selSubject}`, planFile)
         fileName = planFile.name
       }
-      const item = { id: uid(), ...planForm, fileUrl, fileName, createdAt: now() }
-      const next = { ...plans, [selSubject]: [...subjectPlans, item] }
-      setPlans(next); persist(KEY_PLANS, next)
+      SupplyPlans.insert({ id: uid(), teacherId: user.id, subject: selSubject, ...planForm, fileUrl, fileName, createdAt: now() })
+      reload()
       setPlanModal(false); setPlanFile(null); setPlanForm({ type: 'annual', title: '', vendorId: '' })
     } catch(e) { alert('업로드 실패: ' + e.message) }
     finally { setUploading(false) }
   }
   const deletePlan = (id) => {
-    const next = { ...plans, [selSubject]: subjectPlans.filter(p => p.id !== id) }
-    setPlans(next); persist(KEY_PLANS, next)
+    setDeleteConfirm({ msg: '이 지도안을 삭제할까요?', onOk: () => { SupplyPlans.delete(id); reload() } })
   }
 
   const addSubject = () => {
     const s = newSubject.trim()
     if (!s) return
     if (subjects.includes(s)) { alert('이미 있는 과목이에요'); return }
-    const next = [...subjects, s]
-    setSubjects(next); persist(KEY_SUBJECTS, next)
+    SupplySubjects.insert({ id: uid(), teacherId: user.id, name: s, sortOrder: subjects.length, createdAt: now() })
+    reload()
     setNewSubject(''); setSubjectModal(false); setSelSubject(s)
   }
   const deleteSubject = (s) => {
-    if (!window.confirm(`"${s}" 과목을 삭제할까요?`)) return
-    const next = subjects.filter(x => x !== s)
-    setSubjects(next); persist(KEY_SUBJECTS, next)
-    if (selSubject === s) setSelSubject(next[0] || null)
+    setDeleteConfirm({
+      msg: `"${s}" 과목을 삭제할까요?\n교구·지도안 데이터는 유지됩니다.`,
+      onOk: () => {
+        const rec = SupplySubjects.byTeacher(user.id).find(r => r.name === s)
+        if (rec) SupplySubjects.delete(rec.id)
+        const next = subjects.filter(x => x !== s)
+        reload()
+        if (selSubject === s) setSelSubject(next[0] || null)
+      }
+    })
   }
 
   const isRobot = selSubject === '로봇'
@@ -154,7 +165,7 @@ export function Supplies({ user }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 700, color: C.text, margin: 0 }}>🎒 교구 및 지도안 관리</h1>
-          <p style={{ fontSize: '14px', color: C.muted, marginTop: '4px' }}>과목별 교구 설정 · 업체 관리 · 지도안 등록</p>
+          <p style={{ fontSize: '14px', color: C.muted, marginTop: '4px' }}>과목별 교구 설정 · 교구업체 관리 · 지도안 등록</p>
         </div>
       </div>
 
@@ -184,11 +195,14 @@ export function Supplies({ user }) {
           {/* 좌측 메인 */}
           <div style={{ flex: 1, minWidth: '320px' }}>
 
-            {/* 내부 탭 */}
+            {/* 내부 탭 — 과목명 포함 */}
             <div style={{ display: 'flex', marginBottom: '16px', borderBottom: `1px solid ${C.border}` }}>
-              {[{ key: 'supply', label: '🎒 교구 관리' }, { key: 'plan', label: '📋 지도안' }].map(t => (
+              {[
+                { key: 'supply', label: `🎒 교구 관리(${selSubject})` },
+                { key: 'plan',   label: `📋 지도안(${selSubject})` },
+              ].map(t => (
                 <button key={t.key} onClick={() => setInnerTab(t.key)}
-                  style={{ padding: '10px 20px', border: 'none', cursor: 'pointer', background: 'none', fontFamily: 'Noto Sans KR, sans-serif', fontSize: '14px', fontWeight: innerTab === t.key ? 700 : 400, color: innerTab === t.key ? C.primary : C.muted, borderBottom: innerTab === t.key ? `2px solid ${C.primary}` : '2px solid transparent', marginBottom: '-1px' }}>
+                  style={{ padding: '10px 18px', border: 'none', cursor: 'pointer', background: 'none', fontFamily: 'Noto Sans KR, sans-serif', fontSize: '13px', fontWeight: innerTab === t.key ? 700 : 400, color: innerTab === t.key ? C.primary : C.muted, borderBottom: innerTab === t.key ? `2px solid ${C.primary}` : '2px solid transparent', marginBottom: '-1px', whiteSpace: 'nowrap' }}>
                   {t.label}
                 </button>
               ))}
@@ -197,7 +211,6 @@ export function Supplies({ user }) {
             {/* ── 교구 관리 */}
             {innerTab === 'supply' && (
               <div>
-                {/* 수업 선택 */}
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ fontSize: '12px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '6px' }}>수업 선택</label>
                   <select value={selClassId} onChange={e => setSelClassId(e.target.value)}
@@ -213,7 +226,6 @@ export function Supplies({ user }) {
 
                 {selClassId ? (
                   <>
-                    {/* 전체선택 + 교구설정 버튼 */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', padding: '10px 14px', background: '#f9fafb', borderRadius: '10px', border: `1px solid ${C.border}` }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: C.text }}>
                         <input type="checkbox" checked={allChecked} onChange={toggleAll}
@@ -247,7 +259,7 @@ export function Supplies({ user }) {
                                   <span style={{ fontSize: '12px', color: C.muted, fontWeight: 400, marginLeft: '8px' }}>{s.grade} {s.classNum}반</span>
                                 </div>
                                 {supply.name ? (
-                                  <div style={{ fontSize: '12px', color: C.success, marginTop: '2px' }}>
+                                  <div style={{ fontSize: '12px', color: '#7c3aed', marginTop: '2px' }}>
                                     🎒 {supply.name}{supply.stage ? ` · ${supply.stage}단계` : ''}
                                   </div>
                                 ) : (
@@ -255,7 +267,7 @@ export function Supplies({ user }) {
                                 )}
                               </div>
                               {supply.name && (
-                                <span style={{ fontSize: '11px', background: '#f0fdf4', color: C.success, border: '1px solid #86efac', borderRadius: '5px', padding: '1px 7px', flexShrink: 0 }}>설정완료</span>
+                                <span style={{ fontSize: '11px', background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe', borderRadius: '5px', padding: '1px 7px', flexShrink: 0 }}>설정완료</span>
                               )}
                             </div>
                           )
@@ -281,7 +293,6 @@ export function Supplies({ user }) {
                     + 지도안 등록
                   </button>
                 </div>
-
                 {subjectPlans.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '60px', color: C.muted }}>
                     <div style={{ fontSize: '36px', marginBottom: '10px' }}>📋</div>
@@ -331,13 +342,13 @@ export function Supplies({ user }) {
             )}
           </div>
 
-          {/* 우측: 업체 관리 */}
-          <div style={{ width: '260px', flexShrink: 0 }}>
+          {/* 우측: 교구업체 */}
+          <div style={{ width: '270px', flexShrink: 0 }}>
             <div style={{ background: C.card, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <span style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>🏢 업체 관리</span>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>🏢 교구업체 ({selSubject})</span>
                 <button onClick={() => setVendorModal(true)}
-                  style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', background: C.primary, color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>+ 추가</button>
+                  style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', background: C.primary, color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>+ 등록</button>
               </div>
               {subjectVendors.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '24px 0', color: C.muted, fontSize: '13px' }}>등록된 업체가 없습니다</div>
@@ -350,8 +361,9 @@ export function Supplies({ user }) {
                         <button onClick={() => deleteVendor(v.id)}
                           style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: '16px', padding: 0, lineHeight: 1 }}>×</button>
                       </div>
-                      {v.contact && <div style={{ fontSize: '11px', color: C.muted, marginTop: '3px' }}>📞 {v.contact}</div>}
-                      {v.memo    && <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>📌 {v.memo}</div>}
+                      {v.managerName && <div style={{ fontSize: '11px', color: C.muted, marginTop: '3px' }}>👤 {v.managerName}</div>}
+                      {v.contact     && <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>📞 {v.contact}</div>}
+                      {v.memo        && <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>📌 {v.memo}</div>}
                     </div>
                   ))}
                 </div>
@@ -397,20 +409,21 @@ export function Supplies({ user }) {
         </div>
       )}
 
-      {/* ── 업체 추가 모달 */}
+      {/* ── 교구업체 등록 모달 */}
       {vendorModal && (
         <div onClick={e => { if (e.target === e.currentTarget) setVendorModal(false) }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-          <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '18px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '16px', fontWeight: 700 }}>🏢 업체 추가</span>
+              <span style={{ fontSize: '16px', fontWeight: 700 }}>🏢 교구업체 등록 — {selSubject}</span>
               <button onClick={() => setVendorModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: C.muted }}>×</button>
             </div>
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {[
-                { label: '업체명 *', key: 'name', placeholder: '예: (주)로봇나라' },
-                { label: '연락처',   key: 'contact', placeholder: '예: 02-1234-5678' },
-                { label: '메모',     key: 'memo',    placeholder: '비고' },
+                { label: '업체명 *',    key: 'name',        placeholder: '예: (주)로봇나라' },
+                { label: '담당자 이름', key: 'managerName', placeholder: '예: 홍길동' },
+                { label: '담당자 연락처', key: 'contact',   placeholder: '예: 010-1234-5678' },
+                { label: '메모',        key: 'memo',        placeholder: '비고' },
               ].map(f => (
                 <div key={f.key}>
                   <label style={{ fontSize: '12px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '5px' }}>{f.label}</label>
@@ -435,7 +448,7 @@ export function Supplies({ user }) {
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '440px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '18px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '16px', fontWeight: 700 }}>📋 지도안 등록</span>
+              <span style={{ fontSize: '16px', fontWeight: 700 }}>📋 지도안 등록 — {selSubject}</span>
               <button onClick={() => { setPlanModal(false); setPlanFile(null) }} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: C.muted }}>×</button>
             </div>
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -516,6 +529,22 @@ export function Supplies({ user }) {
                 <button onClick={() => setSubjectModal(false)}
                   style={{ padding: '11px 18px', borderRadius: '9px', border: `1px solid ${C.border}`, background: '#fff', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', color: C.muted }}>취소</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 삭제 확인 모달 (window.confirm 대체) */}
+      {deleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ background: '#fff', borderRadius: '14px', padding: '24px', maxWidth: '320px', width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: '32px', marginBottom: '12px' }}>🗑</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '20px', whiteSpace: 'pre-line' }}>{deleteConfirm.msg}</div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+              <button onClick={() => setDeleteConfirm(null)}
+                style={{ padding: '9px 20px', borderRadius: '9px', border: '1px solid #e5e7eb', background: '#fff', fontSize: '14px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', color: '#6b7280' }}>취소</button>
+              <button onClick={() => { deleteConfirm.onOk(); setDeleteConfirm(null) }}
+                style={{ padding: '9px 20px', borderRadius: '9px', border: 'none', background: '#ef4444', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>삭제</button>
             </div>
           </div>
         </div>

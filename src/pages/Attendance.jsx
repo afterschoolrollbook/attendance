@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 
@@ -265,6 +265,15 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
         <div style={{ textAlign: 'center' }}>
           <span onClick={() => onStudentClick(s)}
             style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
+          {(() => {
+            const items = SupplyItems.byClassStudent(s.classIds?.[0] || '', s.id)
+            if (!items.length) return null
+            return items.map((item, i) => (
+              <div key={i} style={{ fontSize: '10px', color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '4px', padding: '1px 5px', marginTop: '2px', display: 'inline-block' }}>
+                🎒 {item.name}{item.stage ? ` · ${item.stage}` : ''}
+              </div>
+            ))
+          })()}
         </div>
 
         {/* 학부모 전화 — PhoneAction만 */}
@@ -345,6 +354,15 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
         <div style={{ textAlign: 'center' }}>
           <span onClick={() => onStudentClick(s)}
             style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
+          {(() => {
+            const items = SupplyItems.byClassStudent(s.classIds?.[0] || '', s.id)
+            if (!items.length) return null
+            return items.map((item, i) => (
+              <div key={i} style={{ fontSize: '10px', color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '4px', padding: '1px 5px', marginTop: '2px', display: 'inline-block' }}>
+                🎒 {item.name}{item.stage ? ` · ${item.stage}` : ''}
+              </div>
+            ))
+          })()}
         </div>
 
         {/* 학부모 전화 — 문자버튼 제거, PhoneAction만 */}

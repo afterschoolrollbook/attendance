@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems } from '../lib/db.js'
 import { calcSessionDates, sortClasses, uid, now, getSessionInfo } from '../lib/utils.js'
 
 const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토']
@@ -208,6 +208,27 @@ function DayDetail({ date, user, classes, onNav }) {
                     {startTime && (
                       <div style={{ fontSize: '12px', color: C.muted }}>🕐 {startTime}{endTime ? ` ~ ${endTime}` : ''}</div>
                     )}
+                    {/* 교구 현황 */}
+                    {(() => {
+                      const supplyData = SupplyItems.byClass(cls.id)
+                      if (!supplyData.length) return null
+                      const set = supplyData.filter(item => item.name)
+                      const notSet = students.filter(s => !supplyData.find(item => item.studentId === s.id && item.name))
+                      return (
+                        <div style={{ marginTop: '6px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {set.length > 0 && (
+                            <span style={{ fontSize: '11px', background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe', borderRadius: '5px', padding: '1px 8px' }}>
+                              🎒 교구 {set.length}명 설정
+                            </span>
+                          )}
+                          {notSet.length > 0 && (
+                            <span style={{ fontSize: '11px', background: '#fef2f2', color: C.danger, border: '1px solid #fca5a5', borderRadius: '5px', padding: '1px 8px' }}>
+                              ⚠️ 미설정 {notSet.length}명
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   {/* 학생수 + 출석현황 + 버튼 */}
@@ -278,6 +299,20 @@ export function Dashboard({ user, onNav }) {
   // calcSessionDates가 makeupDates 포함 → 보강일도 달력에 표시
   classes.forEach(cls => calcSessionDates(cls).forEach(s => classDates.add(s)))
 
+  // 교구 준비 알림 — 이번주 수업 기준 미설정 학생 있는 수업
+  const todayDate = new Date()
+  const weekEnd = new Date(todayDate); weekEnd.setDate(weekEnd.getDate() + 7)
+  const weekEndStr = weekEnd.toISOString().slice(0,10)
+  const supplyAlerts = classes.flatMap(cls => {
+    const upcoming = calcSessionDates(cls).filter(d => d >= today && d <= weekEndStr)
+    if (!upcoming.length) return []
+    const confirmed = StudentsDB.confirmed(cls.id)
+    if (!confirmed.length) return []
+    const supplyData = SupplyItems.byClass(cls.id)
+    const notSet = confirmed.filter(s => !supplyData.find(item => item.studentId === s.id && item.name))
+    return notSet.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: notSet.length, total: confirmed.length }] : []
+  })
+
   const prevMonth = () => { if (calMonth === 0) { setCalYear(y=>y-1); setCalMonth(11) } else setCalMonth(m=>m-1) }
   const nextMonth = () => { if (calMonth === 11) { setCalYear(y=>y+1); setCalMonth(0) } else setCalMonth(m=>m+1) }
   const goToday = () => { const t = new Date(); setCalYear(t.getFullYear()); setCalMonth(t.getMonth()); setSelectedDate(today) }
@@ -305,6 +340,30 @@ export function Dashboard({ user, onNav }) {
           )}
         </div>
       </div>
+
+      {/* 교구 준비 알림 */}
+      {supplyAlerts.length > 0 && (
+        <div style={{ background: '#fef2f2', borderRadius: '12px', border: '1.5px solid #fca5a5', padding: '14px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+            <span style={{ fontSize: '16px' }}>⚠️</span>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: C.danger }}>교구 준비 필요 — 이번주 수업</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {supplyAlerts.map(({ cls, nextDate, notSetCount, total }) => (
+              <div key={cls.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#fff', borderRadius: '8px', border: '1px solid #fca5a5', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: '13px', color: C.text }}>
+                  <span style={{ fontWeight: 700 }}>{cls.organization}</span>
+                  <span style={{ color: C.muted }}> · {cls.className}{cls.section ? ' ' + cls.section + '반' : ''}</span>
+                  <span style={{ fontSize: '12px', color: C.muted, marginLeft: '6px' }}>📅 {nextDate}</span>
+                </div>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: C.danger, background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '6px', padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                  🎒 교구 미설정 {notSetCount}/{total}명
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 달력 + 상세 */}
       <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', alignItems: 'start' }}>
