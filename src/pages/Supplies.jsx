@@ -39,21 +39,22 @@ const iStyle = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1
 function SessionPlanRow({ p, onSave, onDelete }) {
   const [editTitle, setEditTitle] = React.useState(p.title)
   const [editMemo,  setEditMemo]  = React.useState(p.memo||'')
-  React.useEffect(() => { setEditTitle(p.title); setEditMemo(p.memo||'') }, [p.id, p.title, p.memo])
+  const [saved, setSaved] = React.useState(false)
   const isDirty = editTitle !== p.title || editMemo !== (p.memo||'')
   const rowStyle = { width:'100%', padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'44px 1fr 1fr 110px', gap:'6px', alignItems:'center', padding:'6px 8px', background: isDirty ? '#fff7ed' : '#f9fafb', borderRadius:'8px', border:`1.5px solid ${isDirty ? '#f97316' : '#e5e7eb'}` }}>
+    <div style={{ display:'grid', gridTemplateColumns:'44px 1fr 1fr 120px', gap:'6px', alignItems:'center', padding:'6px 8px', background: isDirty ? '#fff7ed' : '#f9fafb', borderRadius:'8px', border:`1.5px solid ${isDirty ? '#f97316' : '#e5e7eb'}` }}>
       <span style={{ fontSize:'12px', fontWeight:700, color:'#f97316' }}>{p.sessionNo}차시</span>
-      <input value={editTitle} onChange={e=>setEditTitle(e.target.value)} style={rowStyle} />
-      <input value={editMemo} onChange={e=>setEditMemo(e.target.value)}
+      <input value={editTitle} onChange={e=>{ setEditTitle(e.target.value); setSaved(false) }} style={rowStyle} />
+      <input value={editMemo} onChange={e=>{ setEditMemo(e.target.value); setSaved(false) }}
         placeholder="준비물 (선택)" style={rowStyle} />
-      <div style={{ display:'flex', gap:'4px' }}>
+      <div style={{ display:'flex', gap:'4px', justifyContent:'flex-end' }}>
         {isDirty && (
           <button onClick={() => {
             if (!editTitle.trim()) { alert('제목을 입력하세요'); return }
             onSave(p.id, editTitle.trim(), editMemo.trim())
-          }} style={{ padding:'3px 8px', borderRadius:'5px', border:'none', background:'#f97316', color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+            setSaved(true)
+          }} style={{ padding:'3px 8px', borderRadius:'5px', border:'none', background:'#f97316', color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600, whiteSpace:'nowrap' }}>
             저장
           </button>
         )}
@@ -1075,7 +1076,7 @@ export function Supplies({ user }) {
                                                         onClick={() => setExpandedStage(prev => prev === expandKey ? null : expandKey)}>
                                                         <span style={{ fontSize:'16px', flexShrink:0 }}>📝</span>
                                                         <div style={{ flex:1 }}>
-                                                          <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name} {stage}단계 차시지도안</span>
+                                                          <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name} {stage}단계 목차리스트</span>
                                                           <span style={{ fontSize:'11px', color:C.success, marginLeft:'8px' }}>{plans.length}차시</span>
                                                         </div>
                                                         <button onClick={e=>{ e.stopPropagation(); openSessionPlan(p.id, stage) }}
@@ -1603,7 +1604,7 @@ export function Supplies({ user }) {
           <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'560px', maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'#fff', zIndex:1 }}>
               <span style={{ fontSize:'16px', fontWeight:700 }}>
-                📝 {productList.find(p=>p.id===sessionPlanTarget.productId)?.name} — {sessionPlanTarget.stage}단계 차시 목록
+                📝 {productList.find(p=>p.id===sessionPlanTarget.productId)?.name} — {sessionPlanTarget.stage}단계 목차리스트
               </span>
               <button onClick={() => setSessionPlanModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
             </div>
