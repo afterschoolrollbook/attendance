@@ -313,7 +313,6 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
         취소
       </button>
     </div>
-    <ToastContainer toasts={toasts} />
   )
 }
 
