@@ -292,30 +292,38 @@ export function Supplies({ user }) {
 
   // 교구 등록
   const openProductModal = (vendorId, existingProduct=null) => {
-    setProductVendorId(vendorId)
-    if (existingProduct) {
-      const titles = {}
-      for (let s = 1; s <= (existingProduct.maxStage||10); s++) {
-        const plans = productPlanList
-          .filter(p => p.productId === existingProduct.id && p.stage === s)
-          .sort((a,b) => a.sessionNo - b.sessionNo)
-        titles[s] = Array.from({ length: existingProduct.sessionsPerStage||12 }, (_, i) => ({
-          title: plans[i]?.title || '',
-          memo:  plans[i]?.memo  || '',
-        }))
+    try {
+      setProductVendorId(vendorId || null)
+      if (existingProduct) {
+        const maxS = existingProduct.maxStage || 10
+        const perS = existingProduct.sessionsPerStage || 12
+        const titles = {}
+        for (let s = 1; s <= maxS; s++) {
+          const plans = (productPlanList || [])
+            .filter(p => p.productId === existingProduct.id && p.stage === s)
+            .sort((a,b) => a.sessionNo - b.sessionNo)
+          titles[s] = Array.from({ length: perS }, (_, i) => ({
+            title: plans[i]?.title || '',
+            memo:  plans[i]?.memo  || '',
+          }))
+        }
+        setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: maxS, sessionsPerStage: perS, alertSession: existingProduct.alertSession||10 })
+        setStageSessionTitles(titles)
+      } else {
+        const cnt = 12
+        const titles = {}
+        for (let s = 1; s <= 10; s++) {
+          titles[s] = Array.from({length: cnt}, () => ({ title:'', memo:'' }))
+        }
+        setProductForm({ id:null, name:'', maxStage:10, sessionsPerStage:cnt, alertSession:10 })
+        setStageSessionTitles(titles)
       }
-      setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: existingProduct.maxStage||10, sessionsPerStage: existingProduct.sessionsPerStage||12, alertSession: existingProduct.alertSession||10 })
-      setStageSessionTitles(titles)
-    } else {
-      const cnt = 12
-      const empty = () => Array.from({length: cnt}, () => ({ title:'', memo:'' }))
-      const titles = {}
-      for (let s = 1; s <= 10; s++) titles[s] = empty()
-      setProductForm({ id:null, name:'', maxStage:10, sessionsPerStage:cnt, alertSession:10 })
-      setStageSessionTitles(titles)
+      setProductStageTab(1)
+      setProductModal(true)
+    } catch(e) {
+      console.error('openProductModal error:', e)
+      alert('오류가 발생했습니다: ' + e.message)
     }
-    setProductStageTab(1)
-    setProductModal(true)
   }
 
   const saveProduct = () => {
@@ -404,16 +412,23 @@ export function Supplies({ user }) {
 
   // 파일 등록
   const openFileModal = (mode, vendorId=null, productId=null) => {
-    setFileModalMode(mode)
-    setFileTarget(vendorId)
-    setFileProductTarget(productId)
-    setFileForm({
-      fileType: mode==='promo' ? 'promo' : 'annual',
-      schools:[], stage:'',
-      vendorId: vendorId||'',
-      productId: productId||'',
-    })
-    setModalFile(null); setFileModal(true)
+    try {
+      setFileModalMode(mode)
+      setFileTarget(vendorId || null)
+      setFileProductTarget(productId || null)
+      const fileType = (mode==='promo' || mode==='product_promo') ? 'promo'
+        : mode==='product_annual' ? 'annual'
+        : 'annual'
+      setFileForm({
+        fileType,
+        schools:[], stage:'',
+        vendorId: vendorId||'',
+        productId: productId||'',
+      })
+      setModalFile(null); setFileModal(true)
+    } catch(e) {
+      console.error('openFileModal error:', e)
+    }
   }
   const saveFile = async () => {
     // 교구 선택 필수 (plan/session 모드)
@@ -1264,7 +1279,7 @@ export function Supplies({ user }) {
                   }}
                   style={{ ...iStyle, background:'#fff' }}>
                   {Array.from({length: productForm.maxStage}, (_, i) => i+1).map(s => {
-                    const filled = (stageSessionTitles[s] || []).filter(t => t.trim()).length
+                    const filled = (stageSessionTitles[s] || []).filter(t => (typeof t === 'string' ? t : t?.title || '').trim()).length
                     return <option key={s} value={s}>{s}단계 {filled > 0 ? `(${filled}개 입력됨)` : ''}</option>
                   })}
                 </select>
