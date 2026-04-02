@@ -45,6 +45,7 @@ function FileRow({ item, onDelete }) {
         <div style={{ fontSize:'13px', fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</div>
         <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
           <span style={{ background:'#f3f4f6', borderRadius:'4px', padding:'0 5px' }}>{typeLabel}</span>
+          {item.stage && <span style={{ background:'#eff6ff', color:'#3b82f6', borderRadius:'4px', padding:'0 5px' }}>{item.stage}단계</span>}
           {item.school && <span>🏫 {item.school}</span>}
           {item.fileName && <span>{item.fileName}</span>}
         </div>
@@ -113,7 +114,7 @@ export function Supplies({ user }) {
   // 파일 모달
   const [fileModal, setFileModal]     = useState(false)
   const [fileModalMode, setFileModalMode] = useState('plan')
-  const [fileForm, setFileForm]       = useState({ fileType:'annual', title:'', school:'', vendorId:'', productId:'' })
+  const [fileForm, setFileForm]       = useState({ fileType:'annual', schools:[], vendorId:'', productId:'', stage:'' })
   const [fileTarget, setFileTarget]   = useState(null)   // vendorId
   const [fileProductTarget, setFileProductTarget] = useState(null) // productId
   const [modalFile, setModalFile]     = useState(null)
@@ -125,10 +126,12 @@ export function Supplies({ user }) {
   const [vendorForm, setVendorForm]   = useState({ name:'', managerName:'', contact:'', memo:'' })
   const [expandedVendor, setExpandedVendor] = useState(null)
 
-  // 교구 등록 모달 (업체별)
+  // 교구 등록/수정 모달
   const [productModal, setProductModal] = useState(false)
   const [productVendorId, setProductVendorId] = useState(null)
-  const [productForm, setProductForm] = useState({ name:'', maxStage:10, sessionsPerStage:12, alertSession:10 })
+  const [productForm, setProductForm] = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:10 })
+  const [productStageTab, setProductStageTab] = useState(1)
+  const [stageSessionTitles, setStageSessionTitles] = useState({})
 
   // 차시 지도안 모달 (교구+단계별)
   const [sessionPlanModal, setSessionPlanModal] = useState(false)
@@ -280,13 +283,71 @@ export function Supplies({ user }) {
   }
 
   // 교구 등록
+  const openProductModal = (vendorId, existingProduct=null) => {
+    setProductVendorId(vendorId)
+    if (existingProduct) {
+      const titles = {}
+      for (let s = 1; s <= (existingProduct.maxStage||10); s++) {
+        const plans = productPlanList
+          .filter(p => p.productId === existingProduct.id && p.stage === s)
+          .sort((a,b) => a.sessionNo - b.sessionNo)
+        titles[s] = Array.from({ length: existingProduct.sessionsPerStage||12 }, (_, i) =>
+          plans[i]?.title || ''
+        )
+      }
+      setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: existingProduct.maxStage||10, sessionsPerStage: existingProduct.sessionsPerStage||12, alertSession: existingProduct.alertSession||10 })
+      setStageSessionTitles(titles)
+    } else {
+      const cnt = 12
+      const titles = {}
+      for (let s = 1; s <= 10; s++) titles[s] = Array(cnt).fill('')
+      setProductForm({ id:null, name:'', maxStage:10, sessionsPerStage:cnt, alertSession:10 })
+      setStageSessionTitles(titles)
+    }
+    setProductStageTab(1)
+    setProductModal(true)
+  }
+
   const saveProduct = () => {
     if (!productForm.name) { alert('교구명을 입력하세요'); return }
-    SupplyProducts.insert({
-      id: uid(), teacherId: user.id, vendorId: productVendorId, subject: selSubject,
-      ...productForm, createdAt: now(),
-    })
-    reload(); setProductModal(false); setProductForm({ name:'', maxStage:10, sessionsPerStage:12, alertSession:10 })
+    const isEdit = !!productForm.id
+    const productId = isEdit ? productForm.id : uid()
+    if (isEdit) {
+      SupplyProducts.update(productId, {
+        name: productForm.name, maxStage: productForm.maxStage,
+        sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession,
+      })
+    } else {
+      SupplyProducts.insert({
+        id: productId, teacherId: user.id, vendorId: productVendorId, subject: selSubject,
+        name: productForm.name, maxStage: productForm.maxStage,
+        sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession,
+        createdAt: now(),
+      })
+    }
+    // 단계별 차시 제목 저장/수정
+    for (let stage = 1; stage <= productForm.maxStage; stage++) {
+      const titles = stageSessionTitles[stage] || []
+      titles.forEach((title, idx) => {
+        if (!title.trim()) return
+        const sessionNo = idx + 1
+        const existing = productPlanList.find(p =>
+          p.productId === productId && p.stage === stage && p.sessionNo === sessionNo
+        )
+        if (existing) {
+          SupplyProductPlans.update(existing.id, { title: title.trim() })
+        } else {
+          SupplyProductPlans.insert({
+            id: uid(), teacherId: user.id, productId,
+            stage, sessionNo, title: title.trim(),
+            memo: '', fileUrl: null, fileName: null, createdAt: now(),
+          })
+        }
+      })
+    }
+    reload()
+    setProductModal(false)
+    setStageSessionTitles({})
   }
   const deleteProduct = (id) => {
     setDeleteConfirm({ msg:'이 교구를 삭제할까요?', onOk: () => { SupplyProducts.delete(id); reload() } })
@@ -335,14 +396,24 @@ export function Supplies({ user }) {
     setFileProductTarget(productId)
     setFileForm({
       fileType: mode==='promo' ? 'promo' : 'annual',
-      title:'', school:'',
+      schools:[], stage:'',
       vendorId: vendorId||'',
       productId: productId||'',
     })
     setModalFile(null); setFileModal(true)
   }
   const saveFile = async () => {
-    if (!fileForm.title) { alert('제목을 입력하세요'); return }
+    // 교구 선택 필수 (plan/session 모드)
+    const needsProduct = ['plan','session'].includes(fileModalMode)
+    if (needsProduct && !fileForm.productId) { alert('교구를 선택하세요'); return }
+    // 차시별 지도안이면 단계도 필수
+    const isSession = fileModalMode === 'session' || (fileModalMode === 'plan' && fileForm.fileType === 'session')
+    if (isSession && !fileForm.stage) { alert('단계를 선택하세요'); return }
+    // 제목 자동 생성
+    const autoProduct = productList.find(p => p.id === (fileProductTarget || fileForm.productId))
+    const autoTitle = autoProduct
+      ? (isSession ? `${autoProduct.name} ${fileForm.stage}단계 차시별 지도안` : `${autoProduct.name} 연간지도안`)
+      : (fileForm.title || '지도안')
     setUploading(true)
     try {
       let fileUrl=null, fileName=null
@@ -350,13 +421,19 @@ export function Supplies({ user }) {
         fileUrl = await uploadToStorage(user.id, `${selSubject}/${fileForm.fileType}`, modalFile)
         fileName = modalFile.name
       }
-      SupplyPlans.insert({
-        id: uid(), teacherId: user.id, subject: selSubject,
-        type: fileForm.fileType, fileType: fileForm.fileType,
-        title: fileForm.title, school: fileForm.school||null,
-        vendorId: fileTarget||null,
-        productId: fileProductTarget || fileForm.productId || null,
-        fileUrl, fileName, createdAt: now(),
+      // 학교 다중 저장: schools 배열 각각 insert (빈 배열이면 schools=null로 1건)
+      const schoolsToSave = fileForm.schools.length > 0 ? fileForm.schools : [null]
+      schoolsToSave.forEach(school => {
+        SupplyPlans.insert({
+          id: uid(), teacherId: user.id, subject: selSubject,
+          type: fileForm.fileType, fileType: fileForm.fileType,
+          title: autoTitle,
+          school: school || null,
+          vendorId: fileTarget||null,
+          productId: fileProductTarget || fileForm.productId || null,
+          stage: fileForm.stage || null,
+          fileUrl, fileName, createdAt: now(),
+        })
       })
       reload(); setFileModal(false); setModalFile(null)
     } catch(e) { alert('업로드 실패: '+e.message) }
@@ -725,7 +802,7 @@ export function Supplies({ user }) {
                               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
                                 <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>🤖 교구 목록</span>
                                 {isRobot && (
-                                  <button onClick={() => { setProductVendorId(v.id); setProductModal(true) }}
+                                  <button onClick={() => openProductModal(v.id)}
                                     style={{ padding:'4px 12px', borderRadius:'6px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                     + 교구 등록
                                   </button>
@@ -753,6 +830,8 @@ export function Supplies({ user }) {
                                               {promos.length > 0      && <span style={{ color:C.success }}>홍보물 {promos.length}개</span>}
                                             </div>
                                           </div>
+                                          <button onClick={() => openProductModal(v.id, p)}
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>수정</button>
                                           <button onClick={() => deleteProduct(p.id)}
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
                                         </div>
@@ -1061,42 +1140,119 @@ export function Supplies({ user }) {
         </div>
       )}
 
-      {/* ── 교구 등록 모달 */}
+      {/* ── 교구 등록/수정 모달 */}
       {productModal && (
         <div onClick={e=>{ if(e.target===e.currentTarget) setProductModal(false) }}
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'420px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>🤖 교구 등록</span>
+          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'560px', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+
+            {/* 헤더 */}
+            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+              <span style={{ fontSize:'16px', fontWeight:700 }}>{productForm.id ? '🤖 교구 수정' : '🤖 교구 등록'}</span>
               <button onClick={() => setProductModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
             </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+
+            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px', overflowY:'auto' }}>
+
+              {/* 교구명 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교구명 *</label>
                 <input value={productForm.name} onChange={e=>setProductForm(v=>({...v, name:e.target.value}))}
-                  placeholder="예: 로봇 키트 A형" style={iStyle} autoFocus />
+                  placeholder="예: 큐보 1단계, 로봇 키트 A형" style={iStyle} autoFocus />
               </div>
+
+              {/* 단계/차시/알림 설정 */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px' }}>
                 {[
-                  { label:'최대 단계', key:'maxStage', placeholder:'10' },
-                  { label:'단계당 차시', key:'sessionsPerStage', placeholder:'12' },
-                  { label:'준비 알림 차시', key:'alertSession', placeholder:'10' },
+                  { label:'최대 단계', key:'maxStage' },
+                  { label:'단계당 차시 수', key:'sessionsPerStage' },
+                  { label:'준비 알림 차시', key:'alertSession' },
                 ].map(f => (
                   <div key={f.key}>
                     <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>{f.label}</label>
-                    <input type="number" value={productForm[f.key]} onChange={e=>setProductForm(v=>({...v, [f.key]:Number(e.target.value)}))}
-                      placeholder={f.placeholder} style={{ ...iStyle, textAlign:'center' }} />
+                    <input type="number" min={1} max={f.key==='maxStage'?20:50}
+                      value={productForm[f.key]}
+                      onChange={e => {
+                        const val = Number(e.target.value)
+                        setProductForm(v => {
+                          const next = {...v, [f.key]: val}
+                          // sessionsPerStage 바뀌면 각 단계 titles 배열 길이 조정
+                          if (f.key === 'sessionsPerStage') {
+                            const newTitles = {}
+                            for (let s = 1; s <= next.maxStage; s++) {
+                              const cur = stageSessionTitles[s] || []
+                              newTitles[s] = Array.from({length: val}, (_, i) => cur[i] || '')
+                            }
+                            setStageSessionTitles(newTitles)
+                          }
+                          // maxStage 바뀌면 새 단계 titles 초기화
+                          if (f.key === 'maxStage') {
+                            setStageSessionTitles(prev => {
+                              const next2 = {...prev}
+                              for (let s = 1; s <= val; s++) {
+                                if (!next2[s]) next2[s] = Array(next.sessionsPerStage).fill('')
+                              }
+                              return next2
+                            })
+                            if (productStageTab > val) setProductStageTab(val)
+                          }
+                          return next
+                        })
+                      }}
+                      style={{ ...iStyle, textAlign:'center' }} />
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize:'12px', color:C.muted, background:'#f9fafb', padding:'10px 12px', borderRadius:'8px' }}>
-                💡 등록 후 교구 카드의 단계 버튼을 클릭하면 차시별 지도안(책 회차 제목)을 등록할 수 있습니다.
+
+              {/* 단계 탭 — 차시 제목 입력 */}
+              <div style={{ border:`1px solid ${C.border}`, borderRadius:'10px', overflow:'hidden' }}>
+                {/* 단계 탭 버튼 */}
+                <div style={{ display:'flex', overflowX:'auto', borderBottom:`1px solid ${C.border}`, background:'#f9fafb' }}>
+                  {Array.from({length: productForm.maxStage}, (_, i) => i+1).map(s => {
+                    const filled = (stageSessionTitles[s] || []).filter(t => t.trim()).length
+                    const isActive = productStageTab === s
+                    return (
+                      <button key={s} onClick={() => setProductStageTab(s)}
+                        style={{ padding:'8px 14px', border:'none', borderBottom: isActive ? `2px solid ${C.primary}` : '2px solid transparent', background:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', fontWeight: isActive ? 700 : 400, color: isActive ? C.primary : C.muted, whiteSpace:'nowrap', flexShrink:0 }}>
+                        {s}단계 {filled > 0 ? `(${filled})` : ''}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* 현재 단계 차시 목록 */}
+                <div style={{ padding:'12px 14px', display:'flex', flexDirection:'column', gap:'5px', maxHeight:'280px', overflowY:'auto' }}>
+                  {Array.from({length: productForm.sessionsPerStage}, (_, i) => i).map(idx => (
+                    <div key={idx} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                      <span style={{ minWidth:'46px', fontSize:'12px', fontWeight:700, color:C.primary, flexShrink:0 }}>{idx+1}차시</span>
+                      <input
+                        value={(stageSessionTitles[productStageTab] || [])[idx] || ''}
+                        onChange={e => {
+                          const val = e.target.value
+                          setStageSessionTitles(prev => {
+                            const cur = [...(prev[productStageTab] || Array(productForm.sessionsPerStage).fill(''))]
+                            cur[idx] = val
+                            return {...prev, [productStageTab]: cur}
+                          })
+                        }}
+                        placeholder={`${idx+1}차시 제목 (선택)`}
+                        style={{ ...iStyle, padding:'5px 9px', fontSize:'12px' }}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* 저장 버튼 */}
               <div style={{ display:'flex', gap:'8px' }}>
                 <button onClick={saveProduct}
-                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  저장
+                </button>
                 <button onClick={() => setProductModal(false)}
-                  style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
+                  style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
+                  취소
+                </button>
               </div>
             </div>
           </div>
@@ -1179,86 +1335,153 @@ export function Supplies({ user }) {
       )}
 
       {/* ── 파일 등록 모달 */}
-      {fileModal && (
-        <div onClick={e=>{ if(e.target===e.currentTarget){ setFileModal(false); setModalFile(null) } }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'460px', maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'#fff', zIndex:1 }}>
-              <div>
-                <span style={{ fontSize:'16px', fontWeight:700 }}>{fileModalTitle}</span>
-                <span style={{ fontSize:'13px', color:C.muted, fontWeight:400, marginLeft:'6px' }}>— {selSubject}</span>
-                {fileProductName && (
-                  <div style={{ fontSize:'12px', color:C.primary, fontWeight:600, marginTop:'2px' }}>
-                    🤖 {fileProductName}
+      {fileModal && (() => {
+        // 지도안 탭에서 열린 경우: 연간=annual, 차시별=session
+        // 교구 목록 (현재 과목)
+        const modalProducts = productList.filter(p => {
+          const vendor = vendorList.find(v => v.id === p.vendorId)
+          return vendor?.subject === selSubject
+        })
+        const selectedProduct = modalProducts.find(p => p.id === fileForm.productId)
+        const toggleSchool = (s) => setFileForm(f => ({
+          ...f,
+          schools: f.schools.includes(s) ? f.schools.filter(x=>x!==s) : [...f.schools, s]
+        }))
+
+        return (
+          <div onClick={e=>{ if(e.target===e.currentTarget){ setFileModal(false); setModalFile(null) } }}
+            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
+            <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'500px', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+
+              {/* 헤더 */}
+              <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+                <div>
+                  <span style={{ fontSize:'16px', fontWeight:700 }}>{fileModalTitle}</span>
+                  <span style={{ fontSize:'13px', color:C.muted, fontWeight:400, marginLeft:'6px' }}>— {selSubject}</span>
+                </div>
+                <button onClick={()=>{ setFileModal(false); setModalFile(null) }} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
+              </div>
+
+              <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'16px', overflowY:'auto' }}>
+
+                {/* 종류 선택 (연간 / 차시별) — plan 탭에서만 */}
+                {FILE_TYPE_OPTIONS.length > 1 && (
+                  <div>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>종류</label>
+                    <div style={{ display:'flex', gap:'6px' }}>
+                      {FILE_TYPE_OPTIONS.map(o => (
+                        <button key={o.v} onClick={()=>setFileForm(f=>({...f, fileType:o.v, stage:''}))}
+                          style={{ padding:'8px 18px', borderRadius:'8px', border:`1.5px solid ${fileForm.fileType===o.v?C.primary:C.border}`, background: fileForm.fileType===o.v?'#fff7ed':'#fff', color: fileForm.fileType===o.v?C.primary:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                          {o.l}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
-              </div>
-              <button onClick={()=>{ setFileModal(false); setModalFile(null) }} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
-              {/* 종류 선택 — product_* 모드는 1개라 숨김 */}
-              {FILE_TYPE_OPTIONS.length > 1 && (
-                <div>
-                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>종류</label>
-                  <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-                    {FILE_TYPE_OPTIONS.map(o => (
-                      <button key={o.v} onClick={()=>setFileForm(f=>({...f, fileType:o.v}))}
-                        style={{ padding:'7px 14px', borderRadius:'8px', border:`1.5px solid ${fileForm.fileType===o.v?C.primary:C.border}`, background: fileForm.fileType===o.v?'#fff7ed':'#fff', color: fileForm.fileType===o.v?C.primary:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                        {o.l}
-                      </button>
-                    ))}
+
+                {/* 교구 선택 — plan/session 모드 */}
+                {['plan','session'].includes(fileModalMode) && (
+                  <div>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>교구 선택 *</label>
+                    {modalProducts.length === 0 ? (
+                      <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 12px', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', flexWrap:'wrap' }}>
+                        <span style={{ fontSize:'12px', color:C.warning }}>⚠️ 등록된 교구가 없습니다.</span>
+                        <button onClick={() => { setFileModal(false); setInnerTab('vendor') }}
+                          style={{ fontSize:'12px', color:C.primary, background:'#fff7ed', border:`1px solid ${C.primary}`, borderRadius:'5px', padding:'2px 9px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                          🏢 교구 등록하러 가기 →
+                        </button>
+                      </div>
+                    ) : (
+                      <select value={fileForm.productId}
+                        onChange={e => setFileForm(f=>({...f, productId:e.target.value, stage:''}))}
+                        style={{ ...iStyle, background:'#fff' }}>
+                        <option value=''>-- 교구를 선택하세요 --</option>
+                        {modalProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    )}
                   </div>
-                </div>
-              )}
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>제목 *</label>
-                <input value={fileForm.title} onChange={e=>setFileForm(f=>({...f, title:e.target.value}))}
-                  placeholder="예: 2026년 큐보 연간지도안" style={iStyle} autoFocus />
-              </div>
-              {/* 학교 지정 — 교구 직접 연결 모드에서는 불필요 */}
-              {!['vendor','product_annual','product_promo'].includes(fileModalMode) && (
-                <div>
-                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>
-                    학교 지정 <span style={{ fontWeight:400 }}>(선택)</span>
-                  </label>
-                  <select value={fileForm.school} onChange={e=>setFileForm(f=>({...f, school:e.target.value}))}
-                    style={{ ...iStyle, background:'#fff' }}>
-                    <option value=''>지정 안함 (공통 자료)</option>
-                    {schoolList.map(s=><option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-              )}
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>파일 첨부</label>
-                {modalFile ? (
-                  <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 12px', background:'#f0fdf4', borderRadius:'8px', border:'1px solid #86efac' }}>
-                    <span style={{ fontSize:'20px' }}>📄</span>
-                    <span style={{ fontSize:'13px', fontWeight:600, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{modalFile.name}</span>
-                    <button onClick={()=>setModalFile(null)} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'18px' }}>×</button>
+                )}
+
+                {/* 단계 선택 — 차시별 지도안일 때 */}
+                {(fileModalMode === 'session' || (fileModalMode === 'plan' && fileForm.fileType === 'session')) && fileForm.productId && (
+                  <div>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>단계 선택 *</label>
+                    <select value={fileForm.stage}
+                      onChange={e => setFileForm(f=>({...f, stage:Number(e.target.value)}))}
+                      style={{ ...iStyle, background:'#fff' }}>
+                      <option value=''>-- 단계를 선택하세요 --</option>
+                      {STAGES.slice(0, selectedProduct?.maxStage||10).map(s => <option key={s} value={s}>{s}단계</option>)}
+                    </select>
                   </div>
-                ) : (
-                  <button onClick={()=>fileRef.current?.click()}
-                    style={{ width:'100%', padding:'20px', borderRadius:'9px', border:`2px dashed ${C.border}`, background:'#f9fafb', cursor:'pointer', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
-                    <div style={{ fontSize:'24px', marginBottom:'4px' }}>📎</div>
-                    <div style={{ fontSize:'13px' }}>클릭하여 파일 선택</div>
-                    <div style={{ fontSize:'11px', marginTop:'2px' }}>.hwp · .hwpx · .pdf · .xlsx · .jpg · .png</div>
+                )}
+
+                {/* 학교 다중 선택 — 동적 버튼 */}
+                {!['vendor'].includes(fileModalMode) && (
+                  <div>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>
+                      학교 지정 <span style={{ fontWeight:400, color:C.muted }}>(복수 선택 가능)</span>
+                    </label>
+                    {schoolList.length === 0 ? (
+                      <div style={{ fontSize:'12px', color:C.muted, background:'#f9fafb', padding:'8px 12px', borderRadius:'7px' }}>
+                        수업에 등록된 학교가 없습니다
+                      </div>
+                    ) : (
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
+                        {schoolList.map(s => {
+                          const selected = fileForm.schools.includes(s)
+                          return (
+                            <button key={s} onClick={() => toggleSchool(s)}
+                              style={{ padding:'6px 14px', borderRadius:'20px', border:`1.5px solid ${selected ? C.primary : C.border}`, background: selected ? '#fff7ed' : '#fff', color: selected ? C.primary : C.muted, fontSize:'13px', fontWeight: selected ? 700 : 400, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
+                              {selected ? '✓ ' : ''}{s}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {fileForm.schools.length > 0 && (
+                      <div style={{ fontSize:'11px', color:C.primary, marginTop:'5px' }}>
+                        선택됨: {fileForm.schools.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 파일 첨부 */}
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>파일 첨부</label>
+                  {modalFile ? (
+                    <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 12px', background:'#f0fdf4', borderRadius:'8px', border:'1px solid #86efac' }}>
+                      <span style={{ fontSize:'20px' }}>📄</span>
+                      <span style={{ fontSize:'13px', fontWeight:600, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{modalFile.name}</span>
+                      <button onClick={()=>setModalFile(null)} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'18px' }}>×</button>
+                    </div>
+                  ) : (
+                    <button onClick={()=>fileRef.current?.click()}
+                      style={{ width:'100%', padding:'20px', borderRadius:'9px', border:`2px dashed ${C.border}`, background:'#f9fafb', cursor:'pointer', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
+                      <div style={{ fontSize:'24px', marginBottom:'4px' }}>📎</div>
+                      <div style={{ fontSize:'13px' }}>클릭하여 파일 선택</div>
+                      <div style={{ fontSize:'11px', marginTop:'2px' }}>.hwp · .hwpx · .pdf · .xlsx · .jpg · .png</div>
+                    </button>
+                  )}
+                  <input ref={fileRef} type="file" accept=".hwp,.hwpx,.pdf,.xlsx,.xls,.jpg,.jpeg,.png" style={{ display:'none' }}
+                    onChange={e=>e.target.files[0]&&setModalFile(e.target.files[0])} />
+                </div>
+
+                {/* 저장 버튼 */}
+                <div style={{ display:'flex', gap:'8px' }}>
+                  <button onClick={saveFile} disabled={uploading}
+                    style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background: uploading?'#e5e7eb':C.primary, color: uploading?C.muted:'#fff', fontSize:'14px', fontWeight:700, cursor: uploading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    {uploading ? '업로드 중...' : fileForm.schools.length > 1 ? `저장 (${fileForm.schools.length}개 학교)` : '저장'}
                   </button>
-                )}
-                <input ref={fileRef} type="file" accept=".hwp,.hwpx,.pdf,.xlsx,.xls,.jpg,.jpeg,.png" style={{ display:'none' }}
-                  onChange={e=>e.target.files[0]&&setModalFile(e.target.files[0])} />
-              </div>
-              <div style={{ display:'flex', gap:'8px' }}>
-                <button onClick={saveFile} disabled={uploading}
-                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background: uploading?'#e5e7eb':C.primary, color: uploading?C.muted:'#fff', fontSize:'14px', fontWeight:700, cursor: uploading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                  {uploading ? '업로드 중...' : '저장'}
-                </button>
-                <button onClick={()=>{ setFileModal(false); setModalFile(null) }}
-                  style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
+                  <button onClick={()=>{ setFileModal(false); setModalFile(null) }}
+                    style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
+
 
       {/* ── 교구업체 등록 모달 */}
       {vendorModal && (
