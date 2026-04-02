@@ -1167,8 +1167,8 @@ export function Supplies({ user }) {
 
             <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px', overflowY:'auto' }}>
 
-              {/* 업체 선택 — 업체 없이 열었을 때 */}
-              {!productVendorId && (
+              {/* 업체 선택 */}
+              {(
                 <div>
                   <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>업체 선택</label>
                   {subjectVendors.length === 0 ? (
@@ -1196,29 +1196,10 @@ export function Supplies({ user }) {
                   placeholder="예: 큐보 1단계, 로봇 키트 A형" style={iStyle} autoFocus />
               </div>
 
-              {/* 단계 선택 + 준비 알림 차시 */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+              {/* 기본 설정: 최대단계 / 단계당 차시수 / 준비알림 차시 */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px' }}>
                 <div>
-                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>단계 선택 *</label>
-                  <select value={productStageTab}
-                    onChange={e => {
-                      const st = Number(e.target.value)
-                      setProductStageTab(st)
-                      // 해당 단계 titles 없으면 기본 12차시로 초기화
-                      setStageSessionTitles(prev => ({
-                        ...prev,
-                        [st]: prev[st] || Array(productForm.sessionsPerStage).fill('')
-                      }))
-                    }}
-                    style={{ ...iStyle, background:'#fff' }}>
-                    {Array.from({length: productForm.maxStage}, (_, i) => i+1).map(s => {
-                      const filled = (stageSessionTitles[s] || []).filter(t => t.trim()).length
-                      return <option key={s} value={s}>{s}단계 {filled > 0 ? `(${filled}개 입력됨)` : ''}</option>
-                    })}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>최대 단계</label>
+                  <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>최대 단계</label>
                   <input type="number" min={1} max={20} value={productForm.maxStage}
                     onChange={e => {
                       const val = Number(e.target.value)
@@ -1234,6 +1215,49 @@ export function Supplies({ user }) {
                     }}
                     style={{ ...iStyle, textAlign:'center' }} />
                 </div>
+                <div>
+                  <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>단계당 차시 수</label>
+                  <input type="number" min={1} max={50} value={productForm.sessionsPerStage}
+                    onChange={e => {
+                      const val = Number(e.target.value)
+                      setProductForm(v => ({...v, sessionsPerStage: val}))
+                      setStageSessionTitles(prev => {
+                        const newTitles = {}
+                        for (let s = 1; s <= productForm.maxStage; s++) {
+                          const cur = prev[s] || []
+                          newTitles[s] = Array.from({length: val}, (_, i) => cur[i] || '')
+                        }
+                        return newTitles
+                      })
+                    }}
+                    style={{ ...iStyle, textAlign:'center' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>준비 알림 차시</label>
+                  <input type="number" min={1} max={50} value={productForm.alertSession}
+                    onChange={e => setProductForm(v=>({...v, alertSession: Number(e.target.value)}))}
+                    style={{ ...iStyle, textAlign:'center' }} />
+                </div>
+              </div>
+
+              {/* 단계 선택 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>단계 선택</label>
+                <select value={productStageTab}
+                  onChange={e => {
+                    const st = Number(e.target.value)
+                    setProductStageTab(st)
+                    setStageSessionTitles(prev => ({
+                      ...prev,
+                      [st]: prev[st] || Array(productForm.sessionsPerStage).fill('')
+                    }))
+                  }}
+                  style={{ ...iStyle, background:'#fff' }}>
+                  {Array.from({length: productForm.maxStage}, (_, i) => i+1).map(s => {
+                    const filled = (stageSessionTitles[s] || []).filter(t => t.trim()).length
+                    return <option key={s} value={s}>{s}단계 {filled > 0 ? `(${filled}개 입력됨)` : ''}</option>
+                  })}
+                </select>
               </div>
 
               {/* 차시 제목 입력 */}
@@ -1243,16 +1267,9 @@ export function Supplies({ user }) {
                   <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
                     📝 {productStageTab}단계 차시별 제목
                   </span>
-                  <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                    <span style={{ fontSize:'11px', color:C.muted }}>
-                      {(stageSessionTitles[productStageTab]||[]).filter(t=>t.trim()).length} / {(stageSessionTitles[productStageTab]||[]).length}개 입력
-                    </span>
-                    <span style={{ fontSize:'11px', color:C.muted }}>준비알림</span>
-                    <input type="number" min={1} max={50} value={productForm.alertSession}
-                      onChange={e => setProductForm(v=>({...v, alertSession: Number(e.target.value)}))}
-                      style={{ ...iStyle, width:'52px', padding:'3px 6px', fontSize:'12px', textAlign:'center' }} />
-                    <span style={{ fontSize:'11px', color:C.muted }}>차시</span>
-                  </div>
+                  <span style={{ fontSize:'11px', color:C.muted }}>
+                    {(stageSessionTitles[productStageTab]||[]).filter(t=>t.trim()).length} / {(stageSessionTitles[productStageTab]||[]).length}개 입력
+                  </span>
                 </div>
 
                 {/* 차시 목록 */}
