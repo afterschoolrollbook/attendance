@@ -36,31 +36,30 @@ const iStyle = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1
 
 
 // ── 차시 행 (인라인 편집)
-function SessionPlanRow({ p, onSave, onDelete, iStyle, C }) {
+function SessionPlanRow({ p, onSave, onDelete }) {
   const [editTitle, setEditTitle] = React.useState(p.title)
   const [editMemo,  setEditMemo]  = React.useState(p.memo||'')
   React.useEffect(() => { setEditTitle(p.title); setEditMemo(p.memo||'') }, [p.id, p.title, p.memo])
   const isDirty = editTitle !== p.title || editMemo !== (p.memo||'')
+  const rowStyle = { width:'100%', padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'44px 1fr 1fr 110px', gap:'6px', alignItems:'center', padding:'6px 8px', background: isDirty ? '#fff7ed' : '#f9fafb', borderRadius:'8px', border:`1.5px solid ${isDirty ? C.primary : C.border}` }}>
-      <span style={{ fontSize:'12px', fontWeight:700, color:C.primary }}>{p.sessionNo}차시</span>
-      <input value={editTitle} onChange={e=>setEditTitle(e.target.value)}
-        style={{ ...iStyle, padding:'4px 8px', fontSize:'12px' }} />
+    <div style={{ display:'grid', gridTemplateColumns:'44px 1fr 1fr 110px', gap:'6px', alignItems:'center', padding:'6px 8px', background: isDirty ? '#fff7ed' : '#f9fafb', borderRadius:'8px', border:`1.5px solid ${isDirty ? '#f97316' : '#e5e7eb'}` }}>
+      <span style={{ fontSize:'12px', fontWeight:700, color:'#f97316' }}>{p.sessionNo}차시</span>
+      <input value={editTitle} onChange={e=>setEditTitle(e.target.value)} style={rowStyle} />
       <input value={editMemo} onChange={e=>setEditMemo(e.target.value)}
-        placeholder="준비물 (선택)"
-        style={{ ...iStyle, padding:'4px 8px', fontSize:'12px' }} />
+        placeholder="준비물 (선택)" style={rowStyle} />
       <div style={{ display:'flex', gap:'4px' }}>
         {isDirty && (
           <button onClick={() => {
             if (!editTitle.trim()) { alert('제목을 입력하세요'); return }
             onSave(p.id, editTitle.trim(), editMemo.trim())
-          }} style={{ padding:'3px 8px', borderRadius:'5px', border:'none', background:C.primary, color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+          }} style={{ padding:'3px 8px', borderRadius:'5px', border:'none', background:'#f97316', color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
             저장
           </button>
         )}
-        {p.fileUrl && <a href={p.fileUrl} download target="_blank" rel="noopener noreferrer" style={{ fontSize:'11px', color:C.blue, textDecoration:'none', padding:'3px 6px' }}>📄</a>}
+        {p.fileUrl && <a href={p.fileUrl} download target="_blank" rel="noopener noreferrer" style={{ fontSize:'11px', color:'#3b82f6', textDecoration:'none', padding:'3px 6px' }}>📄</a>}
         <button onClick={() => onDelete(p.id)}
-          style={{ padding:'3px 7px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+          style={{ padding:'3px 7px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
           삭제
         </button>
       </div>
@@ -324,7 +323,7 @@ export function Supplies({ user }) {
   const saveVendor = () => {
     if (!vendorForm.name) { alert('업체명을 입력하세요'); return }
     SupplyVendors.insert({ id: uid(), teacherId: user.id, subject: selSubject, ...vendorForm, createdAt: now() })
-    reload(); setVendorModal(false); setVendorForm({ name:'', managerName:'', contact:'', memo:'' }); showToast('업체가 저장되었습니다.')
+    reload(); setVendorModal(false); setVendorForm({ name:'', managerName:'', contact:'', memo:'' }); showToast('업체가 등록되었습니다.')
   }
   const deleteVendor = (id) => {
     setDeleteConfirm({ msg:'이 업체를 삭제하시겠습니까?\n업체 파일도 함께 삭제됩니다.', onOk: () => {
@@ -413,7 +412,7 @@ export function Supplies({ user }) {
     reload()
     setProductModal(false)
     setStageSessionTitles({})
-    showToast('교구가 저장되었습니다.')
+    showToast(isEdit ? '교구가 수정되었습니다.' : '교구가 등록되었습니다.')
   }
   const deleteProduct = (id) => {
     setDeleteConfirm({ msg:'이 교구를 삭제하시겠습니까?', onOk: () => { SupplyProducts.delete(id); reload(); showToast('삭제가 완료되었습니다.', 'info') } })
@@ -457,7 +456,7 @@ export function Supplies({ user }) {
       setSessionPlanList(SupplyProductPlans.byProductStage(sessionPlanTarget.productId, sessionPlanTarget.stage).sort((a,b)=>a.sessionNo-b.sessionNo))
       setSessionPlanForm({ editId:null, sessionNo: sessionPlanForm.editId ? sessionPlanForm.sessionNo : sessionPlanForm.sessionNo+1, title:'', memo:'' })
       setSessionPlanFile(null)
-      showToast(sessionPlanForm.editId ? '수정되었습니다.' : '차시가 추가되었습니다.')
+      showToast(sessionPlanForm.editId ? '차시가 수정되었습니다.' : '차시가 추가되었습니다.')
     } catch(e) { alert('저장 실패: '+e.message) }
     finally { setUploading(false) }
   }
@@ -556,7 +555,7 @@ export function Supplies({ user }) {
           })
         })
       }
-      reload(); setFileModal(false); setModalFile(null); showToast('저장이 완료되었습니다.')
+      reload(); setFileModal(false); setModalFile(null); setFileEditId(null); showToast(fileEditId ? '수정이 완료되었습니다.' : '저장이 완료되었습니다.')
     } catch(e) { alert('업로드 실패: '+e.message) }
     finally { setUploading(false) }
   }
@@ -573,11 +572,12 @@ export function Supplies({ user }) {
     reload(); setNewSubject(''); setSubjectModal(false); setSelSubject(s)
   }
   const deleteSubject = (s) => {
-    setDeleteConfirm({ msg:`"${s}" 과목을 삭제할까요?`, onOk: () => {
+    setDeleteConfirm({ msg:`"${s}" 과목을 삭제하시겠습니까?`, onOk: () => {
       const rec = SupplySubjects.byTeacher(user.id).find(r=>r.name===s)
       if (rec) SupplySubjects.delete(rec.id)
       reload()
       if (selSubject===s) setSelSubject(subjects.filter(x=>x!==s)[0]||null)
+      showToast('삭제가 완료되었습니다.', 'info')
     }})
   }
 
@@ -1616,7 +1616,7 @@ export function Supplies({ user }) {
                     <span>차시</span><span>제목</span><span>준비물</span><span></span>
                   </div>
                   {sessionPlanList.map(p => (
-                    <SessionPlanRow key={p.id} p={p} iStyle={iStyle} C={C}
+                    <SessionPlanRow key={p.id} p={p}
                       onSave={(id, title, memo) => {
                         SupplyProductPlans.update(id, { title, memo })
                         reload()
