@@ -34,6 +34,40 @@ async function uploadToStorage(userId, folder, file) {
 
 const iStyle = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
 
+
+// ── 차시 행 (인라인 편집)
+function SessionPlanRow({ p, onSave, onDelete, iStyle, C }) {
+  const [editTitle, setEditTitle] = React.useState(p.title)
+  const [editMemo,  setEditMemo]  = React.useState(p.memo||'')
+  React.useEffect(() => { setEditTitle(p.title); setEditMemo(p.memo||'') }, [p.id, p.title, p.memo])
+  const isDirty = editTitle !== p.title || editMemo !== (p.memo||'')
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'44px 1fr 1fr 110px', gap:'6px', alignItems:'center', padding:'6px 8px', background: isDirty ? '#fff7ed' : '#f9fafb', borderRadius:'8px', border:`1.5px solid ${isDirty ? C.primary : C.border}` }}>
+      <span style={{ fontSize:'12px', fontWeight:700, color:C.primary }}>{p.sessionNo}차시</span>
+      <input value={editTitle} onChange={e=>setEditTitle(e.target.value)}
+        style={{ ...iStyle, padding:'4px 8px', fontSize:'12px' }} />
+      <input value={editMemo} onChange={e=>setEditMemo(e.target.value)}
+        placeholder="준비물 (선택)"
+        style={{ ...iStyle, padding:'4px 8px', fontSize:'12px' }} />
+      <div style={{ display:'flex', gap:'4px' }}>
+        {isDirty && (
+          <button onClick={() => {
+            if (!editTitle.trim()) { alert('제목을 입력하세요'); return }
+            onSave(p.id, editTitle.trim(), editMemo.trim())
+          }} style={{ padding:'3px 8px', borderRadius:'5px', border:'none', background:C.primary, color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+            저장
+          </button>
+        )}
+        {p.fileUrl && <a href={p.fileUrl} download target="_blank" rel="noopener noreferrer" style={{ fontSize:'11px', color:C.blue, textDecoration:'none', padding:'3px 6px' }}>📄</a>}
+        <button onClick={() => onDelete(p.id)}
+          style={{ padding:'3px 7px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+          삭제
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── 파일 행
 function FileRow({ item, onDelete, onEdit }) {
   const icon = item.fileType === 'promo' ? '🖼' : '📄'
@@ -1578,43 +1612,19 @@ export function Supplies({ user }) {
               {sessionPlanList.length > 0 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
                   {/* 컬럼 헤더 */}
-                  <div style={{ display:'grid', gridTemplateColumns:'44px 1fr 1fr 80px', gap:'6px', padding:'4px 8px', fontSize:'11px', fontWeight:700, color:C.muted }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'44px 1fr 1fr 110px', gap:'6px', padding:'4px 8px', fontSize:'11px', fontWeight:700, color:C.muted }}>
                     <span>차시</span><span>제목</span><span>준비물</span><span></span>
                   </div>
                   {sessionPlanList.map(p => (
-                    <div key={p.id} style={{ display:'grid', gridTemplateColumns:'44px 1fr 1fr 80px', gap:'6px', alignItems:'center', padding:'6px 8px', background:'#f9fafb', borderRadius:'8px', border:`1px solid ${C.border}` }}>
-                      <span style={{ fontSize:'12px', fontWeight:700, color:C.primary }}>{p.sessionNo}차시</span>
-                      <input
-                        defaultValue={p.title}
-                        onBlur={e => {
-                          if (e.target.value.trim() && e.target.value !== p.title) {
-                            SupplyProductPlans.update(p.id, { title: e.target.value.trim() })
-                            reload()
-                            setSessionPlanList(prev => prev.map(x => x.id===p.id ? {...x, title:e.target.value.trim()} : x))
-                          }
-                        }}
-                        style={{ ...iStyle, padding:'4px 8px', fontSize:'12px' }}
-                      />
-                      <input
-                        defaultValue={p.memo||''}
-                        onBlur={e => {
-                          if (e.target.value !== (p.memo||'')) {
-                            SupplyProductPlans.update(p.id, { memo: e.target.value.trim() })
-                            reload()
-                            setSessionPlanList(prev => prev.map(x => x.id===p.id ? {...x, memo:e.target.value.trim()} : x))
-                          }
-                        }}
-                        placeholder="준비물 (선택)"
-                        style={{ ...iStyle, padding:'4px 8px', fontSize:'12px' }}
-                      />
-                      <div style={{ display:'flex', gap:'4px' }}>
-                        {p.fileUrl && <a href={p.fileUrl} download target="_blank" rel="noopener noreferrer" style={{ fontSize:'11px', color:C.blue, textDecoration:'none', padding:'3px 6px' }}>📄</a>}
-                        <button onClick={() => deleteSessionPlan(p.id)}
-                          style={{ padding:'3px 7px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
-                          삭제
-                        </button>
-                      </div>
-                    </div>
+                    <SessionPlanRow key={p.id} p={p} iStyle={iStyle} C={C}
+                      onSave={(id, title, memo) => {
+                        SupplyProductPlans.update(id, { title, memo })
+                        reload()
+                        setSessionPlanList(prev => prev.map(x => x.id===id ? {...x, title, memo} : x))
+                        showToast('저장되었습니다.')
+                      }}
+                      onDelete={deleteSessionPlan}
+                    />
                   ))}
                 </div>
               )}
