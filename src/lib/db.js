@@ -505,8 +505,8 @@ export const SupplyItems = {
   delete:        (id)            => db.delete('supplyItems', id),
   upsert(r) {
     const existing = db.where('supplyItems', x => x.classId === r.classId && x.studentId === r.studentId)[0]
-    if (existing) return db.update(existing.id, r)
-    return db.insert({ ...r, id: r.id || uid() })
+    if (existing) return db.update('supplyItems', existing.id, r)
+    return db.insert('supplyItems', { ...r, id: r.id || uid() })
   },
 }
 
