@@ -2,9 +2,9 @@ import React, { useState } from 'react'
 import { Users, Classes, Students, Attendance, Branches } from '../lib/db.js'  // ✅ 버그수정: Branches 추가, 중복 import 정리
 import { uid, now } from '../lib/utils.js'                                      // ✅ 버그수정: uid 추가
 import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard , ToastContainer} from '../components/Atoms.jsx'
-import { LEVEL_NAMES, FEATURES, LEVEL_PERMISSIONS } from '../constants/import { useToast } from '../hooks/useToast.js'
+import { LEVEL_NAMES, FEATURES, LEVEL_PERMISSIONS } from '../constants/permissions.js'
+import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
-permissions.js'
 
 const FEATURE_LABELS = {
   [FEATURES.MANAGE_CLASS]:      '수업 등록/수정/삭제',

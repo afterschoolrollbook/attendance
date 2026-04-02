@@ -3,9 +3,9 @@ import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB 
 import { uid, now, calcSessionDates, sortClasses, today } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader , ToastContainer} from '../components/Atoms.jsx'
 import { ClassCalendar } from '../components/ClassCalendar.jsx'
-import { TERM_TYPES, REPEAT_TYPES } from '../constimport { useToast } from '../hooks/useToast.js'
+import { TERM_TYPES, REPEAT_TYPES } from '../constants/config.js'
+import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
-ants/config.js'
 
 const VIEW_TABS = ['요일별', '학교별', '과목별']
 const DAY_ORDER = ['월', '화', '수', '목', '금', '토', '일']

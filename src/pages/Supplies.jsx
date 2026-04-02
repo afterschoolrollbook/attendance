@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { uid, now, sortClasses } from '../lib/utils.js'
-import {
 import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
+import {
   Classes, Students,
   SupplySubjects, SupplyVendors, SupplyItems, SupplyPlans,
   SupplyProducts, SupplyProductPlans, SupplyStudentProgress, SupplySessionChecks,

@@ -2,9 +2,9 @@ import React, { useState } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Templates } from '../lib/db.js'
 import { calcSessionDates, today, fmtDate } from '../lib/utils.js'
 import { Btn, Card, PageHeader, Tag, EmptyState , ToastContainer} from '../components/Atoms.jsx'
-import { can, FEATURES } from '../constants/import { useToast } from '../hooks/useToast.js'
+import { can, FEATURES } from '../constants/permissions.js'
+import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
-permissions.js'
 
 // 출석 체크 칸 기호
 const BLANK = '□'

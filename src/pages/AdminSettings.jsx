@@ -1,9 +1,8 @@
 import React, { useState } from 'react'
-import { Btn } from '../components/Atoms.jsx'
+import { Btn, Card, PageHeader, Toggle, ToastContainer } from '../components/Atoms.jsx'
 import { Settings } from '../lib/db.js'
-import { Card, PageHeader, Toggle, Btn , ToastContainer} from '../componimport { useToast } from '../hooks/useToast.js'
+import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
-ents/Atoms.jsx'
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316', success:'#16a34a' }
 

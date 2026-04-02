@@ -3,9 +3,9 @@ import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceD
 import { calcSessionDates, today, fmtDate } from '../lib/utils.js'
 import { Btn, Card, PageHeader, Tag, ProgressBar, EmptyState , ToastContainer} from '../components/Atoms.jsx'
 import { ATTENDANCE_STATUS } from '../constants/config.js'
-import { AdSlot } from '../componeimport { useToast } from '../hooks/useToast.js'
+import { AdSlot } from '../components/AdSlot.jsx'
+import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
-nts/AdSlot.jsx'
 
 // 출석 상태 → 텍스트 (엑셀용)
 const STATUS_TEXT = { present: '출석', absent: '결석', late: '지각', early: '조퇴', pending: '-' }

@@ -2,9 +2,9 @@ import React, { useState } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, TeacherParentLinks } from '../lib/db.js'
 import { now, fmtPhone } from '../lib/utils.js'
 import { Btn, Card, PageHeader, Tag, EmptyState, Modal , ToastContainer} from '../components/Atoms.jsx'
-import { STUDENT_STATUS } from '../constimport { useToast } from '../hooks/useToast.js'
+import { STUDENT_STATUS } from '../constants/config.js'
+import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
-ants/config.js'
 
 export function StudentConfirm({ user }) {
   const { success, error: toastError, warning, info } = useToast()
