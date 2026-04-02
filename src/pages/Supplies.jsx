@@ -1025,31 +1025,38 @@ export function Supplies({ user }) {
                                             return (
                                               <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
                                                 {registeredStages.map(stage => {
-                                                  const cnt = productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage).length
-                                                  const stageItem = {
-                                                    id: `stage_${p.id}_${stage}`,
-                                                    title: `${p.name} ${stage}단계 차시지도안`,
-                                                    fileType: 'session',
-                                                    stage,
-                                                    fileUrl: true, // 차시지도안은 파일 없어도 경고 안함
-                                                    fileName: `${cnt}차시 등록됨`,
-                                                    school: null,
-                                                  }
+                                                  const plans = productPlanList
+                                                    .filter(pl=>pl.productId===p.id&&pl.stage===stage)
+                                                    .sort((a,b)=>a.sessionNo-b.sessionNo)
+                                                  const expandKey = `${p.id}_${stage}`
                                                   return (
-                                                    <div key={stage} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:C.card, borderRadius:'9px', border:`1px solid ${C.border}` }}>
-                                                      <span style={{ fontSize:'18px', flexShrink:0 }}>📝</span>
-                                                      <div style={{ flex:1, minWidth:0 }}>
-                                                        <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name} {stage}단계 차시지도안</div>
-                                                        <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px', display:'flex', gap:'8px' }}>
-                                                          <span style={{ background:'#f3f4f6', borderRadius:'4px', padding:'0 5px' }}>차시별지도안</span>
-                                                          <span style={{ background:'#eff6ff', color:C.blue, borderRadius:'4px', padding:'0 5px' }}>{stage}단계</span>
-                                                          <span style={{ color:C.success }}>{cnt}차시 등록됨</span>
+                                                    <div key={stage} style={{ background:C.card, borderRadius:'9px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                                                      {/* 단계 헤더 — 클릭하면 목차 토글 */}
+                                                      <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', cursor:'pointer' }}
+                                                        onClick={() => setExpandedVendor(prev => prev === expandKey ? null : expandKey)}>
+                                                        <span style={{ fontSize:'16px', flexShrink:0 }}>📝</span>
+                                                        <div style={{ flex:1 }}>
+                                                          <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name} {stage}단계 차시지도안</span>
+                                                          <span style={{ fontSize:'11px', color:C.success, marginLeft:'8px' }}>{plans.length}차시</span>
                                                         </div>
+                                                        <button onClick={e=>{ e.stopPropagation(); openSessionPlan(p.id, stage) }}
+                                                          style={{ padding:'3px 10px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                                          수정
+                                                        </button>
+                                                        <span style={{ fontSize:'12px', color:C.muted }}>{expandedVendor===expandKey ? '▲' : '▼'}</span>
                                                       </div>
-                                                      <button onClick={() => openSessionPlan(p.id, stage)}
-                                                        style={{ padding:'4px 10px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
-                                                        수정
-                                                      </button>
+                                                      {/* 차시 목차 — 펼쳤을 때만 */}
+                                                      {expandedVendor === expandKey && (
+                                                        <div style={{ padding:'6px 12px 10px', borderTop:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:'3px' }}>
+                                                          {plans.map(pl => (
+                                                            <div key={pl.id} style={{ display:'grid', gridTemplateColumns:'40px 1fr 1fr', gap:'6px', fontSize:'12px', padding:'4px 0', borderBottom:`1px solid #f9fafb` }}>
+                                                              <span style={{ color:C.primary, fontWeight:700 }}>{pl.sessionNo}차시</span>
+                                                              <span style={{ color:C.text }}>{pl.title}</span>
+                                                              <span style={{ color:C.muted }}>{pl.memo ? `📌 ${pl.memo}` : ''}</span>
+                                                            </div>
+                                                          ))}
+                                                        </div>
+                                                      )}
                                                     </div>
                                                   )
                                                 })}
