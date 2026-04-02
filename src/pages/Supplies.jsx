@@ -35,39 +35,6 @@ async function uploadToStorage(userId, folder, file) {
 const iStyle = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
 
 
-// ── 차시 행 (인라인 편집)
-function SessionPlanRow({ p, onSave, onDelete }) {
-  const [editTitle, setEditTitle] = React.useState(p.title)
-  const [editMemo,  setEditMemo]  = React.useState(p.memo||'')
-  const [saved, setSaved] = React.useState(false)
-  const isDirty = editTitle !== p.title || editMemo !== (p.memo||'')
-  const rowStyle = { width:'100%', padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
-  return (
-    <div style={{ display:'grid', gridTemplateColumns:'44px 1fr 1fr 120px', gap:'6px', alignItems:'center', padding:'6px 8px', background: isDirty ? '#fff7ed' : '#f9fafb', borderRadius:'8px', border:`1.5px solid ${isDirty ? '#f97316' : '#e5e7eb'}` }}>
-      <span style={{ fontSize:'12px', fontWeight:700, color:'#f97316' }}>{p.sessionNo}차시</span>
-      <input value={editTitle} onChange={e=>{ setEditTitle(e.target.value); setSaved(false) }} style={rowStyle} />
-      <input value={editMemo} onChange={e=>{ setEditMemo(e.target.value); setSaved(false) }}
-        placeholder="준비물 (선택)" style={rowStyle} />
-      <div style={{ display:'flex', gap:'4px', justifyContent:'flex-end' }}>
-        {isDirty && (
-          <button onClick={() => {
-            if (!editTitle.trim()) { alert('제목을 입력하세요'); return }
-            onSave(p.id, editTitle.trim(), editMemo.trim())
-            setSaved(true)
-          }} style={{ padding:'3px 8px', borderRadius:'5px', border:'none', background:'#f97316', color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600, whiteSpace:'nowrap' }}>
-            저장
-          </button>
-        )}
-        {p.fileUrl && <a href={p.fileUrl} download target="_blank" rel="noopener noreferrer" style={{ fontSize:'11px', color:'#3b82f6', textDecoration:'none', padding:'3px 6px' }}>📄</a>}
-        <button onClick={() => onDelete(p.id)}
-          style={{ padding:'3px 7px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
-          삭제
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ── 파일 행
 function FileRow({ item, onDelete, onEdit }) {
   const icon = item.fileType === 'promo' ? '🖼' : '📄'
@@ -182,9 +149,7 @@ export function Supplies({ user }) {
   const [sessionPlanModal, setSessionPlanModal] = useState(false)
   const [sessionPlanTarget, setSessionPlanTarget] = useState({ productId:'', stage:1 })
   const [sessionPlanList, setSessionPlanList]   = useState([]) // 해당 단계 차시 목록
-  const [sessionPlanForm, setSessionPlanForm]   = useState({ editId:null, sessionNo:1, title:'', memo:'' })
-  const [sessionPlanFile, setSessionPlanFile]   = useState(null)
-  const sessionPlanFileRef = useRef()
+  const [sessionPlanEdits, setSessionPlanEdits] = useState([]) // 로컬 편집 상태
 
   // 과목 추가
   const [subjectModal, setSubjectModal] = useState(false)
@@ -421,53 +386,36 @@ export function Supplies({ user }) {
 
   // 차시 지도안 열기
   const openSessionPlan = (productId, stage) => {
+    const list = productPlanList.filter(p=>p.productId===productId && p.stage===stage).sort((a,b)=>a.sessionNo-b.sessionNo)
     setSessionPlanTarget({ productId, stage })
-    setSessionPlanList(productPlanList.filter(p=>p.productId===productId && p.stage===stage).sort((a,b)=>a.sessionNo-b.sessionNo))
-    setSessionPlanForm({ editId:null, sessionNo:1, title:'', memo:'' })
-    setSessionPlanFile(null)
+    setSessionPlanList(list)
+    setSessionPlanEdits(list.map(p => ({ id:p.id, sessionNo:p.sessionNo, title:p.title||'', memo:p.memo||'', _isNew:false })))
     setSessionPlanModal(true)
   }
   const saveSessionPlan = async () => {
-    if (!sessionPlanForm.title) { alert('차시 제목을 입력하세요'); return }
     setUploading(true)
     try {
-      let fileUrl=null, fileName=null
-      if (sessionPlanFile) {
-        fileUrl = await uploadToStorage(user.id, `robot/${sessionPlanTarget.productId}`, sessionPlanFile)
-        fileName = sessionPlanFile.name
-      }
-      if (sessionPlanForm.editId) {
-        // 수정 모드
-        SupplyProductPlans.update(sessionPlanForm.editId, {
-          sessionNo: sessionPlanForm.sessionNo,
-          title: sessionPlanForm.title,
-          memo: sessionPlanForm.memo,
-          ...(fileUrl ? { fileUrl, fileName } : {}),
-        })
-      } else {
-        // 추가 모드
-        SupplyProductPlans.insert({
-          id: uid(), teacherId: user.id, productId: sessionPlanTarget.productId,
-          stage: sessionPlanTarget.stage, sessionNo: sessionPlanForm.sessionNo,
-          title: sessionPlanForm.title, memo: sessionPlanForm.memo,
-          fileUrl, fileName, createdAt: now(),
-        })
-      }
+      // 삭제: 원본에 있었는데 edits에 없는 것
+      const editIds = sessionPlanEdits.filter(e=>!e._isNew).map(e=>e.id)
+      sessionPlanList.forEach(o => { if (!editIds.includes(o.id)) SupplyProductPlans.delete(o.id) })
+      // 추가/수정
+      sessionPlanEdits.forEach(e => {
+        if (e._isNew) {
+          SupplyProductPlans.insert({
+            id: e.id, teacherId: user.id,
+            productId: sessionPlanTarget.productId,
+            stage: sessionPlanTarget.stage,
+            sessionNo: e.sessionNo, title: e.title, memo: e.memo||'', createdAt: now(),
+          })
+        } else {
+          SupplyProductPlans.update(e.id, { sessionNo:e.sessionNo, title:e.title, memo:e.memo||'' })
+        }
+      })
       reload()
-      setSessionPlanList(SupplyProductPlans.byProductStage(sessionPlanTarget.productId, sessionPlanTarget.stage).sort((a,b)=>a.sessionNo-b.sessionNo))
-      setSessionPlanForm({ editId:null, sessionNo: sessionPlanForm.editId ? sessionPlanForm.sessionNo : sessionPlanForm.sessionNo+1, title:'', memo:'' })
-      setSessionPlanFile(null)
-      showToast(sessionPlanForm.editId ? '차시가 수정되었습니다.' : '차시가 추가되었습니다.')
+      showToast('저장되었습니다.')
+      setSessionPlanModal(false)
     } catch(e) { alert('저장 실패: '+e.message) }
     finally { setUploading(false) }
-  }
-  const deleteSessionPlan = (id) => {
-    setDeleteConfirm({ msg:'이 차시를 삭제하시겠습니까?', onOk: () => {
-      SupplyProductPlans.delete(id)
-      reload()
-      setSessionPlanList(prev => prev.filter(p=>p.id!==id))
-      showToast('삭제가 완료되었습니다.', 'info')
-    }})
   }
 
   // 파일 등록
@@ -1190,15 +1138,16 @@ export function Supplies({ user }) {
       {supplyModal && (
         <div onClick={e=>{ if(e.target===e.currentTarget) setSupplyModal(false) }}
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'420px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'420px', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
 
             {/* 헤더 */}
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
               <span style={{ fontSize:'16px', fontWeight:700 }}>🎒 교구 설정 ({checkedStudents.length}명)</span>
               <button onClick={() => setSupplyModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
             </div>
 
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+            {/* 내용 */}
+            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px', overflowY:'auto' }}>
 
               {/* ① 교구 선택 */}
               <div>
@@ -1302,17 +1251,18 @@ export function Supplies({ user }) {
                 선택된 <strong>{checkedStudents.length}명</strong>에게 동일하게 적용됩니다.
               </div>
 
-              {/* 버튼 */}
-              <div style={{ display:'flex', gap:'8px' }}>
-                <button onClick={saveSupply}
-                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                  저장
-                </button>
-                <button onClick={() => setSupplyModal(false)}
-                  style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
-                  취소
-                </button>
-              </div>
+            </div>
+
+            {/* footer 고정 버튼 */}
+            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, display:'flex', gap:'8px', flexShrink:0 }}>
+              <button onClick={saveSupply}
+                style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                저장
+              </button>
+              <button onClick={() => setSupplyModal(false)}
+                style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
+                취소
+              </button>
             </div>
           </div>
         </div>
@@ -1322,12 +1272,16 @@ export function Supplies({ user }) {
       {progressModal && progressStudent && (
         <div onClick={e=>{ if(e.target===e.currentTarget) setProgressModal(false) }}
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'600px', maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'#fff', zIndex:1 }}>
+          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'600px', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+
+            {/* 헤더 */}
+            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
               <span style={{ fontSize:'16px', fontWeight:700 }}>📊 {progressStudent.name} 진도 체크</span>
               <button onClick={() => setProgressModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
             </div>
-            <div style={{ padding:'20px' }}>
+
+            {/* 내용 */}
+            <div style={{ padding:'20px', overflowY:'auto' }}>
               {(() => {
                 const product = productList.find(p=>p.id===progressProductId)
                 if (!product) return <div style={{ color:C.muted }}>교구를 찾을 수 없습니다</div>
@@ -1406,6 +1360,14 @@ export function Supplies({ user }) {
                   </div>
                 )
               })()}
+            </div>
+
+            {/* footer 고정 버튼 */}
+            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, flexShrink:0 }}>
+              <button onClick={() => setProgressModal(false)}
+                style={{ width:'100%', padding:'11px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted, fontWeight:600 }}>
+                닫기
+              </button>
             </div>
           </div>
         </div>
@@ -1598,89 +1560,87 @@ export function Supplies({ user }) {
         </div>
       )}
 
-      {/* ── 차시 지도안 등록 모달 */}
+      {/* ── 차시 목차리스트 모달 */}
       {sessionPlanModal && (
         <div onClick={e=>{ if(e.target===e.currentTarget) setSessionPlanModal(false) }}
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'560px', maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'#fff', zIndex:1 }}>
+          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'560px', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+
+            {/* 헤더 고정 */}
+            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
               <span style={{ fontSize:'16px', fontWeight:700 }}>
                 📝 {productList.find(p=>p.id===sessionPlanTarget.productId)?.name} — {sessionPlanTarget.stage}단계 목차리스트
               </span>
               <button onClick={() => setSessionPlanModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
             </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'16px' }}>
-              {/* 기존 차시 목록 */}
-              {sessionPlanList.length > 0 && (
-                <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-                  {/* 컬럼 헤더 */}
-                  <div style={{ display:'grid', gridTemplateColumns:'44px 1fr 1fr 110px', gap:'6px', padding:'4px 8px', fontSize:'11px', fontWeight:700, color:C.muted }}>
-                    <span>차시</span><span>제목</span><span>준비물</span><span></span>
-                  </div>
-                  {sessionPlanList.map(p => (
-                    <SessionPlanRow key={p.id} p={p}
-                      onSave={(id, title, memo) => {
-                        SupplyProductPlans.update(id, { title, memo })
-                        reload()
-                        setSessionPlanList(prev => prev.map(x => x.id===id ? {...x, title, memo} : x))
-                        showToast('저장되었습니다.')
-                      }}
-                      onDelete={deleteSessionPlan}
-                    />
+
+            {/* 내용 스크롤 영역 */}
+            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px', overflowY:'auto' }}>
+
+              {/* 차시 인라인 편집 박스 */}
+              <div style={{ border:`1px solid ${C.border}`, borderRadius:'10px', overflow:'hidden' }}>
+                {/* 헤더 */}
+                <div style={{ padding:'10px 14px', background:'#f9fafb', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
+                    📝 {sessionPlanTarget.stage}단계 차시별 제목
+                  </span>
+                  <span style={{ fontSize:'11px', color:C.muted }}>
+                    {sessionPlanEdits.filter(e=>e.title.trim()).length} / {sessionPlanEdits.length}개 입력
+                  </span>
+                </div>
+                {/* 컬럼 헤더 */}
+                <div style={{ padding:'6px 14px', background:'#fafafa', borderBottom:`1px solid ${C.border}`, display:'grid', gridTemplateColumns:'46px 1fr 1fr 28px', gap:'6px' }}>
+                  <span style={{ fontSize:'11px', color:C.muted, fontWeight:600 }}>차시</span>
+                  <span style={{ fontSize:'11px', color:C.muted, fontWeight:600 }}>제목</span>
+                  <span style={{ fontSize:'11px', color:C.muted, fontWeight:600 }}>준비물</span>
+                  <span></span>
+                </div>
+                {/* 차시 목록 */}
+                <div style={{ padding:'8px 14px', display:'flex', flexDirection:'column', gap:'5px', maxHeight:'300px', overflowY:'auto' }}>
+                  {sessionPlanEdits.length === 0 && (
+                    <div style={{ textAlign:'center', padding:'20px', fontSize:'13px', color:C.muted }}>
+                      아래 버튼으로 차시를 추가하세요
+                    </div>
+                  )}
+                  {sessionPlanEdits.map((item, idx) => (
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'46px 1fr 1fr 28px', gap:'6px', alignItems:'center' }}>
+                      <span style={{ fontSize:'12px', fontWeight:700, color:C.primary }}>{item.sessionNo}차시</span>
+                      <input value={item.title}
+                        onChange={e => setSessionPlanEdits(prev => prev.map((x,i) => i===idx ? {...x, title:e.target.value} : x))}
+                        placeholder="제목 (선택)"
+                        style={{ ...iStyle, padding:'5px 8px', fontSize:'12px' }} />
+                      <input value={item.memo}
+                        onChange={e => setSessionPlanEdits(prev => prev.map((x,i) => i===idx ? {...x, memo:e.target.value} : x))}
+                        placeholder="준비물 (선택)"
+                        style={{ ...iStyle, padding:'5px 8px', fontSize:'12px' }} />
+                      <button onClick={() => setSessionPlanEdits(prev => prev.filter((_,i) => i!==idx))}
+                        style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', padding:0, lineHeight:1 }}>×</button>
+                    </div>
                   ))}
                 </div>
-              )}
-
-              {/* 새 차시 추가 / 수정 */}
-              <div style={{ background: sessionPlanForm.editId ? '#fff7ed' : '#f9fafb', borderRadius:'10px', padding:'14px', border:`1.5px solid ${sessionPlanForm.editId ? C.primary : C.border}` }}>
-                <div style={{ fontSize:'13px', fontWeight:700, color: sessionPlanForm.editId ? C.primary : C.text, marginBottom:'12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <span>{sessionPlanForm.editId ? '✏️ 차시 수정' : '+ 차시 추가'}</span>
-                  {sessionPlanForm.editId && (
-                    <button onClick={() => setSessionPlanForm({ editId:null, sessionNo: sessionPlanForm.sessionNo+1, title:'', memo:'' })}
-                      style={{ fontSize:'12px', color:C.muted, background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                      취소
-                    </button>
-                  )}
+                {/* 차시 추가 버튼 */}
+                <div style={{ padding:'8px 14px', borderTop:`1px solid ${C.border}` }}>
+                  <button onClick={() => setSessionPlanEdits(prev => [
+                    ...prev,
+                    { id:uid(), sessionNo:prev.length+1, title:'', memo:'', _isNew:true }
+                  ])} style={{ width:'100%', padding:'7px', borderRadius:'7px', border:`1.5px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                    + 차시 추가
+                  </button>
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'80px 1fr', gap:'8px', marginBottom:'8px' }}>
-                  <div>
-                    <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>차시번호</label>
-                    <input type="number" value={sessionPlanForm.sessionNo} onChange={e=>setSessionPlanForm(v=>({...v, sessionNo:Number(e.target.value)}))}
-                      min={1} style={{ ...iStyle, textAlign:'center' }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>차시 제목 (책 회차명) *</label>
-                    <input value={sessionPlanForm.title} onChange={e=>setSessionPlanForm(v=>({...v, title:e.target.value}))}
-                      placeholder="예: 기어 조립하기" style={iStyle}
-                      onKeyDown={e=>e.key==='Enter' && saveSessionPlan()} />
-                  </div>
-                </div>
-                <div style={{ marginBottom:'8px' }}>
-                  <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>준비물 (선택)</label>
-                  <input value={sessionPlanForm.memo} onChange={e=>setSessionPlanForm(v=>({...v, memo:e.target.value}))}
-                    placeholder="예: 가위, 색종이, 이쑤시개 4개" style={iStyle} />
-                </div>
-                {/* 파일 첨부 */}
-                <div style={{ marginBottom:'10px' }}>
-                  {sessionPlanFile ? (
-                    <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 10px', background:'#f0fdf4', borderRadius:'7px', border:'1px solid #86efac' }}>
-                      <span style={{ fontSize:'13px', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>📄 {sessionPlanFile.name}</span>
-                      <button onClick={()=>setSessionPlanFile(null)} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer' }}>×</button>
-                    </div>
-                  ) : (
-                    <button onClick={()=>sessionPlanFileRef.current?.click()}
-                      style={{ padding:'6px 14px', borderRadius:'7px', border:`1.5px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                      📎 파일 첨부 (선택)
-                    </button>
-                  )}
-                  <input ref={sessionPlanFileRef} type="file" accept=".hwp,.hwpx,.pdf,.xlsx,.jpg,.png" style={{ display:'none' }}
-                    onChange={e=>e.target.files[0]&&setSessionPlanFile(e.target.files[0])} />
-                </div>
-                <button onClick={saveSessionPlan} disabled={uploading}
-                  style={{ width:'100%', padding:'9px', borderRadius:'9px', border:'none', background: uploading?'#e5e7eb':C.primary, color: uploading?C.muted:'#fff', fontSize:'13px', fontWeight:700, cursor: uploading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                  {uploading ? '저장 중...' : sessionPlanForm.editId ? '✏️ 수정 저장' : '+ 차시 추가'}
-                </button>
               </div>
+
+            </div>
+
+            {/* footer 고정 버튼 */}
+            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, display:'flex', gap:'8px', flexShrink:0 }}>
+              <button onClick={saveSessionPlan} disabled={uploading}
+                style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:uploading?'#e5e7eb':C.primary, color:uploading?C.muted:'#fff', fontSize:'14px', fontWeight:700, cursor:uploading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                {uploading ? '저장 중...' : '저장'}
+              </button>
+              <button onClick={() => setSessionPlanModal(false)}
+                style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
+                취소
+              </button>
             </div>
           </div>
         </div>
@@ -1819,15 +1779,16 @@ export function Supplies({ user }) {
                     onChange={e=>e.target.files[0]&&setModalFile(e.target.files[0])} />
                 </div>
 
-                {/* 저장 버튼 */}
-                <div style={{ display:'flex', gap:'8px' }}>
-                  <button onClick={saveFile} disabled={uploading}
-                    style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background: uploading?'#e5e7eb':C.primary, color: uploading?C.muted:'#fff', fontSize:'14px', fontWeight:700, cursor: uploading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                    {uploading ? '업로드 중...' : fileForm.schools.length > 1 ? `저장 (${fileForm.schools.length}개 학교)` : '저장'}
-                  </button>
-                  <button onClick={()=>{ setFileModal(false); setModalFile(null) }}
-                    style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
-                </div>
+              </div>
+
+              {/* footer 고정 버튼 */}
+              <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, display:'flex', gap:'8px', flexShrink:0 }}>
+                <button onClick={saveFile} disabled={uploading}
+                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background: uploading?'#e5e7eb':C.primary, color: uploading?C.muted:'#fff', fontSize:'14px', fontWeight:700, cursor: uploading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  {uploading ? '업로드 중...' : fileForm.schools.length > 1 ? `저장 (${fileForm.schools.length}개 학교)` : '저장'}
+                </button>
+                <button onClick={()=>{ setFileModal(false); setModalFile(null) }}
+                  style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
             </div>
           </div>
