@@ -87,6 +87,8 @@ const SYNC_TABLES = [
   // 신규 — 내 관리 / 수익
   'revenueFees', 'revenuePayments',
   'trainings', 'careers', 'certificates', 'jobSubs',
+  // 교구 관리
+  'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
 ]
 
 // ─── 초기화: Supabase 데이터와 로컬 merge
@@ -468,4 +470,60 @@ export const Awards = {
   insert:    (r)   => db.insert('awards', r),
   update:    (id, p) => db.update('awards', id, p),
   delete:    (id)  => db.delete('awards', id),
+}
+
+// ─── 교구 관리 ────────────────────────────────────────────────
+export const SupplySubjects = {
+  all:       ()    => db.get('supplySubjects'),
+  byTeacher: (tid) => db.where('supplySubjects', r => r.teacherId === tid),
+  find:      (id)  => db.getOne('supplySubjects', id),
+  insert:    (r)   => db.insert('supplySubjects', r),
+  update:    (id, p) => db.update('supplySubjects', id, p),
+  delete:    (id)  => db.delete('supplySubjects', id),
+}
+
+export const SupplyVendors = {
+  all:        ()         => db.get('supplyVendors'),
+  byTeacher:  (tid)      => db.where('supplyVendors', r => r.teacherId === tid),
+  bySubject:  (tid, sub) => db.where('supplyVendors', r => r.teacherId === tid && r.subject === sub),
+  find:       (id)       => db.getOne('supplyVendors', id),
+  insert:     (r)        => db.insert('supplyVendors', r),
+  update:     (id, p)    => db.update('supplyVendors', id, p),
+  delete:     (id)       => db.delete('supplyVendors', id),
+}
+
+export const SupplyItems = {
+  all:           ()              => db.get('supplyItems'),
+  byTeacher:     (tid)           => db.where('supplyItems', r => r.teacherId === tid),
+  byClass:       (classId)       => db.where('supplyItems', r => r.classId === classId),
+  byClassStudent:(classId, sid)  => db.where('supplyItems', r => r.classId === classId && r.studentId === sid),
+  find:          (id)            => db.getOne('supplyItems', id),
+  insert:        (r)             => db.insert('supplyItems', r),
+  update:        (id, p)         => db.update('supplyItems', id, p),
+  delete:        (id)            => db.delete('supplyItems', id),
+  upsert(r) {
+    const existing = db.where('supplyItems', x => x.classId === r.classId && x.studentId === r.studentId)[0]
+    if (existing) return db.update(existing.id, r)
+    return db.insert({ ...r, id: r.id || uid() })
+  },
+}
+
+export const SupplyPlans = {
+  all:        ()         => db.get('supplyPlans'),
+  byTeacher:  (tid)      => db.where('supplyPlans', r => r.teacherId === tid),
+  bySubject:  (tid, sub) => db.where('supplyPlans', r => r.teacherId === tid && r.subject === sub),
+  find:       (id)       => db.getOne('supplyPlans', id),
+  insert:     (r)        => db.insert('supplyPlans', r),
+  update:     (id, p)    => db.update('supplyPlans', id, p),
+  delete:     (id)       => db.delete('supplyPlans', id),
+}
+
+export const SupplyPromos = {
+  all:        ()         => db.get('supplyPromos'),
+  byTeacher:  (tid)      => db.where('supplyPromos', r => r.teacherId === tid),
+  bySubject:  (tid, sub) => db.where('supplyPromos', r => r.teacherId === tid && r.subject === sub),
+  find:       (id)       => db.getOne('supplyPromos', id),
+  insert:     (r)        => db.insert('supplyPromos', r),
+  update:     (id, p)    => db.update('supplyPromos', id, p),
+  delete:     (id)       => db.delete('supplyPromos', id),
 }
