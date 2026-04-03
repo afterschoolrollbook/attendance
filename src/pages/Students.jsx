@@ -77,6 +77,7 @@ export function Students({ user, onNav }) {
   const { success: showToast, error: toastError } = useToast()
   // ✅ 삭제 확인
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [pendingStatuses, setPendingStatuses] = useState({})
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
@@ -539,7 +540,8 @@ export function Students({ user, onNav }) {
             </thead>
             <tbody>
               {filtered.map((s, i) => {
-                const cfg = STUDENT_STATUS[s.status] || {}
+                const displayStatus = pendingStatuses[s.id] ?? s.status
+                const cfg = STUDENT_STATUS[displayStatus] || {}
                 const sClasses = (s.classIds || []).map(cid => {
                   const cls = classes.find(c => c.id === cid)
                   if (!cls) return null
@@ -568,10 +570,18 @@ export function Students({ user, onNav }) {
                     <td style={{ padding: '11px 14px', fontSize: '14px', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>{s.name}</td>
                     <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtPhone(s.parentPhone) || '-'}</td>
                     <td style={{ padding: '11px 14px' }}>
-                      <select value={s.status} onChange={e => changeStatus(s.id, e.target.value)}
-                        style={{ padding: '4px 8px', borderRadius: '6px', border: `1.5px solid ${cfg.color}50`, background: cfg.bg, color: cfg.color, fontSize: '12px', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif', cursor: 'pointer', outline: 'none' }}>
-                        {Object.entries(STUDENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                      </select>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <select value={displayStatus} onChange={e => setPendingStatuses(p => ({...p, [s.id]: e.target.value}))}
+                          style={{ padding: '4px 8px', borderRadius: '6px', border: `1.5px solid ${cfg.color}50`, background: cfg.bg, color: cfg.color, fontSize: '12px', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif', cursor: 'pointer', outline: 'none' }}>
+                          {Object.entries(STUDENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                        </select>
+                        {pendingStatuses[s.id] !== undefined && pendingStatuses[s.id] !== s.status && (
+                          <Btn size="sm" onClick={() => {
+                            changeStatus(s.id, pendingStatuses[s.id])
+                            setPendingStatuses(p => { const n = {...p}; delete n[s.id]; return n })
+                          }}>저장</Btn>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '11px 14px', maxWidth: '160px' }}>
                       {s.memo
