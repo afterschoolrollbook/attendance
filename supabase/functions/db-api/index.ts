@@ -25,6 +25,7 @@ const TABLE_MAP: Record<string, string> = {
   // 내 관리 (강사 관련)
   trainings:            'trainings',
   careers:              'careers',
+  educations:           'educations',
   certificates:         'certificates',
   jobSubs:              'jobSubs',
   // 기타
@@ -32,12 +33,26 @@ const TABLE_MAP: Record<string, string> = {
   points:               'points',
   parentMembers:        'parent_members',
   teacherParentLinks:   'teacher_parent_links',
+  // 교구 관리
+  supplySubjects:         'supplySubjects',
+  supplyVendors:          'supplyVendors',
+  supplyItems:            'supplyItems',
+  supplyPlans:            'supplyPlans',
+  supplyPromos:           'supplyPromos',
+  supplyProducts:         'supplyProducts',
+  supplyProductPlans:     'supplyProductPlans',
+  supplyStudentProgress:  'supplyStudentProgress',
+  supplyProgressLogs:     'supplyProgressLogs',
+  supplySessionChecks:    'supplySessionChecks',
 }
 
 // 컬럼이 camelCase로 저장된 테이블 — snake 변환 없이 그대로 사용
 const CAMEL_TABLES = new Set([
   'revenueFees', 'revenuePayments',
-  'trainings', 'careers', 'certificates', 'jobSubs',
+  'trainings', 'careers', 'educations', 'certificates', 'jobSubs',
+  'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
+  'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress',
+  'supplyProgressLogs', 'supplySessionChecks',
 ])
 
 // camelCase → snake_case 변환

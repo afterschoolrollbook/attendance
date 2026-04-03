@@ -1,5 +1,5 @@
 -- ============================================
--- 방과후 출석부 — Supabase 스키마
+-- 방과후 출석부 — Supabase 스키마 (완전판)
 -- Supabase Dashboard → SQL Editor 에서 실행
 -- ============================================
 
@@ -11,16 +11,17 @@ create table if not exists users (
   id            text primary key,
   name          text not null,
   email         text unique not null,
-  pw            text,                      -- 소셜 로그인은 null
+  pw            text,
   phone         text default '',
-  role          text default 'teacher',    -- 'admin' | 'teacher'
-  level         int  default 1,            -- 1~5
+  role          text default 'teacher',
+  level         int  default 1,
   verified      boolean default false,
-  verify_img    text,                      -- base64
+  verify_img    text,
   permission_overrides jsonb default '{}',
-  provider      text default 'email',      -- 'email' | 'google' | 'kakao'
+  provider      text default 'email',
   provider_id   text,
   avatar        text,
+  branch_id     text,
   created_at    timestamptz default now()
 );
 
@@ -32,7 +33,7 @@ create table if not exists classes (
   class_name      text not null,
   section         text default '',
   term_type       text default 'semester',
-  days            jsonb default '[]',       -- ["월","수"]
+  days            jsonb default '[]',
   repeat_type     text default 'every',
   time            text default '',
   start_date      text not null,
@@ -50,12 +51,12 @@ create table if not exists students (
   teacher_id      text references users(id) on delete cascade,
   school          text default '',
   grade           text default '',
-  class_num       text default '',         -- 학급반 (2반, 3반)
+  class_num       text default '',
   number          text default '',
   name            text not null,
   parent_phone    text default '',
   student_phone   text default '',
-  class_ids       jsonb default '[]',      -- [classId, ...]
+  class_ids       jsonb default '[]',
   status          text default 'applied',
   status_history  jsonb default '[]',
   memo            text default '',
@@ -69,7 +70,7 @@ create table if not exists attendance (
   student_id      text references students(id) on delete cascade,
   date            text not null,
   session         int  default 0,
-  status          text default 'pending',  -- present|absent|late|early|pending
+  status          text default 'pending',
   absent_reason   text default '',
   home_return     text default '',
   note            text default '',
@@ -81,7 +82,7 @@ create table if not exists attendance (
 create table if not exists notes (
   id          text primary key,
   teacher_id  text references users(id) on delete cascade,
-  date        text not null,               -- "2026-03-27" 또는 "2026-03-27_classId"
+  date        text not null,
   content     text not null,
   created_at  timestamptz default now()
 );
@@ -104,7 +105,7 @@ create table if not exists attendance_templates (
   school        text not null,
   template_name text not null,
   file_type     text default 'xlsx',
-  file_data     text,                      -- base64
+  file_data     text,
   field_map     jsonb default '{}',
   active        boolean default true,
   created_at    timestamptz default now()
@@ -112,35 +113,357 @@ create table if not exists attendance_templates (
 
 -- ─── settings (서비스 설정)
 create table if not exists settings (
-  key    text primary key,
-  value  jsonb not null,
+  key        text primary key,
+  value      jsonb not null,
   updated_at timestamptz default now()
 );
 
 -- ─── verify_codes (인증번호 임시 저장)
 create table if not exists verify_codes (
   id         uuid primary key default uuid_generate_v4(),
-  target     text not null,               -- 이메일 또는 전화번호
+  target     text not null,
   code       text not null,
-  purpose    text default 'signup',       -- 'signup' | 'profile'
+  purpose    text default 'signup',
   used       boolean default false,
   expires_at timestamptz default (now() + interval '10 minutes'),
   created_at timestamptz default now()
 );
 
--- ─── RLS (Row Level Security) 활성화
-alter table users                  enable row level security;
-alter table classes                enable row level security;
-alter table students               enable row level security;
-alter table attendance             enable row level security;
-alter table notes                  enable row level security;
-alter table attendance_templates   enable row level security;
+-- ─── branches (지사)
+create table if not exists branches (
+  id         text primary key,
+  name       text not null,
+  active     boolean default true,
+  created_at timestamptz default now()
+);
 
--- ─── RLS 정책: 서비스 역할(service_role)은 모두 허용
--- (Edge Functions는 service_role key를 사용하므로 별도 정책 불필요)
--- 클라이언트(anon key)는 아무것도 못 함 → 모든 요청은 Edge Function 경유
+-- ─── parent_members (학부모 회원)
+create table if not exists parent_members (
+  id          text primary key,
+  phone       text not null,
+  name        text default '',
+  app_joined  boolean default false,
+  memo        text default '',
+  created_at  timestamptz default now()
+);
 
--- ─── 초기 관리자 데이터
+-- ─── teacher_parent_links (선생님-학부모 연결)
+create table if not exists teacher_parent_links (
+  id               text primary key,
+  teacher_id       text references users(id) on delete cascade,
+  parent_member_id text references parent_members(id) on delete cascade,
+  student_id       text,
+  class_id         text,
+  status           text default 'active',
+  started_at       text,
+  ended_at         text,
+  end_reason       text,
+  created_at       timestamptz default now()
+);
+
+-- ─── points (포인트)
+create table if not exists points (
+  id               text primary key,
+  teacher_id       text references users(id) on delete cascade,
+  type             text not null,
+  amount           int  default 0,
+  source           text default '',
+  parent_member_id text,
+  order_id         text,
+  memo             text default '',
+  expires_at       text,
+  created_at       timestamptz default now()
+);
+
+-- ════════════════════════════════════════════
+-- camelCase 테이블 (컬럼명도 camelCase)
+-- Edge Function CAMEL_TABLES 목록과 동일
+-- ════════════════════════════════════════════
+
+-- ─── revenueFees (수업료 설정)
+create table if not exists "revenueFees" (
+  id          text primary key,
+  "teacherId" text,
+  "classId"   text,
+  "feeType"   text default 'monthly',
+  amount      int  default 0,
+  "updatedAt" text,
+  "createdAt" text
+);
+
+-- ─── revenuePayments (수납 내역)
+create table if not exists "revenuePayments" (
+  id          text primary key,
+  "teacherId" text,
+  "classId"   text,
+  "termNo"    int,
+  date        text,
+  amount      int  default 0,
+  memo        text default '',
+  reason      text default '',
+  "createdAt" text
+);
+
+-- ─── trainings (연수)
+create table if not exists trainings (
+  id              text primary key,
+  "teacherId"     text,
+  year            text,
+  title           text not null,
+  provider        text default '',
+  "providerUrl"   text default '',
+  "completionNum" text default '',
+  "completedAt"   text default '',
+  hours           int  default 0,
+  memo            text default '',
+  "fileUrl"       text,
+  "fileName"      text,
+  "fileType"      text,
+  "createdAt"     text
+);
+
+-- ─── careers (경력)
+create table if not exists careers (
+  id                 text primary key,
+  "teacherId"        text,
+  "orgName"          text default '',
+  "jobType"          text default '방과후 강사',
+  "schoolType"       text default '초등',
+  "customSchoolType" text default '',
+  role               text default '',
+  subject            text default '',
+  "startDate"        text default '',
+  "endDate"          text default '',
+  "isCurrent"        boolean default false,
+  "isOneDay"         boolean default false,
+  description        text default '',
+  "fileUrl"          text,
+  "fileName"         text,
+  "fileType"         text,
+  "sortOrder"        int  default 0,
+  "createdAt"        text
+);
+
+-- ─── educations (학력)
+create table if not exists educations (
+  id               text primary key,
+  "teacherId"      text,
+  "schoolName"     text default '',
+  "eduType"        text default '대학교',
+  major            text default '',
+  "admissionDate"  text default '',
+  "graduationDate" text default '',
+  status           text default '졸업',
+  memo             text default '',
+  "fileUrl"        text,
+  "fileName"       text,
+  "fileType"       text,
+  "createdAt"      text
+);
+
+-- ─── certificates (자격증)
+create table if not exists certificates (
+  id               text primary key,
+  "teacherId"      text,
+  name             text not null,
+  issuer           text default '',
+  "certType"       text default '국가자격증',
+  grade            text default '',
+  "certNumber"     text default '',
+  "privateRegNum"  text default '',
+  "issuedAt"       text default '',
+  "expiresAt"      text default '',
+  "noExpiry"       boolean default false,
+  memo             text default '',
+  "fileUrl"        text,
+  "fileName"       text,
+  "fileType"       text,
+  "sortOrder"      int  default 0,
+  "createdAt"      text
+);
+
+-- ─── jobSubs (채용공고 구독)
+create table if not exists "jobSubs" (
+  id             text primary key,
+  "teacherId"    text,
+  sido           text default '',
+  office         text default '',
+  school         text default '',
+  subject        text default '',
+  "notifySms"    boolean default false,
+  "notifyKakao"  boolean default false,
+  "notifyEmail"  boolean default true,
+  "createdAt"    text
+);
+
+-- ════════════════════════════════════════════
+-- 교구 관련 테이블 (camelCase)
+-- ════════════════════════════════════════════
+
+-- ─── supplySubjects (교구 과목)
+create table if not exists "supplySubjects" (
+  id          text primary key,
+  "teacherId" text,
+  name        text not null,
+  "sortOrder" int  default 0,
+  "createdAt" text
+);
+
+-- ─── supplyVendors (교구 업체)
+create table if not exists "supplyVendors" (
+  id            text primary key,
+  "teacherId"   text,
+  subject       text default '',
+  name          text not null,
+  "managerName" text default '',
+  contact       text default '',
+  memo          text default '',
+  "createdAt"   text
+);
+
+-- ─── supplyItems (학생별 교구 배정)
+create table if not exists "supplyItems" (
+  id          text primary key,
+  "teacherId" text,
+  "classId"   text,
+  "studentId" text,
+  subject     text default '',
+  name        text default '',
+  "productId" text,
+  stage       text default '',
+  "updatedAt" text,
+  "createdAt" text
+);
+
+-- ─── supplyPlans (교구 자료/지도안)
+create table if not exists "supplyPlans" (
+  id          text primary key,
+  "teacherId" text,
+  subject     text default '',
+  type        text default '',
+  "fileType"  text default '',
+  title       text default '',
+  school      text,
+  "vendorId"  text,
+  "productId" text,
+  stage       text,
+  "fileUrl"   text,
+  "fileName"  text,
+  "createdAt" text
+);
+
+-- ─── supplyPromos (홍보물)
+create table if not exists "supplyPromos" (
+  id          text primary key,
+  "teacherId" text,
+  subject     text default '',
+  type        text default '',
+  "fileType"  text default '',
+  title       text default '',
+  school      text,
+  "vendorId"  text,
+  "productId" text,
+  stage       text,
+  "fileUrl"   text,
+  "fileName"  text,
+  "createdAt" text
+);
+
+-- ─── supplyProducts (로봇 교구)
+create table if not exists "supplyProducts" (
+  id                  text primary key,
+  "teacherId"         text,
+  "vendorId"          text,
+  subject             text default '',
+  name                text not null,
+  "maxStage"          int  default 10,
+  "sessionsPerStage"  int  default 12,
+  "alertSession"      int  default 10,
+  "createdAt"         text
+);
+
+-- ─── supplyProductPlans (차시별 지도안)
+create table if not exists "supplyProductPlans" (
+  id          text primary key,
+  "teacherId" text,
+  "productId" text,
+  stage       int  default 1,
+  "sessionNo" int  default 1,
+  title       text default '',
+  memo        text default '',
+  "createdAt" text
+);
+
+-- ─── supplyStudentProgress (학생 진도)
+create table if not exists "supplyStudentProgress" (
+  id           text primary key,
+  "teacherId"  text,
+  "studentId"  text,
+  "classId"    text,
+  "productId"  text,
+  "curStage"   int  default 1,
+  "curSession" int  default 1,
+  "updatedAt"  text,
+  "createdAt"  text
+);
+
+-- ─── supplyProgressLogs (진도 로그)
+create table if not exists "supplyProgressLogs" (
+  id          text primary key,
+  "teacherId" text,
+  "studentId" text,
+  "classId"   text,
+  "productId" text,
+  "createdAt" text
+);
+
+-- ─── supplySessionChecks (차시 체크)
+create table if not exists "supplySessionChecks" (
+  id          text primary key,
+  "teacherId" text,
+  "studentId" text,
+  "classId"   text,
+  "productId" text,
+  stage       int  default 1,
+  "sessionNo" int  default 1,
+  "checkedAt" text,
+  "createdAt" text
+);
+
+-- ════════════════════════════════════════════
+-- RLS (Row Level Security) 활성화
+-- ════════════════════════════════════════════
+alter table users                    enable row level security;
+alter table classes                  enable row level security;
+alter table students                 enable row level security;
+alter table attendance               enable row level security;
+alter table notes                    enable row level security;
+alter table attendance_templates     enable row level security;
+alter table branches                 enable row level security;
+alter table parent_members           enable row level security;
+alter table teacher_parent_links     enable row level security;
+alter table points                   enable row level security;
+alter table "revenueFees"            enable row level security;
+alter table "revenuePayments"        enable row level security;
+alter table trainings                enable row level security;
+alter table careers                  enable row level security;
+alter table educations               enable row level security;
+alter table certificates             enable row level security;
+alter table "jobSubs"                enable row level security;
+alter table "supplySubjects"         enable row level security;
+alter table "supplyVendors"          enable row level security;
+alter table "supplyItems"            enable row level security;
+alter table "supplyPlans"            enable row level security;
+alter table "supplyPromos"           enable row level security;
+alter table "supplyProducts"         enable row level security;
+alter table "supplyProductPlans"     enable row level security;
+alter table "supplyStudentProgress"  enable row level security;
+alter table "supplyProgressLogs"     enable row level security;
+alter table "supplySessionChecks"    enable row level security;
+
+-- ════════════════════════════════════════════
+-- 초기 데이터
+-- ════════════════════════════════════════════
 insert into users (id, name, email, pw, role, level, verified, created_at)
 values ('admin1', '관리자', 'admin@test.com', 'admin1234', 'admin', 5, true, now())
 on conflict (id) do nothing;
@@ -149,7 +472,6 @@ insert into users (id, name, email, pw, phone, role, level, verified, created_at
 values ('teacher1', '김선생', 'teacher@test.com', '1234', '010-1234-5678', 'teacher', 2, true, now())
 on conflict (id) do nothing;
 
--- ─── 광고 슬롯 초기 데이터
 insert into ad_slots (id, name, position, active, w, h) values
   ('dashboard_top',  '대시보드 상단',  'dashboard_top',  false, '100%', 90),
   ('student_mid',    '학생관리 상단',  'student_mid',    false, '100%', 90),
@@ -157,10 +479,14 @@ insert into ad_slots (id, name, position, active, w, h) values
   ('report_bottom',  '리포트 하단',    'report_bottom',  false, '100%', 90)
 on conflict (id) do nothing;
 
--- ─── 인덱스
-create index if not exists idx_classes_teacher    on classes(teacher_id);
-create index if not exists idx_students_teacher   on students(teacher_id);
-create index if not exists idx_attendance_class   on attendance(class_id);
-create index if not exists idx_attendance_date    on attendance(date);
-create index if not exists idx_notes_teacher_date on notes(teacher_id, date);
-create index if not exists idx_verify_target      on verify_codes(target, purpose);
+-- ════════════════════════════════════════════
+-- 인덱스
+-- ════════════════════════════════════════════
+create index if not exists idx_classes_teacher     on classes(teacher_id);
+create index if not exists idx_students_teacher    on students(teacher_id);
+create index if not exists idx_attendance_class    on attendance(class_id);
+create index if not exists idx_attendance_date     on attendance(date);
+create index if not exists idx_notes_teacher_date  on notes(teacher_id, date);
+create index if not exists idx_verify_target       on verify_codes(target, purpose);
+create index if not exists idx_tpl_links_teacher   on teacher_parent_links(teacher_id);
+create index if not exists idx_points_teacher      on points(teacher_id);

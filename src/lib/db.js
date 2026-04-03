@@ -86,7 +86,7 @@ const SYNC_TABLES = [
   'adSlots', 'attendanceTemplates',
   // 신규 — 내 관리 / 수익
   'revenueFees', 'revenuePayments',
-  'trainings', 'careers', 'certificates', 'jobSubs',
+  'trainings', 'careers', 'educations', 'certificates', 'jobSubs',
   // 교구 관리
   'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
   // 로봇 교구 진도
