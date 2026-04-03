@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useCallback } from 'react'
 
 const C = {
   primary: '#f97316',
@@ -359,6 +359,133 @@ export function DayPicker({ value, onChange }) {
           </button>
         )
       })}
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────
+// ConfirmDialog — 전역 삭제 확인 다이얼로그
+// 사용법:
+//   App.jsx     → useConfirmDialog() + <ConfirmDialog />
+//   각 페이지   → useConfirm() → confirm('메시지', () => { 삭제로직 })
+// ────────────────────────────────────────────────────────────
+
+// 모듈 레벨 싱글톤: App.jsx에서 등록한 열기 함수를 보관
+let _openConfirm = null
+
+// App.jsx 전용 훅 — dialog 상태와 ConfirmDialog에 넘길 props를 반환
+export function useConfirmDialog() {
+  const [state, setState] = useState({ open: false, message: '', onOk: null })
+
+  // 이 함수를 모듈 변수에 등록해 두면 어느 페이지에서든 호출 가능
+  _openConfirm = useCallback((message, onOk) => {
+    setState({ open: true, message, onOk })
+  }, [])
+
+  const handleOk = useCallback(() => {
+    setState(prev => {
+      prev.onOk?.()
+      return { ...prev, open: false }
+    })
+  }, [])
+
+  const handleCancel = useCallback(() => {
+    setState(prev => ({ ...prev, open: false }))
+  }, [])
+
+  return {
+    confirmDialogProps: {
+      open: state.open,
+      message: state.message,
+      onOk: handleOk,
+      onCancel: handleCancel,
+    },
+  }
+}
+
+// 각 페이지 전용 훅 — confirm('메시지', () => { 삭제로직 }) 형태로 호출
+export function useConfirm() {
+  return useCallback((message, onOk) => {
+    if (_openConfirm) {
+      _openConfirm(message, onOk)
+    } else {
+      // App.jsx에 ConfirmDialog가 마운트되지 않은 경우 폴백
+      if (window.confirm(message)) onOk?.()
+    }
+  }, [])
+}
+
+// ConfirmDialog 컴포넌트 — App.jsx 루트에 딱 한 번만 마운트
+export function ConfirmDialog({ open, message, onOk, onCancel }) {
+  if (!open) return null
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0,
+        background: 'rgba(0,0,0,0.45)',
+        zIndex: 99999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '16px',
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <div style={{
+        background: '#fff',
+        borderRadius: '16px',
+        width: '100%',
+        maxWidth: '400px',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+        overflow: 'hidden',
+        animation: 'fadeIn .15s ease',
+      }}>
+        {/* 헤더 */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          padding: '20px 24px 16px',
+        }}>
+          <span style={{ fontSize: '22px', lineHeight: 1 }}>🗑️</span>
+          <h2 style={{ fontSize: '16px', fontWeight: 700, color: C.text }}>삭제 확인</h2>
+        </div>
+
+        {/* 메시지 */}
+        <div style={{ padding: '0 24px 24px', fontSize: '14px', color: C.muted, lineHeight: 1.6 }}>
+          {message}
+        </div>
+
+        {/* 버튼 */}
+        <div style={{
+          display: 'flex', gap: '10px', justifyContent: 'flex-end',
+          padding: '16px 24px',
+          borderTop: `1px solid ${C.border}`,
+        }}>
+          <button
+            onClick={onCancel}
+            style={{
+              padding: '9px 20px', borderRadius: '9px',
+              border: `1.5px solid ${C.border}`,
+              background: 'transparent', color: C.text,
+              fontSize: '14px', fontWeight: 500,
+              fontFamily: 'Noto Sans KR, sans-serif',
+              cursor: 'pointer',
+            }}
+          >
+            취소
+          </button>
+          <button
+            onClick={onOk}
+            style={{
+              padding: '9px 20px', borderRadius: '9px',
+              border: 'none',
+              background: C.danger, color: '#fff',
+              fontSize: '14px', fontWeight: 500,
+              fontFamily: 'Noto Sans KR, sans-serif',
+              cursor: 'pointer',
+            }}
+          >
+            삭제
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
