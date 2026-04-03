@@ -1614,9 +1614,6 @@ export function Supplies({ user }) {
 
       {/* ── 파일 등록 모달 */}
       <Modal open={fileModal} onClose={() => { setFileModal(false); setModalFile(null) }} title={`${fileEditId ? '✏️ ' : ''}${fileModalTitle}${fileEditId ? ' 수정' : ''} — ${selSubject}`} width={500}>
-      {fileModal && (
-          <>
-
               <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'16px', overflowY:'auto' }}>
 
                 {/* 종류 선택 (연간 / 차시별) — plan 탭에서만 */}
@@ -1735,8 +1732,6 @@ export function Supplies({ user }) {
               </div>
             </div>
           </div>
-        </>
-        )}
       </Modal>
 
       {/* ── 교구업체 등록 모달 */}
