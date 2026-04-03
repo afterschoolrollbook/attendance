@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Settings } from '../lib/db.js'
-import { Card, PageHeader, Toggle, Btn } from '../components/Atoms.jsx'
+import { Card, PageHeader, Toggle, Btn, Modal, useConfirm } from '../components/Atoms.jsx'
+import { useToast } from '../hooks/useToast.js'
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316', success:'#16a34a' }
 
@@ -16,27 +17,17 @@ function Field({ label, value, onChange, placeholder, type='text', mono=false })
   )
 }
 
-function SaveMsg({ data }) {
-  if (!data) return null
-  return (
-    <div style={{ fontSize:'13px', padding:'8px 12px', borderRadius:'7px', background:data.ok?'#f0fdf4':'#fef2f2', color:data.ok?'#16a34a':'#ef4444', border:`1px solid ${data.ok?'#86efac':'#fca5a5'}` }}>
-      {data.ok ? '✅' : '⚠️'} {data.msg}
-    </div>
-  )
-}
-
 // ─── 섹션: 소셜 로그인
 function SocialSection() {
   const init = Settings.get('social') || { googleClientId:'', kakaoAppKey:'', googleEnabled:false, kakaoEnabled:false }
   const [cfg, setCfg] = useState(init)
-  const [msg, setMsg] = useState(null)
+  const { success } = useToast()
 
   const set = (k, v) => setCfg(p => ({ ...p, [k]: v }))
 
   const save = () => {
     Settings.set('social', cfg)
-    setMsg({ ok:true, msg:'저장되었습니다. 페이지 새로고침 후 적용됩니다.' })
-    setTimeout(() => setMsg(null), 4000)
+    success('수정이 완료되었습니다.')
   }
 
   return (
@@ -195,7 +186,6 @@ function SocialSection() {
         </details>
       </div>
 
-      <SaveMsg data={msg} />
       <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'12px' }}>
         <Btn onClick={save}>💾 저장</Btn>
       </div>
@@ -207,13 +197,12 @@ function SocialSection() {
 function ServiceSection() {
   const init = Settings.get('service') || { siteName:'방과후 출석부', adminEmail:'', pointRate:5, pointExpireDays:365 }
   const [cfg, setCfg] = useState(init)
-  const [msg, setMsg] = useState(null)
+  const { success } = useToast()
   const set = (k, v) => setCfg(p => ({ ...p, [k]: v }))
 
   const save = () => {
     Settings.set('service', cfg)
-    setMsg({ ok:true, msg:'저장되었습니다.' })
-    setTimeout(() => setMsg(null), 3000)
+    success('수정이 완료되었습니다.')
   }
 
   return (
@@ -226,7 +215,6 @@ function ServiceSection() {
           <Field label="포인트 적립률 (%)" value={cfg.pointRate} onChange={v => set('pointRate', Number(v))} placeholder="5" type="number" />
           <Field label="포인트 유효기간 (일)" value={cfg.pointExpireDays} onChange={v => set('pointExpireDays', Number(v))} placeholder="365" type="number" />
         </div>
-        <SaveMsg data={msg} />
         <div style={{ display:'flex', justifyContent:'flex-end' }}>
           <Btn onClick={save}>💾 저장</Btn>
         </div>
@@ -239,13 +227,12 @@ function ServiceSection() {
 function EmailSection() {
   const init = Settings.get('email') || { resendApiKey:'', fromEmail:'', enabled:false }
   const [cfg, setCfg] = useState(init)
-  const [msg, setMsg] = useState(null)
+  const { success } = useToast()
   const set = (k, v) => setCfg(p => ({ ...p, [k]: v }))
 
   const save = () => {
     Settings.set('email', cfg)
-    setMsg({ ok:true, msg:'저장되었습니다.' })
-    setTimeout(() => setMsg(null), 3000)
+    success('수정이 완료되었습니다.')
   }
 
   return (
@@ -293,7 +280,6 @@ function EmailSection() {
           </div>
         </details>
       </div>
-      <SaveMsg data={msg} />
       <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'12px' }}>
         <Btn onClick={save}>💾 저장</Btn>
       </div>
@@ -305,22 +291,21 @@ function EmailSection() {
 function SolapiSection() {
   const init = Settings.get('solapi') || { apiKey:'', apiSecret:'', senderPhone:'', kakaoChannelId:'', kakaoEnabled:false, smsEnabled:false }
   const [cfg, setCfg] = useState(init)
-  const [msg, setMsg] = useState(null)
   const [testing, setTesting] = useState(false)
+  const { success, toastError } = useToast()
 
   const set = (k, v) => setCfg(p => ({ ...p, [k]: v }))
 
   const save = () => {
     Settings.set('solapi', cfg)
-    setMsg({ ok:true, msg:'저장되었습니다.' })
-    setTimeout(() => setMsg(null), 3000)
+    success('수정이 완료되었습니다.')
   }
 
   const testSMS = async () => {
-    if (!cfg.apiKey || !cfg.senderPhone) { setMsg({ ok:false, msg:'API 키와 발신번호를 먼저 입력하세요.' }); return }
+    if (!cfg.apiKey || !cfg.senderPhone) { toastError('API 키와 발신번호를 먼저 입력하세요.'); return }
     setTesting(true)
     setTimeout(() => {
-      setMsg({ ok:true, msg:'테스트 발송 기능은 Phase 4 백엔드 연동 후 사용 가능합니다.' })
+      success('테스트 발송 기능은 Phase 4 백엔드 연동 후 사용 가능합니다.')
       setTesting(false)
     }, 1000)
   }
@@ -401,7 +386,6 @@ function SolapiSection() {
         <Btn size="sm" variant="ghost" onClick={testSMS} disabled={testing}>{testing ? '발송 중...' : '테스트 발송'}</Btn>
       </div>
 
-      <SaveMsg data={msg} />
       <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'12px' }}>
         <Btn onClick={save}>💾 저장</Btn>
       </div>
@@ -413,7 +397,8 @@ function SolapiSection() {
 function RegionSection() {
   const [regions,    setRegions]    = useState(() => (Settings.get('regionMap') || {}).regions    || [])
   const [neisApiKey, setNeisApiKey] = useState(() => (Settings.get('regionMap') || {}).neisApiKey || '')
-  const [msg,        setMsg]        = useState(null)
+  const { success, toastError } = useToast()
+  const confirm = useConfirm()
 
   // NEIS 학교 검색
   const [neisQuery,   setNeisQuery]   = useState('')
@@ -508,8 +493,7 @@ function RegionSection() {
 
   const saveAll = () => {
     Settings.set('regionMap', { regions, neisApiKey })
-    setMsg({ ok:true, msg:'저장되었습니다.' })
-    setTimeout(() => setMsg(null), 3000)
+    success('수정이 완료되었습니다.')
   }
 
   const openNew = () => {
@@ -537,8 +521,8 @@ function RegionSection() {
   const removeSchool = (name) => setSchools(p => p.filter(s => s.name !== name))
 
   const saveForm = () => {
-    if (!form.sido) { alert('시도를 선택하세요.'); return }
-    if (!form.support.trim()) { alert('교육지원청명을 입력하세요.'); return }
+    if (!form.sido) { toastError('시도를 선택하세요.'); return }
+    if (!form.support.trim()) { toastError('교육지원청명을 입력하세요.'); return }
     const entry = { id: editId || String(Date.now()), sido: form.sido, office: form.office.trim(), officeUrl: form.officeUrl.trim(), support: form.support.trim(), supportUrl: form.supportUrl.trim(), schools }
     if (editId) {
       setRegions(p => p.map(r => r.id === editId ? entry : r))
@@ -549,8 +533,9 @@ function RegionSection() {
   }
 
   const deleteRegion = (id) => {
-    if (!window.confirm('삭제하시겠습니까?')) return
-    setRegions(p => p.filter(r => r.id !== id))
+    confirm('삭제하시겠습니까?', () => {
+      setRegions(p => p.filter(r => r.id !== id))
+    })
   }
 
   return (
@@ -742,7 +727,7 @@ function RegionSection() {
                       : <span style={{ fontSize:'11px', color:'#d1d5db' }}>URL 미등록</span>
                     }
                     <button onClick={() => removeSchool(s.name)}
-                      style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', padding:'0', fontSize:'14px', lineHeight:1 }}>×</button>
+                      style={{ background:'#fef2f2', border:'1px solid #fca5a5', color:'#ef4444', cursor:'pointer', padding:'2px 8px', fontSize:'12px', borderRadius:'5px', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                   </div>
                 ))}
               </div>
@@ -817,7 +802,6 @@ function RegionSection() {
         </div>
       )}
 
-      <SaveMsg data={msg} />
     </Card>
   )
 }
@@ -844,8 +828,9 @@ function SubTitle({ children }) {
 
 function TeacherServiceSection() {
   const [ts, setTs]       = useState(loadTS)
-  const [msg, setMsg]     = useState(null)
   const [subtab, setSubtab] = useState('menu')
+  const { success, toastError } = useToast()
+  const confirm = useConfirm()
 
   // ── 연수기관 폼
   const EMPTY_SITE = { name:'', url:'', desc:'', courses:'' }
@@ -870,13 +855,12 @@ function TeacherServiceSection() {
   const save = (patch) => {
     const next = patch ? { ...ts, ...patch } : ts
     setTs(next); saveTS(next)
-    setMsg({ ok:true, msg:'저장되었습니다.' })
-    setTimeout(() => setMsg(null), 2500)
+    success('수정이 완료되었습니다.')
   }
 
   // ─ 연수기관 저장
   const saveSite = () => {
-    if (!siteForm.name.trim()) { alert('기관명을 입력하세요'); return }
+    if (!siteForm.name.trim()) { toastError('기관명을 입력하세요.'); return }
     const item = { ...siteForm, courses: siteForm.courses.split('\n').map(s=>s.trim()).filter(Boolean), id: siteEditIdx !== null ? ts.trainingSites[siteEditIdx].id : String(Date.now()) }
     const updated = siteEditIdx !== null
       ? ts.trainingSites.map((s,i) => i===siteEditIdx ? item : s)
@@ -891,13 +875,14 @@ function TeacherServiceSection() {
     setSiteEditIdx(i); setSiteModal(true)
   }
   const deleteSite = (i) => {
-    if (!confirm('삭제할까요?')) return
-    save({ trainingSites: ts.trainingSites.filter((_,idx)=>idx!==i) })
+    confirm('삭제할까요?', () => {
+      save({ trainingSites: ts.trainingSites.filter((_,idx)=>idx!==i) })
+    })
   }
 
   // ─ 자격증 제휴처 저장
   const savePartner = () => {
-    if (!partnerForm.name.trim()) { alert('기관명을 입력하세요'); return }
+    if (!partnerForm.name.trim()) { toastError('기관명을 입력하세요.'); return }
     const item = { ...partnerForm, subjects: partnerForm.subjects.split(',').map(s=>s.trim()).filter(Boolean), id: partnerEditIdx !== null ? ts.certPartners[partnerEditIdx].id : String(Date.now()) }
     const updated = partnerEditIdx !== null
       ? ts.certPartners.map((p,i) => i===partnerEditIdx ? item : p)
@@ -912,13 +897,14 @@ function TeacherServiceSection() {
     setPartnerEditIdx(i); setPartnerModal(true)
   }
   const deletePartner = (i) => {
-    if (!confirm('삭제할까요?')) return
-    save({ certPartners: ts.certPartners.filter((_,idx)=>idx!==i) })
+    confirm('삭제할까요?', () => {
+      save({ certPartners: ts.certPartners.filter((_,idx)=>idx!==i) })
+    })
   }
 
   // ─ 공고 직접 등록
   const saveJob = () => {
-    if (!jobForm.title.trim()) { alert('공고 제목을 입력하세요'); return }
+    if (!jobForm.title.trim()) { toastError('공고 제목을 입력하세요.'); return }
     const item = { ...jobForm, id: jobEditIdx !== null ? ts.jobPostings[jobEditIdx].id : String(Date.now()), createdAt: jobEditIdx !== null ? ts.jobPostings[jobEditIdx].createdAt : new Date().toISOString().slice(0,10) }
     const updated = jobEditIdx !== null
       ? ts.jobPostings.map((j,i) => i===jobEditIdx ? item : j)
@@ -929,8 +915,9 @@ function TeacherServiceSection() {
   const openAddJob = () => { setJobForm(EMPTY_JOB); setJobEditIdx(null); setJobModal(true) }
   const openEditJob = (i) => { setJobForm({ ...ts.jobPostings[i] }); setJobEditIdx(i); setJobModal(true) }
   const deleteJob = (i) => {
-    if (!confirm('삭제할까요?')) return
-    save({ jobPostings: ts.jobPostings.filter((_,idx)=>idx!==i) })
+    confirm('삭제할까요?', () => {
+      save({ jobPostings: ts.jobPostings.filter((_,idx)=>idx!==i) })
+    })
   }
 
   const fStyle = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
@@ -989,7 +976,6 @@ function TeacherServiceSection() {
               </div>
             ))}
           </div>
-          <SaveMsg data={msg} />
           <div style={{ display:'flex', justifyContent:'flex-end' }}>
             <Btn onClick={() => save()}>💾 저장</Btn>
           </div>
@@ -1133,88 +1119,60 @@ function TeacherServiceSection() {
       )}
 
       {/* ─── 연수기관 모달 */}
-      {siteModal && (
-        <div onClick={e=>{ if(e.target===e.currentTarget) setSiteModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'480px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden', maxHeight:'90vh', overflowY:'auto' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>{siteEditIdx !== null ? '연수기관 편집' : '연수기관 추가'}</span>
-              <button onClick={()=>setSiteModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'13px' }}>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>기관명 *</label><input value={siteForm.name} onChange={e=>setSiteForm(v=>({...v,name:e.target.value}))} placeholder="예: 경기도교육청남부연수원" style={fStyle}/></div>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>홈페이지 URL</label><input value={siteForm.url} onChange={e=>setSiteForm(v=>({...v,url:e.target.value}))} placeholder="https://" style={fStyle}/></div>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>설명</label><input value={siteForm.desc} onChange={e=>setSiteForm(v=>({...v,desc:e.target.value}))} placeholder="간단한 설명" style={fStyle}/></div>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>과정 목록 (줄바꿈으로 구분)</label>
-                <textarea value={siteForm.courses} onChange={e=>setSiteForm(v=>({...v,courses:e.target.value}))} placeholder={'4대폭력예방교육\n개인정보 보호 교육'} rows={4} style={{ ...fStyle, resize:'vertical' }}/></div>
-              <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
-                <button onClick={saveSite} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
-                <button onClick={()=>setSiteModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
-              </div>
-            </div>
+      <Modal open={siteModal} onClose={()=>setSiteModal(false)} title={siteEditIdx !== null ? '연수기관 편집' : '연수기관 추가'} width={480}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'13px' }}>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>기관명 *</label><input value={siteForm.name} onChange={e=>setSiteForm(v=>({...v,name:e.target.value}))} placeholder="예: 경기도교육청남부연수원" style={fStyle}/></div>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>홈페이지 URL</label><input value={siteForm.url} onChange={e=>setSiteForm(v=>({...v,url:e.target.value}))} placeholder="https://" style={fStyle}/></div>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>설명</label><input value={siteForm.desc} onChange={e=>setSiteForm(v=>({...v,desc:e.target.value}))} placeholder="간단한 설명" style={fStyle}/></div>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>과정 목록 (줄바꿈으로 구분)</label>
+            <textarea value={siteForm.courses} onChange={e=>setSiteForm(v=>({...v,courses:e.target.value}))} placeholder={'4대폭력예방교육\n개인정보 보호 교육'} rows={4} style={{ ...fStyle, resize:'vertical' }}/></div>
+          <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
+            <button onClick={saveSite} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+            <button onClick={()=>setSiteModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* ─── 자격증 제휴처 모달 */}
-      {partnerModal && (
-        <div onClick={e=>{ if(e.target===e.currentTarget) setPartnerModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'460px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>{partnerEditIdx !== null ? '제휴처 편집' : '제휴처 추가'}</span>
-              <button onClick={()=>setPartnerModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'13px' }}>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>기관명 *</label><input value={partnerForm.name} onChange={e=>setPartnerForm(v=>({...v,name:e.target.value}))} placeholder="예: 한국로봇산업협회" style={fStyle}/></div>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>홈페이지 URL</label><input value={partnerForm.url} onChange={e=>setPartnerForm(v=>({...v,url:e.target.value}))} placeholder="https://" style={fStyle}/></div>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>설명</label><input value={partnerForm.desc} onChange={e=>setPartnerForm(v=>({...v,desc:e.target.value}))} placeholder="간단한 설명" style={fStyle}/></div>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>태그</label>
-                <select value={partnerForm.tag} onChange={e=>setPartnerForm(v=>({...v,tag:e.target.value}))} style={fStyle}>
-                  <option value="제휴">제휴</option>
-                  <option value="광고">광고</option>
-                  <option value="공식">공식</option>
-                </select>
-              </div>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>관련 과목 (쉼표 구분)</label><input value={partnerForm.subjects} onChange={e=>setPartnerForm(v=>({...v,subjects:e.target.value}))} placeholder="로봇과학, 코딩, 드론" style={fStyle}/></div>
-              <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
-                <button onClick={savePartner} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
-                <button onClick={()=>setPartnerModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
-              </div>
-            </div>
+      <Modal open={partnerModal} onClose={()=>setPartnerModal(false)} title={partnerEditIdx !== null ? '제휴처 편집' : '제휴처 추가'} width={460}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'13px' }}>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>기관명 *</label><input value={partnerForm.name} onChange={e=>setPartnerForm(v=>({...v,name:e.target.value}))} placeholder="예: 한국로봇산업협회" style={fStyle}/></div>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>홈페이지 URL</label><input value={partnerForm.url} onChange={e=>setPartnerForm(v=>({...v,url:e.target.value}))} placeholder="https://" style={fStyle}/></div>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>설명</label><input value={partnerForm.desc} onChange={e=>setPartnerForm(v=>({...v,desc:e.target.value}))} placeholder="간단한 설명" style={fStyle}/></div>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>태그</label>
+            <select value={partnerForm.tag} onChange={e=>setPartnerForm(v=>({...v,tag:e.target.value}))} style={fStyle}>
+              <option value="제휴">제휴</option>
+              <option value="광고">광고</option>
+              <option value="공식">공식</option>
+            </select>
+          </div>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>관련 과목 (쉼표 구분)</label><input value={partnerForm.subjects} onChange={e=>setPartnerForm(v=>({...v,subjects:e.target.value}))} placeholder="로봇과학, 코딩, 드론" style={fStyle}/></div>
+          <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
+            <button onClick={savePartner} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+            <button onClick={()=>setPartnerModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* ─── 공고 등록 모달 */}
-      {jobModal && (
-        <div onClick={e=>{ if(e.target===e.currentTarget) setJobModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'480px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden', maxHeight:'90vh', overflowY:'auto' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>{jobEditIdx !== null ? '공고 편집' : '공고 등록'}</span>
-              <button onClick={()=>setJobModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'13px' }}>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>공고 제목 *</label><input value={jobForm.title} onChange={e=>setJobForm(v=>({...v,title:e.target.value}))} placeholder="예: 2026년 로봇과학 방과후 강사 모집" style={fStyle}/></div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교육지원청</label><input value={jobForm.office} onChange={e=>setJobForm(v=>({...v,office:e.target.value}))} placeholder="예: 경기군포의왕" style={fStyle}/></div>
-                <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>학교명</label><input value={jobForm.school} onChange={e=>setJobForm(v=>({...v,school:e.target.value}))} placeholder="예: 군포초등학교" style={fStyle}/></div>
-              </div>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>과목</label><input value={jobForm.subject} onChange={e=>setJobForm(v=>({...v,subject:e.target.value}))} placeholder="예: 로봇과학" style={fStyle}/></div>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>마감일</label><input type="date" value={jobForm.deadline} onChange={e=>setJobForm(v=>({...v,deadline:e.target.value}))} style={fStyle}/></div>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>공고 URL</label><input value={jobForm.url} onChange={e=>setJobForm(v=>({...v,url:e.target.value}))} placeholder="https://" style={fStyle}/></div>
-              <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>메모</label><input value={jobForm.memo} onChange={e=>setJobForm(v=>({...v,memo:e.target.value}))} placeholder="추가 안내사항" style={fStyle}/></div>
-              <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
-                <button onClick={saveJob} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
-                <button onClick={()=>setJobModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
-              </div>
-            </div>
+      <Modal open={jobModal} onClose={()=>setJobModal(false)} title={jobEditIdx !== null ? '공고 편집' : '공고 등록'} width={480}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'13px' }}>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>공고 제목 *</label><input value={jobForm.title} onChange={e=>setJobForm(v=>({...v,title:e.target.value}))} placeholder="예: 2026년 로봇과학 방과후 강사 모집" style={fStyle}/></div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+            <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교육지원청</label><input value={jobForm.office} onChange={e=>setJobForm(v=>({...v,office:e.target.value}))} placeholder="예: 경기군포의왕" style={fStyle}/></div>
+            <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>학교명</label><input value={jobForm.school} onChange={e=>setJobForm(v=>({...v,school:e.target.value}))} placeholder="예: 군포초등학교" style={fStyle}/></div>
+          </div>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>과목</label><input value={jobForm.subject} onChange={e=>setJobForm(v=>({...v,subject:e.target.value}))} placeholder="예: 로봇과학" style={fStyle}/></div>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>마감일</label><input type="date" value={jobForm.deadline} onChange={e=>setJobForm(v=>({...v,deadline:e.target.value}))} style={fStyle}/></div>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>공고 URL</label><input value={jobForm.url} onChange={e=>setJobForm(v=>({...v,url:e.target.value}))} placeholder="https://" style={fStyle}/></div>
+          <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>메모</label><input value={jobForm.memo} onChange={e=>setJobForm(v=>({...v,memo:e.target.value}))} placeholder="추가 안내사항" style={fStyle}/></div>
+          <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
+            <button onClick={saveJob} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+            <button onClick={()=>setJobModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
           </div>
         </div>
-      )}
+      </Modal>
 
-      <SaveMsg data={msg} />
     </Card>
   )
 }
