@@ -3,6 +3,7 @@ import { Classes as ClassesDB, Students as StudentsDB, Templates } from '../lib/
 import { calcSessionDates, today, fmtDate } from '../lib/utils.js'
 import { Btn, Card, PageHeader, Tag, EmptyState } from '../components/Atoms.jsx'
 import { can, FEATURES } from '../constants/permissions.js'
+import { useToast } from '../hooks/useToast.js'
 
 // 출석 체크 칸 기호
 const BLANK = '□'
@@ -13,6 +14,7 @@ export function PrintSetup({ user }) {
   const [step, setStep] = useState(1)
   const [downloading, setDownloading] = useState('')   // 'excel' | 'pdf' | ''
   const [periodType, setPeriodType] = useState('all')  // 'all' | 'first10' | 'last10'
+  const { error: toastError } = useToast()
 
   if (!can(user, FEATURES.PRINT_ATTENDANCE)) {
     return (
@@ -119,7 +121,7 @@ export function PrintSetup({ user }) {
       const filename = `${className}_출석부_${today()}.xlsx`
       XLSX.writeFile(wb, filename)
     } catch (e) {
-      alert('엑셀 생성 중 오류가 발생했습니다.')
+      toastError('엑셀 생성 중 오류가 발생했습니다.')
       console.error(e)
     } finally {
       setDownloading('')
