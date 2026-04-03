@@ -490,3 +490,45 @@ create index if not exists idx_notes_teacher_date  on notes(teacher_id, date);
 create index if not exists idx_verify_target       on verify_codes(target, purpose);
 create index if not exists idx_tpl_links_teacher   on teacher_parent_links(teacher_id);
 create index if not exists idx_points_teacher      on points(teacher_id);
+
+-- ─── awards (수상)
+create table if not exists awards (
+  id              text primary key,
+  "teacherId"     text,
+  year            text,
+  "contestName"   text default '',
+  title           text not null,
+  "awardType"     text default '표창',
+  division        text default '',
+  host            text default '',
+  "awardedAt"     text default '',
+  memo            text default '',
+  "fileUrl"       text,
+  "fileName"      text,
+  "fileType"      text,
+  "updatedAt"     text,
+  "createdAt"     text
+);
+alter table awards enable row level security;
+
+-- ─── 누락 컬럼 보완 (updatedAt 전체, supplyProductPlans 파일 컬럼)
+alter table "supplyProductPlans"    add column if not exists "fileName"  text;
+alter table "supplyProductPlans"    add column if not exists "fileUrl"   text;
+alter table "supplyProductPlans"    add column if not exists "fileType"  text;
+alter table "supplyProductPlans"    add column if not exists "updatedAt" text;
+alter table "supplySubjects"        add column if not exists "updatedAt" text;
+alter table "supplyVendors"         add column if not exists "updatedAt" text;
+alter table "supplyItems"           add column if not exists "updatedAt" text;
+alter table "supplyPlans"           add column if not exists "updatedAt" text;
+alter table "supplyPromos"          add column if not exists "updatedAt" text;
+alter table "supplyProducts"        add column if not exists "updatedAt" text;
+alter table "supplyProgressLogs"    add column if not exists "updatedAt" text;
+alter table "supplySessionChecks"   add column if not exists "updatedAt" text;
+alter table "supplyStudentProgress" add column if not exists "updatedAt" text;
+alter table "revenueFees"           add column if not exists "updatedAt" text;
+alter table "revenuePayments"       add column if not exists "updatedAt" text;
+alter table trainings               add column if not exists "updatedAt" text;
+alter table careers                 add column if not exists "updatedAt" text;
+alter table educations              add column if not exists "updatedAt" text;
+alter table certificates            add column if not exists "updatedAt" text;
+alter table "jobSubs"               add column if not exists "updatedAt" text;

@@ -27,6 +27,7 @@ const TABLE_MAP: Record<string, string> = {
   careers:              'careers',
   educations:           'educations',
   certificates:         'certificates',
+  awards:               'awards',
   jobSubs:              'jobSubs',
   // 기타
   branches:             'branches',
@@ -49,7 +50,7 @@ const TABLE_MAP: Record<string, string> = {
 // 컬럼이 camelCase로 저장된 테이블 — snake 변환 없이 그대로 사용
 const CAMEL_TABLES = new Set([
   'revenueFees', 'revenuePayments',
-  'trainings', 'careers', 'educations', 'certificates', 'jobSubs',
+  'trainings', 'careers', 'educations', 'certificates', 'awards', 'jobSubs',
   'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
   'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress',
   'supplyProgressLogs', 'supplySessionChecks',
