@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { Users, Classes, Students, Attendance, Branches } from '../lib/db.js'  // ✅ 버그수정: Branches 추가, 중복 import 정리
 import { uid, now } from '../lib/utils.js'                                      // ✅ 버그수정: uid 추가
-import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard } from '../components/Atoms.jsx'
+import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard, useConfirm } from '../components/Atoms.jsx'
+import { useToast } from '../hooks/useToast.js'
 import { LEVEL_NAMES, FEATURES, LEVEL_PERMISSIONS } from '../constants/permissions.js'
 
 const FEATURE_LABELS = {
@@ -747,6 +748,8 @@ function BranchPanel({ branches, setBranches, teachers }) {
   const [editId, setEditId] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const { toastError, success } = useToast()
+  const confirm = useConfirm()
 
   const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316' }
   const selSt = { padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', width:'100%', background:'#fff' }
@@ -755,11 +758,13 @@ function BranchPanel({ branches, setBranches, teachers }) {
   const managers = teachers.filter(t => t.level >= 4)
 
   const save = () => {
-    if (!form.name.trim()) { alert('지사명을 입력하세요.'); return }
+    if (!form.name.trim()) { toastError('지사명을 입력하세요.'); return }
     if (editId) {
       Branches.update(editId, { name:form.name.trim(), managerId:form.managerId||null, memo:form.memo })
+      success('수정이 완료되었습니다.')
     } else {
       Branches.insert({ id:uid(), name:form.name.trim(), managerId:form.managerId||null, memo:form.memo, active:true, createdAt:now() })
+      success('등록이 완료되었습니다.')
     }
     setBranches(Branches.all())
     setForm({ name:'', managerId:'', memo:'' }); setEditId(null); setShowForm(false)
@@ -771,8 +776,9 @@ function BranchPanel({ branches, setBranches, teachers }) {
   }
 
   const del = (id) => {
-    if (!window.confirm('삭제하시겠습니까?')) return
-    Branches.delete(id); setBranches(Branches.all())
+    confirm('삭제하시겠습니까?', () => {
+      Branches.delete(id); setBranches(Branches.all())
+    })
   }
 
   const teacherCount = (branchId) => teachers.filter(t => t.branchId === branchId).length
@@ -865,6 +871,8 @@ export function Admin({ user: currentUser }) {
   const [showPermModal, setShowPermModal] = useState(false)
   const [lightboxImg, setLightboxImg] = useState(null)
   const [, forceUpdate] = useState(0)  // ✅ 강제 리렌더용
+  const { toastError, success } = useToast()
+  const confirm = useConfirm()
 
   const refresh = () => forceUpdate(n => n + 1)  // ✅ DB 변경 후 화면 즉시 갱신
 
@@ -904,6 +912,7 @@ export function Admin({ user: currentUser }) {
     })
     setShowPermModal(false)
     refresh()  // ✅ 즉시 반영
+    success('수정이 완료되었습니다.')
   }
 
   const stats = {
@@ -986,9 +995,10 @@ export function Admin({ user: currentUser }) {
               {teachers.map((t, i) => {
                 const levelColors = { 1: '#9ca3af', 2: '#f97316', 3: '#16a34a', 4: '#8b5cf6', 5: '#ef4444' }
                 const deleteTeacher = () => {
-                  if (!window.confirm(`${t.name} 선생님을 삭제하시겠습니까?\n관련 수업·학생·출석 데이터는 유지됩니다.`)) return
-                  Users.delete(t.id)
-                  refresh()
+                  confirm(`${t.name} 선생님을 삭제하시겠습니까?\n관련 수업·학생·출석 데이터는 유지됩니다.`, () => {
+                    Users.delete(t.id)
+                    refresh()
+                  })
                 }
                 return (
                   <tr key={t.id} style={{ borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
@@ -1003,11 +1013,12 @@ export function Admin({ user: currentUser }) {
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <Btn size="sm" variant="ghost" onClick={() => openPerm(t)}>권한 설정</Btn>
                         <button onClick={() => {
-                          if (!t.phone) { alert('등록된 핸드폰 번호가 없어 초기화할 수 없습니다.'); return }
+                          if (!t.phone) { toastError('등록된 핸드폰 번호가 없어 초기화할 수 없습니다.'); return }
                           const normalized = t.phone.replace(/-/g, '').slice(0, 11)
-                          if (!window.confirm(`${t.name} 선생님의 비밀번호를\n핸드폰 번호(${normalized})로 초기화하시겠습니까?`)) return
-                          Users.update(t.id, { pw: normalized })
-                          alert(`비밀번호가 ${normalized}(으)로 초기화되었습니다.`)
+                          confirm(`${t.name} 선생님의 비밀번호를\n핸드폰 번호(${normalized})로 초기화하시겠습니까?`, () => {
+                            Users.update(t.id, { pw: normalized })
+                            success(`비밀번호가 ${normalized}(으)로 초기화되었습니다.`)
+                          })
                         }}
                           style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', color: '#b45309', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
                           비번초기화
