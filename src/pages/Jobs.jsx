@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { uid, now } from '../lib/utils.js'
 import { supabase } from '../lib/supabase.js'
+import { Modal } from '../components/Atoms.jsx'
+import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
 
 const C = { primary:'#f97316', success:'#16a34a', danger:'#ef4444', border:'#e5e7eb', text:'#111827', muted:'#6b7280', card:'#fff', warning:'#f59e0b' }
 const STORAGE_KEY = 'asa_job_subs'
@@ -45,6 +48,8 @@ export function Jobs({ user }) {
   const [editId, setEditId] = useState(null)
   const [settings, setSettings] = useState({})
   const [regionMap, setRegionMap] = useState(null)
+  const { error: toastError } = useToast()
+  const confirm = useConfirm()
 
   useEffect(() => {
     setSubs(loadSubs(user.id))
@@ -63,7 +68,7 @@ export function Jobs({ user }) {
     setEditId(r.id); setModal(true)
   }
   const save = () => {
-    if (!form.subject.trim()) { alert('과목을 입력하세요'); return }
+    if (!form.subject.trim()) { toastError('과목을 입력하세요'); return }
     const item = { id:editId||uid(), teacherId:user.id, ...form, active:true, updatedAt:now() }
     if (!editId) item.createdAt = now()
     saveSub(item); reloadSubs(); setModal(false)
@@ -256,7 +261,7 @@ export function Jobs({ user }) {
                         {s.active ? '활성' : '비활성'}
                       </button>
                       <button onClick={()=>openEdit(s)} style={{ padding:'5px 10px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
-                      <button onClick={()=>{ if(confirm('삭제할까요?')){ deleteSub(s.id); reloadSubs() } }} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
+                      <button onClick={()=>confirm('삭제할까요?', () => { deleteSub(s.id); reloadSubs() })} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
                     </div>
                   </div>
                 </div>
@@ -267,15 +272,8 @@ export function Jobs({ user }) {
       )}
 
       {/* 구독 추가/편집 모달 */}
-      {modal && (
-        <div onClick={e=>{ if(e.target===e.currentTarget) setModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'460px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>{editId ? '구독 편집' : '구독 추가'}</span>
-              <button onClick={()=>setModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'13px' }}>
+      <Modal open={modal} onClose={() => setModal(false)} title={editId ? '구독 편집' : '구독 추가'} width={460}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'13px' }}>
               {/* 시도 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>시도</label>
@@ -324,10 +322,8 @@ export function Jobs({ user }) {
                 <button onClick={save} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
                 <button onClick={()=>setModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
-            </div>
-          </div>
         </div>
-      )}
+      </Modal>
     </div>
   )
 }
