@@ -4,6 +4,7 @@ import { uid, now, calcSessionDates, sortClasses, today } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
 import { ClassCalendar } from '../components/ClassCalendar.jsx'
 import { TERM_TYPES, REPEAT_TYPES } from '../constants/config.js'
+import { useToast } from '../hooks/useToast.js'
 
 const VIEW_TABS = ['요일별', '학교별', '과목별']
 const DAY_ORDER = ['월', '화', '수', '목', '금', '토', '일']
@@ -64,10 +65,11 @@ export function Classes({ user }) {
   const templateRef = useRef()
 
   const [alarmToast, setAlarmToast] = useState(null) // { className, minutesBefore, type: 'start'|'end' }
+  const { success, error: toastError } = useToast()
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const allClasses = ClassesDB.byTeacher(user.id)
-  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
+  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
   const classes = selYear ? allClasses.filter(c => c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) : allClasses
   const t = today()
 
@@ -162,14 +164,16 @@ export function Classes({ user }) {
 
   const save = () => {
     if (!form.organization.trim() || !form.className.trim() || !form.days.length || !form.startDate || !form.endDate) {
-      alert('필수 항목을 입력하세요 (단체명, 수업명, 요일, 기간).')
+      toastError('필수 항목을 입력하세요 (단체명, 수업명, 요일, 기간).')
       return
     }
     if (editId && editId !== '__copy__') {
       ClassesDB.update(editId, { ...form })
+      success('수정이 완료되었습니다.')
     } else {
       const { id: _oldId, ...formWithoutId } = form
       ClassesDB.insert({ ...formWithoutId, id: uid(), teacherId: user.id, createdAt: now() })
+      success('등록이 완료되었습니다.')
     }
     setShowModal(false)
   }
@@ -181,14 +185,14 @@ export function Classes({ user }) {
     const files = Array.from(e.target.files)
     const current = form.promotionImgs || []
     const remaining = MAX_PROMO_IMAGES - current.length
-    if (remaining <= 0) { alert('최대 2장까지 등록 가능합니다.'); return }
+    if (remaining <= 0) { toastError('최대 2장까지 등록 가능합니다.'); return }
     const toAdd = files.slice(0, remaining)
     const classId = editId && editId !== '__copy__' ? editId : ('tmp_' + uid())
     setUploading(true)
     try {
       const urls = await Promise.all(toAdd.map(f => uploadToStorage(user.id, classId, 'promo', f)))
       set('promotionImgs', [...current, ...urls])
-    } catch(err) { alert('업로드 실패: ' + err.message) }
+    } catch(err) { toastError('업로드 실패: ' + err.message) }
     finally { setUploading(false) }
     e.target.value = ''
   }
@@ -202,10 +206,10 @@ export function Classes({ user }) {
     const files = Array.from(e.target.files)
     const current = form.noticeFiles || []
     const remaining = MAX_NOTICE_FILES - current.length
-    if (remaining <= 0) { alert(`최대 ${MAX_NOTICE_FILES}개까지 등록 가능합니다.`); return }
+    if (remaining <= 0) { toastError(`최대 ${MAX_NOTICE_FILES}개까지 등록 가능합니다.`); return }
     const allowed = ['image/jpeg','image/png','application/pdf']
     const valid = files.filter(f => allowed.includes(f.type)).slice(0, remaining)
-    if (valid.length < files.length) alert('jpg, png, pdf 파일만 업로드 가능합니다.')
+    if (valid.length < files.length) toastError('jpg, png, pdf 파일만 업로드 가능합니다.')
     if (!valid.length) return
     const classId = editId && editId !== '__copy__' ? editId : ('tmp_' + uid())
     setUploading(true)
@@ -216,7 +220,7 @@ export function Classes({ user }) {
         fileType: f.type,
       })))
       set('noticeFiles', [...current, ...results])
-    } catch(err) { alert('업로드 실패: ' + err.message) }
+    } catch(err) { toastError('업로드 실패: ' + err.message) }
     finally { setUploading(false) }
     e.target.value = ''
   }
@@ -236,7 +240,7 @@ export function Classes({ user }) {
     try {
       const url = await uploadToStorage(user.id, classId, 'template', file)
       set('templateFile', { name: file.name, fileType, url })
-    } catch(err) { alert('업로드 실패: ' + err.message) }
+    } catch(err) { toastError('업로드 실패: ' + err.message) }
     finally { setUploading(false) }
     e.target.value = ''
   }
@@ -701,7 +705,7 @@ export function Classes({ user }) {
                     const date = e.target.value
                     if (!date) return
                     const already = (form.cancelledDates||[]).some(c => c.date === date)
-                    if (already) { alert('이미 추가된 날짜입니다.'); return }
+                    if (already) { toastError('이미 추가된 날짜입니다.'); return }
                     setForm(f => ({ ...f, cancelledDates: [...(f.cancelledDates||[]), { date, reason:'school_holiday', memo:'' }] }))
                     e.target.value = ''
                   }}
@@ -767,29 +771,23 @@ export function Classes({ user }) {
       </Modal>
 
       {/* 안내장 미리보기 모달 */}
-      {noticePreview && (
-        <div onClick={() => setNoticePreview(null)}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:3000, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:'14px', overflow:'hidden', maxWidth:'800px', width:'100%', maxHeight:'90vh', display:'flex', flexDirection:'column' }}>
-            <div style={{ padding:'12px 18px', borderBottom:'1px solid #e5e7eb', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:'14px', fontWeight:700 }}>{noticePreview.name}</span>
-              <div style={{ display:'flex', gap:'8px' }}>
-                <a href={noticePreview.url} download={noticePreview.name} target="_blank" rel="noopener noreferrer"
-                  style={{ padding:'6px 14px', borderRadius:'8px', background:'#f0fdf4', border:'1.5px solid #86efac', color:'#16a34a', fontSize:'12px', fontWeight:700, textDecoration:'none' }}>⬇ 다운로드</a>
-                <button onClick={() => setNoticePreview(null)}
-                  style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#6b7280' }}>×</button>
-              </div>
+      <Modal open={!!noticePreview} onClose={() => setNoticePreview(null)} title={noticePreview?.name || ''} width={800}>
+        {noticePreview && (
+          <>
+            <div style={{ textAlign:'right', marginBottom:'10px' }}>
+              <a href={noticePreview.url} download={noticePreview.name} target="_blank" rel="noopener noreferrer"
+                style={{ padding:'6px 14px', borderRadius:'8px', background:'#f0fdf4', border:'1.5px solid #86efac', color:'#16a34a', fontSize:'12px', fontWeight:700, textDecoration:'none' }}>⬇ 다운로드</a>
             </div>
-            <div style={{ overflow:'auto', flex:1, display:'flex', alignItems:'center', justifyContent:'center', background:'#f9fafb', padding:'16px' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', background:'#f9fafb', borderRadius:'8px', padding:'16px', minHeight:'300px' }}>
               {noticePreview.fileType === 'application/pdf' ? (
                 <iframe src={noticePreview.url} title={noticePreview.name} style={{ width:'100%', height:'600px', border:'none', borderRadius:'8px' }} />
               ) : (
                 <img src={noticePreview.url} alt={noticePreview.name} style={{ maxWidth:'100%', maxHeight:'100%', borderRadius:'8px', objectFit:'contain' }} />
               )}
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* 업로딩 오버레이 */}
       {uploading && (
