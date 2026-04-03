@@ -979,42 +979,10 @@ export function Attendance({ user, pageParams = {} }) {
   const [selClassId, setSelClassId] = useState(() => pageParams.classId || allClasses[0]?.id || '')
   const [selSection, setSelSection] = useState('')
   const [selTerm,    setSelTerm]    = useState('')
-  const [selDate,    setSelDate]    = useState(() => {
-    if (pageParams.date) return pageParams.date
-    // 수업일 자동 선택: 첫 수업의 오늘 이후 가장 가까운 수업일 (없으면 오늘)
-    const firstCls = allClasses[0]
-    if (firstCls) {
-      const sessions = calcSessionDates(firstCls)
-      const upcoming = sessions.find(d => d >= today)
-      if (upcoming) return upcoming
-      const past = [...sessions].reverse().find(d => d < today)
-      if (past) return past
-    }
-    return today
-  })
+  const [selDate,    setSelDate]    = useState(() => pageParams.date || today)
   const [dateClicked, setDateClicked] = useState(false)
-  const [calYear,    setCalYear]    = useState(() => {
-    if (pageParams.date) return new Date(pageParams.date+'T00:00:00').getFullYear()
-    const firstCls = allClasses[0]
-    if (firstCls) {
-      const sessions = calcSessionDates(firstCls)
-      const upcoming = sessions.find(d => d >= today)
-      const target = upcoming || [...sessions].reverse().find(d => d < today)
-      if (target) return new Date(target+'T00:00:00').getFullYear()
-    }
-    return now_.getFullYear()
-  })
-  const [calMonth,   setCalMonth]   = useState(() => {
-    if (pageParams.date) return new Date(pageParams.date+'T00:00:00').getMonth()
-    const firstCls = allClasses[0]
-    if (firstCls) {
-      const sessions = calcSessionDates(firstCls)
-      const upcoming = sessions.find(d => d >= today)
-      const target = upcoming || [...sessions].reverse().find(d => d < today)
-      if (target) return new Date(target+'T00:00:00').getMonth()
-    }
-    return now_.getMonth()
-  })
+  const [calYear,    setCalYear]    = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getFullYear() })
+  const [calMonth,   setCalMonth]   = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getMonth() })
 
   // 기간 필터 날짜 범위 계산
   const TERM_RANGES = {
