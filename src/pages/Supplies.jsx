@@ -5,6 +5,8 @@ import {
   SupplySubjects, SupplyVendors, SupplyItems, SupplyPlans,
   SupplyProducts, SupplyProductPlans, SupplyStudentProgress, SupplySessionChecks,
 } from '../lib/db.js'
+import { Modal } from '../components/Atoms.jsx'
+import { useToast } from '../hooks/useToast.js'
 
 const C = {
   primary: '#f97316', success: '#16a34a', danger: '#ef4444',
@@ -160,6 +162,7 @@ export function Supplies({ user }) {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 2500)
   }
+  const { error: toastError } = useToast()
 
   const schoolList = [...new Set(classes.map(c => c.organization).filter(Boolean))]
 
@@ -207,7 +210,7 @@ export function Supplies({ user }) {
   })
 
   const saveSupply = () => {
-    if (!supplyForm.name && !supplyForm.productId) { alert('교구명을 입력하거나 교구를 선택하세요'); return }
+    if (!supplyForm.name && !supplyForm.productId) { toastError('교구명을 입력하거나 교구를 선택하세요'); return }
     const product = productList.find(p => p.id === supplyForm.productId)
     const finalName = supplyForm.productId ? (product?.name || supplyForm.name) : supplyForm.name
     checkedStudents.forEach(sid => {
@@ -287,7 +290,7 @@ export function Supplies({ user }) {
   const vendorFiles    = (vendorId) => planList.filter(p => p.vendorId === vendorId)
 
   const saveVendor = () => {
-    if (!vendorForm.name) { alert('업체명을 입력하세요'); return }
+    if (!vendorForm.name) { toastError('업체명을 입력하세요'); return }
     SupplyVendors.insert({ id: uid(), teacherId: user.id, subject: selSubject, ...vendorForm, createdAt: now() })
     reload(); setVendorModal(false); setVendorForm({ name:'', managerName:'', contact:'', memo:'' }); showToast('업체가 등록되었습니다.')
   }
@@ -332,12 +335,12 @@ export function Supplies({ user }) {
       setProductModal(true)
     } catch(e) {
       console.error('openProductModal error:', e)
-      alert('오류가 발생했습니다: ' + e.message)
+      toastError('오류가 발생했습니다: ' + e.message)
     }
   }
 
   const saveProduct = () => {
-    if (!productForm.name) { alert('교구명을 입력하세요'); return }
+    if (!productForm.name) { toastError('교구명을 입력하세요'); return }
     const isEdit = !!productForm.id
     const productId = isEdit ? productForm.id : uid()
     if (isEdit) {
@@ -412,9 +415,9 @@ export function Supplies({ user }) {
         }
       })
       reload()
-      showToast('저장되었습니다.')
+      showToast('수정이 완료되었습니다.')
       setSessionPlanModal(false)
-    } catch(e) { alert('저장 실패: '+e.message) }
+    } catch(e) { toastError('저장 실패: '+e.message) }
     finally { setUploading(false) }
   }
 
@@ -456,10 +459,10 @@ export function Supplies({ user }) {
   const saveFile = async () => {
     // 교구 선택 필수 (plan/session 모드)
     const needsProduct = ['plan','session','promo'].includes(fileModalMode)
-    if (needsProduct && !fileForm.productId) { alert('교구를 선택하세요'); return }
+    if (needsProduct && !fileForm.productId) { toastError('교구를 선택하세요'); return }
     // 차시별 지도안이면 단계도 필수
     const isSession = fileModalMode === 'session' || (fileModalMode === 'plan' && fileForm.fileType === 'session')
-    if (isSession && !fileForm.stage) { alert('단계를 선택하세요'); return }
+    if (isSession && !fileForm.stage) { toastError('단계를 선택하세요'); return }
     // 제목 자동 생성
     const autoProduct = productList.find(p => p.id === (fileProductTarget || fileForm.productId))
     const autoTitle = autoProduct
@@ -504,8 +507,8 @@ export function Supplies({ user }) {
           })
         })
       }
-      reload(); setFileModal(false); setModalFile(null); setFileEditId(null); showToast(fileEditId ? '수정이 완료되었습니다.' : '저장이 완료되었습니다.')
-    } catch(e) { alert('업로드 실패: '+e.message) }
+      reload(); setFileModal(false); setModalFile(null); setFileEditId(null); showToast(fileEditId ? '수정이 완료되었습니다.' : '등록이 완료되었습니다.')
+    } catch(e) { toastError('업로드 실패: '+e.message) }
     finally { setUploading(false) }
   }
   const deleteFile = (id) => {
@@ -516,7 +519,7 @@ export function Supplies({ user }) {
   const addSubject = () => {
     const s = newSubject.trim()
     if (!s) return
-    if (subjects.includes(s)) { alert('이미 있는 과목이에요'); return }
+    if (subjects.includes(s)) { toastError('이미 있는 과목이에요'); return }
     SupplySubjects.insert({ id: uid(), teacherId: user.id, name:s, sortOrder:subjects.length, createdAt:now() })
     reload(); setNewSubject(''); setSubjectModal(false); setSelSubject(s)
   }
@@ -1135,19 +1138,8 @@ export function Supplies({ user }) {
       )}
 
       {/* ── 교구 설정 모달 */}
-      {supplyModal && (
-        <div onClick={e=>{ if(e.target===e.currentTarget) setSupplyModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'420px', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-
-            {/* 헤더 */}
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>🎒 교구 설정 ({checkedStudents.length}명)</span>
-              <button onClick={() => setSupplyModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
-
-            {/* 내용 */}
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px', overflowY:'auto' }}>
+      <Modal open={supplyModal} onClose={() => setSupplyModal(false)} title={`🎒 교구 설정 (${checkedStudents.length}명)`} width={420}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
 
               {/* ① 교구 선택 */}
               <div>
@@ -1263,22 +1255,11 @@ export function Supplies({ user }) {
                 style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
                 취소
               </button>
-            </div>
-          </div>
         </div>
-      )}
+      </Modal>
 
       {/* ── 진도 체크 모달 */}
-      {progressModal && progressStudent && (
-        <div onClick={e=>{ if(e.target===e.currentTarget) setProgressModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'600px', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-
-            {/* 헤더 */}
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>📊 {progressStudent.name} 진도 체크</span>
-              <button onClick={() => setProgressModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
+      <Modal open={!!(progressModal && progressStudent)} onClose={() => setProgressModal(false)} title={progressStudent ? `📊 ${progressStudent.name} 진도 체크` : ''} width={600}>
 
             {/* 내용 */}
             <div style={{ padding:'20px', overflowY:'auto' }}>
@@ -1369,21 +1350,10 @@ export function Supplies({ user }) {
                 닫기
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* ── 교구 등록/수정 모달 */}
-      {productModal && (
-        <div onClick={e=>{ if(e.target===e.currentTarget) setProductModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'560px', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-
-            {/* 헤더 */}
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>{productForm.id ? '🤖 교구 수정' : '🤖 교구 등록'}</span>
-              <button onClick={() => setProductModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
+      <Modal open={productModal} onClose={() => setProductModal(false)} title={productForm.id ? '🤖 교구 수정' : '🤖 교구 등록'} width={560}>
 
             <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px', overflowY:'auto' }}>
 
@@ -1525,7 +1495,7 @@ export function Supplies({ user }) {
                           const cur = [...(prev[productStageTab]||[])]
                           cur.splice(idx, 1)
                           return {...prev, [productStageTab]: cur}
-                        })} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', padding:0, lineHeight:1 }}>×</button>
+                        })} style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                       </div>
                     )
                   })}
@@ -1556,23 +1526,10 @@ export function Supplies({ user }) {
                 취소
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* ── 차시 목차리스트 모달 */}
-      {sessionPlanModal && (
-        <div onClick={e=>{ if(e.target===e.currentTarget) setSessionPlanModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'560px', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-
-            {/* 헤더 고정 */}
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>
-                📝 {productList.find(p=>p.id===sessionPlanTarget.productId)?.name} — {sessionPlanTarget.stage}단계 목차리스트
-              </span>
-              <button onClick={() => setSessionPlanModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
+      <Modal open={sessionPlanModal} onClose={() => setSessionPlanModal(false)} title={`📝 ${productList.find(p=>p.id===sessionPlanTarget.productId)?.name} — ${sessionPlanTarget.stage}단계 목차리스트`} width={560}>
 
             {/* 내용 스크롤 영역 */}
             <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px', overflowY:'auto' }}>
@@ -1614,7 +1571,7 @@ export function Supplies({ user }) {
                         placeholder="준비물 (선택)"
                         style={{ ...iStyle, padding:'5px 8px', fontSize:'12px' }} />
                       <button onClick={() => setSessionPlanEdits(prev => prev.filter((_,i) => i!==idx))}
-                        style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', padding:0, lineHeight:1 }}>×</button>
+                        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                     </div>
                   ))}
                 </div>
@@ -1642,11 +1599,10 @@ export function Supplies({ user }) {
                 취소
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* ── 파일 등록 모달 */}
+      <Modal open={fileModal} onClose={() => { setFileModal(false); setModalFile(null) }} title={`${fileEditId ? '✏️ ' : ''}${fileModalTitle}${fileEditId ? ' 수정' : ''} — ${selSubject}`} width={500}>
       {fileModal && (() => {
         // 지도안 탭에서 열린 경우: 연간=annual, 차시별=session
         // 교구 목록 (현재 과목)
@@ -1661,18 +1617,7 @@ export function Supplies({ user }) {
         }))
 
         return (
-          <div onClick={e=>{ if(e.target===e.currentTarget){ setFileModal(false); setModalFile(null) } }}
-            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-            <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'500px', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-
-              {/* 헤더 */}
-              <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
-                <div>
-                  <span style={{ fontSize:'16px', fontWeight:700 }}>{fileEditId ? '✏️ ' : ''}{fileModalTitle}{fileEditId ? ' 수정' : ''}</span>
-                  <span style={{ fontSize:'13px', color:C.muted, fontWeight:400, marginLeft:'6px' }}>— {selSubject}</span>
-                </div>
-                <button onClick={()=>{ setFileModal(false); setModalFile(null) }} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-              </div>
+          <div>
 
               <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'16px', overflowY:'auto' }}>
 
@@ -1794,18 +1739,11 @@ export function Supplies({ user }) {
           </div>
         )
       })()}
-
+      </Modal>
 
       {/* ── 교구업체 등록 모달 */}
-      {vendorModal && (
-        <div onClick={e=>{ if(e.target===e.currentTarget) setVendorModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'420px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>🏢 교구업체 등록 — {selSubject}</span>
-              <button onClick={()=>setVendorModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+      <Modal open={vendorModal} onClose={() => setVendorModal(false)} title={`🏢 교구업체 등록 — ${selSubject}`} width={420}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
               {[
                 { label:'업체명 *',      key:'name',        placeholder:'예: (주)로봇나라' },
                 { label:'담당자 이름',   key:'managerName', placeholder:'예: 홍길동' },
@@ -1827,21 +1765,12 @@ export function Supplies({ user }) {
                 <button onClick={()=>setVendorModal(false)}
                   style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
-            </div>
-          </div>
         </div>
-      )}
+      </Modal>
 
       {/* ── 과목 추가 모달 */}
-      {subjectModal && (
-        <div onClick={e=>{ if(e.target===e.currentTarget) setSubjectModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'360px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>+ 과목 추가</span>
-              <button onClick={()=>setSubjectModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+      <Modal open={subjectModal} onClose={() => setSubjectModal(false)} title="+ 과목 추가" width={360}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
               <input value={newSubject} onChange={e=>setNewSubject(e.target.value)}
                 onKeyDown={e=>e.key==='Enter'&&addSubject()}
                 placeholder="예: 드론, 코딩, 미술 ..." style={iStyle} autoFocus />
@@ -1851,10 +1780,8 @@ export function Supplies({ user }) {
                 <button onClick={()=>setSubjectModal(false)}
                   style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
-            </div>
-          </div>
         </div>
-      )}
+      </Modal>
 
       {/* ── 삭제 확인 모달 */}
       {deleteConfirm && (
