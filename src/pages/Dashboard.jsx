@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems } from '../lib/db.js'
 import { calcSessionDates, sortClasses, uid, now, getSessionInfo } from '../lib/utils.js'
+import { useToast } from '../hooks/useToast.js'
 
 const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토']
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
@@ -120,6 +121,7 @@ function DayDetail({ date, user, classes, onNav }) {
   const [newNote, setNewNote] = useState('')
   const [addingNote, setAddingNote] = useState(false)
   const inputRef = useRef()
+  const { success } = useToast()
 
   useEffect(() => {
     setNotes(Notes.byTeacherDate(user.id, date))
@@ -133,10 +135,11 @@ function DayDetail({ date, user, classes, onNav }) {
     Notes.insert({ id: uid(), teacherId: user.id, date, content: newNote.trim(), createdAt: now() })
     setNotes(Notes.byTeacherDate(user.id, date))
     setNewNote(''); setAddingNote(false)
+    success('등록이 완료되었습니다.')
   }
 
   const deleteNote = (id) => { Notes.delete(id); setNotes(Notes.byTeacherDate(user.id, date)) }
-  const editNote = (id, content) => { Notes.update(id, { content }); setNotes(Notes.byTeacherDate(user.id, date)) }
+  const editNote = (id, content) => { Notes.update(id, { content }); setNotes(Notes.byTeacherDate(user.id, date)); success('수정이 완료되었습니다.') }
 
   const schools = {}
   dayClasses.forEach(cls => { if (!schools[cls.organization]) schools[cls.organization] = []; schools[cls.organization].push(cls) })
