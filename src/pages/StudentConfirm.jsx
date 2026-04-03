@@ -3,6 +3,7 @@ import { Classes as ClassesDB, Students as StudentsDB, TeacherParentLinks } from
 import { now, fmtPhone } from '../lib/utils.js'
 import { Btn, Card, PageHeader, Tag, EmptyState, Modal } from '../components/Atoms.jsx'
 import { STUDENT_STATUS } from '../constants/config.js'
+import { useToast } from '../hooks/useToast.js'
 
 export function StudentConfirm({ user }) {
   const [selectedClass, setSelectedClass] = useState('')
@@ -14,6 +15,7 @@ export function StudentConfirm({ user }) {
   const [lotteryResult, setLotteryResult]     = useState([])      // 추첨 결과
   const [lotteryDone, setLotteryDone]         = useState(false)   // 추첨 완료 여부
   const [lotteryAnimating, setLotteryAnimating] = useState(false) // 추첨 애니메이션
+  const { success, error: toastError } = useToast()
 
   const classes = ClassesDB.byTeacher(user.id)
   const cls = classes.find(c => c.id === selectedClass)
@@ -62,14 +64,14 @@ export function StudentConfirm({ user }) {
     if (!selected.size) return
     doConfirm([...selected])
     setSelected(new Set())
-    alert(`${selected.size}명이 최종 확정되었습니다.`)
+    success(`${selected.size}명이 최종 확정되었습니다.`)
   }
 
   // ✅ 랜덤 추첨 실행
   const runLottery = () => {
     const count = parseInt(lotteryCount)
-    if (!count || count <= 0) { alert('추첨 인원을 입력하세요.'); return }
-    if (count > lotteryPool.length) { alert(`추첨 대상(${lotteryPool.length}명)보다 많은 인원을 뽑을 수 없습니다.`); return }
+    if (!count || count <= 0) { toastError('추첨 인원을 입력하세요.'); return }
+    if (count > lotteryPool.length) { toastError(`추첨 대상(${lotteryPool.length}명)보다 많은 인원을 뽑을 수 없습니다.`); return }
 
     setLotteryAnimating(true)
 
@@ -111,7 +113,7 @@ export function StudentConfirm({ user }) {
     setLotteryDone(false)
     setLotteryResult([])
     setLotteryCount('')
-    alert(`추첨 완료! 선발 ${winners.length}명 / 대기 ${losers.length}명`)
+    success(`추첨 완료! 선발 ${winners.length}명 / 대기 ${losers.length}명`)
   }
 
   const closeLottery = () => {
