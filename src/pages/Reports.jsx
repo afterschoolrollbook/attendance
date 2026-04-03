@@ -4,6 +4,7 @@ import { calcSessionDates, today, fmtDate } from '../lib/utils.js'
 import { Btn, Card, PageHeader, Tag, ProgressBar, EmptyState } from '../components/Atoms.jsx'
 import { ATTENDANCE_STATUS } from '../constants/config.js'
 import { AdSlot } from '../components/AdSlot.jsx'
+import { useToast } from '../hooks/useToast.js'
 
 // 출석 상태 → 텍스트 (엑셀용)
 const STATUS_TEXT = { present: '출석', absent: '결석', late: '지각', early: '조퇴', pending: '-' }
@@ -12,6 +13,7 @@ const STATUS_EMOJI = { present: '✅', absent: '❌', late: '🕐', early: '🔜
 export function Reports({ user }) {
   const [selectedClass, setSelectedClass] = useState('')
   const [downloading, setDownloading] = useState(false)
+  const { error: toastError } = useToast()
 
   const classes = ClassesDB.byTeacher(user.id)
   const cls = classes.find(c => c.id === selectedClass)
@@ -76,7 +78,7 @@ export function Reports({ user }) {
       const filename = `${cls.organization}_${cls.className}${cls.section ? '_'+cls.section+'반' : ''}_출석리포트_${today()}.xlsx`
       XLSX.writeFile(wb, filename)
     } catch (e) {
-      alert('엑셀 다운로드 중 오류가 발생했습니다.')
+      toastError('엑셀 다운로드 중 오류가 발생했습니다.')
       console.error(e)
     } finally {
       setDownloading(false)
