@@ -1213,21 +1213,41 @@ export function Attendance({ user, pageParams = {} }) {
 
         {/* 오른쪽 패널 */}
         <div>
-          {!selClassId ? (
-            <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
-              <div style={{ fontSize:'36px', marginBottom:'10px' }}>📋</div>
-              <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업을 선택하세요</div>
-              <div style={{ fontSize:'13px', marginTop:'6px' }}>상단에서 수업을 선택하면 출석체크를 시작할 수 있습니다</div>
-            </div>
-          ) : (!isSessionDate && dateClicked) ? (
-            <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
-              <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
-              <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업이 없는 날입니다</div>
-              <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
-            </div>
-          ) : (
-            <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} key={selDate+selClassId} />
-          )}
+          {(() => {
+            if (selClassId) {
+              // 수업 선택됨 → 해당 수업 UnifiedPanel
+              if (!isSessionDate && dateClicked) {
+                return (
+                  <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
+                    <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
+                    <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업이 없는 날입니다</div>
+                    <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
+                  </div>
+                )
+              }
+              return <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} key={selDate+selClassId} />
+            }
+
+            // 수업 미선택 → 그날 수업 전체를 UnifiedPanel로 표시
+            const dayClasses = sortClasses(schoolClasses.filter(cls => calcSessionDates(cls).includes(selDate)))
+            if (dayClasses.length === 0) {
+              return (
+                <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
+                  <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
+                  <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업이 없는 날입니다</div>
+                  <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
+                </div>
+              )
+            }
+            return (
+              <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+                {dayClasses.map(cls => {
+                  const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status))
+                  return <UnifiedPanel key={cls.id+selDate} cls={cls} date={selDate} students={clsStudents} user={user} allClasses={allClasses} />
+                })}
+              </div>
+            )
+          })()}
         </div>
       </div>
     </div>
