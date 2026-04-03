@@ -1725,8 +1725,6 @@ export function Supplies({ user }) {
                 <button onClick={()=>{ setFileModal(false); setModalFile(null) }}
                   style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
-            </div>
-          </div>
       </Modal>
 
       {/* ── 교구업체 등록 모달 */}
