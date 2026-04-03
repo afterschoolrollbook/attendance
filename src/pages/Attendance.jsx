@@ -355,7 +355,7 @@ function SupplyProgressBadge({ studentId, classId, onEdit }) {
               <button onClick={() => onEdit({ item, product, stage, checkedCount })}
                 style={{ fontSize:'9px', color:'#6b7280', background:'#f3f4f6', border:'1px solid #e5e7eb', borderRadius:'3px', padding:'0 4px', cursor:'pointer', lineHeight:'16px', fontFamily:'Noto Sans KR, sans-serif' }}>
                 수정
-              </Btn>
+              </button>
             )}
           </div>
         )

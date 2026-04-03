@@ -1017,7 +1017,7 @@ export function Admin({ user: currentUser }) {
                         </button>
                         <button onClick={deleteTeacher}
                           style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fca5a5', background: '#fef2f2', color: '#ef4444', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
-                          삭제</Btn>
+                          삭제</button>
                       </div>
                     </td>
                   </tr>
