@@ -1,11 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, today } from '../lib/utils.js'
-import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader , ToastContainer} from '../components/Atoms.jsx'
+import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
 import { ClassCalendar } from '../components/ClassCalendar.jsx'
 import { TERM_TYPES, REPEAT_TYPES } from '../constants/config.js'
-import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
 
 const VIEW_TABS = ['요일별', '학교별', '과목별']
 const DAY_ORDER = ['월', '화', '수', '목', '금', '토', '일']
@@ -52,8 +50,6 @@ function emptyForm() {
 }
 
 export function Classes({ user }) {
-  const { success, error: toastError, warning } = useToast()
-  const { confirm } = useConfirm()
   const [view,    setView]    = useState('요일별')
   const [selYear, setSelYear] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -71,7 +67,7 @@ export function Classes({ user }) {
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const allClasses = ClassesDB.byTeacher(user.id)
-  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
+  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
   const classes = selYear ? allClasses.filter(c => c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) : allClasses
   const t = today()
 
@@ -166,7 +162,7 @@ export function Classes({ user }) {
 
   const save = () => {
     if (!form.organization.trim() || !form.className.trim() || !form.days.length || !form.startDate || !form.endDate) {
-      toastError('필수 항목을 입력하세요 (단체명, 수업명, 요일, 기간).')
+      alert('필수 항목을 입력하세요 (단체명, 수업명, 요일, 기간).')
       return
     }
     if (editId && editId !== '__copy__') {
@@ -185,14 +181,14 @@ export function Classes({ user }) {
     const files = Array.from(e.target.files)
     const current = form.promotionImgs || []
     const remaining = MAX_PROMO_IMAGES - current.length
-    if (remaining <= 0) { toastError('최대 2장까지 등록 가능합니다.'); return }
+    if (remaining <= 0) { alert('최대 2장까지 등록 가능합니다.'); return }
     const toAdd = files.slice(0, remaining)
     const classId = editId && editId !== '__copy__' ? editId : ('tmp_' + uid())
     setUploading(true)
     try {
       const urls = await Promise.all(toAdd.map(f => uploadToStorage(user.id, classId, 'promo', f)))
       set('promotionImgs', [...current, ...urls])
-    } catch(err) { toastError('업로드 실패: ' + err.message) }
+    } catch(err) { alert('업로드 실패: ' + err.message) }
     finally { setUploading(false) }
     e.target.value = ''
   }
@@ -206,10 +202,10 @@ export function Classes({ user }) {
     const files = Array.from(e.target.files)
     const current = form.noticeFiles || []
     const remaining = MAX_NOTICE_FILES - current.length
-    if (remaining <= 0) { toastError(`최대 ${MAX_NOTICE_FILES}개까지 등록 가능합니다.`); return }
+    if (remaining <= 0) { alert(`최대 ${MAX_NOTICE_FILES}개까지 등록 가능합니다.`); return }
     const allowed = ['image/jpeg','image/png','application/pdf']
     const valid = files.filter(f => allowed.includes(f.type)).slice(0, remaining)
-    if (valid.length < files.length) toastError('jpg, png, pdf 파일만 업로드 가능합니다.')
+    if (valid.length < files.length) alert('jpg, png, pdf 파일만 업로드 가능합니다.')
     if (!valid.length) return
     const classId = editId && editId !== '__copy__' ? editId : ('tmp_' + uid())
     setUploading(true)
@@ -220,7 +216,7 @@ export function Classes({ user }) {
         fileType: f.type,
       })))
       set('noticeFiles', [...current, ...results])
-    } catch(err) { toastError('업로드 실패: ' + err.message) }
+    } catch(err) { alert('업로드 실패: ' + err.message) }
     finally { setUploading(false) }
     e.target.value = ''
   }
@@ -240,7 +236,7 @@ export function Classes({ user }) {
     try {
       const url = await uploadToStorage(user.id, classId, 'template', file)
       set('templateFile', { name: file.name, fileType, url })
-    } catch(err) { toastError('업로드 실패: ' + err.message) }
+    } catch(err) { alert('업로드 실패: ' + err.message) }
     finally { setUploading(false) }
     e.target.value = ''
   }
@@ -557,7 +553,8 @@ export function Classes({ user }) {
               {(form.promotionImgs || []).map((img, i) => (
                 <div key={i} style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '1px solid #e5e7eb', aspectRatio: '0.707' }}>
                   <img src={img} alt={`홍보물 ${i+1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <Btn size='sm' variant='outlineDanger' onClick={() => removePromo(i)} style={{ position: 'absolute', top: '8px', right: '8px' }}>삭제</Btn>
+                  <button onClick={() => removePromo(i)}
+                    style={{ position: 'absolute', top: '8px', right: '8px', width: '26px', height: '26px', borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.6)', color: '#fff', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
                   <div style={{ position: 'absolute', bottom: '6px', left: '8px', fontSize: '11px', color: '#fff', background: 'rgba(0,0,0,0.5)', padding: '2px 7px', borderRadius: '5px' }}>{i+1}번째</div>
                 </div>
               ))}
@@ -591,7 +588,8 @@ export function Classes({ user }) {
                   </div>
                   <button onClick={() => setNoticePreview(f)}
                     style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #bfdbfe', background:'#eff6ff', color:'#1d4ed8', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>미리보기</button>
-                  <Btn size='sm' variant='outlineDanger' onClick={() => removeNotice(i)}>삭제</Btn>
+                  <button onClick={() => removeNotice(i)}
+                    style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                 </div>
               ))}
               {(form.noticeFiles || []).length < MAX_NOTICE_FILES && (
@@ -703,7 +701,7 @@ export function Classes({ user }) {
                     const date = e.target.value
                     if (!date) return
                     const already = (form.cancelledDates||[]).some(c => c.date === date)
-                    if (already) { toastError('이미 추가된 날짜입니다.'); return }
+                    if (already) { alert('이미 추가된 날짜입니다.'); return }
                     setForm(f => ({ ...f, cancelledDates: [...(f.cancelledDates||[]), { date, reason:'school_holiday', memo:'' }] }))
                     e.target.value = ''
                   }}
@@ -743,7 +741,8 @@ export function Classes({ user }) {
                     <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#fff', borderRadius:'8px', border:'1px solid #f3f4f6' }}>
                       <span style={{ fontSize:'13px', fontWeight:600, color:'#374151', minWidth:'80px' }}>{c.date.slice(5)}</span>
                       <span style={{ fontSize:'12px', color:'#6b7280', flex:1 }}>{c.memo || ({public_holiday:'공휴일', school_holiday:'학교재량휴일', teacher_absent:'강사사정', etc:'기타'}[c.reason] || c.reason)}</span>
-                      <Btn size='sm' variant='outlineDanger' onClick={() => setForm(f => ({ ...f, cancelledDates: (f.cancelledDates||[]).filter((_,j) => j !== i) }))}>삭제</Btn>
+                      <button onClick={() => setForm(f => ({ ...f, cancelledDates: (f.cancelledDates||[]).filter((_,j) => j !== i) }))}
+                        style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'16px', padding:'0 4px' }}>×</button>
                     </div>
                   ))}
                 </div>

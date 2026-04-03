@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Btn } from '../components/Atoms.jsx'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyStudentProgress, SupplySessionChecks, SupplyProducts } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems } from '../lib/db.js'
 import { calcSessionDates, sortClasses, uid, now, getSessionInfo } from '../lib/utils.js'
-import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
 
 const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토']
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
@@ -59,7 +56,7 @@ function NoteItem({ note, onDelete, onEdit }) {
           <input value={text} onChange={e => setText(e.target.value)} autoFocus
             onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }}
             style={{ flex: 1, border: '1.5px solid #f97316', borderRadius: '6px', padding: '4px 8px', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }} />
-          <Btn onClick={save}>저장</Btn>
+          <button onClick={save} style={smBtn('#f97316','#fff')}>저장</button>
           <button onClick={() => setEditing(false)} style={smBtn('#e5e7eb','#374151')}>취소</button>
         </div>
       ) : (
@@ -67,7 +64,7 @@ function NoteItem({ note, onDelete, onEdit }) {
           <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>{note.content}</span>
           <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
             <button onClick={() => setEditing(true)} style={smBtn('#f3f4f6','#6b7280')}>편집</button>
-            <Btn size='sm' variant='outlineDanger' onClick={() => onDelete(note.id)}>삭제</Btn>
+            <button onClick={() => onDelete(note.id)} style={smBtn('#fef2f2','#ef4444')}>삭제</button>
           </div>
         </div>
       )}
@@ -278,7 +275,7 @@ function DayDetail({ date, user, classes, onNav }) {
                 placeholder="예: 홍길동 로봇교구 준비 / 배터리 안내"
                 onKeyDown={e => { if (e.key === 'Enter') addNote(); if (e.key === 'Escape') { setAddingNote(false); setNewNote('') } }}
                 style={{ flex: 1, border: '1.5px solid #f97316', borderRadius: '8px', padding: '9px 13px', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }} />
-              <Btn onClick={addNote}>저장</Btn>
+              <button onClick={addNote} style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: C.primary, color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>저장</button>
               <button onClick={() => { setAddingNote(false); setNewNote('') }}
                 style={{ padding: '9px 13px', borderRadius: '8px', border: `1px solid ${C.border}`, background: '#fff', color: C.muted, fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>취소</button>
             </div>
@@ -290,8 +287,6 @@ function DayDetail({ date, user, classes, onNav }) {
 }
 
 export function Dashboard({ user, onNav }) {
-  const { success, error: toastError } = useToast()
-  const { confirm } = useConfirm()
   const today = todayStr()
   const d = new Date()
   const [calYear, setCalYear] = useState(d.getFullYear())
@@ -316,25 +311,6 @@ export function Dashboard({ user, onNav }) {
     const supplyData = SupplyItems.byClass(cls.id)
     const notSet = confirmed.filter(s => !supplyData.find(item => item.studentId === s.id && item.name))
     return notSet.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: notSet.length, total: confirmed.length }] : []
-  })
-
-  // 진도 마감 알림 — alertSession 이상 완료한 학생
-  const progressAlerts = classes.flatMap(cls => {
-    const confirmed = StudentsDB.confirmed(cls.id)
-    return confirmed.flatMap(student => {
-      const items = SupplyItems.byClassStudent(cls.id, student.id)
-      return items.flatMap(item => {
-        if (!item.productId) return []
-        const product = SupplyProducts.find(item.productId)
-        if (!product) return []
-        const checks = SupplySessionChecks.byProductStudent(item.productId, student.id, cls.id)
-        const checkedCount = checks.filter(c => c.checked).length
-        const isDone = checkedCount >= product.sessionsPerStage
-        const isAlert = checkedCount >= product.alertSession && !isDone
-        if (!isAlert && !isDone) return []
-        return [{ student, cls, item, product, checkedCount, isDone }]
-      })
-    })
   })
 
   const prevMonth = () => { if (calMonth === 0) { setCalYear(y=>y-1); setCalMonth(11) } else setCalMonth(m=>m-1) }
@@ -364,34 +340,6 @@ export function Dashboard({ user, onNav }) {
           )}
         </div>
       </div>
-
-      {/* 진도 마감 알림 */}
-      {progressAlerts.length > 0 && (
-        <div style={{ background: '#fffbeb', borderRadius: '12px', border: '1.5px solid #fbbf24', padding: '14px 18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-            <span style={{ fontSize: '16px' }}>📋</span>
-            <span style={{ fontSize: '14px', fontWeight: 700, color: '#92400e' }}>진도 체크 필요 — 단계 전환 준비</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {progressAlerts.map(({ student, cls, item, product, checkedCount, isDone }) => (
-              <div key={`${student.id}-${item.id}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#fff', borderRadius: '8px', border: `1px solid ${isDone ? '#86efac' : '#fde68a'}`, gap: '8px', flexWrap: 'wrap' }}>
-                <div style={{ fontSize: '13px', color: '#111827' }}>
-                  <span style={{ fontWeight: 700 }}>{cls.organization}</span>
-                  <span style={{ color: '#6b7280' }}> · {student.name}</span>
-                  <span style={{ fontSize: '12px', color: '#6b7280', marginLeft: '6px' }}>🎒 {item.name || product.name}</span>
-                </div>
-                <span style={{ fontSize: '12px', fontWeight: 700,
-                  color: isDone ? '#15803d' : '#b45309',
-                  background: isDone ? '#f0fdf4' : '#fffbeb',
-                  border: `1px solid ${isDone ? '#86efac' : '#fde68a'}`,
-                  borderRadius: '6px', padding: '2px 8px', whiteSpace: 'nowrap' }}>
-                  {isDone ? '✅ 단계 완료! 다음 단계 준비' : `⚠️ ${checkedCount}/${product.sessionsPerStage}차시 — 단계 전환 임박`}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 교구 준비 알림 */}
       {supplyAlerts.length > 0 && (

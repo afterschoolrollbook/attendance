@@ -1,10 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Btn, Input, Card, PageHeader, ToastContainer } from '../components/Atoms.jsx'
 import { Users } from '../lib/db.js'
 import { now } from '../lib/utils.js'
 import { sendEmail, isConfigured } from '../lib/supabase.js'
-import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
+import { Btn, Input, Card, PageHeader } from '../components/Atoms.jsx'
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316', success:'#16a34a', danger:'#ef4444' }
 
@@ -146,8 +144,6 @@ function VerifyModal({ user, onVerified, onClose }) {
 }
 
 export function Profile({ user, onUserUpdate, onNav }) {
-  const { success, error: toastError, warning } = useToast()
-  const { confirm } = useConfirm()
   const [verified,      setVerified]      = useState(false)
   const [showVerify,    setShowVerify]    = useState(false)
   const [pendingAction, setPendingAction] = useState(null)

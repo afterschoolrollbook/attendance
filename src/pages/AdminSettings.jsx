@@ -1,8 +1,6 @@
 import React, { useState } from 'react'
-import { Btn, Card, PageHeader, Toggle, ToastContainer } from '../components/Atoms.jsx'
 import { Settings } from '../lib/db.js'
-import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
+import { Card, PageHeader, Toggle, Btn } from '../components/Atoms.jsx'
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316', success:'#16a34a' }
 
@@ -539,8 +537,8 @@ function RegionSection() {
   const removeSchool = (name) => setSchools(p => p.filter(s => s.name !== name))
 
   const saveForm = () => {
-    if (!form.sido) { toastError('시도를 선택하세요.'); return }
-    if (!form.support.trim()) { toastError('교육지원청명을 입력하세요.'); return }
+    if (!form.sido) { alert('시도를 선택하세요.'); return }
+    if (!form.support.trim()) { alert('교육지원청명을 입력하세요.'); return }
     const entry = { id: editId || String(Date.now()), sido: form.sido, office: form.office.trim(), officeUrl: form.officeUrl.trim(), support: form.support.trim(), supportUrl: form.supportUrl.trim(), schools }
     if (editId) {
       setRegions(p => p.map(r => r.id === editId ? entry : r))
@@ -551,9 +549,8 @@ function RegionSection() {
   }
 
   const deleteRegion = (id) => {
-    confirm('삭제하시겠습니까?', () => {
-      setRegions(p => p.filter(r => r.id !== id))
-    }, { icon: '🗑', confirmLabel: '삭제' })
+    if (!window.confirm('삭제하시겠습니까?')) return
+    setRegions(p => p.filter(r => r.id !== id))
   }
 
   return (
@@ -744,7 +741,8 @@ function RegionSection() {
                       ? <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:'11px', color:'#3b82f6', textDecoration:'none' }}>🔗 홈페이지</a>
                       : <span style={{ fontSize:'11px', color:'#d1d5db' }}>URL 미등록</span>
                     }
-                    <Btn size='sm' variant='outlineDanger' onClick={() => removeSchool(s.name)}>삭제</Btn>
+                    <button onClick={() => removeSchool(s.name)}
+                      style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', padding:'0', fontSize:'14px', lineHeight:1 }}>×</button>
                   </div>
                 ))}
               </div>
@@ -754,7 +752,8 @@ function RegionSection() {
           <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
             <button onClick={() => { setShowForm(false); setEditId(null) }}
               style={{ padding:'7px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
-            <Btn onClick={saveForm}>저장</Btn>
+            <button onClick={saveForm}
+              style={{ padding:'7px 16px', borderRadius:'8px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
           </div>
         </div>
       )}
@@ -805,8 +804,10 @@ function RegionSection() {
                       )}
                     </div>
                     <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
-                      <Btn size='sm' variant='ghost' onClick={() => { setEditId(r.id); setForm({ sido: r.sido, support: r.support }) }}>수정</Btn>
-                      <Btn size='sm' variant='outlineDanger' onClick={() => deleteRegion(r.id)}>삭제</Btn>
+                      <button onClick={() => openEdit(r)}
+                        style={{ padding:'4px 10px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>수정</button>
+                      <button onClick={() => deleteRegion(r.id)}
+                        style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#ef4444' }}>삭제</button>
                     </div>
                   </div>
                 ))}
@@ -875,7 +876,7 @@ function TeacherServiceSection() {
 
   // ─ 연수기관 저장
   const saveSite = () => {
-    if (!siteForm.name.trim()) { toastError('기관명을 입력하세요'); return }
+    if (!siteForm.name.trim()) { alert('기관명을 입력하세요'); return }
     const item = { ...siteForm, courses: siteForm.courses.split('\n').map(s=>s.trim()).filter(Boolean), id: siteEditIdx !== null ? ts.trainingSites[siteEditIdx].id : String(Date.now()) }
     const updated = siteEditIdx !== null
       ? ts.trainingSites.map((s,i) => i===siteEditIdx ? item : s)
@@ -890,14 +891,13 @@ function TeacherServiceSection() {
     setSiteEditIdx(i); setSiteModal(true)
   }
   const deleteSite = (i) => {
-    confirm('삭제할까요?', () => {
-      save({ trainingSites: ts.trainingSites.filter((_,idx)=>idx!==i) })
-    }, { icon: '🗑', confirmLabel: '삭제' })
+    if (!confirm('삭제할까요?')) return
+    save({ trainingSites: ts.trainingSites.filter((_,idx)=>idx!==i) })
   }
 
   // ─ 자격증 제휴처 저장
   const savePartner = () => {
-    if (!partnerForm.name.trim()) { toastError('기관명을 입력하세요'); return }
+    if (!partnerForm.name.trim()) { alert('기관명을 입력하세요'); return }
     const item = { ...partnerForm, subjects: partnerForm.subjects.split(',').map(s=>s.trim()).filter(Boolean), id: partnerEditIdx !== null ? ts.certPartners[partnerEditIdx].id : String(Date.now()) }
     const updated = partnerEditIdx !== null
       ? ts.certPartners.map((p,i) => i===partnerEditIdx ? item : p)
@@ -912,14 +912,13 @@ function TeacherServiceSection() {
     setPartnerEditIdx(i); setPartnerModal(true)
   }
   const deletePartner = (i) => {
-    confirm('삭제할까요?', () => {
-      save({ certPartners: ts.certPartners.filter((_,idx)=>idx!==i) })
-    }, { icon: '🗑', confirmLabel: '삭제' })
+    if (!confirm('삭제할까요?')) return
+    save({ certPartners: ts.certPartners.filter((_,idx)=>idx!==i) })
   }
 
   // ─ 공고 직접 등록
   const saveJob = () => {
-    if (!jobForm.title.trim()) { toastError('공고 제목을 입력하세요'); return }
+    if (!jobForm.title.trim()) { alert('공고 제목을 입력하세요'); return }
     const item = { ...jobForm, id: jobEditIdx !== null ? ts.jobPostings[jobEditIdx].id : String(Date.now()), createdAt: jobEditIdx !== null ? ts.jobPostings[jobEditIdx].createdAt : new Date().toISOString().slice(0,10) }
     const updated = jobEditIdx !== null
       ? ts.jobPostings.map((j,i) => i===jobEditIdx ? item : j)
@@ -930,9 +929,8 @@ function TeacherServiceSection() {
   const openAddJob = () => { setJobForm(EMPTY_JOB); setJobEditIdx(null); setJobModal(true) }
   const openEditJob = (i) => { setJobForm({ ...ts.jobPostings[i] }); setJobEditIdx(i); setJobModal(true) }
   const deleteJob = (i) => {
-    confirm('삭제할까요?', () => {
-      save({ jobPostings: ts.jobPostings.filter((_,idx)=>idx!==i) })
-    }, { icon: '🗑', confirmLabel: '삭제' })
+    if (!confirm('삭제할까요?')) return
+    save({ jobPostings: ts.jobPostings.filter((_,idx)=>idx!==i) })
   }
 
   const fStyle = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
@@ -1032,7 +1030,7 @@ function TeacherServiceSection() {
                   </div>
                   <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
                     <button onClick={() => openEditSite(i)} style={{ padding:'4px 10px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
-                    <Btn size='sm' variant='outlineDanger' onClick={() => confirm('삭제할까요?', () => deleteSite(i), { icon: '🗑', confirmLabel: '삭제' })}>삭제</Btn>
+                    <button onClick={() => deleteSite(i)} style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#ef4444' }}>삭제</button>
                   </div>
                 </div>
               ))}
@@ -1077,7 +1075,7 @@ function TeacherServiceSection() {
                       {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:'12px', color:'#3b82f6' }}>🔗 바로가기</a>}
                       <div style={{ marginLeft:'auto', display:'flex', gap:'6px' }}>
                         <button onClick={() => openEditPartner(i)} style={{ padding:'3px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
-                        <Btn size='sm' variant='outlineDanger' onClick={() => confirm('삭제할까요?', () => deletePartner(i), { icon: '🗑', confirmLabel: '삭제' })}>삭제</Btn>
+                        <button onClick={() => deletePartner(i)} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#ef4444' }}>삭제</button>
                       </div>
                     </div>
                   </div>
@@ -1125,7 +1123,7 @@ function TeacherServiceSection() {
                   <div style={{ display:'flex', gap:'6px', flexShrink:0, alignItems:'center' }}>
                     {j.url && <a href={j.url} target="_blank" rel="noopener noreferrer" style={{ padding:'4px 10px', borderRadius:'6px', background:'#f0fdf4', border:'1px solid #86efac', fontSize:'12px', color:'#15803d', textDecoration:'none', fontWeight:600 }}>🔗 공고</a>}
                     <button onClick={() => openEditJob(i)} style={{ padding:'4px 10px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
-                    <Btn size='sm' variant='outlineDanger' onClick={() => confirm('삭제할까요?', () => deleteJob(i), { icon: '🗑', confirmLabel: '삭제' })}>삭제</Btn>
+                    <button onClick={() => deleteJob(i)} style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#ef4444' }}>삭제</button>
                   </div>
                 </div>
               ))}
@@ -1150,7 +1148,7 @@ function TeacherServiceSection() {
               <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>과정 목록 (줄바꿈으로 구분)</label>
                 <textarea value={siteForm.courses} onChange={e=>setSiteForm(v=>({...v,courses:e.target.value}))} placeholder={'4대폭력예방교육\n개인정보 보호 교육'} rows={4} style={{ ...fStyle, resize:'vertical' }}/></div>
               <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
-                <Btn onClick={saveSite} full>저장</Btn>
+                <button onClick={saveSite} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
                 <button onClick={()=>setSiteModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
             </div>
@@ -1180,7 +1178,7 @@ function TeacherServiceSection() {
               </div>
               <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>관련 과목 (쉼표 구분)</label><input value={partnerForm.subjects} onChange={e=>setPartnerForm(v=>({...v,subjects:e.target.value}))} placeholder="로봇과학, 코딩, 드론" style={fStyle}/></div>
               <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
-                <Btn onClick={savePartner} full>저장</Btn>
+                <button onClick={savePartner} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
                 <button onClick={()=>setPartnerModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
             </div>
@@ -1208,7 +1206,7 @@ function TeacherServiceSection() {
               <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>공고 URL</label><input value={jobForm.url} onChange={e=>setJobForm(v=>({...v,url:e.target.value}))} placeholder="https://" style={fStyle}/></div>
               <div><label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>메모</label><input value={jobForm.memo} onChange={e=>setJobForm(v=>({...v,memo:e.target.value}))} placeholder="추가 안내사항" style={fStyle}/></div>
               <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
-                <Btn onClick={saveJob} full>저장</Btn>
+                <button onClick={saveJob} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
                 <button onClick={()=>setJobModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
             </div>
@@ -1223,8 +1221,6 @@ function TeacherServiceSection() {
 
 // ─── 메인
 export function AdminSettings() {
-  const { success, error: toastError, warning } = useToast()
-  const { confirm } = useConfirm()
   const [tab, setTab] = useState('social')
 
   return (

@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { uid, now, sortClasses } from '../lib/utils.js'
-import { Btn } from '../components/Atoms.jsx'
-import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
 import {
   Classes, Students,
   SupplySubjects, SupplyVendors, SupplyItems, SupplyPlans,
@@ -71,7 +68,8 @@ function FileRow({ item, onDelete, onEdit }) {
             수정
           </button>
         )}
-        <Btn size='sm' variant='outlineDanger' onClick={() => onDelete(item.id)}>삭제</Btn>
+        <button onClick={() => onDelete(item.id)}
+          style={{ padding:'4px 9px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
       </div>
     </div>
   )
@@ -95,8 +93,6 @@ function ProgressBadge({ checkedCount, totalCount, alertSession, sessionsPerStag
 }
 
 export function Supplies({ user }) {
-  const { success, error: toastError, warning } = useToast()
-  const { confirm } = useConfirm()
   // ── 기본 상태
   const [subjects, setSubjects]       = useState([])
   const [selSubject, setSelSubject]   = useState(null)
@@ -198,15 +194,7 @@ export function Supplies({ user }) {
   const isRobot = selSubject === '로봇'
 
   // ── 교구 배정
-  const confirmedStudents = students.filter(s => s.classIds?.includes(selClassId) && s.status === 'confirmed').sort((a, b) => {
-    const gradeCmp = (parseInt(a.grade) || 0) - (parseInt(b.grade) || 0)
-    if (gradeCmp !== 0) return gradeCmp
-    const classNumCmp = parseInt(a.classNum || '0') - parseInt(b.classNum || '0')
-    if (classNumCmp !== 0) return classNumCmp
-    const numCmp = parseInt(a.number || '0') - parseInt(b.number || '0')
-    if (numCmp !== 0) return numCmp
-    return (a.name || '').localeCompare(b.name || '', 'ko')
-  })
+  const confirmedStudents = students.filter(s => s.classIds?.includes(selClassId) && s.status === 'confirmed')
   const allChecked = confirmedStudents.length > 0 && checkedStudents.length === confirmedStudents.length
   const toggleAll  = () => setCheckedStudents(allChecked ? [] : confirmedStudents.map(s=>s.id))
   const toggleOne  = (id) => setCheckedStudents(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id])
@@ -219,7 +207,7 @@ export function Supplies({ user }) {
   })
 
   const saveSupply = () => {
-    if (!supplyForm.name && !supplyForm.productId) { toastError('교구명을 입력하거나 교구를 선택하세요'); return }
+    if (!supplyForm.name && !supplyForm.productId) { alert('교구명을 입력하거나 교구를 선택하세요'); return }
     const product = productList.find(p => p.id === supplyForm.productId)
     const finalName = supplyForm.productId ? (product?.name || supplyForm.name) : supplyForm.name
     checkedStudents.forEach(sid => {
@@ -299,7 +287,7 @@ export function Supplies({ user }) {
   const vendorFiles    = (vendorId) => planList.filter(p => p.vendorId === vendorId)
 
   const saveVendor = () => {
-    if (!vendorForm.name) { toastError('업체명을 입력하세요'); return }
+    if (!vendorForm.name) { alert('업체명을 입력하세요'); return }
     SupplyVendors.insert({ id: uid(), teacherId: user.id, subject: selSubject, ...vendorForm, createdAt: now() })
     reload(); setVendorModal(false); setVendorForm({ name:'', managerName:'', contact:'', memo:'' }); showToast('업체가 등록되었습니다.')
   }
@@ -344,12 +332,12 @@ export function Supplies({ user }) {
       setProductModal(true)
     } catch(e) {
       console.error('openProductModal error:', e)
-      toastError('오류가 발생했습니다: ' + e.message)
+      alert('오류가 발생했습니다: ' + e.message)
     }
   }
 
   const saveProduct = () => {
-    if (!productForm.name) { toastError('교구명을 입력하세요'); return }
+    if (!productForm.name) { alert('교구명을 입력하세요'); return }
     const isEdit = !!productForm.id
     const productId = isEdit ? productForm.id : uid()
     if (isEdit) {
@@ -426,7 +414,7 @@ export function Supplies({ user }) {
       reload()
       showToast('저장되었습니다.')
       setSessionPlanModal(false)
-    } catch(e) { toastError('저장 실패: ' + e.message) }
+    } catch(e) { alert('저장 실패: '+e.message) }
     finally { setUploading(false) }
   }
 
@@ -468,10 +456,10 @@ export function Supplies({ user }) {
   const saveFile = async () => {
     // 교구 선택 필수 (plan/session 모드)
     const needsProduct = ['plan','session','promo'].includes(fileModalMode)
-    if (needsProduct && !fileForm.productId) { toastError('교구를 선택하세요'); return }
+    if (needsProduct && !fileForm.productId) { alert('교구를 선택하세요'); return }
     // 차시별 지도안이면 단계도 필수
     const isSession = fileModalMode === 'session' || (fileModalMode === 'plan' && fileForm.fileType === 'session')
-    if (isSession && !fileForm.stage) { toastError('단계를 선택하세요'); return }
+    if (isSession && !fileForm.stage) { alert('단계를 선택하세요'); return }
     // 제목 자동 생성
     const autoProduct = productList.find(p => p.id === (fileProductTarget || fileForm.productId))
     const autoTitle = autoProduct
@@ -517,7 +505,7 @@ export function Supplies({ user }) {
         })
       }
       reload(); setFileModal(false); setModalFile(null); setFileEditId(null); showToast(fileEditId ? '수정이 완료되었습니다.' : '저장이 완료되었습니다.')
-    } catch(e) { toastError('업로드 실패: ' + e.message) }
+    } catch(e) { alert('업로드 실패: '+e.message) }
     finally { setUploading(false) }
   }
   const deleteFile = (id) => {
@@ -528,7 +516,7 @@ export function Supplies({ user }) {
   const addSubject = () => {
     const s = newSubject.trim()
     if (!s) return
-    if (subjects.includes(s)) { toastError('이미 있는 과목이에요'); return }
+    if (subjects.includes(s)) { alert('이미 있는 과목이에요'); return }
     SupplySubjects.insert({ id: uid(), teacherId: user.id, name:s, sortOrder:subjects.length, createdAt:now() })
     reload(); setNewSubject(''); setSubjectModal(false); setSelSubject(s)
   }
@@ -949,7 +937,8 @@ export function Supplies({ user }) {
                           <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                             {vProducts.length > 0 && <span style={{ fontSize:'12px', background:'#f5f3ff', color:'#7c3aed', border:'1px solid #ddd6fe', borderRadius:'5px', padding:'2px 8px', fontWeight:600 }}>교구 {vProducts.length}종</span>}
                             {vFiles.length > 0    && <span style={{ fontSize:'12px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'5px', padding:'2px 8px', fontWeight:600 }}>파일 {vFiles.length}개</span>}
-                            <Btn size='sm' variant='outlineDanger' onClick={e=>{ e.stopPropagation(); confirm('업체를 삭제할까요?', () => deleteVendor(v.id), { icon:'🗑', confirmLabel:'삭제' }) }}>삭제</Btn>
+                            <button onClick={e=>{ e.stopPropagation(); deleteVendor(v.id) }}
+                              style={{ padding:'4px 9px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                             <span style={{ fontSize:'14px', color:C.muted }}>{isExpanded ? '▲' : '▼'}</span>
                           </div>
                         </div>
@@ -996,8 +985,10 @@ export function Supplies({ user }) {
                                               {promos.length > 0      && <span style={{ background:'#f0fdf4', color:C.success, borderRadius:'4px', padding:'1px 6px' }}>홍보물 {promos.length}개</span>}
                                             </div>
                                           </div>
-                                          <Btn size='sm' variant='outline' onClick={() => openProductModal(v.id, p)}>수정</Btn>
-                                          <Btn size='sm' variant='outlineDanger' onClick={() => confirm('교구를 삭제할까요?', () => deleteProduct(p.id), { icon:'🗑', confirmLabel:'삭제' })}>삭제</Btn>
+                                          <button onClick={() => openProductModal(v.id, p)}
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>수정</button>
+                                          <button onClick={() => deleteProduct(p.id)}
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
                                         </div>
                                         {/* 단계별 차시지도안 */}
                                         <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
@@ -1530,11 +1521,11 @@ export function Supplies({ user }) {
                         <input value={m} onChange={e => updateItem('memo', e.target.value)}
                           placeholder="준비물 (선택)"
                           style={{ ...iStyle, padding:'5px 8px', fontSize:'12px' }} />
-                        <Btn size='sm' variant='outlineDanger' onClick={() => setStageSessionTitles(prev => {
+                        <button onClick={() => setStageSessionTitles(prev => {
                           const cur = [...(prev[productStageTab]||[])]
                           cur.splice(idx, 1)
                           return {...prev, [productStageTab]: cur}
-                        })}>삭제</Btn>
+                        })} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', padding:0, lineHeight:1 }}>×</button>
                       </div>
                     )
                   })}
@@ -1622,7 +1613,8 @@ export function Supplies({ user }) {
                         onChange={e => setSessionPlanEdits(prev => prev.map((x,i) => i===idx ? {...x, memo:e.target.value} : x))}
                         placeholder="준비물 (선택)"
                         style={{ ...iStyle, padding:'5px 8px', fontSize:'12px' }} />
-                      <Btn size='sm' variant='outlineDanger' onClick={() => setSessionPlanEdits(prev => prev.filter((_,i) => i!==idx))}>삭제</Btn>
+                      <button onClick={() => setSessionPlanEdits(prev => prev.filter((_,i) => i!==idx))}
+                        style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', padding:0, lineHeight:1 }}>×</button>
                     </div>
                   ))}
                 </div>
@@ -1830,7 +1822,8 @@ export function Supplies({ user }) {
                 💡 업체 등록 후 업체 카드를 펼쳐서 교구·홍보물·지도안을 추가할 수 있습니다.
               </div>
               <div style={{ display:'flex', gap:'8px' }}>
-                <Btn onClick={saveVendor} full>저장</Btn>
+                <button onClick={saveVendor}
+                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
                 <button onClick={()=>setVendorModal(false)}
                   style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
@@ -1872,7 +1865,8 @@ export function Supplies({ user }) {
             <div style={{ display:'flex', gap:'8px', justifyContent:'center' }}>
               <button onClick={()=>setDeleteConfirm(null)}
                 style={{ padding:'9px 20px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
-              <Btn variant='danger' onClick={() => { deleteConfirm.onOk(); setDeleteConfirm(null) }}>삭제</Btn>
+              <button onClick={()=>{ deleteConfirm.onOk(); setDeleteConfirm(null) }}
+                style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#ef4444', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
             </div>
           </div>
         </div>

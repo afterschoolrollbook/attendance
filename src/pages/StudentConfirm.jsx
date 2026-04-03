@@ -1,14 +1,10 @@
 import React, { useState } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, TeacherParentLinks } from '../lib/db.js'
 import { now, fmtPhone } from '../lib/utils.js'
-import { Btn, Card, PageHeader, Tag, EmptyState, Modal , ToastContainer} from '../components/Atoms.jsx'
+import { Btn, Card, PageHeader, Tag, EmptyState, Modal } from '../components/Atoms.jsx'
 import { STUDENT_STATUS } from '../constants/config.js'
-import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
 
 export function StudentConfirm({ user }) {
-  const { success, error: toastError, warning, info } = useToast()
-  const { confirm: confirmDialog } = useConfirm()
   const [selectedClass, setSelectedClass] = useState('')
   const [selected, setSelected] = useState(new Set())
 
@@ -62,18 +58,18 @@ export function StudentConfirm({ user }) {
     })
   }
 
-  const handleConfirm = () => {
+  const confirm = () => {
     if (!selected.size) return
     doConfirm([...selected])
     setSelected(new Set())
-    success(`${selected.size}명이 최종 확정되었습니다.`)
+    alert(`${selected.size}명이 최종 확정되었습니다.`)
   }
 
   // ✅ 랜덤 추첨 실행
   const runLottery = () => {
     const count = parseInt(lotteryCount)
-    if (!count || count <= 0) { toastError('추첨 인원을 입력하세요.'); return }
-    if (count > lotteryPool.length) { toastError(`추첨 대상(${lotteryPool.length}명)보다 많은 인원을 뽑을 수 없습니다.`); return }
+    if (!count || count <= 0) { alert('추첨 인원을 입력하세요.'); return }
+    if (count > lotteryPool.length) { alert(`추첨 대상(${lotteryPool.length}명)보다 많은 인원을 뽑을 수 없습니다.`); return }
 
     setLotteryAnimating(true)
 
@@ -115,7 +111,7 @@ export function StudentConfirm({ user }) {
     setLotteryDone(false)
     setLotteryResult([])
     setLotteryCount('')
-    success(`추첨 완료! 선발 ${winners.length}명 / 대기 ${losers.length}명`)
+    alert(`추첨 완료! 선발 ${winners.length}명 / 대기 ${losers.length}명`)
   }
 
   const closeLottery = () => {
@@ -182,7 +178,7 @@ export function StudentConfirm({ user }) {
                 {selected.size === confirmableStudents.length && confirmableStudents.length > 0 ? '전체 해제' : '전체 선택'}
               </Btn>
               {selected.size > 0 && (
-                <Btn size="sm" onClick={handleConfirm}>✅ {selected.size}명 최종 확정</Btn>
+                <Btn size="sm" onClick={confirm}>✅ {selected.size}명 최종 확정</Btn>
               )}
             </div>
           </div>

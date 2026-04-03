@@ -1,19 +1,15 @@
 import React, { useState } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB } from '../lib/db.js'
 import { calcSessionDates, today, fmtDate } from '../lib/utils.js'
-import { Btn, Card, PageHeader, Tag, ProgressBar, EmptyState , ToastContainer} from '../components/Atoms.jsx'
+import { Btn, Card, PageHeader, Tag, ProgressBar, EmptyState } from '../components/Atoms.jsx'
 import { ATTENDANCE_STATUS } from '../constants/config.js'
 import { AdSlot } from '../components/AdSlot.jsx'
-import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
 
 // 출석 상태 → 텍스트 (엑셀용)
 const STATUS_TEXT = { present: '출석', absent: '결석', late: '지각', early: '조퇴', pending: '-' }
 const STATUS_EMOJI = { present: '✅', absent: '❌', late: '🕐', early: '🔜', pending: '-' }
 
 export function Reports({ user }) {
-  const { success, error: toastError } = useToast()
-  const { confirm } = useConfirm()
   const [selectedClass, setSelectedClass] = useState('')
   const [downloading, setDownloading] = useState(false)
 
@@ -80,7 +76,7 @@ export function Reports({ user }) {
       const filename = `${cls.organization}_${cls.className}${cls.section ? '_'+cls.section+'반' : ''}_출석리포트_${today()}.xlsx`
       XLSX.writeFile(wb, filename)
     } catch (e) {
-      toastError('엑셀 다운로드 중 오류가 발생했습니다.')
+      alert('엑셀 다운로드 중 오류가 발생했습니다.')
       console.error(e)
     } finally {
       setDownloading(false)

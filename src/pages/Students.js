@@ -3,8 +3,6 @@
 
 // ① import 라인 맨 위에 추가:
 // import { autoPromoteWaitlist } from './StudentConfirm.jsx'
-import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
 
 // ② changeStatus 함수 교체:
 const changeStatus_NEW = (id, newStatus) => {

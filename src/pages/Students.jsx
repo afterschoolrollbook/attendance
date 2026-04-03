@@ -1,10 +1,9 @@
 import React, { useState, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, SupplyItems, SupplyStudentProgress, SupplySessionChecks, SupplyProducts } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB } from '../lib/db.js'
 import { uid, now, fmtPhone, sortClasses } from '../lib/utils.js'
-import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox, Textarea, ToastContainer} from '../components/Atoms.jsx'
+import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox, Textarea } from '../components/Atoms.jsx'
 import { STUDENT_STATUS, GRADES, DAYS } from '../constants/config.js'
 import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
 
 function emptyStudent() {
   return {
@@ -76,13 +75,12 @@ export function Students({ user, onNav }) {
   const [tick, setTick] = useState(0)
   const refresh = () => setTick(t => t + 1)
   const { success: showToast } = useToast()
-  const { confirm } = useConfirm()
   // ✅ 삭제 확인
   const [deleteTarget, setDeleteTarget] = useState(null)
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
-  const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
+  const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
   const yearClasses = ctxYear ? classes.filter(c => c.startDate?.startsWith(ctxYear) || c.endDate?.startsWith(ctxYear)) : classes
   const schools = [...new Set(yearClasses.map(c => c.organization).filter(Boolean))]
   const filteredClasses = sortClasses(ctxSchool ? yearClasses.filter(c => c.organization === ctxSchool) : yearClasses)
@@ -116,7 +114,7 @@ export function Students({ user, onNav }) {
       const sectionCmp = (aClass?.section || '').localeCompare(bClass?.section || '', 'ko')
       if (sectionCmp !== 0) return sectionCmp
       // 학년
-      const gradeCmp = (parseInt(a.grade) || 0) - (parseInt(b.grade) || 0)
+      const gradeCmp = (a.grade || '').localeCompare(b.grade || '', 'ko')
       if (gradeCmp !== 0) return gradeCmp
       // 학급 반
       const classNumCmp = parseInt(a.classNum || '0') - parseInt(b.classNum || '0')
@@ -191,13 +189,13 @@ export function Students({ user, onNav }) {
   }
 
   const save = () => {
-    if (!form.name.trim() || !form.grade) { toastError('이름과 학년은 필수입니다.'); return }
+    if (!form.name.trim() || !form.grade) { alert('이름과 학년은 필수입니다.'); return }
 
     let classIds = [...(form.classIds || [])]
 
     // 수업 미선택 + 수업명 직접 입력 없음 → 경고
     if (classIds.length === 0 && !form._newClassName?.trim()) {
-      toastError('수업을 선택하거나 수업명을 입력해주세요.')
+      alert('수업을 선택하거나 수업명을 입력해주세요.\n수업이 없으면 출석부에서 학생을 찾을 수 없습니다.')
       return
     }
 
@@ -340,7 +338,7 @@ export function Students({ user, onNav }) {
           studentPhone: String(r[5] || '').trim(),
         }))
 
-      if (parsed.length === 0) { toastError('등록할 학생 데이터가 없습니다. 샘플 파일을 확인해주세요.'); return }
+      if (parsed.length === 0) { alert('등록할 학생 데이터가 없습니다.\n샘플 파일을 확인해주세요.'); return }
 
       // 중복 체크: 같은 수업 내 이름+학년+반 동일한 기존 학생
       // grade, classNum 정규화: '1학년'→'1', '1반'→'1' 로 통일 후 비교
@@ -360,12 +358,12 @@ export function Students({ user, onNav }) {
       })
 
       setExcelPreview(withDupFlag); setExcelStep(2)
-    } catch { toastError('파일을 읽을 수 없습니다.') }
+    } catch { alert('파일을 읽을 수 없습니다.') }
   }
 
   const downloadSample = () => {
     const selCls = classes.find(c => c.id === excelClassId)
-    if (!selCls) { toastError('먼저 수업을 선택해주세요.'); return }
+    if (!selCls) { alert('먼저 수업을 선택해주세요.'); return }
 
     import('xlsx').then(XLSX => {
       const schoolName  = selCls.organization || ''
@@ -415,7 +413,7 @@ export function Students({ user, onNav }) {
     const msg = skipped > 0
       ? `${toInsert.length}명 등록 완료! (${skipped}명 제외)`
       : `${toInsert.length}명 등록 완료!`
-    info(msg)
+    alert(msg)
     setShowExcel(false); setExcelPreview([]); setExcelStep(0); setExcelClassId('')
     refresh()
   }
@@ -535,7 +533,7 @@ export function Students({ user, onNav }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '교구 · 진도', '상태', '메모', '작업'].map(h => (
+                {['순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '상태', '메모', '작업'].map(h => (
                   <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -570,42 +568,6 @@ export function Students({ user, onNav }) {
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: '14px', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>{s.name}</td>
                     <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtPhone(s.parentPhone) || '-'}</td>
-                    <td style={{ padding: '8px 14px', maxWidth: '200px' }}>
-                      {(() => {
-                        const classIds = s.classIds || []
-                        if (!classIds.length) return <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>
-                        const allItems = classIds.flatMap(cid => SupplyItems.byClassStudent(cid, s.id).map(item => ({ ...item, cid })))
-                        if (!allItems.length) return <span style={{ fontSize:'12px', color:'#d1d5db' }}>미설정</span>
-                        return (
-                          <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-                            {allItems.map((item, i) => {
-                              const product = item.productId ? SupplyProducts.find(item.productId) : null
-                              if (!product) return (
-                                <span key={i} style={{ fontSize:'11px', color:'#7c3aed', background:'#f5f3ff', border:'1px solid #ddd6fe', borderRadius:'4px', padding:'1px 6px', display:'inline-block' }}>
-                                  🎒 {item.name || '교구설정됨'}
-                                </span>
-                              )
-                              const checks = SupplySessionChecks.byProductStudent(product.id, s.id, item.cid)
-                              const checkedCount = checks.filter(c => c.checked).length
-                              const total = product.sessionsPerStage || 12
-                              const isDone  = checkedCount >= total
-                              const isAlert = checkedCount >= (product.alertSession || 10) && !isDone
-                              const color  = isDone ? '#15803d' : isAlert ? '#b45309' : '#7c3aed'
-                              const bg     = isDone ? '#f0fdf4' : isAlert ? '#fffbeb' : '#f5f3ff'
-                              const border = isDone ? '#86efac' : isAlert ? '#fde68a' : '#ddd6fe'
-                              const progress = SupplyStudentProgress.byStudent(s.id, item.cid).find(p => p.productId === product.id)
-                              const stage = progress?.stage || item.stage || 1
-                              return (
-                                <span key={i} style={{ fontSize:'11px', color, background:bg, border:`1px solid ${border}`, borderRadius:'4px', padding:'1px 6px', display:'inline-block', whiteSpace:'nowrap' }}>
-                                  🎒 {item.name || product.name} · {stage}단계 {checkedCount}/{total}
-                                  {isDone ? ' ✅' : isAlert ? ' ⚠️' : ''}
-                                </span>
-                              )
-                            })}
-                          </div>
-                        )
-                      })()}
-                    </td>
                     <td style={{ padding: '11px 14px' }}>
                       <select value={s.status} onChange={e => changeStatus(s.id, e.target.value)}
                         style={{ padding: '4px 8px', borderRadius: '6px', border: `1.5px solid ${cfg.color}50`, background: cfg.bg, color: cfg.color, fontSize: '12px', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif', cursor: 'pointer', outline: 'none' }}>

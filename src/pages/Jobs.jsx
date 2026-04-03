@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { Btn } from '../components/Atoms.jsx'
 import { uid, now } from '../lib/utils.js'
 import { supabase } from '../lib/supabase.js'
-import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
 
 const C = { primary:'#f97316', success:'#16a34a', danger:'#ef4444', border:'#e5e7eb', text:'#111827', muted:'#6b7280', card:'#fff', warning:'#f59e0b' }
 const STORAGE_KEY = 'asa_job_subs'
@@ -38,8 +35,6 @@ async function fetchJobPostings(settings, subscription) {
 }
 
 export function Jobs({ user }) {
-  const { success, error: toastError } = useToast()
-  const { confirm } = useConfirm()
   const [tab, setTab]       = useState('postings')
   const [subs, setSubs]     = useState([])
   const [postings, setPostings] = useState([])
@@ -68,7 +63,7 @@ export function Jobs({ user }) {
     setEditId(r.id); setModal(true)
   }
   const save = () => {
-    if (!form.subject.trim()) { toastError('과목을 입력하세요'); return }
+    if (!form.subject.trim()) { alert('과목을 입력하세요'); return }
     const item = { id:editId||uid(), teacherId:user.id, ...form, active:true, updatedAt:now() }
     if (!editId) item.createdAt = now()
     saveSub(item); reloadSubs(); setModal(false)
@@ -261,7 +256,7 @@ export function Jobs({ user }) {
                         {s.active ? '활성' : '비활성'}
                       </button>
                       <button onClick={()=>openEdit(s)} style={{ padding:'5px 10px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
-                      <Btn size='sm' variant='outlineDanger' onClick={() => confirm('삭제할까요?', () => { deleteSub(s.id); reloadSubs() }, { icon: '🗑', confirmLabel: '삭제' })}>삭제</Btn>
+                      <button onClick={()=>{ if(confirm('삭제할까요?')){ deleteSub(s.id); reloadSubs() } }} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
                     </div>
                   </div>
                 </div>
@@ -326,7 +321,7 @@ export function Jobs({ user }) {
                 </div>
               </div>
               <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
-                <Btn onClick={save} full>저장</Btn>
+                <button onClick={save} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
                 <button onClick={()=>setModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
             </div>

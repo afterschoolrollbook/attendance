@@ -1,8 +1,6 @@
 import React, { useState } from 'react'
-import { Btn, Card, PageHeader, Toggle, Textarea, ToastContainer } from '../components/Atoms.jsx'
 import { AdSlots } from '../lib/db.js'
-import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
+import { Btn, Card, PageHeader, Toggle, Textarea } from '../components/Atoms.jsx'
 
 export function Adsense() {
   const [slots, setSlots] = useState(() => AdSlots.all())
