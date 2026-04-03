@@ -209,6 +209,17 @@ export function Supplies({ user }) {
     return vendor?.subject === '로봇'
   })
 
+  // 파일 등록 모달 — 현재 과목 교구 목록 (IIFE 제거로 상단 이동)
+  const modalProducts = productList.filter(p => {
+    const vendor = vendorList.find(v => v.id === p.vendorId)
+    return vendor?.subject === selSubject
+  })
+  const selectedProduct = modalProducts.find(p => p.id === fileForm.productId)
+  const toggleSchool = (s) => setFileForm(f => ({
+    ...f,
+    schools: f.schools.includes(s) ? f.schools.filter(x => x !== s) : [...f.schools, s]
+  }))
+
   const saveSupply = () => {
     if (!supplyForm.name && !supplyForm.productId) { toastError('교구명을 입력하거나 교구를 선택하세요'); return }
     const product = productList.find(p => p.id === supplyForm.productId)
@@ -1603,20 +1614,7 @@ export function Supplies({ user }) {
 
       {/* ── 파일 등록 모달 */}
       <Modal open={fileModal} onClose={() => { setFileModal(false); setModalFile(null) }} title={`${fileEditId ? '✏️ ' : ''}${fileModalTitle}${fileEditId ? ' 수정' : ''} — ${selSubject}`} width={500}>
-      {fileModal && (() => {
-        // 지도안 탭에서 열린 경우: 연간=annual, 차시별=session
-        // 교구 목록 (현재 과목)
-        const modalProducts = productList.filter(p => {
-          const vendor = vendorList.find(v => v.id === p.vendorId)
-          return vendor?.subject === selSubject
-        })
-        const selectedProduct = modalProducts.find(p => p.id === fileForm.productId)
-        const toggleSchool = (s) => setFileForm(f => ({
-          ...f,
-          schools: f.schools.includes(s) ? f.schools.filter(x=>x!==s) : [...f.schools, s]
-        }))
-
-        return (
+      {fileModal && (
           <div>
 
               <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'16px', overflowY:'auto' }}>
@@ -1737,8 +1735,7 @@ export function Supplies({ user }) {
               </div>
             </div>
           </div>
-        )
-      })()}
+        )}
       </Modal>
 
       {/* ── 교구업체 등록 모달 */}
