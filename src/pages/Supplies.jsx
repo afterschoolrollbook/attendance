@@ -1530,11 +1530,11 @@ export function Supplies({ user }) {
                         <input value={m} onChange={e => updateItem('memo', e.target.value)}
                           placeholder="준비물 (선택)"
                           style={{ ...iStyle, padding:'5px 8px', fontSize:'12px' }} />
-                        <button onClick={() => setStageSessionTitles(prev => {
+                        <Btn size='sm' variant='outlineDanger' onClick={() => setStageSessionTitles(prev => {
                           const cur = [...(prev[productStageTab]||[])]
                           cur.splice(idx, 1)
                           return {...prev, [productStageTab]: cur}
-                        }))}><Btn size='sm' variant='outlineDanger'>삭제</Btn></button>
+                        })}>삭제</Btn>
                       </div>
                     )
                   })}
