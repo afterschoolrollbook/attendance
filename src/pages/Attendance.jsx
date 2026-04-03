@@ -974,9 +974,9 @@ export function Attendance({ user, pageParams = {} }) {
   })
   const [selSchool,  setSelSchool]  = useState(() => {
     if (pageParams.classId) { const cls = allClasses.find(c=>c.id===pageParams.classId); return cls?.organization || '' }
-    return allClasses[0]?.organization || ''
+    return ''
   })
-  const [selClassId, setSelClassId] = useState(() => pageParams.classId || allClasses[0]?.id || '')
+  const [selClassId, setSelClassId] = useState(() => pageParams.classId || '')
   const [selSection, setSelSection] = useState('')
   const [selTerm,    setSelTerm]    = useState('')
   const [selDate,    setSelDate]    = useState(() => pageParams.date || today)
