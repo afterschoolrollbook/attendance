@@ -749,7 +749,12 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
   }
   const markAll = (status) => activeStudents.forEach(s => mark(s.id, status))
 
-  const activeStudents   = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
+  const activeStudents   = [...students.filter(s => ['applied','selected','confirmed'].includes(s.status))].sort((a, b) => {
+    const g = (parseInt(a.grade)||0) - (parseInt(b.grade)||0); if (g) return g
+    const c = parseInt(a.classNum||0) - parseInt(b.classNum||0); if (c) return c
+    const n = parseInt(a.number||0) - parseInt(b.number||0); if (n) return n
+    return (a.name||'').localeCompare(b.name||'','ko')
+  })
   const inactiveStudents = students.filter(s => ['cancelled','waiting'].includes(s.status))
 
   const counts = { pending:0, present:0, absent:0, late:0, early:0 }
