@@ -974,15 +974,47 @@ export function Attendance({ user, pageParams = {} }) {
   })
   const [selSchool,  setSelSchool]  = useState(() => {
     if (pageParams.classId) { const cls = allClasses.find(c=>c.id===pageParams.classId); return cls?.organization || '' }
-    return ''
+    return allClasses[0]?.organization || ''
   })
-  const [selClassId, setSelClassId] = useState(() => pageParams.classId || '')
+  const [selClassId, setSelClassId] = useState(() => pageParams.classId || allClasses[0]?.id || '')
   const [selSection, setSelSection] = useState('')
   const [selTerm,    setSelTerm]    = useState('')
-  const [selDate,    setSelDate]    = useState(() => pageParams.date || today)
+  const [selDate,    setSelDate]    = useState(() => {
+    if (pageParams.date) return pageParams.date
+    // 수업일 자동 선택: 첫 수업의 오늘 이후 가장 가까운 수업일 (없으면 오늘)
+    const firstCls = allClasses[0]
+    if (firstCls) {
+      const sessions = calcSessionDates(firstCls)
+      const upcoming = sessions.find(d => d >= today)
+      if (upcoming) return upcoming
+      const past = [...sessions].reverse().find(d => d < today)
+      if (past) return past
+    }
+    return today
+  })
   const [dateClicked, setDateClicked] = useState(false)
-  const [calYear,    setCalYear]    = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getFullYear() })
-  const [calMonth,   setCalMonth]   = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getMonth() })
+  const [calYear,    setCalYear]    = useState(() => {
+    if (pageParams.date) return new Date(pageParams.date+'T00:00:00').getFullYear()
+    const firstCls = allClasses[0]
+    if (firstCls) {
+      const sessions = calcSessionDates(firstCls)
+      const upcoming = sessions.find(d => d >= today)
+      const target = upcoming || [...sessions].reverse().find(d => d < today)
+      if (target) return new Date(target+'T00:00:00').getFullYear()
+    }
+    return now_.getFullYear()
+  })
+  const [calMonth,   setCalMonth]   = useState(() => {
+    if (pageParams.date) return new Date(pageParams.date+'T00:00:00').getMonth()
+    const firstCls = allClasses[0]
+    if (firstCls) {
+      const sessions = calcSessionDates(firstCls)
+      const upcoming = sessions.find(d => d >= today)
+      const target = upcoming || [...sessions].reverse().find(d => d < today)
+      if (target) return new Date(target+'T00:00:00').getMonth()
+    }
+    return now_.getMonth()
+  })
 
   // 기간 필터 날짜 범위 계산
   const TERM_RANGES = {
@@ -1213,18 +1245,20 @@ export function Attendance({ user, pageParams = {} }) {
 
         {/* 오른쪽 패널 */}
         <div>
-          {selClassId ? (
-            (!isSessionDate && dateClicked) ? (
-              <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
-                <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
-                <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업이 없는 날입니다</div>
-                <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
-              </div>
-            ) : (
-              <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} key={selDate+selClassId} />
-            )
+          {!selClassId ? (
+            <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
+              <div style={{ fontSize:'36px', marginBottom:'10px' }}>📋</div>
+              <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업을 선택하세요</div>
+              <div style={{ fontSize:'13px', marginTop:'6px' }}>상단에서 수업을 선택하면 출석체크를 시작할 수 있습니다</div>
+            </div>
+          ) : (!isSessionDate && dateClicked) ? (
+            <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
+              <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
+              <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>수업이 없는 날입니다</div>
+              <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
+            </div>
           ) : (
-            <DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} key={selDate} />
+            <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} key={selDate+selClassId} />
           )}
         </div>
       </div>
