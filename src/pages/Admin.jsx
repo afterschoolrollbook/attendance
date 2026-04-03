@@ -776,6 +776,7 @@ function BranchPanel({ branches, setBranches, teachers }) {
     confirm('삭제하시겠습니까?', () => {
       Branches.delete(id); setBranches(Branches.all())
     }, { icon: '🗑', confirmLabel: '삭제' })
+  }
 
   const teacherCount = (branchId) => teachers.filter(t => t.branchId === branchId).length
 
@@ -993,6 +994,7 @@ export function Admin({ user: currentUser }) {
                     Users.delete(t.id)
                     refresh()
                   }, { icon: '🗑', confirmLabel: '삭제' })
+                }
                 return (
                   <tr key={t.id} style={{ borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                     <td style={{ padding: '12px 16px', fontWeight: 600, color: '#111827', fontSize: '14px' }}>{t.name}</td>
@@ -1005,13 +1007,15 @@ export function Admin({ user: currentUser }) {
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <Btn size="sm" variant="ghost" onClick={() => openPerm(t)}>권한 설정</Btn>
-                        <button onClick={() => {
-                          if (!t.phone) { toastError('등록된 핸드폰 번호가 없어 초기화할 수 없습니다.'); return }
-                          const normalized = t.phone.replace(/-/g, '').slice(0, 11)
-                          confirm(`${t.name} 선생님의 비밀번호를\n핸드폰 번호(${normalized})로 초기화하시겠습니까?`, () => {
-                            Users.update(t.id, { pw: normalized })
-                            success(`비밀번호가 ${normalized}(으)로 초기화되었습니다.`)
-                          }, { icon: '🔑', confirmLabel: '초기화' })
+                        <button
+                          onClick={() => {
+                            if (!t.phone) { toastError('등록된 핸드폰 번호가 없어 초기화할 수 없습니다.'); return }
+                            const normalized = t.phone.replace(/-/g, '').slice(0, 11)
+                            confirm(`${t.name} 선생님의 비밀번호를\n핸드폰 번호(${normalized})로 초기화하시겠습니까?`, () => {
+                              Users.update(t.id, { pw: normalized })
+                              success(`비밀번호가 ${normalized}(으)로 초기화되었습니다.`)
+                            }, { icon: '🔑', confirmLabel: '초기화' })
+                          }}
                           style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', color: '#b45309', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
                           비번초기화
                         </button>
