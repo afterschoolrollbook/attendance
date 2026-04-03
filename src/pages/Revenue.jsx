@@ -850,14 +850,8 @@ export function Revenue({ user }) {
         const confirmedCnt = confirmedCount[feeTarget.classId] || 0
 
         return (
-        <div onClick={e=>{ if(e.target===e.currentTarget) setFeeModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'440px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>수강료 설정</span>
-              <button onClick={()=>setFeeModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+        <Modal open={feeModal} onClose={()=>setFeeModal(false)} title="수강료 설정" width={440}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
               <div style={{ padding:'11px 16px', background:'#f9fafb', borderRadius:'10px', fontSize:'14px', fontWeight:600, color:C.text }}>
                 📚 {feeTarget.org} · {feeTarget.className}
                 {terms.length > 0 && <span style={{ fontSize:'12px', color:C.muted, fontWeight:400, marginLeft:'8px' }}>{terms.length}텀 · 텀당 {termSessionCount}회차</span>}
@@ -914,9 +908,8 @@ export function Revenue({ user }) {
                 <button onClick={saveFeeForm} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
                 <button onClick={()=>setFeeModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
-            </div>
           </div>
-        </div>
+        </Modal>
         )
       })()}
 
@@ -956,26 +949,19 @@ export function Revenue({ user }) {
           : true
 
         return (
-          <div onClick={e=>{ if(e.target===e.currentTarget) setPayWizard(false) }}
-            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-            <div style={{ background:'#fff', borderRadius:'20px', width:'100%', maxWidth:'400px', boxShadow:'0 24px 64px rgba(0,0,0,0.22)', overflow:'hidden' }}>
-              {/* 헤더 */}
-              <div style={{ padding:'18px 20px 14px', borderBottom:`1px solid ${C.border}` }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
-                  <span style={{ fontSize:'16px', fontWeight:700, color:C.text }}>💵 입금 등록</span>
-                  <button onClick={()=>setPayWizard(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted, lineHeight:1 }}>×</button>
-                </div>
-                <div style={{ display:'flex', gap:'4px' }}>
-                  {STEPS.map((s,i)=>(
-                    <div key={s} style={{ flex:1, height:'4px', borderRadius:'2px', background: displayStep > i ? C.primary : '#e5e7eb', opacity: displayStep === i+1 ? 1 : displayStep > i ? 0.7 : 0.25, transition:'all .3s' }} />
-                  ))}
-                </div>
-                <div style={{ marginTop:'6px', fontSize:'11px', color:C.muted }}>
-                  {displayStep} / {totalSteps} &nbsp;—&nbsp; <strong style={{color:C.text}}>{STEPS[displayStep-1]}</strong>
-                </div>
+          <Modal open={payWizard} onClose={()=>setPayWizard(false)} title="💵 입금 등록" width={400}>
+            {/* 진행 단계 */}
+            <div style={{ marginBottom:'20px' }}>
+              <div style={{ display:'flex', gap:'4px' }}>
+                {STEPS.map((s,i)=>(
+                  <div key={s} style={{ flex:1, height:'4px', borderRadius:'2px', background: displayStep > i ? C.primary : '#e5e7eb', opacity: displayStep === i+1 ? 1 : displayStep > i ? 0.7 : 0.25, transition:'all .3s' }} />
+                ))}
               </div>
-
-              <div style={{ padding:'24px 20px', minHeight:'160px' }}>
+              <div style={{ marginTop:'6px', fontSize:'11px', color:C.muted }}>
+                {displayStep} / {totalSteps} &nbsp;—&nbsp; <strong style={{color:C.text}}>{STEPS[displayStep-1]}</strong>
+              </div>
+            </div>
+            <div style={{ minHeight:'160px' }}>
                 {payStep===1&&(
                   <div>
                     <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>📅 언제 입금됐나요?</div>
@@ -1103,35 +1089,28 @@ export function Revenue({ user }) {
                     </div>
                   </div>
                 )}
-              </div>
-
-              <div style={{ padding:'0 20px 20px', display:'flex', gap:'8px' }}>
-                {payStep > 1 && (
-                  <button onClick={goBack}
-                    style={{ padding:'12px 16px', borderRadius:'12px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
-                    ← 이전
-                  </button>
-                )}
-                <button onClick={goNext} disabled={!canNext}
-                  style={{ flex:1, padding:'12px', borderRadius:'12px', border:'none', background: canNext ? (payStep===totalSteps ? C.success : C.primary) : '#e5e7eb', color: canNext ? '#fff' : C.muted, fontSize:'15px', fontWeight:700, cursor: canNext ? 'pointer' : 'not-allowed', fontFamily:'Noto Sans KR, sans-serif', transition:'all .2s' }}>
-                  {payStep===totalSteps ? '✅ 입금 등록 완료' : '다음 →'}
-                </button>
-              </div>
             </div>
-          </div>
+
+            <div style={{ marginTop:'20px', display:'flex', gap:'8px' }}>
+              {payStep > 1 && (
+                <button onClick={goBack}
+                  style={{ padding:'12px 16px', borderRadius:'12px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
+                  ← 이전
+                </button>
+              )}
+              <button onClick={goNext} disabled={!canNext}
+                style={{ flex:1, padding:'12px', borderRadius:'12px', border:'none', background: canNext ? (payStep===totalSteps ? C.success : C.primary) : '#e5e7eb', color: canNext ? '#fff' : C.muted, fontSize:'15px', fontWeight:700, cursor: canNext ? 'pointer' : 'not-allowed', fontFamily:'Noto Sans KR, sans-serif', transition:'all .2s' }}>
+                {payStep===totalSteps ? '✅ 입금 등록 완료' : '다음 →'}
+              </button>
+            </div>
+          </Modal>
         )
       })()}
 
             {/* ── 미수금 상세 팝업 */}
       {unpaidDetail&&(
-        <div onClick={e=>{ if(e.target===e.currentTarget) setUnpaidDetail(null) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'440px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', background:'#fef2f2' }}>
-              <span style={{ fontSize:'16px', fontWeight:700, color:C.danger }}>⚠️ 미수금 상세</span>
-              <button onClick={()=>setUnpaidDetail(null)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+        <Modal open={!!unpaidDetail} onClose={()=>setUnpaidDetail(null)} title="⚠️ 미수금 상세" width={440}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
               <div style={{ padding:'12px 16px', background:'#f9fafb', borderRadius:'10px' }}>
                 <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'4px' }}>
                   🏫 {unpaidDetail.cls.organization} · {unpaidDetail.cls.className}{unpaidDetail.cls.section?' '+unpaidDetail.cls.section:''}
@@ -1174,9 +1153,8 @@ export function Revenue({ user }) {
                 </button>
                 <button onClick={()=>setUnpaidDetail(null)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>닫기</button>
               </div>
-            </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   )
