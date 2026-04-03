@@ -71,7 +71,7 @@ function FileRow({ item, onDelete, onEdit }) {
             수정
           </button>
         )}
-        <Btn size='sm' variant='outlineDanger' onClick={() => confirm('교구 배정을 삭제할까요?', () => onDelete(item.id), { icon:'🗑', confirmLabel:'삭제' })}>삭제</Btn>
+        <Btn size='sm' variant='outlineDanger' onClick={() => onDelete(item.id)}>삭제</Btn>
       </div>
     </div>
   )
