@@ -744,8 +744,7 @@ function RegionSection() {
                       ? <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:'11px', color:'#3b82f6', textDecoration:'none' }}>🔗 홈페이지</a>
                       : <span style={{ fontSize:'11px', color:'#d1d5db' }}>URL 미등록</span>
                     }
-                    <button onClick={() => removeSchool(s.name)}
-                      style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', padding:'0', fontSize:'14px', lineHeight:1 }}>×</button>
+                    <Btn size='sm' variant='outlineDanger' onClick={() => removeSchool(s.name)}>삭제</Btn>
                   </div>
                 ))}
               </div>
@@ -755,8 +754,7 @@ function RegionSection() {
           <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
             <button onClick={() => { setShowForm(false); setEditId(null) }}
               style={{ padding:'7px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
-            <button onClick={saveForm}
-              style={{ padding:'7px 16px', borderRadius:'8px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+            <Btn onClick={saveForm}>저장</Btn>
           </div>
         </div>
       )}

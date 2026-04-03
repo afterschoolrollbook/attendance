@@ -146,6 +146,8 @@ function VerifyModal({ user, onVerified, onClose }) {
 }
 
 export function Profile({ user, onUserUpdate, onNav }) {
+  const { success, error: toastError, warning } = useToast()
+  const { confirm } = useConfirm()
   const [verified,      setVerified]      = useState(false)
   const [showVerify,    setShowVerify]    = useState(false)
   const [pendingAction, setPendingAction] = useState(null)

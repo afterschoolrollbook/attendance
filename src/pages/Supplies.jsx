@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { uid, now, sortClasses } from '../lib/utils.js'
+import { Btn } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
 import {
@@ -70,8 +71,7 @@ function FileRow({ item, onDelete, onEdit }) {
             수정
           </button>
         )}
-        <button onClick={() => onDelete(item.id)}
-          style={{ padding:'4px 9px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+        <Btn size='sm' variant='outlineDanger' onClick={() => confirm('교구 배정을 삭제할까요?', () => onDelete(item.id), { icon:'🗑', confirmLabel:'삭제' })}>삭제</Btn>
       </div>
     </div>
   )
@@ -949,8 +949,7 @@ export function Supplies({ user }) {
                           <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                             {vProducts.length > 0 && <span style={{ fontSize:'12px', background:'#f5f3ff', color:'#7c3aed', border:'1px solid #ddd6fe', borderRadius:'5px', padding:'2px 8px', fontWeight:600 }}>교구 {vProducts.length}종</span>}
                             {vFiles.length > 0    && <span style={{ fontSize:'12px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'5px', padding:'2px 8px', fontWeight:600 }}>파일 {vFiles.length}개</span>}
-                            <button onClick={e=>{ e.stopPropagation(); deleteVendor(v.id) }}
-                              style={{ padding:'4px 9px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                            <Btn size='sm' variant='outlineDanger' onClick={e=>{ e.stopPropagation(); confirm('업체를 삭제할까요?', () => deleteVendor(v.id), { icon:'🗑', confirmLabel:'삭제' }) }}>삭제</Btn>
                             <span style={{ fontSize:'14px', color:C.muted }}>{isExpanded ? '▲' : '▼'}</span>
                           </div>
                         </div>
@@ -997,10 +996,8 @@ export function Supplies({ user }) {
                                               {promos.length > 0      && <span style={{ background:'#f0fdf4', color:C.success, borderRadius:'4px', padding:'1px 6px' }}>홍보물 {promos.length}개</span>}
                                             </div>
                                           </div>
-                                          <button onClick={() => openProductModal(v.id, p)}
-                                            style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>수정</button>
-                                          <button onClick={() => deleteProduct(p.id)}
-                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
+                                          <Btn size='sm' variant='outline' onClick={() => openProductModal(v.id, p)}>수정</Btn>
+                                          <Btn size='sm' variant='outlineDanger' onClick={() => confirm('교구를 삭제할까요?', () => deleteProduct(p.id), { icon:'🗑', confirmLabel:'삭제' })}>삭제</Btn>
                                         </div>
                                         {/* 단계별 차시지도안 */}
                                         <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
@@ -1537,7 +1534,7 @@ export function Supplies({ user }) {
                           const cur = [...(prev[productStageTab]||[])]
                           cur.splice(idx, 1)
                           return {...prev, [productStageTab]: cur}
-                        })} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', padding:0, lineHeight:1 }}>×</button>
+                        }))}><Btn size='sm' variant='outlineDanger'>삭제</Btn></button>
                       </div>
                     )
                   })}
@@ -1625,8 +1622,7 @@ export function Supplies({ user }) {
                         onChange={e => setSessionPlanEdits(prev => prev.map((x,i) => i===idx ? {...x, memo:e.target.value} : x))}
                         placeholder="준비물 (선택)"
                         style={{ ...iStyle, padding:'5px 8px', fontSize:'12px' }} />
-                      <button onClick={() => setSessionPlanEdits(prev => prev.filter((_,i) => i!==idx))}
-                        style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', padding:0, lineHeight:1 }}>×</button>
+                      <Btn size='sm' variant='outlineDanger' onClick={() => setSessionPlanEdits(prev => prev.filter((_,i) => i!==idx))}>삭제</Btn>
                     </div>
                   ))}
                 </div>
@@ -1834,8 +1830,7 @@ export function Supplies({ user }) {
                 💡 업체 등록 후 업체 카드를 펼쳐서 교구·홍보물·지도안을 추가할 수 있습니다.
               </div>
               <div style={{ display:'flex', gap:'8px' }}>
-                <button onClick={saveVendor}
-                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+                <Btn onClick={saveVendor} full>저장</Btn>
                 <button onClick={()=>setVendorModal(false)}
                   style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
@@ -1877,8 +1872,7 @@ export function Supplies({ user }) {
             <div style={{ display:'flex', gap:'8px', justifyContent:'center' }}>
               <button onClick={()=>setDeleteConfirm(null)}
                 style={{ padding:'9px 20px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
-              <button onClick={()=>{ deleteConfirm.onOk(); setDeleteConfirm(null) }}
-                style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#ef4444', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+              <Btn variant='danger' onClick={() => { deleteConfirm.onOk(); setDeleteConfirm(null) }}>삭제</Btn>
             </div>
           </div>
         </div>

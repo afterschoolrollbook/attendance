@@ -307,8 +307,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId }) {
               {memo ? '편집' : '+ 메모'}
             </button>
             {memo && (
-              <button onClick={() => { setMemo(''); StudentsDB.update(s.id, { memo: '' }) }}
-                style={{ fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>삭제</button>
+              <Btn size='sm' variant='outlineDanger' onClick={() => { setMemo(''); StudentsDB.update(s.id, { memo: '' }) }}>삭제</Btn>
             )}
           </div>
         </div>

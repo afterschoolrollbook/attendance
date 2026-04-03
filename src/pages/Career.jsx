@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs'
 import { uid, now } from '../lib/utils.js'
 import { Careers, Educations } from '../lib/db.js'
-import { ToastContainer } from '../components/Atoms.jsx'
+import { ToastContainer, Btn } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
 
@@ -400,8 +400,7 @@ export function Career({ user }) {
                                   {r.fileType?.startsWith('image/') ? '🖼' : '📄'} {r.fileName || '첨부파일'}
                                 </span>
                                 <span style={{ fontSize:'11px', color:C.primary, background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>클릭하여 미리보기</span>
-                                <button onClick={e => { e.stopPropagation(); deleteFile(r.id) }}
-                                  style={{ fontSize:'11px', color:C.danger, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                                <Btn size='sm' variant='outlineDanger' onClick={e => { e.stopPropagation(); confirm('첨부파일을 삭제할까요?', () => deleteFile(r.id), { icon: '🗑', confirmLabel: '삭제' }) }}>삭제</Btn>
                               </div>
                             )}
                           </div>
@@ -414,8 +413,7 @@ export function Career({ user }) {
                             </label>
                             <button onClick={() => openEdit(r)}
                               style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
-                            <button onClick={() => deleteRecord(r.id)}
-                              style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
+                            <Btn size='sm' variant='outlineDanger' onClick={() => confirm('이 이력을 삭제할까요?', () => deleteRecord(r.id), { icon: '🗑', confirmLabel: '삭제' })}>삭제</Btn>
                           </div>
                         </div>
                       </div>
@@ -568,8 +566,7 @@ export function Career({ user }) {
               </div>
 
               <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
-                <button onClick={save}
-                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+                <Btn onClick={save} full>저장</Btn>
                 <button onClick={() => setModal(false)}
                   style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
@@ -651,8 +648,7 @@ export function Career({ user }) {
                         {r.fileType?.startsWith('image/') ? '🖼' : '📄'} {r.fileName || '졸업증명서'}
                       </button>
                       <span style={{ fontSize:'11px', color:C.primary, background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>클릭하여 미리보기</span>
-                      <button onClick={() => deleteEduFile(r.id)}
-                        style={{ fontSize:'11px', color:C.danger, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                      <Btn size='sm' variant='outlineDanger' onClick={() => confirm('파일을 삭제할까요?', () => deleteEduFile(r.id), { icon:'🗑', confirmLabel:'삭제' })}>삭제</Btn>
                     </div>
                   )}
                 </div>
@@ -674,8 +670,7 @@ export function Career({ user }) {
                   </label>
                   <button onClick={() => openEduEdit(r)}
                     style={{ padding:'4px 10px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
-                  <button onClick={() => deleteEdu(r.id)}
-                    style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
+                  <Btn size='sm' variant='outlineDanger' onClick={() => confirm('이 학력을 삭제할까요?', () => deleteEdu(r.id), { icon:'🗑', confirmLabel:'삭제' })}>삭제</Btn>
                 </div>
               </div>
             ))}
@@ -769,8 +764,7 @@ export function Career({ user }) {
                 </div>
               </div>
               <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
-                <button onClick={saveEdu}
-                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+                <Btn onClick={saveEdu} full>저장</Btn>
                 <button onClick={() => setEduModal(false)}
                   style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>

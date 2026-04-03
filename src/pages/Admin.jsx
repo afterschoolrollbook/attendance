@@ -817,8 +817,7 @@ function BranchPanel({ branches, setBranches, teachers }) {
           <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
             <button onClick={() => { setShowForm(false); setEditId(null) }}
               style={{ padding:'7px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
-            <button onClick={save}
-              style={{ padding:'7px 16px', borderRadius:'8px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+            <Btn onClick={save}>저장</Btn>
           </div>
         </div>
       )}
@@ -847,8 +846,7 @@ function BranchPanel({ branches, setBranches, teachers }) {
                 </div>
                 <div style={{ display:'flex', gap:'8px' }}>
                   <Btn size='sm' variant='ghost' onClick={() => { setEditId(b.id); setForm({ name: b.name }) }}>수정</Btn>
-                  <button onClick={() => del(b.id)}
-                    style={{ padding:'5px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#ef4444' }}>삭제</button>
+                  <Btn size='sm' variant='outlineDanger' onClick={() => del(b.id)}>삭제</Btn>
                 </div>
               </div>
             )

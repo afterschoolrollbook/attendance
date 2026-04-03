@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs'
 import { uid, now } from '../lib/utils.js'
 import { Certificates as CertDB } from '../lib/db.js'
-import { ToastContainer } from '../components/Atoms.jsx'
+import { ToastContainer, Btn } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
 
@@ -370,8 +370,7 @@ export function Certificates({ user }) {
                         </label>
                         <button onClick={() => openEdit(r)}
                           style={{ padding:'5px 10px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
-                        <button onClick={() => deleteRecord(r.id)}
-                          style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
+                        <Btn size='sm' variant='outlineDanger' onClick={() => confirm('이 자격증을 삭제할까요?', () => deleteRecord(r.id), { icon: '🗑', confirmLabel: '삭제' })}>삭제</Btn>
                       </div>
                     </div>
                   </div>
@@ -533,8 +532,7 @@ export function Certificates({ user }) {
               </div>
 
               <div style={{ display:'flex', gap:'8px', marginTop:'4px' }}>
-                <button onClick={save}
-                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+                <Btn onClick={save} full>저장</Btn>
                 <button onClick={() => setModal(false)}
                   style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
