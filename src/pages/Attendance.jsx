@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
+import { Modal } from '../components/Atoms.jsx'
+import { useToast } from '../hooks/useToast.js'
 
 // 결석 사유 (출석체크용 확장)
 const ABSENT_REASONS = [
@@ -138,24 +140,25 @@ const phoneActionBtn = { display:'block', width:'100%', padding:'9px 14px', back
 
 // ─── 학부모 메시지 발송
 function MsgModal({ student, onClose }) {
+  const { success, toastError } = useToast()
   const [text, setText] = useState('')
   const phone = student.parentPhone?.replace(/[^0-9]/g, '') || ''
 
   const sendSMS = () => {
-    if (!phone) { alert('학부모 전화번호가 없습니다.'); return }
+    if (!phone) { toastError('학부모 전화번호가 없습니다.'); return }
     window.open(`sms:${phone}?body=${encodeURIComponent(text)}`)
     onClose()
   }
   const sendKakao = () => {
-    if (!phone) { alert('학부모 전화번호가 없습니다.'); return }
+    if (!phone) { toastError('학부모 전화번호가 없습니다.'); return }
     window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${phone}&message=${encodeURIComponent(text)}`)
     onClose()
   }
   const copyText = () => {
-    navigator.clipboard.writeText(text).then(() => alert('메시지가 복사되었습니다.')).catch(() => {
+    navigator.clipboard.writeText(text).then(() => success('메시지가 복사되었습니다.')).catch(() => {
       const ta = document.createElement('textarea'); ta.value = text
       document.body.appendChild(ta); ta.select(); document.execCommand('copy')
-      document.body.removeChild(ta); alert('복사되었습니다.')
+      document.body.removeChild(ta); success('복사되었습니다.')
     })
   }
 
@@ -166,44 +169,35 @@ function MsgModal({ student, onClose }) {
   ]
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '460px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
-        <div style={{ padding: '18px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: C.text }}>📱 학부모 메시지</div>
-            <div style={{ fontSize: '13px', color: C.muted, marginTop: '2px' }}>{student.name} · {fmtPhone(student.parentPhone) || '전화번호 없음'}</div>
+    <Modal open={true} onClose={onClose} title="📱 학부모 메시지" width={460}>
+      <div style={{ fontSize: '13px', color: C.muted, marginBottom: '14px' }}>{student.name} · {fmtPhone(student.parentPhone) || '전화번호 없음'}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {/* 빠른 문구 */}
+        <div>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '8px' }}>빠른 문구</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {templates.map((t, i) => (
+              <button key={i} onClick={() => setText(t)}
+                style={{ padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, background: '#f9fafb', textAlign: 'left', cursor: 'pointer', fontSize: '12px', color: '#374151', fontFamily: 'Noto Sans KR, sans-serif', lineHeight: 1.5 }}>
+                {t}
+              </button>
+            ))}
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: C.muted }}>×</button>
         </div>
-        <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {/* 빠른 문구 */}
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '8px' }}>빠른 문구</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {templates.map((t, i) => (
-                <button key={i} onClick={() => setText(t)}
-                  style={{ padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, background: '#f9fafb', textAlign: 'left', cursor: 'pointer', fontSize: '12px', color: '#374151', fontFamily: 'Noto Sans KR, sans-serif', lineHeight: 1.5 }}>
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-          {/* 직접 입력 */}
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '6px' }}>직접 입력</div>
-            <textarea value={text} onChange={e => setText(e.target.value)} rows={4} placeholder="메시지를 입력하세요..."
-              style={{ width: '100%', padding: '10px 12px', borderRadius: '9px', border: `1.5px solid ${C.border}`, fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
-          </div>
-          {/* 발송 버튼 */}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={sendSMS} style={{ flex: 1, padding: '10px', borderRadius: '9px', border: 'none', background: '#3b82f6', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>💬 문자 발송</button>
-            <button onClick={sendKakao} style={{ flex: 1, padding: '10px', borderRadius: '9px', border: 'none', background: '#fee500', color: '#3c1e1e', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>💛 카톡 발송</button>
-            <button onClick={copyText} style={{ padding: '10px 14px', borderRadius: '9px', border: `1.5px solid ${C.border}`, background: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', color: C.muted }}>복사</button>
-          </div>
+        {/* 직접 입력 */}
+        <div>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '6px' }}>직접 입력</div>
+          <textarea value={text} onChange={e => setText(e.target.value)} rows={4} placeholder="메시지를 입력하세요..."
+            style={{ width: '100%', padding: '10px 12px', borderRadius: '9px', border: `1.5px solid ${C.border}`, fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+        </div>
+        {/* 발송 버튼 */}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={sendSMS} style={{ flex: 1, padding: '10px', borderRadius: '9px', border: 'none', background: '#3b82f6', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>💬 문자 발송</button>
+          <button onClick={sendKakao} style={{ flex: 1, padding: '10px', borderRadius: '9px', border: 'none', background: '#fee500', color: '#3c1e1e', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>💛 카톡 발송</button>
+          <button onClick={copyText} style={{ padding: '10px 14px', borderRadius: '9px', border: `1.5px solid ${C.border}`, background: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', color: C.muted }}>복사</button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -216,24 +210,17 @@ function StudentMemoModal({ student, onClose, onSave }) {
     onClose()
   }
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-      <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'420px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
-        <div style={{ padding:'16px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>📌 {student.name} 메모</div>
-          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'20px', color:C.muted }}>×</button>
-        </div>
-        <div style={{ padding:'18px 20px', display:'flex', flexDirection:'column', gap:'12px' }}>
-          <textarea value={text} onChange={e => setText(e.target.value)} rows={4} autoFocus
-            placeholder="메모를 입력하세요..."
-            style={{ width:'100%', padding:'10px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical', outline:'none', boxSizing:'border-box' }} />
-          <div style={{ display:'flex', gap:'8px' }}>
-            <button onClick={doSave} style={{ flex:1, padding:'10px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
-            <button onClick={onClose} style={{ padding:'10px 16px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
-          </div>
+    <Modal open={true} onClose={onClose} title={`📌 ${student.name} 메모`} width={420}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <textarea value={text} onChange={e => setText(e.target.value)} rows={4} autoFocus
+          placeholder="메모를 입력하세요..."
+          style={{ width: '100%', padding: '10px 12px', borderRadius: '9px', border: `1.5px solid ${C.border}`, fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={doSave} style={{ flex: 1, padding: '10px', borderRadius: '9px', border: 'none', background: C.primary, color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>저장</button>
+          <button onClick={onClose} style={{ padding: '10px 16px', borderRadius: '9px', border: `1px solid ${C.border}`, background: '#fff', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', color: C.muted }}>취소</button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -430,11 +417,12 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
 
 // 인라인 메모
 function NoteInline({ note, onSave, studentMemo, placeholder = '특이사항 메모' }) {
+  const { success } = useToast()
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(note)
   const ref = useRef()
   useEffect(() => setVal(note), [note])
-  const save = () => { onSave(val); setEditing(false) }
+  const save = () => { onSave(val); setEditing(false); success('수정이 완료되었습니다.') }
   return (
     <div>
       {studentMemo && (
@@ -513,7 +501,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
     s.classIds?.includes(cls.id) && ['cancelled','waiting'].includes(s.status)
   )
   const sorted = [...activeStudents].sort((a, b) => {
-    const g = (a.grade||'').localeCompare(b.grade||'','ko'); if (g) return g
+    const g = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (g) return g
     const c = parseInt(a.classNum||0) - parseInt(b.classNum||0); if (c) return c
     const n = parseInt(a.number||0) - parseInt(b.number||0); if (n) return n
     return (a.name||'').localeCompare(b.name||'','ko')
@@ -782,7 +770,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
             {notes.map(n => (
               <div key={n.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px', background:'#fffbeb', borderRadius:'7px', border:'1px solid #fde68a', fontSize:'13px', color:'#374151' }}>
                 <span>📌 {n.content}</span>
-                <button onClick={() => delNote(n.id)} style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'14px' }}>×</button>
+                <button onClick={() => delNote(n.id)} style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>삭제</button>
               </div>
             ))}
             {adding && (
@@ -914,33 +902,25 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
 
 function StudentDetailModal({ student, onClose }) {
   return (
-    <div onClick={onClose}
-      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-      <div onClick={e => e.stopPropagation()}
-        style={{ background:'#fff', borderRadius:'18px', padding:'24px', width:'100%', maxWidth:'400px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'18px' }}>
-          <span style={{ fontSize:'18px', fontWeight:700, color:'#18181b' }}>{student.name}</span>
-          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#9ca3af' }}>×</button>
+    <Modal open={true} onClose={onClose} title={student.name} width={400}>
+      {[
+        ['학교', student.school || '-'],
+        ['학년', student.grade ? student.grade+'학년' : '-'],
+        ['학급반', student.classNum ? student.classNum+'반' : '-'],
+        ['번호', student.number || '-'],
+        ['학부모 전화', student.parentPhone || '-'],
+        ['학생 전화', student.studentPhone || '-'],
+        ['메모', student.memo || '-'],
+      ].map(([label, value]) => (
+        <div key={label} style={{ display:'flex', gap:'12px', padding:'9px 0', borderBottom:'1px solid #f3f4f6', fontSize:'14px' }}>
+          <span style={{ color:'#9ca3af', fontWeight:600, minWidth:'90px', flexShrink:0 }}>{label}</span>
+          {label.includes('전화') && value !== '-'
+            ? <PhoneAction phone={value}><span style={{ color:'#3b82f6' }}>{fmtPhone(value)}</span></PhoneAction>
+            : <span style={{ color:'#18181b' }}>{value}</span>
+          }
         </div>
-        {[
-          ['학교', student.school || '-'],
-          ['학년', student.grade ? student.grade+'학년' : '-'],
-          ['학급반', student.classNum ? student.classNum+'반' : '-'],
-          ['번호', student.number || '-'],
-          ['학부모 전화', student.parentPhone || '-'],
-          ['학생 전화', student.studentPhone || '-'],
-          ['메모', student.memo || '-'],
-        ].map(([label, value]) => (
-          <div key={label} style={{ display:'flex', gap:'12px', padding:'9px 0', borderBottom:'1px solid #f3f4f6', fontSize:'14px' }}>
-            <span style={{ color:'#9ca3af', fontWeight:600, minWidth:'90px', flexShrink:0 }}>{label}</span>
-            {label.includes('전화') && value !== '-'
-              ? <PhoneAction phone={value}><span style={{ color:'#3b82f6' }}>{fmtPhone(value)}</span></PhoneAction>
-              : <span style={{ color:'#18181b' }}>{value}</span>
-            }
-          </div>
-        ))}
-      </div>
-    </div>
+      ))}
+    </Modal>
   )
 }
 
@@ -955,7 +935,7 @@ export function Attendance({ user, pageParams = {} }) {
   const allStudents = StudentsDB.byTeacher(user.id)
   const schools = [...new Set(allClasses.map(c => c.organization).filter(Boolean))]
 
-  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
+  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
   const currentYear = String(now_.getFullYear())
   if (!years.includes(currentYear)) years.unshift(currentYear)
 
@@ -1025,7 +1005,7 @@ export function Attendance({ user, pageParams = {} }) {
     if (classCmp !== 0) return classCmp
     const sectionCmp = (aClass?.section||'').localeCompare(bClass?.section||'','ko')
     if (sectionCmp !== 0) return sectionCmp
-    const gradeCmp = (a.grade||'').localeCompare(b.grade||'','ko')
+    const gradeCmp = parseInt(a.grade||'0') - parseInt(b.grade||'0')
     if (gradeCmp !== 0) return gradeCmp
     const classNumCmp = parseInt(a.classNum||'0') - parseInt(b.classNum||'0')
     if (classNumCmp !== 0) return classNumCmp
