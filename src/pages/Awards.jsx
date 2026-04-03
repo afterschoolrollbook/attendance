@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs'
 import { uid, now } from '../lib/utils.js'
 import { Awards } from '../lib/db.js'
-import { ToastContainer } from '../components/Atoms.jsx'
+import { Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 
 const C = {
@@ -56,7 +56,7 @@ export function AwardsPage({ user }) {
   const currentYear = String(new Date().getFullYear())
   const [selYear, setSelYear] = useState('')
 
-  const { toasts, success, error: toastError, info } = useToast()
+  const { success, error: toastError, info } = useToast()
 
   const reload = () => setRecords(Awards.byTeacher(user.id))
   useEffect(() => { reload() }, [])
@@ -103,7 +103,7 @@ export function AwardsPage({ user }) {
       if (editId) Awards.update(editId, item)
       else Awards.insert(item)
       reload()
-      success(editId ? '수정됐어요' : '등록됐어요 ✅')
+      success(editId ? '수정이 완료되었습니다.' : '등록이 완료되었습니다.')
       setModal(false); setModalFile(null); setSelYear(form.year)
     } catch(e) {
       toastError('저장 실패: ' + e.message)
@@ -124,7 +124,7 @@ export function AwardsPage({ user }) {
     try {
       const fileUrl = await uploadToStorage(user.id, awardId, file)
       Awards.update(awardId, { fileUrl, fileName: file.name, fileType: file.type })
-      reload(); success('파일이 저장됐어요 📎')
+      reload(); success('파일이 저장되었습니다.')
     } catch(e) {
       toastError('파일 업로드 실패: ' + e.message)
     } finally {
@@ -164,7 +164,7 @@ export function AwardsPage({ user }) {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '수상경력')
     XLSX.writeFile(wb, `수상경력_${today}.xlsx`)
-    success('엑셀 다운로드 완료 📊')
+    success('다운로드가 완료되었습니다.')
   }
 
   const typeColors = {
@@ -282,15 +282,8 @@ export function AwardsPage({ user }) {
       )}
 
       {/* 추가/편집 모달 */}
-      {modal && (
-        <div onClick={e => { if(e.target===e.currentTarget) setModal(false) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'480px', maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ padding:'18px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'#fff', zIndex:1 }}>
-              <span style={{ fontSize:'16px', fontWeight:700 }}>{editId ? '수상 편집' : '수상 추가'}</span>
-              <button onClick={() => setModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>×</button>
-            </div>
-            <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+      <Modal open={modal} onClose={() => setModal(false)} title={editId ? '수상 편집' : '수상 추가'} width={480}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
               {/* 연도 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>연도</label>
@@ -383,33 +376,23 @@ export function AwardsPage({ user }) {
                 <button onClick={() => setModal(false)}
                   style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
-            </div>
-          </div>
         </div>
-      )}
+      </Modal>
 
       {/* 미리보기 모달 */}
-      {preview && (
-        <div onClick={e => { if(e.target===e.currentTarget) setPreview(null) }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:2000, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'14px', overflow:'hidden', maxWidth:'800px', width:'100%', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 60px rgba(0,0,0,0.4)' }}>
-            <div style={{ padding:'12px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
-              <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>
-                {preview.type?.startsWith('image/') ? '🖼' : '📄'} {preview.name}
-              </span>
-              <div style={{ display:'flex', gap:'8px' }}>
-                <a href={preview.url} download={preview.name} target="_blank" rel="noopener noreferrer"
-                  style={{ padding:'6px 14px', borderRadius:'8px', background:'#f0fdf4', border:'1.5px solid #86efac', color:C.success, fontSize:'12px', fontWeight:700, textDecoration:'none' }}>
-                  ⬇ 다운로드
-                </a>
-                <button onClick={() => setPreview(null)}
-                  style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:C.muted, lineHeight:1 }}>×</button>
-              </div>
+      <Modal open={!!preview} onClose={() => setPreview(null)} title={preview ? `${preview.type?.startsWith('image/') ? '🖼' : '📄'} ${preview.name}` : ''} width={800}>
+        {preview && (
+          <>
+            <div style={{ textAlign:'right', marginBottom:'10px' }}>
+              <a href={preview.url} download={preview.name} target="_blank" rel="noopener noreferrer"
+                style={{ padding:'6px 14px', borderRadius:'8px', background:'#f0fdf4', border:'1.5px solid #86efac', color:C.success, fontSize:'12px', fontWeight:700, textDecoration:'none' }}>
+                ⬇ 다운로드
+              </a>
             </div>
-            <div style={{ overflow:'auto', flex:1, display:'flex', alignItems:'center', justifyContent:'center', background:'#f9fafb', padding:'16px' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', background:'#f9fafb', borderRadius:'8px', padding:'16px', minHeight:'300px' }}>
               {preview.type?.startsWith('image/') ? (
                 <img src={preview.url} alt={preview.name}
-                  style={{ maxWidth:'100%', maxHeight:'100%', borderRadius:'8px', boxShadow:'0 4px 20px rgba(0,0,0,0.15)', objectFit:'contain' }} />
+                  style={{ maxWidth:'100%', maxHeight:'60vh', borderRadius:'8px', boxShadow:'0 4px 20px rgba(0,0,0,0.15)', objectFit:'contain' }} />
               ) : preview.type === 'application/pdf' ? (
                 <iframe src={preview.url} title={preview.name}
                   style={{ width:'100%', height:'600px', border:'none', borderRadius:'8px' }} />
@@ -422,9 +405,9 @@ export function AwardsPage({ user }) {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* 확인 모달 */}
       {confirm && (
@@ -442,9 +425,7 @@ export function AwardsPage({ user }) {
         </div>
       )}
 
-      <ToastContainer toasts={toasts} />
-
-      {uploading && (
+{uploading && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div style={{ background:'#fff', borderRadius:'12px', padding:'24px 36px', fontSize:'14px', fontWeight:600 }}>📤 저장 중...</div>
         </div>
