@@ -1,20 +1,33 @@
 import React, { useState } from 'react'
 import { AdSlots } from '../lib/db.js'
 import { Btn, Card, PageHeader, Toggle, Textarea } from '../components/Atoms.jsx'
+import { useToast } from '../hooks/useToast.js'
 
 export function Adsense() {
   const [slots, setSlots] = useState(() => AdSlots.all())
   const [editId, setEditId] = useState(null)
   const [code, setCode] = useState('')
+  const [pendingActive, setPendingActive] = useState({})  // 저장 전 토글 상태
+  const { success } = useToast()
+
+  const reload = () => setSlots(AdSlots.all())
 
   const update = (id, patch) => {
     AdSlots.update(id, patch)
-    setSlots(AdSlots.all())
+    reload()
   }
 
   const saveCode = (id) => {
     update(id, { code })
     setEditId(null)
+    success('수정이 완료되었습니다.')
+  }
+
+  const saveActive = (id) => {
+    const val = pendingActive[id]
+    update(id, { active: val })
+    setPendingActive(p => { const next = { ...p }; delete next[id]; return next })
+    success('수정이 완료되었습니다.')
   }
 
   return (
@@ -29,58 +42,68 @@ export function Adsense() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {slots.map(slot => (
-          <Card key={slot.id}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>{slot.name}</div>
-                  <span style={{ fontSize: '11px', color: '#9ca3af', background: '#f3f4f6', padding: '2px 8px', borderRadius: '6px' }}>
-                    {typeof slot.w === 'number' ? `${slot.w}` : '100%'} × {slot.h}px
-                  </span>
-                </div>
-                <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '12px' }}>슬롯 ID: {slot.id}</div>
-
-                {/* 플레이스홀더 미리보기 */}
-                <div style={{
-                  width: '100%', maxWidth: typeof slot.w === 'number' ? `${slot.w}px` : '100%',
-                  height: `${slot.h}px`,
-                  background: slot.active && slot.code ? '#f0fdf4' : '#f9fafb',
-                  border: `2px dashed ${slot.active && slot.code ? '#86efac' : '#e5e7eb'}`,
-                  borderRadius: '8px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '12px', color: '#9ca3af',
-                  marginBottom: '12px',
-                }}>
-                  {slot.active && slot.code ? '✅ 광고 활성' : slot.code ? '광고 코드 있음 (OFF)' : '광고 코드 없음'}
-                </div>
-
-                {editId === slot.id ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <Textarea value={code} onChange={setCode} placeholder="<script>... AdSense 코드를 붙여넣으세요 ...</script>" rows={5} />
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <Btn size="sm" onClick={() => saveCode(slot.id)}>저장</Btn>
-                      <Btn size="sm" variant="ghost" onClick={() => setEditId(null)}>취소</Btn>
-                      {slot.code && <Btn size="sm" variant="outlineDanger" onClick={() => { update(slot.id, { code: '' }); setEditId(null) }}>코드 삭제</Btn>}
-                    </div>
+        {slots.map(slot => {
+          const isActivePending = slot.id in pendingActive
+          const activeVal = isActivePending ? pendingActive[slot.id] : slot.active
+          return (
+            <Card key={slot.id}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>{slot.name}</div>
+                    <span style={{ fontSize: '11px', color: '#9ca3af', background: '#f3f4f6', padding: '2px 8px', borderRadius: '6px' }}>
+                      {typeof slot.w === 'number' ? `${slot.w}` : '100%'} × {slot.h}px
+                    </span>
                   </div>
-                ) : (
-                  <Btn size="sm" variant="ghost" onClick={() => { setCode(slot.code || ''); setEditId(slot.id) }}>
-                    {slot.code ? '코드 편집' : '+ 코드 입력'}
-                  </Btn>
-                )}
-              </div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '12px' }}>슬롯 ID: {slot.id}</div>
 
-              {/* 토글 */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <Toggle checked={slot.active} onChange={v => update(slot.id, { active: v })} />
-                <span style={{ fontSize: '12px', color: slot.active ? '#16a34a' : '#9ca3af', fontWeight: 600 }}>
-                  {slot.active ? 'ON' : 'OFF'}
-                </span>
+                  {/* 플레이스홀더 미리보기 */}
+                  <div style={{
+                    width: '100%', maxWidth: typeof slot.w === 'number' ? `${slot.w}px` : '100%',
+                    height: `${slot.h}px`,
+                    background: activeVal && slot.code ? '#f0fdf4' : '#f9fafb',
+                    border: `2px dashed ${activeVal && slot.code ? '#86efac' : '#e5e7eb'}`,
+                    borderRadius: '8px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '12px', color: '#9ca3af',
+                    marginBottom: '12px',
+                  }}>
+                    {activeVal && slot.code ? '✅ 광고 활성' : slot.code ? '광고 코드 있음 (OFF)' : '광고 코드 없음'}
+                  </div>
+
+                  {editId === slot.id ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <Textarea value={code} onChange={setCode} placeholder="<script>... AdSense 코드를 붙여넣으세요 ...</script>" rows={5} />
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <Btn size="sm" onClick={() => saveCode(slot.id)}>저장</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => setEditId(null)}>취소</Btn>
+                        {slot.code && <Btn size="sm" variant="outlineDanger" onClick={() => { update(slot.id, { code: '' }); setEditId(null) }}>코드 삭제</Btn>}
+                      </div>
+                    </div>
+                  ) : (
+                    <Btn size="sm" variant="ghost" onClick={() => { setCode(slot.code || ''); setEditId(slot.id) }}>
+                      {slot.code ? '코드 편집' : '+ 코드 입력'}
+                    </Btn>
+                  )}
+                </div>
+
+                {/* 토글 + 저장 버튼 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                  <Toggle
+                    checked={activeVal}
+                    onChange={v => setPendingActive(p => ({ ...p, [slot.id]: v }))}
+                  />
+                  <span style={{ fontSize: '12px', color: activeVal ? '#16a34a' : '#9ca3af', fontWeight: 600 }}>
+                    {activeVal ? 'ON' : 'OFF'}
+                  </span>
+                  {isActivePending && (
+                    <Btn size="sm" onClick={() => saveActive(slot.id)}>저장</Btn>
+                  )}
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          )
+        })}
       </div>
     </div>
   )
