@@ -91,6 +91,8 @@ const SYNC_TABLES = [
   'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
   // 로봇 교구 진도
   'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress', 'supplyProgressLogs', 'supplySessionChecks',
+  // 지사 / 학부모 회원 / 연결 정보
+  'branches', 'parentMembers', 'teacherParentLinks',
 ]
 
 // ─── 초기화: Supabase 데이터와 로컬 merge
@@ -571,8 +573,8 @@ export const SupplyStudentProgress = {
     const existing = db.where('supplyStudentProgress', x =>
       x.studentId === r.studentId && x.classId === r.classId && x.productId === r.productId
     )[0]
-    if (existing) return db.update(existing.id, { ...r, updatedAt: r.updatedAt })
-    return db.insert({ ...r, id: r.id || uid() })
+    if (existing) return db.update('supplyStudentProgress', existing.id, { ...r, updatedAt: r.updatedAt })
+    return db.insert('supplyStudentProgress', { ...r, id: r.id || uid() })
   },
 }
 
@@ -604,7 +606,7 @@ export const SupplySessionChecks = {
       x.studentId === r.studentId && x.classId === r.classId &&
       x.productId === r.productId && x.stage === r.stage && x.sessionNo === r.sessionNo
     )[0]
-    if (existing) return db.update(existing.id, { ...r })
-    return db.insert({ ...r, id: r.id || uid() })
+    if (existing) return db.update('supplySessionChecks', existing.id, { ...r })
+    return db.insert('supplySessionChecks', { ...r, id: r.id || uid() })
   },
 }
