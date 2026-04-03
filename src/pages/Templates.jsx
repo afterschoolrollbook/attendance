@@ -2,13 +2,18 @@ import React, { useState, useRef } from 'react'
 import { Templates as TemplatesDB } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
 import { Btn, Card, Input, Modal, PageHeader, Tag, EmptyState, Toggle } from '../components/Atoms.jsx'
+import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../components/Atoms.jsx'
 
 export function Templates({ user }) {
   const [templates, setTemplates] = useState(() => TemplatesDB.all().filter(t => t.teacherId === user.id || user.role === 'admin'))
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ school: '', templateName: '', fileType: 'xlsx' })
   const [file, setFile] = useState(null)
+  const [pendingActive, setPendingActive] = useState({})  // 저장 전 토글 상태
   const fileRef = useRef()
+  const { error: toastError, success } = useToast()
+  const confirm = useConfirm()
 
   const reload = () => setTemplates(TemplatesDB.all().filter(t => t.teacherId === user.id || user.role === 'admin'))
 
@@ -25,7 +30,7 @@ export function Templates({ user }) {
 
   const save = async () => {
     if (!form.school.trim() || !form.templateName.trim()) {
-      alert('학교명과 양식 이름을 입력하세요.')
+      toastError('학교명과 양식 이름을 입력하세요.')
       return
     }
     let fileData = ''
@@ -51,17 +56,22 @@ export function Templates({ user }) {
     setShowModal(false)
     setFile(null)
     setForm({ school: '', templateName: '', fileType: 'xlsx' })
+    success('등록이 완료되었습니다.')
   }
 
-  const toggleActive = (id, v) => {
-    TemplatesDB.update(id, { active: v })
+  const saveActive = (id) => {
+    const val = pendingActive[id]
+    TemplatesDB.update(id, { active: val })
     reload()
+    setPendingActive(p => { const next = { ...p }; delete next[id]; return next })
+    success('수정이 완료되었습니다.')
   }
 
   const del = (id) => {
-    if (!confirm('삭제하시겠습니까?')) return
-    TemplatesDB.delete(id)
-    reload()
+    confirm('삭제하시겠습니까?', () => {
+      TemplatesDB.delete(id)
+      reload()
+    })
   }
 
   return (
@@ -80,31 +90,38 @@ export function Templates({ user }) {
         <EmptyState icon="📄" title="등록된 양식이 없습니다" desc="출석부 양식을 등록하여 자동 출력 기능을 사용하세요." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {templates.map(t => (
-            <Card key={t.id}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>{t.templateName}</div>
-                    <Tag color={t.fileType === 'hwp' ? '#8b5cf6' : '#16a34a'} bg={t.fileType === 'hwp' ? '#f5f3ff' : '#f0fdf4'}>
-                      .{t.fileType}
-                    </Tag>
-                    {!t.active && <Tag color="#9ca3af" bg="#f3f4f6">비활성</Tag>}
+          {templates.map(t => {
+            const isActivePending = t.id in pendingActive
+            const activeVal = isActivePending ? pendingActive[t.id] : t.active
+            return (
+              <Card key={t.id}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>{t.templateName}</div>
+                      <Tag color={t.fileType === 'hwp' ? '#8b5cf6' : '#16a34a'} bg={t.fileType === 'hwp' ? '#f5f3ff' : '#f0fdf4'}>
+                        .{t.fileType}
+                      </Tag>
+                      {!activeVal && <Tag color="#9ca3af" bg="#f3f4f6">비활성</Tag>}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                      🏫 {t.school} &nbsp;·&nbsp; 등록일 {t.createdAt?.slice(0, 10)}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '13px', color: '#6b7280' }}>
-                    🏫 {t.school} &nbsp;·&nbsp; 등록일 {t.createdAt?.slice(0, 10)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                      <Toggle checked={activeVal} onChange={v => setPendingActive(p => ({ ...p, [t.id]: v }))} />
+                      <span style={{ fontSize: '11px', color: activeVal ? '#16a34a' : '#9ca3af' }}>{activeVal ? '활성' : '비활성'}</span>
+                      {isActivePending && (
+                        <Btn size="sm" onClick={() => saveActive(t.id)}>저장</Btn>
+                      )}
+                    </div>
+                    <Btn size="sm" variant="outlineDanger" onClick={() => del(t.id)}>삭제</Btn>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                    <Toggle checked={t.active} onChange={v => toggleActive(t.id, v)} />
-                    <span style={{ fontSize: '11px', color: t.active ? '#16a34a' : '#9ca3af' }}>{t.active ? '활성' : '비활성'}</span>
-                  </div>
-                  <Btn size="sm" variant="outlineDanger" onClick={() => del(t.id)}>삭제</Btn>
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            )
+          })}
         </div>
       )}
 
