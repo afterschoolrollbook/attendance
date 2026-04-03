@@ -67,7 +67,7 @@ export function Career({ user }) {
   const [eduEditId, setEduEditId]   = useState(null)
   const [eduModalFile, setEduModalFile] = useState(null)
   const [eduModalDrag, setEduModalDrag] = useState(false)
-  const { success, error: toastError, info } = useToast()
+  const { success, error: toastError } = useToast()
 
   const reload = () => {
     setRecords(Careers.byTeacher(user.id))
@@ -166,7 +166,7 @@ export function Career({ user }) {
 
   const deleteRecord = id => {
     setConfirm({ msg:'이 이력을 삭제할까요?', onOk: () => {
-      Careers.delete(id); reload(); info('삭제됐어요')
+      Careers.delete(id); reload(); success('삭제되었습니다.')
     }})
   }
 
@@ -187,7 +187,7 @@ export function Career({ user }) {
   const deleteFile = careerId => {
     setConfirm({ msg:'첨부파일을 삭제할까요?', onOk: () => {
       Careers.update(careerId, { fileUrl: null, fileName: null, fileType: null })
-      reload(); info('파일을 삭제했어요')
+      reload(); success('파일이 삭제되었습니다.')
     }})
   }
 
@@ -238,12 +238,12 @@ export function Career({ user }) {
   const deleteEduFile = eduId => {
     setConfirm({ msg:'첨부파일을 삭제할까요?', onOk: () => {
       Educations.update(eduId, { fileUrl: null, fileName: null, fileType: null })
-      reload(); info('파일을 삭제했어요')
+      reload(); success('파일이 삭제되었습니다.')
     }})
   }
   const deleteEdu = id => {
     setConfirm({ msg:'이 학력을 삭제할까요?', onOk: () => {
-      Educations.delete(id); reload(); info('삭제됐어요')
+      Educations.delete(id); reload(); success('삭제되었습니다.')
     }})
   }
 
@@ -724,9 +724,9 @@ export function Career({ user }) {
       </Modal>
 
       {/* 확인 모달 */}
-      {confirm && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:4000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}>
-          <div style={{ background:'#fff', borderRadius:'14px', padding:'24px', maxWidth:'320px', width:'100%', textAlign:'center' }}>
+      <Modal open={!!confirm} onClose={() => setConfirm(null)} title="삭제 확인" width={320}>
+        {confirm && (
+          <div style={{ textAlign:'center', padding:'8px 0' }}>
             <div style={{ fontSize:'32px', marginBottom:'12px' }}>🗑</div>
             <div style={{ fontSize:'15px', fontWeight:600, color:'#111827', marginBottom:'20px' }}>{confirm.msg}</div>
             <div style={{ display:'flex', gap:'8px', justifyContent:'center' }}>
@@ -736,8 +736,8 @@ export function Career({ user }) {
                 style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#ef4444', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
 {uploading && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center' }}>
