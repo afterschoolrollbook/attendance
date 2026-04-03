@@ -157,12 +157,7 @@ export function Supplies({ user }) {
   const [subjectModal, setSubjectModal] = useState(false)
   const [newSubject, setNewSubject]     = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(null)
-  const [toast, setToast] = useState(null) // { msg, type:'success'|'info' }
-  const showToast = (msg, type='success') => {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 2500)
-  }
-  const { error: toastError } = useToast()
+  const { error: toastError, success } = useToast()
 
   const schoolList = [...new Set(classes.map(c => c.organization).filter(Boolean))]
 
@@ -242,7 +237,7 @@ export function Supplies({ user }) {
         })
       }
     })
-    reload(); setSupplyModal(false); setSupplyForm({ name:'', productId:'', stage:1 }); showToast('교구 설정이 저장되었습니다.')
+    reload(); setSupplyModal(false); setSupplyForm({ name:'', productId:'', stage:1 }); success('수정이 완료되었습니다.')
   }
 
   // ── 진도 체크 헬퍼
@@ -303,14 +298,14 @@ export function Supplies({ user }) {
   const saveVendor = () => {
     if (!vendorForm.name) { toastError('업체명을 입력하세요'); return }
     SupplyVendors.insert({ id: uid(), teacherId: user.id, subject: selSubject, ...vendorForm, createdAt: now() })
-    reload(); setVendorModal(false); setVendorForm({ name:'', managerName:'', contact:'', memo:'' }); showToast('업체가 등록되었습니다.')
+    reload(); setVendorModal(false); setVendorForm({ name:'', managerName:'', contact:'', memo:'' }); success('등록이 완료되었습니다.')
   }
   const deleteVendor = (id) => {
     setDeleteConfirm({ msg:'이 업체를 삭제하시겠습니까?\n업체 파일도 함께 삭제됩니다.', onOk: () => {
       SupplyVendors.delete(id)
       planList.filter(p=>p.vendorId===id).forEach(p=>SupplyPlans.delete(p.id))
       productList.filter(p=>p.vendorId===id).forEach(p=>SupplyProducts.delete(p.id))
-      reload(); showToast('삭제가 완료되었습니다.', 'info')
+      reload(); success('삭제가 완료되었습니다.')
     }})
   }
 
@@ -392,10 +387,10 @@ export function Supplies({ user }) {
     reload()
     setProductModal(false)
     setStageSessionTitles({})
-    showToast(isEdit ? '교구가 수정되었습니다.' : '교구가 등록되었습니다.')
+    success(isEdit ? '수정이 완료되었습니다.' : '등록이 완료되었습니다.')
   }
   const deleteProduct = (id) => {
-    setDeleteConfirm({ msg:'이 교구를 삭제하시겠습니까?', onOk: () => { SupplyProducts.delete(id); reload(); showToast('삭제가 완료되었습니다.', 'info') } })
+    setDeleteConfirm({ msg:'이 교구를 삭제하시겠습니까?', onOk: () => { SupplyProducts.delete(id); reload(); success('삭제가 완료되었습니다.') } })
   }
 
   // 차시 지도안 열기
@@ -426,7 +421,7 @@ export function Supplies({ user }) {
         }
       })
       reload()
-      showToast('수정이 완료되었습니다.')
+      success('수정이 완료되었습니다.')
       setSessionPlanModal(false)
     } catch(e) { toastError('저장 실패: '+e.message) }
     finally { setUploading(false) }
@@ -518,12 +513,12 @@ export function Supplies({ user }) {
           })
         })
       }
-      reload(); setFileModal(false); setModalFile(null); setFileEditId(null); showToast(fileEditId ? '수정이 완료되었습니다.' : '등록이 완료되었습니다.')
+      reload(); setFileModal(false); setModalFile(null); setFileEditId(null); success(fileEditId ? '수정이 완료되었습니다.' : '등록이 완료되었습니다.')
     } catch(e) { toastError('업로드 실패: '+e.message) }
     finally { setUploading(false) }
   }
   const deleteFile = (id) => {
-    setDeleteConfirm({ msg:'이 파일을 삭제하시겠습니까?', onOk: () => { SupplyPlans.delete(id); reload(); showToast('삭제가 완료되었습니다.', 'info') } })
+    setDeleteConfirm({ msg:'이 파일을 삭제하시겠습니까?', onOk: () => { SupplyPlans.delete(id); reload(); success('삭제가 완료되었습니다.') } })
   }
 
   // 과목 관리
@@ -540,7 +535,7 @@ export function Supplies({ user }) {
       if (rec) SupplySubjects.delete(rec.id)
       reload()
       if (selSubject===s) setSelSubject(subjects.filter(x=>x!==s)[0]||null)
-      showToast('삭제가 완료되었습니다.', 'info')
+      success('삭제가 완료되었습니다.')
     }})
   }
 
@@ -1045,7 +1040,7 @@ export function Supplies({ user }) {
                                                           style={{ padding:'3px 10px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
                                                           수정
                                                         </button>
-                                                        <button onClick={e=>{ e.stopPropagation(); setDeleteConfirm({ msg:`${stage}단계 차시 진도체크 데이터를 삭제하시겠습니까?`, onOk: () => { productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage).forEach(pl=>SupplyProductPlans.delete(pl.id)); reload(); showToast('삭제가 완료되었습니다.','info') } }) }}
+                                                        <button onClick={e=>{ e.stopPropagation(); setDeleteConfirm({ msg:`${stage}단계 차시 진도체크 데이터를 삭제하시겠습니까?`, onOk: () => { productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage).forEach(pl=>SupplyProductPlans.delete(pl.id)); reload(); success('삭제가 완료되었습니다.') } }) }}
                                                           style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
                                                           삭제
                                                         </button>
@@ -1792,21 +1787,7 @@ export function Supplies({ user }) {
         </div>
       )}
 
-      {/* ── 토스트 알림 */}
-      {toast && (
-        <div style={{
-          position:'fixed', bottom:'32px', left:'50%', transform:'translateX(-50%)',
-          zIndex:9000, pointerEvents:'none',
-          background: toast.type === 'info' ? '#18181b' : C.success,
-          color:'#fff', borderRadius:'10px', padding:'12px 24px',
-          fontSize:'14px', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif',
-          boxShadow:'0 8px 24px rgba(0,0,0,0.18)',
-          display:'flex', alignItems:'center', gap:'8px',
-          animation:'fadeInUp .2s ease',
-        }}>
-          {toast.type === 'info' ? '🗑 ' : '✅ '}{toast.msg}
-        </div>
-      )}
+
 
       {uploading && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center' }}>
