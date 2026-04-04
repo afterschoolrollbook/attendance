@@ -122,18 +122,19 @@ function DayDetail({ date, user, classes, onNav }) {
   const [addingNote, setAddingNote] = useState(false)
   const inputRef = useRef()
   const { success } = useToast()
-  const [supplyItems, setSupplyItems] = useState([])
+
+  const [supplyItems,    setSupplyItems]    = useState([])
   const [supplyProducts, setSupplyProducts] = useState([])
   const [supplyProgress, setSupplyProgress] = useState([])
-  const [supplyChecks, setSupplyChecks] = useState([])
+  const [supplyChecks,   setSupplyChecks]   = useState([])
 
   useEffect(() => {
     setNotes(Notes.byTeacherDate(user.id, date))
     setNewNote(''); setAddingNote(false)
-    setSupplyItems(SupplyItems.byTeacher ? SupplyItems.byTeacher(user.id) : [])
-    setSupplyProducts(SupplyProducts.byTeacher ? SupplyProducts.byTeacher(user.id) : [])
-    setSupplyProgress(SupplyStudentProgress.byTeacher ? SupplyStudentProgress.byTeacher(user.id) : [])
-    setSupplyChecks(SupplySessionChecks.byTeacher ? SupplySessionChecks.byTeacher(user.id) : [])
+    setSupplyItems(SupplyItems.byTeacher(user.id))
+    setSupplyProducts(SupplyProducts.byTeacher(user.id))
+    setSupplyProgress(SupplyStudentProgress.byTeacher(user.id))
+    setSupplyChecks(SupplySessionChecks.byTeacher(user.id))
   }, [date, user.id])
 
   const dayClasses = sortClasses(classes.filter(cls => calcSessionDates(cls).includes(date)))
@@ -198,8 +199,8 @@ function DayDetail({ date, user, classes, onNav }) {
               const tc = sessInfo ? (TERM_COLORS[(sessInfo.termNum-1) % TERM_COLORS.length]) : null
               const startTime = cls.time || ''; const endTime = cls.timeEnd || ''
 
-              // 진도 헬퍼 (classId 기반으로 정확히 필터)
-              const getStudentProgress = (studentId) => {
+              // 진도 헬퍼 — classId 기준으로 정확하게 필터
+              const getProgress = (studentId) => {
                 const item = supplyItems.find(i => i.studentId === studentId && i.classId === cls.id)
                 if (!item?.productId) return null
                 const prod = supplyProducts.find(p => p.id === item.productId)
@@ -211,146 +212,165 @@ function DayDetail({ date, user, classes, onNav }) {
                 return { name: prod?.name || item.name || '', curStage, checked, spp, pct }
               }
 
-              const ATT_STATUS = {
-                present: { label: '출석', color: '#16a34a', bg: '#f0fdf4' },
-                late:    { label: '지각', color: '#d97706', bg: '#fffbeb' },
-                leave:   { label: '조퇴', color: '#7c3aed', bg: '#f5f3ff' },
-                absent:  { label: '결석', color: '#dc2626', bg: '#fef2f2' },
-                pending: { label: '미처리', color: '#9ca3af', bg: '#f9fafb' },
+
+              const ATT_CFG = {
+                present: { label:'출석', color:'#16a34a', bg:'#f0fdf4' },
+                late:    { label:'지각', color:'#d97706', bg:'#fffbeb' },
+                leave:   { label:'조퇴', color:'#7c3aed', bg:'#f5f3ff' },
+                absent:  { label:'결석', color:'#dc2626', bg:'#fef2f2' },
+                pending: { label:'미처리', color:'#9ca3af', bg:'#f9fafb' },
               }
 
               return (
                 <div key={cls.id} style={{ borderRadius: '10px', border: '1px solid #fed7aa', overflow: 'hidden' }}>
-                  {/* 수업 헤더 */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: '#fff7ed', gap: '12px', flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: '150px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>수업 과목 · {cls.className}</span>
-                        {cls.section && (
-                          <span style={{ fontSize: '12px', background: C.primary, color: '#fff', borderRadius: '6px', padding: '1px 8px', fontWeight: 600 }}>{cls.section}반</span>
-                        )}
-                        {sessInfo && (
-                          <>
-                            <span style={{ fontSize: '11px', color: C.muted, background: '#f3f4f6', padding: '1px 7px', borderRadius: '5px' }}>{sessInfo.total}차시</span>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: tc?.text, background: tc?.bg, border: `1px solid ${tc?.border}`, padding: '1px 7px', borderRadius: '5px' }}>
-                              {sessInfo.termNum}텀 {sessInfo.termSess}차시
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      {startTime && (
-                        <div style={{ fontSize: '12px', color: C.muted }}>🕐 {startTime}{endTime ? ` ~ ${endTime}` : ''}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: '#fff7ed', gap: '12px', flexWrap: 'wrap' }}>
+                  {/* 수업 정보 */}
+                  <div style={{ flex: 1, minWidth: '150px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>수업 과목 · {cls.className}</span>
+                      {cls.section && (
+                        <span style={{ fontSize: '12px', background: C.primary, color: '#fff', borderRadius: '6px', padding: '1px 8px', fontWeight: 600 }}>{cls.section}반</span>
+                      )}
+                      {sessInfo && (
+                        <>
+                          <span style={{ fontSize: '11px', color: C.muted, background: '#f3f4f6', padding: '1px 7px', borderRadius: '5px' }}>{sessInfo.total}차시</span>
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: tc?.text, background: tc?.bg, border: `1px solid ${tc?.border}`, padding: '1px 7px', borderRadius: '5px' }}>
+                            {sessInfo.termNum}텀 {sessInfo.termSess}차시
+                          </span>
+                        </>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ textAlign: 'center', minWidth: '60px' }}>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: C.text }}>{students.length}명</div>
-                        <div style={{ fontSize: '11px', color: presentCnt > 0 ? C.success : C.muted }}>출석 {presentCnt}명</div>
-                      </div>
-                      <button onClick={() => onNav('attendance', { classId: cls.id, date })}
-                        style={{ padding: '9px 18px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 700, fontSize: '13px', transition: 'all .15s',
-                          background: pendingCnt > 0 ? C.primary : C.success, color: '#fff',
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
-                        <span>✅ 출석부</span>
-                        {pendingCnt > 0 && <span style={{ fontSize: '10px', fontWeight: 400, opacity: 0.85 }}>미처리 {pendingCnt}명</span>}
-                      </button>
-                    </div>
+                    {startTime && (
+                      <div style={{ fontSize: '12px', color: C.muted }}>🕐 {startTime}{endTime ? ` ~ ${endTime}` : ''}</div>
+                    )}
+                    {/* 교구 현황 */}
+                    {(() => {
+                      const supplyData = SupplyItems.byClass(cls.id)
+                      if (!supplyData.length) return null
+                      const set = supplyData.filter(item => item.name)
+                      const notSet = students.filter(s => !supplyData.find(item => item.studentId === s.id && item.name))
+                      return (
+                        <div style={{ marginTop: '6px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {set.length > 0 && (
+                            <span style={{ fontSize: '11px', background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe', borderRadius: '5px', padding: '1px 8px' }}>
+                              🎒 교구 {set.length}명 설정
+                            </span>
+                          )}
+                          {notSet.length > 0 && (
+                            <span style={{ fontSize: '11px', background: '#fef2f2', color: C.danger, border: '1px solid #fca5a5', borderRadius: '5px', padding: '1px 8px' }}>
+                              ⚠️ 미설정 {notSet.length}명
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
 
-                  {/* 학생별 출석 + 진도 테이블 */}
-                  {students.length > 0 && (
-                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                      <thead>
-                        <tr style={{ background: '#f9fafb', borderTop: '1px solid #fed7aa' }}>
-                          {['순번', '학년·반·번호', '이름', '학부모전화', '출석·지각·조퇴·결석', '진도', '특이사항·메모'].map(h => (
-                            <th key={h} style={{ padding: '7px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: '#9ca3af', whiteSpace: 'nowrap', borderBottom: '1px solid #f3f4f6' }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {students.map((stu, idx) => {
-                          const attRec = attRecords.find(a => a.studentId === stu.id)
-                          const attStatus = attRec?.status || 'pending'
-                          const attCfg = ATT_STATUS[attStatus] || ATT_STATUS.pending
-                          const progData = getStudentProgress(stu.id)
-                          const hasBadges = stu.remark || (stu.student_careers?.length > 0) || stu.status === 'cancel_before' || stu.status === 'cancel_after' || (stu.relations||[]).length > 0
-                          return (
-                            <tr key={stu.id} style={{ borderBottom: '1px solid #f3f4f6', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
-                              <td style={{ padding: '9px 12px', fontSize: '12px', color: '#9ca3af', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                {stu.applyOrder
-                                  ? <span style={{ fontWeight: 700, color: '#f97316' }}>{stu.applyOrder}</span>
-                                  : <span style={{ color: '#d1d5db' }}>{idx + 1}</span>
-                                }
-                              </td>
-                              <td style={{ padding: '9px 12px', fontSize: '12px', color: '#374151', whiteSpace: 'nowrap' }}>
-                                {stu.grade ? stu.grade + '학년' : '-'}
-                                {stu.classNum && <span style={{ marginLeft: '3px', padding: '1px 5px', borderRadius: '4px', background: '#f0fdf4', color: '#16a34a', fontWeight: 600, fontSize: '11px' }}>{stu.classNum}반</span>}
-                                {stu.number && <span style={{ marginLeft: '3px', color: '#9ca3af', fontSize: '11px' }}>{stu.number}번</span>}
-                              </td>
-                              <td style={{ padding: '9px 12px', fontSize: '13px', fontWeight: 700, color: '#111827' }}>
-                                <div>{stu.name}</div>
-                                {hasBadges && (
-                                  <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '4px' }}>
-                                    {stu.remark && <span style={{ fontSize: '10px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '4px', padding: '1px 5px', fontWeight: 600 }}>{stu.remark}</span>}
-                                    {(stu.student_careers?.length > 0) && (
-                                      <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '4px',
-                                        background: stu.student_careers.length <= 1 ? '#eff6ff' : '#f0fdf4',
-                                        border: `1px solid ${stu.student_careers.length <= 1 ? '#bfdbfe' : '#86efac'}`,
-                                        color: stu.student_careers.length <= 1 ? '#1d4ed8' : '#15803d' }}>
-                                        {stu.student_careers.length <= 1 ? '신규' : '기존'}
-                                      </span>
-                                    )}
-                                    {(stu.status === 'cancel_before' || stu.status === 'cancel_after') && (
-                                      <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '4px', background: '#fef2f2', border: '1px solid #fca5a5', color: '#dc2626' }}>
-                                        {stu.status === 'cancel_after' ? '개강후 취소' : '개강전 취소'}
-                                      </span>
-                                    )}
-                                    {(stu.relations || []).map((r, ri) => (
-                                      <span key={ri} style={{ fontSize: '10px', fontWeight: 600, padding: '1px 5px', borderRadius: '4px',
-                                        background: r.type === '쌍둥이' ? '#fdf4ff' : r.type === '형제' ? '#eff6ff' : r.type === '남매' ? '#f0fdf4' : '#fff7ed',
-                                        border: `1px solid ${r.type === '쌍둥이' ? '#e9d5ff' : r.type === '형제' ? '#bfdbfe' : r.type === '남매' ? '#86efac' : '#fed7aa'}`,
-                                        color: r.type === '쌍둥이' ? '#7e22ce' : r.type === '형제' ? '#1d4ed8' : r.type === '남매' ? '#15803d' : '#c2410c',
-                                      }}>
-                                        {r.type}{r.with ? ` · ${r.with}` : ''}
-                                      </span>
-                                    ))}
+                  {/* 학생수 + 출석현황 + 버튼 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ textAlign: 'center', minWidth: '60px' }}>
+                      <div style={{ fontSize: '20px', fontWeight: 700, color: C.text }}>{students.length}명</div>
+                      <div style={{ fontSize: '11px', color: presentCnt > 0 ? C.success : C.muted }}>출석 {presentCnt}명</div>
+                    </div>
+                    <button onClick={() => onNav('attendance', { classId: cls.id, date })}
+                      style={{ padding: '9px 18px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 700, fontSize: '13px', transition: 'all .15s',
+                        background: pendingCnt > 0 ? C.primary : C.success, color: '#fff',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                      <span>✅ 출석부</span>
+                      {pendingCnt > 0 && <span style={{ fontSize: '10px', fontWeight: 400, opacity: 0.85 }}>미처리 {pendingCnt}명</span>}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 학생별 출석 + 진도 테이블 */}
+                {students.length > 0 && (
+                  <table style={{ width:'100%', borderCollapse:'collapse', background:'#fff' }}>
+                    <thead>
+                      <tr style={{ background:'#f9fafb', borderTop:'1px solid #f3f4f6' }}>
+                        {['순번','학년·반·번호','이름','학부모전화','출석·지각·조퇴·결석','진도','특이사항·메모'].map(h => (
+                          <th key={h} style={{ padding:'7px 12px', textAlign:'left', fontSize:'11px', fontWeight:600, color:'#9ca3af', whiteSpace:'nowrap', borderBottom:'1px solid #f3f4f6' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {students.map((stu, idx) => {
+                        const attRec = attRecords.find(a => a.studentId === stu.id)
+                        const attStatus = attRec?.status || 'pending'
+                        const attCfg = ATT_CFG[attStatus] || ATT_CFG.pending
+                        const prog = getProgress(stu.id)
+                        const hasBadges = stu.remark || (stu.student_careers?.length > 0) || stu.status === 'cancel_before' || stu.status === 'cancel_after' || (stu.relations||[]).length > 0
+                        return (
+                          <tr key={stu.id} style={{ borderBottom:'1px solid #f3f4f6', background: idx%2===0?'#fff':'#fafafa' }}>
+                            <td style={{ padding:'9px 12px', fontSize:'12px', color:'#9ca3af', textAlign:'center', whiteSpace:'nowrap' }}>
+                              {stu.applyOrder ? <span style={{ fontWeight:700, color:'#f97316' }}>{stu.applyOrder}</span> : <span>{idx+1}</span>}
+                            </td>
+                            <td style={{ padding:'9px 12px', fontSize:'12px', color:'#374151', whiteSpace:'nowrap' }}>
+                              {stu.grade ? stu.grade+'학년' : '-'}
+                              {stu.classNum && <span style={{ marginLeft:'3px', padding:'1px 5px', borderRadius:'4px', background:'#f0fdf4', color:'#16a34a', fontWeight:600, fontSize:'11px' }}>{stu.classNum}반</span>}
+                              {stu.number && <span style={{ marginLeft:'3px', color:'#9ca3af', fontSize:'11px' }}>{stu.number}번</span>}
+                            </td>
+                            <td style={{ padding:'9px 12px', fontSize:'13px', fontWeight:700, color:'#111827' }}>
+                              <div>{stu.name}</div>
+                              {hasBadges && (
+                                <div style={{ display:'flex', gap:'3px', flexWrap:'wrap', marginTop:'4px' }}>
+                                  {stu.remark && <span style={{ fontSize:'10px', background:'#eff6ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 5px', fontWeight:600 }}>{stu.remark}</span>}
+                                  {(stu.student_careers?.length > 0) && (
+                                    <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 5px', borderRadius:'4px',
+                                      background: stu.student_careers.length<=1?'#eff6ff':'#f0fdf4',
+                                      border: `1px solid ${stu.student_careers.length<=1?'#bfdbfe':'#86efac'}`,
+                                      color: stu.student_careers.length<=1?'#1d4ed8':'#15803d' }}>
+                                      {stu.student_careers.length<=1?'신규':'기존'}
+                                    </span>
+                                  )}
+                                  {(stu.status==='cancel_before'||stu.status==='cancel_after') && (
+                                    <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 5px', borderRadius:'4px', background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>
+                                      {stu.status==='cancel_after'?'개강후 취소':'개강전 취소'}
+                                    </span>
+                                  )}
+                                  {(stu.relations||[]).map((r,ri) => (
+                                    <span key={ri} style={{ fontSize:'10px', fontWeight:600, padding:'1px 5px', borderRadius:'4px',
+                                      background: r.type==='쌍둥이'?'#fdf4ff':r.type==='형제'?'#eff6ff':r.type==='남매'?'#f0fdf4':'#fff7ed',
+                                      border: `1px solid ${r.type==='쌍둥이'?'#e9d5ff':r.type==='형제'?'#bfdbfe':r.type==='남매'?'#86efac':'#fed7aa'}`,
+                                      color: r.type==='쌍둥이'?'#7e22ce':r.type==='형제'?'#1d4ed8':r.type==='남매'?'#15803d':'#c2410c' }}>
+                                      {r.type}{r.with?` · ${r.with}`:''}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ padding:'9px 12px', fontSize:'12px', color:'#6b7280', whiteSpace:'nowrap' }}>
+                              {stu.parentPhone ? stu.parentPhone.replace(/(\d{3})(\d{3,4})(\d{4})/, '$1-$2-$3') : '-'}
+                            </td>
+                            <td style={{ padding:'9px 12px', whiteSpace:'nowrap' }}>
+                              <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'5px',
+                                background:attCfg.bg, color:attCfg.color, border:`1px solid ${attCfg.color}40` }}>
+                                {attCfg.label}
+                              </span>
+                            </td>
+                            <td style={{ padding:'9px 12px', whiteSpace:'nowrap' }}>
+                              {prog ? (
+                                <div style={{ fontSize:'11px', minWidth:'70px' }}>
+                                  <div style={{ fontWeight:600, color:'#374151' }}>{prog.name}</div>
+                                  <div style={{ color:'#6b7280', marginTop:'1px' }}>{prog.curStage}단계 {prog.checked}/{prog.spp}차시</div>
+                                  <div style={{ height:'3px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'70px' }}>
+                                    <div style={{ height:'100%', borderRadius:'2px', width:`${prog.pct}%`,
+                                      background: prog.pct>=100?'#16a34a':prog.pct>=80?'#f59e0b':'#f97316' }} />
                                   </div>
-                                )}
-                              </td>
-                              <td style={{ padding: '9px 12px', fontSize: '12px', color: '#6b7280', whiteSpace: 'nowrap' }}>
-                                {stu.parentPhone ? stu.parentPhone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3') : '-'}
-                              </td>
-                              <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
-                                <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '5px',
-                                  background: attCfg.bg, color: attCfg.color, border: `1px solid ${attCfg.color}40` }}>
-                                  {attCfg.label}
-                                </span>
-                              </td>
-                              <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
-                                {progData ? (
-                                  <div style={{ fontSize: '11px', minWidth: '70px' }}>
-                                    <div style={{ fontWeight: 600, color: '#374151' }}>{progData.name}</div>
-                                    <div style={{ color: '#6b7280', marginTop: '1px' }}>{progData.curStage}단계 {progData.checked}/{progData.spp}차시</div>
-                                    <div style={{ height: '3px', background: '#e5e7eb', borderRadius: '2px', marginTop: '3px', width: '70px' }}>
-                                      <div style={{ height: '100%', borderRadius: '2px', width: `${progData.pct}%`, background: progData.pct >= 100 ? '#16a34a' : progData.pct >= 80 ? '#f59e0b' : '#f97316' }} />
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <span style={{ fontSize: '11px', color: '#d1d5db' }}>-</span>
-                                )}
-                              </td>
-                              <td style={{ padding: '9px 12px', maxWidth: '160px' }}>
-                                {attRec?.note
-                                  ? <span style={{ fontSize: '11px', color: '#374151', background: '#fffbeb', padding: '2px 6px', borderRadius: '5px', border: '1px solid #fde68a', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📌 {attRec.note}</span>
-                                  : <span style={{ fontSize: '11px', color: '#d1d5db' }}>-</span>
-                                }
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  )}
+                                </div>
+                              ) : <span style={{ fontSize:'11px', color:'#d1d5db' }}>-</span>}
+                            </td>
+                            <td style={{ padding:'9px 12px', maxWidth:'160px' }}>
+                              {attRec?.note
+                                ? <span style={{ fontSize:'11px', color:'#374151', background:'#fffbeb', padding:'2px 6px', borderRadius:'5px', border:'1px solid #fde68a', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>📌 {attRec.note}</span>
+                                : <span style={{ fontSize:'11px', color:'#d1d5db' }}>-</span>
+                              }
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                )}
                 </div>
               )
             })}

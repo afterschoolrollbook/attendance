@@ -883,7 +883,7 @@ export function Students({ user, onNav }) {
                     </td>
                     <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
                       {(() => {
-                        const item = supplyItems.find(i => i.studentId === s.id)
+                        const item = supplyItems.find(i => i.studentId === s.id && i.classId === (s.classIds?.[0] || ''))
                         if (!item?.productId) return <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>
                         const prod = supplyProducts.find(p => p.id === item.productId)
                         const prog = supplyProgress.find(p => p.studentId === s.id && p.productId === item.productId)
