@@ -95,7 +95,7 @@ export function Revenue({ user }) {
   const [payForm, setPayForm]     = useState({ classId: '', termNo: '', amount: '', memo: '' })
 
   const [expandedClass, setExpandedClass] = useState(null)
-  const { error: toastError } = useToast()
+  const { error: toastError, success } = useToast()
   const confirm = useConfirm()
 
   const reload = () => {
@@ -287,7 +287,7 @@ export function Revenue({ user }) {
       teacherId: user.id, classId: feeTarget.classId,
       feeType: feeForm.feeType, amount: Number(feeForm.amount), updatedAt: now(),
     })
-    reload(); setFeeModal(false)
+    reload(); setFeeModal(false); success('수정이 완료되었습니다.')
   }
 
   const savePayForm = () => {
@@ -303,7 +303,7 @@ export function Revenue({ user }) {
       reason: '',
       createdAt: now(),
     })
-    reload(); setPayWizard(false)
+    reload(); setPayWizard(false); success('등록이 완료되었습니다.')
   }
 
   const openPayModal = (date, classId = '', termNo = '') => {
@@ -325,7 +325,7 @@ export function Revenue({ user }) {
     setPayWizard(true)
   }
 
-  const deletePayment = (id) => { RevenuePayments.delete(id); reload() }
+  const deletePayment = (id) => { RevenuePayments.delete(id); reload(); success('삭제가 완료되었습니다.') }
 
   // 월 달력 렌더
   const renderMonthCalendar = () => {

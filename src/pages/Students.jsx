@@ -291,7 +291,7 @@ export function Students({ user, onNav }) {
     StudentsDB.delete(deleteTarget.id)
     setDeleteTarget(null)
     refresh()
-    showToast(`🗑️ ${deleteTarget.name} 학생이 삭제됐습니다.`)
+    showToast('삭제가 완료되었습니다.')
   }
 
   // ─── 엑셀 파싱 (단일 방식: 6컬럼)

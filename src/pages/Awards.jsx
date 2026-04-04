@@ -114,7 +114,7 @@ export function AwardsPage({ user }) {
 
   const deleteRecord = id => {
     setConfirm({ msg:'이 수상 기록을 삭제할까요?', onOk: () => {
-      Awards.delete(id); reload(); info('삭제됐어요')
+      Awards.delete(id); reload(); success('삭제가 완료되었습니다.')
     }})
   }
 
@@ -135,7 +135,7 @@ export function AwardsPage({ user }) {
   const deleteFile = awardId => {
     setConfirm({ msg:'첨부파일을 삭제할까요?', onOk: () => {
       Awards.update(awardId, { fileUrl: null, fileName: null, fileType: null })
-      reload(); info('파일을 삭제했어요')
+      reload(); success('삭제가 완료되었습니다.')
     }})
   }
 
