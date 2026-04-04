@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, SupplyProducts, SupplyItems, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans } from '../lib/db.js'
 import { uid, now, fmtPhone, sortClasses } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox, Textarea } from '../components/Atoms.jsx'
 import { STUDENT_STATUS, GRADES, DAYS } from '../constants/config.js'
@@ -87,6 +87,14 @@ export function Students({ user, onNav }) {
     })
   }, [])
 
+  React.useEffect(() => {
+    setSupplyItems(SupplyItems.byTeacher(user.id))
+    setSupplyProducts(SupplyProducts.byTeacher(user.id))
+    setSupplyProgress(SupplyStudentProgress.byTeacher(user.id))
+    setSupplyChecks(SupplySessionChecks.byTeacher(user.id))
+    setSupplyPlans(SupplyProductPlans.byTeacher(user.id))
+  }, [tick])
+
   const [ctxYear,    setCtxYear]    = useState('')
   const [ctxSchool,  setCtxSchool]  = useState('')
   const [ctxClass,   setCtxClass]   = useState('')
@@ -109,6 +117,14 @@ export function Students({ user, onNav }) {
   const [promotedName, setPromotedName] = useState(null)
   // ✅ 실시간 반영용 강제 리렌더 트리거
   const [tick, setTick] = useState(0)
+  const [supplyItems,    setSupplyItems]    = useState([])
+  const [supplyProducts, setSupplyProducts] = useState([])
+  const [supplyProgress, setSupplyProgress] = useState([])
+  const [supplyChecks,   setSupplyChecks]   = useState([])
+  const [supplyPlans,    setSupplyPlans]    = useState([])
+  // 편집 모달 진도 탭 상태
+  const [editProductId, setEditProductId] = useState('')
+  const [editStage,     setEditStage]     = useState(1)
   const refresh = () => setTick(t => t + 1)
   const { success: showToast, error: toastError } = useToast()
   // ✅ 삭제 확인
@@ -607,7 +623,7 @@ export function Students({ user, onNav }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '상태', '메모', '작업'].map(h => (
+                {['순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '상태', '진도', '메모', '작업'].map(h => (
                   <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -670,6 +686,27 @@ export function Students({ user, onNav }) {
                           }}>저장</Btn>
                         )}
                       </div>
+                    </td>
+                    <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
+                      {(() => {
+                        const item = supplyItems.find(i => i.studentId === s.id)
+                        if (!item?.productId) return <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>
+                        const prod = supplyProducts.find(p => p.id === item.productId)
+                        const prog = supplyProgress.find(p => p.studentId === s.id && p.productId === item.productId)
+                        const stage = prog?.curStage || item.stage || 1
+                        const spp = prod?.sessionsPerStage || 12
+                        const checked = supplyChecks.filter(c => c.studentId === s.id && c.productId === item.productId && c.stage === stage).length
+                        const pct = Math.round(checked/spp*100)
+                        return (
+                          <div style={{ fontSize:'12px' }}>
+                            <div style={{ color:'#374151', fontWeight:600 }}>{prod?.name || item.name || '-'}</div>
+                            <div style={{ color:'#6b7280' }}>{stage}단계 {checked}/{spp}차시</div>
+                            <div style={{ height:'4px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'72px' }}>
+                              <div style={{ height:'100%', borderRadius:'2px', background: pct>=100?'#16a34a':pct>=80?'#f59e0b':'#f97316', width:`${Math.min(pct,100)}%`, transition:'width .3s' }} />
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td style={{ padding: '11px 14px', maxWidth: '160px' }}>
                       {s.memo
@@ -950,6 +987,73 @@ export function Students({ user, onNav }) {
               {/* 관계 추가 입력 */}
               <RelationAdder relations={form.relations || []} onChange={v => set('relations', v)} />
             </div>
+
+            {/* 교구·진도 섹션 */}
+            {editId && (() => {
+              const studentItems = supplyItems.filter(i => i.studentId === editId)
+              if (studentItems.length === 0) return null
+              const selItem = studentItems.find(i => i.productId === editProductId) || studentItems[0]
+              const selProd = supplyProducts.find(p => p.id === (editProductId || selItem?.productId))
+              const spp = selProd?.sessionsPerStage || 12
+              const maxStage = selProd?.maxStage || 10
+              const stage = editStage || 1
+              const plans = supplyPlans.filter(p => p.productId === selProd?.id && p.stage === stage).sort((a,b)=>a.sessionNo-b.sessionNo)
+              const checked = new Set(supplyChecks.filter(c => c.studentId === editId && c.productId === selProd?.id && c.stage === stage).map(c=>c.sessionNo))
+
+              const toggleCheck = (sessionNo) => {
+                const existing = supplyChecks.find(c => c.studentId===editId && c.productId===selProd?.id && c.stage===stage && c.sessionNo===sessionNo)
+                if (existing) SupplySessionChecks.delete(existing.id)
+                else SupplySessionChecks.upsert({ id: uid(), teacherId: user.id, studentId: editId, classId: form.classIds?.[0]||'', productId: selProd.id, stage, sessionNo, checkedAt: now(), createdAt: now() })
+                // update progress
+                const allC = SupplySessionChecks.byProductStudent ? SupplySessionChecks.byProductStudent(selProd.id, editId, form.classIds?.[0]||'') : supplyChecks.filter(c=>c.studentId===editId&&c.productId===selProd.id&&c.stage===stage)
+                const stageC = allC.filter(c=>c.stage===stage)
+                const maxS = stageC.length>0?Math.max(...stageC.map(c=>c.sessionNo)):1
+                SupplyStudentProgress.upsert({ id: uid(), teacherId: user.id, studentId: editId, classId: form.classIds?.[0]||'', productId: selProd.id, curStage: stage, curSession: maxS, updatedAt: now(), createdAt: now() })
+                setSupplyChecks(SupplySessionChecks.byTeacher(user.id))
+                setSupplyProgress(SupplyStudentProgress.byTeacher(user.id))
+              }
+
+              const selSt = { padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }
+              return (
+                <div style={{ background:'#f0fdf4', border:'1.5px solid #86efac', borderRadius:'12px', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
+                    <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d' }}>📊 교구·진도</span>
+                    <button onClick={() => onNav('supplies')} style={{ fontSize:'11px', color:'#f97316', background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'5px', padding:'2px 9px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                      🔧 교구관리 바로가기 →
+                    </button>
+                  </div>
+                  <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                    <select style={selSt} value={editProductId || selItem?.productId || ''} onChange={e => { setEditProductId(e.target.value); setEditStage(1) }}>
+                      {studentItems.map(i => {
+                        const p = supplyProducts.find(p=>p.id===i.productId)
+                        return <option key={i.id} value={i.productId}>{p?.name || i.name}</option>
+                      })}
+                    </select>
+                    <select style={selSt} value={editStage} onChange={e => setEditStage(Number(e.target.value))}>
+                      {Array.from({length: maxStage}, (_,i)=>i+1).map(n => <option key={n} value={n}>{n}단계</option>)}
+                    </select>
+                    <span style={{ fontSize:'12px', color:'#6b7280', alignSelf:'center' }}>{checked.size}/{spp}차시 완료</span>
+                  </div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'5px', maxHeight:'120px', overflowY:'auto' }}>
+                    {Array.from({length: spp}, (_,i)=>i+1).map(n => {
+                      const isChk = checked.has(n)
+                      const plan = plans.find(p=>p.sessionNo===n)
+                      return (
+                        <button key={n} type="button" onClick={() => toggleCheck(n)}
+                          title={plan?.title || `${n}차시`}
+                          style={{ width:'32px', height:'32px', borderRadius:'6px', border:`1.5px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', color:isChk?'#fff':'#374151', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
+                          {n}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ fontSize:'11px', color:'#6b7280' }}>디테일 수정은 &nbsp;
+                    <button onClick={() => onNav('supplies')} style={{ background:'none', border:'none', color:'#f97316', cursor:'pointer', fontSize:'11px', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif', textDecoration:'underline', padding:0 }}>교구 및 진도 관리</button>
+                    &nbsp;에서 하실 수 있습니다.
+                  </div>
+                </div>
+              )
+            })()}
 
             <Select label="상태" value={form.status} onChange={v => set('status', v)}
               options={Object.entries(STUDENT_STATUS).map(([k, v]) => ({ value: k, label: v.label }))} />
