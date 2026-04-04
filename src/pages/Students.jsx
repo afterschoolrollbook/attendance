@@ -226,20 +226,12 @@ export function Students({ user, onNav }) {
   }
 
   const openEdit = (s) => {
-    // 기존 수업 정보를 _new 필드에 미리 채워 편집 가능하게
-    const cls = s.classIds?.length > 0 ? ClassesDB.byTeacher(user.id).find(c => c.id === s.classIds[0]) : null
     setForm({
       ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [],
-      _newOrganization: cls?.organization || '',
-      _newClassName:    cls?.className    || '',
-      _newSection:      cls?.section      || '',
-      _newTimeStart:    cls?.time         || '',
-      _newTimeEnd:      cls?.timeEnd      || '',
-      _newTermType:     cls?.termType     || 'semester',
-      _newDays:         cls?.days         || [],
-      _newRepeatType:   cls?.repeatType   || 'every',
-      _newStartDate:    cls?.startDate    || '',
-      _newEndDate:      cls?.endDate      || '',
+      _newOrganization: '', _newClassName: '', _newSection: '',
+      _newTimeStart: '', _newTimeEnd: '',
+      _newTermType: 'semester', _newDays: [], _newRepeatType: 'every',
+      _newStartDate: '', _newEndDate: '',
     })
     setEditId(s.id)
     setShowModal(true)
@@ -304,21 +296,6 @@ export function Students({ user, onNav }) {
     delete saveData._newStartDate; delete saveData._newEndDate
 
     if (editId) {
-      // 편집 시 수업 상세 정보도 수업 DB에 반영
-      if (classIds.length > 0 && form._newClassName?.trim()) {
-        ClassesDB.update(classIds[0], {
-          organization: form._newOrganization?.trim() || '',
-          className:    form._newClassName.trim(),
-          section:      form._newSection?.trim() || '',
-          termType:     form._newTermType || 'semester',
-          days:         form._newDays || [],
-          repeatType:   form._newRepeatType || 'every',
-          time:         form._newTimeStart || '',
-          timeEnd:      form._newTimeEnd || '',
-          startDate:    form._newStartDate || '',
-          endDate:      form._newEndDate || '',
-        })
-      }
       StudentsDB.update(editId, saveData)
       setShowModal(false)
       refresh()
@@ -737,7 +714,7 @@ export function Students({ user, onNav }) {
                     if (cls?.organization) set('school', cls.organization)
                   }}
                   style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', color:'#111827', outline:'none', cursor:'pointer' }}>
-                  <option value=''>-- 수업 선택 --</option>
+                  <option value=''>{editId ? '-- 수업 변경 또는 선택 해제 후 직접 입력 --' : '-- 수업 선택 --'}</option>
                   {classes.map(c => (
                     <option key={c.id} value={c.id}>
                       {c.organization} · {c.className}{c.section ? ' '+c.section+'반' : ''} {c.days?.length ? '('+c.days.join('')+' '+c.time+')' : ''}
@@ -747,14 +724,28 @@ export function Students({ user, onNav }) {
               </div>
             )}
 
-            {/* 수업 직접 입력 — 항상 표시 (등록·편집 모두) */}
-            {true && (
-              <div style={{ borderTop: classes.length > 0 || form.classIds?.length > 0 ? '1px dashed #fcd34d' : 'none', paddingTop: classes.length > 0 || form.classIds?.length > 0 ? '12px' : '0' }}>
+            {/* 수업 직접 입력 — 수업 미선택 상태일 때만 표시 */}
+            {form.classIds?.length === 0 && (
+              <div style={{ borderTop: classes.length > 0 ? '1px dashed #fcd34d' : 'none', paddingTop: classes.length > 0 ? '12px' : '0' }}>
                 <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '10px' }}>
-                  {form.classIds?.length > 0
-                    ? '— 수업 상세 정보 수정 (저장 시 수업에도 반영됩니다) —'
-                    : classes.length > 0 ? '— 또는 새 수업 정보 직접 입력 (저장 시 수업 자동 등록) —' : '수업 정보를 입력하면 저장 시 수업이 자동으로 등록됩니다.'}
+                  {classes.length > 0
+                    ? '— 또는 새 수업 정보 직접 입력 (저장 시 수업 자동 등록) —'
+                    : '수업 정보를 입력하면 저장 시 수업이 자동으로 등록됩니다.'}
                 </div>
+                {/* 학교명 / 수업명 / 반 — 기존 데이터 드롭다운 + 직접입력 병행 */}
+                {(() => {
+                  const allClasses = ClassesDB.byTeacher(user.id)
+                  const orgs = [...new Set(allClasses.map(c => c.organization).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
+                  const classNames = [...new Set(allClasses.filter(c => !form._newOrganization || c.organization === form._newOrganization).map(c => c.className).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
+                  const sections  = [...new Set(allClasses.filter(c => (!form._newOrganization || c.organization === form._newOrganization) && (!form._newClassName || c.className === form._newClassName)).map(c => c.section).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
+
+                  const autoMatch = (org, cls, sec) => {
+                    const matched = allClasses.find(c => c.organization === org && c.className === cls && (c.section||'') === (sec||''))
+                    if (matched) { set('classIds', [matched.id]); set('school', matched.organization) }
+                    else set('classIds', [])
+                  }
+                  const selSt = { width:'100%', padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }
+                  return (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                   <div>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
@@ -763,7 +754,12 @@ export function Students({ user, onNav }) {
                         <input type="checkbox" checked={pinned.organization} onChange={e => setPinned(p=>({...p, organization:e.target.checked}))} style={{ accentColor:'#f97316', width:'12px', height:'12px', cursor:'pointer' }} />🔒
                       </label>}
                     </div>
-                    <Input value={form._newOrganization} onChange={v => set('_newOrganization', v)} />
+                    <select style={selSt} value={form._newOrganization} onChange={e => { set('_newOrganization', e.target.value); set('_newClassName',''); set('_newSection',''); set('classIds',[]); }}>
+                      <option value=''>-- 선택 --</option>
+                      {orgs.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <input value={form._newOrganization} onChange={e => { set('_newOrganization', e.target.value); autoMatch(e.target.value, form._newClassName, form._newSection) }} placeholder="또는 직접 입력"
+                      style={{ ...selSt, marginTop:'4px', fontSize:'12px', padding:'6px 10px', color:'#6b7280' }} />
                   </div>
                   <div>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
@@ -772,10 +768,27 @@ export function Students({ user, onNav }) {
                         <input type="checkbox" checked={pinned.className} onChange={e => setPinned(p=>({...p, className:e.target.checked}))} style={{ accentColor:'#f97316', width:'12px', height:'12px', cursor:'pointer' }} />🔒
                       </label>}
                     </div>
-                    <Input value={form._newClassName} onChange={v => set('_newClassName', v)} />
+                    <select style={selSt} value={form._newClassName} onChange={e => { set('_newClassName', e.target.value); set('_newSection',''); autoMatch(form._newOrganization, e.target.value, '') }}>
+                      <option value=''>-- 선택 --</option>
+                      {classNames.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                    <input value={form._newClassName} onChange={e => { set('_newClassName', e.target.value); autoMatch(form._newOrganization, e.target.value, form._newSection) }} placeholder="또는 직접 입력"
+                      style={{ ...selSt, marginTop:'4px', fontSize:'12px', padding:'6px 10px', color:'#6b7280' }} />
                   </div>
                 </div>
+                  )
+                })()}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                  {(() => {
+                    const allClasses = ClassesDB.byTeacher(user.id)
+                    const sections = [...new Set(allClasses.filter(c => (!form._newOrganization || c.organization === form._newOrganization) && (!form._newClassName || c.className === form._newClassName)).map(c => c.section).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
+                    const autoMatch = (sec) => {
+                      const matched = allClasses.find(c => c.organization === form._newOrganization && c.className === form._newClassName && (c.section||'') === (sec||''))
+                      if (matched) { set('classIds', [matched.id]); set('school', matched.organization) }
+                      else set('classIds', [])
+                    }
+                    const selSt = { width:'100%', padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }
+                    return (
                   <div>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
                       <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>반 (선택)</label>
@@ -783,8 +796,17 @@ export function Students({ user, onNav }) {
                         <input type="checkbox" checked={pinned.section} onChange={e => setPinned(p=>({...p, section:e.target.checked}))} style={{ accentColor:'#f97316', width:'12px', height:'12px', cursor:'pointer' }} />🔒
                       </label>}
                     </div>
-                    <Input value={form._newSection} onChange={v => set('_newSection', v)} />
+                    {sections.length > 0 && (
+                      <select style={selSt} value={form._newSection} onChange={e => { set('_newSection', e.target.value); autoMatch(e.target.value) }}>
+                        <option value=''>-- 선택 --</option>
+                        {sections.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    )}
+                    <input value={form._newSection} onChange={e => { set('_newSection', e.target.value); autoMatch(e.target.value) }} placeholder={sections.length > 0 ? "또는 직접 입력" : "직접 입력"}
+                      style={{ ...selSt, marginTop: sections.length > 0 ? '4px' : '0', fontSize:'12px', padding:'6px 10px', color:'#6b7280' }} />
                   </div>
+                    )
+                  })()}
                   <Input label="수업 시작시간 (선택)" value={form._newTimeStart} onChange={v => set('_newTimeStart', v)} placeholder="14:00" />
                   <Input label="종료시간 (선택)" value={form._newTimeEnd} onChange={v => set('_newTimeEnd', v)} placeholder="15:00" />
                 </div>
