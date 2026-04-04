@@ -254,7 +254,7 @@ export function Students({ user, onNav }) {
     if (ctxClass && !s.classIds?.includes(ctxClass)) return false
     if (ctxSchool && s.school !== ctxSchool) return false
     if (ctxSection && s.classNum !== ctxSection) return false
-    if (statusFilter !== 'all' && s.status !== statusFilter) return false
+    if (statusFilter !== 'all' && s.status !== statusFilter && !(statusFilter === 'cancelled' && (s.status === 'cancel_before' || s.status === 'cancel_after'))) return false
     return true
   }).sort((a, b) => {
     // 정렬: 학교 → 수업/반 → 학년 → 반 → 번호 → 이름
@@ -324,7 +324,7 @@ export function Students({ user, onNav }) {
     selected:  ctxBase.filter(s => s.status === 'selected').length,
     confirmed: ctxBase.filter(s => s.status === 'confirmed').length,
     waiting:   ctxBase.filter(s => s.status === 'waiting').length,   // ✅ 대기자 카운트 추가
-    cancelled: ctxBase.filter(s => s.status === 'cancelled').length,
+    cancelled: ctxBase.filter(s => s.status === 'cancelled' || s.status === 'cancel_before' || s.status === 'cancel_after').length,
   }
 
   const openAdd = () => {
@@ -496,7 +496,7 @@ export function Students({ user, onNav }) {
 
     // 취소/대기자로 변경 시 → 대기자 자동 승격
     if ((prevStatus === 'applied' || prevStatus === 'selected' || prevStatus === 'confirmed') &&
-        (status === 'cancelled')) {
+        (status === 'cancelled' || status === 'cancel_before' || status === 'cancel_after')) {
       const classIds = s.classIds || []
       classIds.forEach(cid => {
         const promoted = promoteNextWaiting(cid)
@@ -730,7 +730,7 @@ export function Students({ user, onNav }) {
             { key: 'waiting',   label: `대기 ${statusCounts.waiting}` },    // ✅ 대기 필터 추가
             { key: 'selected',  label: `추첨완료 ${statusCounts.selected}` },
             { key: 'confirmed', label: `확정 ${statusCounts.confirmed}` },
-            { key: 'cancelled', label: `취소 ${statusCounts.cancelled}` },
+            { key: 'cancelled', label: `취소 ${statusCounts.cancelled}` },  // cancelled + cancel_before + cancel_after
           ].map(f => (
             <button key={f.key} onClick={() => setStatusFilter(f.key)} style={{
               padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer',
@@ -765,7 +765,8 @@ export function Students({ user, onNav }) {
             <tbody>
               {filtered.map((s, i) => {
                 const displayStatus = pendingStatuses[s.id] ?? s.status
-                const cfg = STUDENT_STATUS[displayStatus] || {}
+                const cancelCfg = { color:'#dc2626', bg:'#fef2f2', label: displayStatus==='cancel_after'?'개강후 취소':'개강전 취소' }
+                const cfg = (displayStatus==='cancel_before'||displayStatus==='cancel_after') ? cancelCfg : (STUDENT_STATUS[displayStatus] || {})
                 const sClasses = (s.classIds || []).map(cid => {
                   const cls = classes.find(c => c.id === cid)
                   if (!cls) return null
@@ -804,11 +805,10 @@ export function Students({ user, onNav }) {
                           {s.student_careers.length <= 1 ? '신규' : '기존'}
                         </span>
                       )}
-                      {s.cancel_info && (
+                      {(s.status === 'cancel_before' || s.status === 'cancel_after') && (
                         <span style={{ marginLeft:'6px', fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
-                          background: s.cancel_info.type === 'after' ? '#fef2f2' : '#fff1f2',
-                          border: '1px solid #fca5a5', color:'#dc2626' }}>
-                          {s.cancel_info.type === 'after' ? '개강후 취소' : '개강전 취소'}
+                          background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>
+                          {s.status === 'cancel_after' ? '개강후 취소' : '개강전 취소'}
                         </span>
                       )}
                       {(s.relations || []).map((r, i) => (
@@ -827,13 +827,15 @@ export function Students({ user, onNav }) {
                         <select value={displayStatus} onChange={e => setPendingStatuses(p => ({...p, [s.id]: e.target.value}))}
                           style={{ padding: '4px 8px', borderRadius: '6px', border: `1.5px solid ${cfg.color}50`, background: cfg.bg, color: cfg.color, fontSize: '12px', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif', cursor: 'pointer', outline: 'none' }}>
                           {Object.entries(STUDENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                          <option value='cancel_before'>개강전 취소</option>
+                          <option value='cancel_after'>개강후 취소</option>
                         </select>
                         {pendingStatuses[s.id] !== undefined && pendingStatuses[s.id] !== s.status && (
                           <Btn size="sm" onClick={() => {
                             const newStatus = pendingStatuses[s.id]
-                            if (newStatus === 'cancelled') {
-                              setCancelTarget({ id: s.id, name: s.name })
-                              setCancelForm({ type: 'before', date: new Date().toISOString().slice(0,10), memo: '' })
+                            if (newStatus === 'cancel_before' || newStatus === 'cancel_after') {
+                              setCancelTarget({ id: s.id, name: s.name, status: newStatus })
+                              setCancelForm({ type: newStatus === 'cancel_after' ? 'after' : 'before', date: new Date().toISOString().slice(0,10), memo: '' })
                               setCancelModal(true)
                               setPendingStatuses(p => { const n = {...p}; delete n[s.id]; return n })
                             } else {
@@ -1156,7 +1158,11 @@ export function Students({ user, onNav }) {
             </div>
 
             <Select label="상태" value={form.status} onChange={v => set('status', v)}
-              options={Object.entries(STUDENT_STATUS).map(([k, v]) => ({ value: k, label: v.label }))} />
+              options={[
+                ...Object.entries(STUDENT_STATUS).map(([k, v]) => ({ value: k, label: v.label })),
+                { value: 'cancel_before', label: '개강전 취소' },
+                { value: 'cancel_after',  label: '개강후 취소' },
+              ]} />
           </div>
 
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', paddingTop: '16px', marginTop: '4px', borderTop: '1px solid #e5e7eb' }}>
@@ -1292,10 +1298,10 @@ export function Students({ user, onNav }) {
             <Btn variant="danger" full onClick={() => {
               const s = StudentsDB.find(cancelTarget.id)
               StudentsDB.update(cancelTarget.id, {
-                status: 'cancelled',
+                status: cancelTarget?.status || 'cancelled',
                 cancel_info: { type: cancelForm.type, date: cancelForm.date, memo: cancelForm.memo },
                 statusHistory: [...(s?.statusHistory || []), {
-                  status: 'cancelled',
+                  status: cancelTarget?.status || 'cancelled',
                   changedAt: now(),
                   memo: `[${cancelForm.type === 'after' ? '개강후' : '개강전'} 취소] ${cancelForm.date}${cancelForm.memo ? ' - ' + cancelForm.memo : ''}`,
                 }],
