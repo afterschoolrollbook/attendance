@@ -199,9 +199,8 @@ function DayDetail({ date, user, classes, onNav }) {
               const tc = sessInfo ? (TERM_COLORS[(sessInfo.termNum-1) % TERM_COLORS.length]) : null
               const startTime = cls.time || ''; const endTime = cls.timeEnd || ''
 
-              const ATT_CFG = { present:{label:'출석',color:'#16a34a',bg:'#f0fdf4'}, late:{label:'지각',color:'#d97706',bg:'#fffbeb'}, leave:{label:'조퇴',color:'#7c3aed',bg:'#f5f3ff'}, absent:{label:'결석',color:'#dc2626',bg:'#fef2f2'}, pending:{label:'예정',color:'#9ca3af',bg:'#f9fafb'} }
               return (
-                <div key={cls.id} style={{ borderRadius:'10px', border:'1px solid #fed7aa', overflow:'hidden' }}>
+                <div key={cls.id} style={{ borderRadius: '10px', border: '1px solid #fed7aa', overflow: 'hidden' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: '#fff7ed', gap: '12px', flexWrap: 'wrap' }}>
                   {/* 수업 정보 */}
                   <div style={{ flex: 1, minWidth: '150px' }}>
@@ -261,19 +260,28 @@ function DayDetail({ date, user, classes, onNav }) {
                   </div>
                 </div>
 
-                {students.length > 0 && (
+                {/* 학생별 출석 + 진도 */}
+                {students.length > 0 && (() => {
+                  const S = {
+                    present: { label:'출석', color:'#16a34a', bg:'#f0fdf4' },
+                    late:    { label:'지각', color:'#d97706', bg:'#fffbeb' },
+                    leave:   { label:'조퇴', color:'#7c3aed', bg:'#f5f3ff' },
+                    absent:  { label:'결석', color:'#ef4444', bg:'#fef2f2' },
+                    pending: { label:'예정', color:'#6b7280', bg:'#f9fafb' },
+                  }
+                  return (
                   <table style={{ width:'100%', borderCollapse:'collapse', background:'#fff' }}>
                     <thead>
                       <tr style={{ background:'#f9fafb', borderTop:'1px solid #f3f4f6' }}>
                         {['순번','학년·반·번호','이름','학부모전화','출석·지각·조퇴·결석','진도','특이사항·메모'].map(h => (
-                          <th key={h} style={{ padding:'6px 12px', textAlign:'left', fontSize:'11px', fontWeight:600, color:'#9ca3af', whiteSpace:'nowrap', borderBottom:'1px solid #f3f4f6' }}>{h}</th>
+                          <th key={h} style={{ padding:'6px 12px', textAlign:'left', fontSize:'11px', fontWeight:600, color:'#6b7280', whiteSpace:'nowrap', borderBottom:'1px solid #f3f4f6' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {students.map((stu, idx) => {
                         const ar  = attRecords.find(a => a.studentId === stu.id)
-                        const ac  = ATT_CFG[ar?.status || 'pending'] || ATT_CFG.pending
+                        const ac  = S[ar?.status || 'pending'] || S.pending
                         const si  = spItems.find(i => i.studentId === stu.id && i.classId === cls.id)
                         const sp  = si?.productId ? spProds.find(p => p.id === si.productId) : null
                         const sg  = si?.productId ? spProg.find(p => p.studentId===stu.id && p.productId===si.productId) : null
@@ -303,9 +311,7 @@ function DayDetail({ date, user, classes, onNav }) {
                                 </div>
                               )}
                             </td>
-                            <td style={{ padding:'8px 12px', fontSize:'12px', color:'#6b7280', whiteSpace:'nowrap' }}>
-                              {stu.parentPhone||'-'}
-                            </td>
+                            <td style={{ padding:'8px 12px', fontSize:'12px', color:'#6b7280', whiteSpace:'nowrap' }}>{stu.parentPhone||'-'}</td>
                             <td style={{ padding:'8px 12px' }}>
                               <span style={{ fontSize:'11px',fontWeight:700,padding:'2px 8px',borderRadius:'5px',background:ac.bg,color:ac.color,border:`1px solid ${ac.color}40` }}>{ac.label}</span>
                             </td>
@@ -329,7 +335,8 @@ function DayDetail({ date, user, classes, onNav }) {
                       })}
                     </tbody>
                   </table>
-                )}
+                  )
+                })()}
                 </div>
               )
             })}
