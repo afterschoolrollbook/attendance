@@ -1300,8 +1300,15 @@ export function Supplies({ user }) {
 
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                    <div style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', fontSize:'13px', color:C.muted }}>
-                      🤖 {product.name} · {assignedStage}단계 배정 · 단계당 {sessionsPerStage}차시 기준
+                    <div
+                      onClick={() => { setProgressModal(false); openProductModal(product.vendorId, product) }}
+                      title="교구 등록에서 차시·알림 기준을 수정할 수 있습니다"
+                      style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', fontSize:'13px', color:C.muted, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'space-between', transition:'background .15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background='#f0f4ff'}
+                      onMouseLeave={e => e.currentTarget.style.background='#f9fafb'}
+                    >
+                      <span>🤖 {product.name} · {assignedStage}단계 배정 · 단계당 {sessionsPerStage}차시 기준 · {alertSession}차시 도달 시 준비 알림</span>
+                      <span style={{ fontSize:'11px', color:C.primary, fontWeight:600, marginLeft:'10px', whiteSpace:'nowrap' }}>✏️ 교구 등록에서 수정</span>
                     </div>
                     {showStages.map(stage => {
                       const sessions = stageGroups[stage]
