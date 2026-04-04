@@ -120,7 +120,9 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
 export function ClassCalendar({ cls, onUpdate }) {
   const [selectedDate,  setSelectedDate]  = useState(null)
   const [clickType,     setClickType]     = useState(null)
-  const [showSessionAction, setShowSessionAction] = useState(false)  // 수업일 클릭 액션 선택
+  const [showSessionAction, setShowSessionAction] = useState(false)
+  const [showNormalAction,  setShowNormalAction]  = useState(false)   // 빈 날짜 클릭
+  const [showRegisteredAction, setShowRegisteredAction] = useState(false) // 취소/보강 날짜 클릭
   const [showCancel,    setShowCancel]    = useState(false)
   const [showMakeup,    setShowMakeup]    = useState(false)
   const [reason,        setReason]        = useState('public_holiday')
@@ -131,7 +133,7 @@ export function ClassCalendar({ cls, onUpdate }) {
   }
 
   const allSessions   = calcSessionDates(cls)
-  // totalSessions 설정 시 해당 수만큼만 표시 (초과분 달력에서 제외)
+  // totalSessions 설정 시 해당 수만큼만 차시 번호 표시, 초과 날짜는 빈 날짜로 표시
   const sessions      = cls.totalSessions ? allSessions.slice(0, cls.totalSessions) : allSessions
   const cancelled     = new Set((cls.cancelledDates || []).map(c => c.date))
   const cancelledDates = cls.cancelledDates || []
@@ -187,19 +189,18 @@ export function ClassCalendar({ cls, onUpdate }) {
     setSelectedDate(date)
     setClickType(type)
     if (type === 'cancelled') {
-      // 취소 복원
-      onUpdate({ ...cls, cancelledDates: cancelledDates.filter(c => c.date !== date) })
+      // 취소된 날짜 → 선택 팝업 (정상일 복원 / 보강으로 변경)
+      setShowRegisteredAction(true)
     } else if (type === 'makeup') {
-      // 보강 삭제
-      onUpdate({ ...cls, makeupDates: makeupDates.filter(m => m.date !== date) })
+      // 보강일 → 선택 팝업 (정상일 복원 / 휴일 처리)
+      setShowRegisteredAction(true)
     } else if (type === 'session') {
-      // 수업일 → 액션 선택 모달
+      // 수업일 → 기존 액션 모달 (휴일/보강)
       setReason('public_holiday'); setMemo('')
       setShowSessionAction(true)
     } else if (type === 'normal') {
-      // 일반날 → 보강 추가 모달
-      setMemo('')
-      setShowMakeup(true)
+      // 빈 날짜 → 선택 팝업 (휴일 추가 / 보강 추가)
+      setShowNormalAction(true)
     }
   }
 
@@ -285,6 +286,79 @@ export function ClassCalendar({ cls, onUpdate }) {
             border:'1.5px solid #3b82f6', display:'inline-block', flexShrink:0 }} />보강
         </span>
       </div>
+
+      {/* 빈 날짜 클릭 — 휴일/보강 선택 */}
+      <Modal open={showNormalAction} onClose={() => setShowNormalAction(false)} title="날짜 추가" width={360}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+          <div style={{ fontSize:'14px', color:'#374151', marginBottom:'4px' }}>
+            <strong>{selectedDate}</strong> ({selectedDate && getDayLabel(selectedDate)}요일)에 무엇을 추가할까요?
+          </div>
+          <button onClick={() => { setShowNormalAction(false); setReason('public_holiday'); setMemo(''); setShowCancel(true) }}
+            style={{ padding:'14px 16px', borderRadius:'12px', border:'1.5px solid #fca5a5', background:'#fef2f2', cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}
+            onMouseEnter={e => e.currentTarget.style.background='#fee2e2'}
+            onMouseLeave={e => e.currentTarget.style.background='#fef2f2'}>
+            <div style={{ fontSize:'14px', fontWeight:700, color:'#ef4444', marginBottom:'3px' }}>🚫 휴일 추가</div>
+            <div style={{ fontSize:'12px', color:'#9ca3af' }}>공휴일, 재량휴일 등으로 등록</div>
+          </button>
+          <button onClick={() => { setShowNormalAction(false); setMemo(''); setShowMakeup(true) }}
+            style={{ padding:'14px 16px', borderRadius:'12px', border:'1.5px solid #93c5fd', background:'#eff6ff', cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}
+            onMouseEnter={e => e.currentTarget.style.background='#dbeafe'}
+            onMouseLeave={e => e.currentTarget.style.background='#eff6ff'}>
+            <div style={{ fontSize:'14px', fontWeight:700, color:'#3b82f6', marginBottom:'3px' }}>🔄 보강 추가</div>
+            <div style={{ fontSize:'12px', color:'#9ca3af' }}>이 날을 보강일로 추가</div>
+          </button>
+          <Btn variant="ghost" onClick={() => setShowNormalAction(false)}>닫기</Btn>
+        </div>
+      </Modal>
+
+      {/* 취소/보강 날짜 클릭 — 변경 선택 */}
+      <Modal open={showRegisteredAction} onClose={() => setShowRegisteredAction(false)} title="등록 변경" width={360}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+          <div style={{ fontSize:'14px', color:'#374151', marginBottom:'4px' }}>
+            <strong>{selectedDate}</strong> ({selectedDate && getDayLabel(selectedDate)}요일) — {clickType === 'cancelled' ? '휴일' : '보강'}로 등록된 날짜입니다.
+          </div>
+          <button onClick={() => {
+              if (clickType === 'cancelled') onUpdate({ ...cls, cancelledDates: cancelledDates.filter(c => c.date !== selectedDate) })
+              else onUpdate({ ...cls, makeupDates: makeupDates.filter(m => m.date !== selectedDate) })
+              setShowRegisteredAction(false)
+            }}
+            style={{ padding:'14px 16px', borderRadius:'12px', border:'1.5px solid #86efac', background:'#f0fdf4', cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}
+            onMouseEnter={e => e.currentTarget.style.background='#dcfce7'}
+            onMouseLeave={e => e.currentTarget.style.background='#f0fdf4'}>
+            <div style={{ fontSize:'14px', fontWeight:700, color:'#16a34a', marginBottom:'3px' }}>✅ 정상일 복원</div>
+            <div style={{ fontSize:'12px', color:'#9ca3af' }}>등록 취소하고 원래대로 되돌리기</div>
+          </button>
+          {clickType === 'cancelled' && (
+            <button onClick={() => {
+                const newCancelled = cancelledDates.filter(c => c.date !== selectedDate)
+                onUpdate({ ...cls, cancelledDates: newCancelled, makeupDates: [...makeupDates, { date: selectedDate, memo: '보강' }] })
+                setShowRegisteredAction(false)
+              }}
+              style={{ padding:'14px 16px', borderRadius:'12px', border:'1.5px solid #93c5fd', background:'#eff6ff', cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}
+              onMouseEnter={e => e.currentTarget.style.background='#dbeafe'}
+              onMouseLeave={e => e.currentTarget.style.background='#eff6ff'}>
+              <div style={{ fontSize:'14px', fontWeight:700, color:'#3b82f6', marginBottom:'3px' }}>🔄 보강으로 변경</div>
+              <div style={{ fontSize:'12px', color:'#9ca3af' }}>휴일 취소 → 보강일로 전환</div>
+            </button>
+          )}
+          {clickType === 'makeup' && (
+            <button onClick={() => {
+                const newMakeup = makeupDates.filter(m => m.date !== selectedDate)
+                setShowRegisteredAction(false)
+                setReason('public_holiday'); setMemo('')
+                onUpdate({ ...cls, makeupDates: newMakeup })
+                setTimeout(() => setShowCancel(true), 50)
+              }}
+              style={{ padding:'14px 16px', borderRadius:'12px', border:'1.5px solid #fca5a5', background:'#fef2f2', cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}
+              onMouseEnter={e => e.currentTarget.style.background='#fee2e2'}
+              onMouseLeave={e => e.currentTarget.style.background='#fef2f2'}>
+              <div style={{ fontSize:'14px', fontWeight:700, color:'#ef4444', marginBottom:'3px' }}>🚫 휴일 처리</div>
+              <div style={{ fontSize:'12px', color:'#9ca3af' }}>보강 취소 → 휴일로 전환</div>
+            </button>
+          )}
+          <Btn variant="ghost" onClick={() => setShowRegisteredAction(false)}>닫기</Btn>
+        </div>
+      </Modal>
 
       {/* 수업일 액션 선택 모달 */}
       <Modal open={showSessionAction} onClose={() => setShowSessionAction(false)} title="수업일 처리" width={380}>
