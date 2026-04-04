@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 
 const C = {
   primary: '#f97316',
@@ -176,16 +176,46 @@ export function Card({ children, style, onClick }) {
   )
 }
 
-// Modal
+// Modal (드래그 가능 — 헤더를 잡고 이동)
 export function Modal({ open, onClose, title, children, width = 520 }) {
+  const [pos, setPos] = useState({ x: 0, y: 0 })
+  const dragging = useRef(false)
+  const start = useRef({ mx: 0, my: 0, px: 0, py: 0 })
+
+  // 모달이 열릴 때마다 위치 초기화
+  useEffect(() => {
+    if (open) setPos({ x: 0, y: 0 })
+  }, [open])
+
   if (!open) return null
+
+  const handleMouseDown = (e) => {
+    if (e.target.closest('button')) return
+    dragging.current = true
+    start.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y }
+    const onMove = (e) => {
+      if (!dragging.current) return
+      setPos({ x: start.current.px + e.clientX - start.current.mx, y: start.current.py + e.clientY - start.current.my })
+    }
+    const onUp = () => {
+      dragging.current = false
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
   return (
     <div
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: width, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: width, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', transform: `translate(${pos.x}px, ${pos.y}px)` }}>
+        <div
+          onMouseDown={handleMouseDown}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${C.border}`, cursor: 'grab', userSelect: 'none' }}
+        >
           <h2 style={{ fontSize: '17px', fontWeight: 600, color: C.text }}>{title}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: C.muted, lineHeight: 1 }}>×</button>
         </div>
