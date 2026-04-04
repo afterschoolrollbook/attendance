@@ -752,9 +752,11 @@ export function Supplies({ user }) {
                                       e.stopPropagation()
                                       // 기존 설정값 로드해서 모달 열기
                                       setCheckedStudents([s.id])
+                                      // productId가 현재 productList에 없으면 무효 처리 (유령 차시 표시 방지)
+                                      const validPid = productList.find(p => p.id === supply.productId) ? supply.productId : ''
                                       setSupplyForm({
-                                        name: supply.name || '',
-                                        productId: supply.productId || '',
+                                        name: validPid ? (supply.name || '') : '',
+                                        productId: validPid,
                                         stage: supply.stage ? Number(supply.stage) : 1,
                                       })
                                       setSupplyModal(true)
