@@ -795,7 +795,7 @@ export function Students({ user, onNav }) {
                     <td style={{ padding: '11px 14px', fontSize: '14px', fontWeight: 700, color: '#111827' }}>
                       <div>{s.name}</div>
                       {(s.remark || (s.student_careers?.length > 0) || s.status === 'cancel_before' || s.status === 'cancel_after' || (s.relations||[]).length > 0) && (
-                        <div style={{ display:'flex', gap:'3px', flexWrap:'wrap', marginTop:'5px' }}>
+                        <div style={{ display:'flex', gap:'3px', flexWrap:'wrap', marginTop:'4px' }}>
                           {s.remark && (
                             <span style={{ fontSize:'11px', background:'#eff6ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{s.remark}</span>
                           )}
@@ -813,7 +813,7 @@ export function Students({ user, onNav }) {
                               {s.status === 'cancel_after' ? '개강후 취소' : '개강전 취소'}
                             </span>
                           )}
-                          {(s.relations || []).map((r, i) => (
+                          {(s.relations||[]).map((r, i) => (
                             <span key={i} style={{ fontSize:'11px', fontWeight:600, padding:'1px 7px', borderRadius:'5px',
                               background: r.type === '쌍둥이' ? '#fdf4ff' : r.type === '형제' ? '#eff6ff' : r.type === '남매' ? '#f0fdf4' : '#fff7ed',
                               border: `1px solid ${r.type === '쌍둥이' ? '#e9d5ff' : r.type === '형제' ? '#bfdbfe' : r.type === '남매' ? '#86efac' : '#fed7aa'}`,
