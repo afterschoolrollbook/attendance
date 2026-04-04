@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB } from '../lib/db.js'
-import { SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks } from '../lib/db.js'
+import { SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans } from '../lib/db.js'
 import { uid, now, fmtPhone, sortClasses } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox, Textarea } from '../components/Atoms.jsx'
 import { STUDENT_STATUS, GRADES, DAYS } from '../constants/config.js'
@@ -10,7 +10,7 @@ function emptyStudent() {
   return {
     school: '', grade: '', classNum: '', number: '', name: '',
     parentPhone: '', studentPhone: '', classIds: [], status: 'applied', memo: '',
-    applyOrder: '', remark: '', relations: [],
+    applyOrder: '', remark: '', relations: [], school_careers: [],
     // 수업 직접 입력용
     _newOrganization: '', _newClassName: '', _newSection: '',
     _newTimeStart: '', _newTimeEnd: '',
@@ -20,6 +20,65 @@ function emptyStudent() {
 }
 
 // 관계 추가 입력 컴포넌트
+// 경력 추가 컴포넌트
+function CareerAdder({ careers, onChange }) {
+  const currentYear = new Date().getFullYear()
+  const years = Array.from({ length: currentYear - 2021 }, (_, i) => String(2022 + i))
+  const [termType, setTermType] = React.useState('semester')
+  const [year, setYear] = React.useState(String(currentYear))
+  const [term, setTerm] = React.useState('1')
+
+  const semesterOptions = [{ value:'1', label:'1학기' }, { value:'2', label:'2학기' }]
+  const quarterOptions  = [{ value:'1', label:'1분기' }, { value:'2', label:'2분기' }, { value:'3', label:'3분기' }, { value:'4', label:'4분기' }]
+  const termOptions = termType === 'semester' ? semesterOptions : quarterOptions
+
+  const add = () => {
+    const label = termType === 'semester' ? `${year}년 ${term}학기` : `${year}년 ${term}분기`
+    const dup = careers.find(c => c.year === year && c.termType === termType && c.term === term)
+    if (dup) return
+    onChange([...careers, { year, termType, term, label }])
+  }
+
+  const selSt = { padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+      {/* 등록된 경력 태그 */}
+      {careers.length > 0 && (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
+          {careers.sort((a,b)=>a.year===b.year?a.term-b.term:a.year-b.year).map((c, i) => (
+            <span key={i} style={{ display:'inline-flex', alignItems:'center', gap:'5px', padding:'4px 10px', borderRadius:'20px', fontSize:'12px', fontWeight:600, background:'#eff6ff', border:'1px solid #bfdbfe', color:'#1d4ed8' }}>
+              {c.label}
+              <button onClick={() => onChange(careers.filter((_,j)=>j!==i))} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'13px', lineHeight:1, padding:0, color:'inherit', opacity:0.6 }}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      {/* 입력 */}
+      <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
+        <select style={selSt} value={year} onChange={e => setYear(e.target.value)}>
+          {years.map(y => <option key={y} value={y}>{y}년</option>)}
+        </select>
+        <div style={{ display:'flex', gap:'4px' }}>
+          {[{v:'semester',l:'학기제'},{v:'quarter',l:'분기제'}].map(t => (
+            <button key={t.v} type="button" onClick={() => { setTermType(t.v); setTerm('1') }}
+              style={{ padding:'6px 10px', borderRadius:'7px', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', border:`1.5px solid ${termType===t.v?'#f97316':'#e5e7eb'}`, background:termType===t.v?'#fff7ed':'#fff', color:termType===t.v?'#ea580c':'#374151', fontWeight:termType===t.v?700:400 }}>
+              {t.l}
+            </button>
+          ))}
+        </div>
+        <select style={selSt} value={term} onChange={e => setTerm(e.target.value)}>
+          {termOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <button type="button" onClick={add}
+          style={{ padding:'7px 14px', borderRadius:'8px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          + 추가
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function RelationAdder({ relations, onChange }) {
   const [type, setType] = React.useState('쌍둥이')
   const [withName, setWithName] = React.useState('')
@@ -114,6 +173,11 @@ export function Students({ user, onNav }) {
   const [supplyProducts, setSupplyProducts] = useState([])
   const [supplyProgress, setSupplyProgress] = useState([])
   const [supplyChecks,   setSupplyChecks]   = useState([])
+  const [supplyPlans,    setSupplyPlans]    = useState([])
+  // 진도 체크 모달
+  const [progressModal,     setProgressModal]     = useState(false)
+  const [progressStudent,   setProgressStudent]   = useState(null)
+  const [progressProductId, setProgressProductId] = useState('')
   const refresh = () => setTick(t => t + 1)
 
   React.useEffect(() => {
@@ -121,6 +185,7 @@ export function Students({ user, onNav }) {
     setSupplyProducts(SupplyProducts.byTeacher(user.id))
     setSupplyProgress(SupplyStudentProgress.byTeacher(user.id))
     setSupplyChecks(SupplySessionChecks.byTeacher(user.id))
+    setSupplyPlans(SupplyProductPlans.byTeacher(user.id))
   }, [tick])
   const { success: showToast, error: toastError } = useToast()
   // ✅ 삭제 확인
@@ -240,7 +305,7 @@ export function Students({ user, onNav }) {
   const openEdit = (s) => {
     const cls = s.classIds?.length > 0 ? ClassesDB.byTeacher(user.id).find(c => c.id === s.classIds[0]) : null
     setForm({
-      ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [],
+      ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [], school_careers: s.school_careers || [],
       _newOrganization: cls?.organization || '',
       _newClassName:    cls?.className    || '',
       _newSection:      cls?.section      || '',
@@ -254,6 +319,23 @@ export function Students({ user, onNav }) {
     })
     setEditId(s.id)
     setShowModal(true)
+  }
+
+  // 진도 체크 헬퍼
+  const getStudentChecks = (studentId, productId) =>
+    supplyChecks.filter(c => c.studentId === studentId && c.productId === productId)
+  const getProgress = (studentId, productId) =>
+    supplyProgress.find(p => p.studentId === studentId && p.productId === productId)
+  const toggleCheck = (studentId, productId, stage, sessionNo) => {
+    const classId = supplyItems.find(i => i.studentId === studentId)?.classId || ''
+    const existing = supplyChecks.find(c => c.studentId===studentId && c.productId===productId && c.stage===stage && c.sessionNo===sessionNo)
+    if (existing) SupplySessionChecks.delete(existing.id)
+    else SupplySessionChecks.upsert({ id: uid(), teacherId: user.id, studentId, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
+    const allStageChecks = SupplySessionChecks.byProductStudent(productId, studentId, classId).filter(c => c.stage === stage)
+    const maxSession = allStageChecks.length > 0 ? Math.max(...allStageChecks.map(c => c.sessionNo)) : 1
+    SupplyStudentProgress.upsert({ id: uid(), teacherId: user.id, studentId, classId, productId, curStage: stage, curSession: maxSession, updatedAt: now(), createdAt: now() })
+    setSupplyChecks(SupplySessionChecks.byTeacher(user.id))
+    setSupplyProgress(SupplyStudentProgress.byTeacher(user.id))
   }
 
   const save = () => {
@@ -694,7 +776,10 @@ export function Students({ user, onNav }) {
                         const checked = supplyChecks.filter(c => c.studentId === s.id && c.productId === item.productId && c.stage === curStage).length
                         const pct = Math.min(Math.round(checked / spp * 100), 100)
                         return (
-                          <div style={{ fontSize:'12px', minWidth:'80px' }}>
+                          <div onClick={() => { setProgressStudent(s); setProgressProductId(item.productId); setProgressModal(true) }}
+                            style={{ fontSize:'12px', minWidth:'80px', cursor:'pointer', padding:'4px 6px', borderRadius:'6px', transition:'background .15s' }}
+                            onMouseEnter={e => e.currentTarget.style.background='#f0fdf4'}
+                            onMouseLeave={e => e.currentTarget.style.background='transparent'}>
                             <div style={{ fontWeight:600, color:'#374151' }}>{prod?.name || item.name}</div>
                             <div style={{ color:'#6b7280', marginTop:'1px' }}>{curStage}단계 {checked}/{spp}차시</div>
                             <div style={{ height:'4px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'80px' }}>
@@ -960,6 +1045,12 @@ export function Students({ user, onNav }) {
               </div>
             </div>
 
+            {/* 경력 */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '8px' }}>📅 학교 경력</label>
+              <CareerAdder careers={form.school_careers || []} onChange={v => set('school_careers', v)} />
+            </div>
+
             {/* 가족/관계 */}
             <div>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '8px' }}>👨‍👩‍👧‍👦 가족 관계</label>
@@ -994,6 +1085,82 @@ export function Students({ user, onNav }) {
             <Btn onClick={save}>{editId ? '저장' : '등록'}</Btn>
           </div>
         </div>
+      </Modal>
+
+      {/* 진도 체크 모달 */}
+      <Modal open={!!(progressModal && progressStudent)} onClose={() => setProgressModal(false)}
+        title={progressStudent ? `📊 ${progressStudent.name} 진도 체크` : ''} width={600}>
+        {progressStudent && (() => {
+          const item = supplyItems.find(i => i.studentId === progressStudent.id && i.productId === progressProductId)
+          const product = supplyProducts.find(p => p.id === progressProductId)
+          if (!product) return <div style={{ padding:'24px', color:'#6b7280' }}>교구를 찾을 수 없습니다</div>
+          const spp = product.sessionsPerStage || 12
+          const alertSess = product.alertSession || 10
+          const prog = getProgress(progressStudent.id, product.id)
+          const curStage = prog?.curStage || item?.stage || 1
+          const assignedStage = item?.stage ? Number(item.stage) : curStage
+          const maxShowStage = Math.max(assignedStage, curStage)
+          const STAGES = Array.from({ length: maxShowStage }, (_, i) => i + 1)
+          return (
+            <div>
+              <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
+                {/* 교구 정보 헤더 */}
+                <div style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', fontSize:'13px', color:'#6b7280', marginBottom:'16px' }}>
+                  🤖 {product.name} · {assignedStage}단계 배정 · 단계당 {spp}차시 기준 · {alertSess}차시 알림
+                </div>
+                {/* 단계별 차시 체크 */}
+                <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                  {STAGES.map(stage => {
+                    const stagePlans = supplyPlans.filter(p => p.productId === product.id && p.stage === stage).sort((a,b) => a.sessionNo - b.sessionNo)
+                    const sessions = stagePlans.length > 0 ? stagePlans
+                      : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, title:`${stage}단계 ${i+1}차시`, dummy:true }))
+                    const stageChecks = getStudentChecks(progressStudent.id, product.id).filter(c => c.stage === stage)
+                    const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
+                    const cnt = stageChecks.length
+                    const isDone = cnt >= spp
+                    const isAlert = cnt >= alertSess && !isDone
+                    return (
+                      <div key={stage} style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
+                        <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
+                          <span style={{ fontSize:'13px', fontWeight:700, color:isDone?'#16a34a':isAlert?'#f59e0b':'#111827' }}>{stage}단계</span>
+                          <span style={{ fontSize:'12px', color:'#6b7280' }}>{cnt}/{spp}차시</span>
+                          {isDone  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>}
+                          {isAlert && <span style={{ fontSize:'11px', background:'#fffbeb', color:'#f59e0b', border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ 다음 단계 준비</span>}
+                        </div>
+                        <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                          {sessions.map(sess => {
+                            const isChk = checkedNos.has(sess.sessionNo)
+                            return (
+                              <div key={sess.id} onClick={() => toggleCheck(progressStudent.id, product.id, stage, sess.sessionNo)}
+                                style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, cursor:'pointer', transition:'all .12s' }}>
+                                <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                                  {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
+                                </div>
+                                <span style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827' }}>
+                                  {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+              <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
+                <button onClick={() => setProgressModal(false)}
+                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
+                  닫기
+                </button>
+                <button onClick={() => { refresh(); setProgressModal(false) }}
+                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:'#f97316', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#fff', fontWeight:600 }}>
+                  저장
+                </button>
+              </div>
+            </div>
+          )
+        })()}
       </Modal>
 
       {/* 삭제 확인 모달 */}
