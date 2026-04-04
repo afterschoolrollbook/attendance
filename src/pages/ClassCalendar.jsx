@@ -226,6 +226,20 @@ export function ClassCalendar({ cls, onUpdate }) {
     return { num: ti+1, active, total: size, globalStart, globalEnd }
   })
 
+  // ── 유효성 검사 ────────────────────────────────────────────
+  const totalConfigured = cls.totalSessions ? Number(cls.totalSessions) : sessions.length
+  const termSum         = termSizes.reduce((a, b) => a + b, 0)
+  const warnings = []
+  if (cls.totalSessions && allSessions.length < Number(cls.totalSessions)) {
+    warnings.push(`달력 날짜(${allSessions.length}회)가 설정한 전체 수업일수(${cls.totalSessions}회)보다 부족합니다. 날짜 범위를 늘리거나 수업일수를 줄이세요.`)
+  }
+  if (activeCount + makeupCount > totalConfigured) {
+    warnings.push(`실제 수업 횟수(${activeCount + makeupCount}회)가 전체 수업일수(${totalConfigured}회)를 초과했습니다.`)
+  }
+  if (termSum !== totalConfigured) {
+    warnings.push(`텀별 차시 합계(${termSum}차시)가 전체 수업일수(${totalConfigured}회)와 맞지 않습니다.`)
+  }
+
   return (
     <div>
       {/* 요약 */}
@@ -248,6 +262,20 @@ export function ClassCalendar({ cls, onUpdate }) {
           {makeupCount > 0 && <span style={{ color:'#3b82f6' }}>보강 {makeupCount}회</span>}
         </div>
       </div>
+
+      {/* 경고 배너 */}
+      {warnings.length > 0 && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'12px' }}>
+          {warnings.map((msg, i) => (
+            <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:'8px', padding:'10px 14px',
+              background:'#fffbeb', border:'1.5px solid #f59e0b', borderRadius:'10px',
+              fontSize:'13px', color:'#92400e', lineHeight:1.5 }}>
+              <span style={{ flexShrink:0, fontSize:'15px' }}>⚠️</span>
+              <span>{msg}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* 달력 2열 */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'12px' }}>
@@ -402,37 +430,5 @@ export function ClassCalendar({ cls, onUpdate }) {
     </div>
   )
 }
-        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-          <div style={{ fontSize:'14px', color:'#374151', marginBottom:'4px' }}>
-            <strong>{selectedDate}</strong> ({selectedDate && getDayLabel(selectedDate)}요일)을 무엇으로 등록할까요?
-          </div>
-          <button onClick={() => { setShowNormalAction(false); setReason('public_holiday'); setMemo(''); setShowCancel(true) }}
-            style={{ padding:'14px 16px', borderRadius:'12px', border:'1.5px solid #fca5a5', background:'#fef2f2', cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}
-            onMouseEnter={e => e.currentTarget.style.background='#fee2e2'}
-            onMouseLeave={e => e.currentTarget.style.background='#fef2f2'}>
-            <div style={{ fontSize:'14px', fontWeight:700, color:'#ef4444', marginBottom:'3px' }}>🚫 공휴일</div>
-            <div style={{ fontSize:'12px', color:'#9ca3af' }}>공휴일, 재량휴일, 강사사정 등</div>
-          </button>
-          <button onClick={() => {
-              const already = cancelledDates.some(c => c.date === selectedDate)
-              if (!already) onUpdate({ ...cls, cancelledDates: [...cancelledDates, { date: selectedDate, reason: 'election_day', memo: '선거일' }] })
-              setShowNormalAction(false)
-            }}
-            style={{ padding:'14px 16px', borderRadius:'12px', border:'1.5px solid #bfdbfe', background:'#eff6ff', cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}
-            onMouseEnter={e => e.currentTarget.style.background='#dbeafe'}
-            onMouseLeave={e => e.currentTarget.style.background='#eff6ff'}>
-            <div style={{ fontSize:'14px', fontWeight:700, color:'#2563eb', marginBottom:'3px' }}>🗳️ 선거일</div>
-            <div style={{ fontSize:'12px', color:'#9ca3af' }}>선거일로 등록</div>
-          </button>
-          <button onClick={() => { setShowNormalAction(false); setMemo(''); setShowMakeup(true) }}
-            style={{ padding:'14px 16px', borderRadius:'12px', border:'1.5px solid #93c5fd', background:'#f0fdf4', cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}
-            onMouseEnter={e => e.currentTarget.style.background='#dcfce7'}
-            onMouseLeave={e => e.currentTarget.style.background='#f0fdf4'}>
-            <div style={{ fontSize:'14px', fontWeight:700, color:'#16a34a', marginBottom:'3px' }}>🔄 보강</div>
-            <div style={{ fontSize:'12px', color:'#9ca3af' }}>이 날을 보강일로 추가</div>
-          </button>
-          <Btn variant="ghost" onClick={() => setShowNormalAction(false)}>닫기</Btn>
-        </div>
-      </Modal>
 
 
