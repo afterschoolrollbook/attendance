@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, today } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
-import { ClassCalendar } from '../components/ClassCalendar.jsx'
+import { ClassCalendar } from '../pages/ClassCalendar.jsx'
 import { TERM_TYPES, REPEAT_TYPES } from '../constants/config.js'
 import { useToast } from '../hooks/useToast.js'
 
