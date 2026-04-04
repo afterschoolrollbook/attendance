@@ -792,34 +792,38 @@ export function Students({ user, onNav }) {
                       {s.classNum && <span style={{ marginLeft: '4px', padding: '1px 7px', borderRadius: '5px', background: '#f0fdf4', color: '#16a34a', fontWeight: 600, fontSize: '12px' }}>{s.classNum}반</span>}
                       {s.number && <span style={{ marginLeft: '4px', color: '#9ca3af', fontSize: '12px' }}>{s.number}번</span>}
                     </td>
-                    <td style={{ padding: '11px 14px', fontSize: '14px', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>
-                      {s.name}
-                      {s.remark && (
-                        <span style={{ marginLeft: '6px', fontSize: '11px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '5px', padding: '1px 7px', fontWeight: 600 }}>{s.remark}</span>
+                    <td style={{ padding: '11px 14px', fontSize: '14px', fontWeight: 700, color: '#111827' }}>
+                      <div>{s.name}</div>
+                      {(s.remark || (s.student_careers?.length > 0) || s.status === 'cancel_before' || s.status === 'cancel_after' || (s.relations||[]).length > 0) && (
+                        <div style={{ display:'flex', gap:'3px', flexWrap:'wrap', marginTop:'5px' }}>
+                          {s.remark && (
+                            <span style={{ fontSize:'11px', background:'#eff6ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{s.remark}</span>
+                          )}
+                          {(s.student_careers?.length > 0) && (
+                            <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 7px', borderRadius:'5px',
+                              background: s.student_careers.length <= 1 ? '#eff6ff' : '#f0fdf4',
+                              border: `1px solid ${s.student_careers.length <= 1 ? '#bfdbfe' : '#86efac'}`,
+                              color: s.student_careers.length <= 1 ? '#1d4ed8' : '#15803d' }}>
+                              {s.student_careers.length <= 1 ? '신규' : '기존'}
+                            </span>
+                          )}
+                          {(s.status === 'cancel_before' || s.status === 'cancel_after') && (
+                            <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
+                              background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>
+                              {s.status === 'cancel_after' ? '개강후 취소' : '개강전 취소'}
+                            </span>
+                          )}
+                          {(s.relations || []).map((r, i) => (
+                            <span key={i} style={{ fontSize:'11px', fontWeight:600, padding:'1px 7px', borderRadius:'5px',
+                              background: r.type === '쌍둥이' ? '#fdf4ff' : r.type === '형제' ? '#eff6ff' : r.type === '남매' ? '#f0fdf4' : '#fff7ed',
+                              border: `1px solid ${r.type === '쌍둥이' ? '#e9d5ff' : r.type === '형제' ? '#bfdbfe' : r.type === '남매' ? '#86efac' : '#fed7aa'}`,
+                              color: r.type === '쌍둥이' ? '#7e22ce' : r.type === '형제' ? '#1d4ed8' : r.type === '남매' ? '#15803d' : '#c2410c',
+                            }}>
+                              {r.type}{r.with ? ` · ${r.with}` : ''}
+                            </span>
+                          ))}
+                        </div>
                       )}
-                      {(s.student_careers?.length > 0) && (
-                        <span style={{ marginLeft:'6px', fontSize:'11px', fontWeight:700, padding:'1px 7px', borderRadius:'5px',
-                          background: s.student_careers.length <= 1 ? '#eff6ff' : '#f0fdf4',
-                          border: `1px solid ${s.student_careers.length <= 1 ? '#bfdbfe' : '#86efac'}`,
-                          color: s.student_careers.length <= 1 ? '#1d4ed8' : '#15803d' }}>
-                          {s.student_careers.length <= 1 ? '신규' : '기존'}
-                        </span>
-                      )}
-                      {(s.status === 'cancel_before' || s.status === 'cancel_after') && (
-                        <span style={{ marginLeft:'6px', fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
-                          background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>
-                          {s.status === 'cancel_after' ? '개강후 취소' : '개강전 취소'}
-                        </span>
-                      )}
-                      {(s.relations || []).map((r, i) => (
-                        <span key={i} style={{ marginLeft: '4px', fontSize: '11px', fontWeight: 600, padding: '1px 7px', borderRadius: '5px',
-                          background: r.type === '쌍둥이' ? '#fdf4ff' : r.type === '형제' ? '#eff6ff' : r.type === '남매' ? '#f0fdf4' : '#fff7ed',
-                          border: `1px solid ${r.type === '쌍둥이' ? '#e9d5ff' : r.type === '형제' ? '#bfdbfe' : r.type === '남매' ? '#86efac' : '#fed7aa'}`,
-                          color: r.type === '쌍둥이' ? '#7e22ce' : r.type === '형제' ? '#1d4ed8' : r.type === '남매' ? '#15803d' : '#c2410c',
-                        }}>
-                          {r.type}{r.with ? ` · ${r.with}` : ''}
-                        </span>
-                      ))}
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtPhone(s.parentPhone) || '-'}</td>
                     <td style={{ padding: '11px 14px' }}>
