@@ -70,7 +70,7 @@ function mergeRecords(local, remote) {
     } else {
       const localTime  = new Date(loc.updatedAt  || loc.createdAt || 0).getTime()
       const remoteTime = new Date(r.updatedAt    || r.createdAt   || 0).getTime()
-      if (remoteTime >= localTime) map.set(r.id, r)
+      if (remoteTime > localTime) map.set(r.id, r)
     }
   })
 
