@@ -711,18 +711,13 @@ export function Classes({ user }) {
                   onChange={e => {
                     const total = parseInt(e.target.value) || 0
                     set('totalSessions', total || null)
-                    if (total > 0 && (form.termCount || 4) > 0) {
-                      const n = form.termCount || 4
-                      const base = Math.floor(total / n)
-                      const rem  = total % n
-                      const next = Array.from({ length: n }, (_, i) =>
-                        i === n - 1 ? base + rem : base
-                      )
-                      set('termSizes', next)
-                    }
                   }}
                   style={{ width:'72px', padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center', background:'#fff' }} />
-                <span style={{ fontSize:'12px', color:'#9ca3af' }}>차시 입력 시 텀별 자동 분배</span>
+                {form.totalSessions > 0 && form.totalSessions !== (form.termSizes||[4,4,4,4]).slice(0,form.termCount||4).reduce((a,b)=>a+b,0) && (
+                  <span style={{ fontSize:'12px', color:'#ef4444', fontWeight:600 }}>
+                    {'\u26a0\ufe0f'} 텀 합산({(form.termSizes||[4,4,4,4]).slice(0,form.termCount||4).reduce((a,b)=>a+b,0)}차시)과 다릅니다. 확인해주세요.
+                  </span>
+                )}
               </div>
 
               <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
@@ -731,15 +726,7 @@ export function Classes({ user }) {
                   {[1,2,3,4,5,6].map(n => (
                     <button key={n} type="button" onClick={() => {
                       const prev = form.termSizes || [4]
-                      const total = form.totalSessions
-                      let next
-                      if (total > 0) {
-                        const base = Math.floor(total / n)
-                        const rem  = total % n
-                        next = Array.from({ length: n }, (_, i) => i === n - 1 ? base + rem : base)
-                      } else {
-                        next = Array.from({length:n}, (_,i) => prev[i] || 4)
-                      }
+                      const next = Array.from({length:n}, (_,i) => prev[i] || 4)
                       set('termCount', n); set('termSizes', next)
                     }} style={{ width:'32px', height:'32px', borderRadius:'8px', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:700, background:(form.termCount||4)===n?'#f97316':'#f3f4f6', color:(form.termCount||4)===n?'#fff':'#374151', transition:'all .15s' }}>{n}</button>
                   ))}
@@ -800,13 +787,9 @@ export function Classes({ user }) {
                   }}
                   defaultValue="">
                   <option value="">공휴일 빠른 추가</option>
-                  {(() => {
-                    const year = parseInt(form.startDate?.slice(0,4)) || new Date().getFullYear()
-                    const list = HOLIDAYS[year] || HOLIDAYS[2026]
-                    return list.map(h => (
-                      <option key={h.date} value={h.date}>{h.name}</option>
-                    ))
-                  })()}
+                  {(HOLIDAYS[parseInt(form.startDate?.slice(0,4))] || HOLIDAYS[2026]).map(h => (
+                    <option key={h.date} value={h.date}>{h.name}</option>
+                  ))}
                 </select>
               </div>
               {/* 추가된 휴일 목록 */}
