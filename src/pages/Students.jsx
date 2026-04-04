@@ -226,12 +226,19 @@ export function Students({ user, onNav }) {
   }
 
   const openEdit = (s) => {
+    const cls = s.classIds?.length > 0 ? ClassesDB.byTeacher(user.id).find(c => c.id === s.classIds[0]) : null
     setForm({
       ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [],
-      _newOrganization: '', _newClassName: '', _newSection: '',
-      _newTimeStart: '', _newTimeEnd: '',
-      _newTermType: 'semester', _newDays: [], _newRepeatType: 'every',
-      _newStartDate: '', _newEndDate: '',
+      _newOrganization: cls?.organization || '',
+      _newClassName:    cls?.className    || '',
+      _newSection:      cls?.section      || '',
+      _newTimeStart:    cls?.time         || '',
+      _newTimeEnd:      cls?.timeEnd      || '',
+      _newTermType:     cls?.termType     || 'semester',
+      _newDays:         cls?.days         || [],
+      _newRepeatType:   cls?.repeatType   || 'every',
+      _newStartDate:    cls?.startDate    || '',
+      _newEndDate:      cls?.endDate      || '',
     })
     setEditId(s.id)
     setShowModal(true)
@@ -715,7 +722,13 @@ export function Students({ user, onNav }) {
                   }}
                   style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', color:'#111827', outline:'none', cursor:'pointer' }}>
                   <option value=''>{editId ? '-- 수업 변경 또는 선택 해제 후 직접 입력 --' : '-- 수업 선택 --'}</option>
-                  {classes.map(c => (
+                  {[...classes].sort((a,b) => {
+                    const DAY=['월','화','수','목','금','토','일']
+                    const aDay=DAY.indexOf(a.days?.[0]??''); const bDay=DAY.indexOf(b.days?.[0]??'')
+                    const d=(aDay===-1?99:aDay)-(bDay===-1?99:bDay)
+                    if(d!==0) return d
+                    return (a.organization||'').localeCompare(b.organization||'','ko')
+                  }).map(c => (
                     <option key={c.id} value={c.id}>
                       {c.organization} · {c.className}{c.section ? ' '+c.section+'반' : ''} {c.days?.length ? '('+c.days.join('')+' '+c.time+')' : ''}
                     </option>
@@ -724,8 +737,8 @@ export function Students({ user, onNav }) {
               </div>
             )}
 
-            {/* 수업 직접 입력 — 수업 미선택 상태일 때만 표시 */}
-            {form.classIds?.length === 0 && (
+            {/* 수업 직접 입력 — 등록/편집 모두 표시 */}
+            {(
               <div style={{ borderTop: classes.length > 0 ? '1px dashed #fcd34d' : 'none', paddingTop: classes.length > 0 ? '12px' : '0' }}>
                 <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '10px' }}>
                   {classes.length > 0
@@ -735,7 +748,9 @@ export function Students({ user, onNav }) {
                 {/* 학교명 / 수업명 / 반 — 기존 데이터 드롭다운 + 직접입력 병행 */}
                 {(() => {
                   const allClasses = ClassesDB.byTeacher(user.id)
-                  const orgs = [...new Set(allClasses.map(c => c.organization).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
+                  const DAY=['월','화','수','목','금','토','일']
+                  const orgMinDay = (org) => { const d=allClasses.filter(c=>c.organization===org).map(c=>DAY.indexOf(c.days?.[0]??'')).filter(i=>i!==-1); return d.length?Math.min(...d):99 }
+                  const orgs = [...new Set(allClasses.map(c => c.organization).filter(Boolean))].sort((a,b)=>orgMinDay(a)-orgMinDay(b)||a.localeCompare(b,'ko'))
                   const classNames = [...new Set(allClasses.filter(c => !form._newOrganization || c.organization === form._newOrganization).map(c => c.className).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
                   const sections  = [...new Set(allClasses.filter(c => (!form._newOrganization || c.organization === form._newOrganization) && (!form._newClassName || c.className === form._newClassName)).map(c => c.section).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
 
