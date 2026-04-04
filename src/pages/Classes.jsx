@@ -11,6 +11,52 @@ const DAY_ORDER = ['월', '화', '수', '목', '금', '토', '일']
 const MAX_PROMO_IMAGES = 2
 const MAX_NOTICE_FILES = 3
 
+// 연도별 공휴일 목록
+const HOLIDAYS = {
+  2025: [
+    { date:'2025-01-01', name:'신정 (1/1)' },
+    { date:'2025-01-28', name:'설날 (1/28)' }, { date:'2025-01-29', name:'설날 (1/29)' }, { date:'2025-01-30', name:'설날 (1/30)' },
+    { date:'2025-03-01', name:'삼일절 (3/1)' },
+    { date:'2025-05-05', name:'어린이날 (5/5)' },
+    { date:'2025-05-06', name:'어린이날 대체 (5/6)' },
+    { date:'2025-05-13', name:'부처님오신날 (5/13)' },
+    { date:'2025-06-06', name:'현충일 (6/6)' },
+    { date:'2025-08-15', name:'광복절 (8/15)' },
+    { date:'2025-10-03', name:'개천절 (10/3)' },
+    { date:'2025-10-05', name:'추석 (10/5)' }, { date:'2025-10-06', name:'추석 (10/6)' }, { date:'2025-10-07', name:'추석 (10/7)' },
+    { date:'2025-10-08', name:'추석 대체 (10/8)' },
+    { date:'2025-10-09', name:'한글날 (10/9)' },
+    { date:'2025-12-25', name:'성탄절 (12/25)' },
+  ],
+  2026: [
+    { date:'2026-01-01', name:'신정 (1/1)' },
+    { date:'2026-01-28', name:'설날 (1/28)' }, { date:'2026-01-29', name:'설날 (1/29)' }, { date:'2026-01-30', name:'설날 (1/30)' },
+    { date:'2026-03-01', name:'삼일절 (3/1)' },
+    { date:'2026-05-05', name:'어린이날 (5/5)' },
+    { date:'2026-05-24', name:'부처님오신날 (5/24)' },
+    { date:'2026-06-03', name:'지방선거일 (6/3)' },
+    { date:'2026-06-06', name:'현충일 (6/6)' },
+    { date:'2026-08-15', name:'광복절 (8/15)' },
+    { date:'2026-09-24', name:'추석 (9/24)' }, { date:'2026-09-25', name:'추석 (9/25)' }, { date:'2026-09-26', name:'추석 (9/26)' },
+    { date:'2026-10-03', name:'개천절 (10/3)' },
+    { date:'2026-10-09', name:'한글날 (10/9)' },
+    { date:'2026-12-25', name:'성탄절 (12/25)' },
+  ],
+  2027: [
+    { date:'2027-01-01', name:'신정 (1/1)' },
+    { date:'2027-02-16', name:'설날 (2/16)' }, { date:'2027-02-17', name:'설날 (2/17)' }, { date:'2027-02-18', name:'설날 (2/18)' },
+    { date:'2027-03-01', name:'삼일절 (3/1)' },
+    { date:'2027-05-05', name:'어린이날 (5/5)' },
+    { date:'2027-05-13', name:'부처님오신날 (5/13)' },
+    { date:'2027-06-06', name:'현충일 (6/6)' },
+    { date:'2027-08-15', name:'광복절 (8/15)' },
+    { date:'2027-09-14', name:'추석 (9/14)' }, { date:'2027-09-15', name:'추석 (9/15)' }, { date:'2027-09-16', name:'추석 (9/16)' },
+    { date:'2027-10-03', name:'개천절 (10/3)' },
+    { date:'2027-10-09', name:'한글날 (10/9)' },
+    { date:'2027-12-25', name:'성탄절 (12/25)' },
+  ],
+}
+
 // Supabase Storage 업로드
 async function uploadToStorage(userId, classId, folder, file) {
   const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
@@ -654,13 +700,45 @@ export function Classes({ user }) {
             {/* 텀 구성 설정 — 달력과 연동 */}
             <div style={{ background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:'12px', padding:'14px 16px' }}>
               <div style={{ fontSize:'12px', fontWeight:700, color:'#ea580c', marginBottom:'12px' }}>📅 텀 구성 설정</div>
+
+              {/* 총 수업횟수 입력 */}
+              <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
+                <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>총 수업횟수</label>
+                <input type="number" min="1" max="200"
+                  value={form.totalSessions || ''}
+                  placeholder="예: 20"
+                  onChange={e => {
+                    const total = parseInt(e.target.value) || 0
+                    set('totalSessions', total || null)
+                    if (total > 0 && (form.termCount || 4) > 0) {
+                      const n = form.termCount || 4
+                      const base = Math.floor(total / n)
+                      const rem  = total % n
+                      const next = Array.from({ length: n }, (_, i) =>
+                        i === n - 1 ? base + rem : base
+                      )
+                      set('termSizes', next)
+                    }
+                  }}
+                  style={{ width:'72px', padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center', background:'#fff' }} />
+                <span style={{ fontSize:'12px', color:'#9ca3af' }}>차시 입력 시 텀별 자동 분배</span>
+              </div>
+
               <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
                 <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>총 텀 수</label>
                 <div style={{ display:'flex', gap:'6px' }}>
                   {[1,2,3,4,5,6].map(n => (
                     <button key={n} type="button" onClick={() => {
                       const prev = form.termSizes || [4]
-                      const next = Array.from({length:n}, (_,i) => prev[i] || 4)
+                      const total = form.totalSessions
+                      let next
+                      if (total > 0) {
+                        const base = Math.floor(total / n)
+                        const rem  = total % n
+                        next = Array.from({ length: n }, (_, i) => i === n - 1 ? base + rem : base)
+                      } else {
+                        next = Array.from({length:n}, (_,i) => prev[i] || 4)
+                      }
                       set('termCount', n); set('termSizes', next)
                     }} style={{ width:'32px', height:'32px', borderRadius:'8px', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:700, background:(form.termCount||4)===n?'#f97316':'#f3f4f6', color:(form.termCount||4)===n?'#fff':'#374151', transition:'all .15s' }}>{n}</button>
                   ))}
@@ -721,21 +799,13 @@ export function Classes({ user }) {
                   }}
                   defaultValue="">
                   <option value="">공휴일 빠른 추가</option>
-                  <option value="2026-01-01">신정 (1/1)</option>
-                  <option value="2026-01-28">설날 (1/28)</option>
-                  <option value="2026-01-29">설날 (1/29)</option>
-                  <option value="2026-01-30">설날 (1/30)</option>
-                  <option value="2026-03-01">삼일절 (3/1)</option>
-                  <option value="2026-05-05">어린이날 (5/5)</option>
-                  <option value="2026-05-24">부처님오신날 (5/24)</option>
-                  <option value="2026-06-06">현충일 (6/6)</option>
-                  <option value="2026-08-15">광복절 (8/15)</option>
-                  <option value="2026-09-24">추석 (9/24)</option>
-                  <option value="2026-09-25">추석 (9/25)</option>
-                  <option value="2026-09-26">추석 (9/26)</option>
-                  <option value="2026-10-03">개천절 (10/3)</option>
-                  <option value="2026-10-09">한글날 (10/9)</option>
-                  <option value="2026-12-25">성탄절 (12/25)</option>
+                  {(() => {
+                    const year = parseInt(form.startDate?.slice(0,4)) || new Date().getFullYear()
+                    const list = HOLIDAYS[year] || HOLIDAYS[2026]
+                    return list.map(h => (
+                      <option key={h.date} value={h.date}>{h.name}</option>
+                    ))
+                  })()}
                 </select>
               </div>
               {/* 추가된 휴일 목록 */}
