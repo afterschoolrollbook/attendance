@@ -823,26 +823,57 @@ export function Students({ user, onNav }) {
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtPhone(s.parentPhone) || '-'}</td>
                     <td style={{ padding: '11px 14px' }}>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <select value={displayStatus} onChange={e => setPendingStatuses(p => ({...p, [s.id]: e.target.value}))}
-                          style={{ padding: '4px 8px', borderRadius: '6px', border: `1.5px solid ${cfg.color}50`, background: cfg.bg, color: cfg.color, fontSize: '12px', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif', cursor: 'pointer', outline: 'none' }}>
-                          {Object.entries(STUDENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                          <option value='cancel_before'>개강전 취소</option>
-                          <option value='cancel_after'>개강후 취소</option>
-                        </select>
-                        {pendingStatuses[s.id] !== undefined && pendingStatuses[s.id] !== s.status && (
-                          <Btn size="sm" onClick={() => {
-                            const newStatus = pendingStatuses[s.id]
-                            if (newStatus === 'cancel_before' || newStatus === 'cancel_after') {
-                              setCancelTarget({ id: s.id, name: s.name, status: newStatus })
-                              setCancelForm({ type: newStatus === 'cancel_after' ? 'after' : 'before', date: new Date().toISOString().slice(0,10), memo: '' })
-                              setCancelModal(true)
-                              setPendingStatuses(p => { const n = {...p}; delete n[s.id]; return n })
-                            } else {
-                              changeStatus(s.id, newStatus)
-                              setPendingStatuses(p => { const n = {...p}; delete n[s.id]; return n })
+                      <div style={{ display: 'flex', flexDirection:'column', gap: '6px' }}>
+                        <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                          <select value={displayStatus} onChange={e => {
+                            const v = e.target.value
+                            setPendingStatuses(p => ({...p, [s.id]: v}))
+                            if (v === 'cancel_before' || v === 'cancel_after') {
+                              setCancelTarget({ id: s.id, name: s.name, status: v })
+                              setCancelForm({ type: v === 'cancel_after' ? 'after' : 'before', date: new Date().toISOString().slice(0,10), memo: '' })
                             }
-                          }}>저장</Btn>
+                          }}
+                            style={{ padding: '4px 8px', borderRadius: '6px', border: `1.5px solid ${cfg.color}50`, background: cfg.bg, color: cfg.color, fontSize: '12px', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif', cursor: 'pointer', outline: 'none' }}>
+                            {Object.entries(STUDENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                            <option value='cancel_before'>개강전 취소</option>
+                            <option value='cancel_after'>개강후 취소</option>
+                          </select>
+                          {pendingStatuses[s.id] !== undefined && pendingStatuses[s.id] !== s.status &&
+                           pendingStatuses[s.id] !== 'cancel_before' && pendingStatuses[s.id] !== 'cancel_after' && (
+                            <Btn size="sm" onClick={() => {
+                              changeStatus(s.id, pendingStatuses[s.id])
+                              setPendingStatuses(p => { const n={...p}; delete n[s.id]; return n })
+                            }}>저장</Btn>
+                          )}
+                        </div>
+                        {/* 취소 선택 시 인라인 날짜+메모 입력 */}
+                        {cancelTarget?.id === s.id && (pendingStatuses[s.id] === 'cancel_before' || pendingStatuses[s.id] === 'cancel_after') && (
+                          <div style={{ display:'flex', flexDirection:'column', gap:'5px', padding:'8px 10px', background:'#fef2f2', borderRadius:'8px', border:'1px solid #fca5a5' }}>
+                            <input type="date" value={cancelForm.date} onChange={e => setCancelForm(f=>({...f, date:e.target.value}))}
+                              style={{ padding:'5px 8px', borderRadius:'6px', border:'1px solid #fca5a5', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }} />
+                            <textarea value={cancelForm.memo} onChange={e => setCancelForm(f=>({...f, memo:e.target.value}))}
+                              placeholder="취소 사유 (선택)"
+                              rows={2}
+                              style={{ padding:'5px 8px', borderRadius:'6px', border:'1px solid #fca5a5', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', resize:'none', background:'#fff' }} />
+                            <div style={{ display:'flex', gap:'5px' }}>
+                              <button onClick={() => {
+                                const st = StudentsDB.find(s.id)
+                                StudentsDB.update(s.id, {
+                                  status: pendingStatuses[s.id],
+                                  cancel_info: { type: cancelForm.type, date: cancelForm.date, memo: cancelForm.memo },
+                                  statusHistory: [...(st?.statusHistory||[]), { status: pendingStatuses[s.id], changedAt: now(), memo: `[${cancelForm.type==='after'?'개강후':'개강전'} 취소] ${cancelForm.date}${cancelForm.memo?' - '+cancelForm.memo:''}` }],
+                                })
+                                const cids = st?.classIds||[]
+                                cids.forEach(cid => { const p=promoteNextWaiting(cid); if(p){setPromotedName(p.name);setTimeout(()=>setPromotedName(null),4000)} })
+                                setPendingStatuses(p=>{const n={...p};delete n[s.id];return n})
+                                setCancelTarget(null)
+                                refresh()
+                                showToast('취소 처리가 완료되었습니다.')
+                              }} style={{ flex:1, padding:'5px', borderRadius:'6px', border:'none', background:'#dc2626', color:'#fff', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>확인</button>
+                              <button onClick={() => { setPendingStatuses(p=>{const n={...p};delete n[s.id];return n}); setCancelTarget(null) }}
+                                style={{ padding:'5px 10px', borderRadius:'6px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
+                            </div>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -1157,12 +1188,28 @@ export function Students({ user, onNav }) {
               <RelationAdder relations={form.relations || []} onChange={v => set('relations', v)} />
             </div>
 
-            <Select label="상태" value={form.status} onChange={v => set('status', v)}
-              options={[
-                ...Object.entries(STUDENT_STATUS).map(([k, v]) => ({ value: k, label: v.label })),
-                { value: 'cancel_before', label: '개강전 취소' },
-                { value: 'cancel_after',  label: '개강후 취소' },
-              ]} />
+            {/* 상태 + 취소 메모 인라인 */}
+            <div>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151', display:'block', marginBottom:'6px' }}>상태</label>
+              <div style={{ display:'flex', gap:'10px', alignItems:'flex-start' }}>
+                <select value={form.status} onChange={e => set('status', e.target.value)}
+                  style={{ flex:'0 0 auto', width:'50%', padding:'9px 13px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }}>
+                  {Object.entries(STUDENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  <option value='cancel_before'>개강전 취소</option>
+                  <option value='cancel_after'>개강후 취소</option>
+                </select>
+                {(form.status === 'cancel_before' || form.status === 'cancel_after') && (
+                  <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'5px' }}>
+                    <input type="date" value={form.cancel_info?.date || new Date().toISOString().slice(0,10)}
+                      onChange={e => set('cancel_info', { ...form.cancel_info, type: form.status==='cancel_after'?'after':'before', date: e.target.value, memo: form.cancel_info?.memo||'' })}
+                      style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #fca5a5', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                    <textarea value={form.cancel_info?.memo || ''} placeholder="취소 사유"
+                      onChange={e => set('cancel_info', { ...form.cancel_info, type: form.status==='cancel_after'?'after':'before', date: form.cancel_info?.date||new Date().toISOString().slice(0,10), memo: e.target.value })}
+                      rows={2} style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #fca5a5', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', resize:'none' }} />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', paddingTop: '16px', marginTop: '4px', borderTop: '1px solid #e5e7eb' }}>
@@ -1249,29 +1296,19 @@ export function Students({ user, onNav }) {
       </Modal>
 
       {/* 취소 처리 모달 */}
-      <Modal open={cancelModal} onClose={() => setCancelModal(false)} title="취소 처리" width={440}>
+      <Modal open={cancelModal} onClose={() => setCancelModal(false)}
+        title={cancelForm.type === 'after' ? '🔴 개강후 취소' : '🔴 개강전 취소'} width={420}>
         <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-          <div style={{ padding:'12px 14px', background:'#fef2f2', borderRadius:'10px', fontSize:'13px', color:'#991b1b' }}>
-            <strong>{cancelTarget?.name}</strong> 학생을 취소 처리합니다.
+
+          {/* 안내 */}
+          <div style={{ padding:'12px 14px', background:'#fef2f2', borderRadius:'10px', fontSize:'13px', color:'#991b1b', lineHeight:1.6 }}>
+            <strong>{cancelTarget?.name}</strong> 학생 —
+            {cancelForm.type === 'after'
+              ? ' 현재 학기/분기까지 출석부 유지, 다음 텀부터 수강료 제외됩니다.'
+              : ' 개강 전 취소로 즉시 처리됩니다.'}
           </div>
 
-          {/* 취소 유형 */}
-          <div>
-            <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', display:'block', marginBottom:'8px' }}>취소 유형</label>
-            <div style={{ display:'flex', gap:'8px' }}>
-              {[{ v:'before', l:'개강전 취소', desc:'수강 시작 전 취소' }, { v:'after', l:'개강후 취소', desc:'현재 텀까지 수강 후 다음 텀부터 제외' }].map(t => (
-                <button key={t.v} type="button" onClick={() => setCancelForm(f => ({ ...f, type: t.v }))}
-                  style={{ flex:1, padding:'10px 12px', borderRadius:'9px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', textAlign:'left',
-                    border:`1.5px solid ${cancelForm.type===t.v?'#ef4444':'#e5e7eb'}`,
-                    background: cancelForm.type===t.v?'#fef2f2':'#fff' }}>
-                  <div style={{ fontSize:'13px', fontWeight:700, color: cancelForm.type===t.v?'#dc2626':'#374151' }}>{t.l}</div>
-                  <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'3px' }}>{t.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 취소 날짜 */}
+          {/* 취소 요청일 */}
           <div>
             <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', display:'block', marginBottom:'6px' }}>취소 요청일</label>
             <input type="date" value={cancelForm.date} onChange={e => setCancelForm(f => ({ ...f, date: e.target.value }))}
@@ -1280,18 +1317,12 @@ export function Students({ user, onNav }) {
 
           {/* 메모 */}
           <div>
-            <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', display:'block', marginBottom:'6px' }}>메모 (선택)</label>
+            <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', display:'block', marginBottom:'6px' }}>메모</label>
             <textarea value={cancelForm.memo} onChange={e => setCancelForm(f => ({ ...f, memo: e.target.value }))}
-              placeholder="취소 사유 또는 특이사항을 입력하세요"
+              placeholder="취소 사유를 입력하세요"
               rows={3}
               style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', resize:'vertical' }} />
           </div>
-
-          {cancelForm.type === 'after' && (
-            <div style={{ padding:'10px 14px', background:'#fffbeb', borderRadius:'8px', fontSize:'12px', color:'#92400e' }}>
-              ⚠️ 개강후 취소: 현재 학기/분기까지 출석부 유지 · 수강료 징수됩니다.
-            </div>
-          )}
 
           <div style={{ display:'flex', gap:'8px', paddingTop:'4px' }}>
             <Btn variant="ghost" onClick={() => setCancelModal(false)}>취소</Btn>
