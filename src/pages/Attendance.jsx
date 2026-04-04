@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -238,7 +238,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: '#fff', borderLeft: '3px solid transparent', transition: 'all .12s' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '30px 70px 65px 100px 190px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '30px 70px 65px 100px 190px 90px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
 
         {/* 순번 — StudentRow 동일 */}
         <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{idx+1}</span>
@@ -252,15 +252,14 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
         <div style={{ textAlign: 'center' }}>
           <span onClick={() => onStudentClick(s)}
             style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
-          {(() => {
-            const items = SupplyItems.byClassStudent(s.classIds?.[0] || '', s.id)
-            if (!items.length) return null
-            return items.map((item, i) => (
-              <div key={i} style={{ fontSize: '10px', color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '4px', padding: '1px 5px', marginTop: '2px', display: 'inline-block' }}>
-                🎒 {item.name}{item.stage ? ` · ${item.stage}` : ''}
-              </div>
-            ))
-          })()}
+          {(s.remark || (s.student_careers?.length > 0) || s.status === 'cancel_before' || s.status === 'cancel_after' || (s.relations||[]).length > 0) && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'2px', marginTop:'3px', alignItems:'center' }}>
+              {s.remark && <span style={{ fontSize:'10px', background:'#eff6ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 5px', fontWeight:600 }}>{s.remark}</span>}
+              {(s.student_careers?.length > 0) && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 5px', borderRadius:'4px', background:s.student_careers.length<=1?'#eff6ff':'#f0fdf4', border:`1px solid ${s.student_careers.length<=1?'#bfdbfe':'#86efac'}`, color:s.student_careers.length<=1?'#1d4ed8':'#15803d' }}>{s.student_careers.length<=1?'신규':'기존'}</span>}
+              {(s.status==='cancel_before'||s.status==='cancel_after') && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 5px', borderRadius:'4px', background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>{s.status==='cancel_after'?'개강후취소':'개강전취소'}{s.cancel_info?.date&&(()=>{const [y,m,day]=s.cancel_info.date.split('-');return `-${y.slice(2)}.${parseInt(m)}.${parseInt(day)}`})()}</span>}
+              {(s.relations||[]).map((r,ri)=><span key={ri} style={{ fontSize:'10px', fontWeight:600, padding:'1px 5px', borderRadius:'4px', background:r.type==='쌍둥이'?'#fdf4ff':r.type==='형제'?'#eff6ff':r.type==='남매'?'#f0fdf4':'#fff7ed', border:`1px solid ${r.type==='쌍둥이'?'#e9d5ff':r.type==='형제'?'#bfdbfe':r.type==='남매'?'#86efac':'#fed7aa'}`, color:r.type==='쌍둥이'?'#7e22ce':r.type==='형제'?'#1d4ed8':r.type==='남매'?'#15803d':'#c2410c' }}>{r.type}{r.with?` · ${r.with}`:''}</span>)}
+            </div>
+          )}
         </div>
 
         {/* 학부모 전화 — PhoneAction만 */}
@@ -284,6 +283,27 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
             </div>
           )}
         </div>
+
+        {/* 진도 */}
+        {(() => {
+          const si = SupplyItems.byClassStudent(s.classIds?.[0] || '', s.id)[0]
+          if (!si?.productId) return <span style={{ fontSize:'11px', color:'#d1d5db', textAlign:'center' }}>-</span>
+          const prod = SupplyProducts.byTeacher(s.teacherId||'').find(p => p.id === si.productId)
+          const prog = SupplyStudentProgress.byStudent(s.id, s.classIds?.[0]||'').find(p => p.productId === si.productId)
+          const curStage = prog?.curStage || si.stage || 1
+          const spp = prod?.sessionsPerStage || 12
+          const chk = SupplySessionChecks.byProductStudent(si.productId, s.id, s.classIds?.[0]||'').filter(c => c.stage === curStage).length
+          const pct = Math.min(Math.round(chk/spp*100),100)
+          return (
+            <div style={{ fontSize:'11px' }}>
+              <div style={{ fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{prod?.name||si.name||''}</div>
+              <div style={{ color:'#6b7280', marginTop:'1px' }}>{curStage}단계 {chk}/{spp}차시</div>
+              <div style={{ height:'3px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'70px' }}>
+                <div style={{ height:'100%', borderRadius:'2px', width:`${pct}%`, background:pct>=100?'#16a34a':pct>=80?'#f59e0b':'#f97316' }} />
+              </div>
+            </div>
+          )
+        })()}
 
         {/* 특이사항·메모 — StudentRow NoteInline과 동일 구조 */}
         <div>
@@ -327,7 +347,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '30px 70px 65px 100px 190px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '30px 70px 65px 100px 190px 90px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
 
         {/* 순번 */}
         <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{idx+1}</span>
@@ -341,15 +361,14 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
         <div style={{ textAlign: 'center' }}>
           <span onClick={() => onStudentClick(s)}
             style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
-          {(() => {
-            const items = SupplyItems.byClassStudent(s.classIds?.[0] || '', s.id)
-            if (!items.length) return null
-            return items.map((item, i) => (
-              <div key={i} style={{ fontSize: '10px', color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '4px', padding: '1px 5px', marginTop: '2px', display: 'inline-block' }}>
-                🎒 {item.name}{item.stage ? ` · ${item.stage}` : ''}
-              </div>
-            ))
-          })()}
+          {(s.remark || (s.student_careers?.length > 0) || s.status === 'cancel_before' || s.status === 'cancel_after' || (s.relations||[]).length > 0) && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'2px', marginTop:'3px', alignItems:'center' }}>
+              {s.remark && <span style={{ fontSize:'10px', background:'#eff6ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 5px', fontWeight:600 }}>{s.remark}</span>}
+              {(s.student_careers?.length > 0) && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 5px', borderRadius:'4px', background:s.student_careers.length<=1?'#eff6ff':'#f0fdf4', border:`1px solid ${s.student_careers.length<=1?'#bfdbfe':'#86efac'}`, color:s.student_careers.length<=1?'#1d4ed8':'#15803d' }}>{s.student_careers.length<=1?'신규':'기존'}</span>}
+              {(s.status==='cancel_before'||s.status==='cancel_after') && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 5px', borderRadius:'4px', background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>{s.status==='cancel_after'?'개강후취소':'개강전취소'}{s.cancel_info?.date&&(()=>{const [y,m,day]=s.cancel_info.date.split('-');return `-${y.slice(2)}.${parseInt(m)}.${parseInt(day)}`})()}</span>}
+              {(s.relations||[]).map((r,ri)=><span key={ri} style={{ fontSize:'10px', fontWeight:600, padding:'1px 5px', borderRadius:'4px', background:r.type==='쌍둥이'?'#fdf4ff':r.type==='형제'?'#eff6ff':r.type==='남매'?'#f0fdf4':'#fff7ed', border:`1px solid ${r.type==='쌍둥이'?'#e9d5ff':r.type==='형제'?'#bfdbfe':r.type==='남매'?'#86efac':'#fed7aa'}`, color:r.type==='쌍둥이'?'#7e22ce':r.type==='형제'?'#1d4ed8':r.type==='남매'?'#15803d':'#c2410c' }}>{r.type}{r.with?` · ${r.with}`:''}</span>)}
+            </div>
+          )}
         </div>
 
         {/* 학부모 전화 — 문자버튼 제거, PhoneAction만 */}
@@ -371,6 +390,27 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
             </button>
           ))}
         </div>
+
+        {/* 진도 */}
+        {(() => {
+          const si = SupplyItems.byClassStudent(s.classIds?.[0] || '', s.id)[0]
+          if (!si?.productId) return <span style={{ fontSize:'11px', color:'#d1d5db', textAlign:'center' }}>-</span>
+          const prod = SupplyProducts.byTeacher(s.teacherId||'').find(p => p.id === si.productId)
+          const prog = SupplyStudentProgress.byStudent(s.id, s.classIds?.[0]||'').find(p => p.productId === si.productId)
+          const curStage = prog?.curStage || si.stage || 1
+          const spp = prod?.sessionsPerStage || 12
+          const chk = SupplySessionChecks.byProductStudent(si.productId, s.id, s.classIds?.[0]||'').filter(c => c.stage === curStage).length
+          const pct = Math.min(Math.round(chk/spp*100),100)
+          return (
+            <div style={{ fontSize:'11px' }}>
+              <div style={{ fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{prod?.name||si.name||''}</div>
+              <div style={{ color:'#6b7280', marginTop:'1px' }}>{curStage}단계 {chk}/{spp}차시</div>
+              <div style={{ height:'3px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'70px' }}>
+                <div style={{ height:'100%', borderRadius:'2px', width:`${pct}%`, background:pct>=100?'#16a34a':pct>=80?'#f59e0b':'#f97316' }} />
+              </div>
+            </div>
+          )
+        })()}
 
         {/* 특이사항·메모 (귀가방법 배지 포함) */}
         <div>
@@ -582,8 +622,8 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
           </div>
         )}
         {/* 컬럼 헤더 */}
-        <div style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 1fr', gap:'6px', padding:'7px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
-          <span>순번</span><span>학년·반·번호</span><span>이름</span><span>학부모전화</span><span>출석·지각·조퇴·결석</span><span>특이사항·메모</span>
+        <div style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 90px 1fr', gap:'6px', padding:'7px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
+          <span>순번</span><span>학년·반·번호</span><span>이름</span><span>학부모전화</span><span>출석·지각·조퇴·결석</span><span>진도</span><span>특이사항·메모</span>
         </div>
         {sorted.length === 0
           ? <div style={{ padding:'24px', textAlign:'center', color:C.muted, fontSize:'13px' }}>등록된 학생이 없습니다</div>
