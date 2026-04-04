@@ -1354,10 +1354,14 @@ export function Supplies({ user }) {
             </div>
 
             {/* footer 고정 버튼 */}
-            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, flexShrink:0 }}>
+            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, flexShrink:0, display:'flex', gap:'10px' }}>
               <button onClick={() => setProgressModal(false)}
-                style={{ width:'100%', padding:'11px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted, fontWeight:600 }}>
+                style={{ flex:1, padding:'11px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted, fontWeight:600 }}>
                 닫기
+              </button>
+              <button onClick={() => { success('수정이 완료되었습니다.'); setProgressModal(false) }}
+                style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#fff', fontWeight:600 }}>
+                저장
               </button>
             </div>
       </Modal>
