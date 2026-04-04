@@ -196,7 +196,17 @@ export function Supplies({ user }) {
   const isRobot = selSubject === '로봇'
 
   // ── 교구 배정
-  const confirmedStudents = students.filter(s => s.classIds?.includes(selClassId) && s.status === 'confirmed')
+  const confirmedStudents = students
+    .filter(s => s.classIds?.includes(selClassId) && s.status === 'confirmed')
+    .sort((a, b) => {
+      const gradeCmp = parseInt(a.grade||'0') - parseInt(b.grade||'0')
+      if (gradeCmp !== 0) return gradeCmp
+      const classCmp = parseInt(a.classNum||'0') - parseInt(b.classNum||'0')
+      if (classCmp !== 0) return classCmp
+      const numCmp = parseInt(a.number||'0') - parseInt(b.number||'0')
+      if (numCmp !== 0) return numCmp
+      return (a.name||'').localeCompare(b.name||'', 'ko')
+    })
   const allChecked = confirmedStudents.length > 0 && checkedStudents.length === confirmedStudents.length
   const toggleAll  = () => setCheckedStudents(allChecked ? [] : confirmedStudents.map(s=>s.id))
   const toggleOne  = (id) => setCheckedStudents(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id])
@@ -629,7 +639,17 @@ export function Supplies({ user }) {
                 <select value={selClassId} onChange={e => setSelClassId(e.target.value)}
                   style={{ ...iStyle, width:'auto', minWidth:'300px' }}>
                   <option value=''>-- 수업을 선택하세요 --</option>
-                  {classes.map(cls => (
+                  {[...classes].sort((a, b) => {
+                    const DAY = ['월','화','수','목','금','토','일']
+                    const aDay = DAY.indexOf(a.days?.[0] ?? ''); const bDay = DAY.indexOf(b.days?.[0] ?? '')
+                    const dayCmp = (aDay===-1?99:aDay) - (bDay===-1?99:bDay)
+                    if (dayCmp !== 0) return dayCmp
+                    const schoolCmp = (a.organization||'').localeCompare(b.organization||'','ko')
+                    if (schoolCmp !== 0) return schoolCmp
+                    const classCmp = (a.className||'').localeCompare(b.className||'','ko')
+                    if (classCmp !== 0) return classCmp
+                    return (a.section||'').localeCompare(b.section||'','ko')
+                  }).map(cls => (
                     <option key={cls.id} value={cls.id}>
                       {cls.organization} · {cls.className}{cls.section ? ' '+cls.section : ''}
                     </option>
