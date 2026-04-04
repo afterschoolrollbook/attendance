@@ -1,23 +1,18 @@
 import React, { useState, useEffect } from 'react'
 import { uid, now } from '../lib/utils.js'
-import { supabase } from '../lib/supabase.js'
+import { JobSubs, Settings } from '../lib/db.js'
 import { Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
 
 const C = { primary:'#f97316', success:'#16a34a', danger:'#ef4444', border:'#e5e7eb', text:'#111827', muted:'#6b7280', card:'#fff', warning:'#f59e0b' }
-const STORAGE_KEY = 'asa_job_subs'
 
 function loadAdminJobPostings() {
   try {
-    const ts = JSON.parse(localStorage.getItem('asa_settings_teacherService') || 'null')
+    const ts = Settings.get('teacherService')
     return ts?.jobPostings || []
   } catch { return [] }
 }
-
-function loadSubs(tid) { return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]').filter(r=>r.teacherId===tid) }
-function saveSub(item) { const a=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); const i=a.findIndex(r=>r.id===item.id); if(i>=0)a[i]=item; else a.push(item); localStorage.setItem(STORAGE_KEY,JSON.stringify(a)) }
-function deleteSub(id) { localStorage.setItem(STORAGE_KEY,JSON.stringify(JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]').filter(r=>r.id!==id))) }
 
 const EMPTY_SUB = { sido:'', office:'', school:'', subject:'', notifySms:false, notifyKakao:false, notifyEmail:true }
 
@@ -48,19 +43,18 @@ export function Jobs({ user }) {
   const [editId, setEditId] = useState(null)
   const [settings, setSettings] = useState({})
   const [regionMap, setRegionMap] = useState(null)
-  const { error: toastError } = useToast()
+  const { error: toastError, success } = useToast()
   const confirm = useConfirm()
 
   useEffect(() => {
-    setSubs(loadSubs(user.id))
+    setSubs(JobSubs.byTeacher(user.id))
     // settings에서 regionMap 가져오기
-    const s = JSON.parse(localStorage.getItem('asa_settings_regionMap') || 'null') ||
-              JSON.parse(localStorage.getItem('asa_settings') || '{}')?.regionMap || null
+    const s = Settings.get('regionMap') || null
     setSettings({ regionMap: s })
     setRegionMap(s)
   }, [])
 
-  const reloadSubs = () => setSubs(loadSubs(user.id))
+  const reloadSubs = () => setSubs(JobSubs.byTeacher(user.id))
 
   const openAdd = () => { setForm(EMPTY_SUB); setEditId(null); setModal(true) }
   const openEdit = r => {
@@ -71,7 +65,8 @@ export function Jobs({ user }) {
     if (!form.subject.trim()) { toastError('과목을 입력하세요'); return }
     const item = { id:editId||uid(), teacherId:user.id, ...form, active:true, updatedAt:now() }
     if (!editId) item.createdAt = now()
-    saveSub(item); reloadSubs(); setModal(false)
+    if (editId) JobSubs.update(editId, item); else JobSubs.insert(item)
+    reloadSubs(); setModal(false); success('등록이 완료되었습니다.')
   }
 
   const loadPostings = async () => {
@@ -256,12 +251,12 @@ export function Jobs({ user }) {
                       </div>
                     </div>
                     <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-                      <button onClick={() => { const u={...s,active:!s.active}; saveSub(u); reloadSubs() }}
+                      <button onClick={() => { const u={...s,active:!s.active}; JobSubs.update(s.id, { active: u.active }); reloadSubs(); success(u.active ? '활성화했습니다.' : '비활성화했습니다.') }}
                         style={{ padding:'5px 12px', borderRadius:'7px', border:`1.5px solid ${s.active?'#86efac':'#e5e7eb'}`, background: s.active?'#f0fdf4':'#f9fafb', color: s.active?C.success:C.muted, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                         {s.active ? '활성' : '비활성'}
                       </button>
                       <button onClick={()=>openEdit(s)} style={{ padding:'5px 10px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>편집</button>
-                      <button onClick={()=>confirm('삭제할까요?', () => { deleteSub(s.id); reloadSubs() })} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
+                      <button onClick={()=>confirm('삭제할까요?', () => { JobSubs.delete(s.id); reloadSubs() })} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.danger }}>삭제</button>
                     </div>
                   </div>
                 </div>

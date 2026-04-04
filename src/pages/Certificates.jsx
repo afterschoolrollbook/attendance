@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs'
 import { uid, now } from '../lib/utils.js'
-import { Certificates as CertDB } from '../lib/db.js'
+import { Certificates as CertDB, Settings } from '../lib/db.js'
 import { Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 
@@ -12,7 +12,7 @@ const C = {
 
 function loadCertPartners() {
   try {
-    const ts = JSON.parse(localStorage.getItem('asa_settings_teacherService') || 'null')
+    const ts = Settings.get('teacherService')
     return ts?.certPartners || []
   } catch { return [] }
 }

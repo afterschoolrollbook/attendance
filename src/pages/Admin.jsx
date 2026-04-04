@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Users, Classes, Students, Attendance, Branches } from '../lib/db.js'  // ✅ 버그수정: Branches 추가, 중복 import 정리
+import { Users, Classes, Students, Attendance, Branches, Settings } from '../lib/db.js'  // ✅ 버그수정: Branches 추가, 중복 import 정리
 import { uid, now } from '../lib/utils.js'                                      // ✅ 버그수정: uid 추가
 import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
@@ -237,7 +237,7 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
   const [neisLoading,     setNeisLoading]     = useState(false)
 
   const neisApiKey = (() => {
-    try { return JSON.parse(localStorage.getItem('asa_settings_regionMap') || '{}').neisApiKey || '' } catch { return '' }
+    try { return Settings.get('regionMap')?.neisApiKey || '' } catch { return '' }
   })()
 
   // 학교 선택 시 NEIS에서 성별 학생수 조회
@@ -309,7 +309,7 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
   }
 
   const regionMap = (() => {
-    try { return JSON.parse(localStorage.getItem('asa_settings_regionMap') || '{}').regions || [] } catch { return [] }
+    try { return Settings.get('regionMap')?.regions || [] } catch { return [] }
   })()
 
   // 학교 → 시도/교육지원청 매핑

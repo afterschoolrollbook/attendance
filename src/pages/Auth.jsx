@@ -440,7 +440,7 @@ export function Auth({ onLogin }) {
   const handleFindId = () => {
     const phone = findIdPhone.trim()
     if (!phone) { setError('연락처를 입력해주세요.'); return }
-    const all = JSON.parse(localStorage.getItem('asa_users') || '[]')
+    const all = Users.all()
     const normalize = (p) => p.replace(/-/g, "")
     const user = all.find(u => normalize(u.phone) === normalize(phone))
     if (!user) { setFoundEmail('notfound'); return }
@@ -458,7 +458,7 @@ export function Auth({ onLogin }) {
     const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!fpEmail.trim()) { setError('이메일을 입력해주세요.'); return }
     if (!emailReg.test(fpEmail.trim())) { setError('올바른 이메일 형식이 아닙니다.'); return }
-    const all = JSON.parse(localStorage.getItem('asa_users') || '[]')
+    const all = Users.all()
     const user = all.find(u => u.email === fpEmail.trim().toLowerCase())
     if (!user) { setError('등록되지 않은 이메일입니다.'); return }
     if (user.provider && user.provider !== 'email') {
@@ -484,11 +484,9 @@ export function Auth({ onLogin }) {
   const handleFpReset = () => {
     if (fpNewPw.length < 4) { setError('비밀번호는 4자 이상이어야 합니다.'); return }
     if (fpNewPw !== fpNewPw2) { setError('비밀번호가 일치하지 않습니다.'); return }
-    const all = JSON.parse(localStorage.getItem('asa_users') || '[]')
-    const idx = all.findIndex(u => u.email === fpEmail.trim().toLowerCase())
-    if (idx === -1) { setError('오류가 발생했습니다.'); return }
-    all[idx].pw = fpNewPw
-    localStorage.setItem('asa_users', JSON.stringify(all))
+    const user = Users.all().find(u => u.email === fpEmail.trim().toLowerCase())
+    if (!user) { setError('오류가 발생했습니다.'); return }
+    Users.update(user.id, { pw: fpNewPw })
     setFpDone(true); setError('')
   }
 
@@ -497,7 +495,7 @@ export function Auth({ onLogin }) {
 
   // providerId로 기존 회원 찾기
   const findByProviderId = (provider, providerId) => {
-    const all = JSON.parse(localStorage.getItem('users') || '[]')
+    const all = Users.all()
     return all.find(u => u.provider === provider && u.providerId === String(providerId)) || null
   }
 
@@ -559,7 +557,7 @@ export function Auth({ onLogin }) {
 
     // 기존 회원이면 업데이트
     const existing = profile.existingId
-      ? JSON.parse(localStorage.getItem('asa_users') || '[]').find(u => u.id === profile.existingId)
+      ? Users.find(profile.existingId)
       : (!isFakeEmail(email) ? Users.findByEmail(email) : null)
 
     if (existing) {

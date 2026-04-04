@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs'
 import { uid, now } from '../lib/utils.js'
-import { Trainings } from '../lib/db.js'
+import { Trainings, Settings } from '../lib/db.js'
 import { ToastContainer, Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 
@@ -57,7 +57,7 @@ const DEFAULT_TRAINING_SITES = [
 
 function loadTrainingSites() {
   try {
-    const ts = JSON.parse(localStorage.getItem('asa_settings_teacherService') || 'null')
+    const ts = Settings.get('teacherService')
     const adminSites = ts?.trainingSites || []
     return adminSites.length > 0 ? [...adminSites, ...DEFAULT_TRAINING_SITES] : DEFAULT_TRAINING_SITES
   } catch { return DEFAULT_TRAINING_SITES }
@@ -197,7 +197,7 @@ export function Training({ user }) {
 
   const deleteRecord = (id) => {
     setConfirm({ msg:'이 연수 기록을 삭제할까요?', onOk: () => {
-      Trainings.delete(id); reload(); info('삭제됐어요')
+      Trainings.delete(id); reload(); success('삭제가 완료되었습니다.')
     }})
   }
 
@@ -220,7 +220,7 @@ export function Training({ user }) {
   const deleteFile = (trainingId) => {
     setConfirm({ msg:'첨부파일을 삭제할까요?', onOk: () => {
       Trainings.update(trainingId, { fileUrl: null, fileName: null, fileType: null })
-      reload(); info('파일을 삭제했어요')
+      reload(); success('삭제가 완료되었습니다.')
     }})
   }
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Settings } from '../lib/db.js'
+import { Settings, Students as StudentsDB, Classes as ClassesDB } from '../lib/db.js'
 import { Card, PageHeader, Toggle, Btn, Modal, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 
@@ -473,8 +473,8 @@ function RegionSection() {
   // 미매핑 학교 계산
   const { Students, Classes } = (() => {
     try {
-      const s = JSON.parse(localStorage.getItem('asa_students') || '[]')
-      const c = JSON.parse(localStorage.getItem('asa_classes')  || '[]')
+      const s = StudentsDB.all()
+      const c = ClassesDB.all()
       return { Students: s, Classes: c }
     } catch { return { Students: [], Classes: [] } }
   })()
@@ -810,10 +810,9 @@ function RegionSection() {
 const TS_KEY = 'asa_settings_teacherService'
 
 function loadTS() {
-  try { return JSON.parse(localStorage.getItem(TS_KEY) || 'null') || { menuVisible:{ training:true, certificates:true, career:true, jobs:true }, trainingSites:[], certPartners:[], jobPostings:[] } }
-  catch { return { menuVisible:{ training:true, certificates:true, career:true, jobs:true }, trainingSites:[], certPartners:[], jobPostings:[] } }
+  return Settings.get('teacherService') || { menuVisible:{ training:true, certificates:true, career:true, jobs:true }, trainingSites:[], certPartners:[], jobPostings:[] }
 }
-function saveTS(data) { localStorage.setItem(TS_KEY, JSON.stringify(data)) }
+function saveTS(data) { Settings.set('teacherService', data) }
 
 const MENU_LABELS = [
   { key:'training',     icon:'🎓', label:'연수관리',   desc:'의무연수 이수 기록 및 연수 사이트 안내' },
