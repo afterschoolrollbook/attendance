@@ -7,9 +7,9 @@ import { useToast } from '../hooks/useToast.js'
 
 function emptyStudent() {
   return {
-    school: '', grade: '3학년', classNum: '', number: '', name: '',
+    school: '', grade: '', classNum: '', number: '', name: '',
     parentPhone: '', studentPhone: '', classIds: [], status: 'applied', memo: '',
-    applyOrder: '',
+    applyOrder: '', remark: '',
     // 수업 직접 입력용
     _newOrganization: '', _newClassName: '', _newSection: '',
     _newTimeStart: '', _newTimeEnd: '',
@@ -80,7 +80,7 @@ export function Students({ user, onNav }) {
   const [pendingStatuses, setPendingStatuses] = useState({})
   const [lastAddedId, setLastAddedId] = useState(null)
   const [addView, setAddView] = useState(false)
-  const [pinned, setPinned] = useState({ classId: false, classNum: false })
+  const [pinned, setPinned] = useState({ classId: false, classNum: false, organization: false, className: false, section: false })
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
@@ -181,6 +181,9 @@ export function Students({ user, onNav }) {
       school: ctxSchool || cls?.organization || '',
       classIds: ctxClass ? [ctxClass] : (pinned.classId ? form.classIds : []),
       classNum: pinned.classNum ? form.classNum : (ctxSection || ''),
+      _newOrganization: pinned.organization ? form._newOrganization : '',
+      _newClassName:    pinned.className    ? form._newClassName    : '',
+      _newSection:      pinned.section      ? form._newSection      : '',
     })
     setEditId(null)
     setShowModal(true)
@@ -271,10 +274,19 @@ export function Students({ user, onNav }) {
       setLastAddedId(newId)
       setTimeout(() => setLastAddedId(null), 3000)
       // 고정값 유지하면서 폼 초기화
-      const nextClassIds = pinned.classId ? saveData.classIds : []
-      const nextClassNum = pinned.classNum ? saveData.classNum : ''
-      const nextSchool   = pinned.classId ? saveData.school : ''
-      setForm({ ...emptyStudent(), classIds: nextClassIds, classNum: nextClassNum, school: nextSchool })
+      const nextClassIds      = pinned.classId      ? saveData.classIds                              : []
+      const nextSchool        = pinned.classId      ? saveData.school                                : ''
+      const nextClassNum      = pinned.classNum     ? saveData.classNum                              : ''
+      const nextOrganization  = pinned.organization ? saveData._newOrganization || form._newOrganization : ''
+      const nextClassName     = pinned.className    ? saveData._newClassName    || form._newClassName    : ''
+      const nextSection       = pinned.section      ? saveData._newSection      || form._newSection      : ''
+      setForm({
+        ...emptyStudent(),
+        classIds: nextClassIds, school: nextSchool, classNum: nextClassNum,
+        _newOrganization: nextOrganization,
+        _newClassName: nextClassName,
+        _newSection: nextSection,
+      })
       refresh()
       showToast(`${saveData.name} 등록 완료!`)
     }
@@ -586,7 +598,12 @@ export function Students({ user, onNav }) {
                       {s.classNum && <span style={{ marginLeft: '4px', padding: '1px 7px', borderRadius: '5px', background: '#f0fdf4', color: '#16a34a', fontWeight: 600, fontSize: '12px' }}>{s.classNum}반</span>}
                       {s.number && <span style={{ marginLeft: '4px', color: '#9ca3af', fontSize: '12px' }}>{s.number}번</span>}
                     </td>
-                    <td style={{ padding: '11px 14px', fontSize: '14px', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>{s.name}</td>
+                    <td style={{ padding: '11px 14px', fontSize: '14px', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>
+                      {s.name}
+                      {s.remark && (
+                        <span style={{ marginLeft: '6px', fontSize: '11px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '5px', padding: '1px 7px', fontWeight: 600 }}>{s.remark}</span>
+                      )}
+                    </td>
                     <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtPhone(s.parentPhone) || '-'}</td>
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -671,11 +688,35 @@ export function Students({ user, onNav }) {
                     : '수업 정보를 입력하면 저장 시 수업이 자동으로 등록됩니다.'}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                  <Input label="단체명(학교명)" value={form._newOrganization} onChange={v => set('_newOrganization', v)} />
-                  <Input label="수업명(과목)" value={form._newClassName} onChange={v => set('_newClassName', v)} />
+                  <div>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
+                      <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>단체명(학교명)</label>
+                      {!editId && <label style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11px', color: pinned.organization?'#f97316':'#9ca3af', cursor:'pointer' }}>
+                        <input type="checkbox" checked={pinned.organization} onChange={e => setPinned(p=>({...p, organization:e.target.checked}))} style={{ accentColor:'#f97316', width:'12px', height:'12px', cursor:'pointer' }} />🔒
+                      </label>}
+                    </div>
+                    <Input value={form._newOrganization} onChange={v => set('_newOrganization', v)} />
+                  </div>
+                  <div>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
+                      <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업명(과목)</label>
+                      {!editId && <label style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11px', color: pinned.className?'#f97316':'#9ca3af', cursor:'pointer' }}>
+                        <input type="checkbox" checked={pinned.className} onChange={e => setPinned(p=>({...p, className:e.target.checked}))} style={{ accentColor:'#f97316', width:'12px', height:'12px', cursor:'pointer' }} />🔒
+                      </label>}
+                    </div>
+                    <Input value={form._newClassName} onChange={v => set('_newClassName', v)} />
+                  </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                  <Input label="반 (선택)" value={form._newSection} onChange={v => set('_newSection', v)} />
+                  <div>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
+                      <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>반 (선택)</label>
+                      {!editId && <label style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11px', color: pinned.section?'#f97316':'#9ca3af', cursor:'pointer' }}>
+                        <input type="checkbox" checked={pinned.section} onChange={e => setPinned(p=>({...p, section:e.target.checked}))} style={{ accentColor:'#f97316', width:'12px', height:'12px', cursor:'pointer' }} />🔒
+                      </label>}
+                    </div>
+                    <Input value={form._newSection} onChange={v => set('_newSection', v)} />
+                  </div>
                   <Input label="수업 시작시간 (선택)" value={form._newTimeStart} onChange={v => set('_newTimeStart', v)} placeholder="14:00" />
                   <Input label="종료시간 (선택)" value={form._newTimeEnd} onChange={v => set('_newTimeEnd', v)} placeholder="15:00" />
                 </div>
@@ -735,19 +776,7 @@ export function Students({ user, onNav }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
               <Select label="학년" value={form.grade} onChange={v => set('grade', v)} options={GRADES.map(g => ({ value: g, label: g }))} required />
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>학급 반</label>
-                  {!editId && (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: pinned.classNum ? '#f97316' : '#9ca3af', cursor: 'pointer', userSelect: 'none' }}>
-                      <input type="checkbox" checked={pinned.classNum} onChange={e => setPinned(p => ({ ...p, classNum: e.target.checked }))}
-                        style={{ accentColor: '#f97316', width: '12px', height: '12px', cursor: 'pointer' }} />
-                      🔒
-                    </label>
-                  )}
-                </div>
-                <Input value={form.classNum} onChange={v => set('classNum', v)} />
-              </div>
+              <Input label="학급 반" value={form.classNum} onChange={v => set('classNum', v)} />
               <Input label="번호" value={form.number} onChange={v => set('number', v)} />
               <Input label="이름" value={form.name} onChange={v => set('name', v)} required />
             </div>
@@ -757,6 +786,41 @@ export function Students({ user, onNav }) {
               <Input label="학생 전화번호" value={form.studentPhone} onChange={v => set('studentPhone', v)} />
             </div>
             <Textarea label="📌 특이사항 메모" value={form.memo} onChange={v => set('memo', v)} rows={2} />
+
+            {/* 비고 */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px' }}>📋 비고</label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <select
+                  value={form.remark === '' || ['늘봄', '돌봄', '기타'].includes(form.remark) ? form.remark : '직접입력'}
+                  onChange={e => {
+                    const v = e.target.value
+                    if (v === '직접입력') set('remark', '')
+                    else set('remark', v)
+                  }}
+                  style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', background: '#fff', outline: 'none', cursor: 'pointer' }}>
+                  <option value="">없음</option>
+                  <option value="늘봄">늘봄</option>
+                  <option value="돌봄">돌봄</option>
+                  <option value="기타">기타</option>
+                  <option value="직접입력">직접입력</option>
+                </select>
+                {(form.remark !== '' && !['늘봄', '돌봄', '기타'].includes(form.remark)) && (
+                  <input
+                    value={form.remark}
+                    onChange={e => set('remark', e.target.value)}
+                    placeholder="직접 입력"
+                    style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }}
+                  />
+                )}
+                {form.remark && (
+                  <span style={{ fontSize: '12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '3px 10px', fontWeight: 600 }}>
+                    {form.remark}
+                  </span>
+                )}
+              </div>
+            </div>
+
             <Select label="상태" value={form.status} onChange={v => set('status', v)}
               options={Object.entries(STUDENT_STATUS).map(([k, v]) => ({ value: k, label: v.label }))} />
           </div>
