@@ -164,12 +164,16 @@ export function Supplies({ user }) {
   const reload = () => {
     const dbSubjects = SupplySubjects.byTeacher(user.id)
     if (dbSubjects.length === 0) {
-      DEFAULT_SUBJECTS.forEach((name, i) =>
-        SupplySubjects.insert({ id: uid(), teacherId: user.id, name, sortOrder: i, createdAt: now() })
-      )
+      DEFAULT_SUBJECTS.forEach((name, i) => {
+        const already = SupplySubjects.byTeacher(user.id).find(s => s.name === name)
+        if (!already) SupplySubjects.insert({ id: uid(), teacherId: user.id, name, sortOrder: i, createdAt: now() })
+      })
       setSubjects(DEFAULT_SUBJECTS)
     } else {
-      setSubjects(dbSubjects.sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0)).map(s=>s.name))
+      const unique = dbSubjects
+        .sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0))
+        .filter((s, idx, arr) => arr.findIndex(x => x.name === s.name) === idx)
+      setSubjects(unique.map(s => s.name))
     }
     const vendors = SupplyVendors.byTeacher(user.id)
     setVendorList(vendors)

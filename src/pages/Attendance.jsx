@@ -997,10 +997,15 @@ export function Attendance({ user, pageParams = {} }) {
 
   // 정렬: Students.jsx 와 동일하게 학교→수업→반→학년→학급반→번호→이름
   const sortStudents = (arr) => [...arr].sort((a, b) => {
+    const DAY_ORDER = ['월','화','수','목','금','토','일']
     const aClass = allClasses.find(c => c.id === a.classIds?.[0])
     const bClass = allClasses.find(c => c.id === b.classIds?.[0])
     const schoolCmp = (a.school||'').localeCompare(b.school||'','ko')
     if (schoolCmp !== 0) return schoolCmp
+    const aDay = DAY_ORDER.indexOf(aClass?.days?.[0] ?? '')
+    const bDay = DAY_ORDER.indexOf(bClass?.days?.[0] ?? '')
+    const dayCmp = (aDay === -1 ? 99 : aDay) - (bDay === -1 ? 99 : bDay)
+    if (dayCmp !== 0) return dayCmp
     const classCmp = (aClass?.className||'').localeCompare(bClass?.className||'','ko')
     if (classCmp !== 0) return classCmp
     const sectionCmp = (aClass?.section||'').localeCompare(bClass?.section||'','ko')
