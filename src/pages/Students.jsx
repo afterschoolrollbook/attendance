@@ -9,13 +9,49 @@ function emptyStudent() {
   return {
     school: '', grade: '', classNum: '', number: '', name: '',
     parentPhone: '', studentPhone: '', classIds: [], status: 'applied', memo: '',
-    applyOrder: '', remark: '',
+    applyOrder: '', remark: '', relations: [],
     // 수업 직접 입력용
     _newOrganization: '', _newClassName: '', _newSection: '',
     _newTimeStart: '', _newTimeEnd: '',
     _newTermType: 'semester', _newDays: [], _newRepeatType: 'every',
     _newStartDate: '', _newEndDate: '',
   }
+}
+
+// 관계 추가 입력 컴포넌트
+function RelationAdder({ relations, onChange }) {
+  const [type, setType] = React.useState('쌍둥이')
+  const [withName, setWithName] = React.useState('')
+  const needsWith = true  // 모든 관계 유형에 대상 이름 입력
+
+  const add = () => {
+    if (!withName.trim()) return
+    onChange([...relations, { type, with: withName.trim() }])
+    setWithName('')
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+      <select value={type} onChange={e => setType(e.target.value)}
+        style={{ padding: '7px 10px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', background: '#fff', outline: 'none', cursor: 'pointer' }}>
+        <option value="쌍둥이">쌍둥이</option>
+        <option value="형제">형제</option>
+        <option value="남매">남매</option>
+        <option value="친척">친척</option>
+      </select>
+      <input
+        value={withName}
+        onChange={e => setWithName(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && add()}
+        placeholder="상대방 이름 입력"
+        style={{ flex: 1, minWidth: '120px', padding: '7px 11px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }}
+      />
+      <button type="button" onClick={add}
+        style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: '#f97316', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', whiteSpace: 'nowrap' }}>
+        + 추가
+      </button>
+    </div>
+  )
 }
 
 // ✅ 대기자 자동 승격: 취소 발생 시 대기자 중 가장 먼저 신청한 학생을 applied로 자동 승격
@@ -190,12 +226,20 @@ export function Students({ user, onNav }) {
   }
 
   const openEdit = (s) => {
+    // 기존 수업 정보를 _new 필드에 미리 채워 편집 가능하게
+    const cls = s.classIds?.length > 0 ? ClassesDB.byTeacher(user.id).find(c => c.id === s.classIds[0]) : null
     setForm({
-      ...s, memo: s.memo || '', applyOrder: s.applyOrder || '',
-      _newOrganization: '', _newClassName: '', _newSection: '',
-      _newTimeStart: '', _newTimeEnd: '',
-      _newTermType: 'semester', _newDays: [], _newRepeatType: 'every',
-      _newStartDate: '', _newEndDate: '',
+      ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [],
+      _newOrganization: cls?.organization || '',
+      _newClassName:    cls?.className    || '',
+      _newSection:      cls?.section      || '',
+      _newTimeStart:    cls?.time         || '',
+      _newTimeEnd:      cls?.timeEnd      || '',
+      _newTermType:     cls?.termType     || 'semester',
+      _newDays:         cls?.days         || [],
+      _newRepeatType:   cls?.repeatType   || 'every',
+      _newStartDate:    cls?.startDate    || '',
+      _newEndDate:      cls?.endDate      || '',
     })
     setEditId(s.id)
     setShowModal(true)
@@ -260,6 +304,21 @@ export function Students({ user, onNav }) {
     delete saveData._newStartDate; delete saveData._newEndDate
 
     if (editId) {
+      // 편집 시 수업 상세 정보도 수업 DB에 반영
+      if (classIds.length > 0 && form._newClassName?.trim()) {
+        ClassesDB.update(classIds[0], {
+          organization: form._newOrganization?.trim() || '',
+          className:    form._newClassName.trim(),
+          section:      form._newSection?.trim() || '',
+          termType:     form._newTermType || 'semester',
+          days:         form._newDays || [],
+          repeatType:   form._newRepeatType || 'every',
+          time:         form._newTimeStart || '',
+          timeEnd:      form._newTimeEnd || '',
+          startDate:    form._newStartDate || '',
+          endDate:      form._newEndDate || '',
+        })
+      }
       StudentsDB.update(editId, saveData)
       setShowModal(false)
       refresh()
@@ -603,6 +662,15 @@ export function Students({ user, onNav }) {
                       {s.remark && (
                         <span style={{ marginLeft: '6px', fontSize: '11px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '5px', padding: '1px 7px', fontWeight: 600 }}>{s.remark}</span>
                       )}
+                      {(s.relations || []).map((r, i) => (
+                        <span key={i} style={{ marginLeft: '4px', fontSize: '11px', fontWeight: 600, padding: '1px 7px', borderRadius: '5px',
+                          background: r.type === '쌍둥이' ? '#fdf4ff' : r.type === '형제' ? '#eff6ff' : r.type === '남매' ? '#f0fdf4' : '#fff7ed',
+                          border: `1px solid ${r.type === '쌍둥이' ? '#e9d5ff' : r.type === '형제' ? '#bfdbfe' : r.type === '남매' ? '#86efac' : '#fed7aa'}`,
+                          color: r.type === '쌍둥이' ? '#7e22ce' : r.type === '형제' ? '#1d4ed8' : r.type === '남매' ? '#15803d' : '#c2410c',
+                        }}>
+                          {r.type}{r.with ? ` · ${r.with}` : ''}
+                        </span>
+                      ))}
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtPhone(s.parentPhone) || '-'}</td>
                     <td style={{ padding: '11px 14px' }}>
@@ -679,13 +747,13 @@ export function Students({ user, onNav }) {
               </div>
             )}
 
-            {/* 수업 직접 입력 — 수업 미선택 상태일 때 항상 표시 */}
-            {form.classIds?.length === 0 && (
-              <div style={{ borderTop: classes.length > 0 ? '1px dashed #fcd34d' : 'none', paddingTop: classes.length > 0 ? '12px' : '0' }}>
+            {/* 수업 직접 입력 — 항상 표시 (등록·편집 모두) */}
+            {true && (
+              <div style={{ borderTop: classes.length > 0 || form.classIds?.length > 0 ? '1px dashed #fcd34d' : 'none', paddingTop: classes.length > 0 || form.classIds?.length > 0 ? '12px' : '0' }}>
                 <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '10px' }}>
-                  {classes.length > 0
-                    ? '— 또는 새 수업 정보 직접 입력 (저장 시 수업 자동 등록) —'
-                    : '수업 정보를 입력하면 저장 시 수업이 자동으로 등록됩니다.'}
+                  {form.classIds?.length > 0
+                    ? '— 수업 상세 정보 수정 (저장 시 수업에도 반영됩니다) —'
+                    : classes.length > 0 ? '— 또는 새 수업 정보 직접 입력 (저장 시 수업 자동 등록) —' : '수업 정보를 입력하면 저장 시 수업이 자동으로 등록됩니다.'}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                   <div>
@@ -819,6 +887,31 @@ export function Students({ user, onNav }) {
                   </span>
                 )}
               </div>
+            </div>
+
+            {/* 가족/관계 */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '8px' }}>👨‍👩‍👧‍👦 가족 관계</label>
+
+              {/* 등록된 관계 태그 목록 */}
+              {(form.relations || []).length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+                  {(form.relations || []).map((r, i) => (
+                    <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
+                      background: r.type === '쌍둥이' ? '#fdf4ff' : r.type === '형제' ? '#eff6ff' : r.type === '남매' ? '#f0fdf4' : '#fff7ed',
+                      border: `1px solid ${r.type === '쌍둥이' ? '#e9d5ff' : r.type === '형제' ? '#bfdbfe' : r.type === '남매' ? '#86efac' : '#fed7aa'}`,
+                      color: r.type === '쌍둥이' ? '#7e22ce' : r.type === '형제' ? '#1d4ed8' : r.type === '남매' ? '#15803d' : '#c2410c',
+                    }}>
+                      {r.type}{r.with ? ` · ${r.with}` : ''}
+                      <button onClick={() => set('relations', (form.relations || []).filter((_, j) => j !== i))}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', lineHeight: 1, padding: 0, color: 'inherit', opacity: 0.6 }}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* 관계 추가 입력 */}
+              <RelationAdder relations={form.relations || []} onChange={v => set('relations', v)} />
             </div>
 
             <Select label="상태" value={form.status} onChange={v => set('status', v)}
