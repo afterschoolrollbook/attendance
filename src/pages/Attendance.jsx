@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -310,19 +310,21 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
           {s.memo && (
             <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '5px', display: 'inline-block' }}>👤 {s.memo}</div>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
             {memo
               ? <span style={{ fontSize: '12px', color: '#374151', background: '#fffbeb', padding: '3px 9px', borderRadius: '6px', border: '1px solid #fde68a' }}>📌 {memo}</span>
               : <span style={{ fontSize: '11px', color: '#d1d5db' }}>메모 없음</span>
             }
-            <button onClick={() => setMemoOpen(true)}
-              style={{ fontSize: '11px', color: C.muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'Noto Sans KR, sans-serif' }}>
-              {memo ? '편집' : '+ 메모'}
-            </button>
-            {memo && (
-              <button onClick={() => { setMemo(''); StudentsDB.update(s.id, { memo: '' }) }}
-                style={{ fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>삭제</button>
-            )}
+            <div style={{ display:'flex', gap:'6px' }}>
+              <button onClick={() => setMemoOpen(true)}
+                style={{ fontSize: '11px', color: C.muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'Noto Sans KR, sans-serif' }}>
+                {memo ? '편집' : '+ 메모'}
+              </button>
+              {memo && (
+                <button onClick={() => { setMemo(''); StudentsDB.update(s.id, { memo: '' }) }}
+                  style={{ fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>삭제</button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -330,6 +332,82 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
       {memoOpen && (
         <StudentMemoModal student={{ ...s, memo }} onClose={() => setMemoOpen(false)} onSave={v => setMemo(v)} />
       )}
+      {progModal && (() => {
+        const si = SupplyItems.byClassStudent(s.classIds?.[0]||'', s.id)[0]
+        if (!si?.productId) return null
+        const product = SupplyProducts.byTeacher(s.teacherId||'').find(p => p.id === si.productId)
+        if (!product) return null
+        const spp = product.sessionsPerStage || 12
+        const alertSess = product.alertSession || 10
+        const prog = SupplyStudentProgress.byStudent(s.id, s.classIds?.[0]||'').find(p => p.productId === si.productId)
+        const curStage = prog?.curStage || si.stage || 1
+        const assignedStage = si.stage ? Number(si.stage) : curStage
+        const maxShowStage = Math.max(assignedStage, curStage)
+        const STAGES = Array.from({ length: maxShowStage }, (_, i) => i + 1)
+        const toggleCheck = (productId, stage, sessionNo) => {
+          const classId = s.classIds?.[0] || ''
+          const existing = SupplySessionChecks.byProductStudent(productId, s.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
+          if (existing) SupplySessionChecks.delete(existing.id)
+          else SupplySessionChecks.upsert({ id: uid(), teacherId: s.teacherId||'', studentId: s.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
+          const allChks = SupplySessionChecks.byProductStudent(productId, s.id, classId).filter(c => c.stage===stage)
+          const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
+          SupplyStudentProgress.upsert({ id: uid(), teacherId: s.teacherId||'', studentId: s.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
+          setProgTick(t => t+1)
+        }
+        return (
+          <Modal open={true} onClose={() => setProgModal(false)} title={`📊 ${s.name} 진도 체크`} width={600}>
+            <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
+              <div style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', fontSize:'13px', color:'#6b7280', marginBottom:'16px' }}>
+                🤖 {product.name} · {assignedStage}단계 배정 · 단계당 {spp}차시 기준
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                {STAGES.map(stage => {
+                  const stagePlans = SupplyProductPlans.byProductStage(si.productId, stage).sort((a,b) => a.sessionNo-b.sessionNo)
+                  const sessions = stagePlans.length > 0 ? stagePlans
+                    : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
+                  const stageChecks = SupplySessionChecks.byProductStudent(si.productId, s.id, s.classIds?.[0]||'').filter(c => c.stage===stage)
+                  const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
+                  const cnt = stageChecks.length
+                  const isDone = cnt >= spp
+                  const isAlert = cnt >= alertSess && !isDone
+                  return (
+                    <div key={stage} style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
+                      <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
+                        <span style={{ fontSize:'13px', fontWeight:700, color:isDone?'#16a34a':isAlert?'#f59e0b':'#111827' }}>{stage}단계</span>
+                        <span style={{ fontSize:'12px', color:'#6b7280' }}>{cnt}/{spp}차시</span>
+                        {isDone  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>}
+                        {isAlert && <span style={{ fontSize:'11px', background:'#fffbeb', color:'#f59e0b', border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ 다음 단계 준비</span>}
+                      </div>
+                      <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                        {sessions.map(sess => {
+                          const isChk = checkedNos.has(sess.sessionNo)
+                          return (
+                            <div key={sess.id} onClick={() => toggleCheck(si.productId, stage, sess.sessionNo)}
+                              style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, cursor:'pointer', transition:'all .12s' }}>
+                              <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                                {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
+                              </div>
+                              <span style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827' }}>
+                                {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
+              <button onClick={() => setProgModal(false)}
+                style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
+                닫기
+              </button>
+            </div>
+          </Modal>
+        )
+      })()}
     </div>
   )
 }
@@ -344,6 +422,8 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
   const setField = (field, val) => onMark(s.id, status === 'pending' ? 'present' : status, { [field]: val })
   const isAbsent = ['absent','late','early'].includes(status)
   const appendNote = (text) => setField('note', note ? note + ' / ' + text : text)
+  const [progModal, setProgModal] = useState(false)
+  const [progTick,  setProgTick]  = useState(0)
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>
@@ -402,7 +482,10 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick }) {
           const chk = SupplySessionChecks.byProductStudent(si.productId, s.id, s.classIds?.[0]||'').filter(c => c.stage === curStage).length
           const pct = Math.min(Math.round(chk/spp*100),100)
           return (
-            <div style={{ fontSize:'11px' }}>
+            <div onClick={() => setProgModal(true)}
+              style={{ fontSize:'11px', cursor:'pointer', padding:'4px 6px', borderRadius:'6px', transition:'background .15s' }}
+              onMouseEnter={e => e.currentTarget.style.background='#f0fdf4'}
+              onMouseLeave={e => e.currentTarget.style.background='transparent'}>
               <div style={{ fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{prod?.name||si.name||''}</div>
               <div style={{ color:'#6b7280', marginTop:'1px' }}>{curStage}단계 {chk}/{spp}차시</div>
               <div style={{ height:'3px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'70px' }}>
