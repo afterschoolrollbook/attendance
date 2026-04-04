@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, SupplyProducts, SupplyItems, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB } from '../lib/db.js'
+import { SupplyProducts as SupplyProductsDB, SupplyItems as SupplyItemsDB, SupplyStudentProgress as SupplyProgressDB, SupplySessionChecks as SupplyChecksDB, SupplyProductPlans as SupplyPlansDB } from '../lib/db.js'
 import { uid, now, fmtPhone, sortClasses } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox, Textarea } from '../components/Atoms.jsx'
 import { STUDENT_STATUS, GRADES, DAYS } from '../constants/config.js'
@@ -88,11 +89,11 @@ export function Students({ user, onNav }) {
   }, [])
 
   React.useEffect(() => {
-    setSupplyItems(SupplyItems.byTeacher(user.id))
-    setSupplyProducts(SupplyProducts.byTeacher(user.id))
-    setSupplyProgress(SupplyStudentProgress.byTeacher(user.id))
-    setSupplyChecks(SupplySessionChecks.byTeacher(user.id))
-    setSupplyPlans(SupplyProductPlans.byTeacher(user.id))
+    setSupplyItems(SupplyItemsDB.byTeacher(user.id))
+    setSupplyProducts(SupplyProductsDB.byTeacher(user.id))
+    setSupplyProgress(SupplyProgressDB.byTeacher(user.id))
+    setSupplyChecks(SupplyChecksDB.byTeacher(user.id))
+    setSupplyPlans(SupplyPlansDB.byTeacher(user.id))
   }, [tick])
 
   const [ctxYear,    setCtxYear]    = useState('')
@@ -135,6 +136,22 @@ export function Students({ user, onNav }) {
   const [pinned, setPinned] = useState({ classId: false, classNum: false, organization: false, className: false, section: false })
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  // 드롭다운 캐스케이딩 — JSX IIFE 없이 컴포넌트 바디에서 계산
+  const allClsForForm = classes
+  const WEEKDAY_ORDER = ['월','화','수','목','금','토','일']
+  const getOrgMinDay = (orgName) => {
+    const days = allClsForForm.filter(c => c.organization === orgName).map(c => WEEKDAY_ORDER.indexOf(c.days?.[0] ?? '')).filter(i => i !== -1)
+    return days.length ? Math.min(...days) : 99
+  }
+  const dropdownOrgs = [...new Set(allClsForForm.map(c => c.organization).filter(Boolean))].sort((a, b) => getOrgMinDay(a) - getOrgMinDay(b) || a.localeCompare(b, 'ko'))
+  const dropdownClassNames = [...new Set(allClsForForm.filter(c => !form._newOrganization || c.organization === form._newOrganization).map(c => c.className).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'))
+  const dropdownSections = [...new Set(allClsForForm.filter(c => (!form._newOrganization || c.organization === form._newOrganization) && (!form._newClassName || c.className === form._newClassName)).map(c => c.section).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'))
+  const matchClass = (org, cls, sec) => {
+    const matched = allClsForForm.find(c => c.organization === org && c.className === cls && (c.section || '') === (sec || ''))
+    if (matched) { set('classIds', [matched.id]); set('school', matched.organization) } else set('classIds', [])
+  }
+  const dropInputSt = { width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', background: '#fff', outline: 'none', cursor: 'pointer' }
 
   const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
   const yearClasses = ctxYear ? classes.filter(c => c.startDate?.startsWith(ctxYear) || c.endDate?.startsWith(ctxYear)) : classes
@@ -759,13 +776,7 @@ export function Students({ user, onNav }) {
                   }}
                   style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', color:'#111827', outline:'none', cursor:'pointer' }}>
                   <option value=''>{editId ? '-- 수업 변경 또는 선택 해제 후 직접 입력 --' : '-- 수업 선택 --'}</option>
-                  {[...classes].sort((a,b) => {
-                    const DAY=['월','화','수','목','금','토','일']
-                    const aDay=DAY.indexOf(a.days?.[0]??''); const bDay=DAY.indexOf(b.days?.[0]??'')
-                    const d=(aDay===-1?99:aDay)-(bDay===-1?99:bDay)
-                    if(d!==0) return d
-                    return (a.organization||'').localeCompare(b.organization||'','ko')
-                  }).map(c => (
+                  {dropdownOrgs.flatMap(org => classes.filter(c=>c.organization===org)).concat(classes.filter(c=>!c.organization)).map(c => (
                     <option key={c.id} value={c.id}>
                       {c.organization} · {c.className}{c.section ? ' '+c.section+'반' : ''} {c.days?.length ? '('+c.days.join('')+' '+c.time+')' : ''}
                     </option>
@@ -782,20 +793,7 @@ export function Students({ user, onNav }) {
                     ? '— 또는 새 수업 정보 직접 입력 (저장 시 수업 자동 등록) —'
                     : '수업 정보를 입력하면 저장 시 수업이 자동으로 등록됩니다.'}
                 </div>
-                {/* 학교명 / 수업명 / 반 — 기존 데이터 드롭다운 + 직접입력 병행 (단일 IIFE) */}
-                {(() => {
-                  const allCls2 = ClassesDB.byTeacher(user.id)
-                  const WDAY = ['월','화','수','목','금','토','일']
-                  const orgDay = (org2) => { const dd=allCls2.filter(c=>c.organization===org2).map(c=>WDAY.indexOf(c.days?.[0]??'')).filter(i=>i!==-1); return dd.length?Math.min(...dd):99 }
-                  const orgs2 = [...new Set(allCls2.map(c=>c.organization).filter(Boolean))].sort((a,b)=>orgDay(a)-orgDay(b)||a.localeCompare(b,'ko'))
-                  const clsNames = [...new Set(allCls2.filter(c=>!form._newOrganization||c.organization===form._newOrganization).map(c=>c.className).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
-                  const secs2 = [...new Set(allCls2.filter(c=>(!form._newOrganization||c.organization===form._newOrganization)&&(!form._newClassName||c.className===form._newClassName)).map(c=>c.section).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
-                  const doMatch = (org2, cls2, sec2) => {
-                    const m = allCls2.find(c=>c.organization===org2&&c.className===cls2&&(c.section||'')===(sec2||''))
-                    if (m) { set('classIds',[m.id]); set('school',m.organization) } else set('classIds',[])
-                  }
-                  const fSt = { width:'100%', padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }
-                  return (
+                {/* 학교명 / 수업명 / 반 드롭다운 */}
                 <div style={{ display:'flex', flexDirection:'column', gap:'10px', marginBottom:'10px' }}>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
                     <div>
@@ -805,11 +803,11 @@ export function Students({ user, onNav }) {
                           <input type="checkbox" checked={pinned.organization} onChange={e=>setPinned(p=>({...p,organization:e.target.checked}))} style={{ accentColor:'#f97316', width:'12px', height:'12px', cursor:'pointer' }} />🔒
                         </label>}
                       </div>
-                      <select style={fSt} value={form._newOrganization} onChange={e=>{ set('_newOrganization',e.target.value); set('_newClassName',''); set('_newSection',''); set('classIds',[]); }}>
+                      <select style={dropInputSt} value={form._newOrganization} onChange={e=>{ set('_newOrganization',e.target.value); set('_newClassName',''); set('_newSection',''); set('classIds',[]); }}>
                         <option value=''>-- 선택 --</option>
-                        {orgs2.map(o=><option key={o} value={o}>{o}</option>)}
+                        {dropdownOrgs.map(o=><option key={o} value={o}>{o}</option>)}
                       </select>
-                      <input value={form._newOrganization} onChange={e=>{ set('_newOrganization',e.target.value); doMatch(e.target.value,form._newClassName,form._newSection) }} placeholder="또는 직접 입력" style={{ ...fSt, marginTop:'4px', fontSize:'12px', padding:'6px 10px', color:'#6b7280' }} />
+                      <input value={form._newOrganization} onChange={e=>{ set('_newOrganization',e.target.value); matchClass(e.target.value,form._newClassName,form._newSection) }} placeholder="또는 직접 입력" style={{ ...dropInputSt, marginTop:'4px', fontSize:'12px', padding:'6px 10px', color:'#6b7280' }} />
                     </div>
                     <div>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
@@ -818,11 +816,11 @@ export function Students({ user, onNav }) {
                           <input type="checkbox" checked={pinned.className} onChange={e=>setPinned(p=>({...p,className:e.target.checked}))} style={{ accentColor:'#f97316', width:'12px', height:'12px', cursor:'pointer' }} />🔒
                         </label>}
                       </div>
-                      <select style={fSt} value={form._newClassName} onChange={e=>{ set('_newClassName',e.target.value); set('_newSection',''); doMatch(form._newOrganization,e.target.value,'') }}>
+                      <select style={dropInputSt} value={form._newClassName} onChange={e=>{ set('_newClassName',e.target.value); set('_newSection',''); matchClass(form._newOrganization,e.target.value,'') }}>
                         <option value=''>-- 선택 --</option>
-                        {clsNames.map(n=><option key={n} value={n}>{n}</option>)}
+                        {dropdownClassNames.map(n=><option key={n} value={n}>{n}</option>)}
                       </select>
-                      <input value={form._newClassName} onChange={e=>{ set('_newClassName',e.target.value); doMatch(form._newOrganization,e.target.value,form._newSection) }} placeholder="또는 직접 입력" style={{ ...fSt, marginTop:'4px', fontSize:'12px', padding:'6px 10px', color:'#6b7280' }} />
+                      <input value={form._newClassName} onChange={e=>{ set('_newClassName',e.target.value); matchClass(form._newOrganization,e.target.value,form._newSection) }} placeholder="또는 직접 입력" style={{ ...dropInputSt, marginTop:'4px', fontSize:'12px', padding:'6px 10px', color:'#6b7280' }} />
                     </div>
                   </div>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px' }}>
@@ -833,20 +831,18 @@ export function Students({ user, onNav }) {
                           <input type="checkbox" checked={pinned.section} onChange={e=>setPinned(p=>({...p,section:e.target.checked}))} style={{ accentColor:'#f97316', width:'12px', height:'12px', cursor:'pointer' }} />🔒
                         </label>}
                       </div>
-                      {secs2.length>0 && (
-                        <select style={fSt} value={form._newSection} onChange={e=>{ set('_newSection',e.target.value); doMatch(form._newOrganization,form._newClassName,e.target.value) }}>
+                      {dropdownSections.length > 0 && (
+                        <select style={dropInputSt} value={form._newSection} onChange={e=>{ set('_newSection',e.target.value); matchClass(form._newOrganization,form._newClassName,e.target.value) }}>
                           <option value=''>-- 선택 --</option>
-                          {secs2.map(s2=><option key={s2} value={s2}>{s2}</option>)}
+                          {dropdownSections.map(sc=><option key={sc} value={sc}>{sc}</option>)}
                         </select>
                       )}
-                      <input value={form._newSection} onChange={e=>{ set('_newSection',e.target.value); doMatch(form._newOrganization,form._newClassName,e.target.value) }} placeholder={secs2.length>0?"또는 직접 입력":"직접 입력"} style={{ ...fSt, marginTop:secs2.length>0?'4px':'0', fontSize:'12px', padding:'6px 10px', color:'#6b7280' }} />
+                      <input value={form._newSection} onChange={e=>{ set('_newSection',e.target.value); matchClass(form._newOrganization,form._newClassName,e.target.value) }} placeholder={dropdownSections.length>0?"또는 직접 입력":"직접 입력"} style={{ ...dropInputSt, marginTop:dropdownSections.length>0?'4px':'0', fontSize:'12px', padding:'6px 10px', color:'#6b7280' }} />
                     </div>
                     <Input label="수업 시작시간 (선택)" value={form._newTimeStart} onChange={v => set('_newTimeStart', v)} placeholder="14:00" />
                     <Input label="종료시간 (선택)" value={form._newTimeEnd} onChange={v => set('_newTimeEnd', v)} placeholder="15:00" />
                   </div>
                 </div>
-                  )
-                })()}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                   <div>
                     <div style={{ fontSize: '12px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>수업 운영방식</div>
@@ -987,15 +983,15 @@ export function Students({ user, onNav }) {
 
               const toggleCheck = (sessionNo) => {
                 const existing = supplyChecks.find(c => c.studentId===editId && c.productId===selProd?.id && c.stage===stage && c.sessionNo===sessionNo)
-                if (existing) SupplySessionChecks.delete(existing.id)
-                else SupplySessionChecks.upsert({ id: uid(), teacherId: user.id, studentId: editId, classId: form.classIds?.[0]||'', productId: selProd.id, stage, sessionNo, checkedAt: now(), createdAt: now() })
+                if (existing) SupplyChecksDB.delete(existing.id)
+                else SupplyChecksDB.upsert({ id: uid(), teacherId: user.id, studentId: editId, classId: form.classIds?.[0]||'', productId: selProd.id, stage, sessionNo, checkedAt: now(), createdAt: now() })
                 // update progress
-                const allC = SupplySessionChecks.byProductStudent ? SupplySessionChecks.byProductStudent(selProd.id, editId, form.classIds?.[0]||'') : supplyChecks.filter(c=>c.studentId===editId&&c.productId===selProd.id&&c.stage===stage)
+                const allC = SupplyChecksDB.byProductStudent ? SupplyChecksDB.byProductStudent(selProd.id, editId, form.classIds?.[0]||'') : supplyChecks.filter(c=>c.studentId===editId&&c.productId===selProd.id&&c.stage===stage)
                 const stageC = allC.filter(c=>c.stage===stage)
                 const maxS = stageC.length>0?Math.max(...stageC.map(c=>c.sessionNo)):1
-                SupplyStudentProgress.upsert({ id: uid(), teacherId: user.id, studentId: editId, classId: form.classIds?.[0]||'', productId: selProd.id, curStage: stage, curSession: maxS, updatedAt: now(), createdAt: now() })
-                setSupplyChecks(SupplySessionChecks.byTeacher(user.id))
-                setSupplyProgress(SupplyStudentProgress.byTeacher(user.id))
+                SupplyProgressDB.upsert({ id: uid(), teacherId: user.id, studentId: editId, classId: form.classIds?.[0]||'', productId: selProd.id, curStage: stage, curSession: maxS, updatedAt: now(), createdAt: now() })
+                setSupplyChecks(SupplyChecksDB.byTeacher(user.id))
+                setSupplyProgress(SupplyProgressDB.byTeacher(user.id))
               }
 
               const selSt = { padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }
