@@ -988,6 +988,18 @@ export function Attendance({ user, pageParams = {} }) {
   const sessionDates = selClass
     ? calcSessionDates(selClass)
     : [...new Set(schoolClasses.flatMap(c => calcSessionDates(c)))].sort()
+
+  // 달력 점 전용: 텀 필터 제외 (날짜 클릭 시 텀이 바뀌어도 점이 사라지지 않도록)
+  const calendarDates = selClass
+    ? calcSessionDates(selClass)
+    : [...new Set(
+        allClasses
+          .filter(c =>
+            (!selYear   || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) &&
+            (!selSchool || c.organization === selSchool)
+          )
+          .flatMap(c => calcSessionDates(c))
+      )].sort()
   // 수업 선택 시 해당 수업의 반 목록 (같은 학교+수업명 내 section 목록)
   // 같은 학교+수업명 내 반 목록 (section 기준)
   const sectionClasses = selClassId
@@ -1166,7 +1178,7 @@ export function Attendance({ user, pageParams = {} }) {
       <div style={{ display:'grid', gridTemplateColumns:'300px 1fr', gap:'20px', alignItems:'start' }}>
         {/* 달력 */}
         <div style={{ background:C.card, borderRadius:'16px', border:`1px solid ${C.border}`, padding:'20px', position:'sticky', top:'24px' }}>
-          <AttCalendar year={calYear} month={calMonth} selectedDate={selDate} sessionDates={sessionDates}
+          <AttCalendar year={calYear} month={calMonth} selectedDate={selDate} sessionDates={calendarDates}
             onSelect={handleSelectDate} onPrevMonth={prevMonth} onNextMonth={nextMonth} onToday={goToday} />
           {selClassId && monthSessions.length > 0 && (
             <div style={{ marginTop:'14px', padding:'12px 14px', background:'#fff7ed', borderRadius:'10px' }}>
