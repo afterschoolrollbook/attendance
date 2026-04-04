@@ -48,6 +48,22 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           const dow = (firstDay + day - 1) % 7
           const isSun = dow === 0, isSat = dow === 6
 
+          // 수동 추가 수업일 (makeupDates + type:'session')
+          if (isMakeup && makeupInfo?.type === 'session') {
+            return (
+              <button key={day} onClick={() => onDateClick(dateStr, 'makeup')}
+                title={`수업일 ${sessInfo?.total||''}차시: ${makeupInfo?.memo||''} — 클릭하면 변경`}
+                style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
+                  background:'#fff7ed', outline:'1.5px solid #f97316', outlineOffset:'-1px',
+                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
+                <div style={{ fontSize:'12px', fontWeight:700, color: isSun?'#ef4444': isSat?'#3b82f6':'#111827' }}>{day}</div>
+                <div style={{ fontSize:'10px', color:'#ea580c', fontWeight:700, lineHeight:1.2 }}>수업일</div>
+                <div style={{ fontSize:'9px', color:'#fff', background:'#f97316', borderRadius:'4px',
+                  padding:'0 3px', marginTop:'1px', lineHeight:'14px' }}>{sessInfo?.total||''}차시</div>
+              </button>
+            )
+          }
+
           // 보강일 (정규 수업일 아님)
           if (isMakeup) {
             return (
@@ -379,9 +395,16 @@ export function ClassCalendar({ cls, onUpdate }) {
             { label:'📚 수업일', desc:'이 날을 수업일로 변경', border:'#fed7aa', bg:'#fff7ed', hover:'#ffedd5', color:'#ea580c',
               action: () => {
                 let updated = { ...cls }
-                if (clickType === 'cancelled') updated.cancelledDates = cancelledDates.filter(c => c.date !== selectedDate)
-                if (!makeupDates.some(m => m.date === selectedDate))
-                  updated.makeupDates = [...(updated.makeupDates || makeupDates), { date: selectedDate, memo: '수업일', type: 'session' }]
+                if (clickType === 'cancelled') {
+                  // 취소된 수업일 → cancelledDates에서 제거만 (makeupDates 추가 X)
+                  updated.cancelledDates = cancelledDates.filter(c => c.date !== selectedDate)
+                } else if (clickType === 'makeup') {
+                  // 보강일 → type을 'session'으로 변경
+                  updated.makeupDates = makeupDates.map(m =>
+                    m.date === selectedDate ? { ...m, type: 'session' } : m
+                  )
+                }
+                // session이면 이미 수업일이므로 아무것도 안 함
                 onUpdate(updated); setShowRegisteredAction(false)
               } },
           ].map(btn => (
