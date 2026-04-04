@@ -377,6 +377,7 @@ export function Classes({ user }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
               {grouped[group].map(cls => {
                 const sessions = calcSessionDates(cls)
+                const displaySessions = cls.totalSessions || sessions.length
                 const upcoming = sessions.find(d => d >= t)
                 const studentCount = StudentsDB.confirmed(cls.id).length
                 const hasPromo = cls.promotionImgs?.length > 0
@@ -411,7 +412,7 @@ export function Classes({ user }) {
 
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
                       <Tag color="#3b82f6" bg="#eff6ff">학생 {studentCount}명</Tag>
-                      <Tag color="#16a34a" bg="#f0fdf4">총 {sessions.length}차시</Tag>
+                      <Tag color="#16a34a" bg="#f0fdf4">총 {displaySessions}차시</Tag>
                       {upcoming && <Tag color="#f59e0b" bg="#fffbeb">다음 {upcoming.slice(5)}</Tag>}
                       {hasTpl && <Tag color="#8b5cf6" bg="#f5f3ff">양식 ✓</Tag>}
                       {cls.alarm?.enabled && <Tag color="#3b82f6" bg="#eff6ff">🔔 시작 {cls.alarm.minutesBefore}분전</Tag>}
