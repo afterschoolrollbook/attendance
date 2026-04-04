@@ -178,6 +178,10 @@ export function Students({ user, onNav }) {
   const [progressModal,     setProgressModal]     = useState(false)
   const [progressStudent,   setProgressStudent]   = useState(null)
   const [progressProductId, setProgressProductId] = useState('')
+  // 취소 모달
+  const [cancelModal,  setCancelModal]  = useState(false)
+  const [cancelTarget, setCancelTarget] = useState(null) // { id, name, pendingStatus }
+  const [cancelForm,   setCancelForm]   = useState({ type: 'before', date: '', memo: '' })
   const refresh = () => setTick(t => t + 1)
 
   React.useEffect(() => {
@@ -397,10 +401,20 @@ export function Students({ user, onNav }) {
     delete saveData._newStartDate; delete saveData._newEndDate
 
     if (editId) {
-      StudentsDB.update(editId, saveData)
-      setShowModal(false)
-      refresh()
-      showToast('수정이 완료되었습니다.')
+      if (saveData.status === 'cancelled' && !saveData.cancel_info) {
+        // 취소 모달 먼저
+        StudentsDB.update(editId, saveData)
+        setShowModal(false)
+        setCancelTarget({ id: editId, name: saveData.name })
+        setCancelForm({ type: 'before', date: new Date().toISOString().slice(0,10), memo: '' })
+        setCancelModal(true)
+        refresh()
+      } else {
+        StudentsDB.update(editId, saveData)
+        setShowModal(false)
+        refresh()
+        showToast('수정이 완료되었습니다.')
+      }
     } else {
       const newId = uid()
       StudentsDB.insert({
@@ -740,6 +754,13 @@ export function Students({ user, onNav }) {
                       {s.remark && (
                         <span style={{ marginLeft: '6px', fontSize: '11px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '5px', padding: '1px 7px', fontWeight: 600 }}>{s.remark}</span>
                       )}
+                      {s.cancel_info && (
+                        <span style={{ marginLeft:'6px', fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
+                          background: s.cancel_info.type === 'after' ? '#fef2f2' : '#fff1f2',
+                          border: '1px solid #fca5a5', color:'#dc2626' }}>
+                          {s.cancel_info.type === 'after' ? '개강후 취소' : '개강전 취소'}
+                        </span>
+                      )}
                       {(s.relations || []).map((r, i) => (
                         <span key={i} style={{ marginLeft: '4px', fontSize: '11px', fontWeight: 600, padding: '1px 7px', borderRadius: '5px',
                           background: r.type === '쌍둥이' ? '#fdf4ff' : r.type === '형제' ? '#eff6ff' : r.type === '남매' ? '#f0fdf4' : '#fff7ed',
@@ -759,8 +780,16 @@ export function Students({ user, onNav }) {
                         </select>
                         {pendingStatuses[s.id] !== undefined && pendingStatuses[s.id] !== s.status && (
                           <Btn size="sm" onClick={() => {
-                            changeStatus(s.id, pendingStatuses[s.id])
-                            setPendingStatuses(p => { const n = {...p}; delete n[s.id]; return n })
+                            const newStatus = pendingStatuses[s.id]
+                            if (newStatus === 'cancelled') {
+                              setCancelTarget({ id: s.id, name: s.name })
+                              setCancelForm({ type: 'before', date: new Date().toISOString().slice(0,10), memo: '' })
+                              setCancelModal(true)
+                              setPendingStatuses(p => { const n = {...p}; delete n[s.id]; return n })
+                            } else {
+                              changeStatus(s.id, newStatus)
+                              setPendingStatuses(p => { const n = {...p}; delete n[s.id]; return n })
+                            }
                           }}>저장</Btn>
                         )}
                       </div>
@@ -1161,6 +1190,78 @@ export function Students({ user, onNav }) {
             </div>
           )
         })()}
+      </Modal>
+
+      {/* 취소 처리 모달 */}
+      <Modal open={cancelModal} onClose={() => setCancelModal(false)} title="취소 처리" width={440}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+          <div style={{ padding:'12px 14px', background:'#fef2f2', borderRadius:'10px', fontSize:'13px', color:'#991b1b' }}>
+            <strong>{cancelTarget?.name}</strong> 학생을 취소 처리합니다.
+          </div>
+
+          {/* 취소 유형 */}
+          <div>
+            <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', display:'block', marginBottom:'8px' }}>취소 유형</label>
+            <div style={{ display:'flex', gap:'8px' }}>
+              {[{ v:'before', l:'개강전 취소', desc:'수강 시작 전 취소' }, { v:'after', l:'개강후 취소', desc:'현재 텀까지 수강 후 다음 텀부터 제외' }].map(t => (
+                <button key={t.v} type="button" onClick={() => setCancelForm(f => ({ ...f, type: t.v }))}
+                  style={{ flex:1, padding:'10px 12px', borderRadius:'9px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', textAlign:'left',
+                    border:`1.5px solid ${cancelForm.type===t.v?'#ef4444':'#e5e7eb'}`,
+                    background: cancelForm.type===t.v?'#fef2f2':'#fff' }}>
+                  <div style={{ fontSize:'13px', fontWeight:700, color: cancelForm.type===t.v?'#dc2626':'#374151' }}>{t.l}</div>
+                  <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'3px' }}>{t.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 취소 날짜 */}
+          <div>
+            <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', display:'block', marginBottom:'6px' }}>취소 요청일</label>
+            <input type="date" value={cancelForm.date} onChange={e => setCancelForm(f => ({ ...f, date: e.target.value }))}
+              style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+          </div>
+
+          {/* 메모 */}
+          <div>
+            <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', display:'block', marginBottom:'6px' }}>메모 (선택)</label>
+            <textarea value={cancelForm.memo} onChange={e => setCancelForm(f => ({ ...f, memo: e.target.value }))}
+              placeholder="취소 사유 또는 특이사항을 입력하세요"
+              rows={3}
+              style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', resize:'vertical' }} />
+          </div>
+
+          {cancelForm.type === 'after' && (
+            <div style={{ padding:'10px 14px', background:'#fffbeb', borderRadius:'8px', fontSize:'12px', color:'#92400e' }}>
+              ⚠️ 개강후 취소: 현재 학기/분기까지 출석부 유지 · 수강료 징수됩니다.
+            </div>
+          )}
+
+          <div style={{ display:'flex', gap:'8px', paddingTop:'4px' }}>
+            <Btn variant="ghost" onClick={() => setCancelModal(false)}>취소</Btn>
+            <Btn variant="danger" full onClick={() => {
+              const s = StudentsDB.find(cancelTarget.id)
+              StudentsDB.update(cancelTarget.id, {
+                status: 'cancelled',
+                cancel_info: { type: cancelForm.type, date: cancelForm.date, memo: cancelForm.memo },
+                statusHistory: [...(s?.statusHistory || []), {
+                  status: 'cancelled',
+                  changedAt: now(),
+                  memo: `[${cancelForm.type === 'after' ? '개강후' : '개강전'} 취소] ${cancelForm.date}${cancelForm.memo ? ' - ' + cancelForm.memo : ''}`,
+                }],
+              })
+              // 대기자 자동 승격
+              const classIds = s?.classIds || []
+              classIds.forEach(cid => {
+                const promoted = promoteNextWaiting(cid)
+                if (promoted) { setPromotedName(promoted.name); setTimeout(() => setPromotedName(null), 4000) }
+              })
+              setCancelModal(false)
+              refresh()
+              showToast('취소 처리가 완료되었습니다.')
+            }}>확인</Btn>
+          </div>
+        </div>
       </Modal>
 
       {/* 삭제 확인 모달 */}
