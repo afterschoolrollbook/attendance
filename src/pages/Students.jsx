@@ -10,7 +10,7 @@ function emptyStudent() {
   return {
     school: '', grade: '', classNum: '', number: '', name: '',
     parentPhone: '', studentPhone: '', classIds: [], status: 'applied', memo: '',
-    applyOrder: '', remark: '', relations: [], school_careers: [],
+    applyOrder: '', remark: '', relations: [], student_careers: [],
     // 수업 직접 입력용
     _newOrganization: '', _newClassName: '', _newSection: '',
     _newTimeStart: '', _newTimeEnd: '',
@@ -20,58 +20,85 @@ function emptyStudent() {
 }
 
 // 관계 추가 입력 컴포넌트
-// 경력 추가 컴포넌트
-function CareerAdder({ careers, onChange }) {
+// 학생 경력 컴포넌트
+function CareerAdder({ careers, onChange, isEdit }) {
   const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: currentYear - 2021 }, (_, i) => String(2022 + i))
+  const years = Array.from({ length: currentYear - 2021 }, (_, i) => String(2022 + i)).reverse()
   const [termType, setTermType] = React.useState('semester')
   const [year, setYear] = React.useState(String(currentYear))
   const [term, setTerm] = React.useState('1')
 
-  const semesterOptions = [{ value:'1', label:'1학기' }, { value:'2', label:'2학기' }]
-  const quarterOptions  = [{ value:'1', label:'1분기' }, { value:'2', label:'2분기' }, { value:'3', label:'3분기' }, { value:'4', label:'4분기' }]
-  const termOptions = termType === 'semester' ? semesterOptions : quarterOptions
+  const semOpts = [{ value:'1', label:'1학기' }, { value:'2', label:'2학기' }]
+  const qtrOpts = [{ value:'1', label:'1분기' }, { value:'2', label:'2분기' }, { value:'3', label:'3분기' }, { value:'4', label:'4분기' }]
+  const termOpts = termType === 'semester' ? semOpts : qtrOpts
+
+  // 신규 vs 기존: 등록 시 1개(현재텀) → 신규, 2개 이상 → 기존
+  const isNew = careers.length <= 1
+  const sorted = [...careers].sort((a,b) => a.year !== b.year ? a.year-b.year : Number(a.term)-Number(b.term))
 
   const add = () => {
-    const label = termType === 'semester' ? `${year}년 ${term}학기` : `${year}년 ${term}분기`
     const dup = careers.find(c => c.year === year && c.termType === termType && c.term === term)
     if (dup) return
-    onChange([...careers, { year, termType, term, label }])
+    const tLabel = termType === 'semester' ? `${term}학기` : `${term}분기`
+    const typeLabel = termType === 'semester' ? '학기제' : '분기제'
+    onChange([...careers, { year, termType, term, label: `${year.slice(2)}년도 / ${typeLabel} / ${tLabel}` }])
   }
 
-  const selSt = { padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }
+  const sst = { padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-      {/* 등록된 경력 태그 */}
-      {careers.length > 0 && (
-        <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
-          {careers.sort((a,b)=>a.year===b.year?a.term-b.term:a.year-b.year).map((c, i) => (
-            <span key={i} style={{ display:'inline-flex', alignItems:'center', gap:'5px', padding:'4px 10px', borderRadius:'20px', fontSize:'12px', fontWeight:600, background:'#eff6ff', border:'1px solid #bfdbfe', color:'#1d4ed8' }}>
+    <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+      {/* 신규/기존 뱃지 */}
+      <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 10px', borderRadius:'20px',
+          background: isNew ? '#eff6ff' : '#f0fdf4',
+          border: `1px solid ${isNew ? '#bfdbfe' : '#86efac'}`,
+          color: isNew ? '#1d4ed8' : '#15803d' }}>
+          {isNew ? '🆕 신규' : '🔄 기존'}
+        </span>
+        <span style={{ fontSize:'11px', color:'#9ca3af' }}>
+          {isNew ? '처음 등록하는 학생입니다' : `${careers.length}개 수강 이력 있음`}
+        </span>
+      </div>
+
+      {/* 수강 이력 목록 */}
+      {sorted.length > 0 && (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
+          {sorted.map((c, i) => (
+            <span key={i} style={{ display:'inline-flex', alignItems:'center', gap:'4px', padding:'3px 10px', borderRadius:'20px', fontSize:'12px', fontWeight:600,
+              background: i === sorted.length-1 ? '#fff7ed' : '#f9fafb',
+              border: `1px solid ${i === sorted.length-1 ? '#fed7aa' : '#e5e7eb'}`,
+              color: i === sorted.length-1 ? '#c2410c' : '#374151' }}>
               {c.label}
-              <button onClick={() => onChange(careers.filter((_,j)=>j!==i))} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'13px', lineHeight:1, padding:0, color:'inherit', opacity:0.6 }}>×</button>
+              {i === sorted.length-1 && <span style={{ fontSize:'10px', color:'#f97316' }}>현재</span>}
+              <button onClick={() => onChange(careers.filter((_,j) => careers.indexOf(c) !== j))}
+                style={{ background:'none', border:'none', cursor:'pointer', fontSize:'13px', lineHeight:1, padding:0, color:'inherit', opacity:0.5 }}>×</button>
             </span>
           ))}
         </div>
       )}
-      {/* 입력 */}
+
+      {/* 이전 수강 이력 추가 */}
       <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
-        <select style={selSt} value={year} onChange={e => setYear(e.target.value)}>
+        <span style={{ fontSize:'11px', color:'#9ca3af', whiteSpace:'nowrap' }}>이력 추가:</span>
+        <select style={sst} value={year} onChange={e => setYear(e.target.value)}>
           {years.map(y => <option key={y} value={y}>{y}년</option>)}
         </select>
-        <div style={{ display:'flex', gap:'4px' }}>
+        <div style={{ display:'flex', gap:'3px' }}>
           {[{v:'semester',l:'학기제'},{v:'quarter',l:'분기제'}].map(t => (
             <button key={t.v} type="button" onClick={() => { setTermType(t.v); setTerm('1') }}
-              style={{ padding:'6px 10px', borderRadius:'7px', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', border:`1.5px solid ${termType===t.v?'#f97316':'#e5e7eb'}`, background:termType===t.v?'#fff7ed':'#fff', color:termType===t.v?'#ea580c':'#374151', fontWeight:termType===t.v?700:400 }}>
+              style={{ padding:'5px 9px', borderRadius:'6px', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                border:`1.5px solid ${termType===t.v?'#f97316':'#e5e7eb'}`, background:termType===t.v?'#fff7ed':'#fff',
+                color:termType===t.v?'#ea580c':'#374151', fontWeight:termType===t.v?700:400 }}>
               {t.l}
             </button>
           ))}
         </div>
-        <select style={selSt} value={term} onChange={e => setTerm(e.target.value)}>
-          {termOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <select style={sst} value={term} onChange={e => setTerm(e.target.value)}>
+          {termOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <button type="button" onClick={add}
-          style={{ padding:'7px 14px', borderRadius:'8px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          style={{ padding:'6px 12px', borderRadius:'7px', border:'none', background:'#f97316', color:'#fff', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           + 추가
         </button>
       </div>
@@ -184,6 +211,15 @@ export function Students({ user, onNav }) {
   const [cancelForm,   setCancelForm]   = useState({ type: 'before', date: '', memo: '' })
   const refresh = () => setTick(t => t + 1)
 
+  // 현재 학기 자동 계산
+  const getCurrentTerm = () => {
+    const now2 = new Date()
+    const y = String(now2.getFullYear())
+    const m = now2.getMonth() + 1
+    const term = m >= 3 && m <= 8 ? '1' : '2'
+    return { year: y, termType: 'semester', term, label: `${y.slice(2)}년도 / 학기제 / ${term}학기` }
+  }
+
   React.useEffect(() => {
     setSupplyItems(SupplyItems.byTeacher(user.id))
     setSupplyProducts(SupplyProducts.byTeacher(user.id))
@@ -293,8 +329,10 @@ export function Students({ user, onNav }) {
 
   const openAdd = () => {
     const cls = classes.find(c => c.id === ctxClass)
+    const curTerm = getCurrentTerm()
     setForm({
       ...emptyStudent(),
+      student_careers: [curTerm],
       school: ctxSchool || cls?.organization || '',
       classIds: ctxClass ? [ctxClass] : (pinned.classId ? form.classIds : []),
       classNum: pinned.classNum ? form.classNum : (ctxSection || ''),
@@ -308,8 +346,12 @@ export function Students({ user, onNav }) {
 
   const openEdit = (s) => {
     const cls = s.classIds?.length > 0 ? ClassesDB.byTeacher(user.id).find(c => c.id === s.classIds[0]) : null
+    const existingCareers = s.student_careers || []
+    const curT = getCurrentTerm()
+    const alreadyHasCurrent = existingCareers.some(c => c.year === curT.year && c.termType === curT.termType && c.term === curT.term)
+    const careersWithCurrent = alreadyHasCurrent ? existingCareers : [...existingCareers, curT]
     setForm({
-      ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [], school_careers: s.school_careers || [],
+      ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [], student_careers: careersWithCurrent,
       _newOrganization: cls?.organization || '',
       _newClassName:    cls?.className    || '',
       _newSection:      cls?.section      || '',
@@ -754,6 +796,14 @@ export function Students({ user, onNav }) {
                       {s.remark && (
                         <span style={{ marginLeft: '6px', fontSize: '11px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '5px', padding: '1px 7px', fontWeight: 600 }}>{s.remark}</span>
                       )}
+                      {(s.student_careers?.length > 0) && (
+                        <span style={{ marginLeft:'6px', fontSize:'11px', fontWeight:700, padding:'1px 7px', borderRadius:'5px',
+                          background: s.student_careers.length <= 1 ? '#eff6ff' : '#f0fdf4',
+                          border: `1px solid ${s.student_careers.length <= 1 ? '#bfdbfe' : '#86efac'}`,
+                          color: s.student_careers.length <= 1 ? '#1d4ed8' : '#15803d' }}>
+                          {s.student_careers.length <= 1 ? '신규' : '기존'}
+                        </span>
+                      )}
                       {s.cancel_info && (
                         <span style={{ marginLeft:'6px', fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
                           background: s.cancel_info.type === 'after' ? '#fef2f2' : '#fff1f2',
@@ -1076,8 +1126,8 @@ export function Students({ user, onNav }) {
 
             {/* 경력 */}
             <div>
-              <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '8px' }}>📅 학교 경력</label>
-              <CareerAdder careers={form.school_careers || []} onChange={v => set('school_careers', v)} />
+              <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '8px' }}>📅 학생 경력</label>
+              <CareerAdder careers={form.student_careers || []} onChange={v => set('student_careers', v)} isEdit={!!editId} />
             </div>
 
             {/* 가족/관계 */}
