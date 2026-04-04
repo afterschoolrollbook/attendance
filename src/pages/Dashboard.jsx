@@ -184,7 +184,12 @@ function DayDetail({ date, user, classes, onNav }) {
           {/* 수업 목록 */}
           <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {schoolClasses.map(cls => {
-              const students = StudentsDB.confirmed(cls.id)
+              const students = StudentsDB.confirmed(cls.id).sort((a, b) => {
+                const g = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (g !== 0) return g
+                const c = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (c !== 0) return c
+                const n = parseInt(a.number||'0') - parseInt(b.number||'0'); if (n !== 0) return n
+                return (a.name||'').localeCompare(b.name||'', 'ko')
+              })
               const attRecords = AttendanceDB.byClassDate(cls.id, date)
               const presentCnt = attRecords.filter(a => a.status === 'present' || a.status === 'late').length
               const doneCnt = attRecords.filter(a => a.status !== 'pending').length
@@ -303,7 +308,7 @@ function DayDetail({ date, user, classes, onNav }) {
                             <td style={{ padding:'8px 12px', fontSize:'13px', fontWeight:700, color:'#111827' }}>
                               <div>{stu.name}</div>
                               {hb&&(
-                                <div style={{ display:'flex',gap:'3px',flexWrap:'wrap',marginTop:'3px' }}>
+                                <div style={{ display:'flex',flexDirection:'column',gap:'3px',marginTop:'3px' }}>
                                   {stu.remark&&<span style={{ fontSize:'10px',background:'#eff6ff',color:'#2563eb',border:'1px solid #bfdbfe',borderRadius:'4px',padding:'1px 5px',fontWeight:600 }}>{stu.remark}</span>}
                                   {(stu.student_careers?.length>0)&&<span style={{ fontSize:'10px',fontWeight:700,padding:'1px 5px',borderRadius:'4px',background:stu.student_careers.length<=1?'#eff6ff':'#f0fdf4',border:`1px solid ${stu.student_careers.length<=1?'#bfdbfe':'#86efac'}`,color:stu.student_careers.length<=1?'#1d4ed8':'#15803d' }}>{stu.student_careers.length<=1?'신규':'기존'}</span>}
                                   {(stu.status==='cancel_before'||stu.status==='cancel_after')&&<span style={{ fontSize:'10px',fontWeight:700,padding:'1px 5px',borderRadius:'4px',background:'#fef2f2',border:'1px solid #fca5a5',color:'#dc2626' }}>{stu.status==='cancel_after'?'개강후취소':'개강전취소'}{stu.cancel_info?.date&&(()=>{const [y,m,day]=stu.cancel_info.date.split('-');return `-${y.slice(2)}.${parseInt(m)}.${parseInt(day)}`})()}</span>}
