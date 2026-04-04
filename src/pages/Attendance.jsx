@@ -989,14 +989,14 @@ export function Attendance({ user, pageParams = {} }) {
     ? calcSessionDates(selClass)
     : [...new Set(schoolClasses.flatMap(c => calcSessionDates(c)))].sort()
 
-  // 달력 점 전용: 텀 필터 제외 (날짜 클릭 시 텀이 바뀌어도 점이 사라지지 않도록)
+  // 달력 점 전용: 학교·텀 필터 제외, 연도만 적용
+  // (날짜 클릭 시 selSchool·selTerm이 자동 변경되어도 점이 사라지지 않도록)
   const calendarDates = selClass
     ? calcSessionDates(selClass)
     : [...new Set(
         allClasses
           .filter(c =>
-            (!selYear   || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) &&
-            (!selSchool || c.organization === selSchool)
+            (!selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear))
           )
           .flatMap(c => calcSessionDates(c))
       )].sort()
