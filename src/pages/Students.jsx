@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB } from '../lib/db.js'
+import { SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks } from '../lib/db.js'
 import { uid, now, fmtPhone, sortClasses } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox, Textarea } from '../components/Atoms.jsx'
 import { STUDENT_STATUS, GRADES, DAYS } from '../constants/config.js'
@@ -109,7 +110,18 @@ export function Students({ user, onNav }) {
   const [promotedName, setPromotedName] = useState(null)
   // ✅ 실시간 반영용 강제 리렌더 트리거
   const [tick, setTick] = useState(0)
+  const [supplyItems,    setSupplyItems]    = useState([])
+  const [supplyProducts, setSupplyProducts] = useState([])
+  const [supplyProgress, setSupplyProgress] = useState([])
+  const [supplyChecks,   setSupplyChecks]   = useState([])
   const refresh = () => setTick(t => t + 1)
+
+  React.useEffect(() => {
+    setSupplyItems(SupplyItems.byTeacher(user.id))
+    setSupplyProducts(SupplyProducts.byTeacher(user.id))
+    setSupplyProgress(SupplyStudentProgress.byTeacher(user.id))
+    setSupplyChecks(SupplySessionChecks.byTeacher(user.id))
+  }, [tick])
   const { success: showToast, error: toastError } = useToast()
   // ✅ 삭제 확인
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -607,7 +619,7 @@ export function Students({ user, onNav }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '상태', '메모', '작업'].map(h => (
+                {['순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '상태', '진도', '메모', '작업'].map(h => (
                   <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -670,6 +682,28 @@ export function Students({ user, onNav }) {
                           }}>저장</Btn>
                         )}
                       </div>
+                    </td>
+                    <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
+                      {(() => {
+                        const item = supplyItems.find(i => i.studentId === s.id)
+                        if (!item?.productId) return <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>
+                        const prod = supplyProducts.find(p => p.id === item.productId)
+                        const prog = supplyProgress.find(p => p.studentId === s.id && p.productId === item.productId)
+                        const curStage = prog?.curStage || item.stage || 1
+                        const spp = prod?.sessionsPerStage || 12
+                        const checked = supplyChecks.filter(c => c.studentId === s.id && c.productId === item.productId && c.stage === curStage).length
+                        const pct = Math.min(Math.round(checked / spp * 100), 100)
+                        return (
+                          <div style={{ fontSize:'12px', minWidth:'80px' }}>
+                            <div style={{ fontWeight:600, color:'#374151' }}>{prod?.name || item.name}</div>
+                            <div style={{ color:'#6b7280', marginTop:'1px' }}>{curStage}단계 {checked}/{spp}차시</div>
+                            <div style={{ height:'4px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'80px' }}>
+                              <div style={{ height:'100%', borderRadius:'2px', width:`${pct}%`, transition:'width .3s',
+                                background: pct >= 100 ? '#16a34a' : pct >= 80 ? '#f59e0b' : '#f97316' }} />
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td style={{ padding: '11px 14px', maxWidth: '160px' }}>
                       {s.memo
