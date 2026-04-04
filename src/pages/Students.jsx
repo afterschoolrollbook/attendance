@@ -810,7 +810,8 @@ export function Students({ user, onNav }) {
                           {(s.status === 'cancel_before' || s.status === 'cancel_after') && (
                             <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
                               background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>
-                              {s.status === 'cancel_after' ? '개강후 취소' : '개강전 취소'}
+                              {s.status === 'cancel_after' ? '개강후취소' : '개강전취소'}
+                              {s.cancel_info?.date && (() => { const [y,m,day]=s.cancel_info.date.split('-'); return `-${y.slice(2)}.${parseInt(m)}.${parseInt(day)}` })()}
                             </span>
                           )}
                           {(s.relations||[]).map((r, i) => (
