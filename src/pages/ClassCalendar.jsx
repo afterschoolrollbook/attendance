@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { calcSessionDates, getDayLabel } from '../lib/utils.js'
 import { CANCEL_REASONS } from '../constants/config.js'
-import { Modal, Select, Input, Btn } from './Atoms.jsx'
+import { Modal, Select, Input, Btn } from '../components/Atoms.jsx'
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
