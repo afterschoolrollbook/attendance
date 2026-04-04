@@ -1025,8 +1025,8 @@ export function Students({ user, onNav }) {
                   <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
                     <select style={selSt} value={editProductId || selItem?.productId || ''} onChange={e => { setEditProductId(e.target.value); setEditStage(1) }}>
                       {studentItems.map(i => {
-                        const p = supplyProducts.find(p=>p.id===i.productId)
-                        return <option key={i.id} value={i.productId}>{p?.name || i.name}</option>
+                        const prod = supplyProducts.find(pr=>pr.id===i.productId)
+                        return <option key={i.id} value={i.productId}>{prod?.name || i.name}</option>
                       })}
                     </select>
                     <select style={selSt} value={editStage} onChange={e => setEditStage(Number(e.target.value))}>
