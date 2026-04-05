@@ -396,13 +396,13 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
 
         {/* 진도 */}
         {(() => {
-          const si = SupplyItems.byClassStudent(s.classIds?.[0] || '', s.id)[0]
+          const si = spItems.find(i => i.studentId === s.id && i.classId === (classId || s.classIds?.[0] || ''))
           if (!si?.productId) return <span style={{ fontSize:'11px', color:'#d1d5db', textAlign:'center' }}>-</span>
-          const prod = SupplyProducts.byTeacher(s.teacherId||'').find(p => p.id === si.productId)
-          const prog = SupplyStudentProgress.byStudent(s.id, s.classIds?.[0]||'').find(p => p.productId === si.productId)
+          const prod = spProds.find(p => p.id === si.productId)
+          const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
           const curStage = prog?.curStage || si.stage || 1
           const spp = prod?.sessionsPerStage || 12
-          const chk = SupplySessionChecks.byProductStudent(si.productId, s.id, s.classIds?.[0]||'').filter(c => c.stage === curStage).length
+          const chk = spChecks.filter(c => c.studentId === s.id && c.productId === si.productId && c.stage === curStage).length
           const pct = Math.min(Math.round(chk/spp*100),100)
           return (
             <div onClick={() => onProgOpen && onProgOpen(s, si.productId)}
