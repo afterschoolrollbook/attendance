@@ -93,6 +93,8 @@ const SYNC_TABLES = [
   'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress', 'supplyProgressLogs', 'supplySessionChecks',
   // 지사 / 학부모 회원 / 연결 정보
   'branches', 'parentMembers', 'teacherParentLinks',
+  // 안내 문구
+  'messageGuides', 'messageCategories',
 ]
 
 // ─── 초기화: Supabase 데이터와 로컬 merge
@@ -609,4 +611,22 @@ export const SupplySessionChecks = {
     if (existing) return db.update('supplySessionChecks', existing.id, { ...r })
     return db.insert('supplySessionChecks', { ...r, id: r.id || uid() })
   },
+}
+
+// ─── 안내 문구 ────────────────────────────────────────────────
+export const MessageGuides = {
+  all:       ()      => db.get('messageGuides'),
+  byTeacher: (tid)   => db.where('messageGuides', r => r.teacherId === tid),
+  find:      (id)    => db.getOne('messageGuides', id),
+  insert:    (r)     => db.insert('messageGuides', r),
+  update:    (id, p) => db.update('messageGuides', id, p),
+  delete:    (id)    => db.delete('messageGuides', id),
+}
+
+export const MessageCategories = {
+  all:       ()      => db.get('messageCategories'),
+  byTeacher: (tid)   => db.where('messageCategories', r => r.teacherId === tid),
+  find:      (id)    => db.getOne('messageCategories', id),
+  insert:    (r)     => db.insert('messageCategories', r),
+  delete:    (id)    => db.delete('messageCategories', id),
 }
