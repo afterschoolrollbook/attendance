@@ -74,7 +74,7 @@ export function MessageGuide({ user }) {
   // 문구 추가/편집 모달
   const [modal, setModal] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [form, setForm] = useState({ title:'', content:'' })
+  const [form, setForm] = useState({ category:'', title:'', content:'' })
 
   // 카테고리 관리 모달
   const [catModal, setCatModal] = useState(false)
@@ -87,15 +87,16 @@ export function MessageGuide({ user }) {
   // ── 문구 ──────────────────────────────────────────────────────
   const openAdd = () => {
     setEditId(null)
-    setForm({ title:'', content:'' })
+    setForm({ category: tab, title:'', content:'' })
     setModal(true)
   }
   const openEdit = (item) => {
     setEditId(item.id)
-    setForm({ title: item.title, content: item.content })
+    setForm({ category: item.category, title: item.title, content: item.content })
     setModal(true)
   }
   const saveItem = () => {
+    if (!form.category.trim()) return
     if (!form.content.trim()) return
     const all = load()
     if (editId) {
@@ -104,10 +105,11 @@ export function MessageGuide({ user }) {
       setItems(updated)
       success('수정이 완료되었습니다.')
     } else {
-      const newItem = { id: uid(), teacherId: user.id, category: tab, title: form.title, content: form.content, createdAt: new Date().toISOString() }
+      const newItem = { id: uid(), teacherId: user.id, category: form.category, title: form.title, content: form.content, createdAt: new Date().toISOString() }
       const updated = [...all, newItem]
       save(updated)
       setItems(updated)
+      setTab(form.category)
       success('등록이 완료되었습니다.')
     }
     setModal(false)
@@ -218,9 +220,16 @@ export function MessageGuide({ user }) {
       )}
 
       {/* ── 문구 추가/편집 모달 ── */}
-      <Modal open={modal} onClose={() => setModal(false)} title={editId ? '문구 편집' : `${tab} 문구 추가`} width={520}>
+      <Modal open={modal} onClose={() => setModal(false)} title={editId ? '문구 편집' : '문구 추가'} width={520}>
         <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
           <div>
+            <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>카테고리 *</label>
+            <select value={form.category} onChange={e => setForm(p => ({...p, category:e.target.value}))}
+              style={{ ...fStyle, background:'#fff', cursor:'pointer', appearance:'auto' }}>
+              <option value="">카테고리를 선택하세요</option>
+              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          </div>
             <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>제목 (선택)</label>
             <input value={form.title} onChange={e => setForm(p => ({...p, title:e.target.value}))}
               placeholder="예: 결석 안내 기본 문구" style={fStyle}/>
