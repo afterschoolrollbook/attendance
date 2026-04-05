@@ -87,6 +87,24 @@ function useCardSettings(userId) {
   }
 }
 
+// 드래그 순서 기본값 (수익관리 오른쪽에 공고관리)
+const DRAGGABLE_ORDER_DEFAULT = ['revenue', 'announcement', 'training', 'certificate', 'career', 'award']
+
+function useCardOrder(userId) {
+  const sKey = `dashboardCardOrder_${userId}`
+  const load = () => {
+    const saved = Settings.get(sKey)
+    if (Array.isArray(saved) && saved.length === DRAGGABLE_ORDER_DEFAULT.length) return saved
+    return [...DRAGGABLE_ORDER_DEFAULT]
+  }
+  const [cardOrder, setCardOrder] = useState(load)
+  const saveCardOrder = (next) => {
+    Settings.set(sKey, next)
+    setCardOrder(next)
+  }
+  return { cardOrder, saveCardOrder }
+}
+
 // ─────────────────────────────────────────────────────────────────
 //  내정보 페이지에서 사용하는 컴포넌트
 //  import { DashboardCardSettings } from './Dashboard'
@@ -195,42 +213,130 @@ function ListRow({ left, sub, badge, badgeColor = '#1d4ed8', badgeBg = '#eff6ff'
 // ═══════════════════════════════════════════════════════════════════
 
 // ── 💰 수익 관리
-// RevenueFees(수강료 설정) + RevenuePayments(납부 내역) 사용
-// 진행 중인 텀 수업만 표시, 미납 인원 계산
+// 텀별 그룹 → 요일 · 학교명 · 금액 · 상태(미수/마감/진행중/예정)
 function RevenueCard({ user, onHide, onNav }) {
   const today    = todayStr()
   const classes  = ClassesDB.byTeacher(user.id)
   const fees     = RevenueFees.byTeacher(user.id)
   const payments = RevenuePayments.byTeacher(user.id)
 
-  const items = classes.flatMap(cls => {
-    const future = calcSessionDates(cls).filter(d => d >= today)
-    if (!future.length) return []                    // 종료된 수업 제외
+  // 텀별 맵 구성
+  const termMap = new Map()  // termNum → [{...}]
+
+  classes.forEach(cls => {
+    const allSessions = calcSessionDates(cls)
+    if (!allSessions.length) return
     const confirmed = StudentsDB.confirmed(cls.id)
-    if (!confirmed.length) return []
-    const fee         = fees.find(f => f.classId === cls.id)
-    const paidSids    = new Set(payments.filter(p => p.classId === cls.id).map(p => p.studentId))
+    if (!confirmed.length) return
+
+    const fee       = fees.find(f => f.classId === cls.id)
+    const classPmts = payments.filter(p => p.classId === cls.id)
+    const paidSids  = new Set(classPmts.map(p => p.studentId))
     const unpaidCount = confirmed.filter(s => !paidSids.has(s.id)).length
-    return [{ cls, nextDate: future[0], total: confirmed.length, unpaidCount, hasFee: !!fee, feeAmount: fee?.amount ?? null }]
-  }).slice(0, 5)
+
+    // 요일 레이블 (cls.day 숫자 또는 cls.days 배열 첫번째)
+    const dayIdx   = cls.day ?? cls.days?.[0] ?? null
+    const dayLabel = dayIdx != null ? DAYS_KO[dayIdx] : ''
+
+    // 이 수업이 속한 텀들 추출
+    const seenTerms = new Set()
+    allSessions.forEach(date => {
+      const info = getSessionInfo(cls, date)
+      if (!info || seenTerms.has(info.termNum)) return
+      seenTerms.add(info.termNum)
+
+      // 해당 텀의 세션만 필터
+      const termSessions  = allSessions.filter(d => getSessionInfo(cls, d)?.termNum === info.termNum)
+      const pastSessions  = termSessions.filter(d => d < today)
+      const futureSessions = termSessions.filter(d => d >= today)
+
+      // 행 상태 결정
+      let rowStatus
+      if (futureSessions.length === 0)     rowStatus = unpaidCount > 0 ? 'unpaid' : 'closed'  // 완료텀
+      else if (pastSessions.length === 0)  rowStatus = 'upcoming'   // 아직 시작 전
+      else                                 rowStatus = 'active'     // 진행중
+
+      if (!termMap.has(info.termNum)) termMap.set(info.termNum, [])
+      termMap.get(info.termNum).push({
+        key: `${cls.id}-${info.termNum}`,
+        cls, dayLabel, rowStatus,
+        feeAmount: fee?.amount ?? null,
+        unpaidCount,
+        totalCount: confirmed.length,
+      })
+    })
+  })
+
+  const sortedTerms = [...termMap.entries()].sort((a, b) => a[0] - b[0])
+
+  const DAY_COLOR = (d) => d === '일' ? '#ef4444' : d === '토' ? '#3b82f6' : C.muted
+
+  const ROW_STYLE = {
+    unpaid:   { label: '미수',  color: C.danger,   bg: '#fef2f2', border: '#fca5a5' },
+    closed:   { label: '마감',  color: C.success,  bg: '#f0fdf4', border: '#86efac' },
+    active:   { label: '진행중', color: C.success,  bg: '#f0fdf4', border: '#86efac' },
+    upcoming: { label: '예정',  color: '#2563eb',  bg: '#eff6ff', border: '#bfdbfe' },
+  }
 
   return (
     <SummaryCard id="revenue" icon="💰" label="수익 관리" navKey="revenue" onHide={onHide} onNav={onNav}>
-      {items.length === 0
-        ? <Empty msg="진행 중인 수업이 없습니다" />
+      {sortedTerms.length === 0
+        ? <Empty msg="등록된 수업이 없습니다" />
         : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {items.map(({ cls, nextDate, total, unpaidCount, hasFee, feeAmount }) => (
-              <ListRow
-                key={cls.id}
-                left={cls.organization}
-                sub={`${cls.className}${cls.section ? ` ${cls.section}반` : ''} · 다음 ${nextDate}`}
-                badge={!hasFee ? '수강료 미설정' : unpaidCount > 0 ? `미납 ${unpaidCount}명` : '전원 납부 ✓'}
-                badgeColor={!hasFee ? C.muted : unpaidCount > 0 ? C.danger : C.success}
-                badgeBg={!hasFee ? '#f9fafb' : unpaidCount > 0 ? '#fef2f2' : '#f0fdf4'}
-                badgeBorder={!hasFee ? C.border : unpaidCount > 0 ? '#fca5a5' : '#86efac'}
-              />
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {sortedTerms.map(([termNum, rows]) => {
+              const hasActive   = rows.some(r => r.rowStatus === 'active')
+              const hasUpcoming = rows.some(r => r.rowStatus === 'upcoming')
+              const termBadge   = hasActive ? '진행중' : hasUpcoming ? '예정' : null
+              const termBadgeColor = hasActive ? C.success : '#2563eb'
+
+              return (
+                <div key={termNum}>
+                  {/* 텀 헤더 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: C.text }}>{termNum}텀</span>
+                    <span style={{ fontSize: '12px', color: C.muted }}>→</span>
+                    {termBadge && (
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: termBadgeColor, background: `${termBadgeColor}18`, border: `1px solid ${termBadgeColor}44`, borderRadius: '5px', padding: '1px 8px' }}>
+                        {termBadge}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 수업 행들 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {rows.map(({ key, cls, dayLabel, rowStatus, feeAmount, unpaidCount }) => {
+                      const st = ROW_STYLE[rowStatus]
+                      const amtText = feeAmount != null ? feeAmount.toLocaleString() + '원' : '-'
+                      const isDone  = rowStatus === 'unpaid' || rowStatus === 'closed'
+
+                      return (
+                        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 10px', background: '#f9fafb', borderRadius: '8px', border: `1px solid ${C.border}` }}>
+                          {/* 요일 */}
+                          {dayLabel && (
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: DAY_COLOR(dayLabel), minWidth: '16px', flexShrink: 0 }}>{dayLabel}</span>
+                          )}
+                          {/* 학교명 */}
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: C.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {cls.organization}
+                          </span>
+                          {/* 금액 + 상태 */}
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: st.color, background: st.bg, border: `1px solid ${st.border}`, borderRadius: '5px', padding: '2px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {isDone ? `${amtText} ${st.label}` : amtText}
+                          </span>
+                          {/* 진행중/예정 뱃지 (완료 텀은 표시 안 함) */}
+                          {!isDone && (
+                            <span style={{ fontSize: '11px', fontWeight: 600, color: st.color, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              {st.label}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )
       }
@@ -239,22 +345,28 @@ function RevenueCard({ user, onHide, onNav }) {
 }
 
 // ── 📚 연수 관리
-// Trainings 테이블 — completedAt 없거나 status !== 'done' 인 것
+// Trainings 테이블 — 이수 필요 목록 + 26년도 완료 연수 5개
 function TrainingCard({ user, onHide, onNav }) {
   const all     = Trainings.byTeacher(user.id)
   const pending = all
     .filter(t => !t.completedAt && t.status !== 'done')
     .sort((a, b) => (a.deadline || '').localeCompare(b.deadline || ''))
 
+  const done2026 = all
+    .filter(t => (t.completedAt && t.completedAt.startsWith('2026')) || (t.status === 'done' && t.completedAt?.startsWith('2026')))
+    .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''))
+    .slice(0, 5)
+
   return (
     <SummaryCard id="training" icon="📚" label="연수 관리" navKey="training" onHide={onHide} onNav={onNav}>
       {all.length === 0
         ? <Empty msg="등록된 연수가 없습니다" />
-        : pending.length === 0
-          ? <div style={{ fontSize: '13px', color: C.success, textAlign: 'center', padding: '16px 0' }}>✅ 이수해야 할 연수가 없습니다</div>
-          : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {pending.slice(0, 5).map((t, i) => (
+        : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {/* 이수 필요 */}
+            {pending.length === 0
+              ? <div style={{ fontSize: '13px', color: C.success, textAlign: 'center', padding: '8px 0' }}>✅ 이수해야 할 연수가 없습니다</div>
+              : pending.slice(0, 5).map((t, i) => (
                 <ListRow
                   key={t.id || i}
                   left={t.title || t.name}
@@ -264,10 +376,31 @@ function TrainingCard({ user, onHide, onNav }) {
                   badgeBg="#fff7ed"
                   badgeBorder="#fed7aa"
                 />
-              ))}
-              {pending.length > 5 && <div style={{ fontSize: '11px', color: C.muted, textAlign: 'center' }}>외 {pending.length - 5}건 더 있어요</div>}
-            </div>
-          )
+              ))
+            }
+            {pending.length > 5 && <div style={{ fontSize: '11px', color: C.muted, textAlign: 'center' }}>외 {pending.length - 5}건 더 있어요</div>}
+
+            {/* 26년도 완료 연수 */}
+            {done2026.length > 0 && (
+              <>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, marginTop: '6px', paddingTop: '8px', borderTop: `1px solid ${C.border}` }}>
+                  2026년 완료 연수
+                </div>
+                {done2026.map((t, i) => (
+                  <ListRow
+                    key={t.id || i}
+                    left={t.title || t.name}
+                    sub={[t.organization, t.completedAt ? `완료 ${t.completedAt}` : ''].filter(Boolean).join(' · ')}
+                    badge="완료"
+                    badgeColor={C.success}
+                    badgeBg="#f0fdf4"
+                    badgeBorder="#86efac"
+                  />
+                ))}
+              </>
+            )}
+          </div>
+        )
       }
     </SummaryCard>
   )
@@ -322,11 +455,15 @@ function CareerCard({ user, onHide, onNav }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {items.map((c, i) => {
               const period = c.startDate ? `${c.startDate} ~ ${c.endDate || '현재'}` : c.date || ''
+              const title  = c.title || c.name || c.school || c.company || period
+              const sub    = title === period
+                ? (c.organization || c.company || c.school || '')
+                : [c.organization || c.company || c.school, period].filter(Boolean).join(' · ')
               return (
                 <ListRow
                   key={c.id || i}
-                  left={c.title || c.name || c.school || c.company}
-                  sub={[c.organization || c.company || c.school, period].filter(Boolean).join(' · ')}
+                  left={title}
+                  sub={sub}
                   badge={c._type}
                   badgeColor={c._type === '학력' ? '#1d4ed8' : '#15803d'}
                   badgeBg={c._type === '학력' ? '#eff6ff' : '#f0fdf4'}
@@ -717,7 +854,24 @@ function DayDetail({ date, user, classes, onNav }) {
 
 export function Dashboard({ user, onNav }) {
   const { settings, hideCard, toggleCard, resetAll } = useCardSettings(user.id)
+  const { cardOrder, saveCardOrder } = useCardOrder(user.id)
   const [showSettings, setShowSettings] = useState(false)
+  const [dragId,     setDragId]     = useState(null)
+  const [dragOverId, setDragOverId] = useState(null)
+
+  const handleDragStart = (e, id) => { e.dataTransfer.effectAllowed = 'move'; setDragId(id) }
+  const handleDragOver  = (e, id) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverId(id) }
+  const handleDrop      = (e, id) => {
+    e.preventDefault()
+    if (dragId && dragId !== id) {
+      const next = [...cardOrder]
+      const fi = next.indexOf(dragId), ti = next.indexOf(id)
+      if (fi !== -1 && ti !== -1) { next.splice(fi, 1); next.splice(ti, 0, dragId) }
+      saveCardOrder(next)
+    }
+    setDragId(null); setDragOverId(null)
+  }
+  const handleDragEnd = () => { setDragId(null); setDragOverId(null) }
 
   const today = todayStr()
   const d     = new Date()
@@ -801,9 +955,6 @@ export function Dashboard({ user, onNav }) {
             </div>
             {/* props 전달 → Dashboard 상태와 즉시 동기화 */}
             <DashboardCardSettings userId={user.id} settings={settings} onToggle={toggleCard} onResetAll={resetAll} />
-            <div style={{ marginTop: '16px', fontSize: '12px', color: C.muted, textAlign: 'center' }}>
-              💡 내정보 페이지에서도 동일하게 설정할 수 있어요
-            </div>
           </div>
         </div>
       )}
@@ -898,15 +1049,46 @@ export function Dashboard({ user, onNav }) {
         </div>
       )}
 
-      {/* ── 요약 카드 그리드 ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-        {settings.revenue      && <RevenueCard      user={user} onHide={hideCard} onNav={onNav} />}
-        {settings.training     && <TrainingCard     user={user} onHide={hideCard} onNav={onNav} />}
-        {settings.certificate  && <CertificateCard  user={user} onHide={hideCard} onNav={onNav} />}
-        {settings.career       && <CareerCard        user={user} onHide={hideCard} onNav={onNav} />}
-        {settings.award        && <AwardCard         user={user} onHide={hideCard} onNav={onNav} />}
-        {settings.announcement && <AnnouncementCard  user={user} onHide={hideCard} onNav={onNav} />}
-      </div>
+      {/* ── 요약 카드 그리드 (드래그로 순서 변경 가능) ── */}
+      {(() => {
+        const CARDS = {
+          revenue:      <RevenueCard      user={user} onHide={hideCard} onNav={onNav} />,
+          announcement: <AnnouncementCard user={user} onHide={hideCard} onNav={onNav} />,
+          training:     <TrainingCard     user={user} onHide={hideCard} onNav={onNav} />,
+          certificate:  <CertificateCard  user={user} onHide={hideCard} onNav={onNav} />,
+          career:       <CareerCard       user={user} onHide={hideCard} onNav={onNav} />,
+          award:        <AwardCard        user={user} onHide={hideCard} onNav={onNav} />,
+        }
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+            {cardOrder.map(id => {
+              if (!settings[id]) return null
+              const isDragging  = dragId === id
+              const isDragOver  = dragOverId === id && dragId !== id
+              return (
+                <div
+                  key={id}
+                  draggable
+                  onDragStart={e => handleDragStart(e, id)}
+                  onDragOver={e  => handleDragOver(e, id)}
+                  onDrop={e      => handleDrop(e, id)}
+                  onDragEnd={handleDragEnd}
+                  style={{
+                    opacity: isDragging ? 0.4 : 1,
+                    outline: isDragOver ? `2px dashed ${C.primary}` : 'none',
+                    outlineOffset: '2px',
+                    borderRadius: '16px',
+                    transition: 'opacity .15s, outline .1s',
+                    cursor: 'grab',
+                  }}
+                >
+                  {CARDS[id]}
+                </div>
+              )
+            })}
+          </div>
+        )
+      })()}
 
       {/* 숨겨진 카드 안내 */}
       {hiddenCount > 0 && (
