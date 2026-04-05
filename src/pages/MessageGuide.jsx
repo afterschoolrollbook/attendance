@@ -230,6 +230,7 @@ export function MessageGuide({ user }) {
               {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
             </select>
           </div>
+          <div>
             <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>제목 (선택)</label>
             <input value={form.title} onChange={e => setForm(p => ({...p, title:e.target.value}))}
               placeholder="예: 결석 안내 기본 문구" style={fStyle}/>
