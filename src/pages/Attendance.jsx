@@ -225,7 +225,7 @@ function StudentMemoModal({ student, onClose, onSave }) {
 }
 
 // ─── 예정 수업 학생 행 — StudentRow 코드 완전 동일, 출석컬럼만 예정버튼으로 교체
-function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId }) {
+function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOpen, spProds }) {
   const note = s.memo || ''
   const [showInfo, setShowInfo] = useState(false)
   const [memoOpen, setMemoOpen] = useState(false)
@@ -289,14 +289,17 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId }) {
           const _cid = classId || s.classIds?.[0] || ''
           const si = SupplyItems.byClassStudent(_cid, s.id)[0]
           if (!si?.productId) return <span style={{ fontSize:'11px', color:'#d1d5db', textAlign:'center' }}>-</span>
-          const prod = SupplyProducts.byTeacher(s.teacherId||'').find(p => p.id === si.productId)
+          const prod = (spProds||[]).find(p => p.id === si.productId)
           const prog = SupplyStudentProgress.byStudent(s.id, _cid).find(p => p.productId === si.productId)
           const curStage = prog?.curStage || si.stage || 1
           const spp = prod?.sessionsPerStage || 12
-          const chk = SupplySessionChecks.byProductStudent(si.productId, s.id, s.classIds?.[0]||'').filter(c => c.stage === curStage).length
+          const chk = SupplySessionChecks.byProductStudent(si.productId, s.id, _cid).filter(c => c.stage === curStage).length
           const pct = Math.min(Math.round(chk/spp*100),100)
           return (
-            <div style={{ fontSize:'11px' }}>
+            <div onClick={() => onProgOpen && onProgOpen(s, si.productId)}
+              style={{ fontSize:'11px', cursor:'pointer', padding:'4px 6px', borderRadius:'6px', transition:'background .15s' }}
+              onMouseEnter={e => e.currentTarget.style.background='#f0fdf4'}
+              onMouseLeave={e => e.currentTarget.style.background='transparent'}>
               <div style={{ fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{prod?.name||si.name||''}</div>
               <div style={{ color:'#6b7280', marginTop:'1px' }}>{curStage}단계 {chk}/{spp}차시</div>
               <div style={{ height:'3px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'70px' }}>
@@ -650,7 +653,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
           ? <div style={{ padding:'24px', textAlign:'center', color:C.muted, fontSize:'13px' }}>등록된 학생이 없습니다</div>
           : sorted.map((s, i) =>
               isFuture
-                ? <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} classId={cls.id} />
+                ? <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} classId={cls.id} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls.id}); setProgProductId(pid) }} spProds={spProds} />
                 : <StudentRow      key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls.id}); setProgProductId(pid) }} classId={cls.id} spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} />
             )
         }
