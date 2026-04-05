@@ -10,28 +10,45 @@ const DAY_ORDER = ['월','화','수','목','금','토','일']
 // ════════════════════════════════════════
 // 돌림판
 // ════════════════════════════════════════
-async function captureElement(el, filename) {
+function saveWinnerCard(name, round) {
   try {
-    // html2canvas CDN 동적 로드
-    if (!window.html2canvas) {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script')
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
-        s.onload = resolve; s.onerror = reject
-        document.head.appendChild(s)
-      })
-    }
-    const canvas = await window.html2canvas(el, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: null,
-      logging: false,
-    })
+    const canvas = document.createElement('canvas')
+    canvas.width = 600; canvas.height = 400
+    const ctx = canvas.getContext('2d')
+    // 배경 그라디언트
+    const grad = ctx.createLinearGradient(0, 0, 600, 400)
+    grad.addColorStop(0, '#fff7ed'); grad.addColorStop(1, '#fef3c7')
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, 600, 400)
+    // 테두리
+    ctx.strokeStyle = '#f97316'; ctx.lineWidth = 6
+    ctx.roundRect(6, 6, 588, 388, 24); ctx.stroke()
+    // 이모지
+    ctx.font = '72px serif'
+    ctx.textAlign = 'center'
+    ctx.fillText('🎉', 300, 110)
+    // 축하합니다
+    ctx.font = 'bold 28px sans-serif'
+    ctx.fillStyle = '#9ca3af'
+    ctx.fillText('축하합니다!', 300, 175)
+    // 이름
+    ctx.font = 'bold 72px sans-serif'
+    ctx.fillStyle = '#f97316'
+    ctx.fillText(name, 300, 275)
+    // 회차
+    ctx.font = '22px sans-serif'
+    ctx.fillStyle = '#d1d5db'
+    ctx.fillText(`${round}번째 당첨`, 300, 330)
+    // 날짜
+    const today = new Date().toLocaleDateString('ko-KR')
+    ctx.font = '18px sans-serif'
+    ctx.fillStyle = '#e5e7eb'
+    ctx.fillText(today, 300, 370)
+    // 다운로드
     const a = document.createElement('a')
-    a.download = filename
+    a.download = `당첨_${name}_${round}번째.png`
     a.href = canvas.toDataURL('image/png')
     a.click()
-  } catch(e) { console.warn('캡처 실패:', e) }
+  } catch(e) { console.warn('스크린샷 실패:', e) }
 }
 
 // ════════════════════════════════════════
@@ -132,7 +149,7 @@ function playSpinSound(duration = 3.8) {
   } catch(e) {}
 }
 
-function Roulette({ students, winnerCount, onDone, organization }) {
+function Roulette({ students, winnerCount, onDone }) {
   const [totalRot, setTotalRot] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const [pool, setPool] = useState([...students])
@@ -186,13 +203,9 @@ function Roulette({ students, winnerCount, onDone, organization }) {
     if (popped) setShowConfetti(true)
   }, [popped])
 
-  const lotteryAreaRef = useRef(null)
   const handleConfettiClose = () => {
-    const el = lotteryAreaRef.current
-    const name = popped.name
-    const round = winners.length + 1
+    saveWinnerCard(popped.name, winners.length + 1)
     setShowConfetti(false)
-    if (el) setTimeout(() => captureElement(el, `${organization||'추첨'}_추첨_${name}_${round}번째.png`), 100)
     const newWinners = [...winners, popped]
     const newPool = pool.filter(s => s.id !== popped.id)
     setWinners(newWinners)
@@ -514,13 +527,8 @@ function CardFlip({ students, winnerCount, onDone }) {
                   <span key={s.id} style={{ padding:'8px 18px', borderRadius:'10px', background:'#fff7ed', border:'2px solid #f97316', fontSize:'18px', fontWeight:800, color:'#f97316', fontFamily:'Noto Sans KR, sans-serif' }}>{s.name}</span>
                 ))}
               </div>
-              <button onClick={()=>{
-                const el = document.querySelector('[data-lottery-area]')
-                setShowCardConfetti(false)
-                if (el) setTimeout(() => captureElement(el, `${cls?.organization||'추첨'}_추첨_결과_${new Date().toLocaleDateString('ko-KR')}.png`), 100)
-                onDone(pendingWinnersRef.current)
-              }} style={{ padding:'12px 40px', borderRadius:'14px', border:'none', background:'#f97316', color:'#fff', fontSize:'16px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                📸 확인 & 저장
+              <button onClick={()=>{ setShowCardConfetti(false); onDone(pendingWinnersRef.current) }} style={{ padding:'12px 40px', borderRadius:'14px', border:'none', background:'#f97316', color:'#fff', fontSize:'16px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                확인 🎉
               </button>
             </div>
           </div>
@@ -675,11 +683,9 @@ export function StudentConfirm({ user }) {
               ← 다시 설정
             </button>
           </div>
-          <div ref={lotteryAreaRef} data-lottery-area>
-            {method==='roulette' && <Roulette students={checkedStudents} winnerCount={parseInt(winCount)} organization={cls?.organization||''} onDone={ws=>{setLotteryWinners(ws);setPhase('result')}}/>}
-            {method==='ladder'   && <Ladder   students={checkedStudents} winnerCount={parseInt(winCount)} onDone={ws=>{setLotteryWinners(ws);setPhase('result')}}/>}
-            {method==='card'     && <CardFlip students={checkedStudents} winnerCount={parseInt(winCount)} onDone={ws=>{setLotteryWinners(ws);setPhase('result')}}/>}
-          </div>
+          {method==='roulette' && <Roulette students={checkedStudents} winnerCount={parseInt(winCount)} onDone={ws=>{setLotteryWinners(ws);setPhase('result')}}/>}
+          {method==='ladder'   && <Ladder   students={checkedStudents} winnerCount={parseInt(winCount)} onDone={ws=>{setLotteryWinners(ws);setPhase('result')}}/>}
+          {method==='card'     && <CardFlip students={checkedStudents} winnerCount={parseInt(winCount)} onDone={ws=>{setLotteryWinners(ws);setPhase('result')}}/>}
         </Card>
 
       ) : phase==='result' ? (
