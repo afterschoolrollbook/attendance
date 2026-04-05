@@ -48,12 +48,17 @@ function saveCategories(cats) {
 function seedDefaults(userId) {
   const all = load()
   const mine = all.filter(i => i.teacherId === userId)
-  if (mine.length > 0) return
-  const defaults = DEFAULT_GUIDES.map((g, i) => ({
-    ...g, id: uid(), teacherId: userId,
-    createdAt: new Date(Date.now() + i).toISOString()
-  }))
-  save([...all, ...defaults])
+  // 이미 존재하는 (category + title) 조합
+  const existingKeys = new Set(mine.map(i => `${i.category}__${i.title}`))
+  // 누락된 기본 문구만 추려서 추가
+  const toAdd = DEFAULT_GUIDES
+    .filter(g => !existingKeys.has(`${g.category}__${g.title}`))
+    .map((g, i) => ({
+      ...g, id: uid(), teacherId: userId,
+      createdAt: new Date(Date.now() + i).toISOString()
+    }))
+  if (toAdd.length === 0) return
+  save([...all, ...toAdd])
 }
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316' }
