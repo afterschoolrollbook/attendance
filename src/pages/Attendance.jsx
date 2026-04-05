@@ -978,7 +978,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                 <div>
                   {secStudents.map((s, i) => (
                     showAttendance
-                      ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
+                      ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent(stu); setProgProductId(pid) }} />
                       : (
                         <div key={s.id} style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom: i<secStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
                           <span style={{ fontSize:'12px', color:C.muted }}>{i+1}</span>
@@ -1021,6 +1021,82 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
 
       {msgStudent  && <MsgModal student={msgStudent} onClose={() => setMsgStudent(null)} />}
       {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
+      {progStudent && (() => {
+        const si = SupplyItems.byClassStudent(progStudent.classIds?.[0]||'', progStudent.id)[0]
+        if (!si?.productId) return null
+        const product = SupplyProducts.byTeacher(progStudent.teacherId||'').find(p => p.id === progProductId)
+        if (!product) return null
+        const spp = product.sessionsPerStage || 12
+        const alertSess = product.alertSession || 10
+        const prog = SupplyStudentProgress.byStudent(progStudent.id, progStudent.classIds?.[0]||'').find(p => p.productId === progProductId)
+        const curStage = prog?.curStage || si.stage || 1
+        const assignedStage = si.stage ? Number(si.stage) : curStage
+        const maxShowStage = Math.max(assignedStage, curStage)
+        const STAGES = Array.from({ length: maxShowStage }, (_, i) => i + 1)
+        const toggleCheck = (productId, stage, sessionNo) => {
+          const classId = progStudent.classIds?.[0] || ''
+          const existing = SupplySessionChecks.byProductStudent(productId, progStudent.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
+          if (existing) SupplySessionChecks.delete(existing.id)
+          else SupplySessionChecks.upsert({ id: uid(), teacherId: progStudent.teacherId||'', studentId: progStudent.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
+          const allChks = SupplySessionChecks.byProductStudent(productId, progStudent.id, classId).filter(c => c.stage===stage)
+          const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
+          SupplyStudentProgress.upsert({ id: uid(), teacherId: progStudent.teacherId||'', studentId: progStudent.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
+          setProgTick(t => t+1)
+        }
+        return (
+          <Modal open={true} onClose={() => setProgStudent(null)} title={`📊 ${progStudent.name} 진도 체크`} width={600}>
+            <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
+              <div style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', fontSize:'13px', color:'#6b7280', marginBottom:'16px' }}>
+                🤖 {product.name} · {assignedStage}단계 배정 · 단계당 {spp}차시 기준
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                {STAGES.map(stage => {
+                  const stagePlans = SupplyProductPlans.byProductStage(si.productId, stage).sort((a,b) => a.sessionNo-b.sessionNo)
+                  const sessions = stagePlans.length > 0 ? stagePlans
+                    : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
+                  const stageChecks = SupplySessionChecks.byProductStudent(si.productId, progStudent.id, progStudent.classIds?.[0]||'').filter(c => c.stage===stage)
+                  const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
+                  const cnt = stageChecks.length
+                  const isDone = cnt >= spp
+                  const isAlert = cnt >= alertSess && !isDone
+                  return (
+                    <div key={stage} style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
+                      <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
+                        <span style={{ fontSize:'13px', fontWeight:700, color:isDone?'#16a34a':isAlert?'#f59e0b':'#111827' }}>{stage}단계</span>
+                        <span style={{ fontSize:'12px', color:'#6b7280' }}>{cnt}/{spp}차시</span>
+                        {isDone  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>}
+                        {isAlert && <span style={{ fontSize:'11px', background:'#fffbeb', color:'#f59e0b', border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ 다음 단계 준비</span>}
+                      </div>
+                      <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                        {sessions.map(sess => {
+                          const isChk = checkedNos.has(sess.sessionNo)
+                          return (
+                            <div key={sess.id} onClick={() => toggleCheck(si.productId, stage, sess.sessionNo)}
+                              style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, cursor:'pointer', transition:'all .12s' }}>
+                              <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                                {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
+                              </div>
+                              <span style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827' }}>
+                                {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
+              <button onClick={() => setProgStudent(null)}
+                style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
+                닫기
+              </button>
+            </div>
+          </Modal>
+        )
+      })()}
     </div>
   )
 }
