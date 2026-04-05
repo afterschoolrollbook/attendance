@@ -532,6 +532,17 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
   const [progStudent,   setProgStudent]   = useState(null)
   const [progProductId, setProgProductId] = useState('')
   const [progTick,      setProgTick]      = useState(0)
+  const [spItems,  setSpItems]  = useState(() => SupplyItems.byTeacher(cls.teacherId||''))
+  const [spProds,  setSpProds]  = useState(() => SupplyProducts.byTeacher(cls.teacherId||''))
+  const [spProg,   setSpProg]   = useState(() => SupplyStudentProgress.byTeacher(cls.teacherId||''))
+  const [spChecks, setSpChecks] = useState(() => SupplySessionChecks.byTeacher(cls.teacherId||''))
+
+  useEffect(() => {
+    setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
+    setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
+    setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
+    setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+  }, [progTick])
 
   const isFuture = date > today
   const sessInfo = getSessionInfo(cls, date)
