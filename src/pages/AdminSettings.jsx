@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { Settings, Students as StudentsDB, Classes as ClassesDB } from '../lib/db.js'
-import { FEATURES, FEATURE_LABELS, LEVEL_NAMES } from '../constants/permissions.js'
 import { Card, PageHeader, Toggle, Btn, Modal, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 
@@ -1177,106 +1176,6 @@ function TeacherServiceSection() {
   )
 }
 
-// ─── 섹션: 메뉴 권한 설정
-const PERMISSION_FEATURES = [
-  FEATURES.ATTENDANCE,
-  FEATURES.MANAGE_CLASS,
-  FEATURES.ADD_STUDENT,
-  FEATURES.EXCEL_UPLOAD,
-  FEATURES.VIEW_REPORT,
-  FEATURES.PRINT_ATTENDANCE,
-  FEATURES.MANAGE_TEMPLATE,
-  FEATURES.SHOP_DISCOUNT,
-  FEATURES.SHOP_EXTRA,
-]
-
-const DEFAULT_MIN_LEVELS = {
-  [FEATURES.ATTENDANCE]:       1,
-  [FEATURES.MANAGE_CLASS]:     1,
-  [FEATURES.ADD_STUDENT]:      1,
-  [FEATURES.EXCEL_UPLOAD]:     1,
-  [FEATURES.VIEW_REPORT]:      1,
-  [FEATURES.PRINT_ATTENDANCE]: 1,
-  [FEATURES.MANAGE_TEMPLATE]:  1,
-  [FEATURES.SHOP_DISCOUNT]:    1,
-  [FEATURES.SHOP_EXTRA]:       1,
-}
-
-function PermissionsSection() {
-  const stored = Settings.get('featureMinLevels') || {}
-  const init = {}
-  PERMISSION_FEATURES.forEach(f => { init[f] = stored[f] ?? DEFAULT_MIN_LEVELS[f] ?? 1 })
-  const [cfg, setCfg] = useState(init)
-  const { success } = useToast()
-
-  const save = () => {
-    Settings.set('featureMinLevels', cfg)
-    success('저장이 완료되었습니다.')
-  }
-
-  const levelColors = { 1:'#9ca3af', 2:'#f97316', 3:'#16a34a', 4:'#8b5cf6', 5:'#ef4444' }
-
-  return (
-    <Card style={{ marginBottom:'16px' }}>
-      <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>🔐 메뉴별 최소 레벨 설정</div>
-      <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px', lineHeight:1.6 }}>
-        각 메뉴에 접근 가능한 최소 레벨을 설정합니다. 해당 레벨 이상의 선생님만 해당 메뉴가 표시됩니다.<br />
-        <span style={{ color:'#ef4444', fontWeight:600 }}>관리자(Lv.5)는 모든 메뉴에 항상 접근 가능합니다.</span>
-      </div>
-
-      {/* 레벨 범례 */}
-      <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', marginBottom:'20px', padding:'12px 16px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
-        {[1,2,3,4,5].map(lv => (
-          <div key={lv} style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-            <span style={{ width:'22px', height:'22px', borderRadius:'6px', background:levelColors[lv], display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, color:'#fff' }}>{lv}</span>
-            <span style={{ fontSize:'12px', color:C.muted }}>{LEVEL_NAMES[lv]}</span>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-        {PERMISSION_FEATURES.map(feature => {
-          const info = FEATURE_LABELS[feature] || { label: feature, icon: '📌' }
-          const current = cfg[feature] || 1
-          return (
-            <div key={feature} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-                <span style={{ fontSize:'18px', width:'24px', textAlign:'center' }}>{info.icon}</span>
-                <div>
-                  <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{info.label}</div>
-                  <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                    현재: <span style={{ fontWeight:700, color:levelColors[current] }}>Lv.{current} 이상</span>
-                  </div>
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:'4px' }}>
-                {[1,2,3,4,5].map(lv => (
-                  <button
-                    key={lv}
-                    onClick={() => setCfg(p => ({ ...p, [feature]: lv }))}
-                    style={{
-                      width:'32px', height:'32px', borderRadius:'8px', border:'none',
-                      cursor:'pointer', fontSize:'13px', fontWeight:700,
-                      background: current === lv ? levelColors[lv] : '#f3f4f6',
-                      color: current === lv ? '#fff' : '#9ca3af',
-                      transition:'all .15s',
-                      fontFamily:'Noto Sans KR, sans-serif',
-                    }}
-                  >{lv}</button>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'16px' }}>
-        <Btn onClick={save}>💾 저장</Btn>
-      </div>
-    </Card>
-  )
-}
-
 // ─── 메인
 export function AdminSettings() {
   const [tab, setTab] = useState('social')
@@ -1287,13 +1186,12 @@ export function AdminSettings() {
 
       <div style={{ display:'flex', gap:'8px', marginBottom:'24px', borderBottom:`1px solid ${C.border}`, paddingBottom:'0', flexWrap:'wrap' }}>
         {[
-          { key:'social',      label:'🔑 소셜 로그인' },
-          { key:'email',       label:'📧 이메일 발송' },
-          { key:'solapi',      label:'📱 문자·알림톡' },
-          { key:'service',     label:'⚙️ 기본 설정' },
-          { key:'region',      label:'🗺️ 지역/학교' },
-          { key:'teacher',     label:'🎓 강사 서비스' },
-          { key:'permissions', label:'🔐 메뉴 권한' },
+          { key:'social',   label:'🔑 소셜 로그인' },
+          { key:'email',    label:'📧 이메일 발송' },
+          { key:'solapi',   label:'📱 문자·알림톡' },
+          { key:'service',  label:'⚙️ 기본 설정' },
+          { key:'region',   label:'🗺️ 지역/학교' },
+          { key:'teacher',  label:'🎓 강사 서비스' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             style={{ padding:'10px 16px', border:'none', cursor:'pointer', background:'none', color:tab===t.key?C.primary:'#9ca3af', fontWeight:tab===t.key?700:400, fontSize:'14px', borderBottom:tab===t.key?`2px solid ${C.primary}`:'2px solid transparent', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'-1px', transition:'all .15s' }}>
@@ -1302,13 +1200,12 @@ export function AdminSettings() {
         ))}
       </div>
 
-      {tab === 'social'      && <SocialSection />}
-      {tab === 'email'       && <EmailSection />}
-      {tab === 'solapi'      && <SolapiSection />}
-      {tab === 'service'     && <ServiceSection />}
-      {tab === 'region'      && <RegionSection />}
-      {tab === 'teacher'     && <TeacherServiceSection />}
-      {tab === 'permissions' && <PermissionsSection />}
+      {tab === 'social'  && <SocialSection />}
+      {tab === 'email'   && <EmailSection />}
+      {tab === 'solapi'  && <SolapiSection />}
+      {tab === 'service' && <ServiceSection />}
+      {tab === 'region'  && <RegionSection />}
+      {tab === 'teacher' && <TeacherServiceSection />}
     </div>
   )
 }
