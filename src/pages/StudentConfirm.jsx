@@ -10,6 +10,47 @@ const DAY_ORDER = ['월','화','수','목','금','토','일']
 // ════════════════════════════════════════
 // 돌림판
 // ════════════════════════════════════════
+function saveWinnerCard(name, round) {
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = 600; canvas.height = 400
+    const ctx = canvas.getContext('2d')
+    // 배경 그라디언트
+    const grad = ctx.createLinearGradient(0, 0, 600, 400)
+    grad.addColorStop(0, '#fff7ed'); grad.addColorStop(1, '#fef3c7')
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, 600, 400)
+    // 테두리
+    ctx.strokeStyle = '#f97316'; ctx.lineWidth = 6
+    ctx.roundRect(6, 6, 588, 388, 24); ctx.stroke()
+    // 이모지
+    ctx.font = '72px serif'
+    ctx.textAlign = 'center'
+    ctx.fillText('🎉', 300, 110)
+    // 축하합니다
+    ctx.font = 'bold 28px sans-serif'
+    ctx.fillStyle = '#9ca3af'
+    ctx.fillText('축하합니다!', 300, 175)
+    // 이름
+    ctx.font = 'bold 72px sans-serif'
+    ctx.fillStyle = '#f97316'
+    ctx.fillText(name, 300, 275)
+    // 회차
+    ctx.font = '22px sans-serif'
+    ctx.fillStyle = '#d1d5db'
+    ctx.fillText(`${round}번째 당첨`, 300, 330)
+    // 날짜
+    const today = new Date().toLocaleDateString('ko-KR')
+    ctx.font = '18px sans-serif'
+    ctx.fillStyle = '#e5e7eb'
+    ctx.fillText(today, 300, 370)
+    // 다운로드
+    const a = document.createElement('a')
+    a.download = `당첨_${name}_${round}번째.png`
+    a.href = canvas.toDataURL('image/png')
+    a.click()
+  } catch(e) { console.warn('스크린샷 실패:', e) }
+}
+
 // ════════════════════════════════════════
 // 폭죽 + 축하 오버레이
 // ════════════════════════════════════════
@@ -157,10 +198,13 @@ function Roulette({ students, winnerCount, onDone }) {
 
   const [showConfetti, setShowConfetti] = useState(false)
 
-  const confirmNext = () => {
-    setShowConfetti(true)
-  }
+  // popped 세팅 즉시 confetti 표시 (popped 박스는 confetti 닫힌 후)
+  useEffect(() => {
+    if (popped) setShowConfetti(true)
+  }, [popped])
+
   const handleConfettiClose = () => {
+    saveWinnerCard(popped.name, winners.length + 1)
     setShowConfetti(false)
     const newWinners = [...winners, popped]
     const newPool = pool.filter(s => s.id !== popped.id)
@@ -203,12 +247,13 @@ function Roulette({ students, winnerCount, onDone }) {
           <circle cx={cx} cy={cy} r="9" fill="#f97316"/>
         </svg>
       </div>
-      {popped && (
+      {popped && !showConfetti && (
         <div style={{ padding:'20px 40px', background:'#fff7ed', border:'3px solid #f97316', borderRadius:'20px', textAlign:'center', animation:'popIn .35s ease' }}>
-          <div style={{ fontSize:'13px', color:'#9ca3af', marginBottom:'4px' }}>🎉 {winners.length+1}번째 당첨!</div>
+          <div style={{ fontSize:'13px', color:'#9ca3af', marginBottom:'4px' }}>🎉 {winners.length}번째 당첨!</div>
           <div style={{ fontSize:'30px', fontWeight:800, color:'#f97316', marginBottom:'14px' }}>{popped.name}</div>
-          <button onClick={confirmNext} style={{ padding:'10px 30px', borderRadius:'12px', border:'none', background:'#f97316', color:'#fff', fontSize:'15px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {winners.length+1 >= winnerCount ? '✅ 완료!' : '다음 추첨 →'}
+          <button onClick={()=>{ const nw=[...winners,popped]; const np=pool.filter(s=>s.id!==popped.id); setWinners(nw); setPool(np); setPopped(null); if(nw.length>=winnerCount) onDone(nw) }}
+            style={{ padding:'10px 30px', borderRadius:'12px', border:'none', background:'#f97316', color:'#fff', fontSize:'15px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            {winners.length >= winnerCount ? '✅ 완료!' : '다음 추첨 →'}
           </button>
         </div>
       )}
