@@ -36,14 +36,15 @@ function weatherIcon(code) {
   if (code <= 82)  return { icon: '🌧️', text: '소나기' }
   return { icon: '⛈️', text: '뇌우' }
 }
-function useWeather() {
+function useWeather(lat, lng) {
   const [w, setW] = useState(null)
   useEffect(() => {
-    fetch('https://api.open-meteo.com/v1/forecast?latitude=37.39&longitude=126.95&current=temperature_2m,weathercode,windspeed_10m&timezone=Asia%2FSeoul')
+    const la = lat || 37.39, lo = lng || 126.95
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,weathercode,windspeed_10m&timezone=Asia%2FSeoul`)
       .then(r => r.json())
       .then(d => setW({ temp: Math.round(d.current.temperature_2m), code: d.current.weathercode, wind: Math.round(d.current.windspeed_10m) }))
       .catch(() => setW(null))
-  }, [])
+  }, [lat, lng])
   return w
 }
 function smBtn(bg, color) {
@@ -848,7 +849,35 @@ export function Dashboard({ user, onNav }) {
   const [calYear,      setCalYear]      = useState(d.getFullYear())
   const [calMonth,     setCalMonth]     = useState(d.getMonth())
   const [selectedDate, setSelectedDate] = useState(today)
-  const weather = useWeather()
+  // 날씨 지역 설정 - Settings로 Supabase 자동 싱크
+  const locKey = `weatherLocation_${user.id}`
+  const [weatherLoc, setWeatherLoc] = useState(() => Settings.get(locKey) || { lat:37.39, lng:126.95, name:'군포시' })
+  const [locModal, setLocModal]     = useState(false)
+  const [locSearch, setLocSearch]   = useState('')
+  const [locResults, setLocResults] = useState([])
+  const [locSearching, setLocSearching] = useState(false)
+
+  const searchLocation = async (q) => {
+    if (!q.trim()) return
+    setLocSearching(true)
+    try {
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=ko`)
+      const data = await res.json()
+      setLocResults(data.results || [])
+    } catch { setLocResults([]) }
+    setLocSearching(false)
+  }
+
+  const selectLocation = (r) => {
+    const loc = { lat: r.latitude, lng: r.longitude, name: r.name + (r.admin1 ? ` (${r.admin1})` : '') }
+    Settings.set(locKey, loc)
+    setWeatherLoc(loc)
+    setLocModal(false)
+    setLocSearch('')
+    setLocResults([])
+  }
+
+  const weather = useWeather(weatherLoc.lat, weatherLoc.lng)
 
   const classes    = sortClasses(ClassesDB.byTeacher(user.id))
   const classDates = new Set()
@@ -899,9 +928,27 @@ export function Dashboard({ user, onNav }) {
                 <div>
                   <div style={{ fontSize: '24px', fontWeight: 700, color: C.text }}>{weather.temp}°C</div>
                   <div style={{ fontSize: '12px', color: C.muted }}>{weatherIcon(weather.code).text} · 바람 {weather.wind}km/h</div>
+                  <div style={{ display:'flex', alignItems:'center', gap:'4px', marginTop:'2px' }}>
+                    <span style={{ fontSize: '11px', color: C.muted }}>📍 {weatherLoc.name}</span>
+                    <button onClick={() => { setLocModal(true); setLocSearch(''); setLocResults([]) }}
+                      style={{ fontSize:'11px', color:C.primary, background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', padding:'0', fontWeight:600 }}>
+                      변경
+                    </button>
+                  </div>
                 </div>
               </>
-            ) : <div style={{ fontSize: '13px', color: C.muted }}>날씨 불러오는 중...</div>}
+            ) : (
+              <div>
+                <div style={{ fontSize: '13px', color: C.muted }}>날씨 불러오는 중...</div>
+                <div style={{ display:'flex', alignItems:'center', gap:'4px', marginTop:'4px' }}>
+                  <span style={{ fontSize: '11px', color: C.muted }}>📍 {weatherLoc.name}</span>
+                  <button onClick={() => { setLocModal(true); setLocSearch(''); setLocResults([]) }}
+                    style={{ fontSize:'11px', color:C.primary, background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', padding:'0', fontWeight:600 }}>
+                    변경
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           {/* ⚙️ 카드 설정 버튼 */}
           <button
@@ -1074,6 +1121,58 @@ export function Dashboard({ user, onNav }) {
         )}
 
       </div>
+
+      {/* 날씨 지역 설정 모달 */}
+      {locModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={() => setLocModal(false)}>
+          <div style={{ background:'#fff', borderRadius:'18px', padding:'28px', width:'420px', maxWidth:'90vw', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'16px' }}>📍 날씨 지역 설정</div>
+            <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
+              <input
+                value={locSearch}
+                onChange={e => setLocSearch(e.target.value)}
+                onKeyDown={e => e.key==='Enter' && searchLocation(locSearch)}
+                placeholder="도시명 검색 (예: 서울, 수원, 군포)"
+                style={{ flex:1, padding:'10px 14px', borderRadius:'10px', border:`1.5px solid ${C.border}`, fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}
+              />
+              <button onClick={() => searchLocation(locSearch)}
+                style={{ padding:'10px 18px', borderRadius:'10px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                검색
+              </button>
+            </div>
+            {locSearching && <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'12px' }}>검색 중...</div>}
+            {locResults.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'280px', overflowY:'auto' }}>
+                {locResults.map((r, i) => (
+                  <button key={i} onClick={() => selectLocation(r)}
+                    style={{ padding:'10px 14px', borderRadius:'10px', border:`1px solid ${C.border}`, background:'#f9fafb', cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background='#fff7ed'}
+                    onMouseLeave={e => e.currentTarget.style.background='#f9fafb'}>
+                    <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{r.name}</div>
+                    <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+                      {[r.admin1, r.admin2, r.country].filter(Boolean).join(' · ')} · {r.latitude?.toFixed(2)}, {r.longitude?.toFixed(2)}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {!locSearching && locResults.length === 0 && locSearch && (
+              <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'12px' }}>검색 결과가 없습니다</div>
+            )}
+            <div style={{ marginTop:'16px', fontSize:'12px', color:C.muted }}>
+              현재 지역: <strong>{weatherLoc.name}</strong>
+            </div>
+            <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'16px' }}>
+              <button onClick={() => setLocModal(false)}
+                style={{ padding:'9px 20px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 숨겨진 카드 안내 */}
       {hiddenCount > 0 && (
