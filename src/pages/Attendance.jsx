@@ -674,23 +674,23 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
       {progStudent && (() => {
         const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
         if (!si?.productId) return null
-        const product = SupplyProducts.byTeacher(progStudent.teacherId||'').find(p => p.id === progProductId)
+        const product = spProds.find(p => p.id === progProductId)
         if (!product) return null
         const spp = product.sessionsPerStage || 12
         const alertSess = product.alertSession || 10
-        const prog = SupplyStudentProgress.byStudent(progStudent.id, progStudent.classIds?.[0]||'').find(p => p.productId === progProductId)
+        const prog = SupplyStudentProgress.byStudent(progStudent.id, progStudent._clsId || '').find(p => p.productId === progProductId)
         const curStage = prog?.curStage || si.stage || 1
         const assignedStage = si.stage ? Number(si.stage) : curStage
         const maxShowStage = Math.max(assignedStage, curStage)
         const STAGES = Array.from({ length: maxShowStage }, (_, i) => i + 1)
         const toggleCheck = (productId, stage, sessionNo) => {
-          const classId = progStudent.classIds?.[0] || ''
+          const classId = progStudent._clsId || ''
           const existing = SupplySessionChecks.byProductStudent(productId, progStudent.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
           if (existing) SupplySessionChecks.delete(existing.id)
-          else SupplySessionChecks.upsert({ id: uid(), teacherId: progStudent.teacherId||'', studentId: progStudent.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
+          else SupplySessionChecks.upsert({ id: uid(), teacherId: cls.teacherId||'', studentId: progStudent.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
           const allChks = SupplySessionChecks.byProductStudent(productId, progStudent.id, classId).filter(c => c.stage===stage)
           const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
-          SupplyStudentProgress.upsert({ id: uid(), teacherId: progStudent.teacherId||'', studentId: progStudent.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
+          SupplyStudentProgress.upsert({ id: uid(), teacherId: cls.teacherId||'', studentId: progStudent.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
           setProgTick(t => t+1)
         }
         return (
@@ -704,7 +704,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
                   const stagePlans = SupplyProductPlans.byProductStage(si.productId, stage).sort((a,b) => a.sessionNo-b.sessionNo)
                   const sessions = stagePlans.length > 0 ? stagePlans
                     : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
-                  const stageChecks = SupplySessionChecks.byProductStudent(si.productId, progStudent.id, progStudent.classIds?.[0]||'').filter(c => c.stage===stage)
+                  const stageChecks = SupplySessionChecks.byProductStudent(si.productId, progStudent.id, progStudent._clsId || '').filter(c => c.stage===stage)
                   const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
                   const cnt = stageChecks.length
                   const isDone = cnt >= spp
@@ -975,12 +975,13 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
         }))].sort()
 
         const ColHeader = () => (
-          <div style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 90px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
             <span>순번</span>
             <span>학년·반·번호</span>
             <span>이름</span>
             <span>학부모전화</span>
             <span>출석·지각·조퇴·결석</span>
+            <span>진도</span>
             <span>특이사항·메모</span>
           </div>
         )
@@ -1007,11 +1008,12 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                     showAttendance
                       ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls?.id}); setProgProductId(pid) }} classId={cls?.id} spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} />
                       : (
-                        <div key={s.id} style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom: i<secStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
+                        <div key={s.id} style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 90px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom: i<secStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
                           <span style={{ fontSize:'12px', color:C.muted }}>{i+1}</span>
                           <span style={{ fontSize:'12px', color:C.muted }}>{s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}</span>
                           <span onClick={() => setSelStudent(s)} style={{ fontSize:'14px', fontWeight:700, color:C.primary, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:'2px' }}>{s.name}</span>
                           <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone)||'-'}</PhoneAction>
+                          <span style={{ fontSize:'12px', color:C.muted }}>-</span>
                           <span style={{ fontSize:'12px', color:C.muted }}>-</span>
                           <span style={{ fontSize:'11px', color:'#92400e', textAlign:'left' }}>{s.memo ? '📌 '+s.memo : '-'}</span>
                         </div>
@@ -1051,23 +1053,23 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
       {progStudent && (() => {
         const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
         if (!si?.productId) return null
-        const product = SupplyProducts.byTeacher(progStudent.teacherId||'').find(p => p.id === progProductId)
+        const product = spProds.find(p => p.id === progProductId)
         if (!product) return null
         const spp = product.sessionsPerStage || 12
         const alertSess = product.alertSession || 10
-        const prog = SupplyStudentProgress.byStudent(progStudent.id, progStudent.classIds?.[0]||'').find(p => p.productId === progProductId)
+        const prog = SupplyStudentProgress.byStudent(progStudent.id, progStudent._clsId || '').find(p => p.productId === progProductId)
         const curStage = prog?.curStage || si.stage || 1
         const assignedStage = si.stage ? Number(si.stage) : curStage
         const maxShowStage = Math.max(assignedStage, curStage)
         const STAGES = Array.from({ length: maxShowStage }, (_, i) => i + 1)
         const toggleCheck = (productId, stage, sessionNo) => {
-          const classId = progStudent.classIds?.[0] || ''
+          const classId = progStudent._clsId || ''
           const existing = SupplySessionChecks.byProductStudent(productId, progStudent.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
           if (existing) SupplySessionChecks.delete(existing.id)
-          else SupplySessionChecks.upsert({ id: uid(), teacherId: progStudent.teacherId||'', studentId: progStudent.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
+          else SupplySessionChecks.upsert({ id: uid(), teacherId: cls?.teacherId||'', studentId: progStudent.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
           const allChks = SupplySessionChecks.byProductStudent(productId, progStudent.id, classId).filter(c => c.stage===stage)
           const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
-          SupplyStudentProgress.upsert({ id: uid(), teacherId: progStudent.teacherId||'', studentId: progStudent.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
+          SupplyStudentProgress.upsert({ id: uid(), teacherId: cls?.teacherId||'', studentId: progStudent.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
           setProgTick(t => t+1)
         }
         return (
@@ -1081,7 +1083,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                   const stagePlans = SupplyProductPlans.byProductStage(si.productId, stage).sort((a,b) => a.sessionNo-b.sessionNo)
                   const sessions = stagePlans.length > 0 ? stagePlans
                     : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
-                  const stageChecks = SupplySessionChecks.byProductStudent(si.productId, progStudent.id, progStudent.classIds?.[0]||'').filter(c => c.stage===stage)
+                  const stageChecks = SupplySessionChecks.byProductStudent(si.productId, progStudent.id, progStudent._clsId || '').filter(c => c.stage===stage)
                   const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
                   const cnt = stageChecks.length
                   const isDone = cnt >= spp
