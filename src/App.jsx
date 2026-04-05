@@ -26,6 +26,7 @@ import { Proposals }    from './pages/Proposals.jsx'
 import { Jobs }         from './pages/Jobs.jsx'
 import { Revenue }      from './pages/Revenue.jsx'
 import { Supplies }     from './pages/Supplies.jsx'
+import { MessageGuide } from './pages/MessageGuide.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer, ConfirmDialog, useConfirmDialog } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
@@ -122,6 +123,7 @@ export default function App() {
       case 'jobs':           return <Jobs         user={user} />
       case 'revenue':        return <Revenue      user={user} />
       case 'supplies':       return <Supplies     user={user} />
+      case 'messageguide':   return <MessageGuide user={user} />
       default:               return <Dashboard {...pageProps} />
     }
   }
