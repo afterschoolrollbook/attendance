@@ -286,10 +286,11 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
 
         {/* 진도 */}
         {(() => {
-          const si = SupplyItems.byClassStudent(s.classIds?.[0] || '', s.id)[0]
+          const _cid = classId || s.classIds?.[0] || ''
+          const si = SupplyItems.byClassStudent(_cid, s.id)[0]
           if (!si?.productId) return <span style={{ fontSize:'11px', color:'#d1d5db', textAlign:'center' }}>-</span>
           const prod = SupplyProducts.byTeacher(s.teacherId||'').find(p => p.id === si.productId)
-          const prog = SupplyStudentProgress.byStudent(s.id, s.classIds?.[0]||'').find(p => p.productId === si.productId)
+          const prog = SupplyStudentProgress.byStudent(s.id, _cid).find(p => p.productId === si.productId)
           const curStage = prog?.curStage || si.stage || 1
           const spp = prod?.sessionsPerStage || 12
           const chk = SupplySessionChecks.byProductStudent(si.productId, s.id, s.classIds?.[0]||'').filter(c => c.stage === curStage).length
@@ -337,7 +338,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
 }
 
 // ─── 단일 학생 출석 행
-function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen }) {
+function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen, classId }) {
   const status = rec?.status || 'pending'
   const cfg = ATTENDANCE_STATUS[status]
   const isPending = status === 'pending'
@@ -639,7 +640,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
           : sorted.map((s, i) =>
               isFuture
                 ? <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
-                : <StudentRow      key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent(stu); setProgProductId(pid) }} />
+                : <StudentRow      key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls.id}); setProgProductId(pid) }} classId={cls.id} />
             )
         }
         {inactiveStudents.length > 0 && (
@@ -660,7 +661,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
       {msgStudent && <MsgModal student={msgStudent} onClose={() => setMsgStudent(null)} />}
       {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
       {progStudent && (() => {
-        const si = SupplyItems.byClassStudent(progStudent.classIds?.[0]||'', progStudent.id)[0]
+        const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
         if (!si?.productId) return null
         const product = SupplyProducts.byTeacher(progStudent.teacherId||'').find(p => p.id === progProductId)
         if (!product) return null
@@ -978,7 +979,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                 <div>
                   {secStudents.map((s, i) => (
                     showAttendance
-                      ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent(stu); setProgProductId(pid) }} />
+                      ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls?.id}); setProgProductId(pid) }} classId={cls?.id} />
                       : (
                         <div key={s.id} style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom: i<secStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
                           <span style={{ fontSize:'12px', color:C.muted }}>{i+1}</span>
@@ -1022,7 +1023,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
       {msgStudent  && <MsgModal student={msgStudent} onClose={() => setMsgStudent(null)} />}
       {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
       {progStudent && (() => {
-        const si = SupplyItems.byClassStudent(progStudent.classIds?.[0]||'', progStudent.id)[0]
+        const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
         if (!si?.productId) return null
         const product = SupplyProducts.byTeacher(progStudent.teacherId||'').find(p => p.id === progProductId)
         if (!product) return null
