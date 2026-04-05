@@ -15,9 +15,23 @@ export function Reports({ user }) {
   const [downloading, setDownloading] = useState(false)
   const { error: toastError } = useToast()
 
-  const classes = ClassesDB.byTeacher(user.id)
+  const DAY_ORDER = ['월','화','수','목','금','토','일']
+  const classes = ClassesDB.byTeacher(user.id).slice().sort((a, b) => {
+    const aDay = DAY_ORDER.indexOf(a.days?.[0] ?? '')
+    const bDay = DAY_ORDER.indexOf(b.days?.[0] ?? '')
+    const d = (aDay===-1?99:aDay) - (bDay===-1?99:bDay)
+    if (d !== 0) return d
+    return (a.section||'').localeCompare(b.section||'', 'ko')
+  })
   const cls = classes.find(c => c.id === selectedClass)
-  const students = selectedClass ? StudentsDB.confirmed(selectedClass) : []
+  const parseGrade = g => parseInt((g||'').replace(/[^0-9]/g,'')) || 99
+  const students = (selectedClass ? StudentsDB.confirmed(selectedClass) : []).slice().sort((a, b) => {
+    const gCmp = parseGrade(a.grade) - parseGrade(b.grade)
+    if (gCmp !== 0) return gCmp
+    const cCmp = (parseInt(a.classNum)||99) - (parseInt(b.classNum)||99)
+    if (cCmp !== 0) return cCmp
+    return (parseInt(a.number)||99) - (parseInt(b.number)||99)
+  })
 
   const sessions = cls ? calcSessionDates(cls) : []
   const t = today()
@@ -227,6 +241,9 @@ export function Reports({ user }) {
               <table style={{ borderCollapse: 'collapse', minWidth: '600px' }}>
                 <thead>
                   <tr>
+                    <th style={{ padding: '8px 10px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#9ca3af', borderBottom: '1px solid #e5e7eb', minWidth: '44px' }}>학년</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#9ca3af', borderBottom: '1px solid #e5e7eb', minWidth: '36px' }}>반</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#9ca3af', borderBottom: '1px solid #e5e7eb', minWidth: '36px' }}>번호</th>
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#6b7280', minWidth: '80px', borderBottom: '1px solid #e5e7eb' }}>이름</th>
                     {recentSessions.map(d => {
                       const sessionNum = sessions.indexOf(d) + 1
@@ -243,6 +260,9 @@ export function Reports({ user }) {
                 <tbody>
                   {studentStats.map((s, i) => (
                     <tr key={s.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      <td style={{ padding: '10px', textAlign: 'center', fontSize: '13px', color: '#6b7280', borderBottom: '1px solid #f3f4f6' }}>{s.grade||'-'}</td>
+                      <td style={{ padding: '10px', textAlign: 'center', fontSize: '13px', color: '#6b7280', borderBottom: '1px solid #f3f4f6' }}>{s.classNum ? s.classNum+'반' : '-'}</td>
+                      <td style={{ padding: '10px', textAlign: 'center', fontSize: '13px', color: '#6b7280', borderBottom: '1px solid #f3f4f6' }}>{s.number ? s.number+'번' : '-'}</td>
                       <td style={{ padding: '10px 12px', fontSize: '14px', fontWeight: 600, color: '#111827', borderBottom: '1px solid #f3f4f6' }}>{s.name}</td>
                       {recentSessions.map(d => {
                         const status = getAttStatus(s.id, d)
@@ -272,9 +292,12 @@ export function Reports({ user }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
               {studentStats.map(s => (
                 <Card key={s.id}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>{s.name}</div>
                     <span style={{ fontSize: '14px', fontWeight: 700, color: s.rate >= 80 ? '#16a34a' : s.rate >= 60 ? '#f59e0b' : '#ef4444' }}>{s.rate}%</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '10px' }}>
+                    {s.grade||''} {s.classNum ? s.classNum+'반' : ''} {s.number ? s.number+'번' : ''}
                   </div>
                   <ProgressBar value={s.rate} max={100} color={s.rate >= 80 ? '#16a34a' : s.rate >= 60 ? '#f59e0b' : '#ef4444'} />
                   <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
