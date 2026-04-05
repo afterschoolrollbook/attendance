@@ -5,6 +5,7 @@ import { useToast } from '../hooks/useToast.js'
 const DEFAULT_CATEGORIES = ['결석', '지각', '개강전', '개강', '수업신청감사', '추첨', '종강']
 const STORAGE_KEY = 'asa_message_guides'
 const CATEGORIES_KEY = 'asa_message_categories'
+const PROFILE_KEY    = 'asa_teacher_profile'
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
 
@@ -45,6 +46,12 @@ function loadCategories() {
 function saveCategories(cats) {
   localStorage.setItem(CATEGORIES_KEY, JSON.stringify(cats))
 }
+function loadProfile(userId) {
+  try { return JSON.parse(localStorage.getItem(`${PROFILE_KEY}_${userId}`) || '{}') } catch { return {} }
+}
+function saveProfile(userId, data) {
+  localStorage.setItem(`${PROFILE_KEY}_${userId}`, JSON.stringify(data))
+}
 function seedDefaults(userId) {
   const all = load()
   const mine = all.filter(i => i.teacherId === userId)
@@ -79,6 +86,10 @@ export function MessageGuide({ user }) {
   // 카테고리 관리 모달
   const [catModal, setCatModal] = useState(false)
   const [newCatName, setNewCatName] = useState('')
+
+  // 선생님 프로필
+  const [profile, setProfile] = useState(() => loadProfile(user.id))
+  const [profileForm, setProfileForm] = useState(() => loadProfile(user.id))
 
   const { toast, success, error } = useToast()
 
@@ -124,6 +135,13 @@ export function MessageGuide({ user }) {
     navigator.clipboard.writeText(content).then(() => success('클립보드에 복사되었습니다.'))
   }
 
+  // ── 선생님 프로필 ─────────────────────────────────────────────
+  const saveTeacherProfile = () => {
+    saveProfile(user.id, profileForm)
+    setProfile(profileForm)
+    success('저장이 완료되었습니다.')
+  }
+
   // ── 카테고리 ──────────────────────────────────────────────────
   const openCatModal = () => {
     setNewCatName('')
@@ -159,6 +177,40 @@ export function MessageGuide({ user }) {
   return (
     <div style={{ padding:'28px', maxWidth:'860px' }}>
       <PageHeader title="안내 문구 관리" sub="문자나 카카오 발송 시 사용할 문구를 카테고리별로 관리합니다." />
+
+      {/* 선생님 정보 설정 */}
+      <Card style={{ padding:'20px', marginBottom:'24px' }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'14px' }}>👤 선생님 정보 설정</div>
+        <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', alignItems:'flex-end' }}>
+          <div style={{ flex:1, minWidth:'160px' }}>
+            <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>선생님 이름</label>
+            <input
+              value={profileForm.name || ''}
+              onChange={e => setProfileForm(p => ({...p, name: e.target.value}))}
+              placeholder="예: 홍길동"
+              style={fStyle}
+            />
+          </div>
+          <div style={{ flex:1, minWidth:'160px' }}>
+            <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>선생님 닉네임</label>
+            <input
+              value={profileForm.nickname || ''}
+              onChange={e => setProfileForm(p => ({...p, nickname: e.target.value}))}
+              placeholder="예: 푸우쌤"
+              style={fStyle}
+            />
+          </div>
+          <button onClick={saveTeacherProfile}
+            style={{ padding:'9px 22px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0, height:'38px' }}>
+            저장
+          </button>
+        </div>
+        {(profile.name || profile.nickname) && (
+          <div style={{ marginTop:'10px', fontSize:'12px', color:C.muted }}>
+            현재 저장됨 — 이름: <strong style={{ color:C.text }}>{profile.name || '미설정'}</strong> / 닉네임: <strong style={{ color:C.text }}>{profile.nickname || '미설정'}</strong>
+          </div>
+        )}
+      </Card>
 
       {/* 카테고리 탭 + 버튼 영역 */}
       <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'24px', flexWrap:'wrap' }}>
