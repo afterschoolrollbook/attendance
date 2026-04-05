@@ -225,7 +225,7 @@ function StudentMemoModal({ student, onClose, onSave }) {
 }
 
 // ─── 예정 수업 학생 행 — StudentRow 코드 완전 동일, 출석컬럼만 예정버튼으로 교체
-function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick }) {
+function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId }) {
   const note = s.memo || ''
   const [showInfo, setShowInfo] = useState(false)
   const [memoOpen, setMemoOpen] = useState(false)
@@ -650,7 +650,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
           ? <div style={{ padding:'24px', textAlign:'center', color:C.muted, fontSize:'13px' }}>등록된 학생이 없습니다</div>
           : sorted.map((s, i) =>
               isFuture
-                ? <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} />
+                ? <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} classId={cls.id} />
                 : <StudentRow      key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls.id}); setProgProductId(pid) }} classId={cls.id} />
             )
         }
