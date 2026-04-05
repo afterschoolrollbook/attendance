@@ -39,7 +39,15 @@ export const LEVEL_NAMES = {
   5: '관리자',
 }
 
-// 기본 최소 레벨 (Settings에 저장된 값이 없을 때 사용)
+// 하위 호환용 — Admin.jsx에서 사용 중
+export const LEVEL_PERMISSIONS = {
+  1: { manage_class:true, add_student:true, excel_upload:true, attendance:true, view_report:true, print_attendance:true, manage_template:true, shop_discount:true, shop_extra:true, view_all_data:false, approve_teacher:false, manage_ad:false, manage_level:false },
+  2: { manage_class:true, add_student:true, excel_upload:true, attendance:true, view_report:true, print_attendance:true, manage_template:true, shop_discount:true, shop_extra:true, view_all_data:false, approve_teacher:false, manage_ad:false, manage_level:false },
+  3: { manage_class:true, add_student:true, excel_upload:true, attendance:true, view_report:true, print_attendance:true, manage_template:true, shop_discount:true, shop_extra:true, view_all_data:false, approve_teacher:false, manage_ad:false, manage_level:false },
+  5: { manage_class:true, add_student:true, excel_upload:true, attendance:true, view_report:true, print_attendance:true, manage_template:true, shop_discount:true, shop_extra:true, view_all_data:true, approve_teacher:true, manage_ad:true, manage_level:true },
+}
+
+
 const DEFAULT_MIN_LEVELS = {
   [FEATURES.ATTENDANCE]:       1,
   [FEATURES.MANAGE_CLASS]:     1,
