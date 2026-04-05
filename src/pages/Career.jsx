@@ -46,9 +46,11 @@ const EMPTY_EDU = {
 
 const EMPTY_FORM = {
   orgName:'', jobType:'방과후 강사', schoolType:'초등', customSchoolType:'',
-  role:'', subject:'', startDate:'', endDate:'',
+  role:'', subject:'', days:[], startDate:'', endDate:'',
   isCurrent: false, isOneDay: false, description:''
 }
+
+const WEEKDAYS = ['월','화','수','목','금','토','일']
 
 export function Career({ user }) {
   const [records, setRecords]       = useState([])
@@ -112,6 +114,7 @@ export function Career({ user }) {
       schoolType: r.schoolType || '초등',
       customSchoolType: r.customSchoolType || '',
       role: r.role || '', subject: r.subject || '',
+      days: r.days || [],
       startDate: r.startDate || '', endDate: r.endDate || '',
       isCurrent: !!r.isCurrent, isOneDay: !!r.isOneDay, description: r.description || ''
     })
@@ -257,6 +260,7 @@ export function Career({ user }) {
       '기관명': r.orgName || '',
       '분류': r.jobType || '',
       '기관유형': r.schoolType === '직접입력' ? (r.customSchoolType || '') : (r.schoolType || ''),
+      '수업요일': (r.days || []).join(', '),
       '역할': r.role || '',
       '담당과목': r.subject || '',
       '시작일': r.startDate || '',
@@ -386,7 +390,19 @@ export function Career({ user }) {
                               {!r.isOneDay && !r.isCurrent && !r.endDate && r.startDate && <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>진행중</span>}
                             </div>
                             {/* 상세 */}
-                            <div style={{ display:'flex', gap:'12px', fontSize:'12px', color:C.muted, flexWrap:'wrap' }}>
+                            <div style={{ display:'flex', gap:'12px', fontSize:'12px', color:C.muted, flexWrap:'wrap', alignItems:'center' }}>
+                              {r.days && r.days.length > 0 && (
+                                <span style={{ display:'flex', gap:'3px' }}>
+                                  {r.days.map(d => (
+                                    <span key={d} style={{ fontSize:'11px', fontWeight:700,
+                                      color: d==='일'?'#ef4444':d==='토'?'#3b82f6':'#374151',
+                                      background: d==='일'?'#fef2f2':d==='토'?'#eff6ff':'#f3f4f6',
+                                      borderRadius:'5px', padding:'1px 6px', border:`1px solid ${d==='일'?'#fca5a5':d==='토'?'#bfdbfe':'#e5e7eb'}` }}>
+                                      {d}
+                                    </span>
+                                  ))}
+                                </span>
+                              )}
                               {r.role    && <span>💼 {r.role}</span>}
                               {r.subject && <span>📚 {r.subject}</span>}
                               {r.startDate && <span>{getDateLabel(r)}</span>}
@@ -461,6 +477,32 @@ export function Career({ user }) {
                     style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
                 </div>
               )}
+              {/* 수업 요일 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'7px' }}>수업 요일</label>
+                <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                  {WEEKDAYS.map(d => {
+                    const on = (form.days || []).includes(d)
+                    const isSun = d === '일', isSat = d === '토'
+                    return (
+                      <button key={d} type="button"
+                        onClick={() => setForm(v => {
+                          const cur = v.days || []
+                          return { ...v, days: on ? cur.filter(x => x !== d) : [...cur, d] }
+                        })}
+                        style={{
+                          width:'36px', height:'36px', borderRadius:'8px', border: on ? 'none' : `1.5px solid ${C.border}`,
+                          background: on ? (isSun?'#ef4444':isSat?'#3b82f6':C.primary) : '#f9fafb',
+                          color: on ? '#fff' : (isSun?'#ef4444':isSat?'#3b82f6':C.muted),
+                          fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                          transition:'all 0.15s',
+                        }}>
+                        {d}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
               {[
                 { label:'담당 역할', key:'role', placeholder:'예: 방과후 강사' },
                 { label:'담당 과목', key:'subject', placeholder:'예: 로봇과학, 코딩' },

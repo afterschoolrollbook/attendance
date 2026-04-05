@@ -253,13 +253,40 @@ function RevenueCard({ user, onHide, onNav }) {
 
   const sortedTerms = [...termMap.entries()].sort((a, b) => a[0] - b[0])
 
+  // 현재 진행중인 텀 번호 계산 (active 상태가 있는 최대 termNum)
+  const activeTermNums = [...termMap.entries()]
+    .filter(([, rows]) => rows.some(r => r.rowStatus === 'active'))
+    .map(([t]) => t)
+  const currentTermNum = activeTermNums.length > 0 ? Math.max(...activeTermNums) : 0
+
+  // 표시할 텀: 미수 있는 텀(항상 포함) + 현재텀 + 다음텀
+  const visibleTerms = sortedTerms
+    .map(([termNum, rows]) => {
+      // 완료+전액납부 행은 제거
+      const visibleRows = rows.filter(r => !(r.rowStatus === 'closed' && r.unpaidCount === 0))
+      // 미수 먼저 정렬
+      visibleRows.sort((a, b) => {
+        const score = r => r.rowStatus === 'unpaid' ? 0 : r.rowStatus === 'active' ? 1 : 2
+        return score(a) - score(b)
+      })
+      return [termNum, visibleRows]
+    })
+    .filter(([termNum, rows]) => {
+      if (rows.length === 0) return false
+      const hasUnpaid = rows.some(r => r.rowStatus === 'unpaid')
+      if (hasUnpaid) return true  // 미수 있으면 termNum 무관하게 표시
+      if (termNum < currentTermNum) return false  // 지난 텀 중 미수 없으면 숨김
+      if (termNum > currentTermNum + 1) return false  // 다음다음 텀 이상은 숨김
+      return true
+    })
+
   return (
     <SummaryCard id="revenue" icon="💰" label="수익 관리" navKey="revenue" onHide={onHide} onNav={onNav}>
-      {sortedTerms.length === 0
+      {visibleTerms.length === 0
         ? <Empty msg="등록된 수업이 없습니다" />
         : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {sortedTerms.map(([termNum, rows]) => {
+            {visibleTerms.map(([termNum, rows]) => {
               const isActive = rows.some(r => r.rowStatus === 'active')
               return (
                 <div key={termNum}>
@@ -419,20 +446,34 @@ function CareerCard({ user, onHide, onNav }) {
         : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {items.map((c, i) => {
-              const period = c.startDate ? `${c.startDate} ~ ${c.endDate || '현재'}` : c.date || ''
-              const title  = c.title || c.name || c.school || c.company || period
-              const sub    = title === period
-                ? (c.organization || c.company || c.school || '')
-                : [c.organization || c.company || c.school, period].filter(Boolean).join(' · ')
+              if (c._type === '학력') {
+                const period = c.admissionDate
+                  ? `${c.admissionDate} ~ ${c.status === '재학중' ? '재학중' : (c.graduationDate || '현재')}`
+                  : ''
+                return (
+                  <ListRow
+                    key={c.id || i}
+                    left={c.schoolName || ''}
+                    sub={[c.major, period].filter(Boolean).join(' · ')}
+                    badge="학력"
+                    badgeColor="#1d4ed8" badgeBg="#eff6ff" badgeBorder="#bfdbfe"
+                  />
+                )
+              }
+              // 경력
+              const daysLabel = (c.days && c.days.length > 0) ? c.days.join('') : ''
+              const leftText  = [daysLabel, c.orgName].filter(Boolean).join(' ')
+              const period    = c.startDate
+                ? `${c.startDate} ~ ${c.isCurrent || !c.endDate ? '현재' : c.endDate}`
+                : ''
+              const subParts  = [c.subject, c.role, period].filter(Boolean)
               return (
                 <ListRow
                   key={c.id || i}
-                  left={title}
-                  sub={sub}
-                  badge={c._type}
-                  badgeColor={c._type === '학력' ? '#1d4ed8' : '#15803d'}
-                  badgeBg={c._type === '학력' ? '#eff6ff' : '#f0fdf4'}
-                  badgeBorder={c._type === '학력' ? '#bfdbfe' : '#86efac'}
+                  left={leftText}
+                  sub={subParts.join(' · ')}
+                  badge="경력"
+                  badgeColor="#15803d" badgeBg="#f0fdf4" badgeBorder="#86efac"
                 />
               )
             })}
