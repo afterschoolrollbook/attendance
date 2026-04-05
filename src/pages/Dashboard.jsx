@@ -233,11 +233,9 @@ function RevenueCard({ user, onHide, onNav }) {
       const pastSessions  = termSessions.filter(d => d < today)
       const futureSessions = termSessions.filter(d => d >= today)
 
-  // 아직 시작 안 된 텀은 건너뜀 (pastSessions.length === 0 이면 skip)
-      // 행 상태 결정
       let rowStatus
       if (futureSessions.length === 0)     rowStatus = unpaidCount > 0 ? 'unpaid' : 'closed'
-      else if (pastSessions.length === 0)  return   // ← 시작 전 텀 표시 안 함
+      else if (pastSessions.length === 0)  rowStatus = 'upcoming'
       else                                 rowStatus = 'active'
 
       if (!termMap.has(info.termNum)) termMap.set(info.termNum, [])
@@ -253,79 +251,69 @@ function RevenueCard({ user, onHide, onNav }) {
 
   const sortedTerms = [...termMap.entries()].sort((a, b) => a[0] - b[0])
 
-  // 현재 진행중인 텀 번호 계산 (active 상태가 있는 최대 termNum)
   const activeTermNums = [...termMap.entries()]
     .filter(([, rows]) => rows.some(r => r.rowStatus === 'active'))
     .map(([t]) => t)
   const currentTermNum = activeTermNums.length > 0 ? Math.max(...activeTermNums) : 0
 
-  // 표시할 텀: 미수 있는 텀(항상 포함) + 현재텀 + 다음텀
-  const visibleTerms = sortedTerms
-    .map(([termNum, rows]) => {
-      // 완료+전액납부 행은 제거
-      const visibleRows = rows.filter(r => !(r.rowStatus === 'closed' && r.unpaidCount === 0))
-      // 미수 먼저 정렬
-      visibleRows.sort((a, b) => {
-        const score = r => r.rowStatus === 'unpaid' ? 0 : r.rowStatus === 'active' ? 1 : 2
-        return score(a) - score(b)
-      })
-      return [termNum, visibleRows]
-    })
-    .filter(([termNum, rows]) => {
-      if (rows.length === 0) return false
-      const hasUnpaid = rows.some(r => r.rowStatus === 'unpaid')
-      if (hasUnpaid) return true  // 미수 있으면 termNum 무관하게 표시
-      if (termNum < currentTermNum) return false  // 지난 텀 중 미수 없으면 숨김
-      if (termNum > currentTermNum + 1) return false  // 다음다음 텀 이상은 숨김
-      return true
-    })
+  // 모든 행을 flat하게 — 텀 헤더 없이 행 하나에 모든 정보
+  const visibleRows = sortedTerms.flatMap(([termNum, rows]) => {
+    const filtered = rows.filter(r => !(r.rowStatus === 'closed' && r.unpaidCount === 0))
+    const hasUnpaid = filtered.some(r => r.rowStatus === 'unpaid')
+    if (filtered.length === 0) return []
+    if (!hasUnpaid && termNum < currentTermNum) return []
+    if (!hasUnpaid && termNum > currentTermNum + 1) return []
+    return filtered.map(r => ({ ...r, termNum }))
+  }).sort((a, b) => {
+    const score = r => ({ unpaid:0, active:1, upcoming:2, closed:3 }[r.rowStatus] ?? 9)
+    return score(a) - score(b)
+  })
 
   return (
     <SummaryCard id="revenue" icon="💰" label="수익 관리" navKey="revenue" onHide={onHide} onNav={onNav}>
-      {visibleTerms.length === 0
+      {visibleRows.length === 0
         ? <Empty msg="등록된 수업이 없습니다" />
         : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {visibleTerms.map(([termNum, rows]) => {
-              const isActive = rows.some(r => r.rowStatus === 'active')
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {visibleRows.map(({ key, cls, dayLabel, rowStatus, feePerStudent, unpaidCount, totalCount, termNum }) => {
+              const totalUnpaid = feePerStudent != null ? feePerStudent * unpaidCount : null
+              const totalFee    = feePerStudent != null ? feePerStudent * totalCount  : null
+
+              // 금액+납부 상태 뱃지
+              let amtText, amtColor, amtBg, amtBorder
+              if (rowStatus === 'unpaid') {
+                amtText = totalUnpaid != null ? `${totalUnpaid.toLocaleString()}원 미수` : '미수'
+                amtColor = C.danger; amtBg = '#fef2f2'; amtBorder = '#fca5a5'
+              } else if (rowStatus === 'active') {
+                amtText = feePerStudent != null ? `${feePerStudent.toLocaleString()}원` : '-'
+                amtColor = C.success; amtBg = '#f0fdf4'; amtBorder = '#86efac'
+              } else {
+                amtText = feePerStudent != null ? `${feePerStudent.toLocaleString()}원` : '-'
+                amtColor = '#6b7280'; amtBg = '#f3f4f6'; amtBorder = '#e5e7eb'
+              }
+
+              // 텀 상태 뱃지
+              const termStatusMap = { unpaid:'마감', closed:'마감', active:'진행중', upcoming:'예정' }
+              const termBgMap     = { unpaid:'#fef2f2', closed:'#f0fdf4', active:'#f0fdf4', upcoming:'#f3f4f6' }
+              const termColorMap  = { unpaid:C.danger, closed:C.success, active:C.success, upcoming:'#6b7280' }
+              const termBorderMap = { unpaid:'#fca5a5', closed:'#86efac', active:'#86efac', upcoming:'#e5e7eb' }
+
+              // 학교명/과목·반
+              const classLabel = [cls.className, cls.section ? cls.section + '반' : ''].filter(Boolean).join(' ')
+              const nameLabel  = cls.organization + (classLabel ? ' / ' + classLabel : '')
+
               return (
-                <div key={termNum}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: C.text }}>{termNum}텀</span>
-                    <span style={{ fontSize: '12px', color: C.muted }}>→</span>
-                    {isActive && (
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: C.success, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '5px', padding: '1px 8px' }}>진행중</span>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    {rows.map(({ key, cls, dayLabel, rowStatus, feePerStudent, unpaidCount, totalCount }) => {
-                      const totalUnpaid = feePerStudent != null ? feePerStudent * unpaidCount : null
-                      const totalFee    = feePerStudent != null ? feePerStudent * totalCount  : null
-
-                      let badgeText, badgeColor, badgeBg, badgeBorder, rightLabel
-
-                      if (rowStatus === 'unpaid') {
-                        badgeText  = totalUnpaid != null ? `${totalUnpaid.toLocaleString()}원 미수` : '미수'
-                        badgeColor = C.danger;  badgeBg = '#fef2f2'; badgeBorder = '#fca5a5'; rightLabel = null
-                      } else if (rowStatus === 'closed') {
-                        badgeText  = totalFee != null ? `${totalFee.toLocaleString()}원 마감` : '마감'
-                        badgeColor = C.success; badgeBg = '#f0fdf4'; badgeBorder = '#86efac'; rightLabel = null
-                      } else {
-                        badgeText  = feePerStudent != null ? `${feePerStudent.toLocaleString()}원` : '-'
-                        badgeColor = C.success; badgeBg = '#f0fdf4'; badgeBorder = '#86efac'; rightLabel = '진행중'
-                      }
-
-                      return (
-                        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 10px', background: '#f9fafb', borderRadius: '8px', border: `1px solid ${C.border}` }}>
-                          {dayLabel && <span style={{ fontSize: '12px', fontWeight: 700, color: dayLabel==='일'?'#ef4444':dayLabel==='토'?'#3b82f6':C.muted, minWidth: '16px', flexShrink: 0 }}>{dayLabel}</span>}
-                          <span style={{ fontSize: '13px', fontWeight: 600, color: C.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cls.organization}</span>
-                          <span style={{ fontSize: '11px', fontWeight: 700, color: badgeColor, background: badgeBg, border: `1px solid ${badgeBorder}`, borderRadius: '5px', padding: '2px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}>{badgeText}</span>
-                          {rightLabel && <span style={{ fontSize: '11px', fontWeight: 600, color: badgeColor, whiteSpace: 'nowrap', flexShrink: 0 }}>{rightLabel}</span>}
-                        </div>
-                      )
-                    })}
-                  </div>
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '7px 10px', background: '#f9fafb', borderRadius: '8px', border: `1px solid ${C.border}` }}>
+                  {/* 요일 */}
+                  {dayLabel && (
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: dayLabel==='일'?'#ef4444':dayLabel==='토'?'#3b82f6':C.muted, minWidth: '14px', flexShrink: 0 }}>{dayLabel}</span>
+                  )}
+                  {/* 학교명/과목·반 */}
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: C.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameLabel}</span>
+                  {/* 금액+납부 상태 */}
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: amtColor, background: amtBg, border: `1px solid ${amtBorder}`, borderRadius: '5px', padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0 }}>{amtText}</span>
+                  {/* N텀 상태 */}
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: termColorMap[rowStatus], background: termBgMap[rowStatus], border: `1px solid ${termBorderMap[rowStatus]}`, borderRadius: '5px', padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0 }}>{termNum}텀 {termStatusMap[rowStatus]}</span>
                 </div>
               )
             })}
@@ -451,30 +439,22 @@ function CareerCard({ user, onHide, onNav }) {
                   ? `${c.admissionDate} ~ ${c.status === '재학중' ? '재학중' : (c.graduationDate || '현재')}`
                   : ''
                 return (
-                  <ListRow
-                    key={c.id || i}
+                  <ListRow key={c.id || i}
                     left={c.schoolName || ''}
                     sub={[c.major, period].filter(Boolean).join(' · ')}
-                    badge="학력"
-                    badgeColor="#1d4ed8" badgeBg="#eff6ff" badgeBorder="#bfdbfe"
-                  />
+                    badge="학력" badgeColor="#1d4ed8" badgeBg="#eff6ff" badgeBorder="#bfdbfe" />
                 )
               }
-              // 경력
               const daysLabel = (c.days && c.days.length > 0) ? c.days.join('') : ''
               const leftText  = [daysLabel, c.orgName].filter(Boolean).join(' ')
               const period    = c.startDate
                 ? `${c.startDate} ~ ${c.isCurrent || !c.endDate ? '현재' : c.endDate}`
                 : ''
-              const subParts  = [c.subject, c.role, period].filter(Boolean)
               return (
-                <ListRow
-                  key={c.id || i}
+                <ListRow key={c.id || i}
                   left={leftText}
-                  sub={subParts.join(' · ')}
-                  badge="경력"
-                  badgeColor="#15803d" badgeBg="#f0fdf4" badgeBorder="#86efac"
-                />
+                  sub={[c.subject, c.role, period].filter(Boolean).join(' · ')}
+                  badge="경력" badgeColor="#15803d" badgeBg="#f0fdf4" badgeBorder="#86efac" />
               )
             })}
           </div>
@@ -883,6 +863,13 @@ export function Dashboard({ user, onNav }) {
     const supplyData = SupplyItems.byClass(cls.id)
     const notSet     = confirmed.filter(s => !supplyData.find(item => item.studentId === s.id && item.name))
     return notSet.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: notSet.length, total: confirmed.length }] : []
+  }).sort((a, b) => {
+    const dayOrder = d => (new Date(d + 'T00:00:00').getDay() + 6) % 7
+    const dayCmp = dayOrder(a.nextDate) - dayOrder(b.nextDate)
+    if (dayCmp !== 0) return dayCmp
+    const secCmp = (a.cls.section || '').localeCompare(b.cls.section || '', 'ko')
+    if (secCmp !== 0) return secCmp
+    return (a.cls.time || '').localeCompare(b.cls.time || '')
   })
 
   const prevMonth = () => { if (calMonth === 0) { setCalYear(y=>y-1); setCalMonth(11) } else setCalMonth(m=>m-1) }
