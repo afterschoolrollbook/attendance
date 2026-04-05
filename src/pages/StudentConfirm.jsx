@@ -10,6 +10,104 @@ const DAY_ORDER = ['월','화','수','목','금','토','일']
 // ════════════════════════════════════════
 // 돌림판
 // ════════════════════════════════════════
+// ════════════════════════════════════════
+// 폭죽 + 축하 오버레이
+// ════════════════════════════════════════
+function Confetti({ name, onClose }) {
+  const canvasRef = useRef(null)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    canvas.width = window.innerWidth
+    canvas.height = window.innerHeight
+    const pieces = []
+    const colors = ['#f97316','#3b82f6','#16a34a','#8b5cf6','#ef4444','#f59e0b','#06b6d4','#ec4899','#fbbf24','#34d399']
+    for (let i = 0; i < 160; i++) {
+      pieces.push({
+        x: Math.random() * canvas.width,
+        y: -20 - Math.random() * 200,
+        w: 8 + Math.random() * 8,
+        h: 4 + Math.random() * 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rot: Math.random() * Math.PI * 2,
+        vx: (Math.random() - 0.5) * 6,
+        vy: 2 + Math.random() * 5,
+        vrot: (Math.random() - 0.5) * 0.2,
+        opacity: 1,
+      })
+    }
+    let frame
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      let alive = false
+      pieces.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.rot += p.vrot; p.vy += 0.12
+        if (p.y > canvas.height * 0.7) p.opacity -= 0.025
+        if (p.opacity > 0) alive = true
+        ctx.save()
+        ctx.globalAlpha = Math.max(0, p.opacity)
+        ctx.translate(p.x, p.y)
+        ctx.rotate(p.rot)
+        ctx.fillStyle = p.color
+        ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h)
+        ctx.restore()
+      })
+      if (alive) frame = requestAnimationFrame(draw)
+    }
+    draw()
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:9999, pointerEvents:'none' }}>
+      <canvas ref={canvasRef} style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none' }}/>
+      <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
+        <div style={{ background:'rgba(255,255,255,0.96)', borderRadius:'28px', padding:'36px 56px', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,0.18)', animation:'celebIn .45s cubic-bezier(0.34,1.56,0.64,1)', pointerEvents:'auto', border:'3px solid #f97316' }}>
+          <div style={{ fontSize:'52px', marginBottom:'8px' }}>🎉</div>
+          <div style={{ fontSize:'15px', color:'#9ca3af', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'6px' }}>축하합니다!</div>
+          <div style={{ fontSize:'38px', fontWeight:900, color:'#f97316', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'20px' }}>{name}</div>
+          <button onClick={onClose} style={{ padding:'12px 40px', borderRadius:'14px', border:'none', background:'#f97316', color:'#fff', fontSize:'16px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', boxShadow:'0 4px 14px rgba(249,115,22,0.4)' }}>
+            확인 🎊
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function playSpinSound(duration = 3.8) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const tickCount = Math.floor(duration * 12)
+    for (let i = 0; i < tickCount; i++) {
+      const t = ctx.currentTime + i * (duration / tickCount) * (1 + i / tickCount * 1.8)
+      if (t > ctx.currentTime + duration) break
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.frequency.value = 880
+      gain.gain.setValueAtTime(0.18, t)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.04)
+      osc.start(t); osc.stop(t + 0.04)
+    }
+    setTimeout(() => {
+      try {
+        const o = ctx.createOscillator(), g = ctx.createGain()
+        o.connect(g); g.connect(ctx.destination)
+        o.type = 'sine'
+        o.frequency.setValueAtTime(523, ctx.currentTime)
+        o.frequency.setValueAtTime(659, ctx.currentTime + 0.1)
+        o.frequency.setValueAtTime(784, ctx.currentTime + 0.2)
+        o.frequency.setValueAtTime(1047, ctx.currentTime + 0.3)
+        g.gain.setValueAtTime(0.3, ctx.currentTime)
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6)
+        o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.6)
+      } catch(e) {}
+    }, duration * 1000)
+  } catch(e) {}
+}
+
 function Roulette({ students, winnerCount, onDone }) {
   const [totalRot, setTotalRot] = useState(0)
   const [spinning, setSpinning] = useState(false)
@@ -17,6 +115,7 @@ function Roulette({ students, winnerCount, onDone }) {
   const [winners, setWinners] = useState([])
   const [popped, setPopped] = useState(null)
   const timerRef = useRef(null)
+  const totalRotRef = useRef(0)
   useEffect(() => () => clearTimeout(timerRef.current), [])
 
   const cx = 180, cy = 180, r = 155
@@ -42,15 +141,27 @@ function Roulette({ students, winnerCount, onDone }) {
     const idx = Math.floor(Math.random() * pool.length)
     const sliceAngle = 360 / pool.length
     const targetAngle = sliceAngle * idx + sliceAngle / 2
-    const delta = 6*360 + (360 - (targetAngle % 360))
-    setTotalRot(prev => prev + delta)
+    // 현재 누적 회전각 기준으로 delta 계산 (당첨자 불일치 버그 수정)
+    const current = totalRotRef.current % 360
+    const needed = (360 - targetAngle % 360 + 360) % 360
+    const diff = ((needed - current) % 360 + 360) % 360
+    const delta = (diff === 0 ? 360 : diff) + 6 * 360
+    totalRotRef.current = totalRotRef.current + delta
+    setTotalRot(totalRotRef.current)
+    playSpinSound(3.8)
     timerRef.current = setTimeout(() => {
       setSpinning(false)
       setPopped(pool[idx])
     }, 3800)
   }
 
+  const [showConfetti, setShowConfetti] = useState(false)
+
   const confirmNext = () => {
+    setShowConfetti(true)
+  }
+  const handleConfettiClose = () => {
+    setShowConfetti(false)
     const newWinners = [...winners, popped]
     const newPool = pool.filter(s => s.id !== popped.id)
     setWinners(newWinners)
@@ -107,6 +218,7 @@ function Roulette({ students, winnerCount, onDone }) {
         </button>
       )}
       {spinning && <div style={{ fontSize:'15px', color:'#6b7280', fontWeight:600 }}>두근두근...</div>}
+      {showConfetti && popped && <Confetti name={popped.name} onClose={handleConfettiClose}/>}
     </div>
   )
 }
@@ -153,6 +265,31 @@ function Ladder({ students, winnerCount, onDone }) {
 
   const run = () => {
     setStarted(true)
+    // 사다리 내려가는 소리
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      for (let i = 0; i < 18; i++) {
+        const t = ctx.currentTime + i * 0.13
+        const osc = ctx.createOscillator(), g = ctx.createGain()
+        osc.connect(g); g.connect(ctx.destination)
+        osc.frequency.value = 300 + Math.random() * 200
+        osc.type = 'square'
+        g.gain.setValueAtTime(0.06, t)
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.08)
+        osc.start(t); osc.stop(t + 0.08)
+      }
+      // 결과 공개 효과음
+      const fanfare = [523,659,784,1047]
+      fanfare.forEach((freq, i) => {
+        const t = ctx.currentTime + 2.4 + i * 0.1
+        const o = ctx.createOscillator(), g = ctx.createGain()
+        o.connect(g); g.connect(ctx.destination)
+        o.frequency.value = freq
+        g.gain.setValueAtTime(0.25, t)
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.15)
+        o.start(t); o.stop(t + 0.15)
+      })
+    } catch(e) {}
     setTimeout(() => {
       setRevealed(true)
       onDone(students.filter((_, i) => resultsRef.current[i]))
@@ -200,16 +337,55 @@ function Ladder({ students, winnerCount, onDone }) {
       )}
       {started && !revealed && <div style={{ fontSize:'15px', color:'#6b7280', fontWeight:600 }}>내려가는 중...</div>}
       {revealed && (
-        <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', justifyContent:'center' }}>
-          {students.filter((_, i) => resultsRef.current[i]).map(s => (
-            <div key={s.id} style={{ padding:'9px 20px', borderRadius:'12px', background:'#f0fdf4', border:'2px solid #16a34a', fontSize:'14px', fontWeight:700, color:'#16a34a' }}>
-              🎉 {s.name}
-            </div>
-          ))}
-        </div>
+        <>
+          <LadderConfetti winners={students.filter((_, i) => resultsRef.current[i])} />
+          <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', justifyContent:'center' }}>
+            {students.filter((_, i) => resultsRef.current[i]).map(s => (
+              <div key={s.id} style={{ padding:'9px 20px', borderRadius:'12px', background:'#f0fdf4', border:'2px solid #16a34a', fontSize:'14px', fontWeight:700, color:'#16a34a' }}>
+                🎉 {s.name}
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )
+}
+
+function LadderConfetti({ winners }) {
+  const canvasRef = useRef(null)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight
+    const colors = ['#f97316','#3b82f6','#16a34a','#8b5cf6','#ef4444','#f59e0b','#ec4899']
+    const pieces = Array.from({length:120}, () => ({
+      x: Math.random()*canvas.width, y:-20-Math.random()*200,
+      w:8+Math.random()*8, h:4+Math.random()*4,
+      color:colors[Math.floor(Math.random()*colors.length)],
+      rot:Math.random()*Math.PI*2, vx:(Math.random()-0.5)*6,
+      vy:2+Math.random()*5, vrot:(Math.random()-0.5)*0.2, opacity:1,
+    }))
+    let frame
+    const draw = () => {
+      ctx.clearRect(0,0,canvas.width,canvas.height)
+      let alive = false
+      pieces.forEach(p => {
+        p.x+=p.vx; p.y+=p.vy; p.rot+=p.vrot; p.vy+=0.12
+        if (p.y>canvas.height*0.7) p.opacity-=0.02
+        if (p.opacity>0) alive=true
+        ctx.save(); ctx.globalAlpha=Math.max(0,p.opacity)
+        ctx.translate(p.x,p.y); ctx.rotate(p.rot)
+        ctx.fillStyle=p.color; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h)
+        ctx.restore()
+      })
+      if (alive) frame = requestAnimationFrame(draw)
+    }
+    draw()
+    return () => cancelAnimationFrame(frame)
+  }, [])
+  return <canvas ref={canvasRef} style={{ position:'fixed', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:9999 }}/>
 }
 
 // ════════════════════════════════════════
@@ -219,17 +395,48 @@ function CardFlip({ students, winnerCount, onDone }) {
   const [flipped, setFlipped] = useState(new Set())
   const [winnerIds, setWinnerIds] = useState(null)
   const [animating, setAnimating] = useState(false)
+  const [showCardConfetti, setShowCardConfetti] = useState(false)
+  const pendingWinnersRef = useRef([])
 
   const start = () => {
     setAnimating(true)
     const wIds = new Set([...students].sort(()=>Math.random()-0.5).slice(0, winnerCount).map(s=>s.id))
     setWinnerIds(wIds)
+    // 카드 뒤집기 소리
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      students.forEach((s, i) => {
+        const t = ctx.currentTime + (300 + i * 320) / 1000
+        const isWin = wIds.has(s.id)
+        // 카드 뒤집히는 틱 소리
+        const osc = ctx.createOscillator(), g = ctx.createGain()
+        osc.connect(g); g.connect(ctx.destination)
+        osc.frequency.value = isWin ? 880 : 440
+        osc.type = isWin ? 'sine' : 'triangle'
+        g.gain.setValueAtTime(0.15, t)
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.12)
+        osc.start(t); osc.stop(t + 0.12)
+        // 당첨 시 추가 효과
+        if (isWin) {
+          [523,659,784].forEach((freq, j) => {
+            const t2 = t + 0.08 + j * 0.07
+            const o2 = ctx.createOscillator(), g2 = ctx.createGain()
+            o2.connect(g2); g2.connect(ctx.destination)
+            o2.frequency.value = freq
+            g2.gain.setValueAtTime(0.12, t2)
+            g2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.1)
+            o2.start(t2); o2.stop(t2 + 0.1)
+          })
+        }
+      })
+    } catch(e) {}
     students.forEach((s, i) => {
       setTimeout(() => {
         setFlipped(prev => new Set([...prev, s.id]))
         if (i === students.length-1) {
           setAnimating(false)
-          onDone(students.filter(x => wIds.has(x.id)))
+          pendingWinnersRef.current = students.filter(x => wIds.has(x.id))
+          setShowCardConfetti(true)
         }
       }, 300 + i*320)
     })
@@ -263,6 +470,25 @@ function CardFlip({ students, winnerCount, onDone }) {
         </button>
       )}
       {animating && <div style={{ fontSize:'15px', color:'#6b7280', fontWeight:600 }}>카드 공개 중...</div>}
+      {showCardConfetti && (
+        <div style={{ position:'fixed', inset:0, zIndex:9999, pointerEvents:'none' }}>
+          <LadderConfetti winners={pendingWinnersRef.current} />
+          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
+            <div style={{ background:'rgba(255,255,255,0.96)', borderRadius:'28px', padding:'36px 56px', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,0.18)', animation:'celebIn .45s cubic-bezier(0.34,1.56,0.64,1)', pointerEvents:'auto', border:'3px solid #f97316' }}>
+              <div style={{ fontSize:'48px', marginBottom:'8px' }}>🎊</div>
+              <div style={{ fontSize:'15px', color:'#9ca3af', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'10px' }}>축하합니다!</div>
+              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', justifyContent:'center', marginBottom:'20px' }}>
+                {pendingWinnersRef.current.map(s => (
+                  <span key={s.id} style={{ padding:'8px 18px', borderRadius:'10px', background:'#fff7ed', border:'2px solid #f97316', fontSize:'18px', fontWeight:800, color:'#f97316', fontFamily:'Noto Sans KR, sans-serif' }}>{s.name}</span>
+                ))}
+              </div>
+              <button onClick={()=>{ setShowCardConfetti(false); onDone(pendingWinnersRef.current) }} style={{ padding:'12px 40px', borderRadius:'14px', border:'none', background:'#f97316', color:'#fff', fontSize:'16px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                확인 🎉
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -443,6 +669,7 @@ export function StudentConfirm({ user }) {
 
       <style>{`
         @keyframes popIn { from { transform:scale(0.8); opacity:0 } to { transform:scale(1); opacity:1 } }
+        @keyframes celebIn { from { transform:scale(0.5); opacity:0 } to { transform:scale(1); opacity:1 } }
       `}</style>
     </div>
   )
