@@ -341,7 +341,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
 }
 
 // ─── 단일 학생 출석 행
-function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen, classId }) {
+function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen, classId, spItems, spProds, spProg, spChecks }) {
   const status = rec?.status || 'pending'
   const cfg = ATTENDANCE_STATUS[status]
   const isPending = status === 'pending'
