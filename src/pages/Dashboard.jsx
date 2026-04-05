@@ -285,10 +285,11 @@ function RevenueCard({ user, onHide, onNav }) {
                 amtText = totalUnpaid != null ? `${totalUnpaid.toLocaleString()}원 미수` : '미수'
                 amtColor = C.danger; amtBg = '#fef2f2'; amtBorder = '#fca5a5'
               } else if (rowStatus === 'active') {
-                amtText = feePerStudent != null ? `${feePerStudent.toLocaleString()}원` : '-'
+                amtText = totalFee != null ? `${totalFee.toLocaleString()}원` : '-'
                 amtColor = C.success; amtBg = '#f0fdf4'; amtBorder = '#86efac'
               } else {
-                amtText = feePerStudent != null ? `${feePerStudent.toLocaleString()}원` : '-'
+                // upcoming
+                amtText = totalFee != null ? `${totalFee.toLocaleString()}원` : '-'
                 amtColor = '#6b7280'; amtBg = '#f3f4f6'; amtBorder = '#e5e7eb'
               }
 
