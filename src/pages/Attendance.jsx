@@ -651,7 +651,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
           : sorted.map((s, i) =>
               isFuture
                 ? <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} classId={cls.id} />
-                : <StudentRow      key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls.id}); setProgProductId(pid) }} classId={cls.id} />
+                : <StudentRow      key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls.id}); setProgProductId(pid) }} classId={cls.id} spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} />
             )
         }
         {inactiveStudents.length > 0 && (
@@ -813,6 +813,21 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
   const [msgStudent,   setMsgStudent]   = useState(null)
   const [selStudent,   setSelStudent]   = useState(null)
   const [showInactive, setShowInactive] = useState(false)
+  const [progStudent,  setProgStudent]  = useState(null)
+  const [progProductId,setProgProductId]= useState('')
+  const [progTick,     setProgTick]     = useState(0)
+  const [spItems,  setSpItems]  = useState(() => cls ? SupplyItems.byTeacher(cls.teacherId||'') : [])
+  const [spProds,  setSpProds]  = useState(() => cls ? SupplyProducts.byTeacher(cls.teacherId||'') : [])
+  const [spProg,   setSpProg]   = useState(() => cls ? SupplyStudentProgress.byTeacher(cls.teacherId||'') : [])
+  const [spChecks, setSpChecks] = useState(() => cls ? SupplySessionChecks.byTeacher(cls.teacherId||'') : [])
+
+  useEffect(() => {
+    if (!cls) return
+    setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
+    setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
+    setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
+    setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+  }, [progTick])
 
   // 수업 준비 메모 (미래 수업일 때만 사용)
   const noteKey = cls ? date+'_'+cls.id : null
@@ -990,7 +1005,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                 <div>
                   {secStudents.map((s, i) => (
                     showAttendance
-                      ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls?.id}); setProgProductId(pid) }} classId={cls?.id} />
+                      ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls?.id}); setProgProductId(pid) }} classId={cls?.id} spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} />
                       : (
                         <div key={s.id} style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom: i<secStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
                           <span style={{ fontSize:'12px', color:C.muted }}>{i+1}</span>
