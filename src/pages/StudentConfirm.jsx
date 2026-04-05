@@ -18,7 +18,12 @@ async function captureElement(el, filename) {
         document.head.appendChild(s)
       })
     }
-    const canvas = await window.html2canvas(el, { scale:2, useCORS:true, backgroundColor:'#ffffff', logging:false })
+    const canvas = await window.html2canvas(document.body, {
+      scale:2, useCORS:true, backgroundColor:'#f4f5f7', logging:false,
+      windowWidth:window.innerWidth, windowHeight:window.innerHeight,
+      width:window.innerWidth, height:window.innerHeight,
+      x:window.scrollX, y:window.scrollY,
+    })
     const a = document.createElement('a')
     a.download = filename
     a.href = canvas.toDataURL('image/png')
@@ -196,9 +201,8 @@ function Roulette({ students, winnerCount, onDone, onCapture }) {
     }, 3800)
   }
 
-  const handleConfirm = () => {
-    // 캡처 먼저
-    onCapture(popped.name, winners.length+1)
+  const handleConfirm = async () => {
+    await onCapture(popped.name, winners.length+1)
     setShowConfetti(false)
     const newWinners = [...winners, popped]
     const newPool = pool.filter(s => s.id !== popped.id)
@@ -367,7 +371,7 @@ function Ladder({ students, winnerCount, onDone, onCapture }) {
               </div>
             ))}
           </div>
-          <button onClick={()=>{ setShowConfetti(false); onCapture('결과', 0) }} style={{ padding:'10px 32px', borderRadius:'12px', border:'none', background:'#8b5cf6', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          <button onClick={async ()=>{ await onCapture('결과', 0); setShowConfetti(false) }} style={{ padding:'10px 32px', borderRadius:'12px', border:'none', background:'#8b5cf6', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             📸 화면 저장
           </button>
         </>
@@ -442,7 +446,7 @@ function CardFlip({ students, winnerCount, onDone, onCapture }) {
                 ))}
               </div>
               <div style={{ fontSize:'12px', color:'#9ca3af', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'12px' }}>📸 확인하면 추첨 화면이 저장됩니다</div>
-              <button onClick={()=>{ setShowConfetti(false); onCapture('결과',0); onDone(pendingWinnersRef.current) }}
+              <button onClick={async ()=>{ await onCapture('결과',0); setShowConfetti(false); onDone(pendingWinnersRef.current) }}
                 style={{ padding:'12px 40px', borderRadius:'14px', border:'none', background:'#f97316', color:'#fff', fontSize:'16px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                 📸 확인 & 저장
               </button>
@@ -493,13 +497,11 @@ export function StudentConfirm({ user }) {
   }
 
   const handleCapture = (name, round) => {
-    const el = lotteryAreaRef.current
-    if (!el) return
     const prefix = cls?.organization || '추첨'
     const filename = round > 0
       ? `${prefix}_추첨_${name}_${round}번째.png`
       : `${prefix}_추첨_결과_${new Date().toLocaleDateString('ko-KR')}.png`
-    setTimeout(() => captureElement(el, filename), 150)
+    return captureElement(null, filename)
   }
 
   const doConfirm = () => {
