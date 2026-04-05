@@ -1,11 +1,9 @@
 import React, { useState } from 'react'
 import { PageHeader, Card, Modal, Btn, EmptyState } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
+import { Users, MessageGuides, MessageCategories } from '../db.js'
 
 const DEFAULT_CATEGORIES = ['결석', '지각', '개강전', '개강', '수업신청감사', '추첨', '종강']
-const STORAGE_KEY = 'asa_message_guides'
-const CATEGORIES_KEY = 'asa_message_categories'
-const PROFILE_KEY    = 'asa_teacher_profile'
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
 
@@ -26,57 +24,33 @@ const DEFAULT_GUIDES = [
   { category:'종강', title:'종강 안내 (감사 인사)', content:'안녕하세요 {학교명} {선생님닉네임}입니다. {수업명} 수업이 {날짜}부로 종강되었습니다. 한 학기 동안 {학생이름} 학생이 성실하게 참여해주어 감사합니다 🙏 다음 학기에도 함께하길 바랍니다 😄' },
 ]
 
-// ── localStorage helpers ──────────────────────────────────────
-function load() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
-}
-function save(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-}
-function loadCategories() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(CATEGORIES_KEY) || 'null')
-    if (!stored) return DEFAULT_CATEGORIES
-    // 기본 카테고리가 누락된 경우 앞에 병합 (순서 보존)
-    const merged = [...DEFAULT_CATEGORIES]
-    stored.forEach(c => { if (!merged.includes(c)) merged.push(c) })
-    return merged
-  } catch { return DEFAULT_CATEGORIES }
-}
-function saveCategories(cats) {
-  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(cats))
-}
-function loadProfile(userId) {
-  try { return JSON.parse(localStorage.getItem(`${PROFILE_KEY}_${userId}`) || '{}') } catch { return {} }
-}
-function saveProfile(userId, data) {
-  localStorage.setItem(`${PROFILE_KEY}_${userId}`, JSON.stringify(data))
-}
 function seedDefaults(userId) {
-  const all = load()
-  const mine = all.filter(i => i.teacherId === userId)
-  // 이미 존재하는 (category + title) 조합
+  const mine = MessageGuides.byTeacher(userId)
   const existingKeys = new Set(mine.map(i => `${i.category}__${i.title}`))
-  // 누락된 기본 문구만 추려서 추가
-  const toAdd = DEFAULT_GUIDES
+  DEFAULT_GUIDES
     .filter(g => !existingKeys.has(`${g.category}__${g.title}`))
-    .map((g, i) => ({
-      ...g, id: uid(), teacherId: userId,
-      createdAt: new Date(Date.now() + i).toISOString()
-    }))
-  if (toAdd.length === 0) return
-  save([...all, ...toAdd])
+    .forEach(g => MessageGuides.insert({ id: uid(), teacherId: userId, ...g, createdAt: new Date().toISOString() }))
 }
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316' }
 
 export function MessageGuide({ user }) {
   const [tab, setTab] = useState('결석')
+
   const [items, setItems] = useState(() => {
     seedDefaults(user.id)
-    return load()
+    return MessageGuides.byTeacher(user.id)
   })
-  const [categories, setCategories] = useState(() => loadCategories())
+
+  const [customCats, setCustomCats] = useState(() => MessageCategories.byTeacher(user.id))
+  const categories = [...DEFAULT_CATEGORIES, ...customCats.map(c => c.name)]
+
+  // 선생님 프로필 (users 테이블에서 직접)
+  const [profile, setProfile] = useState(() => Users.find(user.id) || {})
+  const [profileForm, setProfileForm] = useState(() => {
+    const u = Users.find(user.id) || {}
+    return { name: u.name || '', nickname: u.nickname || '' }
+  })
 
   // 문구 추가/편집 모달
   const [modal, setModal] = useState(false)
@@ -87,13 +61,9 @@ export function MessageGuide({ user }) {
   const [catModal, setCatModal] = useState(false)
   const [newCatName, setNewCatName] = useState('')
 
-  // 선생님 프로필
-  const [profile, setProfile] = useState(() => loadProfile(user.id))
-  const [profileForm, setProfileForm] = useState(() => loadProfile(user.id))
+  const { success, error } = useToast()
 
-  const { toast, success, error } = useToast()
-
-  const filtered = items.filter(i => i.category === tab && i.teacherId === user.id)
+  const filtered = items.filter(i => i.category === tab)
 
   // ── 문구 ──────────────────────────────────────────────────────
   const openAdd = () => {
@@ -107,39 +77,25 @@ export function MessageGuide({ user }) {
     setModal(true)
   }
   const saveItem = () => {
-    if (!form.category.trim()) return
-    if (!form.content.trim()) return
-    const all = load()
+    if (!form.category.trim() || !form.content.trim()) return
     if (editId) {
-      const updated = all.map(i => i.id === editId ? { ...i, ...form } : i)
-      save(updated)
-      setItems(updated)
+      MessageGuides.update(editId, form)
       success('수정이 완료되었습니다.')
     } else {
-      const newItem = { id: uid(), teacherId: user.id, category: form.category, title: form.title, content: form.content, createdAt: new Date().toISOString() }
-      const updated = [...all, newItem]
-      save(updated)
-      setItems(updated)
+      MessageGuides.insert({ id: uid(), teacherId: user.id, category: form.category, title: form.title, content: form.content, createdAt: new Date().toISOString() })
       setTab(form.category)
       success('등록이 완료되었습니다.')
     }
+    setItems(MessageGuides.byTeacher(user.id))
     setModal(false)
   }
   const deleteItem = (id) => {
-    const updated = items.filter(i => i.id !== id)
-    save(updated)
-    setItems(updated)
+    MessageGuides.delete(id)
+    setItems(MessageGuides.byTeacher(user.id))
     success('삭제가 완료되었습니다.')
   }
   const copyText = (content) => {
     navigator.clipboard.writeText(content).then(() => success('클립보드에 복사되었습니다.'))
-  }
-
-  // ── 선생님 프로필 ─────────────────────────────────────────────
-  const saveTeacherProfile = () => {
-    saveProfile(user.id, profileForm)
-    setProfile(profileForm)
-    success('저장이 완료되었습니다.')
   }
 
   // ── 카테고리 ──────────────────────────────────────────────────
@@ -150,26 +106,28 @@ export function MessageGuide({ user }) {
   const addCategory = () => {
     const name = newCatName.trim()
     if (!name) return
-    if (categories.includes(name)) {
-      error('이미 존재하는 카테고리입니다.')
-      return
-    }
-    const updated = [...categories, name]
-    setCategories(updated)
-    saveCategories(updated)
+    if (categories.includes(name)) { error('이미 존재하는 카테고리입니다.'); return }
+    MessageCategories.insert({ id: uid(), teacherId: user.id, name, createdAt: new Date().toISOString() })
+    setCustomCats(MessageCategories.byTeacher(user.id))
     setNewCatName('')
     success('카테고리가 추가되었습니다.')
   }
-  const deleteCategory = (cat) => {
-    if (DEFAULT_CATEGORIES.includes(cat)) return  // 기본 카테고리 삭제 불가
-    const updatedCats = categories.filter(c => c !== cat)
-    const updatedItems = items.filter(i => !(i.category === cat && i.teacherId === user.id))
-    setCategories(updatedCats)
-    saveCategories(updatedCats)
-    save(updatedItems)
-    setItems(updatedItems)
-    if (tab === cat) setTab(updatedCats[0] || '')
+  const deleteCategory = (catName) => {
+    if (DEFAULT_CATEGORIES.includes(catName)) return
+    const catRecord = customCats.find(c => c.name === catName)
+    if (catRecord) MessageCategories.delete(catRecord.id)
+    items.filter(i => i.category === catName).forEach(i => MessageGuides.delete(i.id))
+    setCustomCats(MessageCategories.byTeacher(user.id))
+    setItems(MessageGuides.byTeacher(user.id))
+    if (tab === catName) setTab(DEFAULT_CATEGORIES[0])
     success('카테고리가 삭제되었습니다.')
+  }
+
+  // ── 선생님 프로필 ─────────────────────────────────────────────
+  const saveTeacherProfile = () => {
+    Users.update(user.id, { name: profileForm.name, nickname: profileForm.nickname })
+    setProfile(p => ({ ...p, ...profileForm }))
+    success('저장이 완료되었습니다.')
   }
 
   const fStyle = { width:'100%', padding:'9px 13px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:C.text, boxSizing:'border-box' }
@@ -184,21 +142,13 @@ export function MessageGuide({ user }) {
         <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', alignItems:'flex-end' }}>
           <div style={{ flex:1, minWidth:'160px' }}>
             <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>선생님 이름</label>
-            <input
-              value={profileForm.name || ''}
-              onChange={e => setProfileForm(p => ({...p, name: e.target.value}))}
-              placeholder="예: 홍길동"
-              style={fStyle}
-            />
+            <input value={profileForm.name || ''} onChange={e => setProfileForm(p => ({...p, name: e.target.value}))}
+              placeholder="예: 홍길동" style={fStyle} />
           </div>
           <div style={{ flex:1, minWidth:'160px' }}>
             <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>선생님 닉네임</label>
-            <input
-              value={profileForm.nickname || ''}
-              onChange={e => setProfileForm(p => ({...p, nickname: e.target.value}))}
-              placeholder="예: 푸우쌤"
-              style={fStyle}
-            />
+            <input value={profileForm.nickname || ''} onChange={e => setProfileForm(p => ({...p, nickname: e.target.value}))}
+              placeholder="예: 푸우쌤" style={fStyle} />
           </div>
           <button onClick={saveTeacherProfile}
             style={{ padding:'9px 22px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0, height:'38px' }}>
@@ -220,15 +170,10 @@ export function MessageGuide({ user }) {
             {cat}
           </button>
         ))}
-
-        {/* 카테고리 관리 버튼 */}
-        <button onClick={openCatModal}
-          title="카테고리 관리"
+        <button onClick={openCatModal} title="카테고리 관리"
           style={{ padding:'9px 14px', borderRadius:'20px', border:`2px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'18px', lineHeight:1, cursor:'pointer', transition:'all .15s', flexShrink:0 }}>
           ⚙️
         </button>
-
-        {/* 문구 추가 버튼 */}
         <button onClick={openAdd}
           style={{ padding:'9px 18px', borderRadius:'20px', border:`2px solid ${C.primary}`, background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', marginLeft:'auto', flexShrink:0 }}>
           + 문구 추가
@@ -321,42 +266,30 @@ export function MessageGuide({ user }) {
       {/* ── 카테고리 관리 모달 ── */}
       <Modal open={catModal} onClose={() => setCatModal(false)} title="카테고리 관리" width={420}>
         <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-
-          {/* 새 카테고리 추가 입력 */}
           <div>
             <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>새 카테고리 추가</label>
             <div style={{ display:'flex', gap:'8px' }}>
-              <input
-                value={newCatName}
-                onChange={e => setNewCatName(e.target.value)}
+              <input value={newCatName} onChange={e => setNewCatName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addCategory()}
-                placeholder="카테고리 이름 입력"
-                style={{ ...fStyle, flex:1 }}
-              />
+                placeholder="카테고리 이름 입력" style={{ ...fStyle, flex:1 }} />
               <button onClick={addCategory}
                 style={{ padding:'9px 18px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
                 추가
               </button>
             </div>
           </div>
-
-          {/* 구분선 */}
           <div style={{ borderTop:`1px solid ${C.border}` }} />
-
-          {/* 카테고리 목록 */}
           <div>
             <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'10px' }}>전체 카테고리</div>
             <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'300px', overflowY:'auto' }}>
               {categories.map(cat => {
                 const isDefault = DEFAULT_CATEGORIES.includes(cat)
-                const count = items.filter(i => i.category === cat && i.teacherId === user.id).length
+                const count = items.filter(i => i.category === cat).length
                 return (
                   <div key={cat} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:'10px', border:`1px solid ${C.border}`, background:'#fafafa' }}>
                     <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                       <span style={{ fontSize:'14px', color:C.text, fontWeight:500 }}>{cat}</span>
-                      {isDefault && (
-                        <span style={{ fontSize:'10px', padding:'2px 7px', borderRadius:'4px', background:'#f3f4f6', color:C.muted, fontWeight:600 }}>기본</span>
-                      )}
+                      {isDefault && <span style={{ fontSize:'10px', padding:'2px 7px', borderRadius:'4px', background:'#f3f4f6', color:C.muted, fontWeight:600 }}>기본</span>}
                       <span style={{ fontSize:'12px', color:C.muted }}>{count}개</span>
                     </div>
                     {!isDefault ? (
@@ -372,12 +305,9 @@ export function MessageGuide({ user }) {
               })}
             </div>
           </div>
-
-          {/* 안내 문구 */}
           <div style={{ background:'#fffbeb', borderRadius:'9px', padding:'10px 13px', border:'1px solid #fde68a', fontSize:'12px', color:'#92400e' }}>
             ⚠️ 커스텀 카테고리 삭제 시 해당 카테고리의 문구도 함께 삭제됩니다.
           </div>
-
           <div style={{ display:'flex', justifyContent:'flex-end' }}>
             <button onClick={() => setCatModal(false)}
               style={{ padding:'10px 24px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
