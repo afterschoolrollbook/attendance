@@ -138,11 +138,45 @@ function PhoneAction({ phone, children }) {
 }
 const phoneActionBtn = { display:'block', width:'100%', padding:'9px 14px', background:'none', border:'none', cursor:'pointer', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', textAlign:'left', color:'#374151', borderBottom:'1px solid #f3f4f6' }
 
+// ─── 플레이스홀더 치환
+const PLACEHOLDER_LABELS = [
+  ['{학생이름}', '학생 이름'],
+  ['{학교명}',   '학교 이름'],
+  ['{수업명}',   '수업 이름'],
+  ['{선생님이름}','선생님 이름'],
+  ['{선생님닉네임}','선생님 닉네임'],
+  ['{날짜}',     '오늘 날짜'],
+]
+function replacePlaceholders(text, student, cls, user) {
+  const today = new Date()
+  const dateStr = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`
+  return text
+    .replace(/{학생이름}/g, student?.name || '')
+    .replace(/{학교명}/g,   cls?.organization || student?.school || '')
+    .replace(/{수업명}/g,   cls ? `${cls.className}${cls.section ? ' '+cls.section+'반' : ''}` : '')
+    .replace(/{선생님이름}/g, user?.name || '')
+    .replace(/{선생님닉네임}/g, user?.nickname || user?.name || '')
+    .replace(/{날짜}/g, dateStr)
+}
+
+const GUIDE_CATS = ['결석', '지각', '개강전', '개강', '수업신청감사', '추첨']
+
 // ─── 학부모 메시지 발송
-function MsgModal({ student, onClose }) {
+function MsgModal({ student, cls, user, onClose }) {
   const { success, toastError } = useToast()
   const [text, setText] = useState('')
+  const [guideTab, setGuideTab] = useState('결석')
   const phone = student.parentPhone?.replace(/[^0-9]/g, '') || ''
+
+  // 안내 문구 로드
+  const allGuides = (() => {
+    try { return JSON.parse(localStorage.getItem('asa_message_guides') || '[]') } catch { return [] }
+  })()
+  const guides = allGuides.filter(g => g.teacherId === user?.id && g.category === guideTab)
+
+  const applyGuide = (content) => {
+    setText(replacePlaceholders(content, student, cls, user))
+  }
 
   const sendSMS = () => {
     if (!phone) { toastError('학부모 전화번호가 없습니다.'); return }
@@ -162,34 +196,54 @@ function MsgModal({ student, onClose }) {
     })
   }
 
-  const templates = [
-    `안녕하세요. ${student.name} 학부모님. 오늘 수업에 결석하셨습니다. 확인 부탁드립니다.`,
-    `안녕하세요. ${student.name} 학부모님. 오늘 수업에 지각하셨습니다.`,
-    `안녕하세요. ${student.name} 학부모님. 수업 관련 안내드립니다.`,
-  ]
-
   return (
-    <Modal open={true} onClose={onClose} title="📱 학부모 메시지" width={460}>
-      <div style={{ fontSize: '13px', color: C.muted, marginBottom: '14px' }}>{student.name} · {fmtPhone(student.parentPhone) || '전화번호 없음'}</div>
+    <Modal open={true} onClose={onClose} title="📱 학부모 메시지" width={500}>
+      <div style={{ fontSize: '13px', color: C.muted, marginBottom: '14px' }}>
+        {student.name} · {fmtPhone(student.parentPhone) || '전화번호 없음'}
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        {/* 빠른 문구 */}
+
+        {/* 안내 문구 카테고리 탭 */}
         <div>
-          <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '8px' }}>빠른 문구</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {templates.map((t, i) => (
-              <button key={i} onClick={() => setText(t)}
-                style={{ padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, background: '#f9fafb', textAlign: 'left', cursor: 'pointer', fontSize: '12px', color: '#374151', fontFamily: 'Noto Sans KR, sans-serif', lineHeight: 1.5 }}>
-                {t}
+          <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '8px' }}>📋 안내 문구 선택</div>
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            {GUIDE_CATS.map(cat => (
+              <button key={cat} onClick={() => setGuideTab(cat)}
+                style={{ padding: '4px 10px', borderRadius: '12px', border: `1.5px solid ${guideTab===cat ? C.primary : C.border}`, background: guideTab===cat ? '#fff7ed' : '#fff', color: guideTab===cat ? C.primary : C.muted, fontSize: '12px', fontWeight: guideTab===cat ? 700 : 400, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+                {cat}
               </button>
             ))}
           </div>
+          {guides.length === 0 ? (
+            <div style={{ fontSize: '12px', color: C.muted, padding: '10px', background: '#f9fafb', borderRadius: '8px', textAlign: 'center' }}>
+              등록된 문구가 없습니다. <a href="#" onClick={e => { e.preventDefault(); onClose() }} style={{ color: C.primary }}>안내 문구 관리</a>에서 추가하세요.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '160px', overflowY: 'auto' }}>
+              {guides.map(g => (
+                <button key={g.id} onClick={() => applyGuide(g.content)}
+                  style={{ padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, background: '#f9fafb', textAlign: 'left', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .1s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background='#fff7ed'; e.currentTarget.style.borderColor=C.primary }}
+                  onMouseLeave={e => { e.currentTarget.style.background='#f9fafb'; e.currentTarget.style.borderColor=C.border }}>
+                  {g.title && <div style={{ fontSize: '11px', fontWeight: 700, color: C.primary, marginBottom: '2px' }}>{g.title}</div>}
+                  <div style={{ fontSize: '12px', color: '#374151', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                    {g.content}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        {/* 직접 입력 */}
+
+        {/* 미리보기 / 직접 입력 */}
         <div>
-          <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '6px' }}>직접 입력</div>
-          <textarea value={text} onChange={e => setText(e.target.value)} rows={4} placeholder="메시지를 입력하세요..."
-            style={{ width: '100%', padding: '10px 12px', borderRadius: '9px', border: `1.5px solid ${C.border}`, fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+          <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '6px' }}>
+            {text ? '✅ 발송 내용 (수정 가능)' : '직접 입력'}
+          </div>
+          <textarea value={text} onChange={e => setText(e.target.value)} rows={5} placeholder="문구를 선택하거나 직접 입력하세요..."
+            style={{ width: '100%', padding: '10px 12px', borderRadius: '9px', border: `1.5px solid ${text ? C.primary : C.border}`, fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', resize: 'vertical', outline: 'none', boxSizing: 'border-box', lineHeight: 1.7 }} />
         </div>
+
         {/* 발송 버튼 */}
         <div style={{ display: 'flex', gap: '8px' }}>
           <button onClick={sendSMS} style={{ flex: 1, padding: '10px', borderRadius: '9px', border: 'none', background: '#3b82f6', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>💬 문자 발송</button>
@@ -672,7 +726,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
           </div>
         )}
       </div>
-      {msgStudent && <MsgModal student={msgStudent} onClose={() => setMsgStudent(null)} />}
+      {msgStudent && <MsgModal student={msgStudent} cls={cls} user={user} onClose={() => setMsgStudent(null)} />}
       {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
       {progStudent && (() => {
         const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
@@ -1051,7 +1105,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
         })
       })()}
 
-      {msgStudent  && <MsgModal student={msgStudent} onClose={() => setMsgStudent(null)} />}
+      {msgStudent  && <MsgModal student={msgStudent} cls={cls} user={user} onClose={() => setMsgStudent(null)} />}
       {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
       {progStudent && (() => {
         const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]

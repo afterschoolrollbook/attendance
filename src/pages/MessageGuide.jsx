@@ -136,8 +136,17 @@ export function MessageGuide({ user }) {
               placeholder={`예)\n안녕하세요~\n판교초 발명교실 푸우쌤 입니다.\n000 친구가 수업에 도착하지 않아 연락드리오니\n확인부탁드립니다.`}
               rows={8} style={{ ...fStyle, resize:'vertical', lineHeight:1.7 }}/>
           </div>
-          <div style={{ fontSize:'12px', color:C.muted }}>
-            * 000 처럼 자리표시자를 사용하면 복사 후 직접 수정해서 발송할 수 있습니다.
+          <div style={{ background:'#f0fdf4', borderRadius:'10px', padding:'12px 14px', border:'1px solid #86efac' }}>
+            <div style={{ fontSize:'12px', fontWeight:700, color:'#15803d', marginBottom:'8px' }}>🔖 자동 치환 태그 (출석부에서 발송 시 자동으로 바뀝니다)</div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
+              {['{학생이름}','{학교명}','{수업명}','{선생님이름}','{선생님닉네임}','{날짜}'].map(tag => (
+                <button key={tag} onClick={() => setForm(p => ({...p, content: p.content + tag}))}
+                  style={{ padding:'3px 10px', borderRadius:'6px', border:'1px solid #86efac', background:'#fff', fontSize:'12px', fontWeight:600, color:'#15803d', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  {tag}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'8px' }}>태그를 클릭하면 커서 위치에 삽입됩니다. 출석부 메시지 발송 시 실제 값으로 자동 변환됩니다.</div>
           </div>
           <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', marginTop:'4px' }}>
             <button onClick={() => setModal(false)}
