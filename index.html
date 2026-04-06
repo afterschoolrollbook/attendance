@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="출석부" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- SEO / 공유 -->
+    <!-- SEO -->
     <meta name="description" content="방과후 강사를 위한 스마트 출석 관리" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -27,12 +27,22 @@
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       body { font-family: 'Noto Sans KR', sans-serif; background: #f4f5f7; color: #1a1a2e; }
-      /* iOS safe area */
       body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
     </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- Service Worker 등록 -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('[SW] 등록 완료:', reg.scope))
+            .catch(err => console.warn('[SW] 등록 실패:', err))
+        })
+      }
+    </script>
   </body>
 </html>
