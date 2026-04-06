@@ -1350,15 +1350,7 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
               </span>
             )}
           </div>
-          {/* 진도 미리보기 */}
-          {hasProgress && (
-            <div onClick={() => onProgOpen && onProgOpen(s, spItem.productId)}
-              style={{ display:'inline-flex', alignItems:'center', gap:'5px', marginTop:'5px', padding:'3px 9px', borderRadius:'6px', background:'#f0fdf4', border:'1px solid #86efac', cursor:'pointer' }}>
-              <span style={{ fontSize:'11px', color:'#16a34a', fontWeight:700 }}>📊 {curStage}단계</span>
-              <span style={{ fontSize:'11px', color:'#6b7280' }}>{checkedInStage}차시 완료</span>
-              <span style={{ fontSize:'10px', color:'#9ca3af' }}>▶</span>
-            </div>
-          )}
+
         </div>
         {/* 메시지 버튼 + 연락방법 설정 여부 */}
         {s.parentPhone && (
@@ -1389,7 +1381,7 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
           🗓️ 수업 예정일입니다
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #f3f4f6' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: hasProgress ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #f3f4f6' }}>
           {[
             { key:'present', label:'출석', emoji:'✅', color:'#16a34a', bg:'#f0fdf4', active:'#dcfce7' },
             { key:'late',    label:'지각', emoji:'⏰', color:'#d97706', bg:'#fffbeb', active:'#fef9c3' },
@@ -1399,7 +1391,7 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
             <button key={btn.key} onClick={() => onMark(s.id, status === btn.key ? 'pending' : btn.key)}
               style={{
                 padding: '12px 4px', border: 'none',
-                borderRight: i < 3 ? '1px solid #f3f4f6' : 'none',
+                borderRight: '1px solid #f3f4f6',
                 background: status === btn.key ? btn.active : '#fff',
                 cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
@@ -1409,6 +1401,19 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
               <span style={{ fontSize: '11px', fontWeight: status===btn.key ? 700 : 400, color: status===btn.key ? btn.color : '#9ca3af' }}>{btn.label}</span>
             </button>
           ))}
+          {/* 진도 버튼 — 교구 배정된 학생만 표시 */}
+          {hasProgress && (
+            <button onClick={() => onProgOpen && onProgOpen(s, spItem.productId)}
+              style={{
+                padding: '12px 4px', border: 'none', borderLeft: 'none',
+                background: '#f0fdf4', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
+              }}>
+              <span style={{ fontSize: '20px' }}>📊</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#16a34a' }}>{curStage}단계</span>
+              <span style={{ fontSize: '10px', color: '#6b7280' }}>{checkedInStage}차시</span>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1747,7 +1752,7 @@ function MobileAttendance({ user, pageParams = {} }) {
               : students.map(s => (
                   <MobileStudentCard key={s.id+tick+progTick} s={s} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} isFuture={isFuture}
                     onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: selClass.id}); setProgProductId(pid) }}
-                    spItem={spItems.find(si => si.studentId === s.id)}
+                    spItem={spItems.find(si => si.studentId === s.id && si.classId === selClass?.id)}
                     spProg={spProg} spChecks={spChecks} />
                 ))
             }
@@ -1760,7 +1765,7 @@ function MobileAttendance({ user, pageParams = {} }) {
 
       {/* 진도 체크 모달 */}
       {progStudent && progProductId && (() => {
-        const si = spItems.find(si => si.studentId === progStudent.id && si.productId === progProductId)
+        const si = spItems.find(si => si.studentId === progStudent.id && si.productId === progProductId && si.classId === progStudent._clsId)
         if (!si?.productId) return null
         const product = spProds.find(p => p.id === progProductId)
         if (!product) return null
