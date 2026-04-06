@@ -756,7 +756,7 @@ function InactiveStudentRow({ s, idx }) {
 }
 
 // ─── 수업 1개 — 대시보드 카드 스타일 + 바로 아래 학생 출석 리스트
-function ClassAttendanceSection({ cls, date, allStudents }) {
+function ClassAttendanceSection({ cls, date, allStudents, user }) {
   const today = todayStr()
   const [tick, setTick] = useState(0)
   const [msgStudent, setMsgStudent] = useState(null)
@@ -985,7 +985,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
 }
 
 // ─── 날짜별 전체 출석 패널 (대시보드 스타일, 네비게이션 없음)
-function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses }) {
+function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user }) {
   const dayClasses = sortClasses(schoolClasses.filter(cls => calcSessionDates(cls).includes(date)))
 
   if (dayClasses.length === 0) {
@@ -1023,7 +1023,7 @@ function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses }) {
           </div>
           <div style={{ padding:'12px 16px' }}>
             {classes.map(cls => (
-              <ClassAttendanceSection key={cls.id + date} cls={cls} date={date} allStudents={allStudents} />
+              <ClassAttendanceSection key={cls.id + date} cls={cls} date={date} allStudents={allStudents} user={user} />
             ))}
           </div>
         </div>
@@ -2322,7 +2322,7 @@ export function Attendance({ user, pageParams = {} }) {
               <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} key={selDate+selClassId} />
             )
           ) : (
-            <DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} key={selDate} />
+            <DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} user={user} key={selDate} />
           )}
         </div>
       </div>
