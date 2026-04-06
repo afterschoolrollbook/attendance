@@ -294,8 +294,9 @@ function ParentHome({ students, teacher, phone }) {
                 {/* 수업 기본 정보 */}
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
                   {[
-                    { icon:'🏫', label:'수업 장소', val: cls.organization || '-' },
-                    { icon:'⏰', label:'수업 시간', val: cls.time ? `${fmtDays(cls.days)} ${cls.time}` : fmtDays(cls.days) || '-' },
+                    { icon:'🏫', label:'학교', val: cls.organization || '-' },
+                    { icon:'📍', label:'수업 장소', val: cls.classLocation || '-' },
+                    { icon:'⏰', label:'수업 시간', val: cls.time ? `${fmtDays(cls.days)} ${cls.time}${cls.timeEnd ? ' ~ '+cls.timeEnd : ''}` : fmtDays(cls.days) || '-' },
                     { icon:'📅', label:'수업 기간', val: cls.startDate && cls.endDate ? `${cls.startDate} ~ ${cls.endDate}` : '-' },
                     { icon:'📋', label:'운영 방식', val: cls.termType==='semester'?'학기제':'분기제' },
                   ].map(item=>(
@@ -494,7 +495,14 @@ export function ParentInvite() {
       s.parentPhone?.replace(/[^0-9]/g,'') === phone.replace(/[^0-9]/g,'')
     )
     setStudents(matched)
-    setStep('info')
+
+    // 이미 가입한 학부모면 바로 홈으로
+    const already = ParentMembers.findByPhone(phone)
+    if (already?.appJoined) {
+      setStep('done')
+    } else {
+      setStep('info')
+    }
   }, [])
 
   const handleJoin = () => {
