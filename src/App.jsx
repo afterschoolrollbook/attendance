@@ -31,13 +31,79 @@ import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer, ConfirmDialog, useConfirmDialog } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
 
+// ─── 모바일 하단 네비게이션 ───────────────────────────────────────
+const MOBILE_NAV = [
+  { path: 'dashboard',    label: '홈',     icon: '🏠' },
+  { path: 'attendance',   label: '출석부',  icon: '✅' },
+  { path: 'students',     label: '학생',   icon: '👥' },
+  { path: 'messageguide', label: '문구',   icon: '💬' },
+  { path: '__more__',     label: '더보기', icon: '☰'  },
+]
+
+function MobileHeader({ onMenuOpen }) {
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 900,
+      height: '52px', background: '#18181b',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '0 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontSize: '20px' }}>📋</span>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>방과후 출석부</span>
+      </div>
+      <button onClick={onMenuOpen} style={{
+        background: 'none', border: 'none', cursor: 'pointer',
+        color: '#fff', fontSize: '22px', padding: '4px 8px',
+        display: 'flex', alignItems: 'center',
+      }}>☰</button>
+    </div>
+  )
+}
+
+function MobileBottomNav({ currentPage, onNav }) {
+  return (
+    <div style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 900,
+      height: '60px', background: '#18181b',
+      display: 'flex', borderTop: '1px solid #27272a',
+    }}>
+      {MOBILE_NAV.map(item => {
+        const isActive = item.path !== '__more__' && currentPage === item.path
+        return (
+          <button key={item.path} onClick={() => onNav(item.path)}
+            style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: '2px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: isActive ? '#f97316' : '#71717a',
+              fontSize: '10px', fontFamily: 'Noto Sans KR, sans-serif',
+              transition: 'color .15s',
+            }}>
+            <span style={{ fontSize: '20px' }}>{item.icon}</span>
+            <span style={{ fontWeight: isActive ? 700 : 400 }}>{item.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function App() {
   const [user, setUser] = useState(null)
   const [page, setPage] = useState('dashboard')
   const [pageParams, setPageParams] = useState({})
   const [dbReady, setDbReady] = useState(false)
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const { toasts } = useToast()
   const { confirmDialogProps } = useConfirmDialog()
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // 네이버 콜백 페이지 처리 — 팝업으로 열린 경우 바로 렌더
   if (window.location.pathname === '/naver-callback') return <NaverCallback />
@@ -81,12 +147,14 @@ export default function App() {
   }
 
   const handleNav = (p, params = {}) => {
+    if (p === '__more__') { setSidebarOpen(true); return }
     if (user) {
       const fresh = Users.find(user.id)
       if (fresh) setUser(fresh)
     }
     setPage(p)
     setPageParams(params)
+    setSidebarOpen(false)
   }
 
   if (!dbReady) return (
@@ -129,11 +197,14 @@ export default function App() {
   }
 
   return (
-    <div style={{ display:'flex', minHeight:'100vh', background:'#f4f5f7' }}>
-      <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout} />
-      <main style={{ flex:1, overflowY:'auto', minHeight:'100vh' }}>
+    <div style={{ display:'flex', minHeight:'100vh', background:'#f4f5f7', flexDirection: isMobile ? 'column' : 'row' }}>
+      {isMobile && <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />}
+      <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout}
+               mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <main style={{ flex:1, overflowY:'auto', minHeight:'100vh', paddingTop: isMobile ? '52px' : 0, paddingBottom: isMobile ? '60px' : 0 }}>
         {renderPage()}
       </main>
+      {isMobile && <MobileBottomNav currentPage={page} onNav={handleNav} />}
       <ToastContainer toasts={toasts} />
       <ConfirmDialog {...confirmDialogProps} />
     </div>
