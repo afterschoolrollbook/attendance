@@ -339,6 +339,60 @@ function MsgModal({ student, cls, user, onClose }) {
   )
 }
 
+// ─── 출결초대 모달
+function InviteModal({ student, user, onClose, onSent }) {
+  const phone = student.parentPhone?.replace(/[^0-9]/g, '') || ''
+  const link  = `${window.location.origin}/parent-invite?phone=${encodeURIComponent(student.parentPhone||'')}&teacher=${encodeURIComponent(user?.id||'')}`
+  const defaultText = `안녕하세요 😊 ${student.name} 학생 학부모님!\n출결 현황을 실시간으로 확인하실 수 있는 출결서비스에 초대드립니다.\n아래 링크를 클릭해 가입해주세요 🙏\n${link}`
+  const [text, setText] = useState(defaultText)
+  const { success } = useToast()
+
+  const send = (method) => {
+    if (method === 'kakao') window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${phone}&message=${encodeURIComponent(text)}`)
+    else window.open(`sms:${phone}?body=${encodeURIComponent(text)}`)
+    StudentsDB.update(student.id, { parentInviteSentAt: new Date().toISOString() })
+    onSent && onSent(student.id)
+    success('초대 메시지가 발송되었습니다.')
+    onClose()
+  }
+  const copy = () => {
+    navigator.clipboard.writeText(text).catch(() => {
+      const ta = document.createElement('textarea'); ta.value = text
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy')
+      document.body.removeChild(ta)
+    })
+    success('복사되었습니다.')
+  }
+
+  return (
+    <Modal open={true} onClose={onClose} title={`📨 출결초대 — ${student.name}`} width={480}>
+      <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+        <div style={{ fontSize:'13px', color:C.muted }}>
+          아래 문구를 확인하고 발송 방법을 선택하세요.
+        </div>
+        <textarea
+          value={text} onChange={e => setText(e.target.value)} rows={7}
+          style={{ width:'100%', padding:'10px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical', outline:'none', lineHeight:1.6, boxSizing:'border-box' }}
+        />
+        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+          <button onClick={() => send('sms')}
+            style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:'#3b82f6', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            💬 문자 발송
+          </button>
+          <button onClick={() => send('kakao')}
+            style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:'#FEE500', color:'#3C1E1E', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            💛 카카오 발송
+          </button>
+          <button onClick={copy}
+            style={{ padding:'11px 16px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            복사
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ─── 학생 메모 팝업 (예정 수업 행에서 사용)
 function StudentMemoModal({ student, onClose, onSave }) {
   const [text, setText] = useState(student.memo || '')
@@ -488,6 +542,8 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
   const setField = (field, val) => onMark(s.id, status === 'pending' ? 'present' : status, { [field]: val })
   const isAbsent = ['absent','late','early'].includes(status)
   const appendNote = (text) => setField('note', note ? note + ' / ' + text : text)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteSent, setInviteSent] = useState(!!s.parentInviteSentAt)
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>
@@ -562,19 +618,12 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         {/* 출결초대 */}
         <div style={{ textAlign:'center' }}>
           {s.parentPhone ? (
-            <button onClick={() => {
-              const phone = s.parentPhone.replace(/[^0-9]/g,'')
-              const link = `${window.location.origin}/parent-invite?phone=${encodeURIComponent(s.parentPhone)}&teacher=${encodeURIComponent(s.teacherId||'')}`
-              const text = `안녕하세요 😊 ${s.name} 학생 학부모님! 출결 현황을 실시간으로 확인하실 수 있는 출결서비스에 초대드립니다. 아래 링크를 클릭해 가입해주세요 🙏 ${link}`
-              const method = s.contactMethod
-              if (method === 'kakao') window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${phone}&message=${encodeURIComponent(text)}`)
-              else window.open(`sms:${phone}?body=${encodeURIComponent(text)}`)
-              StudentsDB.update(s.id, { parentInviteSentAt: new Date().toISOString() })
-            }}
-              style={{ padding:'4px 8px', borderRadius:'7px', border:`1.5px solid ${s.parentInviteSentAt?'#86efac':'#a78bfa'}`, background:s.parentInviteSentAt?'#f0fdf4':'#f5f3ff', color:s.parentInviteSentAt?'#16a34a':'#7c3aed', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-              {s.parentInviteSentAt ? '✅발송됨' : '📨초대'}
+            <button onClick={() => setInviteOpen(true)}
+              style={{ padding:'4px 8px', borderRadius:'7px', border:`1.5px solid ${inviteSent?'#86efac':'#a78bfa'}`, background:inviteSent?'#f0fdf4':'#f5f3ff', color:inviteSent?'#16a34a':'#7c3aed', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+              {inviteSent ? '✅발송됨' : '📨초대'}
             </button>
           ) : <span style={{ fontSize:'11px', color:'#d1d5db' }}>-</span>}
+          {inviteOpen && <InviteModal student={s} user={user} onClose={() => setInviteOpen(false)} onSent={() => setInviteSent(true)} />}
         </div>
 
         {/* 특이사항·메모 (귀가방법 배지 포함) */}
@@ -1166,7 +1215,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                 <div>
                   {secStudents.map((s, i) => (
                     showAttendance
-                      ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls?.id}); setProgProductId(pid) }} classId={cls?.id} spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} />
+                      ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls?.id}); setProgProductId(pid) }} classId={cls?.id} spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} user={user} />
                       : (
                         <div key={s.id} style={{ display:'grid', gridTemplateColumns:'35px 90px 90px 130px 220px 110px 90px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom: i<secStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
                           <span style={{ fontSize:'12px', color:C.muted }}>{i+1}</span>
@@ -1323,7 +1372,7 @@ function actionBtn(bg,color,border) {
 //  MOBILE ATTENDANCE  (768px 이하 전용)
 // ═══════════════════════════════════════════════════════════════════
 
-function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, spItem, spProg, spChecks, onInviteSent }) {
+function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, spItem, spProg, spChecks, onInviteSent, user }) {
   const status   = rec?.status || 'pending'
   const statusMap = {
     present: { label:'출석', color:'#16a34a', bg:'#f0fdf4', border:'#86efac' },
@@ -1361,18 +1410,9 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
     setReasonModal(null)
   }
 
-  // 출결서비스 초대 발송
-  const sendInvite = () => {
-    const phone = s.parentPhone?.replace(/[^0-9]/g, '')
-    if (!phone) return
-    const link = `${window.location.origin}/parent-invite?phone=${encodeURIComponent(s.parentPhone)}&teacher=${encodeURIComponent(s.teacherId||'')}`
-    const text = `안녕하세요 😊 ${s.name} 학생 학부모님! 출결 현황을 실시간으로 확인하실 수 있는 출결서비스에 초대드립니다. 아래 링크를 클릭해 가입해주세요 🙏 ${link}`
-    const method = s.contactMethod
-    if (method === 'kakao') window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${phone}&message=${encodeURIComponent(text)}`)
-    else window.open(`sms:${phone}?body=${encodeURIComponent(text)}`)
-    StudentsDB.update(s.id, { parentInviteSentAt: new Date().toISOString() })
-    onInviteSent && onInviteSent(s.id)
-  }
+  // 출결초대 모달
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteSent, setInviteSent] = useState(!!s.parentInviteSentAt)
 
   return (
     <div style={{
@@ -1398,10 +1438,11 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
                   style={{ color: '#3b82f6', textDecoration: 'underline', textUnderlineOffset: '2px', fontSize: '15px', fontWeight: 600 }}>
                   {fmtPhone(s.parentPhone)}
                 </a>
-                <button onClick={sendInvite}
-                  style={{ padding:'2px 8px', borderRadius:'6px', border:'1.5px solid #a78bfa', background: s.parentInviteSentAt ? '#f5f3ff' : '#fff', color:'#7c3aed', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                  {s.parentInviteSentAt ? '✅출결' : '출결초대'}
+                <button onClick={() => setInviteOpen(true)}
+                  style={{ padding:'2px 8px', borderRadius:'6px', border:`1.5px solid ${inviteSent?'#86efac':'#a78bfa'}`, background: inviteSent ? '#f0fdf4' : '#fff', color: inviteSent ? '#16a34a' : '#7c3aed', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                  {inviteSent ? '✅출결' : '출결초대'}
                 </button>
+                {inviteOpen && <InviteModal student={s} user={user} onClose={() => setInviteOpen(false)} onSent={() => { setInviteSent(true); onInviteSent && onInviteSent(s.id) }} />}
               </>
             )}
             {status !== 'pending' && (
@@ -1861,7 +1902,7 @@ function MobileAttendance({ user, pageParams = {} }) {
                   <MobileStudentCard key={s.id+tick+progTick} s={s} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} isFuture={isFuture}
                     onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: selClass.id}); setProgProductId(pid) }}
                     spItem={spItems.find(si => si.studentId === s.id && si.classId === selClass?.id)}
-                    spProg={spProg} spChecks={spChecks} />
+                    spProg={spProg} spChecks={spChecks} user={user} />
                 ))
             }
           </div>
