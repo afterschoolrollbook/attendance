@@ -420,6 +420,11 @@ export function Auth({ onLogin }) {
   const [socialStep, setSocialStep] = useState(null) // null | 'email_verify' | 'profile'
   const [pendingSocialProfile, setPendingSocialProfile] = useState(null)
 
+  // 약관 동의
+  const [terms, setTerms] = useState({ service: false, privacy: false, marketing: false, thirdParty: false })
+  const allRequired = terms.service && terms.privacy
+  const toggleTerm = (k) => setTerms(p => ({ ...p, [k]: !p[k] }))
+
   const { error: toastError } = useToast()
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const resetRegister = () => {
@@ -603,6 +608,7 @@ export function Auth({ onLogin }) {
     if (!emailChecked) { setError('이메일 중복 확인을 해주세요.'); return }
     if (form.pw.length < 4) { setError('비밀번호는 4자 이상이어야 합니다.'); return }
     if (form.pw !== form.pw2) { setError('비밀번호가 일치하지 않습니다.'); return }
+    if (!allRequired) { setError('필수 약관에 동의해주세요.'); return }
     setStep(2)
   }
 
@@ -636,17 +642,19 @@ export function Auth({ onLogin }) {
     onLogin(user)
   }
 
-  return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #fff7ed 0%, #fff 60%, #f0fdf4 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ width: '100%', maxWidth: '440px' }}>
+  const isMobile = window.innerWidth <= 768
 
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
-          <h1 style={{ fontSize: '26px', fontWeight: 700, color: '#111827' }}>방과후 출석부</h1>
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #fff7ed 0%, #fff 60%, #f0fdf4 100%)', display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'center', padding: isMobile ? '0' : '20px' }}>
+      <div style={{ width: '100%', maxWidth: isMobile ? '100%' : '440px' }}>
+
+        <div style={{ textAlign: 'center', marginBottom: isMobile ? '20px' : '32px', paddingTop: isMobile ? '32px' : '0' }}>
+          <div style={{ fontSize: isMobile ? '40px' : '48px', marginBottom: '12px' }}>📋</div>
+          <h1 style={{ fontSize: isMobile ? '22px' : '26px', fontWeight: 700, color: '#111827' }}>방과후 출석부</h1>
           <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '6px' }}>방과후 강사를 위한 스마트 출석 관리</p>
         </div>
 
-        <div style={{ background: '#fff', borderRadius: '20px', boxShadow: '0 8px 40px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <div style={{ background: '#fff', borderRadius: isMobile ? '20px 20px 0 0' : '20px', boxShadow: isMobile ? '0 -4px 24px rgba(0,0,0,0.1)' : '0 8px 40px rgba(0,0,0,0.1)', overflow: 'hidden', minHeight: isMobile ? 'calc(100vh - 180px)' : 'auto' }}>
 
           {/* 소셜 이메일 인증 화면 */}
           {socialStep === 'email_verify' && (
@@ -853,6 +861,45 @@ export function Auth({ onLogin }) {
                     <Input label="연락처" value={form.phone} onChange={v => set('phone', v)} placeholder="010-0000-0000" required />
                     <Input label="비밀번호 (4자 이상)" value={form.pw} onChange={v => set('pw', v)} type="password" placeholder="비밀번호" required />
                     <Input label="비밀번호 확인" value={form.pw2} onChange={v => set('pw2', v)} type="password" placeholder="재입력" required />
+
+                    {/* 약관 동의 */}
+                    <div style={{ borderRadius:'10px', border:'1.5px solid #e5e7eb', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
+                      <div style={{ fontSize:'12px', fontWeight:700, color:'#374151', marginBottom:'2px' }}>약관 동의</div>
+                      {/* 전체 동의 */}
+                      <label style={{ display:'flex', alignItems:'center', gap:'10px', cursor:'pointer', padding:'8px 12px', borderRadius:'8px', background: (terms.service&&terms.privacy&&terms.marketing&&terms.thirdParty)?'#fff7ed':'#f9fafb', border:'1px solid #e5e7eb' }}>
+                        <input type="checkbox"
+                          checked={terms.service&&terms.privacy&&terms.marketing&&terms.thirdParty}
+                          onChange={() => {
+                            const all = terms.service&&terms.privacy&&terms.marketing&&terms.thirdParty
+                            setTerms({ service:!all, privacy:!all, marketing:!all, thirdParty:!all })
+                          }}
+                          style={{ width:'16px', height:'16px', accentColor:'#f97316', cursor:'pointer', flexShrink:0 }} />
+                        <span style={{ fontSize:'13px', fontWeight:700, color:'#111827' }}>전체 동의</span>
+                      </label>
+                      <div style={{ height:'1px', background:'#e5e7eb' }} />
+                      {/* 개별 항목 */}
+                      {[
+                        { key:'service',    label:'서비스 이용약관',        required:true  },
+                        { key:'privacy',    label:'개인정보 수집·이용 동의', required:true  },
+                        { key:'marketing',  label:'마케팅 정보 수신 동의',  required:false },
+                        { key:'thirdParty', label:'제3자 정보 제공 동의',   required:false },
+                      ].map(item => (
+                        <label key={item.key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', gap:'8px' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                            <input type="checkbox" checked={terms[item.key]} onChange={() => toggleTerm(item.key)}
+                              style={{ width:'15px', height:'15px', accentColor:'#f97316', cursor:'pointer', flexShrink:0 }} />
+                            <span style={{ fontSize:'13px', color:'#374151' }}>{item.label}</span>
+                            <span style={{ fontSize:'11px', fontWeight:600, padding:'1px 6px', borderRadius:'4px', background: item.required?'#fef2f2':'#f3f4f6', color: item.required?'#ef4444':'#9ca3af' }}>
+                              {item.required?'필수':'선택'}
+                            </span>
+                          </div>
+                          <button type="button" style={{ background:'none', border:'none', fontSize:'11px', color:'#9ca3af', cursor:'pointer', textDecoration:'underline', flexShrink:0, fontFamily:'Noto Sans KR, sans-serif' }}>
+                            보기
+                          </button>
+                        </label>
+                      ))}
+                    </div>
+
                     {error && <ErrBox msg={error} />}
                     <Btn full onClick={handleNext}>다음 — 이메일 인증 →</Btn>
                   </div>
