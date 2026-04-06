@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -167,12 +167,11 @@ function MsgModal({ student, cls, user, onClose }) {
   const [text, setText] = useState('')
   const [guideTab, setGuideTab] = useState('결석')
   const phone = student.parentPhone?.replace(/[^0-9]/g, '') || ''
+  const contactMethod = student.contactMethod || ''  // 'kakao' | 'sms' | 'both' | ''
 
-  // 안내 문구 로드
-  const allGuides = (() => {
-    try { return MessageGuides.byTeacher(user?.id || '') } catch { return [] }
-  })()
-  const guides = allGuides.filter(g => g.teacherId === user?.id && g.category === guideTab)
+  // 안내 문구 로드 — DB 레이어 사용
+  const allGuides = MessageGuides.byTeacher(user?.id || '')
+  const guides = allGuides.filter(g => g.category === guideTab)
 
   const applyGuide = (content) => {
     setText(replacePlaceholders(content, student, cls, user))
@@ -196,10 +195,17 @@ function MsgModal({ student, cls, user, onClose }) {
     })
   }
 
+  // contactMethod 기준 발송 버튼 강조
+  const kakaoHighlight = contactMethod === 'kakao' || contactMethod === 'both'
+  const smsHighlight   = contactMethod === 'sms'   || contactMethod === 'both'
+
   return (
     <Modal open={true} onClose={onClose} title="📱 학부모 메시지" width={500}>
-      <div style={{ fontSize: '13px', color: C.muted, marginBottom: '14px' }}>
-        {student.name} · {fmtPhone(student.parentPhone) || '전화번호 없음'}
+      <div style={{ fontSize: '13px', color: C.muted, marginBottom: '14px', display:'flex', alignItems:'center', gap:'8px' }}>
+        <span>{student.name} · {fmtPhone(student.parentPhone) || '전화번호 없음'}</span>
+        {contactMethod === 'kakao' && <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 7px', borderRadius:'4px', background:'#FEE500', color:'#3c1e1e' }}>💛 카톡 우선</span>}
+        {contactMethod === 'sms'   && <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 7px', borderRadius:'4px', background:'#eff6ff', color:'#3b82f6' }}>💬 문자 우선</span>}
+        {contactMethod === 'both'  && <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 7px', borderRadius:'4px', background:'#f3f4f6', color:'#6b7280' }}>카톡+문자</span>}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
@@ -246,8 +252,14 @@ function MsgModal({ student, cls, user, onClose }) {
 
         {/* 발송 버튼 */}
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={sendSMS} style={{ flex: 1, padding: '10px', borderRadius: '9px', border: 'none', background: '#3b82f6', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>💬 문자 발송</button>
-          <button onClick={sendKakao} style={{ flex: 1, padding: '10px', borderRadius: '9px', border: 'none', background: '#fee500', color: '#3c1e1e', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>💛 카톡 발송</button>
+          <button onClick={sendSMS}
+            style={{ flex: 1, padding: '10px', borderRadius: '9px', border: smsHighlight ? '2px solid #3b82f6' : 'none', background: '#3b82f6', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', boxShadow: smsHighlight ? '0 0 0 3px #bfdbfe' : 'none' }}>
+            💬 문자 발송{smsHighlight ? ' ★' : ''}
+          </button>
+          <button onClick={sendKakao}
+            style={{ flex: 1, padding: '10px', borderRadius: '9px', border: kakaoHighlight ? '2px solid #ca8a04' : 'none', background: '#fee500', color: '#3c1e1e', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', boxShadow: kakaoHighlight ? '0 0 0 3px #fef08a' : 'none' }}>
+            💛 카톡 발송{kakaoHighlight ? ' ★' : ''}
+          </button>
           <button onClick={copyText} style={{ padding: '10px 14px', borderRadius: '9px', border: `1.5px solid ${C.border}`, background: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', color: C.muted }}>복사</button>
         </div>
       </div>

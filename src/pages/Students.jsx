@@ -9,7 +9,7 @@ import { useToast } from '../hooks/useToast.js'
 function emptyStudent() {
   return {
     school: '', grade: '', classNum: '', number: '', name: '',
-    parentPhone: '', studentPhone: '', classIds: [], status: 'applied', memo: '',
+    parentPhone: '', studentPhone: '', classIds: [], status: 'applied', memo: '', contactMethod: '',
     applyOrder: '', remark: '', relations: [], student_careers: [],
     // 수업 직접 입력용
     _newOrganization: '', _newClassName: '', _newSection: '',
@@ -826,7 +826,16 @@ export function Students({ user, onNav }) {
                         </div>
                       )}
                     </td>
-                    <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{fmtPhone(s.parentPhone) || '-'}</td>
+                    <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                      <div>{fmtPhone(s.parentPhone) || '-'}</div>
+                      {s.contactMethod && (
+                        <div style={{ marginTop: '3px' }}>
+                          {s.contactMethod === 'kakao' && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', background:'#FEE500', color:'#3c1e1e' }}>💛카톡</span>}
+                          {s.contactMethod === 'sms'   && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', background:'#eff6ff', color:'#3b82f6' }}>💬문자</span>}
+                          {s.contactMethod === 'both'  && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', background:'#f3f4f6', color:'#6b7280' }}>카톡+문자</span>}
+                        </div>
+                      )}
+                    </td>
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ display: 'flex', flexDirection:'column', gap: '6px' }}>
                         <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
@@ -1126,6 +1135,36 @@ export function Students({ user, onNav }) {
               <Input label="학부모 전화번호" value={form.parentPhone} onChange={v => set('parentPhone', v)} />
               <Input label="학생 전화번호" value={form.studentPhone} onChange={v => set('studentPhone', v)} />
             </div>
+            {/* 연락방법 */}
+            {form.parentPhone && (
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px' }}>📱 학부모 연락방법</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {[
+                    { value: 'kakao', label: '💛 카카오톡', color: '#3c1e1e', bg: '#FEE500', border: '#FEE500' },
+                    { value: 'sms',   label: '💬 문자',     color: '#fff',     bg: '#3b82f6', border: '#3b82f6' },
+                    { value: 'both',  label: '둘 다',       color: '#fff',     bg: '#6b7280', border: '#6b7280' },
+                  ].map(opt => (
+                    <button key={opt.value} type="button"
+                      onClick={() => set('contactMethod', form.contactMethod === opt.value ? '' : opt.value)}
+                      style={{
+                        padding: '7px 16px', borderRadius: '8px', border: `1.5px solid ${form.contactMethod === opt.value ? opt.border : '#e5e7eb'}`,
+                        background: form.contactMethod === opt.value ? opt.bg : '#fff',
+                        color: form.contactMethod === opt.value ? opt.color : '#6b7280',
+                        fontSize: '13px', fontWeight: form.contactMethod === opt.value ? 700 : 400,
+                        cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .15s',
+                      }}>
+                      {opt.label}
+                    </button>
+                  ))}
+                  {form.contactMethod && (
+                    <span style={{ fontSize: '11px', color: '#9ca3af', alignSelf: 'center' }}>
+                      ← 다시 클릭하면 초기화
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
             <Textarea label="📌 특이사항 메모" value={form.memo} onChange={v => set('memo', v)} rows={2} />
 
             {/* 비고 */}
