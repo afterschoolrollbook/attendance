@@ -928,14 +928,6 @@ function MobileDashboard({ user, onNav }) {
   const [showInstallGuide, setShowInstallGuide] = useState(false)
 
   const handleAddShortcut = () => {
-    if (window._installPrompt) {
-      window._installPrompt.prompt()
-      return
-    }
-    setShowInstallGuide(true)
-  }
-
-  const handleAddShortcut = () => {
     // 안드로이드 크롬 - PWA 설치 프롬프트가 있으면 사용
     if (window._installPrompt) {
       window._installPrompt.prompt()
