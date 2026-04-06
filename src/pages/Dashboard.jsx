@@ -724,13 +724,35 @@ function DayDetail({ date, user, classes, onNav }) {
 
                   {(() => {
                     if (!students.length) return <div style={{ padding: '12px 14px', fontSize: '13px', color: C.muted }}>등록된 학생이 없습니다</div>
+                    const isFutureDate = date > today
+                    const isPastOrToday = date <= today
                     const S = {
                       present: { label: '출석', color: '#16a34a', bg: '#f0fdf4' },
                       late:    { label: '지각', color: '#d97706', bg: '#fffbeb' },
                       leave:   { label: '조퇴', color: '#7c3aed', bg: '#f5f3ff' },
                       absent:  { label: '결석', color: '#ef4444', bg: '#fef2f2' },
-                      pending: { label: '예정', color: '#6b7280', bg: '#f9fafb' },
                     }
+
+                    // 미래 날짜 — 테이블 대신 "예정" 안내
+                    if (isFutureDate) return (
+                      <div style={{ padding:'20px', textAlign:'center', background:'#f9fafb', borderTop:'1px solid #f3f4f6' }}>
+                        <div style={{ fontSize:'13px', color:'#9ca3af', marginBottom:'6px' }}>🗓️ 아직 수업일이 아닙니다</div>
+                        <div style={{ fontSize:'12px', color:'#d1d5db' }}>해당 수업일에 출석체크가 가능합니다</div>
+                      </div>
+                    )
+
+                    // 오늘 or 과거 — 미처리면 출석부 안내 / 처리됐으면 결과 표시
+                    const allPending = attRecords.every(r => !r || r.status === 'pending') && attRecords.length === 0
+                    if (isPastOrToday && allPending) return (
+                      <div onClick={() => onNav('attendance', { classId: cls.id, date })}
+                        style={{ padding:'20px', textAlign:'center', background:'#fff7ed', borderTop:'1.5px dashed #f97316', cursor:'pointer' }}>
+                        <div style={{ fontSize:'14px', fontWeight:700, color:'#ea580c', marginBottom:'4px' }}>
+                          {isToday ? '✅ 오늘 수업! 출석체크를 시작하세요' : '📋 출석체크가 완료되지 않았습니다'}
+                        </div>
+                        <div style={{ fontSize:'12px', color:'#9ca3af' }}>출석부에서 출석체크를 해주세요 →</div>
+                      </div>
+                    )
+
                     return (
                       <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                         <thead>
@@ -743,7 +765,7 @@ function DayDetail({ date, user, classes, onNav }) {
                         <tbody>
                           {students.map((stu, idx) => {
                             const ar  = attRecords.find(a => a.studentId === stu.id)
-                            const ac  = S[ar?.status || 'pending'] || S.pending
+                            const ac  = S[ar?.status] || { label: isPastOrToday ? '-' : '예정', color: '#9ca3af', bg: '#f9fafb' }
                             const si  = spItems.find(i => i.studentId === stu.id && i.classId === cls.id)
                             const sp  = si?.productId ? spProds.find(p => p.id === si.productId) : null
                             const sg  = si?.productId ? spProg.find(p => p.studentId === stu.id && p.productId === si.productId) : null
@@ -801,31 +823,6 @@ function DayDetail({ date, user, classes, onNav }) {
                     )
                   })()}
 
-                  {/* 오늘 수업인데 미처리 있으면 출석체크 안내 배너 */}
-                  {isToday && (() => {
-                    const todayPendingCnt = students.length - attRecords.filter(a => a.status !== 'pending').length
-                    const todayDoneCnt    = attRecords.filter(a => a.status !== 'pending').length
-                    if (todayPendingCnt > 0) return (
-                      <div onClick={() => onNav('attendance', { classId: cls.id, date })}
-                        style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'#fff7ed', borderTop:'2px dashed #f97316', cursor:'pointer', gap:'12px' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-                          <span style={{ fontSize:'22px' }}>✅</span>
-                          <div>
-                            <div style={{ fontSize:'14px', fontWeight:700, color:'#ea580c' }}>오늘 수업! 출석체크를 시작하세요</div>
-                            <div style={{ fontSize:'12px', color:'#9ca3af', marginTop:'2px' }}>미처리 {todayPendingCnt}명 · 출석부에서 처리해주세요</div>
-                          </div>
-                        </div>
-                        <span style={{ fontSize:'14px', fontWeight:700, color:'#f97316', whiteSpace:'nowrap', padding:'7px 14px', borderRadius:'9px', background:'#fff', border:'1.5px solid #f97316' }}>출석부로 →</span>
-                      </div>
-                    )
-                    if (todayDoneCnt > 0) return (
-                      <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 16px', background:'#f0fdf4', borderTop:'1px solid #86efac' }}>
-                        <span style={{ fontSize:'16px' }}>✅</span>
-                        <span style={{ fontSize:'13px', fontWeight:700, color:'#16a34a' }}>출석체크 완료!</span>
-                      </div>
-                    )
-                    return null
-                  })()}
                 </div>
               )
             })}
