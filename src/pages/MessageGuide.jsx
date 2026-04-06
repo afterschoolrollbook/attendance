@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { PageHeader, Card, Modal, Btn, EmptyState } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
-import { MessageGuides, MessageCategories, TeacherProfiles } from '../db.js'
+import { MessageGuides, MessageCategories, TeacherProfiles } from '../lib/db.js'
 
 const DEFAULT_CATEGORIES = ['결석', '지각', '개강전', '개강', '수업신청감사', '추첨', '종강']
 
