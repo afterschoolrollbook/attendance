@@ -264,7 +264,17 @@ function WithdrawSection({ phone, teacher }) {
 }
 
 // ── 학부모 홈
-function ParentHome({ students, teacher, phone }) {
+export function ParentHome({ students: studentsProp, teacher: teacherProp, phone, teacherId, memberRecord }) {
+  // ParentLogin에서 진입 시: teacherId + memberRecord로 students/teacher 자동 조회
+  const resolvedTeacher  = teacherProp  || (teacherId ? Users.find(teacherId) : null)
+  const resolvedStudents = studentsProp || (teacherId && phone
+    ? StudentsDB.byTeacher(teacherId).filter(s =>
+        s.parentPhone?.replace(/[^0-9]/g,'') === phone.replace(/[^0-9]/g,'')
+      )
+    : []
+  )
+  const students = resolvedStudents
+  const teacher  = resolvedTeacher
   const [attData, setAttData]         = useState({})
   const [classes, setClasses]         = useState([])
   const [attPopup, setAttPopup]       = useState(null)
