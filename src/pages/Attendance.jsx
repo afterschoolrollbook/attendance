@@ -2151,41 +2151,41 @@ export function Attendance({ user, pageParams = {} }) {
   const monthSessions = sessionDates.filter(d => d.startsWith(`${calYear}-${String(calMonth+1).padStart(2,'0')}`))
 
   return (
-    <div style={{ padding:'24px', maxWidth:'1400px', display:'flex', flexDirection:'column', gap:'20px' }}>
+    <div style={{ padding:'24px', maxWidth:'1400px', width:'100%', display:'flex', flexDirection:'column', gap:'20px' }}>
       <div style={{ fontSize:'22px', fontWeight:700, color:C.text }}>출석부</div>
 
       {/* 필터 — 년도 / 학교 / 수업 / 반 / 기간 */}
-      <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px 20px', display:'flex', gap:'12px', flexWrap:'wrap', alignItems:'flex-end' }}>
+      <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px 20px', display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr 1fr auto', gap:'12px', alignItems:'end' }}>
         <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
           <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>년도</label>
-          <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelClassId(''); setSelSection(''); setSelTerm('') }} style={selSt}>
+          <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelClassId(''); setSelSection(''); setSelTerm('') }} style={{ ...selSt, width:'100%' }}>
             {years.map(y => <option key={y} value={y}>{y}년</option>)}
           </select>
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
           <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>학교</label>
-          <select value={selSchool} onChange={e => handleSchoolChange(e.target.value)} style={selSt}>
+          <select value={selSchool} onChange={e => handleSchoolChange(e.target.value)} style={{ ...selSt, width:'100%' }}>
             <option value="">전체 학교</option>
             {[...new Set(allClasses.filter(c => !selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)).map(c => c.organization).filter(Boolean))].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
           <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>수업</label>
-          <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelSection(''); setSelTerm(''); setDateClicked(false) }} style={selSt}>
+          <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelSection(''); setSelTerm(''); setDateClicked(false) }} style={{ ...selSt, width:'100%' }}>
             <option value="">전체 수업</option>
             {schoolClasses.map(c => <option key={c.id} value={c.id}>{c.className}{c.section?' '+c.section+'반':''}</option>)}
           </select>
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
           <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>반</label>
-          <select value={selSection} onChange={e => setSelSection(e.target.value)} style={{ ...selSt, minWidth:'110px' }} disabled={!selClassId || sections.length === 0}>
+          <select value={selSection} onChange={e => setSelSection(e.target.value)} style={{ ...selSt, width:'100%' }} disabled={!selClassId || sections.length === 0}>
             <option value="">전체 반</option>
             {sections.map(s => <option key={s} value={s}>{s}반</option>)}
           </select>
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
           <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>기간</label>
-          <select value={selTerm} onChange={e => setSelTerm(e.target.value)} style={selSt}>
+          <select value={selTerm} onChange={e => setSelTerm(e.target.value)} style={{ ...selSt, width:'100%' }}>
             <option value="">전체 기간</option>
             {/* 수업 선택 시 해당 termType만, 미선택 시 전체 표시 */}
             {(!selClass || selClass.termType === 'quarter') && (
@@ -2204,9 +2204,11 @@ export function Attendance({ user, pageParams = {} }) {
             )}
           </select>
         </div>
-        {selClass && <div style={{ fontSize:'13px', color:C.muted, marginBottom:'4px' }}>📅 {selClass.startDate} ~ {selClass.endDate} · 총 {sessionDates.length}차시</div>}
-        <div style={{ fontSize:'13px', color:C.muted, marginBottom:'4px', marginLeft:'auto' }}>
-          👥 {students.filter(s => ['applied','selected','confirmed'].includes(s.status)).length}명
+        <div style={{ display:'flex', flexDirection:'column', gap:'5px', alignSelf:'end' }}>
+          {selClass && <div style={{ fontSize:'12px', color:C.muted }}>📅 {selClass.startDate?.slice(5)} ~ {selClass.endDate?.slice(5)} · {sessionDates.length}차시</div>}
+          <div style={{ fontSize:'14px', fontWeight:700, color:C.primary }}>
+            👥 {students.filter(s => ['applied','selected','confirmed'].includes(s.status)).length}명
+          </div>
         </div>
       </div>
 
@@ -2236,7 +2238,7 @@ export function Attendance({ user, pageParams = {} }) {
         </div>
 
         {/* 오른쪽 패널 */}
-        <div>
+        <div style={{ minWidth:0, overflowX:'auto' }}>
           {selClassId ? (
             (!isSessionDate && dateClicked) ? (
               <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
@@ -2256,4 +2258,4 @@ export function Attendance({ user, pageParams = {} }) {
   )
 }
 
-const selSt = { padding:'8px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', color:'#111827', cursor:'pointer', outline:'none', minWidth:'160px' }
+const selSt = { padding:'8px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', color:'#111827', cursor:'pointer', outline:'none', minWidth:'180px' }
