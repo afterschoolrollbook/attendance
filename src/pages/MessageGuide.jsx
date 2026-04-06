@@ -3,11 +3,15 @@ import { PageHeader, Card, Modal, Btn, EmptyState } from '../components/Atoms.js
 import { useToast } from '../hooks/useToast.js'
 import { MessageGuides, MessageCategories, TeacherProfiles } from '../lib/db.js'
 
-const DEFAULT_CATEGORIES = ['결석', '지각', '개강전', '개강', '수업신청감사', '추첨', '종강']
+const DEFAULT_CATEGORIES = ['출석', '결석', '지각', '하교', '개강전', '개강', '수업신청감사', '추첨', '종강']
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
 
 const DEFAULT_GUIDES = [
+  { category:'출석', title:'출석 안내 (기본)', content:'안녕하세요 😊 {학교명} {선생님닉네임}입니다. {학생이름} 친구가 오늘 수업에 출석했습니다! 수업 잘 마치고 안전하게 귀가할 수 있도록 하겠습니다 🙏' },
+  { category:'출석', title:'출석 안내 (간단)', content:'안녕하세요 {학교명} {선생님닉네임}입니다. {학생이름} 학생 {날짜} 수업 출석 확인되었습니다 ✅' },
+  { category:'하교', title:'하교 안내 (기본)', content:'안녕하세요 😊 {학교명} {선생님닉네임}입니다. {학생이름} 친구가 오늘 수업을 마치고 지금 하교합니다 🏠 안전한 귀가 부탁드립니다!' },
+  { category:'하교', title:'하교 안내 (간단)', content:'안녕하세요 {학교명} {선생님닉네임}입니다. {학생이름} 학생 {날짜} 수업 종료 후 하교했습니다 🚶' },
   { category:'결석', title:'결석 안내 (기본)', content:'안녕하세요, {학교명} {수업명} {선생님닉네임}입니다 😊 {학생이름} 친구가 오늘 수업에 아직 도착하지 않아 연락드립니다. 혹시 결석 예정이신가요? 확인 부탁드립니다. 감사합니다 🙏' },
   { category:'결석', title:'결석 안내 (간단)', content:'안녕하세요 {학교명} {선생님닉네임}입니다. {학생이름} 학생이 {날짜} 수업에 결석 처리되었습니다. 문의사항은 언제든지 연락주세요.' },
   { category:'지각', title:'지각 안내 (기본)', content:'안녕하세요, {학교명} {수업명} {선생님닉네임}입니다 😊 {학생이름} 친구가 오늘 수업에 늦게 도착했습니다. 수업은 잘 참여하고 있으니 안심하세요 😄' },

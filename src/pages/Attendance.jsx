@@ -169,7 +169,7 @@ function replacePlaceholders(text, student, cls, user) {
     .replace(/{날짜}/g, dateStr)
 }
 
-const GUIDE_CATS = ['결석', '지각', '개강전', '개강', '수업신청감사', '추첨']
+const GUIDE_CATS = ['출석', '결석', '지각', '하교']
 
 // ─── 학부모 메시지 발송
 function MsgModal({ student, cls, user, onClose }) {
@@ -181,11 +181,9 @@ function MsgModal({ student, cls, user, onClose }) {
   const [guideTab, setGuideTab]  = useState('결석')
   const [text, setText]          = useState('')
 
-  // MessageGuide에 등록된 카테고리 동적 로드
+  // MessageGuide에 등록된 카테고리 — 모바일은 4개만 표시
   const allGuides  = MessageGuides.byTeacher(user?.id || '')
-  const guideCats  = [...new Set(allGuides.map(g => g.category))].length > 0
-    ? [...new Set(allGuides.map(g => g.category))]
-    : GUIDE_CATS
+  const guideCats  = GUIDE_CATS
   const guides     = allGuides.filter(g => g.category === guideTab)
 
   // 연락 방법 저장 (학생 DB에 반영)
@@ -271,6 +269,9 @@ function MsgModal({ student, cls, user, onClose }) {
                 {cat}
               </button>
             ))}
+          </div>
+          <div style={{ marginTop: '8px', padding: '8px 10px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb', fontSize: '11px', color: '#9ca3af' }}>
+            💡 추첨·종강·개강 등 다른 문구는 PC 버전에서 발송해주세요.
           </div>
         </div>
 
