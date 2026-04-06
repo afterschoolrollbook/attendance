@@ -308,6 +308,24 @@ export const ParentMembers = {
     db.insert('parentMembers', record)
     return record
   },
+
+  update(id, fields) {
+    db.update('parentMembers', id, fields)
+  },
+
+  // 학부모 앱 가입 처리 (초대 링크 통해 가입 시)
+  join(phone, { marketingAgree = false, invitedByTeacher = '' } = {}) {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    if (!clean) return null
+    const existing = this.findByPhone(clean)
+    if (existing) {
+      db.update('parentMembers', existing.id, { appJoined: true, marketingAgree, invitedByTeacher, joinedAt: now() })
+      return existing
+    }
+    const record = { id: uid(), phone: clean, name: '', appJoined: true, marketingAgree, invitedByTeacher, joinedAt: now(), memo: '', createdAt: now() }
+    db.insert('parentMembers', record)
+    return record
+  },
 }
 
 // ─── 선생님-학부모 연결
