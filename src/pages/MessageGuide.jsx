@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { PageHeader, Card, Modal, Btn, EmptyState } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
-import { Users, MessageGuides, MessageCategories } from '../db.js'
+import { MessageGuides, MessageCategories, TeacherProfiles } from '../db.js'
 
 const DEFAULT_CATEGORIES = ['결석', '지각', '개강전', '개강', '수업신청감사', '추첨', '종강']
 
@@ -45,11 +45,11 @@ export function MessageGuide({ user }) {
   const [customCats, setCustomCats] = useState(() => MessageCategories.byTeacher(user.id))
   const categories = [...DEFAULT_CATEGORIES, ...customCats.map(c => c.name)]
 
-  // 선생님 프로필 (users 테이블에서 직접)
-  const [profile, setProfile] = useState(() => Users.find(user.id) || {})
+  // 선생님 프로필
+  const [profile, setProfile] = useState(() => TeacherProfiles.byTeacher(user.id) || {})
   const [profileForm, setProfileForm] = useState(() => {
-    const u = Users.find(user.id) || {}
-    return { name: u.name || '', nickname: u.nickname || '' }
+    const p = TeacherProfiles.byTeacher(user.id) || {}
+    return { name: p.name || '', nickname: p.nickname || '' }
   })
 
   // 문구 추가/편집 모달
@@ -125,7 +125,7 @@ export function MessageGuide({ user }) {
 
   // ── 선생님 프로필 ─────────────────────────────────────────────
   const saveTeacherProfile = () => {
-    Users.update(user.id, { name: profileForm.name, nickname: profileForm.nickname })
+    TeacherProfiles.save(user.id, profileForm.name, profileForm.nickname)
     setProfile(p => ({ ...p, ...profileForm }))
     success('저장이 완료되었습니다.')
   }
