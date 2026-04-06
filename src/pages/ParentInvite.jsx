@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Students as StudentsDB, Users, ParentMembers, TeacherParentLinks, Classes as ClassesDB } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
+// ✅ ParentServiceManage의 설정을 공유해서 선생님이 수정한 약관·문구가 여기에도 반영됩니다
+import { loadParentServiceConfig, DEFAULT_CONFIG } from './ParentServiceManage.jsx'
 
 function fmtPhone(p) {
   if (!p) return ''
@@ -150,6 +152,89 @@ function ClassCalendar({ cls }) {
   )
 }
 
+// ── 서비스 탈퇴 섹션
+function WithdrawSection({ phone, teacher, withdrawNotice }) {
+  const [open, setOpen] = useState(false)
+  const [confirm, setConfirm] = useState(false)
+  const [done, setDone] = useState(false)
+  const notice = withdrawNotice || DEFAULT_CONFIG.withdrawNotice
+
+  const handleWithdraw = () => {
+    if (!confirm) return
+    try {
+      const member = ParentMembers.findByPhone(phone)
+      if (member) {
+        ParentMembers.update(member.id, {
+          appJoined: false,
+          withdrawnAt: new Date().toISOString(),
+          withdrawReason: 'user_request',
+        })
+      }
+      try {
+        const links = JSON.parse(localStorage.getItem('asa_teacherParentLinks') || '[]')
+        const updated = links.map(l =>
+          l.parentMemberId === member?.id && l.status === 'active'
+            ? { ...l, status: 'ended', endedAt: new Date().toISOString(), endReason: 'parent_withdraw' }
+            : l
+        )
+        localStorage.setItem('asa_teacherParentLinks', JSON.stringify(updated))
+      } catch {}
+    } catch {}
+    setDone(true)
+  }
+
+  if (done) return (
+    <div style={{ background:'#f9fafb', borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px', textAlign:'center' }}>
+      <div style={{ fontSize:'32px', marginBottom:'8px' }}>👋</div>
+      <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'4px' }}>탈퇴 완료</div>
+      <div style={{ fontSize:'13px', color:C.muted, lineHeight:1.7 }}>
+        서비스 탈퇴가 완료되었습니다.<br/>
+        출결 알림 수신이 중단됩니다.<br/>
+        이용해 주셔서 감사합니다.
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ background:'#f9fafb', borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div>
+          <div style={{ fontSize:'13px', fontWeight:700, color:C.muted }}>⚙️ 서비스 관리</div>
+          <div style={{ fontSize:'12px', color:'#9ca3af', marginTop:'2px' }}>출결 알림 수신을 중단하려면 탈퇴하세요</div>
+        </div>
+        <button onClick={()=>setOpen(o=>!o)}
+          style={{ padding:'7px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff',
+            color:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          {open ? '닫기' : '탈퇴'}
+        </button>
+      </div>
+
+      {open && (
+        <div style={{ marginTop:'14px', paddingTop:'14px', borderTop:`1px solid ${C.border}` }}>
+          <div style={{ background:'#fef2f2', borderRadius:'10px', border:'1px solid #fecaca', padding:'12px 14px', marginBottom:'14px' }}>
+            <div style={{ fontSize:'13px', fontWeight:700, color:'#991b1b', marginBottom:'6px' }}>탈퇴 전 확인하세요</div>
+            <div style={{ fontSize:'12px', color:'#b91c1c', lineHeight:1.8, whiteSpace:'pre-line' }}>
+              {notice}
+            </div>
+          </div>
+          <label style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'14px', cursor:'pointer' }}>
+            <input type="checkbox" checked={confirm} onChange={e=>setConfirm(e.target.checked)}
+              style={{ width:'16px', height:'16px', accentColor:'#ef4444' }}/>
+            <span style={{ fontSize:'13px', color:C.text }}>위 내용을 확인했으며 탈퇴에 동의합니다</span>
+          </label>
+          <button onClick={handleWithdraw} disabled={!confirm}
+            style={{ width:'100%', padding:'12px', borderRadius:'10px', border:'none',
+              background:confirm?'#ef4444':'#e5e7eb', color:confirm?'#fff':'#9ca3af',
+              fontSize:'14px', fontWeight:700, cursor:confirm?'pointer':'not-allowed',
+              fontFamily:'Noto Sans KR, sans-serif' }}>
+            서비스 탈퇴하기
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── 학부모 홈
 function ParentHome({ students, teacher, phone }) {
   const [attData, setAttData]         = useState({})
@@ -161,6 +246,9 @@ function ParentHome({ students, teacher, phone }) {
     try { return new Set(JSON.parse(localStorage.getItem('asa_parent_seen')||'[]')) } catch { return new Set() }
   })
 
+  // 선생님이 설정한 탈퇴 문구 로드
+  const cfg = loadParentServiceConfig()
+
   const statusMap = {
     present: { label:'출석', color:'#16a34a', bg:'#f0fdf4', emoji:'✅' },
     late:    { label:'지각', color:'#d97706', bg:'#fffbeb', emoji:'🕐' },
@@ -170,7 +258,6 @@ function ParentHome({ students, teacher, phone }) {
   }
 
   useEffect(()=>{
-    // 출결 로드
     const data = {}
     students.forEach(s=>{
       try {
@@ -183,7 +270,6 @@ function ParentHome({ students, teacher, phone }) {
     })
     setAttData(data)
 
-    // 새 출결 팝업
     for (const s of students) {
       const keys = Object.keys(localStorage).filter(k=>k.startsWith('attendance_'))
       const recs = keys.flatMap(k=>{ try{return JSON.parse(localStorage.getItem(k))||[]}catch{return[]} })
@@ -195,7 +281,6 @@ function ParentHome({ students, teacher, phone }) {
       if (!seenKeys.has(key)) { setAttPopup({ record:latest, studentName:s.name }); break }
     }
 
-    // 수업 로드
     if (teacher?.id) {
       const cls = ClassesDB.byTeacher(teacher.id)
       const sids = new Set(students.flatMap(s=>s.classIds||[]))
@@ -216,7 +301,6 @@ function ParentHome({ students, teacher, phone }) {
     setAttPopup(null)
   }
 
-  // 요일 표시 헬퍼
   const fmtDays = (days=[]) => days.join('·')
   const fmtTime = (t) => t || ''
 
@@ -224,7 +308,6 @@ function ParentHome({ students, teacher, phone }) {
     <div style={{ minHeight:'100vh', background:'#f4f5f7', fontFamily:'Noto Sans KR, sans-serif', paddingBottom:'32px' }}>
       {attPopup && <AttPopup record={attPopup.record} studentName={attPopup.studentName} onClose={closePopup}/>}
 
-      {/* 이미지 모달 */}
       {imgModal && (
         <div onClick={()=>setImgModal(null)} style={{
           position:'fixed', inset:0, zIndex:9998, background:'rgba(0,0,0,0.85)',
@@ -234,7 +317,6 @@ function ParentHome({ students, teacher, phone }) {
         </div>
       )}
 
-      {/* 헤더 */}
       <div style={{ background:'#18181b', padding:'16px 20px', display:'flex', alignItems:'center', gap:'10px' }}>
         <span style={{ fontSize:'22px' }}>📋</span>
         <span style={{ fontSize:'16px', fontWeight:700, color:'#fff' }}>방과후 출석부</span>
@@ -243,13 +325,11 @@ function ParentHome({ students, teacher, phone }) {
 
       <div style={{ padding:'20px 16px', maxWidth:'480px', margin:'0 auto', display:'flex', flexDirection:'column', gap:'16px' }}>
 
-        {/* ── 1. 인사 + 선생님 긴급연락처 */}
         <div style={{ background:'#fff7ed', borderRadius:'14px', border:'1px solid #fed7aa', padding:'16px 18px' }}>
           <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>안녕하세요! 👋</div>
           <div style={{ fontSize:'13px', color:C.muted }}>{teacher?.nickname||teacher?.name} 선생님 반 학부모님</div>
           <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>📱 {fmtPhone(phone)}</div>
 
-          {/* 선생님 연락처 */}
           {teacher?.phone && (
             <div style={{ marginTop:'12px', paddingTop:'12px', borderTop:'1px solid #fed7aa' }}>
               <div style={{ fontSize:'11px', fontWeight:700, color:'#9a3412', marginBottom:'6px' }}>🚨 선생님 긴급연락처</div>
@@ -269,10 +349,8 @@ function ParentHome({ students, teacher, phone }) {
           )}
         </div>
 
-        {/* ── 2. 수업 정보 (수업별) */}
         {classes.map(cls => (
           <div key={cls.id} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-            {/* 수업 헤더 — 클릭으로 펼침/접기 */}
             <div
               onClick={()=>setExpandedCls(expandedCls===cls.id ? null : cls.id)}
               style={{ padding:'14px 16px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'space-between',
@@ -291,7 +369,6 @@ function ParentHome({ students, teacher, phone }) {
             {expandedCls===cls.id && (
               <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:'14px' }}>
 
-                {/* 수업 기본 정보 */}
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
                   {[
                     { icon:'🏫', label:'학교', val: cls.organization || '-' },
@@ -307,7 +384,6 @@ function ParentHome({ students, teacher, phone }) {
                   ))}
                 </div>
 
-                {/* 학교 교무실 + 주소 (description에서 파싱 or 별도 필드) */}
                 {(cls.officePhone || cls.office_phone || cls.schoolAddress || cls.school_address) && (
                   <div style={{ padding:'12px 14px', background:'#eff6ff', borderRadius:'10px', border:'1px solid #bfdbfe' }}>
                     <div style={{ fontSize:'11px', fontWeight:700, color:'#1d4ed8', marginBottom:'8px' }}>🏫 학교 정보</div>
@@ -326,7 +402,6 @@ function ParentHome({ students, teacher, phone }) {
                   </div>
                 )}
 
-                {/* 수업 안내글 */}
                 {cls.description && (
                   <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
                     <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'6px' }}>📝 수업 안내</div>
@@ -334,13 +409,11 @@ function ParentHome({ students, teacher, phone }) {
                   </div>
                 )}
 
-                {/* 수업 달력 */}
                 <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
                   <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'10px' }}>📅 수업 달력</div>
                   <ClassCalendar cls={cls}/>
                 </div>
 
-                {/* 수업 홍보물 */}
                 <div>
                   <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🖼️ 수업 홍보물</div>
                   {(cls.promotionImgs?.length > 0 || cls.promotionImg) ? (
@@ -354,13 +427,10 @@ function ParentHome({ students, teacher, phone }) {
                     </div>
                   ) : (
                     <div style={{ padding:'14px', borderRadius:'10px', border:`1.5px dashed ${C.border}`,
-                      textAlign:'center', fontSize:'12px', color:'#9ca3af' }}>
-                      홍보물
-                    </div>
+                      textAlign:'center', fontSize:'12px', color:'#9ca3af' }}>홍보물</div>
                   )}
                 </div>
 
-                {/* 수업 안내장 */}
                 <div>
                   <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📄 수업 안내장</div>
                   {cls.noticeFiles?.length > 0 ? (
@@ -369,8 +439,7 @@ function ParentHome({ students, teacher, phone }) {
                         f.fileType === 'application/pdf' ? (
                           <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
                             style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 12px',
-                              borderRadius:'10px', background:'#fef2f2', border:'1px solid #fecaca',
-                              textDecoration:'none' }}>
+                              borderRadius:'10px', background:'#fef2f2', border:'1px solid #fecaca', textDecoration:'none' }}>
                             <span style={{ fontSize:'20px' }}>📋</span>
                             <div style={{ flex:1 }}>
                               <div style={{ fontSize:'13px', fontWeight:600, color:'#991b1b' }}>{f.name || `안내장 ${i+1}`}</div>
@@ -388,9 +457,7 @@ function ParentHome({ students, teacher, phone }) {
                     </div>
                   ) : (
                     <div style={{ padding:'14px', borderRadius:'10px', border:`1.5px dashed ${C.border}`,
-                      textAlign:'center', fontSize:'12px', color:'#9ca3af' }}>
-                      안내장
-                    </div>
+                      textAlign:'center', fontSize:'12px', color:'#9ca3af' }}>안내장</div>
                   )}
                 </div>
 
@@ -399,7 +466,6 @@ function ParentHome({ students, teacher, phone }) {
           </div>
         ))}
 
-        {/* ── 3. 자녀별 출결 현황 */}
         {students.map(s => {
           const recs    = attData[s.id] || []
           const total   = recs.length
@@ -461,7 +527,6 @@ function ParentHome({ students, teacher, phone }) {
           )
         })}
 
-        {/* ── 4. 수업 공지 / 행사 (추후) */}
         <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px', opacity:0.5 }}>
           <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'4px' }}>📢 수업 공지</div>
           <div style={{ fontSize:'13px', color:C.muted }}>추후 구현 예정입니다</div>
@@ -470,6 +535,8 @@ function ParentHome({ students, teacher, phone }) {
           <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'4px' }}>🎉 행사·이벤트</div>
           <div style={{ fontSize:'13px', color:C.muted }}>추후 구현 예정입니다</div>
         </div>
+
+        <WithdrawSection phone={phone} teacher={teacher} withdrawNotice={cfg?.withdrawNotice} />
 
       </div>
     </div>
@@ -489,7 +556,11 @@ export function ParentInvite() {
   const [agree2, setAgree2]     = useState(false)
   const [agreeMarketing, setAgreeMarketing] = useState(false)
   const [showInstallBanner, setShowInstallBanner] = useState(false)
+  const [termsModal, setTermsModal] = useState(null)
   const installPromptRef = useRef(null)
+
+  // ✅ 선생님이 ParentServiceManage에서 저장한 약관·문구 로드
+  const [cfg, setCfg] = useState(loadParentServiceConfig)
 
   useEffect(() => {
     const handler = (e) => { e.preventDefault(); installPromptRef.current = e }
@@ -507,7 +578,6 @@ export function ParentInvite() {
     )
     setStudents(matched)
 
-    // 이미 가입한 학부모면 바로 홈으로
     const already = ParentMembers.findByPhone(phone)
     if (already?.appJoined) {
       setStep('done')
@@ -574,34 +644,66 @@ export function ParentInvite() {
     <div style={{ ...wrap, justifyContent:'flex-start', paddingTop:'40px' }}>
       <div style={{ fontSize:'32px', marginBottom:'8px' }}>📋</div>
       <div style={{ fontSize:'18px', fontWeight:700, color:C.text, marginBottom:'4px' }}>약관 동의</div>
-      <div style={{ fontSize:'13px', color:C.muted, marginBottom:'24px' }}>서비스 이용을 위해 아래 약관에 동의해주세요</div>
+      <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px' }}>서비스 이용을 위해 아래 약관에 동의해주세요</div>
       <div style={{ width:'100%', maxWidth:'400px', display:'flex', flexDirection:'column', gap:'12px' }}>
+
+        <div style={{ background:'#fffbeb', borderRadius:'12px', border:'1.5px solid #fde68a', padding:'14px 16px' }}>
+          <div style={{ fontSize:'12px', fontWeight:700, color:'#92400e', marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px' }}>
+            <span>📌</span> 서비스 이용 전 꼭 확인하세요
+          </div>
+          <div style={{ fontSize:'13px', color:'#78350f', lineHeight:1.9 }}>
+            {cfg.inviteNotice.replace(/{선생님}/g, teacher?.nickname||teacher?.name||'선생님')}
+          </div>
+          <div style={{ marginTop:'10px', padding:'10px 12px', background:'#fef3c7', borderRadius:'10px', border:'1px solid #fde68a', display:'flex', flexDirection:'column', gap:'4px' }}>
+            <div style={{ fontSize:'13px', fontWeight:700, color:'#b45309' }}>🏫 {cfg.schoolNotice}</div>
+            <div style={{ fontSize:'12px', color:'#92400e' }}>• {cfg.notAgreeNotice}</div>
+            <div style={{ fontSize:'12px', color:'#92400e' }}>• 가입 후 언제든지 서비스 탈퇴가 가능합니다.</div>
+          </div>
+        </div>
+
         <label style={{ display:'flex', alignItems:'center', gap:'10px', padding:'14px 16px', borderRadius:'12px', border:`2px solid ${agree1&&agree2?C.primary:C.border}`, background:agree1&&agree2?'#fff7ed':C.card, cursor:'pointer' }}>
           <input type="checkbox" checked={agree1&&agree2&&agreeMarketing} onChange={e=>{setAgree1(e.target.checked);setAgree2(e.target.checked);setAgreeMarketing(e.target.checked)}}
             style={{ width:'18px', height:'18px', accentColor:C.primary }}/>
           <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>전체 동의</span>
         </label>
         <div style={{ height:'1px', background:C.border }}/>
+
         <label style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'10px', border:`1px solid ${C.border}`, cursor:'pointer' }}>
           <input type="checkbox" checked={agree1} onChange={e=>setAgree1(e.target.checked)} style={{ width:'16px', height:'16px', accentColor:C.primary }}/>
           <div style={{ flex:1 }}>
-            <span style={{ fontSize:'14px', color:C.text }}>[필수] 서비스 이용약관 동의</span>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span style={{ fontSize:'14px', color:C.text }}>[필수] 서비스 이용약관 동의</span>
+              <button onClick={e=>{e.preventDefault();setTermsModal('terms')}}
+                style={{ fontSize:'12px', color:C.primary, background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', textDecoration:'underline', padding:'0 2px' }}>
+                보기
+              </button>
+            </div>
+            <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>출결 알림 수신, 언제든지 탈퇴 가능</div>
           </div>
         </label>
+
         <label style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'10px', border:`1px solid ${C.border}`, cursor:'pointer' }}>
           <input type="checkbox" checked={agree2} onChange={e=>setAgree2(e.target.checked)} style={{ width:'16px', height:'16px', accentColor:C.primary }}/>
           <div style={{ flex:1 }}>
-            <span style={{ fontSize:'14px', color:C.text }}>[필수] 개인정보 수집·이용 동의</span>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span style={{ fontSize:'14px', color:C.text }}>[필수] 개인정보 수집·이용 동의</span>
+              <button onClick={e=>{e.preventDefault();setTermsModal('privacy')}}
+                style={{ fontSize:'12px', color:C.primary, background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', textDecoration:'underline', padding:'0 2px' }}>
+                보기
+              </button>
+            </div>
             <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>이름·전화번호·자녀정보 수집, 출결 알림 제공</div>
           </div>
         </label>
+
         <label style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'10px', border:`1px solid ${C.border}`, cursor:'pointer' }}>
           <input type="checkbox" checked={agreeMarketing} onChange={e=>setAgreeMarketing(e.target.checked)} style={{ width:'16px', height:'16px', accentColor:C.primary }}/>
           <div style={{ flex:1 }}>
-            <span style={{ fontSize:'14px', color:C.text }}>[선택] 마케팅 정보 수신 동의</span>
-            <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>교육 상품, 공동구매 등 유익한 정보 수신</div>
+            <span style={{ fontSize:'14px', color:C.text }}>{cfg.marketingLabel}</span>
+            <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>{cfg.marketingDesc}</div>
           </div>
         </label>
+
         <button onClick={handleJoin} disabled={!agree1||!agree2}
           style={{ padding:'15px', borderRadius:'12px', border:'none', background:agree1&&agree2?C.primary:'#e5e7eb', color:agree1&&agree2?'#fff':'#9ca3af', fontSize:'16px', fontWeight:700, cursor:agree1&&agree2?'pointer':'not-allowed', fontFamily:'Noto Sans KR, sans-serif', marginTop:'8px' }}>
           가입 완료
@@ -610,15 +712,55 @@ export function ParentInvite() {
           가입 완료 후 홈 화면에 바로가기를 추가할 수 있습니다.
         </div>
       </div>
+
+      {termsModal && (
+        <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'flex-end', justifyContent:'center' }}
+          onClick={()=>setTermsModal(null)}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{ background:C.card, borderRadius:'20px 20px 0 0', padding:'24px 20px', width:'100%', maxWidth:'480px', maxHeight:'70vh', display:'flex', flexDirection:'column', boxShadow:'0 -8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px' }}>
+              <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>
+                {termsModal==='terms' ? '📜 서비스 이용약관' : '🔒 개인정보 수집·이용 동의'}
+              </div>
+              <button onClick={()=>setTermsModal(null)} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:C.muted, padding:'0 4px', lineHeight:1 }}>✕</button>
+            </div>
+            <div style={{ flex:1, overflowY:'auto', fontSize:'13px', color:C.text, lineHeight:1.9, whiteSpace:'pre-wrap', paddingRight:'4px' }}>
+              {termsModal==='terms' ? cfg.terms : cfg.privacy}
+            </div>
+            <button onClick={()=>setTermsModal(null)}
+              style={{ marginTop:'16px', padding:'14px', borderRadius:'12px', border:'none', background:C.primary, color:'#fff', fontSize:'15px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              확인
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 
-  // 초대 정보 확인
+  // 초대 정보 확인 (step === 'info')
   return (
-    <div style={{ ...wrap, justifyContent:'flex-start', paddingTop:'48px' }}>
+    <div style={{ ...wrap, justifyContent:'flex-start', paddingTop:'40px' }}>
       <div style={{ fontSize:'40px', marginBottom:'12px' }}>📋</div>
       <div style={{ fontSize:'20px', fontWeight:700, color:C.text, marginBottom:'4px' }}>출결서비스 초대</div>
-      <div style={{ fontSize:'14px', color:C.muted, marginBottom:'28px' }}>선생님이 출결서비스에 초대했습니다</div>
+      <div style={{ fontSize:'14px', color:C.muted, marginBottom:'20px' }}>선생님이 출결서비스에 초대했습니다</div>
+
+      <div style={{ width:'100%', maxWidth:'400px', background:'#fffbeb', borderRadius:'14px', border:'2px solid #fbbf24', padding:'16px 18px', marginBottom:'16px' }}>
+        <div style={{ fontSize:'12px', fontWeight:700, color:'#92400e', marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px' }}>
+          <span>⚠️</span> 서비스 이용 전 안내
+        </div>
+        <div style={{ fontSize:'13px', color:'#78350f', lineHeight:1.8 }}>
+          {cfg.inviteNotice.replace(/{선생님}/g, teacher?.nickname||teacher?.name||'선생님')}
+        </div>
+        <div style={{ marginTop:'10px', padding:'10px 12px', background:'#fef3c7', borderRadius:'10px', border:'1px solid #fde68a' }}>
+          <div style={{ fontSize:'13px', fontWeight:700, color:'#b45309' }}>
+            🏫 {cfg.schoolNotice}
+          </div>
+          <div style={{ fontSize:'12px', color:'#92400e', marginTop:'4px', lineHeight:1.6 }}>
+            {cfg.notAgreeNotice}
+          </div>
+        </div>
+      </div>
+
       <div style={{ width:'100%', maxWidth:'400px', background:'#fff7ed', borderRadius:'14px', border:'1px solid #fed7aa', padding:'16px', marginBottom:'16px' }}>
         <div style={{ fontSize:'12px', color:C.muted, marginBottom:'6px', fontWeight:600 }}>초대한 선생님</div>
         <div style={{ fontSize:'17px', fontWeight:700, color:C.text }}>{teacher?.nickname||teacher?.name} 선생님</div>
