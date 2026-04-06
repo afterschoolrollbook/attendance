@@ -1127,11 +1127,13 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
 
       {/* ── 학생 리스트 — 반별로 섹션 나눠서 표시 */}
       {(() => {
-        // 반(section) 기준으로 그룹핑. section 없으면 단일 그룹
-        const sections = [...new Set(activeStudents.map(s => {
-          const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
-          return sc?.section || ''
-        }))].sort()
+        // cls가 있으면 단일 섹션. 없으면 학생 classIds 기반 섹션 그룹핑
+        const sections = cls
+          ? [cls.section || '']
+          : [...new Set(activeStudents.map(s => {
+              const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
+              return sc?.section || ''
+            }))].sort()
 
         const ColHeader = () => (
           <div style={{ display:'grid', gridTemplateColumns:'35px 90px 90px 130px 220px 110px 90px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
@@ -1147,10 +1149,12 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
         )
 
         return sections.map(sec => {
-          const secStudents = activeStudents.filter(s => {
-            const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
-            return (sc?.section || '') === sec
-          })
+          const secStudents = cls
+            ? activeStudents
+            : activeStudents.filter(s => {
+                const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
+                return (sc?.section || '') === sec
+              })
           return (
             <div key={sec||'all'} style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden', marginBottom:'12px' }}>
               <div style={{ padding:'10px 16px', background:'#f9fafb', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -1182,10 +1186,10 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                   ))}
                 </div>
               )}
-              {inactiveStudents.filter(s => {
+              {(cls ? inactiveStudents : inactiveStudents.filter(s => {
                 const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
                 return (sc?.section || '') === sec
-              }).length > 0 && (
+              })).length > 0 && (
                 <div style={{ borderTop:`1.5px dashed #e5e7eb` }}>
                   <button onClick={() => setShowInactive(v=>!v)}
                     style={{ display:'flex', alignItems:'center', gap:'6px', background:'#fafafa', border:'none', cursor:'pointer', padding:'10px 16px', fontFamily:'Noto Sans KR, sans-serif', width:'100%', textAlign:'left' }}>
@@ -1196,10 +1200,10 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                   </button>
                   {showInactive && (
                     <div style={{ display:'flex', flexDirection:'column', gap:'5px', padding:'0 8px 8px' }}>
-                      {inactiveStudents.filter(s => {
+                      {(cls ? inactiveStudents : inactiveStudents.filter(s => {
                         const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
                         return (sc?.section || '') === sec
-                      }).map((s,i) => <InactiveStudentRow key={s.id} s={s} idx={i} />)}
+                      })).map((s,i) => <InactiveStudentRow key={s.id} s={s} idx={i} />)}
                     </div>
                   )}
                 </div>
