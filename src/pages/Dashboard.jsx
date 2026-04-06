@@ -767,7 +767,7 @@ function DayDetail({ date, user, classes, onNav }) {
                         <tbody>
                           {students.map((stu, idx) => {
                             const ar  = attRecords.find(a => a.studentId === stu.id)
-                            const ac  = S[ar?.status] || { label: isPastOrToday ? '-' : '예정', color: '#9ca3af', bg: '#f9fafb' }
+                            const ac  = S[ar?.status] || { label: '', color: '#9ca3af', bg: 'transparent' }
                             const si  = spItems.find(i => i.studentId === stu.id && i.classId === cls.id)
                             const sp  = si?.productId ? spProds.find(p => p.id === si.productId) : null
                             const sg  = si?.productId ? spProg.find(p => p.studentId === stu.id && p.productId === si.productId) : null
