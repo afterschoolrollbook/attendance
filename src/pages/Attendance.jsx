@@ -635,7 +635,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         })()}
 
         {/* 출결초대 */}
-        <div style={{ textAlign:'center' }}>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'4px', textAlign:'center' }}>
           {s.parentPhone ? (
             <button onClick={() => setInviteOpen(true)}
               style={{ padding:'4px 8px', borderRadius:'7px', border:`1.5px solid ${inviteSent?'#86efac':'#a78bfa'}`, background:inviteSent?'#f0fdf4':'#f5f3ff', color:inviteSent?'#16a34a':'#7c3aed', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
