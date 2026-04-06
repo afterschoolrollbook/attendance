@@ -454,12 +454,6 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
               {(s.relations||[]).map((r,ri)=><span key={ri} style={{ fontSize:'10px', fontWeight:600, padding:'1px 5px', borderRadius:'4px', background:r.type==='쌍둥이'?'#fdf4ff':r.type==='형제'?'#eff6ff':r.type==='남매'?'#f0fdf4':'#fff7ed', border:`1px solid ${r.type==='쌍둥이'?'#e9d5ff':r.type==='형제'?'#bfdbfe':r.type==='남매'?'#86efac':'#fed7aa'}`, color:r.type==='쌍둥이'?'#7e22ce':r.type==='형제'?'#1d4ed8':r.type==='남매'?'#15803d':'#c2410c' }}>{r.type}{r.with?` · ${r.with}`:''}</span>)}
             </div>
           )}
-          <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', marginTop:'3px', display:'inline-block',
-            background: s.parentJoined ? '#f0fdf4' : '#f9fafb',
-            border: `1px solid ${s.parentJoined ? '#86efac' : '#e5e7eb'}`,
-            color: s.parentJoined ? '#16a34a' : '#9ca3af' }}>
-            {s.parentJoined ? '출결 ON' : '출결 OFF'}
-          </span>
         </div>
 
         {/* 학부모 전화 */}
@@ -510,13 +504,19 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
         })()}
 
         {/* 출결초대 */}
-        <div style={{ textAlign:'center' }}>
+        <div style={{ textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:'4px' }}>
           {s.parentPhone ? (
             <button onClick={() => setInviteOpen(true)}
               style={{ padding:'4px 8px', borderRadius:'7px', border:`1.5px solid ${inviteSent?'#86efac':'#a78bfa'}`, background:inviteSent?'#f0fdf4':'#f5f3ff', color:inviteSent?'#16a34a':'#7c3aed', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
               {inviteSent ? '✅발송됨' : '📨초대'}
             </button>
           ) : <span style={{ fontSize:'11px', color:'#d1d5db' }}>-</span>}
+          <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px',
+            background: s.parentJoined ? '#f0fdf4' : '#f9fafb',
+            border: `1px solid ${s.parentJoined ? '#86efac' : '#e5e7eb'}`,
+            color: s.parentJoined ? '#16a34a' : '#9ca3af' }}>
+            {s.parentJoined ? '출결 ON' : '출결 OFF'}
+          </span>
           {inviteOpen && <InviteModal student={s} user={user} onClose={() => setInviteOpen(false)} onSent={() => setInviteSent(true)} />}
         </div>
 
@@ -552,7 +552,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
 }
 
 // ─── 단일 학생 출석 행
-function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen, classId, spItems, spProds, spProg, spChecks }) {
+function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen, classId, spItems, spProds, spProg, spChecks, user }) {
   const status = rec?.status || 'pending'
   const cfg = ATTENDANCE_STATUS[status]
   const isPending = status === 'pending'
@@ -588,12 +588,6 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
               {(s.relations||[]).map((r,ri)=><span key={ri} style={{ fontSize:'10px', fontWeight:600, padding:'1px 5px', borderRadius:'4px', background:r.type==='쌍둥이'?'#fdf4ff':r.type==='형제'?'#eff6ff':r.type==='남매'?'#f0fdf4':'#fff7ed', border:`1px solid ${r.type==='쌍둥이'?'#e9d5ff':r.type==='형제'?'#bfdbfe':r.type==='남매'?'#86efac':'#fed7aa'}`, color:r.type==='쌍둥이'?'#7e22ce':r.type==='형제'?'#1d4ed8':r.type==='남매'?'#15803d':'#c2410c' }}>{r.type}{r.with?` · ${r.with}`:''}</span>)}
             </div>
           )}
-          <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', marginTop:'3px', display:'inline-block',
-            background: s.parentJoined ? '#f0fdf4' : '#f9fafb',
-            border: `1px solid ${s.parentJoined ? '#86efac' : '#e5e7eb'}`,
-            color: s.parentJoined ? '#16a34a' : '#9ca3af' }}>
-            {s.parentJoined ? '출결 ON' : '출결 OFF'}
-          </span>
         </div>
 
         {/* 학부모 전화 — 문자버튼 제거, PhoneAction만 */}
@@ -648,6 +642,12 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
               {inviteSent ? '✅발송됨' : '📨초대'}
             </button>
           ) : <span style={{ fontSize:'11px', color:'#d1d5db' }}>-</span>}
+          <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px',
+            background: s.parentJoined ? '#f0fdf4' : '#f9fafb',
+            border: `1px solid ${s.parentJoined ? '#86efac' : '#e5e7eb'}`,
+            color: s.parentJoined ? '#16a34a' : '#9ca3af' }}>
+            {s.parentJoined ? '출결 ON' : '출결 OFF'}
+          </span>
           {inviteOpen && <InviteModal student={s} user={user} onClose={() => setInviteOpen(false)} onSent={() => setInviteSent(true)} />}
         </div>
 
@@ -884,7 +884,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
           : sorted.map((s, i) =>
               isFuture
                 ? <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} classId={cls.id} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls.id}); setProgProductId(pid) }} spProds={spProds} user={user} />
-                : <StudentRow      key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls.id}); setProgProductId(pid) }} classId={cls.id} spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} />
+                : <StudentRow      key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls.id}); setProgProductId(pid) }} classId={cls.id} spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} user={user} />
             )
         }
         {inactiveStudents.length > 0 && (
