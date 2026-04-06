@@ -1388,7 +1388,7 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
           🗓️ 수업 예정일입니다
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #f3f4f6' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: hasProgress ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #f3f4f6' }}>
           {[
             { key:'present', label:'출석', emoji:'✅', color:'#16a34a', bg:'#f0fdf4', active:'#dcfce7' },
             { key:'late',    label:'지각', emoji:'⏰', color:'#d97706', bg:'#fffbeb', active:'#fef9c3' },
@@ -1408,7 +1408,17 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
               <span style={{ fontSize: '11px', fontWeight: status===btn.key ? 700 : 400, color: status===btn.key ? btn.color : '#9ca3af' }}>{btn.label}</span>
             </button>
           ))}
-
+          {hasProgress && (
+            <button onClick={() => onProgOpen && onProgOpen(s, spItem.productId)}
+              style={{
+                padding: '12px 4px', border: 'none',
+                background: '#f0fdf4', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
+              }}>
+              <span style={{ fontSize: '20px' }}>📊</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#16a34a' }}>{curStage}단계/{checkedInStage}차시</span>
+            </button>
+          )}
         </div>
       )}
     </div>
