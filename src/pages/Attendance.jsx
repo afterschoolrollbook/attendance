@@ -1339,12 +1339,26 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, isFuture }) {
             )}
           </div>
         </div>
-        {/* 메시지 버튼 */}
+        {/* 메시지 버튼 + 연락방법 설정 여부 */}
         {s.parentPhone && (
-          <button onClick={() => onMsgOpen(s)}
-            style={{ width: '40px', height: '40px', borderRadius: '10px', border: '1px solid #e5e7eb', background: '#fff', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            💬
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+            <button onClick={() => onMsgOpen(s)}
+              style={{
+                width: '40px', height: '40px', borderRadius: '10px', fontSize: '18px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: s.contactMethod ? '1.5px solid #86efac' : '1.5px solid #fca5a5',
+                background: s.contactMethod ? '#f0fdf4' : '#fef2f2',
+              }}>
+              💬
+            </button>
+            <span style={{ fontSize: '10px', fontWeight: 700,
+              color: s.contactMethod ? '#16a34a' : '#ef4444' }}>
+              {s.contactMethod === 'kakao' ? '💛카톡'
+                : s.contactMethod === 'sms' ? '💬문자'
+                : s.contactMethod === 'both' ? '💬💛'
+                : '📵미설정'}
+            </span>
+          </div>
         )}
       </div>
 
