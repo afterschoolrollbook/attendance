@@ -42,7 +42,7 @@ function getMenuConfig() {
   return JSON.parse(localStorage.getItem(KEY_MENU) || '{"training":true,"certificates":true,"career":true,"awards":true,"proposals":true,"jobs":true}')
 }
 
-export function Sidebar({ user, currentPage, onNav, onLogout }) {
+export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onClose }) {
   const adSlot  = AdSlots.all().find(s => s.id === 'sidebar_bottom')
   const menuCfg = getMenuConfig()
 
@@ -51,6 +51,68 @@ export function Sidebar({ user, currentPage, onNav, onLogout }) {
 
   const visibleMyNav = MY_NAV.filter(item => menuCfg[item.menuKey] !== false)
 
+  const handleNav = (path) => { onNav(path); if (mobile) onClose?.() }
+  const handleLogout = () => { onLogout(); if (mobile) onClose?.() }
+
+  // 모바일: 오버레이 + 슬라이드 드로어
+  if (mobile) return (
+    <>
+      {/* 오버레이 */}
+      {open && (
+        <div onClick={onClose} style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.55)',
+        }} />
+      )}
+      {/* 드로어 */}
+      <aside style={{
+        position: 'fixed', top: 0, left: open ? 0 : '-260px', zIndex: 1100,
+        width: '240px', height: '100vh', background: '#18181b',
+        display: 'flex', flexDirection: 'column',
+        transition: 'left .25s ease',
+        boxShadow: open ? '4px 0 24px rgba(0,0,0,0.35)' : 'none',
+      }}>
+        {/* 헤더 + 닫기 */}
+        <div style={{ padding:'18px 16px 16px', borderBottom:'1px solid #27272a', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+            <span style={{ fontSize:'20px' }}>📋</span>
+            <span style={{ fontSize:'14px', fontWeight:700, color:'#fff' }}>방과후 출석부</span>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#71717a', fontSize:'22px', cursor:'pointer', padding:'2px 6px' }}>✕</button>
+        </div>
+        {/* 유저 정보 */}
+        <div style={{ padding:'14px 16px', borderBottom:'1px solid #27272a' }}>
+          <div style={{ fontSize:'14px', fontWeight:600, color:'#fff', marginBottom:'4px' }}>{user?.name}</div>
+          <div style={{ display:'inline-block', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'999px', background:`${levelColors[user?.level]||'#9ca3af'}22`, color:levelColors[user?.level]||'#9ca3af', border:`1px solid ${levelColors[user?.level]||'#9ca3af'}44` }}>
+            {levelLabels[user?.level] || 'Lv.1 미인증'}
+          </div>
+        </div>
+        {/* 메뉴 */}
+        <nav style={{ flex:1, overflowY:'auto', padding:'10px 0' }}>
+          {NAV.map(item => {
+            if (item.feature && !can(user, item.feature)) return null
+            return <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />
+          })}
+          <div style={{ fontSize:'11px', color:'#52525b', padding:'10px 16px 4px', fontWeight:600 }}>선생님 커리어</div>
+          {MY_NAV_FIXED.map(item => <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />)}
+          {visibleMyNav.map(item => <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />)}
+          {user?.role === 'admin' && (
+            <>
+              <div style={{ fontSize:'11px', color:'#52525b', padding:'10px 16px 4px', fontWeight:600 }}>관리자</div>
+              {ADMIN_NAV.map(item => <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />)}
+            </>
+          )}
+        </nav>
+        <div style={{ padding:'12px 16px', borderTop:'1px solid #27272a' }}>
+          <button onClick={handleLogout} style={{ background:'none', border:'none', cursor:'pointer', color:'#71717a', fontSize:'14px', padding:'6px 0', display:'flex', alignItems:'center', gap:'8px', width:'100%', fontFamily:'Noto Sans KR, sans-serif' }}>
+            <span>🚪</span> 로그아웃
+          </button>
+        </div>
+      </aside>
+    </>
+  )
+
+  // PC 기존 레이아웃
   return (
     <aside style={{
       width: '220px',
