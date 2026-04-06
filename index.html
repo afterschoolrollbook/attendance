@@ -27,25 +27,23 @@
       body { font-family: 'Noto Sans KR', sans-serif; background: #f4f5f7; color: #1a1a2e; }
       body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
     </style>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
 
+    <!-- PWA 설치 프롬프트 — 가능한 빨리 등록해야 타이밍을 놓치지 않음 -->
     <script>
-      // PWA 설치 프롬프트 저장 (안드로이드 크롬)
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault()
         window._installPrompt = e
         console.log('[PWA] 설치 프롬프트 준비 완료')
       })
-
-      // 설치 완료 시 프롬프트 제거
       window.addEventListener('appinstalled', () => {
         window._installPrompt = null
         console.log('[PWA] 설치 완료')
       })
     </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
 
     <script>
       if ('serviceWorker' in navigator) {
