@@ -1319,6 +1319,26 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
   const curStage = prog?.curStage || spItem?.stage || 1
   const checkedInStage = checks.filter(c => c.stage === curStage).length
 
+  // 사유/메모 모달
+  const [reasonModal, setReasonModal] = useState(null) // 클릭된 status
+  const [reasonVal, setReasonVal]     = useState('')
+  const [noteVal, setNoteVal]         = useState('')
+
+  const handleMark = (key) => {
+    if (status === key) { onMark(s.id, 'pending'); return }
+    if (['late','leave','absent'].includes(key)) {
+      setReasonVal(rec?.absentReason || '')
+      setNoteVal(rec?.note || '')
+      setReasonModal(key)
+    } else {
+      onMark(s.id, key)
+    }
+  }
+  const confirmReason = () => {
+    onMark(s.id, reasonModal, { absentReason: reasonVal, note: noteVal })
+    setReasonModal(null)
+  }
+
   return (
     <div style={{
       background: '#fff', borderRadius: '14px',
@@ -1387,7 +1407,7 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
             { key:'leave',   label:'조퇴', emoji:'🚶', color:'#7c3aed', bg:'#f5f3ff', active:'#ede9fe' },
             { key:'absent',  label:'결석', emoji:'❌', color:'#ef4444', bg:'#fef2f2', active:'#fee2e2' },
           ].map((btn, i) => (
-            <button key={btn.key} onClick={() => onMark(s.id, status === btn.key ? 'pending' : btn.key)}
+            <button key={btn.key} onClick={() => handleMark(btn.key)}
               style={{
                 padding: '12px 4px', border: 'none',
                 borderRight: '1px solid #f3f4f6',
@@ -1412,6 +1432,57 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
             </button>
           )}
         </div>
+      )}
+      {/* 사유/메모 모달 */}
+      {reasonModal && (
+        <Modal open={true} onClose={() => setReasonModal(null)}
+          title={reasonModal === 'late' ? '⏰ 지각 사유' : reasonModal === 'leave' ? '🚶 조퇴 사유' : '❌ 결석 사유'}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+            <div>
+              <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280', display:'block', marginBottom:'6px' }}>사유</label>
+              <select value={reasonVal} onChange={e => setReasonVal(e.target.value)}
+                style={{ width:'100%', padding:'10px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
+                {[
+                  { value:'',           label:'사유 없음' },
+                  { value:'sick',       label:'질병' },
+                  { value:'field_trip', label:'현장학습' },
+                  { value:'exp_trip',   label:'체험학습' },
+                  { value:'condolence', label:'경조사' },
+                  { value:'personal',   label:'개인사유' },
+                  { value:'other',      label:'기타' },
+                ].map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280', display:'block', marginBottom:'6px' }}>연락 내역</label>
+              <div style={{ display:'flex', gap:'8px', marginBottom:'8px' }}>
+                {['📞 통화', '💬 문자', '💛 카톡'].map(method => {
+                  const tag = method.split(' ')[1]
+                  const active = noteVal.includes(tag)
+                  return (
+                    <button key={tag} onClick={() => setNoteVal(v => v ? (v.includes(tag) ? v : v + ' / ' + tag) : tag)}
+                      style={{ flex:1, padding:'8px', borderRadius:'8px', border:`1.5px solid ${active?'#6b7280':'#e5e7eb'}`, background:active?'#f3f4f6':'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:active?700:400 }}>
+                      {method}
+                    </button>
+                  )
+                })}
+              </div>
+              <input value={noteVal} onChange={e => setNoteVal(e.target.value)}
+                placeholder="메모 입력 (선택)"
+                style={{ width:'100%', padding:'10px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+            </div>
+            <div style={{ display:'flex', gap:'8px' }}>
+              <button onClick={() => setReasonModal(null)}
+                style={{ flex:1, padding:'12px', borderRadius:'10px', border:'1.5px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
+                취소
+              </button>
+              <button onClick={confirmReason}
+                style={{ flex:2, padding:'12px', borderRadius:'10px', border:'none', background:'#f97316', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                확인
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   )
@@ -1565,7 +1636,7 @@ function MobileAttendance({ user, pageParams = {} }) {
 
   const records  = isFuture ? [] : AttendanceDB.byClassDate(selClass?.id||'', selDate)
   const getRec   = (sid) => records.find(r => r.studentId === sid)
-  const mark = (studentId, status) => {
+  const mark = (studentId, status, extra = {}) => {
     if (!selClass || isFuture) return
     const existing = getRec(studentId)
     const session  = getSession ? getSession(selClass, selDate) : 0
@@ -1574,6 +1645,7 @@ function MobileAttendance({ user, pageParams = {} }) {
       date: selDate, session: session||0, status,
       note: existing?.note||'', absentReason: existing?.absentReason||'',
       homeReturn: existing?.homeReturn||'', markedAt: now(),
+      ...extra,
     })
     setTick(t => t+1)
   }
