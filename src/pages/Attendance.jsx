@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -170,7 +170,7 @@ function MsgModal({ student, cls, user, onClose }) {
 
   // 안내 문구 로드
   const allGuides = (() => {
-    try { return JSON.parse(localStorage.getItem('asa_message_guides') || '[]') } catch { return [] }
+    try { return MessageGuides.byTeacher(user?.id || '') } catch { return [] }
   })()
   const guides = allGuides.filter(g => g.teacherId === user?.id && g.category === guideTab)
 
