@@ -115,7 +115,18 @@ function PhoneAction({ phone, children }) {
   const raw = (phone || '').replace(/[^0-9]/g, '')
   if (!raw) return <span style={{ fontSize:'11px', color:'#9ca3af' }}>-</span>
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-  const notifyMobile = () => { if (!isMobile) success('📱 핸드폰에서 작동합니다') }
+
+  const handleAction = (action) => {
+    setOpen(false)
+    if (!isMobile) {
+      success('📱 핸드폰에서 작동합니다')
+      return
+    }
+    if (action === 'call') window.location.href = `tel:${raw}`
+    if (action === 'sms')  window.open(`sms:${raw}`)
+    if (action === 'kakao') window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${raw}`)
+  }
+
   return (
     <div style={{ position:'relative', display:'inline-block' }}>
       <span onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
@@ -126,12 +137,9 @@ function PhoneAction({ phone, children }) {
         <>
           <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:999 }} />
           <div style={{ position:'absolute', top:'100%', left:0, zIndex:1000, background:'#fff', borderRadius:'10px', boxShadow:'0 4px 20px rgba(0,0,0,0.15)', border:'1px solid #e5e7eb', overflow:'hidden', minWidth:'130px', marginTop:'4px' }}>
-            <button onClick={() => { window.location.href=`tel:${raw}`; notifyMobile(); setOpen(false) }}
-              style={phoneActionBtn}>📞 전화하기</button>
-            <button onClick={() => { window.open(`sms:${raw}`); notifyMobile(); setOpen(false) }}
-              style={phoneActionBtn}>💬 문자 보내기</button>
-            <button onClick={() => { window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${raw}`); notifyMobile(); setOpen(false) }}
-              style={phoneActionBtn}>💛 카톡 보내기</button>
+            <button onClick={() => handleAction('call')}  style={phoneActionBtn}>📞 전화하기</button>
+            <button onClick={() => handleAction('sms')}   style={phoneActionBtn}>💬 문자 보내기</button>
+            <button onClick={() => handleAction('kakao')} style={phoneActionBtn}>💛 카톡 보내기</button>
           </div>
         </>
       )}
