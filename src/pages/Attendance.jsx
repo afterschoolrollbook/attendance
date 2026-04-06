@@ -376,7 +376,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: '#fff', borderLeft: '3px solid transparent', transition: 'all .12s' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '30px 70px 65px 100px 190px 90px 70px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '35px 85px 80px 120px 200px 100px 80px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
 
         {/* 순번 — StudentRow 동일 */}
         <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{idx+1}</span>
@@ -491,7 +491,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '30px 70px 65px 100px 190px 90px 70px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '35px 85px 80px 120px 200px 100px 80px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
 
         {/* 순번 */}
         <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{idx+1}</span>
@@ -802,7 +802,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
           </div>
         )}
         {/* 컬럼 헤더 */}
-        <div style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 90px 1fr', gap:'6px', padding:'7px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'35px 85px 80px 120px 200px 100px 80px 1fr', gap:'6px', padding:'7px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
           <span>순번</span><span>학년·반·번호</span><span>이름</span><span>학부모전화</span><span>출석·지각·조퇴·결석</span><span>진도</span><span>출결초대</span><span>특이사항·메모</span>
         </div>
         {sorted.length === 0
@@ -1134,7 +1134,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
         }))].sort()
 
         const ColHeader = () => (
-          <div style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 90px 70px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'35px 85px 80px 120px 200px 100px 80px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
             <span>순번</span>
             <span>학년·반·번호</span>
             <span>이름</span>
@@ -1168,11 +1168,12 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                     showAttendance
                       ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls?.id}); setProgProductId(pid) }} classId={cls?.id} spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} />
                       : (
-                        <div key={s.id} style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 90px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom: i<secStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
+                        <div key={s.id} style={{ display:'grid', gridTemplateColumns:'35px 85px 80px 120px 200px 100px 80px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom: i<secStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
                           <span style={{ fontSize:'12px', color:C.muted }}>{i+1}</span>
                           <span style={{ fontSize:'12px', color:C.muted }}>{s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}</span>
                           <span onClick={() => setSelStudent(s)} style={{ fontSize:'14px', fontWeight:700, color:C.primary, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:'2px' }}>{s.name}</span>
                           <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone)||'-'}</PhoneAction>
+                          <span style={{ fontSize:'12px', color:C.muted }}>-</span>
                           <span style={{ fontSize:'12px', color:C.muted }}>-</span>
                           <span style={{ fontSize:'12px', color:C.muted }}>-</span>
                           <span style={{ fontSize:'11px', color:'#92400e', textAlign:'left' }}>{s.memo ? '📌 '+s.memo : '-'}</span>
