@@ -26,9 +26,23 @@ const DEFAULT_GUIDES = [
 
 function seedDefaults(userId) {
   const mine = MessageGuides.byTeacher(userId)
-  const existingKeys = new Set(mine.map(i => `${i.category}__${i.title}`))
+
+  // 1) category+title 기준으로 중복 제거 (더 오래된 것 삭제)
+  const seen = new Map()
+  mine.forEach(item => {
+    const k = `${item.category}__${item.title}`
+    const prev = seen.get(k)
+    if (!prev || new Date(item.createdAt) >= new Date(prev.createdAt)) {
+      if (prev) MessageGuides.delete(prev.id)
+      seen.set(k, item)
+    } else {
+      MessageGuides.delete(item.id)
+    }
+  })
+
+  // 2) 없는 기본 문구만 추가
   DEFAULT_GUIDES
-    .filter(g => !existingKeys.has(`${g.category}__${g.title}`))
+    .filter(g => !seen.has(`${g.category}__${g.title}`))
     .forEach(g => MessageGuides.insert({ id: uid(), teacherId: userId, ...g, createdAt: new Date().toISOString() }))
 }
 
