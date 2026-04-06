@@ -153,21 +153,21 @@ function ClassCalendar({ cls }) {
 }
 
 // ── 서비스 탈퇴 섹션
-function WithdrawSection({ phone, teacher, withdrawNotice }) {
-  const [open, setOpen] = useState(false)
-  const [confirm, setConfirm] = useState(false)
-  const [done, setDone] = useState(false)
-  const notice = withdrawNotice || DEFAULT_CONFIG.withdrawNotice
+function WithdrawSection({ phone, teacher }) {
+  const [open, setOpen]       = useState(false)
+  const [step, setStep]       = useState('confirm') // confirm | countdown | done
+  const [count, setCount]     = useState(3)
+  const timerRef              = useRef(null)
 
-  const handleWithdraw = () => {
-    if (!confirm) return
+  const handleConfirm = () => {
+    // 실제 종료 처리
     try {
       const member = ParentMembers.findByPhone(phone)
       if (member) {
         ParentMembers.update(member.id, {
           appJoined: false,
           withdrawnAt: new Date().toISOString(),
-          withdrawReason: 'user_request',
+          withdrawReason: 'parent_request',
         })
       }
       try {
@@ -180,17 +180,31 @@ function WithdrawSection({ phone, teacher, withdrawNotice }) {
         localStorage.setItem('asa_teacherParentLinks', JSON.stringify(updated))
       } catch {}
     } catch {}
-    setDone(true)
+
+    // 3초 카운트다운 시작
+    setStep('countdown')
+    setCount(3)
+    let c = 3
+    timerRef.current = setInterval(() => {
+      c -= 1
+      setCount(c)
+      if (c <= 0) {
+        clearInterval(timerRef.current)
+        setStep('done')
+      }
+    }, 1000)
   }
 
-  if (done) return (
-    <div style={{ background:'#f9fafb', borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px', textAlign:'center' }}>
-      <div style={{ fontSize:'32px', marginBottom:'8px' }}>👋</div>
-      <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'4px' }}>탈퇴 완료</div>
-      <div style={{ fontSize:'13px', color:C.muted, lineHeight:1.7 }}>
-        서비스 탈퇴가 완료되었습니다.<br/>
-        출결 알림 수신이 중단됩니다.<br/>
-        이용해 주셔서 감사합니다.
+  // 언마운트 시 타이머 정리
+  useEffect(() => () => clearInterval(timerRef.current), [])
+
+  if (step === 'done') return (
+    <div style={{ background:'#f9fafb', borderRadius:'14px', border:`1px solid ${C.border}`, padding:'24px', textAlign:'center' }}>
+      <div style={{ fontSize:'36px', marginBottom:'10px' }}>👋</div>
+      <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>출결서비스가 종료되었습니다</div>
+      <div style={{ fontSize:'13px', color:C.muted, lineHeight:1.9 }}>
+        다시 출결서비스를 원하시면 언제든<br/>
+        선생님께 문자나 톡 보내시면 됩니다 😊
       </div>
     </div>
   )
@@ -200,35 +214,49 @@ function WithdrawSection({ phone, teacher, withdrawNotice }) {
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div>
           <div style={{ fontSize:'13px', fontWeight:700, color:C.muted }}>⚙️ 서비스 관리</div>
-          <div style={{ fontSize:'12px', color:'#9ca3af', marginTop:'2px' }}>출결 알림 수신을 중단하려면 탈퇴하세요</div>
+          <div style={{ fontSize:'12px', color:'#9ca3af', marginTop:'2px' }}>출결 알림 수신을 중단하려면 종료하세요</div>
         </div>
-        <button onClick={()=>setOpen(o=>!o)}
+        <button onClick={()=>{ setOpen(o=>!o); setStep('confirm') }}
           style={{ padding:'7px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff',
             color:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-          {open ? '닫기' : '탈퇴'}
+          {open ? '닫기' : '출결서비스 종료'}
         </button>
       </div>
 
-      {open && (
-        <div style={{ marginTop:'14px', paddingTop:'14px', borderTop:`1px solid ${C.border}` }}>
-          <div style={{ background:'#fef2f2', borderRadius:'10px', border:'1px solid #fecaca', padding:'12px 14px', marginBottom:'14px' }}>
-            <div style={{ fontSize:'13px', fontWeight:700, color:'#991b1b', marginBottom:'6px' }}>탈퇴 전 확인하세요</div>
-            <div style={{ fontSize:'12px', color:'#b91c1c', lineHeight:1.8, whiteSpace:'pre-line' }}>
-              {notice}
+      {open && step === 'confirm' && (
+        <div style={{ marginTop:'14px', paddingTop:'14px', borderTop:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:'12px' }}>
+          <div style={{ background:'#fff7ed', borderRadius:'10px', border:'1px solid #fed7aa', padding:'14px 16px' }}>
+            <div style={{ fontSize:'13px', fontWeight:700, color:'#c2410c', marginBottom:'6px' }}>📢 안내</div>
+            <div style={{ fontSize:'13px', color:'#92400e', lineHeight:1.9 }}>
+              다시 출결서비스를 원하시면 언제든<br/>
+              선생님께 문자나 톡 보내시면 됩니다.
             </div>
           </div>
-          <label style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'14px', cursor:'pointer' }}>
-            <input type="checkbox" checked={confirm} onChange={e=>setConfirm(e.target.checked)}
-              style={{ width:'16px', height:'16px', accentColor:'#ef4444' }}/>
-            <span style={{ fontSize:'13px', color:C.text }}>위 내용을 확인했으며 탈퇴에 동의합니다</span>
-          </label>
-          <button onClick={handleWithdraw} disabled={!confirm}
-            style={{ width:'100%', padding:'12px', borderRadius:'10px', border:'none',
-              background:confirm?'#ef4444':'#e5e7eb', color:confirm?'#fff':'#9ca3af',
-              fontSize:'14px', fontWeight:700, cursor:confirm?'pointer':'not-allowed',
-              fontFamily:'Noto Sans KR, sans-serif' }}>
-            서비스 탈퇴하기
-          </button>
+          <div style={{ background:'#fef2f2', borderRadius:'10px', border:'1px solid #fecaca', padding:'14px 16px' }}>
+            <div style={{ fontSize:'13px', color:'#991b1b', lineHeight:1.9 }}>
+              정말 출결서비스를 종료하실 예정이신가요?<br/>
+              <strong>확인</strong>을 클릭하시면 3초 후 창이 닫힙니다.
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:'8px' }}>
+            <button onClick={()=>setOpen(false)}
+              style={{ flex:1, padding:'12px', borderRadius:'10px', border:`1px solid ${C.border}`, background:'#fff',
+                color:C.muted, fontSize:'14px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              취소
+            </button>
+            <button onClick={handleConfirm}
+              style={{ flex:1, padding:'12px', borderRadius:'10px', border:'none', background:'#ef4444',
+                color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+
+      {open && step === 'countdown' && (
+        <div style={{ marginTop:'14px', paddingTop:'14px', borderTop:`1px solid ${C.border}`, textAlign:'center', padding:'20px 0 8px' }}>
+          <div style={{ fontSize:'48px', fontWeight:900, color:'#ef4444', lineHeight:1 }}>{count}</div>
+          <div style={{ fontSize:'13px', color:C.muted, marginTop:'8px' }}>잠시 후 창이 닫힙니다...</div>
         </div>
       )}
     </div>
@@ -536,7 +564,7 @@ function ParentHome({ students, teacher, phone }) {
           <div style={{ fontSize:'13px', color:C.muted }}>추후 구현 예정입니다</div>
         </div>
 
-        <WithdrawSection phone={phone} teacher={teacher} withdrawNotice={cfg?.withdrawNotice} />
+        <WithdrawSection phone={phone} teacher={teacher} />
 
       </div>
     </div>
@@ -588,7 +616,24 @@ export function ParentInvite() {
 
   const handleJoin = () => {
     if (!agree1 || !agree2) return
-    ParentMembers.join(phone, { marketingAgree: agreeMarketing, invitedByTeacher: teacherId })
+
+    // 첫 번째 학생 기준으로 수업 정보 조회
+    const s0   = students[0]
+    const cls0 = s0?.classIds?.[0]
+      ? ClassesDB.byTeacher(teacherId).find(c => c.id === s0.classIds[0])
+      : null
+
+    ParentMembers.join(phone, {
+      marketingAgree:  agreeMarketing,
+      invitedByTeacher: teacherId,
+      studentName:  s0?.name || '',
+      grade:        s0?.grade ? `${s0.grade}학년${s0.classNum ? ` ${s0.classNum}반` : ''}` : '',
+      schoolName:   cls0?.organization || '',
+      subjectName:  cls0?.className    || '',
+      teacherName:  teacher?.nickname  || teacher?.name  || '',
+      teacherPhone: teacher?.phone     || '',
+    })
+
     students.forEach(s => {
       StudentsDB.update(s.id, { parentJoined:true, parentInviteSentAt: s.parentInviteSentAt||now() })
       try { TeacherParentLinks.link(teacherId, s, s.classIds?.[0]||'') } catch {}
