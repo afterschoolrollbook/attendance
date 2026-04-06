@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -160,12 +160,16 @@ const PLACEHOLDER_LABELS = [
 function replacePlaceholders(text, student, cls, user) {
   const today = new Date()
   const dateStr = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`
+  // 메시지 가이드 설정의 선생님 이름/닉네임 우선 사용
+  const profile = user?.id ? TeacherProfiles.byTeacher(user.id) : null
+  const teacherName     = profile?.name     || user?.name     || ''
+  const teacherNickname = profile?.nickname || profile?.name  || user?.nickname || user?.name || ''
   return text
     .replace(/{학생이름}/g, student?.name || '')
     .replace(/{학교명}/g,   cls?.organization || student?.school || '')
     .replace(/{수업명}/g,   cls ? `${cls.className}${cls.section ? ' '+cls.section+'반' : ''}` : '')
-    .replace(/{선생님이름}/g, user?.name || '')
-    .replace(/{선생님닉네임}/g, user?.nickname || user?.name || '')
+    .replace(/{선생님이름}/g, teacherName)
+    .replace(/{선생님닉네임}/g, teacherNickname)
     .replace(/{날짜}/g, dateStr)
 }
 
