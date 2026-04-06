@@ -924,16 +924,51 @@ function MobileDashboard({ user, onNav }) {
   const goToday   = () => { const t=new Date(); setCalYear(t.getFullYear()); setCalMonth(t.getMonth()); setSelDate(today) }
 
   const name = (user.displayNameMode === 'nickname' && user.nickname) ? user.nickname : user.name
+  const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches
+  const [showInstallGuide, setShowInstallGuide] = useState(false)
   const noop = () => {}  // 모바일에서 카드 숨기기 비활성
 
   return (
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
       {/* 인사 */}
-      <div>
-        <div style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>안녕하세요, {name} 선생님 👋</div>
-        <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px' }}>{formatDateKo(today)}</div>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>안녕하세요, {name} 선생님 👋</div>
+          <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px' }}>{formatDateKo(today)}</div>
+        </div>
+        {!isStandalone && (
+          <button onClick={() => setShowInstallGuide(true)}
+            style={{ padding:'8px 14px', borderRadius:'10px', border:'1.5px solid #f97316', background:'#fff7ed', color:'#f97316', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', flexShrink:0 }}>
+            📲 바로가기
+          </button>
+        )}
       </div>
+
+      {/* 바탕화면 바로가기 안내 모달 */}
+      {showInstallGuide && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9999, display:'flex', alignItems:'flex-end', justifyContent:'center' }}
+          onClick={() => setShowInstallGuide(false)}>
+          <div style={{ background:'#fff', borderRadius:'20px 20px 0 0', padding:'24px', width:'100%', maxWidth:'480px' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:'16px', fontWeight:700, color:'#111827', marginBottom:'18px' }}>📲 홈 화면에 추가하기</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+              <div style={{ padding:'14px 16px', borderRadius:'12px', background:'#f9fafb', border:'1px solid #e5e7eb' }}>
+                <div style={{ fontSize:'13px', fontWeight:700, color:'#111827', marginBottom:'6px' }}>🤖 안드로이드 (크롬)</div>
+                <div style={{ fontSize:'13px', color:'#374151', lineHeight:1.8 }}>우측 상단 <strong>⋮ 메뉴</strong> → <strong>홈 화면에 추가</strong></div>
+              </div>
+              <div style={{ padding:'14px 16px', borderRadius:'12px', background:'#f9fafb', border:'1px solid #e5e7eb' }}>
+                <div style={{ fontSize:'13px', fontWeight:700, color:'#111827', marginBottom:'6px' }}>🍎 아이폰 (Safari)</div>
+                <div style={{ fontSize:'13px', color:'#374151', lineHeight:1.8 }}>하단 <strong>공유 버튼 □↑</strong> → <strong>홈 화면에 추가</strong></div>
+              </div>
+            </div>
+            <button onClick={() => setShowInstallGuide(false)}
+              style={{ marginTop:'16px', width:'100%', padding:'14px', borderRadius:'10px', border:'none', background:'#f97316', color:'#fff', fontSize:'15px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              확인
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 달력 */}
       <MobileCalendar
@@ -1072,7 +1107,9 @@ export function Dashboard({ user, onNav }) {
   const isMobile = window.innerWidth <= 768
   if (isMobile) return <MobileDashboard user={user} onNav={onNav} />
   const { settings, hideCard, toggleCard, resetAll } = useCardSettings(user.id)
-  const [showSettings, setShowSettings] = useState(false)
+  const [showSettings,    setShowSettings]    = useState(false)
+  const [showInstallGuide, setShowInstallGuide] = useState(false)
+  const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches
 
   const today = todayStr()
   const d     = new Date()
@@ -1190,6 +1227,13 @@ export function Dashboard({ user, onNav }) {
               <span style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', borderRadius: '50%', background: C.primary, color: '#fff', fontSize: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{hiddenCount}</span>
             )}
           </button>
+          {/* 바탕화면 바로가기 */}
+          {!isStandalone && (
+            <button onClick={() => setShowInstallGuide(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', borderRadius: '12px', border: `1.5px solid ${C.primary}`, background: '#fff7ed', cursor: 'pointer', fontSize: '13px', fontWeight: 700, color: C.primary, fontFamily: 'Noto Sans KR, sans-serif' }}>
+              📲 바탕화면 바로가기
+            </button>
+          )}
         </div>
       </div>
 
@@ -1213,7 +1257,48 @@ export function Dashboard({ user, onNav }) {
         </div>
       )}
 
-      {/* ── 교구 준비 알림 ── */}
+      {/* ── 바탕화면 바로가기 안내 모달 ── */}
+      {showInstallGuide && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}
+          onClick={() => setShowInstallGuide(false)}>
+          <div style={{ background:'#fff', borderRadius:'20px', padding:'28px', width:'100%', maxWidth:'420px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:'17px', fontWeight:700, color:C.text, marginBottom:'20px' }}>📲 바탕화면 바로가기 추가</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+              {/* PC 크롬 */}
+              <div style={{ padding:'14px 16px', borderRadius:'12px', background:'#f9fafb', border:'1px solid #e5e7eb' }}>
+                <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'8px' }}>🖥️ PC (크롬/엣지)</div>
+                <div style={{ fontSize:'13px', color:'#374151', lineHeight:1.8 }}>
+                  주소창 오른쪽 끝 <strong>⊕ 아이콘</strong> 클릭<br/>
+                  → <strong>"방과후 출석부 설치"</strong> 클릭
+                </div>
+              </div>
+              {/* 안드로이드 */}
+              <div style={{ padding:'14px 16px', borderRadius:'12px', background:'#f9fafb', border:'1px solid #e5e7eb' }}>
+                <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'8px' }}>🤖 안드로이드 (크롬)</div>
+                <div style={{ fontSize:'13px', color:'#374151', lineHeight:1.8 }}>
+                  브라우저 우측 상단 <strong>⋮ 메뉴</strong> 클릭<br/>
+                  → <strong>"홈 화면에 추가"</strong> 클릭
+                </div>
+              </div>
+              {/* iOS */}
+              <div style={{ padding:'14px 16px', borderRadius:'12px', background:'#f9fafb', border:'1px solid #e5e7eb' }}>
+                <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'8px' }}>🍎 아이폰 (Safari)</div>
+                <div style={{ fontSize:'13px', color:'#374151', lineHeight:1.8 }}>
+                  하단 <strong>공유 버튼 (□↑)</strong> 클릭<br/>
+                  → <strong>"홈 화면에 추가"</strong> 클릭
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setShowInstallGuide(false)}
+              style={{ marginTop:'20px', width:'100%', padding:'12px', borderRadius:'10px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'14px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
+
+
       {settings.supply && supplyAlerts.length > 0 && (
         <div style={{ background: '#fef2f2', borderRadius: '12px', border: '1.5px solid #fca5a5', padding: '14px 18px', position: 'relative' }}>
           <button
