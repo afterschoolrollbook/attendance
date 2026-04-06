@@ -95,6 +95,8 @@ const SYNC_TABLES = [
   'branches', 'parentMembers', 'teacherParentLinks',
   // 안내 문구
   'messageGuides', 'messageCategories',
+  // 선생님 프로필
+  'teacherProfiles',
 ]
 
 // ─── 초기화: Supabase 데이터와 로컬 merge
@@ -629,4 +631,14 @@ export const MessageCategories = {
   find:      (id)    => db.getOne('messageCategories', id),
   insert:    (r)     => db.insert('messageCategories', r),
   delete:    (id)    => db.delete('messageCategories', id),
+}
+
+// ─── 선생님 프로필 (이름 / 닉네임) ───────────────────────────────
+export const TeacherProfiles = {
+  byTeacher: (tid)   => db.where('teacherProfiles', r => r.teacherId === tid)[0] || null,
+  save(tid, name, nickname) {
+    const existing = this.byTeacher(tid)
+    if (existing) return db.update('teacherProfiles', existing.id, { name, nickname })
+    return db.insert('teacherProfiles', { id: uid(), teacherId: tid, name, nickname, createdAt: now() })
+  },
 }
