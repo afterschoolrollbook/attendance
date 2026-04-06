@@ -341,9 +341,9 @@ function ParentHome({ students, teacher, phone }) {
                 </div>
 
                 {/* 수업 홍보물 */}
-                {(cls.promotionImgs?.length > 0 || cls.promotionImg) && (
-                  <div>
-                    <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🖼️ 수업 홍보물</div>
+                <div>
+                  <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🖼️ 수업 홍보물</div>
+                  {(cls.promotionImgs?.length > 0 || cls.promotionImg) ? (
                     <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
                       {(cls.promotionImgs || (cls.promotionImg ? [cls.promotionImg] : [])).map((img,i)=>(
                         <img key={i} src={img} onClick={()=>setImgModal(img)}
@@ -352,13 +352,18 @@ function ParentHome({ students, teacher, phone }) {
                           alt={`홍보물 ${i+1}`}/>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div style={{ padding:'14px', borderRadius:'10px', border:`1.5px dashed ${C.border}`,
+                      textAlign:'center', fontSize:'12px', color:'#9ca3af' }}>
+                      홍보물
+                    </div>
+                  )}
+                </div>
 
                 {/* 수업 안내장 */}
-                {cls.noticeFiles?.length > 0 && (
-                  <div>
-                    <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📄 수업 안내장</div>
+                <div>
+                  <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📄 수업 안내장</div>
+                  {cls.noticeFiles?.length > 0 ? (
                     <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
                       {cls.noticeFiles.map((f, i) => (
                         f.fileType === 'application/pdf' ? (
@@ -375,13 +380,19 @@ function ParentHome({ students, teacher, phone }) {
                           </a>
                         ) : (
                           <img key={i} src={f.url} onClick={()=>setImgModal(f.url)}
-                            style={{ width:'100%', borderRadius:'10px', border:`1px solid ${C.border}`, cursor:'pointer', maxHeight:'200px', objectFit:'cover' }}
+                            style={{ width:'100%', borderRadius:'10px', border:`1px solid ${C.border}`,
+                              cursor:'pointer', maxHeight:'200px', objectFit:'cover' }}
                             alt={f.name || `안내장 ${i+1}`}/>
                         )
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div style={{ padding:'14px', borderRadius:'10px', border:`1.5px dashed ${C.border}`,
+                      textAlign:'center', fontSize:'12px', color:'#9ca3af' }}>
+                      안내장
+                    </div>
+                  )}
+                </div>
 
               </div>
             )}
