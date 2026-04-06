@@ -733,28 +733,6 @@ function DayDetail({ date, user, classes, onNav }) {
                       absent:  { label: '결석', color: '#ef4444', bg: '#fef2f2' },
                     }
 
-                    // 미래 날짜 — 테이블 대신 "예정" 안내
-                    if (isFutureDate) return (
-                      <div style={{ padding:'14px 18px', background:'#f9fafb', borderTop:'1px solid #f3f4f6' }}>
-                        <span style={{ display:'inline-flex', alignItems:'center', gap:'6px', padding:'5px 14px', borderRadius:'8px', border:'1.5px solid #fca5a5', background:'#fef2f2', fontSize:'13px', fontWeight:600, color:'#dc2626' }}>
-                          📅 아직 수업일이 아닙니다
-                        </span>
-                      </div>
-                    )
-
-                    // 오늘 or 과거 — 미처리면 출석부 안내 / 처리됐으면 결과 표시
-                    const allPending = attRecords.length === 0
-                    if (isPastOrToday && allPending) return (
-                      <div style={{ padding:'14px 18px', background:'#f0fdf4', borderTop:'1px solid #bbf7d0' }}>
-                        <span
-                          onClick={() => onNav('attendance', { classId: cls.id, date })}
-                          style={{ display:'inline-flex', alignItems:'center', gap:'6px', padding:'5px 14px', borderRadius:'8px', border:'1.5px solid #16a34a', background:'#fff', fontSize:'13px', fontWeight:700, color:'#16a34a', cursor:'pointer' }}
-                        >
-                          ✅ 출석부에서 출석체크를 해주세요 →
-                        </span>
-                      </div>
-                    )
-
                     return (
                       <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                         <thead>
@@ -799,7 +777,20 @@ function DayDetail({ date, user, classes, onNav }) {
                                 </td>
                                 <td style={{ padding: '8px 12px', fontSize: '12px', color: '#6b7280', whiteSpace: 'nowrap' }}>{stu.parentPhone||'-'}</td>
                                 <td style={{ padding: '8px 12px' }}>
-                                  <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '5px', background: ac.bg, color: ac.color, border: `1px solid ${ac.color}40` }}>{ac.label}</span>
+                                  {isFutureDate ? (
+                                    <span style={{ display:'inline-flex', alignItems:'center', gap:'4px', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'5px', border:'1.5px solid #fca5a5', background:'#fef2f2', color:'#dc2626', whiteSpace:'nowrap' }}>
+                                      📅 아직 수업일이 아닙니다
+                                    </span>
+                                  ) : !ar ? (
+                                    <span
+                                      onClick={() => onNav('attendance', { classId: cls.id, date })}
+                                      style={{ display:'inline-flex', alignItems:'center', gap:'4px', fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'5px', border:'1.5px solid #16a34a', background:'#f0fdf4', color:'#16a34a', cursor:'pointer', whiteSpace:'nowrap' }}
+                                    >
+                                      ✅ 출석체크 해주세요 →
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '5px', background: ac.bg, color: ac.color, border: `1px solid ${ac.color}40` }}>{ac.label}</span>
+                                  )}
                                 </td>
                                 <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                                   {si ? (
