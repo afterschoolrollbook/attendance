@@ -925,6 +925,11 @@ function MobileDashboard({ user, onNav }) {
 
   const name = (user.displayNameMode === 'nickname' && user.nickname) ? user.nickname : user.name
   const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches
+
+  // 날씨 — PC와 동일한 저장 키 사용 (공유)
+  const locKey = `weatherLocation_${user.id}`
+  const [weatherLoc] = useState(() => Settings.get(locKey) || { lat:37.39, lng:126.95, name:'군포시' })
+  const weather = useWeather(weatherLoc.lat, weatherLoc.lng)
   const [showInstallGuide, setShowInstallGuide] = useState(false)
 
   const handleAddShortcut = () => {
@@ -945,7 +950,16 @@ function MobileDashboard({ user, onNav }) {
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div>
           <div style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>안녕하세요, {name} 선생님 👋</div>
-          <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px' }}>{formatDateKo(today)}</div>
+          <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px', display:'flex', alignItems:'center', gap:'8px' }}>
+            <span>{formatDateKo(today)}</span>
+            {weather && (
+              <span style={{ display:'inline-flex', alignItems:'center', gap:'4px', padding:'2px 8px', borderRadius:'6px', background:'#f9fafb', border:'1px solid #e5e7eb' }}>
+                <span style={{ fontSize:'14px' }}>{weatherIcon(weather.code).icon}</span>
+                <span style={{ fontWeight:600, color:'#111827' }}>{weather.temp}°C</span>
+                <span style={{ color:'#9ca3af' }}>{weatherIcon(weather.code).text}</span>
+              </span>
+            )}
+          </div>
         </div>
         {!isStandalone && (
           <button onClick={handleAddShortcut}
@@ -1014,7 +1028,7 @@ function MobileDashboard({ user, onNav }) {
                 <div key={cls.id} style={{ background: '#fff', borderRadius: '14px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
                   <div style={{ padding: '14px 16px', background: allDone ? '#f0fdf4' : '#fff7ed', borderBottom: '1px solid #f3f4f6' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
+                      <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>{cls.className}</span>
                           {cls.section && <span style={{ fontSize: '12px', background: '#f97316', color: '#fff', borderRadius: '6px', padding: '1px 8px', fontWeight: 700 }}>{cls.section}반</span>}
@@ -1023,8 +1037,16 @@ function MobileDashboard({ user, onNav }) {
                           {cls.organization && <span>{cls.organization} · </span>}
                           {cls.time && <span>🕐 {cls.time}{cls.timeEnd ? ` ~ ${cls.timeEnd}` : ''}</span>}
                         </div>
+                        {/* 학교 네비게이션 버튼 */}
+                        {cls.organization && (
+                          <a href={`https://map.naver.com/v5/search/${encodeURIComponent(cls.organization)}`}
+                            target="_blank" rel="noopener noreferrer"
+                            style={{ display:'inline-flex', alignItems:'center', gap:'4px', marginTop:'7px', padding:'4px 10px', borderRadius:'7px', background:'#f0fdf4', border:'1.5px solid #86efac', color:'#16a34a', fontSize:'12px', fontWeight:700, textDecoration:'none' }}>
+                            🗺️ 네비게이션
+                          </a>
+                        )}
                       </div>
-                      <div style={{ textAlign: 'right' }}>
+                      <div style={{ textAlign: 'right', flexShrink:0, marginLeft:'10px' }}>
                         <div style={{ fontSize: '20px', fontWeight: 700, color: allDone ? '#16a34a' : '#f97316' }}>
                           {presentCnt}<span style={{ fontSize: '13px', color: '#9ca3af' }}>/{students.length}</span>
                         </div>
