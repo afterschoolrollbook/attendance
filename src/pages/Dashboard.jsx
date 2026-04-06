@@ -947,26 +947,30 @@ function MobileDashboard({ user, onNav }) {
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
       {/* 인사 */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px' }}>
+        <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>안녕하세요, {name} 선생님 👋</div>
-          <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px', display:'flex', alignItems:'center', gap:'8px' }}>
-            <span>{formatDateKo(today)}</span>
-            {weather && (
-              <span style={{ display:'inline-flex', alignItems:'center', gap:'4px', padding:'2px 8px', borderRadius:'6px', background:'#f9fafb', border:'1px solid #e5e7eb' }}>
-                <span style={{ fontSize:'14px' }}>{weatherIcon(weather.code).icon}</span>
-                <span style={{ fontWeight:600, color:'#111827' }}>{weather.temp}°C</span>
-                <span style={{ color:'#9ca3af' }}>{weatherIcon(weather.code).text}</span>
-              </span>
-            )}
-          </div>
+          <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px' }}>{formatDateKo(today)}</div>
         </div>
-        {!isStandalone && (
-          <button onClick={handleAddShortcut}
-            style={{ padding:'8px 14px', borderRadius:'10px', border:'1.5px solid #f97316', background:'#fff7ed', color:'#f97316', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', flexShrink:0 }}>
-            📲 바로가기
-          </button>
-        )}
+        <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
+          {/* 날씨 */}
+          {weather && (
+            <div style={{ display:'flex', alignItems:'center', gap:'4px', padding:'6px 10px', borderRadius:'10px', background:'#f9fafb', border:'1px solid #e5e7eb' }}>
+              <span style={{ fontSize:'18px' }}>{weatherIcon(weather.code).icon}</span>
+              <div>
+                <div style={{ fontSize:'13px', fontWeight:700, color:'#111827', lineHeight:1.2 }}>{weather.temp}°C</div>
+                <div style={{ fontSize:'10px', color:'#9ca3af', lineHeight:1.2 }}>{weatherIcon(weather.code).text}</div>
+              </div>
+            </div>
+          )}
+          {/* 바로가기 */}
+          {!isStandalone && (
+            <button onClick={handleAddShortcut}
+              style={{ padding:'8px 14px', borderRadius:'10px', border:'1.5px solid #f97316', background:'#fff7ed', color:'#f97316', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+              📲 바로가기
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 바탕화면 바로가기 안내 모달 */}
@@ -1003,6 +1007,36 @@ function MobileDashboard({ user, onNav }) {
         year={calYear} month={calMonth} selectedDate={selDate} classDates={classDates}
         onSelect={setSelDate} onPrev={prevMonth} onNext={nextMonth} onToday={goToday}
       />
+
+      {/* 달력 아래 배너 — 선택 날짜 요약 + 학교별 네비게이션 */}
+      <div style={{ background:'#fff7ed', borderRadius:'14px', border:'1px solid #fed7aa', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
+        {/* 날짜 + 수업 수 */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <div style={{ fontSize:'15px', fontWeight:700, color:'#111827' }}>
+              {selDate === today ? `${formatDateKo(selDate)}` : formatDateKo(selDate)}
+            </div>
+            <div style={{ fontSize:'12px', color: todayClasses.length > 0 ? '#f97316' : '#9ca3af', marginTop:'2px', fontWeight:600 }}>
+              {todayClasses.length > 0 ? `수업 ${todayClasses.length}개` : '수업 없는 날'}
+            </div>
+          </div>
+        </div>
+        {/* 학교별 네비게이션 */}
+        {[...new Set(todayClasses.map(c => c.organization).filter(Boolean))].map(school => (
+          <div key={school} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:'8px', borderTop:'1px solid #fed7aa' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+              <span style={{ fontSize:'16px' }}>🏫</span>
+              <span style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>{school}</span>
+              <span style={{ fontSize:'11px', color:'#9ca3af' }}>수업 장소</span>
+            </div>
+            <a href={`https://map.naver.com/v5/search/${encodeURIComponent(school)}`}
+              target="_blank" rel="noopener noreferrer"
+              style={{ display:'inline-flex', alignItems:'center', gap:'5px', padding:'6px 12px', borderRadius:'9px', background:'#f0fdf4', border:'1.5px solid #86efac', color:'#16a34a', fontSize:'12px', fontWeight:700, textDecoration:'none' }}>
+              🗺️ 네비게이션
+            </a>
+          </div>
+        ))}
+      </div>
 
       {/* 오늘 수업 목록 */}
       <div>
