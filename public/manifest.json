@@ -1,0 +1,35 @@
+{
+  "name": "방과후 출석부",
+  "short_name": "출석부",
+  "description": "방과후 강사를 위한 스마트 출석 관리",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f5f2eb",
+  "theme_color": "#f97316",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "shortcuts": [
+    {
+      "name": "출석부",
+      "short_name": "출석부",
+      "description": "오늘 출석 체크",
+      "url": "/?page=attendance",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
