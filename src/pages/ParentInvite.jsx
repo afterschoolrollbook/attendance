@@ -339,7 +339,7 @@ function ParentHome({ students, teacher, phone }) {
                   <ClassCalendar cls={cls}/>
                 </div>
 
-                {/* 수업 홍보물 / 수업안내장 이미지 */}
+                {/* 수업 홍보물 */}
                 {(cls.promotionImgs?.length > 0 || cls.promotionImg) && (
                   <div>
                     <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🖼️ 수업 홍보물</div>
@@ -349,6 +349,34 @@ function ParentHome({ students, teacher, phone }) {
                           style={{ width:'100px', height:'100px', objectFit:'cover', borderRadius:'10px',
                             border:`1px solid ${C.border}`, cursor:'pointer' }}
                           alt={`홍보물 ${i+1}`}/>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 수업 안내장 */}
+                {cls.noticeFiles?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📄 수업 안내장</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                      {cls.noticeFiles.map((f, i) => (
+                        f.fileType === 'application/pdf' ? (
+                          <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
+                            style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 12px',
+                              borderRadius:'10px', background:'#fef2f2', border:'1px solid #fecaca',
+                              textDecoration:'none' }}>
+                            <span style={{ fontSize:'20px' }}>📋</span>
+                            <div style={{ flex:1 }}>
+                              <div style={{ fontSize:'13px', fontWeight:600, color:'#991b1b' }}>{f.name || `안내장 ${i+1}`}</div>
+                              <div style={{ fontSize:'11px', color:C.muted }}>PDF — 탭하여 열기</div>
+                            </div>
+                            <span style={{ fontSize:'12px', color:'#ef4444' }}>열기 →</span>
+                          </a>
+                        ) : (
+                          <img key={i} src={f.url} onClick={()=>setImgModal(f.url)}
+                            style={{ width:'100%', borderRadius:'10px', border:`1px solid ${C.border}`, cursor:'pointer', maxHeight:'200px', objectFit:'cover' }}
+                            alt={f.name || `안내장 ${i+1}`}/>
+                        )
                       ))}
                     </div>
                   </div>

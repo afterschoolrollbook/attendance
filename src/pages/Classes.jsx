@@ -86,6 +86,7 @@ function emptyForm() {
     organization: '', className: '', section: '',
     termType: 'semester', termCount: 4, termSizes: [4,4,4,4], days: [], repeatType: 'every', time: '', timeEnd: '',
     startDate: '', endDate: '', description: '',
+    officePhone: '', schoolAddress: '',
     promotionImgs: [],   // Supabase Storage URL 배열
     noticeFiles: [],     // 안내장 파일 { url, name, fileType } 배열
     templateFile: null,
@@ -202,6 +203,8 @@ export function Classes({ user }) {
       makeupDates: cls.makeupDates || [],
       termCount: cls.termCount || 4,
       termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
+      officePhone: cls.officePhone || '',
+      schoolAddress: cls.schoolAddress || '',
     })
     setEditId(cls.id)
     setTab('info')
@@ -589,6 +592,10 @@ export function Classes({ user }) {
               <Input label="수업 종료일" value={form.endDate} onChange={v => set('endDate', v)} type="date" required />
             </div>
             <Textarea label="수업 안내글 (선택)" value={form.description} onChange={v => set('description', v)} placeholder="수업 소개, 준비물, 유의사항 등" rows={3} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <Input label="📞 교무실 전화번호 (선택)" value={form.officePhone} onChange={v => set('officePhone', v)} placeholder="예: 031-123-4567" />
+              <Input label="📍 학교 주소 (선택)" value={form.schoolAddress} onChange={v => set('schoolAddress', v)} placeholder="예: 경기도 군포시 ..." />
+            </div>
           </div>
         )}
 
