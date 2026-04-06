@@ -2239,7 +2239,6 @@ export function Attendance({ user, pageParams = {} }) {
 
         {/* 오른쪽 패널 */}
         <div style={{ minWidth:0, overflowX:'auto' }}>
-          <div style={{ minWidth:'860px' }}>
           {selClassId ? (
             (!isSessionDate && dateClicked) ? (
               <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
@@ -2253,7 +2252,6 @@ export function Attendance({ user, pageParams = {} }) {
           ) : (
             <DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} key={selDate} />
           )}
-          </div>
         </div>
       </div>
     </div>
