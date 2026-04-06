@@ -837,10 +837,256 @@ function DayDetail({ date, user, classes, onNav }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  MOBILE DASHBOARD  (768px 이하 전용)
+// ═══════════════════════════════════════════════════════════════════
+
+function MobileCalendar({ year, month, selectedDate, classDates, onSelect, onPrev, onNext, onToday }) {
+  const firstDay    = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const today       = todayStr()
+  const classSet    = new Set(classDates)
+  const cells       = []
+  for (let i = 0; i < firstDay; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  return (
+    <div style={{ background: '#fff', borderRadius: '16px', padding: '16px', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+      {/* 월 네비 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+        <button onClick={onPrev} style={{ width: '32px', height: '32px', borderRadius: '8px', border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: '18px' }}>‹</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>{year}년 {MONTHS[month]}</span>
+          <button onClick={onToday} style={{ padding: '2px 10px', borderRadius: '6px', border: '1px solid #f97316', background: '#fff7ed', color: '#f97316', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>오늘</button>
+        </div>
+        <button onClick={onNext} style={{ width: '32px', height: '32px', borderRadius: '8px', border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: '18px' }}>›</button>
+      </div>
+
+      {/* 요일 헤더 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: '4px' }}>
+        {DAYS_KO.map((d, i) => (
+          <div key={d} style={{ textAlign: 'center', fontSize: '11px', fontWeight: 600, padding: '3px 0', color: i===0?'#ef4444':i===6?'#3b82f6':'#9ca3af' }}>{d}</div>
+        ))}
+      </div>
+
+      {/* 날짜 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
+        {cells.map((day, idx) => {
+          if (!day) return <div key={`e${idx}`} />
+          const ds      = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+          const isClass = classSet.has(ds)
+          const isToday = ds === today
+          const isSel   = ds === selectedDate
+          const isSun   = (firstDay + day - 1) % 7 === 0
+          const isSat   = (firstDay + day - 1) % 7 === 6
+          return (
+            <button key={day} onClick={() => onSelect(ds)} style={{
+              position: 'relative', padding: '8px 2px', border: 'none', borderRadius: '8px', cursor: 'pointer',
+              background: isSel ? '#f97316' : isToday ? '#fff7ed' : isClass ? '#f0fdf4' : 'transparent',
+              color: isSel ? '#fff' : isSun ? '#ef4444' : isSat ? '#3b82f6' : '#111827',
+              fontWeight: isSel || isToday ? 700 : 400, fontSize: '14px',
+              outline: isToday && !isSel ? '2px solid #f97316' : 'none', outlineOffset: '-2px',
+              fontFamily: 'Noto Sans KR, sans-serif',
+            }}>
+              {day}
+              {isClass && (
+                <span style={{ position: 'absolute', bottom: '2px', left: '50%', transform: 'translateX(-50%)', width: '4px', height: '4px', borderRadius: '50%', background: isSel ? '#fff' : '#f97316', display: 'block' }} />
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* 범례 */}
+      <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '14px', fontSize: '11px', color: '#6b7280' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width:6,height:6,borderRadius:'50%',background:'#f97316',display:'inline-block' }}/> 수업 있는 날</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width:12,height:12,borderRadius:'4px',border:'2px solid #f97316',display:'inline-block' }}/> 오늘</span>
+      </div>
+    </div>
+  )
+}
+
+function MobileDashboard({ user, onNav }) {
+  const today = todayStr()
+  const d     = new Date()
+  const [calYear,  setCalYear]  = useState(d.getFullYear())
+  const [calMonth, setCalMonth] = useState(d.getMonth())
+  const [selDate,  setSelDate]  = useState(today)
+  const [installPrompt, setInstallPrompt] = useState(null)
+  const [installed,     setInstalled]     = useState(false)
+
+  useEffect(() => {
+    // Android/PC 설치 프롬프트 캡처
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e) }
+    window.addEventListener('beforeinstallprompt', handler)
+    // 이미 설치된 경우
+    window.addEventListener('appinstalled', () => setInstalled(true))
+    // iOS standalone 감지
+    if (window.navigator.standalone) setInstalled(true)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      installPrompt.prompt()
+      const { outcome } = await installPrompt.userChoice
+      if (outcome === 'accepted') setInstalled(true)
+      setInstallPrompt(null)
+    }
+  }
+
+  // iOS 감지 (설치 프롬프트가 없는 경우)
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.navigator.standalone
+
+  const classes    = sortClasses(ClassesDB.byTeacher(user.id))
+  const classDates = [...new Set(classes.flatMap(cls => calcSessionDates(cls)))]
+
+  // 선택한 날짜의 수업 목록
+  const todayClasses = classes.filter(cls => calcSessionDates(cls).includes(selDate))
+
+  const prevMonth = () => { if (calMonth===0){setCalYear(y=>y-1);setCalMonth(11)}else setCalMonth(m=>m-1) }
+  const nextMonth = () => { if (calMonth===11){setCalYear(y=>y+1);setCalMonth(0)}else setCalMonth(m=>m+1) }
+  const goToday   = () => { const t=new Date(); setCalYear(t.getFullYear()); setCalMonth(t.getMonth()); setSelDate(today) }
+
+  const name = (user.displayNameMode === 'nickname' && user.nickname) ? user.nickname : user.name
+
+  return (
+    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+      {/* 인사 */}
+      <div>
+        <div style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>안녕하세요, {name} 선생님 👋</div>
+        <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px' }}>{formatDateKo(today)}</div>
+      </div>
+
+      {/* 홈화면 추가 안내 */}
+      {!installed && (isIOS || installPrompt) && (
+        <div style={{ background: '#fff7ed', borderRadius: '14px', border: '1.5px solid #fed7aa', padding: '14px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#92400e', marginBottom: '3px' }}>📲 홈 화면에 추가하기</div>
+              {isIOS ? (
+                <div style={{ fontSize: '12px', color: '#b45309', lineHeight: 1.6 }}>
+                  Safari 하단 <strong>공유버튼(□↑)</strong> →<br/>
+                  <strong>"홈 화면에 추가"</strong> 선택
+                </div>
+              ) : (
+                <div style={{ fontSize: '12px', color: '#b45309' }}>앱처럼 빠르게 실행할 수 있어요</div>
+              )}
+            </div>
+            {!isIOS && (
+              <button onClick={handleInstall} style={{
+                padding: '8px 16px', borderRadius: '10px', border: 'none',
+                background: '#f97316', color: '#fff',
+                fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                fontFamily: 'Noto Sans KR, sans-serif', whiteSpace: 'nowrap', flexShrink: 0,
+              }}>설치</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 달력 */}
+      <MobileCalendar
+        year={calYear} month={calMonth} selectedDate={selDate} classDates={classDates}
+        onSelect={setSelDate} onPrev={prevMonth} onNext={nextMonth} onToday={goToday}
+      />
+
+      {/* 선택한 날짜의 수업 목록 */}
+      <div>
+        <div style={{ fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '10px' }}>
+          {selDate === today ? '📅 오늘 수업' : `📅 ${selDate.slice(5).replace('-','월 ')}일 수업`}
+        </div>
+
+        {todayClasses.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '32px 20px', background: '#fff', borderRadius: '14px', color: '#9ca3af' }}>
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🗓️</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: '#6b7280' }}>수업이 없는 날입니다</div>
+            <div style={{ fontSize: '12px', marginTop: '4px' }}>달력에서 수업일을 선택하세요</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {todayClasses.map(cls => {
+              const students   = StudentsDB.confirmed(cls.id)
+              const attRecords = AttendanceDB.byClassDate(cls.id, selDate)
+              const doneCnt    = attRecords.filter(a => a.status !== 'pending').length
+              const presentCnt = attRecords.filter(a => a.status === 'present' || a.status === 'late').length
+              const allDone    = doneCnt === students.length && students.length > 0
+
+              return (
+                <div key={cls.id} style={{ background: '#fff', borderRadius: '14px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+                  {/* 수업 헤더 */}
+                  <div style={{ padding: '14px 16px', background: allDone ? '#f0fdf4' : '#fff7ed', borderBottom: '1px solid #f3f4f6' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>{cls.className}</span>
+                          {cls.section && (
+                            <span style={{ fontSize: '12px', background: '#f97316', color: '#fff', borderRadius: '6px', padding: '1px 8px', fontWeight: 700 }}>{cls.section}반</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>
+                          {cls.organization && <span>{cls.organization} · </span>}
+                          {cls.time && <span>🕐 {cls.time}{cls.timeEnd ? ` ~ ${cls.timeEnd}` : ''}</span>}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '20px', fontWeight: 700, color: allDone ? '#16a34a' : '#f97316' }}>
+                          {presentCnt}<span style={{ fontSize: '13px', color: '#9ca3af' }}>/{students.length}</span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: allDone ? '#16a34a' : '#9ca3af', marginTop: '1px' }}>
+                          {allDone ? '✅ 완료' : `미처리 ${students.length - doneCnt}명`}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 출석 체크 버튼 */}
+                  <button
+                    onClick={() => onNav('attendance', { classId: cls.id, date: selDate })}
+                    style={{
+                      width: '100%', padding: '14px', border: 'none', cursor: 'pointer',
+                      background: allDone ? '#f0fdf4' : '#fff',
+                      color: allDone ? '#16a34a' : '#f97316',
+                      fontSize: '15px', fontWeight: 700,
+                      fontFamily: 'Noto Sans KR, sans-serif',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    }}>
+                    {allDone ? '✅ 출석 완료 — 다시 확인' : '✅ 출석 체크하기 →'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  DASHBOARD  메인 export
 // ═══════════════════════════════════════════════════════════════════
 
 export function Dashboard({ user, onNav }) {
+  const isMobile = window.innerWidth <= 768
+  if (isMobile) return <MobileDashboard user={user} onNav={onNav} />
+
+  // PC 설치 프롬프트
+  const [installPrompt, setInstallPrompt] = useState(null)
+  const [installed,     setInstalled]     = useState(false)
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e) }
+    window.addEventListener('beforeinstallprompt', handler)
+    window.addEventListener('appinstalled', () => { setInstalled(true); setInstallPrompt(null) })
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+  const handleInstall = async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    if (outcome === 'accepted') setInstalled(true)
+    setInstallPrompt(null)
+  }
   const { settings, hideCard, toggleCard, resetAll } = useCardSettings(user.id)
   const [showSettings, setShowSettings] = useState(false)
 
@@ -960,6 +1206,13 @@ export function Dashboard({ user, onNav }) {
               <span style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', borderRadius: '50%', background: C.primary, color: '#fff', fontSize: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{hiddenCount}</span>
             )}
           </button>
+          {/* 바탕화면 설치 버튼 */}
+          {!installed && installPrompt && (
+            <button onClick={handleInstall}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', borderRadius: '12px', border: '1.5px solid #fed7aa', background: '#fff7ed', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#92400e', fontFamily: 'Noto Sans KR, sans-serif' }}>
+              📲 바탕화면에 추가
+            </button>
+          )}
         </div>
       </div>
 
