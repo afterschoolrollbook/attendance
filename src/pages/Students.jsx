@@ -235,6 +235,82 @@ export function Students({ user, onNav }) {
   const [addView, setAddView] = useState(false)
   const [pinned, setPinned] = useState({ classId: false, classNum: false, organization: false, className: false, section: false })
 
+  // ── 메시지 발송 모달
+  const [msgModal,    setMsgModal]    = useState(false)
+  const [msgTarget,   setMsgTarget]   = useState(null)  // student object
+  const [msgStep,     setMsgStep]     = useState(0)      // 0:연락방법설정 1:카테고리 2:템플릿 3:발송편집
+  const [msgCategory, setMsgCategory] = useState('')
+  const [msgText,     setMsgText]     = useState('')
+  const [msgMethod,   setMsgMethod]   = useState('')    // 설정 step에서 선택 중인 값
+
+  const MSG_TEMPLATES = {
+    '📋 출석': [
+      '[방과후] {이름} 학생이 출석했습니다 ✅',
+      '[방과후] {이름} 학생 출석 확인되었습니다.',
+    ],
+    '❌ 결석': [
+      '[방과후] {이름} 학생이 오늘 결석 처리되었습니다.',
+      '[방과후] {이름} 학생이 결석입니다. 확인 부탁드립니다.',
+      '[방과후] {이름} 학생 — 사전 연락 없는 결석입니다.',
+    ],
+    '⏰ 지각': [
+      '[방과후] {이름} 학생이 지각했습니다.',
+      '[방과후] {이름} 학생 수업 시작 후 도착했습니다.',
+    ],
+    '🏠 수업종료': [
+      '[방과후] {이름} 학생 수업이 종료되었습니다. 안전한 귀가 부탁드립니다 🏠',
+      '[방과후] {이름} 학생 오늘 수업을 마쳤습니다!',
+    ],
+    '✏️ 개별메시지': [],
+  }
+
+  const applyTpl = (tpl, name) => tpl.replace(/{이름}/g, name || '')
+
+  const openMsgModal = (s) => {
+    setMsgTarget(s)
+    setMsgCategory('')
+    setMsgText('')
+    setMsgMethod(s.contactMethod || '')
+    // 연락방법 설정되어 있으면 바로 카테고리 선택
+    setMsgStep(s.contactMethod ? 1 : 0)
+    setMsgModal(true)
+  }
+
+  const saveContactMethod = () => {
+    if (!msgMethod) { showToast('연락방법을 선택해주세요.'); return }
+    StudentsDB.update(msgTarget.id, { contactMethod: msgMethod })
+    setMsgTarget(prev => ({ ...prev, contactMethod: msgMethod }))
+    refresh()
+    showToast('연락방법이 저장되었습니다.')
+    setMsgStep(1)
+  }
+
+  const sendMsg = () => {
+    if (!msgTarget || !msgText.trim()) return
+    const phone = (msgTarget.parentPhone || '').replace(/[^0-9]/g, '')
+    const method = msgTarget.contactMethod
+
+    if (method === 'sms' || method === 'both') {
+      const a = document.createElement('a')
+      a.href = `sms:${phone}?body=${encodeURIComponent(msgText)}`
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    }
+    if (method === 'kakao' || method === 'both') {
+      const kakao = window.Kakao
+      if (kakao?.isInitialized()) {
+        kakao.Link.sendDefault({
+          objectType: 'text', text: msgText,
+          link: { mobileWebUrl: window.location.origin, webUrl: window.location.origin },
+        })
+      } else {
+        showToast('카카오 SDK가 초기화되지 않았습니다.')
+        return
+      }
+    }
+    showToast(`${msgTarget.name} 학부모에게 메시지를 전송했습니다.`)
+    setMsgModal(false)
+  }
+
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
   const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
@@ -828,13 +904,31 @@ export function Students({ user, onNav }) {
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>
                       <div>{fmtPhone(s.parentPhone) || '-'}</div>
-                      {s.contactMethod && (
-                        <div style={{ marginTop: '3px' }}>
-                          {s.contactMethod === 'kakao' && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', background:'#FEE500', color:'#3c1e1e' }}>💛카톡</span>}
-                          {s.contactMethod === 'sms'   && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', background:'#eff6ff', color:'#3b82f6' }}>💬문자</span>}
-                          {s.contactMethod === 'both'  && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', background:'#f3f4f6', color:'#6b7280' }}>카톡+문자</span>}
-                        </div>
-                      )}
+                      <div style={{ marginTop: '4px' }}>
+                        {(() => {
+                          const c = s.contactMethod
+                          const cfg = c === 'kakao' ? { label:'💛카톡',      bg:'#FEE500', color:'#3c1e1e', border:'#e6c900' }
+                                    : c === 'sms'   ? { label:'💬문자',      bg:'#eff6ff', color:'#3b82f6', border:'#bfdbfe' }
+                                    : c === 'both'  ? { label:'💬카톡+문자', bg:'#f3f4f6', color:'#4b5563', border:'#d1d5db' }
+                                    :                 { label:'📵 연락방법 설정', bg:'#fff', color:'#f97316', border:'#fed7aa' }
+                          return (
+                            <button onClick={() => openMsgModal(s)}
+                              title={c ? '메시지 보내기' : '연락방법 설정 필요'}
+                              style={{
+                                fontSize:'10px', fontWeight:700,
+                                padding:'3px 8px', borderRadius:'5px',
+                                background:cfg.bg, color:cfg.color,
+                                border:`1.5px solid ${cfg.border}`,
+                                cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                                transition:'opacity .15s',
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.opacity='0.75'}
+                              onMouseLeave={e => e.currentTarget.style.opacity='1'}>
+                              {cfg.label}
+                            </button>
+                          )
+                        })()}
+                      </div>
                     </td>
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ display: 'flex', flexDirection:'column', gap: '6px' }}>
@@ -1594,6 +1688,179 @@ export function Students({ user, onNav }) {
                 <Btn variant="ghost" onClick={() => { setExcelStep(1); setExcelPreview([]) }}>← 다시 선택</Btn>
                 <Btn disabled={checkedCount === 0} onClick={importExcel}>✅ {checkedCount}명 등록 확정</Btn>
               </div>
+            </div>
+          )
+        })()}
+      </Modal>
+
+      {/* ── 메시지 발송 모달 ── */}
+      <Modal open={msgModal} onClose={() => setMsgModal(false)}
+        title={`📨 ${msgTarget?.name || ''} 학부모 메시지`} width={460}>
+        {msgTarget && (() => {
+
+          /* ──────────────────────────────────────
+             Step 0 : 연락방법 설정 (미설정 시에만)
+          ────────────────────────────────────── */
+          if (msgStep === 0) return (
+            <div style={{ display:'flex', flexDirection:'column', gap:'18px' }}>
+              <div style={{ padding:'12px 14px', background:'#fff7ed', borderRadius:'10px', border:'1px solid #fed7aa', fontSize:'13px', color:'#92400e', lineHeight:1.6 }}>
+                ⚠️ <strong>{msgTarget.name}</strong> 학부모의 연락방법이 설정되어 있지 않습니다.<br/>
+                메시지 발송 방법을 선택해 저장하면 다음부터 자동 적용됩니다.
+              </div>
+              <div>
+                <div style={{ fontSize:'12px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📱 연락방법 선택</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                  {[
+                    { value:'kakao', label:'💛 카카오톡', desc:'카카오 링크로 발송',   bg:'#FEE500', color:'#3c1e1e', border:'#e6c900' },
+                    { value:'sms',   label:'💬 문자 (SMS)', desc:'기본 문자 앱으로 발송', bg:'#eff6ff', color:'#3b82f6', border:'#bfdbfe' },
+                    { value:'both',  label:'💬 카카오톡 + 문자', desc:'두 가지 모두 발송',  bg:'#f3f4f6', color:'#4b5563', border:'#d1d5db' },
+                  ].map(opt => (
+                    <button key={opt.value} type="button"
+                      onClick={() => setMsgMethod(opt.value)}
+                      style={{
+                        padding:'12px 14px', borderRadius:'10px', textAlign:'left',
+                        border:`2px solid ${msgMethod===opt.value ? opt.border : '#e5e7eb'}`,
+                        background: msgMethod===opt.value ? opt.bg : '#fff',
+                        cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                        transition:'all .15s',
+                        display:'flex', alignItems:'center', gap:'10px',
+                      }}>
+                      <span style={{ fontSize:'14px', fontWeight:700, color: msgMethod===opt.value ? opt.color : '#374151' }}>{opt.label}</span>
+                      <span style={{ fontSize:'12px', color:'#9ca3af', marginLeft:'auto' }}>{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button type="button" onClick={saveContactMethod}
+                disabled={!msgMethod}
+                style={{
+                  padding:'13px', borderRadius:'10px', border:'none',
+                  background: msgMethod ? '#f97316' : '#e5e7eb',
+                  color: msgMethod ? '#fff' : '#9ca3af',
+                  fontSize:'14px', fontWeight:700,
+                  cursor: msgMethod ? 'pointer' : 'not-allowed',
+                  fontFamily:'Noto Sans KR, sans-serif',
+                }}>
+                저장 후 메시지 작성 →
+              </button>
+            </div>
+          )
+
+          /* ──────────────────────────────────────
+             Step 1 : 카테고리 선택
+          ────────────────────────────────────── */
+          if (msgStep === 1) {
+            const method = msgTarget.contactMethod
+            const mLabel = method==='kakao'?'💛카톡' : method==='sms'?'💬문자' : '💬카톡+문자'
+            return (
+              <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+                <div style={{ padding:'8px 12px', background:'#f9fafb', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'12px', color:'#6b7280', display:'flex', gap:'10px', alignItems:'center' }}>
+                  <span>발송방법: <strong style={{ color:'#374151' }}>{mLabel}</strong></span>
+                  <span style={{ marginLeft:'auto' }}>{fmtPhone(msgTarget.parentPhone)}</span>
+                </div>
+                <div>
+                  <div style={{ fontSize:'12px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>어떤 유형의 메시지를 보낼까요?</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'7px' }}>
+                    {Object.keys(MSG_TEMPLATES).map(cat => (
+                      <button key={cat} type="button" onClick={() => {
+                        setMsgCategory(cat)
+                        if (cat === '✏️ 개별메시지') { setMsgText(''); setMsgStep(3) }
+                        else setMsgStep(2)
+                      }} style={{
+                        padding:'12px 16px', borderRadius:'10px', textAlign:'left',
+                        border:'1.5px solid #e5e7eb', background:'#fff',
+                        fontSize:'14px', fontWeight:600, color:'#374151',
+                        cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s',
+                      }}
+                      onMouseEnter={e=>{ e.currentTarget.style.borderColor='#f97316'; e.currentTarget.style.background='#fff7ed' }}
+                      onMouseLeave={e=>{ e.currentTarget.style.borderColor='#e5e7eb'; e.currentTarget.style.background='#fff' }}>
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
+          /* ──────────────────────────────────────
+             Step 2 : 템플릿 선택
+          ────────────────────────────────────── */
+          if (msgStep === 2) {
+            const templates = (MSG_TEMPLATES[msgCategory] || []).map(t => applyTpl(t, msgTarget.name))
+            return (
+              <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  <button type="button" onClick={() => setMsgStep(1)}
+                    style={{ background:'none', border:'none', cursor:'pointer', fontSize:'20px', lineHeight:1, padding:0, color:'#9ca3af' }}>←</button>
+                  <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>{msgCategory} — 문구 선택</span>
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                  {templates.map((tpl, i) => (
+                    <button key={i} type="button" onClick={() => { setMsgText(tpl); setMsgStep(3) }}
+                      style={{
+                        padding:'13px 14px', borderRadius:'10px', textAlign:'left',
+                        border:'1.5px solid #e5e7eb', background:'#fff',
+                        fontSize:'13px', color:'#374151', lineHeight:1.7,
+                        cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s',
+                      }}
+                      onMouseEnter={e=>{ e.currentTarget.style.borderColor='#f97316'; e.currentTarget.style.background='#fff7ed' }}
+                      onMouseLeave={e=>{ e.currentTarget.style.borderColor='#e5e7eb'; e.currentTarget.style.background='#fff' }}>
+                      {tpl}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => { setMsgText(''); setMsgStep(3) }}
+                    style={{
+                      padding:'11px 14px', borderRadius:'10px', textAlign:'left',
+                      border:'1.5px dashed #d1d5db', background:'#f9fafb',
+                      fontSize:'13px', color:'#9ca3af',
+                      cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                    }}>
+                    ✏️ 직접 입력하기
+                  </button>
+                </div>
+              </div>
+            )
+          }
+
+          /* ──────────────────────────────────────
+             Step 3 : 편집 + 발송
+          ────────────────────────────────────── */
+          const method = msgTarget.contactMethod
+          const sendLabel = method==='kakao' ? '💛 카카오톡으로 발송'
+                          : method==='sms'   ? '💬 문자 발송'
+                          :                   '💬 카카오톡 + 문자 발송'
+          return (
+            <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                <button type="button" onClick={() => setMsgStep(msgCategory === '✏️ 개별메시지' ? 1 : 2)}
+                  style={{ background:'none', border:'none', cursor:'pointer', fontSize:'20px', lineHeight:1, padding:0, color:'#9ca3af' }}>←</button>
+                <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>메시지 확인 및 발송</span>
+              </div>
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', display:'block', marginBottom:'6px' }}>메시지 내용</label>
+                <textarea value={msgText} onChange={e => setMsgText(e.target.value)} rows={5}
+                  placeholder="보낼 메시지를 입력하세요"
+                  style={{
+                    width:'100%', boxSizing:'border-box',
+                    padding:'12px 14px', borderRadius:'10px',
+                    border:'1.5px solid #e5e7eb', fontSize:'13px',
+                    fontFamily:'Noto Sans KR, sans-serif', lineHeight:1.7,
+                    resize:'vertical', outline:'none',
+                  }} />
+                <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'4px', textAlign:'right' }}>{msgText.length}자</div>
+              </div>
+              <button type="button" onClick={sendMsg} disabled={!msgText.trim()}
+                style={{
+                  padding:'13px', borderRadius:'10px', border:'none',
+                  background: msgText.trim() ? '#f97316' : '#e5e7eb',
+                  color: msgText.trim() ? '#fff' : '#9ca3af',
+                  fontSize:'14px', fontWeight:700,
+                  cursor: msgText.trim() ? 'pointer' : 'not-allowed',
+                  fontFamily:'Noto Sans KR, sans-serif',
+                }}>
+                {sendLabel}
+              </button>
             </div>
           )
         })()}
