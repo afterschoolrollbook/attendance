@@ -417,11 +417,13 @@ function StudentMemoModal({ student, onClose, onSave }) {
 }
 
 // ─── 예정 수업 학생 행 — StudentRow 코드 완전 동일, 출석컬럼만 예정버튼으로 교체
-function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOpen, spProds }) {
+function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOpen, spProds, user }) {
   const note = s.memo || ''
   const [showInfo, setShowInfo] = useState(false)
   const [memoOpen, setMemoOpen] = useState(false)
-  const [memo, setMemo] = useState('')  // s.memo는 👤배지로만 표시, 여기선 별도 메모
+  const [memo, setMemo] = useState('')
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteSent, setInviteSent] = useState(!!s.parentInviteSentAt)
 
   const handlePredictClick = () => {
     setShowInfo(true)
@@ -432,15 +434,15 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
     <div style={{ borderBottom: '1px solid #f3f4f6', background: '#fff', borderLeft: '3px solid transparent', transition: 'all .12s' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '35px 90px 90px 130px 220px 110px 90px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
 
-        {/* 순번 — StudentRow 동일 */}
+        {/* 순번 */}
         <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{idx+1}</span>
 
-        {/* 학년·반·번호 — StudentRow 동일 */}
+        {/* 학년·반·번호 */}
         <div style={{ textAlign: 'center', fontSize: '12px', color: C.muted, lineHeight: 1.4 }}>
           {s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}
         </div>
 
-        {/* 이름 — StudentRow 동일 */}
+        {/* 이름 */}
         <div style={{ textAlign: 'center' }}>
           <span onClick={() => onStudentClick(s)}
             style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
@@ -452,9 +454,15 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
               {(s.relations||[]).map((r,ri)=><span key={ri} style={{ fontSize:'10px', fontWeight:600, padding:'1px 5px', borderRadius:'4px', background:r.type==='쌍둥이'?'#fdf4ff':r.type==='형제'?'#eff6ff':r.type==='남매'?'#f0fdf4':'#fff7ed', border:`1px solid ${r.type==='쌍둥이'?'#e9d5ff':r.type==='형제'?'#bfdbfe':r.type==='남매'?'#86efac':'#fed7aa'}`, color:r.type==='쌍둥이'?'#7e22ce':r.type==='형제'?'#1d4ed8':r.type==='남매'?'#15803d':'#c2410c' }}>{r.type}{r.with?` · ${r.with}`:''}</span>)}
             </div>
           )}
+          <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', marginTop:'3px', display:'inline-block',
+            background: s.parentJoined ? '#f0fdf4' : '#f9fafb',
+            border: `1px solid ${s.parentJoined ? '#86efac' : '#e5e7eb'}`,
+            color: s.parentJoined ? '#16a34a' : '#9ca3af' }}>
+            {s.parentJoined ? '출결 ON' : '출결 OFF'}
+          </span>
         </div>
 
-        {/* 학부모 전화 — PhoneAction만 */}
+        {/* 학부모 전화 */}
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
           <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone) || '-'}</PhoneAction>
         </div>
@@ -501,7 +509,18 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
           )
         })()}
 
-        {/* 특이사항·메모 — StudentRow NoteInline과 동일 구조 */}
+        {/* 출결초대 */}
+        <div style={{ textAlign:'center' }}>
+          {s.parentPhone ? (
+            <button onClick={() => setInviteOpen(true)}
+              style={{ padding:'4px 8px', borderRadius:'7px', border:`1.5px solid ${inviteSent?'#86efac':'#a78bfa'}`, background:inviteSent?'#f0fdf4':'#f5f3ff', color:inviteSent?'#16a34a':'#7c3aed', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+              {inviteSent ? '✅발송됨' : '📨초대'}
+            </button>
+          ) : <span style={{ fontSize:'11px', color:'#d1d5db' }}>-</span>}
+          {inviteOpen && <InviteModal student={s} user={user} onClose={() => setInviteOpen(false)} onSent={() => setInviteSent(true)} />}
+        </div>
+
+        {/* 특이사항·메모 */}
         <div>
           {s.memo && (
             <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '5px', display: 'inline-block' }}>👤 {s.memo}</div>
@@ -864,7 +883,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
           ? <div style={{ padding:'24px', textAlign:'center', color:C.muted, fontSize:'13px' }}>등록된 학생이 없습니다</div>
           : sorted.map((s, i) =>
               isFuture
-                ? <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} classId={cls.id} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls.id}); setProgProductId(pid) }} spProds={spProds} />
+                ? <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} classId={cls.id} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls.id}); setProgProductId(pid) }} spProds={spProds} user={user} />
                 : <StudentRow      key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls.id}); setProgProductId(pid) }} classId={cls.id} spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} />
             )
         }
