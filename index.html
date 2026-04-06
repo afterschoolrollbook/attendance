@@ -15,11 +15,9 @@
     <meta name="apple-mobile-web-app-title" content="출석부" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- SEO -->
     <meta name="description" content="방과후 강사를 위한 스마트 출석 관리" />
     <meta name="mobile-web-app-capable" content="yes" />
 
-    <!-- 폰트 -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -34,13 +32,37 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- Service Worker 등록 -->
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('[SW] 등록 완료:', reg.scope))
-            .catch(err => console.warn('[SW] 등록 실패:', err))
+        window.addEventListener('load', async () => {
+          try {
+            const reg = await navigator.serviceWorker.register('/sw.js')
+            console.log('[SW] 등록 완료:', reg.scope)
+
+            // 새 SW 감지 → 즉시 교체 후 페이지 자동 새로고침
+            reg.addEventListener('updatefound', () => {
+              const newSW = reg.installing
+              if (!newSW) return
+              newSW.addEventListener('statechange', () => {
+                if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                  console.log('[SW] 업데이트 감지 — 자동 새로고침')
+                  newSW.postMessage('skipWaiting')
+                }
+              })
+            })
+
+            // SW 교체 완료 시 페이지 새로고침
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              console.log('[SW] 새 버전 적용 — 페이지 새로고침')
+              window.location.reload()
+            })
+
+            // 주기적 업데이트 체크 (10분마다)
+            setInterval(() => reg.update(), 10 * 60 * 1000)
+
+          } catch (err) {
+            console.warn('[SW] 등록 실패:', err)
+          }
         })
       }
     </script>
