@@ -28,6 +28,7 @@ import { Revenue }      from './pages/Revenue.jsx'
 import { Supplies }     from './pages/Supplies.jsx'
 import { MessageGuide } from './pages/MessageGuide.jsx'
 import { ParentInvite } from './pages/ParentInvite.jsx'
+import { ParentLogin }  from './pages/ParentLogin.jsx'
 import ParentServiceManage from './pages/ParentServiceManage.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer, ConfirmDialog, useConfirmDialog } from './components/Atoms.jsx'
@@ -111,6 +112,7 @@ export default function App() {
   if (window.location.pathname === '/naver-callback')  return <NaverCallback />
   if (window.location.pathname === '/kakao-callback')  return <KakaoCallback />
   if (window.location.pathname === '/parent-invite')   return <ParentInvite />
+  if (window.location.pathname === '/parent-login')    return <ParentLogin />
 
   useEffect(() => {
     async function init() {
