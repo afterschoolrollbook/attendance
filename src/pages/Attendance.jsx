@@ -1327,45 +1327,52 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
     }}>
       {/* 학생 정보 */}
       <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>{s.name}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* 한줄: 학년반 이름 출석상태 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            {(s.grade || s.classNum) && (
+              <span style={{ fontSize: '13px', color: '#6b7280', fontWeight: 500 }}>
+                {s.grade ? `${s.grade}학년` : ''}{s.classNum ? `${s.classNum}반` : ''}
+              </span>
+            )}
+            <span style={{ fontSize: '17px', fontWeight: 700, color: '#111827' }}>{s.name}</span>
             {status !== 'pending' && (
               <span style={{ fontSize: '12px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: cur.bg, color: cur.color, border: `1px solid ${cur.border}` }}>
                 {cur.label}
               </span>
             )}
           </div>
-          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>
-            {s.grade ? `${s.grade}학년` : ''}
-            {s.classNum ? ` ${s.classNum}반` : ''}
-            {s.number ? ` ${s.number}번` : ''}
-            {s.parentPhone && (
-              <span style={{ marginLeft: '8px' }}>
-                👨‍👩‍👧{' '}
-                <a href={`tel:${s.parentPhone.replace(/[^0-9]/g,'')}`}
-                  style={{ color:'#3b82f6', textDecoration:'underline', textUnderlineOffset:'2px', fontSize:'12px' }}>
-                  {fmtPhone(s.parentPhone)}
-                </a>
-              </span>
-            )}
-          </div>
-
+          {/* 한줄: 전화번호 (크게) */}
+          {s.parentPhone && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+              <span style={{ fontSize: '13px' }}>👨‍👩‍👧</span>
+              <a href={`tel:${s.parentPhone.replace(/[^0-9]/g,'')}`}
+                style={{ color: '#3b82f6', textDecoration: 'underline', textUnderlineOffset: '2px', fontSize: '15px', fontWeight: 600 }}>
+                {fmtPhone(s.parentPhone)}
+              </a>
+            </div>
+          )}
+          {/* 진도: 1단계 / 4차시 한줄 */}
+          {hasProgress && (
+            <div onClick={() => onProgOpen && onProgOpen(s, spItem.productId)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '5px', padding: '3px 10px', borderRadius: '6px', background: '#f0fdf4', border: '1px solid #86efac', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#16a34a' }}>📊 {curStage}단계 / {checkedInStage}차시</span>
+            </div>
+          )}
         </div>
-        {/* 메시지 버튼 + 연락방법 설정 여부 */}
+        {/* 메시지 버튼 + 연락방법 */}
         {s.parentPhone && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
             <button onClick={() => onMsgOpen(s)}
               style={{
-                width: '40px', height: '40px', borderRadius: '10px', fontSize: '18px', cursor: 'pointer',
+                width: '44px', height: '44px', borderRadius: '10px', fontSize: '20px', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 border: s.contactMethod ? '1.5px solid #86efac' : '1.5px solid #fca5a5',
                 background: s.contactMethod ? '#f0fdf4' : '#fef2f2',
               }}>
               💬
             </button>
-            <span style={{ fontSize: '10px', fontWeight: 700,
-              color: s.contactMethod ? '#16a34a' : '#ef4444' }}>
+            <span style={{ fontSize: '10px', fontWeight: 700, color: s.contactMethod ? '#16a34a' : '#ef4444' }}>
               {s.contactMethod === 'kakao' ? '💛카톡'
                 : s.contactMethod === 'sms' ? '💬문자'
                 : s.contactMethod === 'both' ? '💬💛'
@@ -1381,7 +1388,7 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
           🗓️ 수업 예정일입니다
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: hasProgress ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)', borderTop: '1px solid #f3f4f6' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #f3f4f6' }}>
           {[
             { key:'present', label:'출석', emoji:'✅', color:'#16a34a', bg:'#f0fdf4', active:'#dcfce7' },
             { key:'late',    label:'지각', emoji:'⏰', color:'#d97706', bg:'#fffbeb', active:'#fef9c3' },
@@ -1401,19 +1408,7 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
               <span style={{ fontSize: '11px', fontWeight: status===btn.key ? 700 : 400, color: status===btn.key ? btn.color : '#9ca3af' }}>{btn.label}</span>
             </button>
           ))}
-          {/* 진도 버튼 — 교구 배정된 학생만 표시 */}
-          {hasProgress && (
-            <button onClick={() => onProgOpen && onProgOpen(s, spItem.productId)}
-              style={{
-                padding: '12px 4px', border: 'none', borderLeft: 'none',
-                background: '#f0fdf4', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
-              }}>
-              <span style={{ fontSize: '20px' }}>📊</span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#16a34a' }}>{curStage}단계</span>
-              <span style={{ fontSize: '10px', color: '#6b7280' }}>{checkedInStage}차시</span>
-            </button>
-          )}
+
         </div>
       )}
     </div>
