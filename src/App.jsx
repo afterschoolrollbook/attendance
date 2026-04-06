@@ -28,6 +28,7 @@ import { Revenue }      from './pages/Revenue.jsx'
 import { Supplies }     from './pages/Supplies.jsx'
 import { MessageGuide } from './pages/MessageGuide.jsx'
 import { ParentInvite } from './pages/ParentInvite.jsx'
+import ParentServiceManage from './pages/ParentServiceManage.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer, ConfirmDialog, useConfirmDialog } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
@@ -106,10 +107,10 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // 네이버 콜백 페이지 처리 — 팝업으로 열린 경우 바로 렌더
-  if (window.location.pathname === '/naver-callback') return <NaverCallback />
-  if (window.location.pathname === '/kakao-callback') return <KakaoCallback />
-  if (window.location.pathname === '/parent-invite') return <ParentInvite />
+  // 네이버/카카오 콜백 + 학부모 초대 페이지 — 로그인 없이 바로 렌더
+  if (window.location.pathname === '/naver-callback')  return <NaverCallback />
+  if (window.location.pathname === '/kakao-callback')  return <KakaoCallback />
+  if (window.location.pathname === '/parent-invite')   return <ParentInvite />
 
   useEffect(() => {
     async function init() {
@@ -173,28 +174,29 @@ export default function App() {
 
   const renderPage = () => {
     switch (page) {
-      case 'dashboard':      return <Dashboard {...pageProps} />
-      case 'classes':        return <Classes {...pageProps} />
-      case 'students':       return <Students {...pageProps} />
-      case 'confirm':        return <StudentConfirm {...pageProps} />
-      case 'attendance':     return <Attendance {...pageProps} />
-      case 'reports':        return <Reports {...pageProps} />
-      case 'templates':      return <Templates {...pageProps} />
-      case 'printsetup':     return <PrintSetup {...pageProps} />
-      case 'admin':          return <Admin {...pageProps} />
-      case 'adsense':        return <Adsense {...pageProps} />
-      case 'profile':        return <Profile {...pageProps} />
-      case 'admin_settings': return <AdminSettings {...pageProps} />
-      case 'training':       return <Training     user={user} />
-      case 'certificates':   return <Certificates user={user} />
-      case 'career':         return <Career       user={user} />
-      case 'awards':         return <AwardsPage   user={user} />
-      case 'proposals':      return <Proposals    user={user} />
-      case 'jobs':           return <Jobs         user={user} />
-      case 'revenue':        return <Revenue      user={user} />
-      case 'supplies':       return <Supplies     user={user} />
-      case 'messageguide':   return <MessageGuide user={user} />
-      default:               return <Dashboard {...pageProps} />
+      case 'dashboard':       return <Dashboard {...pageProps} />
+      case 'classes':         return <Classes {...pageProps} />
+      case 'students':        return <Students {...pageProps} />
+      case 'confirm':         return <StudentConfirm {...pageProps} />
+      case 'attendance':      return <Attendance {...pageProps} />
+      case 'reports':         return <Reports {...pageProps} />
+      case 'templates':       return <Templates {...pageProps} />
+      case 'printsetup':      return <PrintSetup {...pageProps} />
+      case 'parent-service':  return <ParentServiceManage user={user} />
+      case 'admin':           return <Admin {...pageProps} />
+      case 'adsense':         return <Adsense {...pageProps} />
+      case 'profile':         return <Profile {...pageProps} />
+      case 'admin_settings':  return <AdminSettings {...pageProps} />
+      case 'training':        return <Training     user={user} />
+      case 'certificates':    return <Certificates user={user} />
+      case 'career':          return <Career       user={user} />
+      case 'awards':          return <AwardsPage   user={user} />
+      case 'proposals':       return <Proposals    user={user} />
+      case 'jobs':            return <Jobs         user={user} />
+      case 'revenue':         return <Revenue      user={user} />
+      case 'supplies':        return <Supplies     user={user} />
+      case 'messageguide':    return <MessageGuide user={user} />
+      default:                return <Dashboard {...pageProps} />
     }
   }
 
