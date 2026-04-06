@@ -27,6 +27,7 @@ import { Jobs }         from './pages/Jobs.jsx'
 import { Revenue }      from './pages/Revenue.jsx'
 import { Supplies }     from './pages/Supplies.jsx'
 import { MessageGuide } from './pages/MessageGuide.jsx'
+import { ParentInvite } from './pages/ParentInvite.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer, ConfirmDialog, useConfirmDialog } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
@@ -108,6 +109,7 @@ export default function App() {
   // 네이버 콜백 페이지 처리 — 팝업으로 열린 경우 바로 렌더
   if (window.location.pathname === '/naver-callback') return <NaverCallback />
   if (window.location.pathname === '/kakao-callback') return <KakaoCallback />
+  if (window.location.pathname === '/parent-invite') return <ParentInvite />
 
   useEffect(() => {
     async function init() {
