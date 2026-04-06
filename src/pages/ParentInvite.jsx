@@ -295,7 +295,7 @@ function ParentHome({ students, teacher, phone }) {
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
                   {[
                     { icon:'🏫', label:'학교', val: cls.organization || '-' },
-                    { icon:'📍', label:'수업 장소', val: cls.classLocation || '-' },
+                    { icon:'📍', label:'수업 장소', val: cls.classLocation || cls.class_location || '-' },
                     { icon:'⏰', label:'수업 시간', val: cls.time ? `${fmtDays(cls.days)} ${cls.time}${cls.timeEnd ? ' ~ '+cls.timeEnd : ''}` : fmtDays(cls.days) || '-' },
                     { icon:'📅', label:'수업 기간', val: cls.startDate && cls.endDate ? `${cls.startDate} ~ ${cls.endDate}` : '-' },
                     { icon:'📋', label:'운영 방식', val: cls.termType==='semester'?'학기제':'분기제' },
@@ -308,19 +308,19 @@ function ParentHome({ students, teacher, phone }) {
                 </div>
 
                 {/* 학교 교무실 + 주소 (description에서 파싱 or 별도 필드) */}
-                {(cls.officePhone || cls.schoolAddress) && (
+                {(cls.officePhone || cls.office_phone || cls.schoolAddress || cls.school_address) && (
                   <div style={{ padding:'12px 14px', background:'#eff6ff', borderRadius:'10px', border:'1px solid #bfdbfe' }}>
                     <div style={{ fontSize:'11px', fontWeight:700, color:'#1d4ed8', marginBottom:'8px' }}>🏫 학교 정보</div>
-                    {cls.officePhone && (
-                      <a href={`tel:${cls.officePhone}`} style={{ display:'flex', alignItems:'center', gap:'6px', textDecoration:'none', marginBottom:'4px' }}>
+                    {(cls.officePhone || cls.office_phone) && (
+                      <a href={`tel:${cls.officePhone || cls.office_phone}`} style={{ display:'flex', alignItems:'center', gap:'6px', textDecoration:'none', marginBottom:'4px' }}>
                         <span style={{ fontSize:'13px' }}>📞</span>
-                        <span style={{ fontSize:'13px', fontWeight:600, color:'#1d4ed8' }}>교무실: {fmtPhone(cls.officePhone)}</span>
+                        <span style={{ fontSize:'13px', fontWeight:600, color:'#1d4ed8' }}>교무실: {fmtPhone(cls.officePhone || cls.office_phone)}</span>
                       </a>
                     )}
-                    {cls.schoolAddress && (
+                    {(cls.schoolAddress || cls.school_address) && (
                       <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
                         <span style={{ fontSize:'13px' }}>📍</span>
-                        <span style={{ fontSize:'12px', color:'#374151' }}>{cls.schoolAddress}</span>
+                        <span style={{ fontSize:'12px', color:'#374151' }}>{cls.schoolAddress || cls.school_address}</span>
                       </div>
                     )}
                   </div>
