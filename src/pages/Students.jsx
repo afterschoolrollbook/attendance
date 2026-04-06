@@ -8,7 +8,7 @@ import { useToast } from '../hooks/useToast.js'
 
 function emptyStudent() {
   return {
-    school: '', grade: '', classNum: '', number: '', name: '',
+    school: '', grade: '1', classNum: '', number: '', name: '',
     parentPhone: '', studentPhone: '', classIds: [], status: 'applied', memo: '', contactMethod: '',
     applyOrder: '', remark: '', relations: [], student_careers: [],
     // 수업 직접 입력용
