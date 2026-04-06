@@ -735,21 +735,23 @@ function DayDetail({ date, user, classes, onNav }) {
 
                     // 미래 날짜 — 테이블 대신 "예정" 안내
                     if (isFutureDate) return (
-                      <div style={{ padding:'20px', textAlign:'center', background:'#f9fafb', borderTop:'1px solid #f3f4f6' }}>
-                        <div style={{ fontSize:'13px', color:'#9ca3af', marginBottom:'6px' }}>🗓️ 아직 수업일이 아닙니다</div>
-                        <div style={{ fontSize:'12px', color:'#d1d5db' }}>해당 수업일에 출석체크가 가능합니다</div>
+                      <div style={{ padding:'14px 18px', background:'#f9fafb', borderTop:'1px solid #f3f4f6' }}>
+                        <span style={{ display:'inline-flex', alignItems:'center', gap:'6px', padding:'5px 14px', borderRadius:'8px', border:'1.5px solid #fca5a5', background:'#fef2f2', fontSize:'13px', fontWeight:600, color:'#dc2626' }}>
+                          📅 아직 수업일이 아닙니다
+                        </span>
                       </div>
                     )
 
                     // 오늘 or 과거 — 미처리면 출석부 안내 / 처리됐으면 결과 표시
                     const allPending = attRecords.every(r => !r || r.status === 'pending') && attRecords.length === 0
                     if (isPastOrToday && allPending) return (
-                      <div onClick={() => onNav('attendance', { classId: cls.id, date })}
-                        style={{ padding:'20px', textAlign:'center', background:'#fff7ed', borderTop:'1.5px dashed #f97316', cursor:'pointer' }}>
-                        <div style={{ fontSize:'14px', fontWeight:700, color:'#ea580c', marginBottom:'4px' }}>
-                          {isToday ? '✅ 오늘 수업! 출석체크를 시작하세요' : '📋 출석체크가 완료되지 않았습니다'}
-                        </div>
-                        <div style={{ fontSize:'12px', color:'#9ca3af' }}>출석부에서 출석체크를 해주세요 →</div>
+                      <div style={{ padding:'14px 18px', background:'#f0fdf4', borderTop:'1px solid #bbf7d0' }}>
+                        <span
+                          onClick={() => onNav('attendance', { classId: cls.id, date })}
+                          style={{ display:'inline-flex', alignItems:'center', gap:'6px', padding:'5px 14px', borderRadius:'8px', border:'1.5px solid #16a34a', background:'#fff', fontSize:'13px', fontWeight:700, color:'#16a34a', cursor:'pointer' }}
+                        >
+                          ✅ 출석부에서 출석체크를 해주세요 →
+                        </span>
                       </div>
                     )
 
