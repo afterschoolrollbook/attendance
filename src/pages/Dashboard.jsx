@@ -1125,6 +1125,14 @@ export function Dashboard({ user, onNav }) {
   const [showInstallGuide, setShowInstallGuide] = useState(false)
   const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches
 
+  const handleAddShortcut = () => {
+    if (window._installPrompt) {
+      window._installPrompt.prompt()
+      return
+    }
+    setShowInstallGuide(true)
+  }
+
   const today = todayStr()
   const d     = new Date()
   const [calYear,      setCalYear]      = useState(d.getFullYear())
