@@ -86,7 +86,7 @@ function emptyForm() {
     organization: '', className: '', section: '',
     termType: 'semester', termCount: 4, termSizes: [4,4,4,4], days: [], repeatType: 'every', time: '', timeEnd: '',
     startDate: '', endDate: '', description: '',
-    officePhone: '', schoolAddress: '',
+    officePhone: '', schoolAddress: '', classLocation: '',
     promotionImgs: [],   // Supabase Storage URL 배열
     noticeFiles: [],     // 안내장 파일 { url, name, fileType } 배열
     templateFile: null,
@@ -205,6 +205,7 @@ export function Classes({ user }) {
       termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
       officePhone: cls.officePhone || '',
       schoolAddress: cls.schoolAddress || '',
+      classLocation: cls.classLocation || '',
     })
     setEditId(cls.id)
     setTab('info')
@@ -596,6 +597,7 @@ export function Classes({ user }) {
               <Input label="📞 교무실 전화번호 (선택)" value={form.officePhone} onChange={v => set('officePhone', v)} placeholder="예: 031-123-4567" />
               <Input label="📍 학교 주소 (선택)" value={form.schoolAddress} onChange={v => set('schoolAddress', v)} placeholder="예: 경기도 군포시 ..." />
             </div>
+            <Input label="🏫 수업 장소 (선택)" value={form.classLocation} onChange={v => set('classLocation', v)} placeholder="예: 3층 컴퓨터실, 음악실 201호" />
           </div>
         )}
 
