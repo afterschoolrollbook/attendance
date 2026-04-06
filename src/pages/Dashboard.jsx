@@ -743,7 +743,7 @@ function DayDetail({ date, user, classes, onNav }) {
                     )
 
                     // 오늘 or 과거 — 미처리면 출석부 안내 / 처리됐으면 결과 표시
-                    const allPending = pendingCnt > 0
+                    const allPending = attRecords.length === 0
                     if (isPastOrToday && allPending) return (
                       <div style={{ padding:'14px 18px', background:'#f0fdf4', borderTop:'1px solid #bbf7d0' }}>
                         <span
