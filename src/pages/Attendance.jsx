@@ -715,7 +715,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
     AttendanceDB.upsert({
       id: existing?.id || uid(),
       classId: cls.id, studentId, date,
-      session: session || 0, status,
+      session: sessInfo?.session || 0, status,
       note: existing?.note || '', absentReason: existing?.absentReason || '', homeReturn: existing?.homeReturn || '',
       ...extra, markedAt: now(),
     })
