@@ -189,6 +189,7 @@ export function Modal({ open, onClose, title, children, width = 520 }) {
 
   if (!open) return null
 
+  // 마우스 드래그
   const handleMouseDown = (e) => {
     if (e.target.closest('button')) return
     dragging.current = true
@@ -206,6 +207,26 @@ export function Modal({ open, onClose, title, children, width = 520 }) {
     window.addEventListener('mouseup', onUp)
   }
 
+  // 터치 드래그 (모바일)
+  const handleTouchStart = (e) => {
+    if (e.target.closest('button')) return
+    const t = e.touches[0]
+    dragging.current = true
+    start.current = { mx: t.clientX, my: t.clientY, px: pos.x, py: pos.y }
+    const onMove = (e) => {
+      if (!dragging.current) return
+      const t = e.touches[0]
+      setPos({ x: start.current.px + t.clientX - start.current.mx, y: start.current.py + t.clientY - start.current.my })
+    }
+    const onUp = () => {
+      dragging.current = false
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
+    }
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onUp)
+  }
+
   return (
     <div
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
@@ -214,7 +235,8 @@ export function Modal({ open, onClose, title, children, width = 520 }) {
       <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: width, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', transform: `translate(${pos.x}px, ${pos.y}px)` }}>
         <div
           onMouseDown={handleMouseDown}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${C.border}`, cursor: 'grab', userSelect: 'none' }}
+          onTouchStart={handleTouchStart}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${C.border}`, cursor: 'grab', userSelect: 'none', touchAction: 'none' }}
         >
           <h2 style={{ fontSize: '17px', fontWeight: 600, color: C.text }}>{title}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: C.muted, lineHeight: 1 }}>×</button>
