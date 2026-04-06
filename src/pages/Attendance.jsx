@@ -111,9 +111,11 @@ const navBtn = { width:'28px',height:'28px',borderRadius:'7px',border:'1px solid
 // ─── 전화번호 클릭 액션 (문자/전화/카톡)
 function PhoneAction({ phone, children }) {
   const [open, setOpen] = useState(false)
+  const { success } = useToast()
   const raw = (phone || '').replace(/[^0-9]/g, '')
   if (!raw) return <span style={{ fontSize:'11px', color:'#9ca3af' }}>-</span>
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  const notifyMobile = () => { if (!isMobile) success('📱 핸드폰에서 작동합니다') }
   return (
     <div style={{ position:'relative', display:'inline-block' }}>
       <span onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
@@ -124,11 +126,11 @@ function PhoneAction({ phone, children }) {
         <>
           <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:999 }} />
           <div style={{ position:'absolute', top:'100%', left:0, zIndex:1000, background:'#fff', borderRadius:'10px', boxShadow:'0 4px 20px rgba(0,0,0,0.15)', border:'1px solid #e5e7eb', overflow:'hidden', minWidth:'130px', marginTop:'4px' }}>
-            <button onClick={() => { window.location.href=`tel:${raw}`; setOpen(false) }}
+            <button onClick={() => { window.location.href=`tel:${raw}`; notifyMobile(); setOpen(false) }}
               style={phoneActionBtn}>📞 전화하기</button>
-            <button onClick={() => { window.open(`sms:${raw}`); setOpen(false) }}
+            <button onClick={() => { window.open(`sms:${raw}`); notifyMobile(); setOpen(false) }}
               style={phoneActionBtn}>💬 문자 보내기</button>
-            <button onClick={() => { window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${raw}`); setOpen(false) }}
+            <button onClick={() => { window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${raw}`); notifyMobile(); setOpen(false) }}
               style={phoneActionBtn}>💛 카톡 보내기</button>
           </div>
         </>
@@ -163,7 +165,7 @@ const GUIDE_CATS = ['결석', '지각', '개강전', '개강', '수업신청감�
 
 // ─── 학부모 메시지 발송
 function MsgModal({ student, cls, user, onClose }) {
-  const { success, toastError } = useToast()
+  const { success, error } = useToast()
   const [text, setText] = useState('')
   const [guideTab, setGuideTab] = useState('결석')
   const phone = student.parentPhone?.replace(/[^0-9]/g, '') || ''
@@ -178,12 +180,12 @@ function MsgModal({ student, cls, user, onClose }) {
   }
 
   const sendSMS = () => {
-    if (!phone) { toastError('학부모 전화번호가 없습니다.'); return }
+    if (!phone) { error('학부모 전화번호가 없습니다.'); return }
     window.open(`sms:${phone}?body=${encodeURIComponent(text)}`)
     onClose()
   }
   const sendKakao = () => {
-    if (!phone) { toastError('학부모 전화번호가 없습니다.'); return }
+    if (!phone) { error('학부모 전화번호가 없습니다.'); return }
     window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${phone}&message=${encodeURIComponent(text)}`)
     onClose()
   }
@@ -1263,7 +1265,15 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, isFuture }) {
             {s.grade ? `${s.grade}학년` : ''}
             {s.classNum ? ` ${s.classNum}반` : ''}
             {s.number ? ` ${s.number}번` : ''}
-            {s.parentPhone && <span style={{ marginLeft: '8px' }}>👨‍👩‍👧 {fmtPhone(s.parentPhone)}</span>}
+            {s.parentPhone && (
+              <span style={{ marginLeft: '8px' }}>
+                👨‍👩‍👧{' '}
+                <a href={`tel:${s.parentPhone.replace(/[^0-9]/g,'')}`}
+                  style={{ color:'#3b82f6', textDecoration:'underline', textUnderlineOffset:'2px', fontSize:'12px' }}>
+                  {fmtPhone(s.parentPhone)}
+                </a>
+              </span>
+            )}
           </div>
         </div>
         {/* 메시지 버튼 */}
@@ -1288,7 +1298,7 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, isFuture }) {
             { key:'leave',   label:'조퇴', emoji:'🚶', color:'#7c3aed', bg:'#f5f3ff', active:'#ede9fe' },
             { key:'absent',  label:'결석', emoji:'❌', color:'#ef4444', bg:'#fef2f2', active:'#fee2e2' },
           ].map((btn, i) => (
-            <button key={btn.key} onClick={() => onMark(s.id, btn.key)}
+            <button key={btn.key} onClick={() => onMark(s.id, status === btn.key ? 'pending' : btn.key)}
               style={{
                 padding: '12px 4px', border: 'none',
                 borderRight: i < 3 ? '1px solid #f3f4f6' : 'none',
@@ -1307,6 +1317,101 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, isFuture }) {
   )
 }
 
+// ─── 일괄 메시지 발송 모달
+function BulkMsgModal({ students, cls, user, statusFilter, onClose }) {
+  const { success, error } = useToast()
+  const label     = statusFilter === 'present' ? '출석' : '결석'
+  const guides    = MessageGuides.byTeacher(user?.id || '').filter(g => g.category === label)
+  const [text, setText]   = useState(guides[0] ? replacePlaceholders(guides[0].content, null, cls, user) : '')
+  const [guideIdx, setGuideIdx] = useState(0)
+  const [sentIds, setSentIds]   = useState(new Set())
+
+  const filtered = students.filter(s => {
+    const st = statusFilter
+    return st === 'present'
+      ? ['present','late'].includes(s._status)
+      : s._status === 'absent'
+  })
+
+  const applyGuide = (g) => setText(replacePlaceholders(g.content, null, cls, user))
+
+  const sendOne = (s) => {
+    const phone = s.parentPhone?.replace(/[^0-9]/g, '')
+    if (!phone) { error(`${s.name}: 전화번호 없음`); return }
+    const msg = text.replace(/{학생이름}/g, s.name)
+    const method = s.contactMethod || ''
+    if (method === 'kakao') {
+      window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${phone}&message=${encodeURIComponent(msg)}`)
+    } else {
+      window.open(`sms:${phone}?body=${encodeURIComponent(msg)}`)
+    }
+    setSentIds(prev => new Set([...prev, s.id]))
+  }
+
+  return (
+    <Modal open={true} onClose={onClose} title={`📢 ${label} 일괄 안내`} width={520}>
+      <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+
+        {/* 문구 선택 */}
+        {guides.length > 0 && (
+          <div>
+            <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'6px' }}>📋 문구 선택</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px', maxHeight:'120px', overflowY:'auto' }}>
+              {guides.map((g, i) => (
+                <button key={g.id} onClick={() => { setGuideIdx(i); applyGuide(g) }}
+                  style={{ padding:'8px 12px', borderRadius:'8px', border:`1.5px solid ${guideIdx===i?C.primary:C.border}`, background:guideIdx===i?'#fff7ed':'#f9fafb', textAlign:'left', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  <div style={{ fontSize:'11px', fontWeight:700, color:C.primary }}>{g.title||g.category}</div>
+                  <div style={{ fontSize:'11px', color:'#374151', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{g.content.slice(0,50)}...</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 발송 내용 */}
+        <div>
+          <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'6px' }}>발송 내용 ({'{학생이름}'} 자동 치환)</div>
+          <textarea value={text} onChange={e => setText(e.target.value)} rows={4}
+            style={{ width:'100%', padding:'10px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical', outline:'none', boxSizing:'border-box', lineHeight:1.7 }} />
+        </div>
+
+        {/* 발송 대상 목록 */}
+        <div>
+          <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'6px' }}>발송 대상 {filtered.length}명</div>
+          {filtered.length === 0
+            ? <div style={{ fontSize:'13px', color:C.muted, padding:'12px', background:'#f9fafb', borderRadius:'8px', textAlign:'center' }}>{label} 처리된 학생이 없습니다</div>
+            : <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'200px', overflowY:'auto' }}>
+                {filtered.map(s => {
+                  const sent = sentIds.has(s.id)
+                  const method = s.contactMethod
+                  return (
+                    <div key={s.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', borderRadius:'9px', border:`1px solid ${sent?'#86efac':C.border}`, background:sent?'#f0fdf4':'#fff' }}>
+                      <div>
+                        <span style={{ fontSize:'13px', fontWeight:600, color:'#111827' }}>{s.name}</span>
+                        <span style={{ fontSize:'11px', color:C.muted, marginLeft:'8px' }}>{fmtPhone(s.parentPhone)||'전화번호 없음'}</span>
+                        {method === 'kakao' && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 5px', borderRadius:'4px', background:'#FEE500', color:'#3c1e1e', marginLeft:'6px' }}>💛카톡</span>}
+                        {method === 'sms'   && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 5px', borderRadius:'4px', background:'#eff6ff', color:'#3b82f6', marginLeft:'6px' }}>💬문자</span>}
+                      </div>
+                      <button onClick={() => sendOne(s)} disabled={!s.parentPhone}
+                        style={{ padding:'5px 12px', borderRadius:'7px', border:'none', background:sent?'#16a34a':'#f97316', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', opacity:s.parentPhone?1:0.4 }}>
+                        {sent ? '✓ 발송됨' : '발송'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+          }
+        </div>
+
+        <button onClick={onClose}
+          style={{ padding:'10px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>
+          닫기
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 function MobileAttendance({ user, pageParams = {} }) {
   const today    = todayStr()
   const allClasses  = ClassesDB.byTeacher(user.id)
@@ -1317,13 +1422,16 @@ function MobileAttendance({ user, pageParams = {} }) {
   const [calOpen,   setCalOpen]   = useState(false)
   const [tick,      setTick]      = useState(0)
   const [msgStudent, setMsgStudent] = useState(null)
+  const [bulkModal,  setBulkModal]  = useState(null) // 'present' | 'absent' | null
 
   const d = new Date(selDate + 'T00:00:00')
   const [calYear,  setCalYear]  = useState(d.getFullYear())
   const [calMonth, setCalMonth] = useState(d.getMonth())
 
-  // 선택 날짜의 수업 목록
-  const dayClasses = allClasses.filter(cls => calcSessionDates(cls).includes(selDate))
+  // 선택 날짜의 수업 목록 — section 기준 정렬 (A반 왼쪽, B반 오른쪽)
+  const dayClasses = allClasses
+    .filter(cls => calcSessionDates(cls).includes(selDate))
+    .sort((a, b) => (a.section||'').localeCompare(b.section||'', 'ko'))
 
   // 수업 미선택 시 첫 번째 자동 선택
   useEffect(() => {
@@ -1498,17 +1606,29 @@ function MobileAttendance({ user, pageParams = {} }) {
                 </div>
               </div>
             )}
-            {/* 일괄처리 버튼 */}
+            {/* 일괄처리 + 일괄보내기 버튼 */}
             {!isFuture && students.length > 0 && (
-              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                <button onClick={() => markAll('present')}
-                  style={{ flex:1,padding:'9px',borderRadius:'9px',border:'1.5px solid #86efac',background:'#f0fdf4',color:'#16a34a',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif' }}>
-                  ✅ 전체 출석
-                </button>
-                <button onClick={() => markAll('absent')}
-                  style={{ flex:1,padding:'9px',borderRadius:'9px',border:'1.5px solid #fca5a5',background:'#fef2f2',color:'#ef4444',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif' }}>
-                  ❌ 전체 결석
-                </button>
+              <div style={{ display: 'flex', flexDirection:'column', gap:'8px', marginTop: '10px' }}>
+                <div style={{ display:'flex', gap:'8px' }}>
+                  <button onClick={() => markAll('present')}
+                    style={{ flex:1,padding:'9px',borderRadius:'9px',border:'1.5px solid #86efac',background:'#f0fdf4',color:'#16a34a',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif' }}>
+                    ✅ 전체 출석
+                  </button>
+                  <button onClick={() => markAll('absent')}
+                    style={{ flex:1,padding:'9px',borderRadius:'9px',border:'1.5px solid #fca5a5',background:'#fef2f2',color:'#ef4444',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif' }}>
+                    ❌ 전체 결석
+                  </button>
+                </div>
+                <div style={{ display:'flex', gap:'8px' }}>
+                  <button onClick={() => setBulkModal('present')}
+                    style={{ flex:1,padding:'9px',borderRadius:'9px',border:'1.5px solid #86efac',background:'#fff',color:'#16a34a',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif' }}>
+                    💬 출석 일괄 안내
+                  </button>
+                  <button onClick={() => setBulkModal('absent')}
+                    style={{ flex:1,padding:'9px',borderRadius:'9px',border:'1.5px solid #fca5a5',background:'#fff',color:'#ef4444',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif' }}>
+                    💬 결석 일괄 안내
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1527,6 +1647,16 @@ function MobileAttendance({ user, pageParams = {} }) {
 
       {/* 메시지 모달 */}
       {msgStudent && <MsgModal student={msgStudent} cls={selClass} user={user} onClose={() => setMsgStudent(null)} />}
+
+      {/* 일괄 메시지 모달 */}
+      {bulkModal && (
+        <BulkMsgModal
+          students={students.map(s => ({ ...s, _status: getRec(s.id)?.status || 'pending' }))}
+          cls={selClass} user={user}
+          statusFilter={bulkModal}
+          onClose={() => setBulkModal(null)}
+        />
+      )}
     </div>
   )
 }
