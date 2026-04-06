@@ -569,6 +569,12 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
               {(s.relations||[]).map((r,ri)=><span key={ri} style={{ fontSize:'10px', fontWeight:600, padding:'1px 5px', borderRadius:'4px', background:r.type==='쌍둥이'?'#fdf4ff':r.type==='형제'?'#eff6ff':r.type==='남매'?'#f0fdf4':'#fff7ed', border:`1px solid ${r.type==='쌍둥이'?'#e9d5ff':r.type==='형제'?'#bfdbfe':r.type==='남매'?'#86efac':'#fed7aa'}`, color:r.type==='쌍둥이'?'#7e22ce':r.type==='형제'?'#1d4ed8':r.type==='남매'?'#15803d':'#c2410c' }}>{r.type}{r.with?` · ${r.with}`:''}</span>)}
             </div>
           )}
+          <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', marginTop:'3px', display:'inline-block',
+            background: s.parentJoined ? '#f0fdf4' : '#f9fafb',
+            border: `1px solid ${s.parentJoined ? '#86efac' : '#e5e7eb'}`,
+            color: s.parentJoined ? '#16a34a' : '#9ca3af' }}>
+            {s.parentJoined ? '출결 ON' : '출결 OFF'}
+          </span>
         </div>
 
         {/* 학부모 전화 — 문자버튼 제거, PhoneAction만 */}
@@ -1450,6 +1456,12 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
                 {cur.label}
               </span>
             )}
+            <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px',
+              background: s.parentJoined ? '#f0fdf4' : '#f9fafb',
+              border: `1px solid ${s.parentJoined ? '#86efac' : '#e5e7eb'}`,
+              color: s.parentJoined ? '#16a34a' : '#9ca3af' }}>
+              {s.parentJoined ? '출결 ON' : '출결 OFF'}
+            </span>
           </div>
         </div>
         {/* 메시지 버튼 + 연락방법 */}
