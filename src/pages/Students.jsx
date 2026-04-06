@@ -1224,41 +1224,18 @@ export function Students({ user, onNav }) {
               <Input label="번호" value={form.number} onChange={v => set('number', v)} />
               <Input label="이름" value={form.name} onChange={v => set('name', v)} required />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
               <Input label="신청 순번" value={form.applyOrder} onChange={v => set('applyOrder', v)} />
               <Input label="학부모 전화번호" value={form.parentPhone} onChange={v => set('parentPhone', v)} />
               <Input label="학생 전화번호" value={form.studentPhone} onChange={v => set('studentPhone', v)} />
+              <Select label="📱 주연락방법" value={form.contactMethod} onChange={v => set('contactMethod', v)}
+                options={[
+                  { value: '',      label: '미설정' },
+                  { value: 'sms',   label: '💬 문자' },
+                  { value: 'kakao', label: '💛 카카오톡' },
+                  { value: 'both',  label: '💬💛 둘 다' },
+                ]} />
             </div>
-            {/* 연락방법 */}
-            {form.parentPhone && (
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px' }}>📱 학부모 연락방법</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {[
-                    { value: 'kakao', label: '💛 카카오톡', color: '#3c1e1e', bg: '#FEE500', border: '#FEE500' },
-                    { value: 'sms',   label: '💬 문자',     color: '#fff',     bg: '#3b82f6', border: '#3b82f6' },
-                    { value: 'both',  label: '둘 다',       color: '#fff',     bg: '#6b7280', border: '#6b7280' },
-                  ].map(opt => (
-                    <button key={opt.value} type="button"
-                      onClick={() => set('contactMethod', form.contactMethod === opt.value ? '' : opt.value)}
-                      style={{
-                        padding: '7px 16px', borderRadius: '8px', border: `1.5px solid ${form.contactMethod === opt.value ? opt.border : '#e5e7eb'}`,
-                        background: form.contactMethod === opt.value ? opt.bg : '#fff',
-                        color: form.contactMethod === opt.value ? opt.color : '#6b7280',
-                        fontSize: '13px', fontWeight: form.contactMethod === opt.value ? 700 : 400,
-                        cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .15s',
-                      }}>
-                      {opt.label}
-                    </button>
-                  ))}
-                  {form.contactMethod && (
-                    <span style={{ fontSize: '11px', color: '#9ca3af', alignSelf: 'center' }}>
-                      ← 다시 클릭하면 초기화
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
             <Textarea label="📌 특이사항 메모" value={form.memo} onChange={v => set('memo', v)} rows={2} />
 
             {/* 비고 */}

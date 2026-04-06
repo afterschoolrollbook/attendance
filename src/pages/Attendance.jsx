@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -174,18 +174,27 @@ const GUIDE_CATS = ['결석', '지각', '개강전', '개강', '수업신청감�
 // ─── 학부모 메시지 발송
 function MsgModal({ student, cls, user, onClose }) {
   const { success, error } = useToast()
-  const [text, setText] = useState('')
-  const [guideTab, setGuideTab] = useState('결석')
   const phone = student.parentPhone?.replace(/[^0-9]/g, '') || ''
-  const contactMethod = student.contactMethod || ''  // 'kakao' | 'sms' | 'both' | ''
 
-  // 안내 문구 로드 — DB 레이어 사용
-  const allGuides = MessageGuides.byTeacher(user?.id || '')
-  const guides = allGuides.filter(g => g.category === guideTab)
+  // contactMethod는 저장 후 즉시 반영되도록 로컬 state로 관리
+  const [contactMethod, setContactMethodState] = useState(student.contactMethod || '')
+  const [guideTab, setGuideTab]  = useState('결석')
+  const [text, setText]          = useState('')
 
-  const applyGuide = (content) => {
-    setText(replacePlaceholders(content, student, cls, user))
+  // MessageGuide에 등록된 카테고리 동적 로드
+  const allGuides  = MessageGuides.byTeacher(user?.id || '')
+  const guideCats  = [...new Set(allGuides.map(g => g.category))].length > 0
+    ? [...new Set(allGuides.map(g => g.category))]
+    : GUIDE_CATS
+  const guides     = allGuides.filter(g => g.category === guideTab)
+
+  // 연락 방법 저장 (학생 DB에 반영)
+  const saveContactMethod = (method) => {
+    StudentsDB.update(student.id, { contactMethod: method })
+    setContactMethodState(method)
   }
+
+  const applyGuide = (content) => setText(replacePlaceholders(content, student, cls, user))
 
   const sendSMS = () => {
     if (!phone) { error('학부모 전화번호가 없습니다.'); return }
@@ -205,42 +214,80 @@ function MsgModal({ student, cls, user, onClose }) {
     })
   }
 
-  // contactMethod 기준 발송 버튼 강조
-  const kakaoHighlight = contactMethod === 'kakao' || contactMethod === 'both'
-  const smsHighlight   = contactMethod === 'sms'   || contactMethod === 'both'
+  // ── 연락 방법 미설정 → 설정 화면
+  if (!contactMethod) {
+    return (
+      <Modal open={true} onClose={onClose} title="📱 연락 방법 설정" width={380}>
+        <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
+          <div style={{ fontSize: '15px', fontWeight: 700, color: C.text, marginBottom: '4px' }}>{student.name} 학부모</div>
+          <div style={{ fontSize: '13px', color: C.muted, marginBottom: '24px' }}>어떤 방법으로 연락하시나요?</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button onClick={() => saveContactMethod('sms')}
+              style={{ padding: '15px', borderRadius: '12px', border: '2px solid #3b82f6', background: '#eff6ff', color: '#1d4ed8', fontSize: '15px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+              💬 문자 메시지
+            </button>
+            <button onClick={() => saveContactMethod('kakao')}
+              style={{ padding: '15px', borderRadius: '12px', border: '2px solid #ca8a04', background: '#fefce8', color: '#3c1e1e', fontSize: '15px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+              💛 카카오톡
+            </button>
+            <button onClick={() => saveContactMethod('both')}
+              style={{ padding: '15px', borderRadius: '12px', border: '2px solid #9ca3af', background: '#f9fafb', color: '#374151', fontSize: '15px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+              💬💛 문자 + 카카오 둘 다
+            </button>
+          </div>
+        </div>
+      </Modal>
+    )
+  }
+
+  // ── 메시지 발송 화면
+  const showSMS   = contactMethod === 'sms'   || contactMethod === 'both'
+  const showKakao = contactMethod === 'kakao' || contactMethod === 'both'
 
   return (
     <Modal open={true} onClose={onClose} title="📱 학부모 메시지" width={500}>
-      <div style={{ fontSize: '13px', color: C.muted, marginBottom: '14px', display:'flex', alignItems:'center', gap:'8px' }}>
-        <span>{student.name} · {fmtPhone(student.parentPhone) || '전화번호 없음'}</span>
-        {contactMethod === 'kakao' && <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 7px', borderRadius:'4px', background:'#FEE500', color:'#3c1e1e' }}>💛 카톡 우선</span>}
-        {contactMethod === 'sms'   && <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 7px', borderRadius:'4px', background:'#eff6ff', color:'#3b82f6' }}>💬 문자 우선</span>}
-        {contactMethod === 'both'  && <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 7px', borderRadius:'4px', background:'#f3f4f6', color:'#6b7280' }}>카톡+문자</span>}
+      {/* 헤더: 학생명 + 연락방법 배지 + 변경 버튼 */}
+      <div style={{ fontSize: '13px', color: C.muted, marginBottom: '14px', display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+        <span style={{ fontWeight:600, color:C.text }}>{student.name}</span>
+        <span>{fmtPhone(student.parentPhone) || '전화번호 없음'}</span>
+        {contactMethod === 'kakao' && <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'4px', background:'#FEE500', color:'#3c1e1e' }}>💛 카톡</span>}
+        {contactMethod === 'sms'   && <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'4px', background:'#eff6ff', color:'#1d4ed8' }}>💬 문자</span>}
+        {contactMethod === 'both'  && <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'4px', background:'#f3f4f6', color:'#6b7280' }}>💬💛 둘 다</span>}
+        <button onClick={() => setContactMethodState('')}
+          style={{ marginLeft:'auto', fontSize:'11px', color:C.muted, background:'none', border:`1px solid ${C.border}`, borderRadius:'6px', padding:'2px 8px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          변경
+        </button>
       </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
-        {/* 안내 문구 카테고리 탭 */}
+        {/* 1단계: 카테고리 탭 */}
         <div>
-          <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '8px' }}>📋 안내 문구 선택</div>
-          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
-            {GUIDE_CATS.map(cat => (
-              <button key={cat} onClick={() => setGuideTab(cat)}
+          <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '8px' }}>① 카테고리 선택</div>
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+            {guideCats.map(cat => (
+              <button key={cat} onClick={() => { setGuideTab(cat); setText('') }}
                 style={{ padding: '4px 10px', borderRadius: '12px', border: `1.5px solid ${guideTab===cat ? C.primary : C.border}`, background: guideTab===cat ? '#fff7ed' : '#fff', color: guideTab===cat ? C.primary : C.muted, fontSize: '12px', fontWeight: guideTab===cat ? 700 : 400, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
                 {cat}
               </button>
             ))}
           </div>
+        </div>
+
+        {/* 2단계: 문구 선택 */}
+        <div>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '8px' }}>② 문구 선택</div>
           {guides.length === 0 ? (
-            <div style={{ fontSize: '12px', color: C.muted, padding: '10px', background: '#f9fafb', borderRadius: '8px', textAlign: 'center' }}>
-              등록된 문구가 없습니다. <a href="#" onClick={e => { e.preventDefault(); onClose() }} style={{ color: C.primary }}>안내 문구 관리</a>에서 추가하세요.
+            <div style={{ fontSize: '12px', color: C.muted, padding: '12px', background: '#f9fafb', borderRadius: '8px', textAlign: 'center' }}>
+              이 카테고리에 등록된 문구가 없습니다.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '160px', overflowY: 'auto' }}>
               {guides.map(g => (
                 <button key={g.id} onClick={() => applyGuide(g.content)}
-                  style={{ padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, background: '#f9fafb', textAlign: 'left', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .1s' }}
+                  style={{ padding: '8px 12px', borderRadius: '8px', border: `1.5px solid ${text === replacePlaceholders(g.content, student, cls, user) ? C.primary : C.border}`, background: text === replacePlaceholders(g.content, student, cls, user) ? '#fff7ed' : '#f9fafb', textAlign: 'left', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}
                   onMouseEnter={e => { e.currentTarget.style.background='#fff7ed'; e.currentTarget.style.borderColor=C.primary }}
-                  onMouseLeave={e => { e.currentTarget.style.background='#f9fafb'; e.currentTarget.style.borderColor=C.border }}>
+                  onMouseLeave={e => { const sel = text === replacePlaceholders(g.content, student, cls, user); e.currentTarget.style.background=sel?'#fff7ed':'#f9fafb'; e.currentTarget.style.borderColor=sel?C.primary:C.border }}>
                   {g.title && <div style={{ fontSize: '11px', fontWeight: 700, color: C.primary, marginBottom: '2px' }}>{g.title}</div>}
                   <div style={{ fontSize: '12px', color: '#374151', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                     {g.content}
@@ -251,26 +298,34 @@ function MsgModal({ student, cls, user, onClose }) {
           )}
         </div>
 
-        {/* 미리보기 / 직접 입력 */}
+        {/* 3단계: 발송 내용 확인 + 직접 수정 */}
         <div>
           <div style={{ fontSize: '12px', fontWeight: 600, color: C.muted, marginBottom: '6px' }}>
-            {text ? '✅ 발송 내용 (수정 가능)' : '직접 입력'}
+            ③ {text ? '발송 내용 확인 · 수정' : '직접 입력'}
           </div>
-          <textarea value={text} onChange={e => setText(e.target.value)} rows={5} placeholder="문구를 선택하거나 직접 입력하세요..."
+          <textarea value={text} onChange={e => setText(e.target.value)} rows={5}
+            placeholder="위에서 문구를 선택하거나 직접 입력하세요..."
             style={{ width: '100%', padding: '10px 12px', borderRadius: '9px', border: `1.5px solid ${text ? C.primary : C.border}`, fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', resize: 'vertical', outline: 'none', boxSizing: 'border-box', lineHeight: 1.7 }} />
         </div>
 
-        {/* 발송 버튼 */}
+        {/* 발송 버튼 — contactMethod에 설정된 방법만 표시 */}
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={sendSMS}
-            style={{ flex: 1, padding: '10px', borderRadius: '9px', border: smsHighlight ? '2px solid #3b82f6' : 'none', background: '#3b82f6', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', boxShadow: smsHighlight ? '0 0 0 3px #bfdbfe' : 'none' }}>
-            💬 문자 발송{smsHighlight ? ' ★' : ''}
+          {showSMS && (
+            <button onClick={sendSMS}
+              style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '2px solid #3b82f6', background: '#3b82f6', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+              💬 문자 발송
+            </button>
+          )}
+          {showKakao && (
+            <button onClick={sendKakao}
+              style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '2px solid #ca8a04', background: '#fee500', color: '#3c1e1e', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+              💛 카톡 발송
+            </button>
+          )}
+          <button onClick={copyText}
+            style={{ padding: '12px 14px', borderRadius: '10px', border: `1.5px solid ${C.border}`, background: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', color: C.muted }}>
+            복사
           </button>
-          <button onClick={sendKakao}
-            style={{ flex: 1, padding: '10px', borderRadius: '9px', border: kakaoHighlight ? '2px solid #ca8a04' : 'none', background: '#fee500', color: '#3c1e1e', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', boxShadow: kakaoHighlight ? '0 0 0 3px #fef08a' : 'none' }}>
-            💛 카톡 발송{kakaoHighlight ? ' ★' : ''}
-          </button>
-          <button onClick={copyText} style={{ padding: '10px 14px', borderRadius: '9px', border: `1.5px solid ${C.border}`, background: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', color: C.muted }}>복사</button>
         </div>
       </div>
     </Modal>
