@@ -928,8 +928,28 @@ function MobileDashboard({ user, onNav }) {
 
   // 날씨 — PC와 동일한 저장 키 사용 (공유)
   const locKey = `weatherLocation_${user.id}`
-  const [weatherLoc] = useState(() => Settings.get(locKey) || { lat:37.39, lng:126.95, name:'군포시' })
+  const [weatherLoc, setWeatherLoc] = useState(() => Settings.get(locKey) || { lat:37.39, lng:126.95, name:'군포시' })
   const weather = useWeather(weatherLoc.lat, weatherLoc.lng)
+  const [locModal,    setLocModal]    = useState(false)
+  const [locSearch,   setLocSearch]   = useState('')
+  const [locResults,  setLocResults]  = useState([])
+  const [locSearching,setLocSearching]= useState(false)
+  const searchLocation = async (q) => {
+    if (!q.trim()) return
+    setLocSearching(true)
+    try {
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=ko`)
+      const data = await res.json()
+      setLocResults(data.results || [])
+    } catch { setLocResults([]) }
+    setLocSearching(false)
+  }
+  const selectLocation = (r) => {
+    const loc = { lat: r.latitude, lng: r.longitude, name: r.name + (r.admin1 ? ` (${r.admin1})` : '') }
+    Settings.set(locKey, loc)
+    setWeatherLoc(loc)
+    setLocModal(false); setLocSearch(''); setLocResults([])
+  }
   const [showInstallGuide, setShowInstallGuide] = useState(false)
 
   const handleAddShortcut = () => {
@@ -954,15 +974,20 @@ function MobileDashboard({ user, onNav }) {
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
           {/* 날씨 */}
-          {weather && (
-            <div style={{ display:'flex', alignItems:'center', gap:'4px', padding:'6px 10px', borderRadius:'10px', background:'#f9fafb', border:'1px solid #e5e7eb' }}>
-              <span style={{ fontSize:'18px' }}>{weatherIcon(weather.code).icon}</span>
-              <div>
-                <div style={{ fontSize:'13px', fontWeight:700, color:'#111827', lineHeight:1.2 }}>{weather.temp}°C</div>
-                <div style={{ fontSize:'10px', color:'#9ca3af', lineHeight:1.2 }}>{weatherIcon(weather.code).text}</div>
-              </div>
-            </div>
-          )}
+          <div onClick={() => { setLocModal(true); setLocSearch(''); setLocResults([]) }}
+            style={{ display:'flex', alignItems:'center', gap:'4px', padding:'6px 10px', borderRadius:'10px', background:'#f9fafb', border:'1px solid #e5e7eb', cursor:'pointer' }}>
+            {weather ? (
+              <>
+                <span style={{ fontSize:'18px' }}>{weatherIcon(weather.code).icon}</span>
+                <div>
+                  <div style={{ fontSize:'13px', fontWeight:700, color:'#111827', lineHeight:1.2 }}>{weather.temp}°C</div>
+                  <div style={{ fontSize:'10px', color:'#9ca3af', lineHeight:1.2 }}>{weatherLoc.name}</div>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize:'11px', color:'#9ca3af' }}>📍 {weatherLoc.name}</div>
+            )}
+          </div>
           {/* 바로가기 */}
           {!isStandalone && (
             <button onClick={handleAddShortcut}
@@ -972,6 +997,49 @@ function MobileDashboard({ user, onNav }) {
           )}
         </div>
       </div>
+
+      {/* 날씨 지역 변경 모달 */}
+      {locModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:9999, display:'flex', alignItems:'flex-end', justifyContent:'center' }}
+          onClick={() => setLocModal(false)}>
+          <div style={{ background:'#fff', borderRadius:'20px 20px 0 0', padding:'24px', width:'100%', maxWidth:'480px' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:'16px', fontWeight:700, color:'#111827', marginBottom:'4px' }}>📍 날씨 지역 설정</div>
+            <div style={{ fontSize:'12px', color:'#9ca3af', marginBottom:'16px' }}>현재: {weatherLoc.name}</div>
+            <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
+              <input value={locSearch} onChange={e => setLocSearch(e.target.value)}
+                onKeyDown={e => e.key==='Enter' && searchLocation(locSearch)}
+                placeholder="도시명 검색 (예: 서울, 수원, 군포)"
+                style={{ flex:1, padding:'11px 14px', borderRadius:'10px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+              <button onClick={() => searchLocation(locSearch)}
+                style={{ padding:'11px 18px', borderRadius:'10px', border:'none', background:'#f97316', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                검색
+              </button>
+            </div>
+            {locSearching && <div style={{ fontSize:'13px', color:'#9ca3af', textAlign:'center', padding:'12px' }}>검색 중...</div>}
+            {locResults.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'240px', overflowY:'auto' }}>
+                {locResults.map((r, i) => (
+                  <button key={i} onClick={() => selectLocation(r)}
+                    style={{ padding:'10px 14px', borderRadius:'10px', border:'1px solid #e5e7eb', background:'#f9fafb', cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    <div style={{ fontSize:'14px', fontWeight:600, color:'#111827' }}>{r.name}</div>
+                    <div style={{ fontSize:'12px', color:'#9ca3af', marginTop:'2px' }}>
+                      {[r.admin1, r.country].filter(Boolean).join(' · ')}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {!locSearching && locResults.length === 0 && locSearch && (
+              <div style={{ fontSize:'13px', color:'#9ca3af', textAlign:'center', padding:'12px' }}>검색 결과가 없습니다</div>
+            )}
+            <button onClick={() => setLocModal(false)}
+              style={{ marginTop:'16px', width:'100%', padding:'13px', borderRadius:'10px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 바탕화면 바로가기 안내 모달 */}
       {showInstallGuide && (
@@ -1031,7 +1099,7 @@ function MobileDashboard({ user, onNav }) {
             </div>
             <a href={`https://map.naver.com/v5/search/${encodeURIComponent(school)}`}
               target="_blank" rel="noopener noreferrer"
-              style={{ display:'inline-flex', alignItems:'center', gap:'5px', padding:'6px 12px', borderRadius:'9px', background:'#f0fdf4', border:'1.5px solid #86efac', color:'#16a34a', fontSize:'12px', fontWeight:700, textDecoration:'none' }}>
+              style={{ display:'inline-flex', alignItems:'center', gap:'6px', padding:'10px 18px', borderRadius:'11px', background:'#f0fdf4', border:'2px solid #86efac', color:'#16a34a', fontSize:'14px', fontWeight:700, textDecoration:'none' }}>
               🗺️ 네비게이션
             </a>
           </div>
@@ -1061,26 +1129,24 @@ function MobileDashboard({ user, onNav }) {
               return (
                 <div key={cls.id} style={{ background: '#fff', borderRadius: '14px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
                   <div style={{ padding: '14px 16px', background: allDone ? '#f0fdf4' : '#fff7ed', borderBottom: '1px solid #f3f4f6' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap:'10px' }}>
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>{cls.className}</span>
-                          {cls.section && <span style={{ fontSize: '12px', background: '#f97316', color: '#fff', borderRadius: '6px', padding: '1px 8px', fontWeight: 700 }}>{cls.section}반</span>}
+                        {/* 한줄: 수업명(반) / 학교 / 시간 */}
+                        <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+                          <span style={{ fontSize:'15px', fontWeight:700, color:'#111827' }}>
+                            {cls.className}{cls.section ? ` ${cls.section}반` : ''}
+                          </span>
+                          {cls.organization && <>
+                            <span style={{ color:'#d1d5db' }}>·</span>
+                            <span style={{ fontSize:'13px', color:'#6b7280' }}>{cls.organization}</span>
+                          </>}
+                          {cls.time && <>
+                            <span style={{ color:'#d1d5db' }}>·</span>
+                            <span style={{ fontSize:'13px', color:'#6b7280' }}>🕐 {cls.time}{cls.timeEnd ? `~${cls.timeEnd}` : ''}</span>
+                          </>}
                         </div>
-                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>
-                          {cls.organization && <span>{cls.organization} · </span>}
-                          {cls.time && <span>🕐 {cls.time}{cls.timeEnd ? ` ~ ${cls.timeEnd}` : ''}</span>}
-                        </div>
-                        {/* 학교 네비게이션 버튼 */}
-                        {cls.organization && (
-                          <a href={`https://map.naver.com/v5/search/${encodeURIComponent(cls.organization)}`}
-                            target="_blank" rel="noopener noreferrer"
-                            style={{ display:'inline-flex', alignItems:'center', gap:'4px', marginTop:'7px', padding:'4px 10px', borderRadius:'7px', background:'#f0fdf4', border:'1.5px solid #86efac', color:'#16a34a', fontSize:'12px', fontWeight:700, textDecoration:'none' }}>
-                            🗺️ 네비게이션
-                          </a>
-                        )}
                       </div>
-                      <div style={{ textAlign: 'right', flexShrink:0, marginLeft:'10px' }}>
+                      <div style={{ textAlign: 'right', flexShrink:0 }}>
                         <div style={{ fontSize: '20px', fontWeight: 700, color: allDone ? '#16a34a' : '#f97316' }}>
                           {presentCnt}<span style={{ fontSize: '13px', color: '#9ca3af' }}>/{students.length}</span>
                         </div>
