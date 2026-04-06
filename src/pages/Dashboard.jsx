@@ -149,23 +149,26 @@ export function DashboardCardSettings({ userId, settings: extSettings, onToggle,
 //  요약 카드 공통 wrapper
 // ═══════════════════════════════════════════════════════════════════
 
-function SummaryCard({ id, icon, label, navKey, onHide, onNav, children }) {
+function SummaryCard({ id, icon, label, navKey, onHide, onNav, children, mobile }) {
   return (
     <div style={{ background: C.card, borderRadius: '16px', border: `1px solid ${C.border}`, overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column' }}>
       <div
-        onClick={() => navKey && onNav(navKey)}
-        style={{ padding: '12px 16px', background: '#f9fafb', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: navKey ? 'pointer' : 'default' }}
+        onClick={() => !mobile && navKey && onNav(navKey)}
+        style={{ padding: '12px 16px', background: '#f9fafb', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: (!mobile && navKey) ? 'pointer' : 'default' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '16px' }}>{icon}</span>
           <span style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>{label}</span>
-          {navKey && <span style={{ fontSize: '11px', color: C.primary, fontWeight: 600 }}>바로가기 →</span>}
+          {navKey && !mobile && <span style={{ fontSize: '11px', color: C.primary, fontWeight: 600 }}>바로가기 →</span>}
+          {navKey && mobile  && <span style={{ fontSize: '11px', color: C.muted, fontWeight: 500 }}>💻 PC에서 관리하세요</span>}
         </div>
-        <button
-          onClick={e => { e.stopPropagation(); onHide(id) }}
-          title="카드 숨기기 (내정보 또는 ⚙️에서 다시 켤 수 있어요)"
-          style={{ width: '22px', height: '22px', borderRadius: '50%', border: `1px solid ${C.border}`, background: '#fff', cursor: 'pointer', fontSize: '12px', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-        >✕</button>
+        {!mobile && (
+          <button
+            onClick={e => { e.stopPropagation(); onHide(id) }}
+            title="카드 숨기기 (내정보 또는 ⚙️에서 다시 켤 수 있어요)"
+            style={{ width: '22px', height: '22px', borderRadius: '50%', border: `1px solid ${C.border}`, background: '#fff', cursor: 'pointer', fontSize: '12px', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          >✕</button>
+        )}
       </div>
       <div style={{ padding: '12px 16px', flex: 1 }}>{children}</div>
     </div>
@@ -198,7 +201,7 @@ function ListRow({ left, sub, badge, badgeColor = '#1d4ed8', badgeBg = '#eff6ff'
 
 // ── 💰 수익 관리
 // 텀별 그룹 → 요일 · 학교명 · 금액 · 상태(미수/마감/진행중/예정)
-function RevenueCard({ user, onHide, onNav }) {
+function RevenueCard({ user, onHide, onNav, mobile }) {
   const today    = todayStr()
   const classes  = ClassesDB.byTeacher(user.id)
   const fees     = RevenueFees.byTeacher(user.id)
@@ -271,7 +274,7 @@ function RevenueCard({ user, onHide, onNav }) {
   })
 
   return (
-    <SummaryCard id="revenue" icon="💰" label="수익 관리" navKey="revenue" onHide={onHide} onNav={onNav}>
+    <SummaryCard id="revenue" icon="💰" label="수익 관리" navKey="revenue" onHide={onHide} onNav={onNav} mobile={mobile}>
       {visibleRows.length === 0
         ? <Empty msg="등록된 수업이 없습니다" />
         : (
@@ -328,7 +331,7 @@ function RevenueCard({ user, onHide, onNav }) {
 
 // ── 📚 연수 관리
 // Trainings 테이블 — 이수 필요 목록 + 26년도 완료 연수 5개
-function TrainingCard({ user, onHide, onNav }) {
+function TrainingCard({ user, onHide, onNav, mobile }) {
   const all     = Trainings.byTeacher(user.id)
   const pending = all
     .filter(t => !t.completedAt && t.status !== 'done')
@@ -340,7 +343,7 @@ function TrainingCard({ user, onHide, onNav }) {
     .slice(0, 5)
 
   return (
-    <SummaryCard id="training" icon="📚" label="연수 관리" navKey="training" onHide={onHide} onNav={onNav}>
+    <SummaryCard id="training" icon="📚" label="연수 관리" navKey="training" onHide={onHide} onNav={onNav} mobile={mobile}>
       {all.length === 0
         ? <Empty msg="등록된 연수가 없습니다" />
         : (
@@ -390,13 +393,13 @@ function TrainingCard({ user, onHide, onNav }) {
 
 // ── 🏆 자격증 관리
 // Certificates 테이블 — 취득일 역순 최근 5개
-function CertificateCard({ user, onHide, onNav }) {
+function CertificateCard({ user, onHide, onNav, mobile }) {
   const items = Certificates.byTeacher(user.id)
     .sort((a, b) => (b.date || b.issuedAt || '').localeCompare(a.date || a.issuedAt || ''))
     .slice(0, 5)
 
   return (
-    <SummaryCard id="certificate" icon="🏆" label="자격증 관리" navKey="certificate" onHide={onHide} onNav={onNav}>
+    <SummaryCard id="certificate" icon="🏆" label="자격증 관리" navKey="certificate" onHide={onHide} onNav={onNav} mobile={mobile}>
       {items.length === 0
         ? <Empty msg="등록된 자격증이 없습니다" />
         : (
@@ -421,7 +424,7 @@ function CertificateCard({ user, onHide, onNav }) {
 
 // ── 📋 학력 및 이력
 // Careers + Educations 합쳐서 최근 5개
-function CareerCard({ user, onHide, onNav }) {
+function CareerCard({ user, onHide, onNav, mobile }) {
   const items = [
     ...Careers.byTeacher(user.id).map(r    => ({ ...r, _type: '경력' })),
     ...Educations.byTeacher(user.id).map(r => ({ ...r, _type: '학력' })),
@@ -430,7 +433,7 @@ function CareerCard({ user, onHide, onNav }) {
     .slice(0, 5)
 
   return (
-    <SummaryCard id="career" icon="📋" label="학력 및 이력" navKey="career" onHide={onHide} onNav={onNav}>
+    <SummaryCard id="career" icon="📋" label="학력 및 이력" navKey="career" onHide={onHide} onNav={onNav} mobile={mobile}>
       {items.length === 0
         ? <Empty msg="등록된 학력·이력이 없습니다" />
         : (
@@ -468,13 +471,13 @@ function CareerCard({ user, onHide, onNav }) {
 
 // ── 🥇 수상 경력
 // Awards 테이블 — 수상일 역순 최근 5개
-function AwardCard({ user, onHide, onNav }) {
+function AwardCard({ user, onHide, onNav, mobile }) {
   const items = Awards.byTeacher(user.id)
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
     .slice(0, 5)
 
   return (
-    <SummaryCard id="award" icon="🥇" label="수상 경력" navKey="award" onHide={onHide} onNav={onNav}>
+    <SummaryCard id="award" icon="🥇" label="수상 경력" navKey="award" onHide={onHide} onNav={onNav} mobile={mobile}>
       {items.length === 0
         ? <Empty msg="등록된 수상 경력이 없습니다" />
         : (
@@ -499,9 +502,9 @@ function AwardCard({ user, onHide, onNav }) {
 
 // ── 📢 공고 관리
 // JobSubs(구독 설정)는 공고관리 페이지에서 관리, 여기선 바로가기만
-function AnnouncementCard({ user, onHide, onNav }) {
+function AnnouncementCard({ user, onHide, onNav, mobile }) {
   return (
-    <SummaryCard id="announcement" icon="📢" label="공고 관리" navKey="announcement" onHide={onHide} onNav={onNav}>
+    <SummaryCard id="announcement" icon="📢" label="공고 관리" navKey="announcement" onHide={onHide} onNav={onNav} mobile={mobile}>
       <div style={{ textAlign: 'center', padding: '14px 0' }}>
         <div style={{ fontSize: '28px', marginBottom: '8px' }}>📢</div>
         <div style={{ fontSize: '13px', color: C.muted }}>채용·모집 공고를 확인하세요</div>
@@ -911,36 +914,9 @@ function MobileDashboard({ user, onNav }) {
   const [calYear,  setCalYear]  = useState(d.getFullYear())
   const [calMonth, setCalMonth] = useState(d.getMonth())
   const [selDate,  setSelDate]  = useState(today)
-  const [installPrompt, setInstallPrompt] = useState(null)
-  const [installed,     setInstalled]     = useState(false)
-
-  useEffect(() => {
-    // Android/PC 설치 프롬프트 캡처
-    const handler = (e) => { e.preventDefault(); setInstallPrompt(e) }
-    window.addEventListener('beforeinstallprompt', handler)
-    // 이미 설치된 경우
-    window.addEventListener('appinstalled', () => setInstalled(true))
-    // iOS standalone 감지
-    if (window.navigator.standalone) setInstalled(true)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
-  }, [])
-
-  const handleInstall = async () => {
-    if (installPrompt) {
-      installPrompt.prompt()
-      const { outcome } = await installPrompt.userChoice
-      if (outcome === 'accepted') setInstalled(true)
-      setInstallPrompt(null)
-    }
-  }
-
-  // iOS 감지 (설치 프롬프트가 없는 경우)
-  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.navigator.standalone
 
   const classes    = sortClasses(ClassesDB.byTeacher(user.id))
   const classDates = [...new Set(classes.flatMap(cls => calcSessionDates(cls)))]
-
-  // 선택한 날짜의 수업 목록
   const todayClasses = classes.filter(cls => calcSessionDates(cls).includes(selDate))
 
   const prevMonth = () => { if (calMonth===0){setCalYear(y=>y-1);setCalMonth(11)}else setCalMonth(m=>m-1) }
@@ -948,6 +924,7 @@ function MobileDashboard({ user, onNav }) {
   const goToday   = () => { const t=new Date(); setCalYear(t.getFullYear()); setCalMonth(t.getMonth()); setSelDate(today) }
 
   const name = (user.displayNameMode === 'nickname' && user.nickname) ? user.nickname : user.name
+  const noop = () => {}  // 모바일에서 카드 숨기기 비활성
 
   return (
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -958,40 +935,13 @@ function MobileDashboard({ user, onNav }) {
         <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px' }}>{formatDateKo(today)}</div>
       </div>
 
-      {/* 홈화면 추가 안내 */}
-      {!installed && (isIOS || installPrompt) && (
-        <div style={{ background: '#fff7ed', borderRadius: '14px', border: '1.5px solid #fed7aa', padding: '14px 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#92400e', marginBottom: '3px' }}>📲 홈 화면에 추가하기</div>
-              {isIOS ? (
-                <div style={{ fontSize: '12px', color: '#b45309', lineHeight: 1.6 }}>
-                  Safari 하단 <strong>공유버튼(□↑)</strong> →<br/>
-                  <strong>"홈 화면에 추가"</strong> 선택
-                </div>
-              ) : (
-                <div style={{ fontSize: '12px', color: '#b45309' }}>앱처럼 빠르게 실행할 수 있어요</div>
-              )}
-            </div>
-            {!isIOS && (
-              <button onClick={handleInstall} style={{
-                padding: '8px 16px', borderRadius: '10px', border: 'none',
-                background: '#f97316', color: '#fff',
-                fontSize: '13px', fontWeight: 700, cursor: 'pointer',
-                fontFamily: 'Noto Sans KR, sans-serif', whiteSpace: 'nowrap', flexShrink: 0,
-              }}>설치</button>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* 달력 */}
       <MobileCalendar
         year={calYear} month={calMonth} selectedDate={selDate} classDates={classDates}
         onSelect={setSelDate} onPrev={prevMonth} onNext={nextMonth} onToday={goToday}
       />
 
-      {/* 선택한 날짜의 수업 목록 */}
+      {/* 오늘 수업 목록 */}
       <div>
         <div style={{ fontSize: '14px', fontWeight: 700, color: '#374151', marginBottom: '10px' }}>
           {selDate === today ? '📅 오늘 수업' : `📅 ${selDate.slice(5).replace('-','월 ')}일 수업`}
@@ -1011,18 +961,14 @@ function MobileDashboard({ user, onNav }) {
               const doneCnt    = attRecords.filter(a => a.status !== 'pending').length
               const presentCnt = attRecords.filter(a => a.status === 'present' || a.status === 'late').length
               const allDone    = doneCnt === students.length && students.length > 0
-
               return (
                 <div key={cls.id} style={{ background: '#fff', borderRadius: '14px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
-                  {/* 수업 헤더 */}
                   <div style={{ padding: '14px 16px', background: allDone ? '#f0fdf4' : '#fff7ed', borderBottom: '1px solid #f3f4f6' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>{cls.className}</span>
-                          {cls.section && (
-                            <span style={{ fontSize: '12px', background: '#f97316', color: '#fff', borderRadius: '6px', padding: '1px 8px', fontWeight: 700 }}>{cls.section}반</span>
-                          )}
+                          {cls.section && <span style={{ fontSize: '12px', background: '#f97316', color: '#fff', borderRadius: '6px', padding: '1px 8px', fontWeight: 700 }}>{cls.section}반</span>}
                         </div>
                         <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>
                           {cls.organization && <span>{cls.organization} · </span>}
@@ -1039,18 +985,8 @@ function MobileDashboard({ user, onNav }) {
                       </div>
                     </div>
                   </div>
-
-                  {/* 출석 체크 버튼 */}
-                  <button
-                    onClick={() => onNav('attendance', { classId: cls.id, date: selDate })}
-                    style={{
-                      width: '100%', padding: '14px', border: 'none', cursor: 'pointer',
-                      background: allDone ? '#f0fdf4' : '#fff',
-                      color: allDone ? '#16a34a' : '#f97316',
-                      fontSize: '15px', fontWeight: 700,
-                      fontFamily: 'Noto Sans KR, sans-serif',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                    }}>
+                  <button onClick={() => onNav('attendance', { classId: cls.id, date: selDate })}
+                    style={{ width: '100%', padding: '14px', border: 'none', cursor: 'pointer', background: allDone ? '#f0fdf4' : '#fff', color: allDone ? '#16a34a' : '#f97316', fontSize: '15px', fontWeight: 700, fontFamily: 'Noto Sans KR, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                     {allDone ? '✅ 출석 완료 — 다시 확인' : '✅ 출석 체크하기 →'}
                   </button>
                 </div>
@@ -1059,6 +995,71 @@ function MobileDashboard({ user, onNav }) {
           </div>
         )}
       </div>
+
+      {/* 구분선 + PC 관리 안내 */}
+      <div style={{ borderTop: '1.5px dashed #e5e7eb', paddingTop: '16px' }}>
+        <div style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', marginBottom: '14px', background: '#f9fafb', borderRadius: '10px', padding: '10px', border: '1px solid #f3f4f6' }}>
+          💻 아래 항목들은 PC에서 관리하세요
+        </div>
+
+        {/* 수익관리 */}
+        <div style={{ marginBottom: '12px' }}>
+          <RevenueCard user={user} onHide={noop} onNav={onNav} mobile={true} />
+        </div>
+
+        {/* 교구 준비 알림 */}
+        {(() => {
+          const weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate()+7)
+          const weekEndStr = weekEnd.toISOString().slice(0,10)
+          const alerts = classes.flatMap(cls => {
+            const upcoming = calcSessionDates(cls).filter(d => d >= today && d <= weekEndStr)
+            if (!upcoming.length) return []
+            const confirmed = StudentsDB.confirmed(cls.id)
+            if (!confirmed.length) return []
+            const supplyData = SupplyItems.byClass(cls.id)
+            const notSet = confirmed.filter(s => !supplyData.find(item => item.studentId === s.id && item.name))
+            return notSet.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: notSet.length, total: confirmed.length }] : []
+          })
+          if (!alerts.length) return null
+          return (
+            <div style={{ background: '#fef2f2', borderRadius: '14px', border: '1.5px solid #fca5a5', padding: '14px 16px', marginBottom: '12px', cursor: 'pointer' }}
+              onClick={() => onNav('supplies')}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#ef4444', marginBottom: '8px' }}>⚠️ 교구 준비 필요 — 이번주 수업</div>
+              {alerts.map(({ cls, nextDate, notSetCount, total }) => (
+                <div key={cls.id} style={{ fontSize: '12px', color: '#374151', marginBottom: '4px' }}>
+                  {cls.organization} · {cls.className}{cls.section?' '+cls.section+'반':''} · {nextDate} · 미설정 {notSetCount}/{total}명
+                </div>
+              ))}
+            </div>
+          )
+        })()}
+
+        {/* 공고 관리 */}
+        <div style={{ marginBottom: '12px' }}>
+          <AnnouncementCard user={user} onHide={noop} onNav={onNav} mobile={true} />
+        </div>
+
+        {/* 연수 관리 */}
+        <div style={{ marginBottom: '12px' }}>
+          <TrainingCard user={user} onHide={noop} onNav={onNav} mobile={true} />
+        </div>
+
+        {/* 자격증 관리 */}
+        <div style={{ marginBottom: '12px' }}>
+          <CertificateCard user={user} onHide={noop} onNav={onNav} mobile={true} />
+        </div>
+
+        {/* 학력 및 이력 */}
+        <div style={{ marginBottom: '12px' }}>
+          <CareerCard user={user} onHide={noop} onNav={onNav} mobile={true} />
+        </div>
+
+        {/* 수상 경력 */}
+        <div style={{ marginBottom: '12px' }}>
+          <AwardCard user={user} onHide={noop} onNav={onNav} mobile={true} />
+        </div>
+      </div>
+
     </div>
   )
 }
@@ -1070,23 +1071,6 @@ function MobileDashboard({ user, onNav }) {
 export function Dashboard({ user, onNav }) {
   const isMobile = window.innerWidth <= 768
   if (isMobile) return <MobileDashboard user={user} onNav={onNav} />
-
-  // PC 설치 프롬프트
-  const [installPrompt, setInstallPrompt] = useState(null)
-  const [installed,     setInstalled]     = useState(false)
-  useEffect(() => {
-    const handler = (e) => { e.preventDefault(); setInstallPrompt(e) }
-    window.addEventListener('beforeinstallprompt', handler)
-    window.addEventListener('appinstalled', () => { setInstalled(true); setInstallPrompt(null) })
-    return () => window.removeEventListener('beforeinstallprompt', handler)
-  }, [])
-  const handleInstall = async () => {
-    if (!installPrompt) return
-    installPrompt.prompt()
-    const { outcome } = await installPrompt.userChoice
-    if (outcome === 'accepted') setInstalled(true)
-    setInstallPrompt(null)
-  }
   const { settings, hideCard, toggleCard, resetAll } = useCardSettings(user.id)
   const [showSettings, setShowSettings] = useState(false)
 
@@ -1206,13 +1190,6 @@ export function Dashboard({ user, onNav }) {
               <span style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', borderRadius: '50%', background: C.primary, color: '#fff', fontSize: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{hiddenCount}</span>
             )}
           </button>
-          {/* 바탕화면 설치 버튼 */}
-          {!installed && installPrompt && (
-            <button onClick={handleInstall}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', borderRadius: '12px', border: '1.5px solid #fed7aa', background: '#fff7ed', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#92400e', fontFamily: 'Noto Sans KR, sans-serif' }}>
-              📲 바탕화면에 추가
-            </button>
-          )}
         </div>
       </div>
 
