@@ -164,6 +164,7 @@ function replacePlaceholders(text, student, cls, user) {
   const profile = user?.id ? TeacherProfiles.byTeacher(user.id) : null
   const teacherName     = profile?.name     || user?.name     || ''
   const teacherNickname = profile?.nickname || profile?.name  || user?.nickname || user?.name || ''
+  const inviteLink = `${window.location.origin}/parent-invite?phone=${encodeURIComponent(student?.parentPhone||'')}&teacher=${encodeURIComponent(user?.id||'')}`
   return text
     .replace(/{학생이름}/g, student?.name || '')
     .replace(/{학교명}/g,   cls?.organization || student?.school || '')
@@ -171,6 +172,7 @@ function replacePlaceholders(text, student, cls, user) {
     .replace(/{선생님이름}/g, teacherName)
     .replace(/{선생님닉네임}/g, teacherNickname)
     .replace(/{날짜}/g, dateStr)
+    .replace(/{출결서비스링크}/g, inviteLink)
 }
 
 const GUIDE_CATS = ['출석', '결석', '지각', '하교']
@@ -374,7 +376,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: '#fff', borderLeft: '3px solid transparent', transition: 'all .12s' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '30px 70px 65px 100px 190px 90px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '30px 70px 65px 100px 190px 90px 70px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
 
         {/* 순번 — StudentRow 동일 */}
         <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{idx+1}</span>
@@ -489,7 +491,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '30px 70px 65px 100px 190px 90px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '30px 70px 65px 100px 190px 90px 70px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
 
         {/* 순번 */}
         <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{idx+1}</span>
@@ -556,6 +558,24 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
             </div>
           )
         })()}
+
+        {/* 출결초대 */}
+        <div style={{ textAlign:'center' }}>
+          {s.parentPhone ? (
+            <button onClick={() => {
+              const phone = s.parentPhone.replace(/[^0-9]/g,'')
+              const link = `${window.location.origin}/parent-invite?phone=${encodeURIComponent(s.parentPhone)}&teacher=${encodeURIComponent(s.teacherId||'')}`
+              const text = `안녕하세요 😊 ${s.name} 학생 학부모님! 출결 현황을 실시간으로 확인하실 수 있는 출결서비스에 초대드립니다. 아래 링크를 클릭해 가입해주세요 🙏 ${link}`
+              const method = s.contactMethod
+              if (method === 'kakao') window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${phone}&message=${encodeURIComponent(text)}`)
+              else window.open(`sms:${phone}?body=${encodeURIComponent(text)}`)
+              StudentsDB.update(s.id, { parentInviteSentAt: new Date().toISOString() })
+            }}
+              style={{ padding:'4px 8px', borderRadius:'7px', border:`1.5px solid ${s.parentInviteSentAt?'#86efac':'#a78bfa'}`, background:s.parentInviteSentAt?'#f0fdf4':'#f5f3ff', color:s.parentInviteSentAt?'#16a34a':'#7c3aed', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+              {s.parentInviteSentAt ? '✅발송됨' : '📨초대'}
+            </button>
+          ) : <span style={{ fontSize:'11px', color:'#d1d5db' }}>-</span>}
+        </div>
 
         {/* 특이사항·메모 (귀가방법 배지 포함) */}
         <div>
@@ -783,7 +803,7 @@ function ClassAttendanceSection({ cls, date, allStudents }) {
         )}
         {/* 컬럼 헤더 */}
         <div style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 90px 1fr', gap:'6px', padding:'7px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
-          <span>순번</span><span>학년·반·번호</span><span>이름</span><span>학부모전화</span><span>출석·지각·조퇴·결석</span><span>진도</span><span>특이사항·메모</span>
+          <span>순번</span><span>학년·반·번호</span><span>이름</span><span>학부모전화</span><span>출석·지각·조퇴·결석</span><span>진도</span><span>출결초대</span><span>특이사항·메모</span>
         </div>
         {sorted.length === 0
           ? <div style={{ padding:'24px', textAlign:'center', color:C.muted, fontSize:'13px' }}>등록된 학생이 없습니다</div>
@@ -1114,13 +1134,14 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
         }))].sort()
 
         const ColHeader = () => (
-          <div style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 90px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'30px 70px 65px 100px 190px 90px 70px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
             <span>순번</span>
             <span>학년·반·번호</span>
             <span>이름</span>
             <span>학부모전화</span>
             <span>출석·지각·조퇴·결석</span>
             <span>진도</span>
+            <span>출결초대</span>
             <span>특이사항·메모</span>
           </div>
         )
@@ -1301,7 +1322,7 @@ function actionBtn(bg,color,border) {
 //  MOBILE ATTENDANCE  (768px 이하 전용)
 // ═══════════════════════════════════════════════════════════════════
 
-function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, spItem, spProg, spChecks }) {
+function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, spItem, spProg, spChecks, onInviteSent }) {
   const status   = rec?.status || 'pending'
   const statusMap = {
     present: { label:'출석', color:'#16a34a', bg:'#f0fdf4', border:'#86efac' },
@@ -1339,6 +1360,19 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
     setReasonModal(null)
   }
 
+  // 출결서비스 초대 발송
+  const sendInvite = () => {
+    const phone = s.parentPhone?.replace(/[^0-9]/g, '')
+    if (!phone) return
+    const link = `${window.location.origin}/parent-invite?phone=${encodeURIComponent(s.parentPhone)}&teacher=${encodeURIComponent(s.teacherId||'')}`
+    const text = `안녕하세요 😊 ${s.name} 학생 학부모님! 출결 현황을 실시간으로 확인하실 수 있는 출결서비스에 초대드립니다. 아래 링크를 클릭해 가입해주세요 🙏 ${link}`
+    const method = s.contactMethod
+    if (method === 'kakao') window.open(`kakaoplus://plusfriend/talk/sendmessage?to=${phone}&message=${encodeURIComponent(text)}`)
+    else window.open(`sms:${phone}?body=${encodeURIComponent(text)}`)
+    StudentsDB.update(s.id, { parentInviteSentAt: new Date().toISOString() })
+    onInviteSent && onInviteSent(s.id)
+  }
+
   return (
     <div style={{
       background: '#fff', borderRadius: '14px',
@@ -1363,6 +1397,10 @@ function MobileStudentCard({ s, rec, onMark, onMsgOpen, onProgOpen, isFuture, sp
                   style={{ color: '#3b82f6', textDecoration: 'underline', textUnderlineOffset: '2px', fontSize: '15px', fontWeight: 600 }}>
                   {fmtPhone(s.parentPhone)}
                 </a>
+                <button onClick={sendInvite}
+                  style={{ padding:'2px 8px', borderRadius:'6px', border:'1.5px solid #a78bfa', background: s.parentInviteSentAt ? '#f5f3ff' : '#fff', color:'#7c3aed', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                  {s.parentInviteSentAt ? '✅출결' : '출결초대'}
+                </button>
               </>
             )}
             {status !== 'pending' && (

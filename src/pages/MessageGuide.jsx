@@ -3,7 +3,7 @@ import { PageHeader, Card, Modal, Btn, EmptyState } from '../components/Atoms.js
 import { useToast } from '../hooks/useToast.js'
 import { MessageGuides, MessageCategories, TeacherProfiles } from '../lib/db.js'
 
-const DEFAULT_CATEGORIES = ['출석', '결석', '지각', '하교', '개강전', '개강', '수업신청감사', '추첨', '종강']
+const DEFAULT_CATEGORIES = ['출석', '결석', '지각', '하교', '출결서비스', '개강전', '개강', '수업신청감사', '추첨', '종강']
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
 
@@ -26,6 +26,7 @@ const DEFAULT_GUIDES = [
   { category:'추첨', title:'추첨 대기 알림', content:'안녕하세요 {학교명} {선생님닉네임}입니다. {학생이름} 학생께서 {날짜} 추첨에서 대기자로 등록되셨습니다. 결원 발생 시 순서대로 연락드리겠습니다. 감사합니다 🙏' },
   { category:'종강', title:'종강 안내 (기본)', content:'안녕하세요, {학교명} {수업명} {선생님닉네임}입니다 😊 {날짜}을 끝으로 이번 학기 수업이 종강되었습니다. {학생이름} 친구와 함께한 소중한 시간이었습니다. 수고 많으셨습니다! 🎉' },
   { category:'종강', title:'종강 안내 (감사 인사)', content:'안녕하세요 {학교명} {선생님닉네임}입니다. {수업명} 수업이 {날짜}부로 종강되었습니다. 한 학기 동안 {학생이름} 학생이 성실하게 참여해주어 감사합니다 🙏 다음 학기에도 함께하길 바랍니다 😄' },
+  { category:'출결서비스', title:'출결서비스 초대 안내', content:'안녕하세요 😊 {학교명} {선생님닉네임}입니다. {학생이름} 학생의 출결 현황을 실시간으로 확인하실 수 있는 출결서비스에 초대드립니다! 아래 링크를 클릭하시면 간편하게 가입하실 수 있습니다. {출결서비스링크} 출결 알림을 받아보시고 언제든 수업 현황을 확인해보세요 🙏' },
 ]
 
 function seedDefaults(userId) {
@@ -259,7 +260,7 @@ export function MessageGuide({ user }) {
           <div style={{ background:'#f0fdf4', borderRadius:'10px', padding:'12px 14px', border:'1px solid #86efac' }}>
             <div style={{ fontSize:'12px', fontWeight:700, color:'#15803d', marginBottom:'8px' }}>🔖 자동 치환 태그 (출석부에서 발송 시 자동으로 바뀝니다)</div>
             <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
-              {['{학생이름}','{학교명}','{수업명}','{선생님이름}','{선생님닉네임}','{날짜}'].map(tag => (
+              {['{학생이름}','{학교명}','{수업명}','{선생님이름}','{선생님닉네임}','{날짜}','{출결서비스링크}'].map(tag => (
                 <button key={tag} onClick={() => setForm(p => ({...p, content: p.content + tag}))}
                   style={{ padding:'3px 10px', borderRadius:'6px', border:'1px solid #86efac', background:'#fff', fontSize:'12px', fontWeight:600, color:'#15803d', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   {tag}
