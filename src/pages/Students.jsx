@@ -1236,6 +1236,18 @@ export function Students({ user, onNav }) {
                   { value: 'both',  label: '💬💛 둘 다' },
                 ]} />
             </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <Select label="📨 출결초대 발송" value={form.parentInviteSentAt ? 'sent' : 'not_sent'} onChange={v => set('parentInviteSentAt', v === 'sent' ? (form.parentInviteSentAt || new Date().toISOString()) : '')}
+                options={[
+                  { value: 'not_sent', label: '발송 전' },
+                  { value: 'sent',     label: '✅ 발송 완료' },
+                ]} />
+              <Select label="👨‍👩‍👧 학부모 앱 가입" value={form.parentJoined ? 'on' : 'off'} onChange={v => set('parentJoined', v === 'on')}
+                options={[
+                  { value: 'off', label: '⭕ 출결 OFF (미가입)' },
+                  { value: 'on',  label: '✅ 출결 ON (가입)' },
+                ]} />
+            </div>
             <Textarea label="📌 특이사항 메모" value={form.memo} onChange={v => set('memo', v)} rows={2} />
 
             {/* 비고 */}
