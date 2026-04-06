@@ -295,18 +295,25 @@ export const Settings = {
 
 // ─── 본사 학부모 회원
 export const ParentMembers = {
-  all:         ()      => db.get('parentMembers'),
-  find:        (id)    => db.getOne('parentMembers', id),
-  findByPhone: (phone) => db.get('parentMembers').find(p => p.phone === phone?.replace(/[^0-9]/g, '')),
+  all:    () => db.get('parentMembers'),
+  find:   (id) => db.getOne('parentMembers', id),
 
-  upsert(phone, name = '') {
+  // 전화번호로 전체 조회 (선생님 여러 명 지원)
+  allByPhone: (phone) => {
     const clean = phone?.replace(/[^0-9]/g, '')
-    if (!clean || clean.length < 9) return null
-    const existing = this.findByPhone(clean)
-    if (existing) return existing
-    const record = { id: uid(), phone: clean, name, appJoined: false, memo: '', createdAt: now() }
-    db.insert('parentMembers', record)
-    return record
+    return db.get('parentMembers').filter(p => p.phone === clean)
+  },
+
+  // 전화번호 + 선생님 조합으로 단일 조회
+  findByPhoneAndTeacher: (phone, teacherId) => {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    return db.get('parentMembers').find(p => p.phone === clean && p.teacherId === teacherId) || null
+  },
+
+  // 하위 호환용 — phone만으로 첫 번째 레코드 반환
+  findByPhone: (phone) => {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    return db.get('parentMembers').find(p => p.phone === clean) || null
   },
 
   update(id, fields) {
@@ -314,17 +321,54 @@ export const ParentMembers = {
   },
 
   // 학부모 앱 가입 처리 (초대 링크 통해 가입 시)
-  join(phone, { marketingAgree = false, invitedByTeacher = '' } = {}) {
+  // teacher_id + phone 조합으로 upsert — 다중 선생님 지원
+  join(phone, {
+    marketingAgree  = false,
+    invitedByTeacher = '',
+    studentName  = '',
+    grade        = '',
+    schoolName   = '',
+    subjectName  = '',
+    teacherName  = '',
+    teacherPhone = '',
+  } = {}) {
     const clean = phone?.replace(/[^0-9]/g, '')
     if (!clean) return null
-    const existing = this.findByPhone(clean)
+
+    const fields = {
+      appJoined: true,
+      teacherId: invitedByTeacher,
+      marketingAgree,
+      invitedByTeacher,
+      studentName,
+      grade,
+      schoolName,
+      subjectName,
+      teacherName,
+      teacherPhone,
+      joinedAt: now(),
+    }
+
+    const existing = this.findByPhoneAndTeacher(clean, invitedByTeacher)
     if (existing) {
-      db.update('parentMembers', existing.id, { appJoined: true, marketingAgree, invitedByTeacher, joinedAt: now() })
+      db.update('parentMembers', existing.id, fields)
       return existing
     }
-    const record = { id: uid(), phone: clean, name: '', appJoined: true, marketingAgree, invitedByTeacher, joinedAt: now(), memo: '', createdAt: now() }
+    const record = { id: uid(), phone: clean, name: '', memo: '', createdAt: now(), ...fields }
     db.insert('parentMembers', record)
     return record
+  },
+
+  // 선생님이 직접 종료 또는 자동 종료
+  withdrawByTeacher(phone, teacherId, reason = 'teacher_request') {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    const member = this.findByPhoneAndTeacher(clean, teacherId)
+    if (!member) return
+    db.update('parentMembers', member.id, {
+      appJoined: false,
+      withdrawnAt: now(),
+      withdrawReason: reason,
+    })
   },
 }
 
@@ -365,6 +409,15 @@ export const TeacherParentLinks = {
       l.teacherId === teacherId && l.classId === classId && l.status === 'active'
     ).forEach(l => db.update('teacherParentLinks', l.id, {
       status: 'ended', endedAt: now(), endReason: 'class_ended',
+    }))
+  },
+
+  // 출결서비스 종료 시 해당 teacher + parentMemberId 연결 일괄 종료
+  unlinkByMember(teacherId, parentMemberId, reason = 'service_ended') {
+    db.where('teacherParentLinks', l =>
+      l.teacherId === teacherId && l.parentMemberId === parentMemberId && l.status === 'active'
+    ).forEach(l => db.update('teacherParentLinks', l.id, {
+      status: 'ended', endedAt: now(), endReason: reason,
     }))
   },
 }
