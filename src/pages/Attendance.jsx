@@ -1215,7 +1215,313 @@ function actionBtn(bg,color,border) {
   return { padding:'6px 12px', borderRadius:'7px', border:`1.5px solid ${border}`, background:bg, color, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  MOBILE ATTENDANCE  (768px 이하 전용)
+// ═══════════════════════════════════════════════════════════════════
+
+function MobileStudentCard({ s, rec, onMark, onMsgOpen, isFuture }) {
+  const status   = rec?.status || 'pending'
+  const statusMap = {
+    present: { label:'출석', color:'#16a34a', bg:'#f0fdf4', border:'#86efac' },
+    late:    { label:'지각', color:'#d97706', bg:'#fffbeb', border:'#fde68a' },
+    leave:   { label:'조퇴', color:'#7c3aed', bg:'#f5f3ff', border:'#ddd6fe' },
+    absent:  { label:'결석', color:'#ef4444', bg:'#fef2f2', border:'#fca5a5' },
+    pending: { label:'미처리', color:'#9ca3af', bg:'#f9fafb', border:'#e5e7eb' },
+  }
+  const cur = statusMap[status] || statusMap.pending
+
+  return (
+    <div style={{
+      background: '#fff', borderRadius: '14px',
+      border: `1.5px solid ${status !== 'pending' ? cur.border : '#e5e7eb'}`,
+      overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+    }}>
+      {/* 학생 정보 */}
+      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>{s.name}</span>
+            {status !== 'pending' && (
+              <span style={{ fontSize: '12px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: cur.bg, color: cur.color, border: `1px solid ${cur.border}` }}>
+                {cur.label}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>
+            {s.grade ? `${s.grade}학년` : ''}
+            {s.classNum ? ` ${s.classNum}반` : ''}
+            {s.number ? ` ${s.number}번` : ''}
+            {s.parentPhone && <span style={{ marginLeft: '8px' }}>👨‍👩‍👧 {fmtPhone(s.parentPhone)}</span>}
+          </div>
+        </div>
+        {/* 메시지 버튼 */}
+        {s.parentPhone && (
+          <button onClick={() => onMsgOpen(s)}
+            style={{ width: '40px', height: '40px', borderRadius: '10px', border: '1px solid #e5e7eb', background: '#fff', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            💬
+          </button>
+        )}
+      </div>
+
+      {/* 출석 버튼 */}
+      {isFuture ? (
+        <div style={{ padding: '10px 14px', background: '#f9fafb', borderTop: '1px solid #f3f4f6', textAlign: 'center', fontSize: '12px', color: '#9ca3af' }}>
+          🗓️ 수업 예정일입니다
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid #f3f4f6' }}>
+          {[
+            { key:'present', label:'출석', emoji:'✅', color:'#16a34a', bg:'#f0fdf4', active:'#dcfce7' },
+            { key:'late',    label:'지각', emoji:'⏰', color:'#d97706', bg:'#fffbeb', active:'#fef9c3' },
+            { key:'leave',   label:'조퇴', emoji:'🚶', color:'#7c3aed', bg:'#f5f3ff', active:'#ede9fe' },
+            { key:'absent',  label:'결석', emoji:'❌', color:'#ef4444', bg:'#fef2f2', active:'#fee2e2' },
+          ].map((btn, i) => (
+            <button key={btn.key} onClick={() => onMark(s.id, btn.key)}
+              style={{
+                padding: '12px 4px', border: 'none',
+                borderRight: i < 3 ? '1px solid #f3f4f6' : 'none',
+                background: status === btn.key ? btn.active : '#fff',
+                cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
+                transition: 'background .1s',
+              }}>
+              <span style={{ fontSize: '20px' }}>{btn.emoji}</span>
+              <span style={{ fontSize: '11px', fontWeight: status===btn.key ? 700 : 400, color: status===btn.key ? btn.color : '#9ca3af' }}>{btn.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MobileAttendance({ user, pageParams = {} }) {
+  const today    = todayStr()
+  const allClasses  = ClassesDB.byTeacher(user.id)
+  const allStudents = StudentsDB.byTeacher(user.id)
+
+  const [selDate,   setSelDate]   = useState(() => pageParams.date || today)
+  const [selClassId, setSelClassId] = useState(() => pageParams.classId || '')
+  const [calOpen,   setCalOpen]   = useState(false)
+  const [tick,      setTick]      = useState(0)
+  const [msgStudent, setMsgStudent] = useState(null)
+
+  const d = new Date(selDate + 'T00:00:00')
+  const [calYear,  setCalYear]  = useState(d.getFullYear())
+  const [calMonth, setCalMonth] = useState(d.getMonth())
+
+  // 선택 날짜의 수업 목록
+  const dayClasses = allClasses.filter(cls => calcSessionDates(cls).includes(selDate))
+
+  // 수업 미선택 시 첫 번째 자동 선택
+  useEffect(() => {
+    if (!selClassId && dayClasses.length > 0) setSelClassId(dayClasses[0].id)
+  }, [selDate])
+
+  const selClass  = allClasses.find(c => c.id === selClassId)
+  const isFuture  = selDate > today
+
+  // 달력 점 표시용 날짜
+  const classDates = [...new Set(allClasses.flatMap(c => calcSessionDates(c)))]
+
+  const students = selClass
+    ? [...allStudents.filter(s => s.classIds?.includes(selClass.id) && ['applied','selected','confirmed'].includes(s.status))]
+        .sort((a,b) => {
+          const g = parseInt(a.grade||0)-parseInt(b.grade||0); if(g) return g
+          const c = parseInt(a.classNum||0)-parseInt(b.classNum||0); if(c) return c
+          const n = parseInt(a.number||0)-parseInt(b.number||0); if(n) return n
+          return (a.name||'').localeCompare(b.name||'','ko')
+        })
+    : []
+
+  const records  = isFuture ? [] : AttendanceDB.byClassDate(selClass?.id||'', selDate)
+  const getRec   = (sid) => records.find(r => r.studentId === sid)
+  const mark = (studentId, status) => {
+    if (!selClass || isFuture) return
+    const existing = getRec(studentId)
+    const session  = getSession ? getSession(selClass, selDate) : 0
+    AttendanceDB.upsert({
+      id: existing?.id || uid(), classId: selClass.id, studentId,
+      date: selDate, session: session||0, status,
+      note: existing?.note||'', absentReason: existing?.absentReason||'',
+      homeReturn: existing?.homeReturn||'', markedAt: now(),
+    })
+    setTick(t => t+1)
+  }
+  const markAll = (status) => students.forEach(s => mark(s.id, status))
+
+  const doneCnt    = students.filter(s => (getRec(s.id)?.status||'pending') !== 'pending').length
+  const presentCnt = students.filter(s => ['present','late'].includes(getRec(s.id)?.status||'')).length
+
+  const prevMonth = () => { if(calMonth===0){setCalYear(y=>y-1);setCalMonth(11)}else setCalMonth(m=>m-1) }
+  const nextMonth = () => { if(calMonth===11){setCalYear(y=>y+1);setCalMonth(0)}else setCalMonth(m=>m+1) }
+
+  const handleSelectDate = (date) => {
+    setSelDate(date)
+    setCalOpen(false)
+    const dc = allClasses.filter(c => calcSessionDates(c).includes(date))
+    setSelClassId(dc.length > 0 ? dc[0].id : '')
+  }
+
+  return (
+    <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+      {/* 날짜 헤더 + 달력 토글 */}
+      <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+        <button onClick={() => setCalOpen(v => !v)}
+          style={{ width: '100%', padding: '14px 16px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'Noto Sans KR, sans-serif' }}>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>
+              📅 {selDate === today ? '오늘 · ' : ''}{formatDateKo(selDate)}
+            </div>
+            {dayClasses.length > 0
+              ? <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{dayClasses.length}개 수업</div>
+              : <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>수업 없는 날</div>
+            }
+          </div>
+          <span style={{ fontSize: '20px', color: '#9ca3af' }}>{calOpen ? '▲' : '▼'}</span>
+        </button>
+
+        {/* 달력 접기/펼치기 */}
+        {calOpen && (
+          <div style={{ padding: '0 16px 16px', borderTop: '1px solid #f3f4f6' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0 10px' }}>
+              <button onClick={prevMonth} style={{ width:'32px',height:'32px',borderRadius:'8px',border:'1px solid #e5e7eb',background:'#fff',cursor:'pointer',fontSize:'18px' }}>‹</button>
+              <div style={{ display:'flex',alignItems:'center',gap:'8px' }}>
+                <span style={{ fontSize:'15px',fontWeight:700,color:'#111827' }}>{calYear}년 {MONTHS[calMonth]}</span>
+                <button onClick={() => handleSelectDate(today)} style={{ padding:'2px 8px',borderRadius:'6px',border:'1px solid #f97316',background:'#fff7ed',color:'#f97316',fontSize:'11px',fontWeight:700,cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif' }}>오늘</button>
+              </div>
+              <button onClick={nextMonth} style={{ width:'32px',height:'32px',borderRadius:'8px',border:'1px solid #e5e7eb',background:'#fff',cursor:'pointer',fontSize:'18px' }}>›</button>
+            </div>
+            <div style={{ display:'grid',gridTemplateColumns:'repeat(7,1fr)',marginBottom:'4px' }}>
+              {DAYS_KO.map((d,i)=><div key={d} style={{ textAlign:'center',fontSize:'11px',fontWeight:600,padding:'3px 0',color:i===0?'#ef4444':i===6?'#3b82f6':'#9ca3af' }}>{d}</div>)}
+            </div>
+            <div style={{ display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:'2px' }}>
+              {(() => {
+                const firstDay = new Date(calYear,calMonth,1).getDay()
+                const dim = new Date(calYear,calMonth+1,0).getDate()
+                const classSet = new Set(classDates)
+                const cells = []
+                for(let i=0;i<firstDay;i++) cells.push(null)
+                for(let d=1;d<=dim;d++) cells.push(d)
+                return cells.map((day,idx) => {
+                  if(!day) return <div key={`e${idx}`}/>
+                  const ds = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+                  const isClass=classSet.has(ds), isToday=ds===today, isSel=ds===selDate
+                  const isSun=(firstDay+day-1)%7===0, isSat=(firstDay+day-1)%7===6
+                  return (
+                    <button key={day} onClick={()=>handleSelectDate(ds)} style={{
+                      position:'relative',padding:'8px 2px',border:'none',borderRadius:'8px',cursor:'pointer',
+                      background:isSel?'#f97316':isToday?'#fff7ed':isClass?'#f0fdf4':'transparent',
+                      color:isSel?'#fff':isSun?'#ef4444':isSat?'#3b82f6':'#111827',
+                      fontWeight:isSel||isToday?700:400,fontSize:'14px',
+                      outline:isToday&&!isSel?'2px solid #f97316':'none',outlineOffset:'-2px',
+                      fontFamily:'Noto Sans KR, sans-serif',
+                    }}>
+                      {day}
+                      {isClass&&<span style={{ position:'absolute',bottom:'2px',left:'50%',transform:'translateX(-50%)',width:'4px',height:'4px',borderRadius:'50%',background:isSel?'#fff':'#f97316',display:'block' }}/>}
+                    </button>
+                  )
+                })
+              })()}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 수업 탭 (A반/B반 등) */}
+      {dayClasses.length > 0 && (
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
+          {dayClasses.map(cls => (
+            <button key={cls.id} onClick={() => setSelClassId(cls.id)}
+              style={{
+                padding: '8px 16px', borderRadius: '10px', border: '1.5px solid',
+                borderColor: selClassId===cls.id ? '#f97316' : '#e5e7eb',
+                background: selClassId===cls.id ? '#fff7ed' : '#fff',
+                color: selClassId===cls.id ? '#f97316' : '#6b7280',
+                fontSize: '13px', fontWeight: selClassId===cls.id ? 700 : 400,
+                cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', whiteSpace: 'nowrap', flexShrink: 0,
+              }}>
+              {cls.className}{cls.section ? ` ${cls.section}반` : ''}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 수업 없는 날 */}
+      {dayClasses.length === 0 && (
+        <div style={{ textAlign:'center', padding:'40px 20px', background:'#fff', borderRadius:'14px', color:'#9ca3af' }}>
+          <div style={{ fontSize:'32px', marginBottom:'8px' }}>🗓️</div>
+          <div style={{ fontSize:'14px', fontWeight:600, color:'#6b7280' }}>수업이 없는 날입니다</div>
+          <div style={{ fontSize:'12px', marginTop:'4px' }}>위 달력에서 수업일을 선택하세요</div>
+        </div>
+      )}
+
+      {/* 선택된 수업 헤더 + 일괄처리 */}
+      {selClass && (
+        <>
+          <div style={{ background: '#fff7ed', borderRadius: '14px', border: '1px solid #fed7aa', padding: '14px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>
+                  {selClass.className}{selClass.section ? ` ${selClass.section}반` : ''}
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>
+                  {selClass.organization && <span>{selClass.organization} · </span>}
+                  {selClass.time && <span>🕐 {selClass.time}{selClass.timeEnd ? ` ~ ${selClass.timeEnd}` : ''}</span>}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '22px', fontWeight: 700, color: doneCnt===students.length&&students.length>0 ? '#16a34a' : '#f97316' }}>
+                  {presentCnt}<span style={{ fontSize:'13px',color:'#9ca3af' }}>/{students.length}</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#9ca3af' }}>{doneCnt}/{students.length} 처리</div>
+              </div>
+            </div>
+            {/* 진행률 바 */}
+            {!isFuture && students.length > 0 && (
+              <div style={{ marginTop: '10px' }}>
+                <div style={{ height: '6px', background: '#f3f4f6', borderRadius: '999px', overflow: 'hidden' }}>
+                  <div style={{ width: `${students.length ? doneCnt/students.length*100 : 0}%`, height: '100%', background: '#f97316', borderRadius: '999px', transition: 'width .3s' }} />
+                </div>
+              </div>
+            )}
+            {/* 일괄처리 버튼 */}
+            {!isFuture && students.length > 0 && (
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                <button onClick={() => markAll('present')}
+                  style={{ flex:1,padding:'9px',borderRadius:'9px',border:'1.5px solid #86efac',background:'#f0fdf4',color:'#16a34a',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif' }}>
+                  ✅ 전체 출석
+                </button>
+                <button onClick={() => markAll('absent')}
+                  style={{ flex:1,padding:'9px',borderRadius:'9px',border:'1.5px solid #fca5a5',background:'#fef2f2',color:'#ef4444',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif' }}>
+                  ❌ 전체 결석
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 학생 카드 목록 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {students.length === 0
+              ? <div style={{ textAlign:'center',padding:'32px',background:'#fff',borderRadius:'14px',color:'#9ca3af',fontSize:'14px' }}>등록된 학생이 없습니다</div>
+              : students.map(s => (
+                  <MobileStudentCard key={s.id+tick} s={s} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} isFuture={isFuture} />
+                ))
+            }
+          </div>
+        </>
+      )}
+
+      {/* 메시지 모달 */}
+      {msgStudent && <MsgModal student={msgStudent} cls={selClass} user={user} onClose={() => setMsgStudent(null)} />}
+    </div>
+  )
+}
+
 export function Attendance({ user, pageParams = {} }) {
+  const isMobile = window.innerWidth <= 768
+  if (isMobile) return <MobileAttendance user={user} pageParams={pageParams} />
   const today = todayStr()
   const now_ = new Date()
   const allClasses = ClassesDB.byTeacher(user.id)
