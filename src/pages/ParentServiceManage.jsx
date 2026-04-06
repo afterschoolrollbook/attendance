@@ -13,7 +13,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, ParentMembers } from '../lib/db.js'
-import { supabase, isConfigured } from '../lib/supabase.js'
+import { dbCall, isConfigured } from '../lib/supabase.js'
 import { uid, now, fmtPhone, sortClasses } from '../lib/utils.js'
 import { Btn, Modal, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
@@ -109,26 +109,24 @@ export function loadParentServiceConfig() {
 
 // Supabase에서 최신 설정 로드
 async function fetchConfigFromSupabase(teacherId) {
-  if (!isConfigured || !supabase) return null
+  if (!isConfigured) return null
   try {
-    const { data } = await supabase
-      .from('teacher_service_configs')
-      .select('config_value')
-      .eq('teacher_id', teacherId)
-      .eq('config_key', DB_KEY)
-      .single()
-    return data?.config_value || null
+    const rows = await dbCall('select', 'teacher_service_configs', {
+      filters: { teacher_id: teacherId, config_key: DB_KEY },
+      single: true,
+    })
+    return rows?.config_value || null
   } catch { return null }
 }
 
 // Supabase에 설정 저장
 async function saveConfigToSupabase(teacherId, cfg) {
-  if (!isConfigured || !supabase) return
+  if (!isConfigured) return
   try {
-    await supabase
-      .from('teacher_service_configs')
-      .upsert({ teacher_id: teacherId, config_key: DB_KEY, config_value: cfg, updated_at: new Date().toISOString() },
-               { onConflict: 'teacher_id,config_key' })
+    await dbCall('upsert', 'teacher_service_configs', {
+      record: { teacher_id: teacherId, config_key: DB_KEY, config_value: cfg, updated_at: new Date().toISOString() },
+      onConflict: 'teacher_id,config_key',
+    })
   } catch (e) {
     console.warn('[ParentServiceConfig] Supabase 저장 실패:', e)
   }
