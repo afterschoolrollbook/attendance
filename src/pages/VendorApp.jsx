@@ -1,9 +1,9 @@
 /**
  * VendorApp.jsx
- * 업체 전용 앱
- * ✅ Supabase 직접 조회/저장
- * ✅ A형(교재형/로봇) — 교구명·단계·목차·지도안 파일 등록
- * ✅ B형/C형 — 기존 방식 유지
+ * 업체 전용 앱 — 전체 Supabase 저장
+ * ✅ 교구/단계/목차/분기/차시/파일 모두 Supabase
+ * ✅ 연도별 관리
+ * ✅ 금액: 시중소비자가/학교공급가/지사공급가/선생님공급가
  */
 import React, { useState, useEffect, useCallback } from 'react'
 import { uid, now } from '../lib/utils.js'
@@ -16,20 +16,38 @@ const C = {
   card:'#fff', bg:'#f9fafb', sidebar:'#1c1917',
   blue:'#3b82f6', purple:'#8b5cf6', warning:'#f59e0b',
 }
-
 const LS_SESSION = 'asa_vendor_session'
 
-// ✅ Supabase DB
-const HQSubjects = {
-  byVendor: async (vid) => ((await dbCall('getAll','hqVendorSubjects'))||[]).filter(s=>s.vendorId===vid),
-  save:     async (s)   => dbCall('upsert','hqVendorSubjects',{ data:s }),
-  delete:   async (id)  => dbCall('delete','hqVendorSubjects',{ id }),
-}
-const HQProducts = {
-  byVendor:  async (vid) => ((await dbCall('getAll','hqVendorProducts'))||[]).filter(p=>p.vendorId===vid),
-  bySubject: async (sid) => ((await dbCall('getAll','hqVendorProducts'))||[]).filter(p=>p.subjectId===sid),
-  save:      async (p)   => dbCall('upsert','hqVendorProducts',{ data:p }),
-  delete:    async (id)  => dbCall('delete','hqVendorProducts',{ id }),
+// ✅ Supabase DB 헬퍼
+const DB = {
+  // 과목
+  subjectsByVendor: async (vid) => ((await dbCall('getAll','hqVendorSubjects'))||[]).filter(s=>s.vendorId===vid),
+  saveSubject:      async (s)   => dbCall('upsert','hqVendorSubjects',{data:s}),
+  deleteSubject:    async (id)  => dbCall('delete','hqVendorSubjects',{id}),
+  // 교구
+  productsByVendor: async (vid) => ((await dbCall('getAll','hqVendorProducts'))||[]).filter(p=>p.vendorId===vid),
+  saveProduct:      async (p)   => dbCall('upsert','hqVendorProducts',{data:p}),
+  deleteProduct:    async (id)  => dbCall('delete','hqVendorProducts',{id}),
+  // A형 단계
+  stagesByProduct:  async (pid) => ((await dbCall('getAll','hqVendorStages'))||[]).filter(s=>s.productId===pid).sort((a,b)=>a.order-b.order),
+  saveStage:        async (s)   => dbCall('upsert','hqVendorStages',{data:s}),
+  deleteStage:      async (id)  => dbCall('delete','hqVendorStages',{id}),
+  // A형 목차
+  contentsByStage:  async (sid) => ((await dbCall('getAll','hqVendorContents'))||[]).filter(c=>c.stageId===sid).sort((a,b)=>a.session-b.session),
+  saveContent:      async (c)   => dbCall('upsert','hqVendorContents',{data:c}),
+  deleteContent:    async (id)  => dbCall('delete','hqVendorContents',{id}),
+  // B형 분기
+  quartersByProduct:async (pid) => ((await dbCall('getAll','hqVendorQuarters'))||[]).filter(q=>q.productId===pid).sort((a,b)=>a.order-b.order),
+  saveQuarter:      async (q)   => dbCall('upsert','hqVendorQuarters',{data:q}),
+  deleteQuarter:    async (id)  => dbCall('delete','hqVendorQuarters',{id}),
+  // B형 차시
+  sessionsByQuarter:async (qid) => ((await dbCall('getAll','hqVendorSessions'))||[]).filter(s=>s.quarterId===qid).sort((a,b)=>a.session-b.session),
+  saveSession:      async (s)   => dbCall('upsert','hqVendorSessions',{data:s}),
+  deleteSession:    async (id)  => dbCall('delete','hqVendorSessions',{id}),
+  // 파일
+  filesByProduct:   async (pid) => ((await dbCall('getAll','hqVendorFiles'))||[]).filter(f=>f.productId===pid),
+  saveFile:         async (f)   => dbCall('upsert','hqVendorFiles',{data:f}),
+  deleteFile:       async (id)  => dbCall('delete','hqVendorFiles',{id}),
 }
 
 const iSt = {
@@ -37,28 +55,25 @@ const iSt = {
   fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box',
 }
 
-// 과목 유형
 const SUBJECT_TYPES = [
-  { value:'A', label:'A형', desc:'로봇', color:'#3b82f6', bg:'#eff6ff', border:'#bfdbfe' },
+  { value:'A', label:'A형', desc:'로봇',                         color:'#3b82f6', bg:'#eff6ff', border:'#bfdbfe' },
   { value:'B', label:'B형', desc:'생명과학 / 과학실험 / 보드게임', color:'#16a34a', bg:'#f0fdf4', border:'#86efac' },
-  { value:'C', label:'C형', desc:'미술 / 체육 / 기타', color:'#f97316', bg:'#fff7ed', border:'#fed7aa' },
+  { value:'C', label:'C형', desc:'미술 / 체육 / 기타',            color:'#f97316', bg:'#fff7ed', border:'#fed7aa' },
 ]
+
+const THIS_YEAR = new Date().getFullYear()
+const YEARS = [THIS_YEAR - 1, THIS_YEAR, THIS_YEAR + 1]
 
 function Btn({ children, onClick, disabled, secondary, danger, style={} }) {
   const bg    = disabled?'#d1d5db':danger?'#ef4444':secondary?'#fff':'#f97316'
   const color = disabled?'#9ca3af':secondary?'#374151':'#fff'
   const bdr   = secondary?'1.5px solid #e5e7eb':'none'
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!!disabled}
-      style={{
-        padding:'8px 16px', borderRadius:'9px', border:bdr, background:bg, color,
-        fontWeight:600, fontSize:'13px', cursor:disabled?'not-allowed':'pointer',
-        fontFamily:'Noto Sans KR, sans-serif', ...style,
-      }}
-    >{children}</button>
+    <button type="button" onClick={disabled?undefined:onClick} disabled={!!disabled} style={{
+      padding:'8px 16px', borderRadius:'9px', border:bdr, background:bg, color,
+      fontWeight:600, fontSize:'13px', cursor:disabled?'not-allowed':'pointer',
+      fontFamily:'Noto Sans KR, sans-serif', ...style,
+    }}>{children}</button>
   )
 }
 
@@ -71,7 +86,6 @@ function Empty({ icon, msg }) {
   )
 }
 
-// ─── 확인 모달 (window.confirm 대체)
 function ConfirmModal({ message, onConfirm, onClose }) {
   return (
     <div style={{ position:'fixed', inset:0, zIndex:3000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
@@ -79,28 +93,17 @@ function ConfirmModal({ message, onConfirm, onClose }) {
       <div style={{ background:'#fff', borderRadius:'16px', width:'360px', padding:'24px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
         <div style={{ fontSize:'15px', color:C.text, marginBottom:'20px', lineHeight:'1.6', whiteSpace:'pre-line' }}>{message}</div>
         <div style={{ display:'flex', justifyContent:'flex-end', gap:'8px' }}>
-          <button type="button" onClick={onClose} style={{
-            padding:'8px 18px', borderRadius:'9px', border:'1.5px solid #e5e7eb',
-            background:'#fff', color:'#374151', fontWeight:600, fontSize:'13px',
-            cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-          }}>취소</button>
-          <button type="button" onClick={()=>{ onConfirm(); onClose() }} style={{
-            padding:'8px 18px', borderRadius:'9px', border:'none',
-            background:'#ef4444', color:'#fff', fontWeight:600, fontSize:'13px',
-            cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-          }}>확인</button>
+          <Btn onClick={onClose} secondary>취소</Btn>
+          <Btn onClick={()=>{ onConfirm(); onClose() }} danger>확인</Btn>
         </div>
       </div>
     </div>
   )
 }
 
-// ─── useConfirmModal 훅
 function useConfirmModal() {
   const [state, setState] = React.useState(null)
-  const confirm = (message) => new Promise(resolve => {
-    setState({ message, resolve })
-  })
+  const confirm = (message) => new Promise(resolve => setState({ message, resolve }))
   const modal = state ? (
     <ConfirmModal
       message={state.message}
@@ -109,6 +112,44 @@ function useConfirmModal() {
     />
   ) : null
   return { confirm, modal }
+}
+
+// 금액 입력 그룹
+function PriceFields({ form, onChange }) {
+  const fields = [
+    { key:'priceRetail',  label:'💰 시중소비자가' },
+    { key:'priceSchool',  label:'🏫 학교공급가' },
+    { key:'priceBranch',  label:'🏢 지사공급가' },
+    { key:'priceTeacher', label:'👨‍🏫 선생님공급가' },
+  ]
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px' }}>
+      {fields.map(({key,label})=>(
+        <div key={key}>
+          <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>{label}</label>
+          <input style={iSt} type="number" value={form[key]||''} onChange={e=>onChange(key,e.target.value)} placeholder="0" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// 금액 표시
+function PriceTags({ p }) {
+  const items = [
+    { label:'소비자가', val:p.priceRetail,  color:C.muted },
+    { label:'학교',     val:p.priceSchool,  color:C.blue },
+    { label:'지사',     val:p.priceBranch,  color:C.purple },
+    { label:'선생님',   val:p.priceTeacher, color:C.success },
+  ].filter(x=>x.val>0)
+  if (!items.length) return null
+  return (
+    <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginTop:'4px' }}>
+      {items.map(({label,val,color})=>(
+        <span key={label} style={{ fontSize:'11px', color }}>{label} {Number(val).toLocaleString()}원</span>
+      ))}
+    </div>
+  )
 }
 
 // ─── 사이드바
@@ -120,11 +161,7 @@ const VENDOR_NAV = [
 
 function VendorSidebar({ vendorSession, currentPage, onNav, onLogout }) {
   return (
-    <aside style={{
-      width:'210px', minWidth:'210px', background:C.sidebar,
-      display:'flex', flexDirection:'column', height:'100vh',
-      position:'sticky', top:0, overflow:'hidden', fontFamily:'Noto Sans KR, sans-serif',
-    }}>
+    <aside style={{ width:'210px', minWidth:'210px', background:C.sidebar, display:'flex', flexDirection:'column', height:'100vh', position:'sticky', top:0, overflow:'hidden', fontFamily:'Noto Sans KR, sans-serif' }}>
       <div style={{ padding:'24px 20px 20px', borderBottom:'1px solid #27272a' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
           <span style={{ fontSize:'22px' }}>🎒</span>
@@ -135,18 +172,16 @@ function VendorSidebar({ vendorSession, currentPage, onNav, onLogout }) {
         </div>
       </div>
       <div style={{ padding:'14px 20px', borderBottom:'1px solid #27272a' }}>
-        <div style={{ fontSize:'13px', fontWeight:600, color:'#fff', marginBottom:'2px' }}>
-          🏢 {vendorSession?.vendor?.name || '업체명'}
-        </div>
-        <div style={{ fontSize:'11px', color:'#71717a' }}>{vendorSession?.name || vendorSession?.email}</div>
+        <div style={{ fontSize:'13px', fontWeight:600, color:'#fff', marginBottom:'2px' }}>🏢 {vendorSession?.vendor?.name||'업체명'}</div>
+        <div style={{ fontSize:'11px', color:'#71717a' }}>{vendorSession?.name||vendorSession?.email}</div>
         <div style={{ marginTop:'6px', display:'inline-block', fontSize:'10px', fontWeight:600, padding:'2px 8px', borderRadius:'999px', background:'#f97316', color:'#fff' }}>파트너</div>
       </div>
       <nav style={{ flex:1, overflowY:'auto', padding:'10px 0' }}>
         {VENDOR_NAV.map(item=>(
-          <button key={item.path} onClick={()=>onNav(item.path)} style={{
-            width:'100%', display:'flex', alignItems:'center', gap:'10px',
-            padding:'10px 20px', background:currentPage===item.path?'#f9731618':'none',
-            border:'none', borderLeft:currentPage===item.path?'3px solid #f97316':'3px solid transparent',
+          <button key={item.path} type="button" onClick={()=>onNav(item.path)} style={{
+            width:'100%', display:'flex', alignItems:'center', gap:'10px', padding:'10px 20px',
+            background:currentPage===item.path?'#f9731618':'none', border:'none',
+            borderLeft:currentPage===item.path?'3px solid #f97316':'3px solid transparent',
             color:currentPage===item.path?'#f97316':'#a1a1aa',
             fontSize:'14px', fontWeight:currentPage===item.path?600:400,
             cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif',
@@ -157,11 +192,9 @@ function VendorSidebar({ vendorSession, currentPage, onNav, onLogout }) {
         ))}
       </nav>
       <div style={{ padding:'12px 20px', borderTop:'1px solid #27272a' }}>
-        <button onClick={onLogout} style={{
-          background:'none', border:'none', cursor:'pointer', color:'#71717a',
-          fontSize:'14px', display:'flex', alignItems:'center', gap:'8px',
-          fontFamily:'Noto Sans KR, sans-serif',
-        }}><span>🚪</span> 로그아웃</button>
+        <button type="button" onClick={onLogout} style={{ background:'none', border:'none', cursor:'pointer', color:'#71717a', fontSize:'14px', display:'flex', alignItems:'center', gap:'8px', fontFamily:'Noto Sans KR, sans-serif' }}>
+          <span>🚪</span> 로그아웃
+        </button>
       </div>
     </aside>
   )
@@ -194,13 +227,12 @@ function VendorDashboard({ vendorSession, subjects, products }) {
         <h3 style={{ fontSize:'14px', fontWeight:700, color:C.primary, margin:'0 0 10px' }}>📋 등록 가이드</h3>
         <div style={{ display:'flex', flexDirection:'column', gap:'8px', fontSize:'13px', color:C.text }}>
           {[
-            ['1️⃣','과목 관리','A형(로봇 등 교재형) / B형 / C형 선택 후 과목 등록'],
-            ['2️⃣','교구 관리','A형 — 교구명·단계·목차·지도안 파일 등록\nB/C형 — 교구명·유형·가격 등록'],
+            ['1️⃣','과목 관리','A형(로봇 등) / B형 / C형 선택 후 과목 등록'],
+            ['2️⃣','교구 관리','연도별로 교구 등록. A형은 단계·목차, B형은 분기·차시 관리'],
             ['3️⃣','선생님 연동','(추후) 선생님이 연동하여 주문할 수 있습니다'],
           ].map(([n,t,d])=>(
             <div key={n} style={{ display:'flex', gap:'10px' }}>
-              <span>{n}</span>
-              <div><strong>{t}</strong> — <span style={{ whiteSpace:'pre-line' }}>{d}</span></div>
+              <span>{n}</span><div><strong>{t}</strong> — {d}</div>
             </div>
           ))}
         </div>
@@ -213,42 +245,40 @@ function VendorDashboard({ vendorSession, subjects, products }) {
 function VendorSubjectsPage({ vendorId, subjects, onReload }) {
   const [form, setForm]       = useState({ name:'', subjectType:'A' })
   const [editing, setEditing] = useState(null)
-  const { success, error } = useToast()
-  const { confirm, modal: confirmModal } = useConfirmModal()
+  const { success, error }    = useToast()
+  const { confirm, modal }    = useConfirmModal()
 
   const handleSave = async () => {
     if (!form.name.trim()) { error('과목명을 입력해주세요.'); return }
     const item = editing
       ? { ...editing, name:form.name, subjectType:form.subjectType }
       : { id:uid(), vendorId, name:form.name, subjectType:form.subjectType, createdAt:now() }
-    await HQSubjects.save(item)
+    await DB.saveSubject(item)
     setForm({ name:'', subjectType:'A' })
     setEditing(null)
     onReload()
-    success(editing ? '과목이 수정되었습니다.' : '과목이 추가되었습니다.')
+    success(editing?'수정되었습니다.':'과목이 추가되었습니다.')
   }
 
   const handleDelete = async (id) => {
     const ok = await confirm('과목을 삭제하시겠습니까?\n연결된 교구도 함께 삭제됩니다.')
     if (!ok) return
-    await HQSubjects.delete(id)
-    const prods = await HQProducts.bySubject(id)
-    await Promise.all(prods.map(p=>HQProducts.delete(p.id)))
+    await DB.deleteSubject(id)
     onReload()
     success('삭제되었습니다.')
   }
 
   return (
     <div style={{ padding:'28px', fontFamily:'Noto Sans KR, sans-serif', maxWidth:'800px' }}>
+      {modal}
       <h2 style={{ fontSize:'22px', fontWeight:700, color:C.text, margin:'0 0 6px' }}>📚 과목 관리</h2>
       <p style={{ fontSize:'13px', color:C.muted, marginBottom:'24px' }}>과목 유형을 선택하고 과목명을 입력하세요.</p>
 
       <div style={{ padding:'18px', background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, marginBottom:'24px' }}>
-        {/* 유형 선택 */}
-        <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'8px', fontWeight:600 }}>과목 유형 선택 *</label>
+        <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'8px', fontWeight:600 }}>과목 유형 *</label>
         <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', marginBottom:'14px' }}>
           {SUBJECT_TYPES.map(t=>(
-            <button key={t.value} onClick={()=>setForm(f=>({...f,subjectType:t.value}))} style={{
+            <button key={t.value} type="button" onClick={()=>setForm(f=>({...f,subjectType:t.value}))} style={{
               padding:'10px 18px', borderRadius:'10px',
               border:`2px solid ${form.subjectType===t.value?t.color:C.border}`,
               background:form.subjectType===t.value?t.bg:C.card,
@@ -259,274 +289,238 @@ function VendorSubjectsPage({ vendorId, subjects, onReload }) {
             </button>
           ))}
         </div>
-
-        {/* 과목명 */}
         <div style={{ display:'flex', gap:'10px' }}>
-          <input style={{ ...iSt, flex:1 }} placeholder="과목명 입력 (예: 로봇, 항공과학, 미술)"
+          <input style={{ ...iSt, flex:1 }} placeholder="과목명 입력"
             value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}
             onKeyDown={e=>e.key==='Enter'&&handleSave()} />
-          <button onClick={handleSave} style={{
-            flexShrink:0, padding:'9px 20px', borderRadius:'9px', border:'none',
-            background:'#f97316', color:'#fff', fontWeight:700, fontSize:'14px',
-            cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-          }}>{editing?'수정 저장':'+ 추가'}</button>
-          {editing && (
-            <button onClick={()=>{ setEditing(null); setForm({name:'',subjectType:'A'}) }} style={{
-              flexShrink:0, padding:'9px 14px', borderRadius:'9px', border:'1px solid #e5e7eb',
-              background:'#fff', color:'#6b7280', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-            }}>취소</button>
-          )}
+          <button type="button" onClick={handleSave} style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontWeight:700, fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            {editing?'수정 저장':'+ 추가'}
+          </button>
+          {editing && <Btn onClick={()=>{ setEditing(null); setForm({name:'',subjectType:'A'}) }} secondary>취소</Btn>}
         </div>
       </div>
 
-      {confirmModal}
-      {subjects.length===0
-        ? <Empty icon="📚" msg="등록된 과목이 없습니다." />
-        : (
-          <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-            {subjects.map(s=>{
-              const t = SUBJECT_TYPES.find(x=>x.value===s.subjectType)||SUBJECT_TYPES[0]
-              return (
-                <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'14px 18px', background:C.card, borderRadius:'12px', border:`1px solid ${C.border}` }}>
-                  <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 10px', borderRadius:'999px', background:t.bg, color:t.color, border:`1px solid ${t.border}`, flexShrink:0 }}>
-                    {t.label}
-                  </span>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:'15px', fontWeight:600, color:C.text }}>{s.name}</div>
-                    <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>{t.desc}</div>
-                  </div>
-                  <div style={{ display:'flex', gap:'6px' }}>
-                    <Btn onClick={()=>{ setEditing(s); setForm({name:s.name,subjectType:s.subjectType||'A'}) }} secondary style={{ padding:'5px 12px', fontSize:'12px' }}>수정</Btn>
-                    <Btn onClick={()=>handleDelete(s.id)} danger style={{ padding:'5px 12px', fontSize:'12px' }}>삭제</Btn>
-                  </div>
+      {subjects.length===0 ? <Empty icon="📚" msg="등록된 과목이 없습니다." /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+          {subjects.map(s=>{
+            const t = SUBJECT_TYPES.find(x=>x.value===s.subjectType)||SUBJECT_TYPES[0]
+            return (
+              <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'14px 18px', background:C.card, borderRadius:'12px', border:`1px solid ${C.border}` }}>
+                <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 10px', borderRadius:'999px', background:t.bg, color:t.color, border:`1px solid ${t.border}`, flexShrink:0 }}>{t.label}</span>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:'15px', fontWeight:600, color:C.text }}>{s.name}</div>
+                  <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>{t.desc}</div>
                 </div>
-              )
-            })}
-          </div>
-        )
-      }
+                <div style={{ display:'flex', gap:'6px' }}>
+                  <Btn onClick={()=>{ setEditing(s); setForm({name:s.name,subjectType:s.subjectType||'A'}) }} secondary style={{ padding:'5px 12px', fontSize:'12px' }}>수정</Btn>
+                  <Btn onClick={()=>handleDelete(s.id)} danger style={{ padding:'5px 12px', fontSize:'12px' }}>삭제</Btn>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
 
-// ─── A형 교구 관리 (교재형 — 단계·목차·지도안)
+// ─── 공통 교구 등록 폼
+const EMPTY_PROD = { name:'', year:THIS_YEAR, priceRetail:'', priceSchool:'', priceBranch:'', priceTeacher:'' }
+
+function ProdForm({ form, setForm, onSave, onCancel, editing }) {
+  const set = (k,v) => setForm(f=>({...f,[k]:v}))
+  return (
+    <div style={{ padding:'16px', background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, marginBottom:'16px' }}>
+      <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'10px' }}>교구 등록</div>
+      <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:'8px', marginBottom:'10px' }}>
+        <div>
+          <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>교구명 *</label>
+          <input style={iSt} value={form.name} onChange={e=>set('name',e.target.value)} placeholder="교구명" />
+        </div>
+        <div>
+          <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>연도</label>
+          <select style={iSt} value={form.year} onChange={e=>set('year',Number(e.target.value))}>
+            {YEARS.map(y=><option key={y} value={y}>{y}년</option>)}
+          </select>
+        </div>
+      </div>
+      <PriceFields form={form} onChange={set} />
+      <div style={{ display:'flex', justifyContent:'flex-end', gap:'8px', marginTop:'10px' }}>
+        {editing && <Btn onClick={onCancel} secondary>취소</Btn>}
+        <button type="button" onClick={onSave} style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontWeight:700, fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          {editing?'수정 저장':'+ 교구 추가'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── A형 교구 관리
 function TypeAProducts({ vendorId, subjectId, products, onReload }) {
   const { success, error } = useToast()
-  const { confirm, modal: confirmModal } = useConfirmModal()
+  const { confirm, modal } = useConfirmModal()
   const fileRef = React.useRef()
 
-  // 탭: 'stages' | 'files'
-  const [tab, setTab]         = useState('stages')
-
-  // 교구
-  const [prodForm, setProdForm] = useState({ name:'' })
+  const [form, setForm]         = useState({...EMPTY_PROD})
   const [selProd, setSelProd]   = useState(null)
-
-  // 단계
-  const getStages   = (pid)       => JSON.parse(localStorage.getItem(`asa_stages_${pid}`)||'[]')
-  const saveStagesLS = (pid, arr) => localStorage.setItem(`asa_stages_${pid}`, JSON.stringify(arr))
-  const [stages, setStagesState] = useState([])
-  const [selStage, setSelStage]  = useState(null)
-
-  // 목차
-  const getConts    = (pid, sid)       => JSON.parse(localStorage.getItem(`asa_conts_${pid}_${sid}`)||'[]')
-  const saveContsLS = (pid, sid, arr)  => localStorage.setItem(`asa_conts_${pid}_${sid}`, JSON.stringify(arr))
-  const [contents, setContents]   = useState([])
-  const [contMode, setContMode]   = useState('one')
+  const [tab, setTab]           = useState('stages')
+  const [stages, setStages]     = useState([])
+  const [selStage, setSelStage] = useState(null)
+  const [contents, setContents] = useState([])
+  const [contMode, setContMode] = useState('one')
   const [bulkCount, setBulkCount] = useState(12)
-
-  // 파일
-  const getFiles    = (pid)       => JSON.parse(localStorage.getItem(`asa_files_${pid}`)||'[]')
-  const saveFilesLS = (pid, arr)  => localStorage.setItem(`asa_files_${pid}`, JSON.stringify(arr))
-  const [files, setFiles]   = useState([])
-  const [fileForm, setFileForm] = useState({ fileType:'annual', title:'', stage:'' })
+  const [files, setFiles]       = useState([])
+  const [fileForm, setFileForm] = useState({ fileType:'annual', title:'', stageLabel:'' })
 
   const subjectProds = products.filter(p=>p.subjectId===subjectId && p.type==='textbook')
 
-  // 교구 목록 로드 시 첫 번째 교구 자동 선택
+  const loadProd = useCallback(async (p) => {
+    if (!p) return
+    const s = await DB.stagesByProduct(p.id)
+    setStages(s)
+    setSelStage(s[0]||null)
+    const f = await DB.filesByProduct(p.id)
+    setFiles(f)
+  }, [])
+
   useEffect(() => {
     if (subjectProds.length > 0 && !selProd) {
       setSelProd(subjectProds[0])
+      loadProd(subjectProds[0])
     }
   }, [subjectProds.length])
 
-  // 교구 선택
-  useEffect(() => {
-    if (!selProd) return
-    const s = getStages(selProd.id)
-    setStagesState(s)
-    setSelStage(null)
-    setContents([])
-    setFiles(getFiles(selProd.id))
-  }, [selProd])
+  useEffect(() => { if (selProd) loadProd(selProd) }, [selProd])
 
-  // 단계 선택 → 목차 로드
   useEffect(() => {
-    if (!selProd || !selStage) return
-    setContents(getConts(selProd.id, selStage.id))
+    if (!selStage) return
+    DB.contentsByStage(selStage.id).then(setContents)
   }, [selStage])
 
-  // 교구 저장
   const saveProd = async () => {
-    if (!prodForm.name.trim()) { error('교구명을 입력해주세요.'); return }
-    await HQProducts.save({ id:uid(), vendorId, subjectId, type:'textbook', name:prodForm.name, createdAt:now() })
-    setProdForm({ name:'' })
+    if (!form.name.trim()) { error('교구명을 입력해주세요.'); return }
+    await DB.saveProduct({ id:uid(), vendorId, subjectId, type:'textbook', name:form.name, year:form.year,
+      priceRetail:Number(form.priceRetail)||0, priceSchool:Number(form.priceSchool)||0,
+      priceBranch:Number(form.priceBranch)||0, priceTeacher:Number(form.priceTeacher)||0, createdAt:now() })
+    setForm({...EMPTY_PROD})
     onReload()
-    success('교구가 등록되었습니다.')
+    success('교구가 추가되었습니다.')
   }
 
   const deleteProd = async (id) => {
     const ok = await confirm('교구를 삭제하시겠습니까?')
     if (!ok) return
-    await HQProducts.delete(id)
-    if (selProd?.id===id) setSelProd(null)
+    await DB.deleteProduct(id)
+    if (selProd?.id===id) { setSelProd(null); setStages([]); setContents([]); setFiles([]) }
     onReload()
     success('삭제되었습니다.')
   }
 
-  // 단계 추가
-  const addStage = () => {
-    const arr = getStages(selProd.id)
-    const newStage = { id:uid(), label:`${arr.length+1}단계`, order:arr.length+1 }
-    arr.push(newStage)
-    saveStagesLS(selProd.id, arr)
-    setStagesState(arr)
+  const addStage = async () => {
+    const newStage = { id:uid(), productId:selProd.id, label:`${stages.length+1}단계`, order:stages.length+1, createdAt:now() }
+    await DB.saveStage(newStage)
+    const s = await DB.stagesByProduct(selProd.id)
+    setStages(s)
     setSelStage(newStage)
     success(`${newStage.label} 추가되었습니다.`)
   }
 
-  const deleteStage = async (stageId) => {
+  const deleteStage = async (sid) => {
     const ok = await confirm('단계를 삭제하시겠습니까?\n해당 단계의 목차도 삭제됩니다.')
     if (!ok) return
-    const arr = getStages(selProd.id).filter(s=>s.id!==stageId)
-    saveStagesLS(selProd.id, arr)
-    setStagesState(arr)
-    localStorage.removeItem(`asa_conts_${selProd.id}_${stageId}`)
-    const next = arr[0] || null
-    setSelStage(next)
-    success('삭제되었습니다.')
+    await DB.deleteStage(sid)
+    const s = await DB.stagesByProduct(selProd.id)
+    setStages(s)
+    setSelStage(s[0]||null)
   }
 
-  // 목차 개수 미리 생성
-  const bulkCreate = () => {
+  const bulkCreate = async () => {
     const n = Number(bulkCount)||0
     if (n < 1) return
-    const existing = getConts(selProd.id, selStage.id)
+    const existing = await DB.contentsByStage(selStage.id)
     const next = existing.length + 1
-    const items = Array.from({length:n}, (_,i) => ({ id:uid(), session:next+i, title:'', supplies:'' }))
-    const all = [...existing, ...items]
-    saveContsLS(selProd.id, selStage.id, all)
+    await Promise.all(Array.from({length:n},(_,i)=>
+      DB.saveContent({ id:uid(), stageId:selStage.id, productId:selProd.id, session:next+i, title:'', supplies:'', createdAt:now() })
+    ))
+    const all = await DB.contentsByStage(selStage.id)
     setContents(all)
     success(`${n}개 목차가 생성되었습니다.`)
   }
 
-  // 목차 한 개 추가
-  const addOneCont = () => {
-    const existing = getConts(selProd.id, selStage.id)
-    const item = { id:uid(), session:existing.length+1, title:'', supplies:'' }
-    const all = [...existing, item]
-    saveContsLS(selProd.id, selStage.id, all)
+  const addOneCont = async () => {
+    const existing = await DB.contentsByStage(selStage.id)
+    await DB.saveContent({ id:uid(), stageId:selStage.id, productId:selProd.id, session:existing.length+1, title:'', supplies:'', createdAt:now() })
+    setContents(await DB.contentsByStage(selStage.id))
+  }
+
+  const updateCont = async (id, field, val) => {
+    const c = contents.find(x=>x.id===id)
+    if (!c) return
+    await DB.saveContent({ ...c, [field]:val })
+    setContents(prev=>prev.map(x=>x.id===id?{...x,[field]:val}:x))
+  }
+
+  const deleteCont = async (id) => {
+    await DB.deleteContent(id)
+    const all = (await DB.contentsByStage(selStage.id)).map((c,i)=>({...c,session:i+1}))
+    await Promise.all(all.map(c=>DB.saveContent(c)))
     setContents(all)
   }
 
-  // 목차 수정
-  const updateCont = (id, field, val) => {
-    const all = contents.map(c=>c.id===id?{...c,[field]:val}:c)
-    saveContsLS(selProd.id, selStage.id, all)
-    setContents(all)
-  }
-
-  const deleteCont = (id) => {
-    const all = contents.filter(c=>c.id!==id).map((c,i)=>({...c,session:i+1}))
-    saveContsLS(selProd.id, selStage.id, all)
-    setContents(all)
-  }
-
-  // 파일 등록
-  const saveFile = (e) => {
+  const saveFile = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     if (!fileForm.title.trim()) { error('파일 제목을 먼저 입력해주세요.'); e.target.value=''; return }
     const reader = new FileReader()
-    reader.onload = ev => {
-      const all = [...getFiles(selProd.id), { id:uid(), fileType:fileForm.fileType, stageLabel:fileForm.stage, title:fileForm.title, fileName:file.name, fileData:ev.target.result }]
-      saveFilesLS(selProd.id, all)
-      setFiles(all)
-      setFileForm({ fileType:'annual', title:'', stage:'' })
+    reader.onload = async ev => {
+      await DB.saveFile({ id:uid(), productId:selProd.id, fileType:fileForm.fileType, stageLabel:fileForm.stageLabel, title:fileForm.title, fileName:file.name, fileUrl:ev.target.result, createdAt:now() })
+      setFiles(await DB.filesByProduct(selProd.id))
+      setFileForm({ fileType:'annual', title:'', stageLabel:'' })
       success('파일이 등록되었습니다.')
     }
     reader.readAsDataURL(file)
     e.target.value=''
   }
 
-  const deleteFile = (id) => {
-    const all = getFiles(selProd.id).filter(f=>f.id!==id)
-    saveFilesLS(selProd.id, all)
-    setFiles(all)
+  const deleteFile = async (id) => {
+    await DB.deleteFile(id)
+    setFiles(await DB.filesByProduct(selProd.id))
   }
 
   const FILE_TYPE = { annual:'📅 연간지도안', session:'📖 차시별지도안', promo:'🖼 홍보물' }
 
   return (
     <div>
-      {confirmModal}
+      {modal}
+      <ProdForm form={form} setForm={setForm} onSave={saveProd} editing={false} />
 
-      {/* ── 교구 등록 폼 */}
-      <div style={{ padding:'16px', background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, marginBottom:'16px' }}>
-        <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'10px' }}>📦 교구(교재) 등록</div>
-        <div style={{ display:'flex', gap:'8px' }}>
-          <div style={{ flex:1 }}>
-            <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>교구명 *</label>
-            <input style={iSt} value={prodForm.name}
-              onChange={e=>setProdForm(f=>({...f,name:e.target.value}))}
-              onKeyDown={e=>e.key==='Enter'&&saveProd()}
-              placeholder="예: 큐보, 로이봇" />
-          </div>
-          <div style={{ alignSelf:'flex-end' }}>
-            <button type="button" onClick={saveProd} style={{
-              padding:'9px 20px', borderRadius:'9px', border:'none', background:C.primary,
-              color:'#fff', fontWeight:700, fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-            }}>+ 교구 추가</button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 교구 목록 */}
-      {subjectProds.length===0
-        ? <Empty icon="📦" msg="등록된 교구가 없습니다." />
-        : (
-          <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
-            {subjectProds.map(p=>(
-              <div key={p.id} onClick={()=>{ setSelProd(p); setTab('stages') }} style={{
-                padding:'12px 16px', borderRadius:'12px',
-                border:`2px solid ${selProd?.id===p.id?C.primary:C.border}`,
-                background:selProd?.id===p.id?'#fff7ed':C.card,
-                cursor:'pointer', display:'flex', alignItems:'center', gap:'12px',
-              }}>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>📦 {p.name}</div>
-                  <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                    {getStages(p.id).length}단계 · 파일 {getFiles(p.id).length}개
-                  </div>
+      {subjectProds.length===0 ? <Empty icon="📦" msg="등록된 교구가 없습니다." /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
+          {subjectProds.map(p=>(
+            <div key={p.id} onClick={()=>{ setSelProd(p); setTab('stages') }} style={{
+              padding:'12px 16px', borderRadius:'12px',
+              border:`2px solid ${selProd?.id===p.id?C.primary:C.border}`,
+              background:selProd?.id===p.id?'#fff7ed':C.card,
+              cursor:'pointer', display:'flex', alignItems:'center', gap:'12px',
+            }}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>📦 {p.name}</span>
+                  <span style={{ fontSize:'11px', padding:'1px 7px', borderRadius:'999px', background:'#eff6ff', color:C.blue, fontWeight:600 }}>{p.year}년</span>
                 </div>
-                <button type="button" onClick={e=>{ e.stopPropagation(); deleteProd(p.id) }} style={{
-                  padding:'4px 12px', borderRadius:'7px', border:'1px solid #fca5a5',
-                  background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                }}>삭제</button>
+                <PriceTags p={p} />
               </div>
-            ))}
-          </div>
-        )
-      }
+              <button type="button" onClick={e=>{ e.stopPropagation(); deleteProd(p.id) }} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* ── 선택된 교구 상세 */}
       {selProd && (
         <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-
-          {/* 교구명 + 탭 */}
           <div style={{ borderBottom:`1px solid ${C.border}` }}>
             <div style={{ padding:'14px 20px 0', background:'#fff7ed' }}>
-              <div style={{ fontSize:'15px', fontWeight:700, color:C.primary, marginBottom:'12px' }}>📦 {selProd.name}</div>
+              <div style={{ fontSize:'15px', fontWeight:700, color:C.primary, marginBottom:'12px' }}>📦 {selProd.name} <span style={{ fontSize:'12px', fontWeight:400, color:C.muted }}>{selProd.year}년</span></div>
               <div style={{ display:'flex', gap:'4px' }}>
                 {[['stages','📋 단계 · 목차'],['files','📁 파일 관리']].map(([t,l])=>(
                   <button key={t} type="button" onClick={()=>setTab(t)} style={{
@@ -541,12 +535,9 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
             </div>
           </div>
 
-          {/* ── 탭: 단계 · 목차 */}
           {tab==='stages' && (
             <div style={{ padding:'20px' }}>
-
-              {/* 단계 목록 + 추가 버튼 */}
-              <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'16px', flexWrap:'wrap' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
                 <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>단계</span>
                 {stages.map(st=>(
                   <div key={st.id} style={{ display:'flex', alignItems:'center', gap:'2px' }}>
@@ -557,96 +548,53 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
                       color:selStage?.id===st.id?'#fff':C.muted,
                       fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
                     }}>{st.label}</button>
-                    <button type="button" onClick={()=>deleteStage(st.id)} style={{
-                      background:'none', border:'none', color:'#d1d5db',
-                      cursor:'pointer', fontSize:'14px', padding:'0 2px', lineHeight:1,
-                    }}>✕</button>
+                    <button type="button" onClick={()=>deleteStage(st.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'14px', padding:'0 2px' }}>✕</button>
                   </div>
                 ))}
-                <button type="button" onClick={addStage} style={{
-                  padding:'6px 14px', borderRadius:'999px', border:`2px dashed ${C.border}`,
-                  background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600,
-                  cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                }}>+ 단계 추가</button>
+                <button type="button" onClick={addStage} style={{ padding:'6px 14px', borderRadius:'999px', border:`2px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 단계 추가</button>
               </div>
 
-              {/* 단계 선택 안내 */}
-              {!selStage && stages.length > 0 && (
-                <div style={{ padding:'20px', textAlign:'center', fontSize:'13px', color:C.muted, background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}` }}>
-                  위에서 단계를 선택하면 목차를 관리할 수 있습니다.
-                </div>
-              )}
+              {stages.length===0 && <div style={{ padding:'20px', textAlign:'center', fontSize:'13px', color:C.muted, background:C.bg, borderRadius:'10px', border:`1px dashed ${C.border}` }}>단계를 먼저 추가해주세요.</div>}
+              {!selStage && stages.length>0 && <div style={{ padding:'20px', textAlign:'center', fontSize:'13px', color:C.muted, background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}` }}>단계를 선택하면 목차를 관리할 수 있습니다.</div>}
 
-              {stages.length === 0 && (
-                <div style={{ padding:'20px', textAlign:'center', fontSize:'13px', color:C.muted, background:C.bg, borderRadius:'10px', border:`1px dashed ${C.border}` }}>
-                  단계를 먼저 추가해주세요.
-                </div>
-              )}
-
-              {/* 목차 관리 */}
               {selStage && (
                 <div style={{ background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px' }}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px', flexWrap:'wrap', gap:'8px' }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px', flexWrap:'wrap', gap:'8px' }}>
                     <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
-                      {selStage.label} 목차
-                      <span style={{ fontSize:'12px', color:C.muted, fontWeight:400, marginLeft:'8px' }}>{contents.length}개</span>
+                      {selStage.label} 목차 <span style={{ fontSize:'12px', color:C.muted, fontWeight:400 }}>{contents.length}개</span>
                     </div>
-                    {/* 추가 방식 */}
                     <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
                       {[['one','한 개씩'],['bulk','개수로']].map(([m,l])=>(
-                        <button key={m} type="button" onClick={()=>setContMode(m)} style={{
-                          padding:'4px 12px', borderRadius:'7px', fontSize:'12px', cursor:'pointer',
-                          border:`1.5px solid ${contMode===m?C.blue:C.border}`,
-                          background:contMode===m?'#eff6ff':'#fff',
-                          color:contMode===m?C.blue:C.muted,
-                          fontFamily:'Noto Sans KR, sans-serif', fontWeight:600,
-                        }}>{l}</button>
+                        <button key={m} type="button" onClick={()=>setContMode(m)} style={{ padding:'4px 12px', borderRadius:'7px', fontSize:'12px', cursor:'pointer', border:`1.5px solid ${contMode===m?C.blue:C.border}`, background:contMode===m?'#eff6ff':'#fff', color:contMode===m?C.blue:C.muted, fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>{l}</button>
                       ))}
                       {contMode==='bulk' && (
                         <>
-                          <input style={{ ...iSt, width:'60px', padding:'4px 8px' }} type="number" min="1"
-                            value={bulkCount} onChange={e=>setBulkCount(e.target.value)} />
+                          <input style={{ ...iSt, width:'60px', padding:'4px 8px' }} type="number" min="1" value={bulkCount} onChange={e=>setBulkCount(e.target.value)} />
                           <span style={{ fontSize:'12px', color:C.muted }}>개</span>
-                          <button type="button" onClick={bulkCreate} style={{
-                            padding:'4px 14px', borderRadius:'7px', border:'none', background:C.blue,
-                            color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                          }}>생성</button>
+                          <button type="button" onClick={bulkCreate} style={{ padding:'4px 14px', borderRadius:'7px', border:'none', background:C.blue, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>생성</button>
                         </>
                       )}
                       {contMode==='one' && (
-                        <button type="button" onClick={addOneCont} style={{
-                          padding:'4px 14px', borderRadius:'7px', border:`1.5px solid ${C.primary}`,
-                          background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700,
-                          cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                        }}>+ 목차 추가</button>
+                        <button type="button" onClick={addOneCont} style={{ padding:'4px 14px', borderRadius:'7px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 목차 추가</button>
                       )}
                     </div>
                   </div>
-
-                  {/* 목차 헤더 */}
-                  {contents.length > 0 && (
+                  {contents.length>0 && (
                     <div style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 20px', gap:'5px', padding:'4px 8px', marginBottom:'4px' }}>
                       <span style={{ fontSize:'11px', color:C.muted, textAlign:'center' }}>차시</span>
                       <span style={{ fontSize:'11px', color:C.muted }}>제목</span>
                       <span style={{ fontSize:'11px', color:C.muted }}>준비물</span>
                     </div>
                   )}
-
-                  {/* 목차 목록 */}
                   <div style={{ display:'flex', flexDirection:'column', gap:'5px', maxHeight:'360px', overflowY:'auto' }}>
                     {contents.length===0
-                      ? <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', padding:'16px' }}>목차가 없습니다. 위에서 추가해주세요.</div>
+                      ? <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', padding:'16px' }}>목차가 없습니다.</div>
                       : contents.map(c=>(
                         <div key={c.id} style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 20px', gap:'5px', alignItems:'center' }}>
                           <span style={{ fontSize:'11px', fontWeight:700, color:C.blue, textAlign:'center' }}>{c.session}</span>
-                          <input style={{ ...iSt, padding:'6px 8px', fontSize:'12px', background:'#fff' }}
-                            value={c.title} onChange={e=>updateCont(c.id,'title',e.target.value)} placeholder="제목" />
-                          <input style={{ ...iSt, padding:'6px 8px', fontSize:'12px', background:'#fff' }}
-                            value={c.supplies} onChange={e=>updateCont(c.id,'supplies',e.target.value)} placeholder="준비물" />
-                          <button type="button" onClick={()=>deleteCont(c.id)} style={{
-                            background:'none', border:'none', color:'#d1d5db',
-                            cursor:'pointer', fontSize:'15px', lineHeight:1,
-                          }}>✕</button>
+                          <input style={{ ...iSt, padding:'6px 8px', fontSize:'12px', background:'#fff' }} value={c.title} onChange={e=>updateCont(c.id,'title',e.target.value)} placeholder="제목" />
+                          <input style={{ ...iSt, padding:'6px 8px', fontSize:'12px', background:'#fff' }} value={c.supplies} onChange={e=>updateCont(c.id,'supplies',e.target.value)} placeholder="준비물" />
+                          <button type="button" onClick={()=>deleteCont(c.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'15px', lineHeight:1 }}>✕</button>
                         </div>
                       ))
                     }
@@ -656,13 +604,10 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
             </div>
           )}
 
-          {/* ── 탭: 파일 관리 */}
           {tab==='files' && (
             <div style={{ padding:'20px' }}>
-              {/* 파일 등록 폼 */}
               <div style={{ background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px', marginBottom:'16px' }}>
-                <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'12px' }}>파일 등록</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px', marginBottom:'10px' }}>
                   <div>
                     <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>파일 유형</label>
                     <select style={iSt} value={fileForm.fileType} onChange={e=>setFileForm(f=>({...f,fileType:e.target.value}))}>
@@ -673,44 +618,28 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
                   </div>
                   <div>
                     <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>해당 단계 (선택)</label>
-                    <input style={iSt} value={fileForm.stage} onChange={e=>setFileForm(f=>({...f,stage:e.target.value}))} placeholder="예: 1단계" />
+                    <input style={iSt} value={fileForm.stageLabel} onChange={e=>setFileForm(f=>({...f,stageLabel:e.target.value}))} placeholder="예: 1단계" />
                   </div>
-                </div>
-                <div style={{ marginBottom:'10px' }}>
-                  <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>파일 제목 *</label>
-                  <input style={iSt} value={fileForm.title} onChange={e=>setFileForm(f=>({...f,title:e.target.value}))} placeholder="예: 1단계 연간지도안" />
+                  <div>
+                    <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>파일 제목 *</label>
+                    <input style={iSt} value={fileForm.title} onChange={e=>setFileForm(f=>({...f,title:e.target.value}))} placeholder="예: 1단계 연간지도안" />
+                  </div>
                 </div>
                 <input ref={fileRef} type="file" accept=".pdf,.xlsx,.xls,.hwp,.hwpx,.pptx,.jpg,.png" style={{ display:'none' }} onChange={saveFile} />
-                <button type="button" onClick={()=>fileRef.current?.click()} style={{
-                  width:'100%', padding:'10px', borderRadius:'9px', border:`1.5px dashed ${C.border}`,
-                  background:'#fff', color:C.muted, fontSize:'13px', cursor:'pointer',
-                  fontFamily:'Noto Sans KR, sans-serif',
-                }}>📎 파일 선택하여 등록</button>
+                <button type="button" onClick={()=>fileRef.current?.click()} style={{ width:'100%', padding:'10px', borderRadius:'9px', border:`1.5px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📎 파일 선택하여 등록</button>
               </div>
-
-              {/* 파일 목록 */}
-              {files.length===0
-                ? <Empty icon="📁" msg="등록된 파일이 없습니다." />
-                : (
-                  <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-                    {files.map(f=>(
-                      <div key={f.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}` }}>
-                        <span style={{ fontSize:'12px', color:C.blue, flexShrink:0, fontWeight:600 }}>{FILE_TYPE[f.fileType]}</span>
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{f.title}</div>
-                          <div style={{ fontSize:'11px', color:C.muted }}>{f.fileName}{f.stageLabel?` · ${f.stageLabel}`:''}</div>
-                        </div>
-                        <a href={f.fileData} download={f.fileName} style={{
-                          padding:'4px 10px', borderRadius:'6px', border:'1px solid #86efac',
-                          background:'#f0fdf4', color:C.success, fontSize:'12px', fontWeight:600, textDecoration:'none',
-                        }}>⬇ 다운</a>
-                        <button type="button" onClick={()=>deleteFile(f.id)} style={{
-                          background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'18px', lineHeight:1,
-                        }}>✕</button>
-                      </div>
-                    ))}
+              {files.length===0 ? <Empty icon="📁" msg="등록된 파일이 없습니다." /> :
+                files.map(f=>(
+                  <div key={f.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}`, marginBottom:'6px' }}>
+                    <span style={{ fontSize:'12px', color:C.blue, fontWeight:600 }}>{FILE_TYPE[f.fileType]}</span>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{f.title}</div>
+                      <div style={{ fontSize:'11px', color:C.muted }}>{f.fileName}{f.stageLabel?` · ${f.stageLabel}`:''}</div>
+                    </div>
+                    <a href={f.fileUrl} download={f.fileName} style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #86efac', background:'#f0fdf4', color:C.success, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>⬇ 다운</a>
+                    <button type="button" onClick={()=>deleteFile(f.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'18px', lineHeight:1 }}>✕</button>
                   </div>
-                )
+                ))
               }
             </div>
           )}
@@ -720,104 +649,276 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
   )
 }
 
-
 // ─── B형·C형 교구 관리
 function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
   const { success, error } = useToast()
-  const { confirm, modal: confirmModal } = useConfirmModal()
-  const [form, setForm]       = useState({ name:'', type:'annual', price:'', description:'' })
-  const [editing, setEditing] = useState(null)
-  const set = (k) => (e) => setForm(f=>({...f,[k]:e.target.value}))
-  const subjectProds = products.filter(p=>p.subjectId===subjectId)
+  const { confirm, modal } = useConfirmModal()
+  const fileRef = React.useRef()
 
-  const handleSave = async () => {
+  const [form, setForm]         = useState({...EMPTY_PROD})
+  const [selProd, setSelProd]   = useState(null)
+  const [tab, setTab]           = useState('quarters')
+  const [quarters, setQuarters] = useState([])
+  const [selQuarter, setSelQuarter] = useState(null)
+  const [sessions, setSessions] = useState([])
+  const [files, setFiles]       = useState([])
+  const [fileForm, setFileForm] = useState({ fileType:'annual', title:'' })
+
+  const subjectProds = products.filter(p=>p.subjectId===subjectId && p.type!=='textbook')
+
+  const loadProd = useCallback(async (p) => {
+    if (!p) return
+    const q = await DB.quartersByProduct(p.id)
+    setQuarters(q)
+    setSelQuarter(q[0]||null)
+    const f = await DB.filesByProduct(p.id)
+    setFiles(f)
+  }, [])
+
+  useEffect(() => {
+    if (subjectProds.length > 0 && !selProd) {
+      setSelProd(subjectProds[0])
+      loadProd(subjectProds[0])
+    }
+  }, [subjectProds.length])
+
+  useEffect(() => { if (selProd) loadProd(selProd) }, [selProd])
+
+  useEffect(() => {
+    if (!selQuarter) return
+    DB.sessionsByQuarter(selQuarter.id).then(setSessions)
+  }, [selQuarter])
+
+  const saveProd = async () => {
     if (!form.name.trim()) { error('교구명을 입력해주세요.'); return }
-    const item = editing
-      ? { ...editing, ...form, price:Number(form.price)||0 }
-      : { id:uid(), vendorId, subjectId, ...form, price:Number(form.price)||0, createdAt:now() }
-    await HQProducts.save(item)
-    setForm({ name:'', type:'annual', price:'', description:'' })
-    setEditing(null)
+    await DB.saveProduct({ id:uid(), vendorId, subjectId, type:'bc_product', name:form.name, year:form.year,
+      priceRetail:Number(form.priceRetail)||0, priceSchool:Number(form.priceSchool)||0,
+      priceBranch:Number(form.priceBranch)||0, priceTeacher:Number(form.priceTeacher)||0, createdAt:now() })
+    setForm({...EMPTY_PROD})
     onReload()
-    success(editing?'수정되었습니다.':'교구가 추가되었습니다.')
+    success('교구가 추가되었습니다.')
   }
 
-  const TYPE_LABEL = { annual:'📅 연간', session:'📖 차시별', item:'📦 교구' }
-  const TYPE_COLOR = { annual:{bg:'#eff6ff',color:C.blue}, session:{bg:'#f5f3ff',color:C.purple}, item:{bg:'#f0fdf4',color:C.success} }
+  const deleteProd = async (id) => {
+    const ok = await confirm('교구를 삭제하시겠습니까?')
+    if (!ok) return
+    await DB.deleteProduct(id)
+    if (selProd?.id===id) { setSelProd(null); setQuarters([]); setSessions([]); setFiles([]) }
+    onReload()
+    success('삭제되었습니다.')
+  }
+
+  const addQuarter = async () => {
+    const q = { id:uid(), productId:selProd.id, label:`${quarters.length+1}분기`, order:quarters.length+1, createdAt:now() }
+    await DB.saveQuarter(q)
+    const all = await DB.quartersByProduct(selProd.id)
+    setQuarters(all)
+    setSelQuarter(q)
+    success(`${q.label} 추가되었습니다.`)
+  }
+
+  const deleteQuarter = async (qid) => {
+    const ok = await confirm('분기를 삭제하시겠습니까?\n해당 분기의 차시도 삭제됩니다.')
+    if (!ok) return
+    await DB.deleteQuarter(qid)
+    const all = await DB.quartersByProduct(selProd.id)
+    setQuarters(all)
+    setSelQuarter(all[0]||null)
+  }
+
+  const addSession = async () => {
+    const existing = await DB.sessionsByQuarter(selQuarter.id)
+    await DB.saveSession({ id:uid(), quarterId:selQuarter.id, productId:selProd.id, session:existing.length+1, title:'', supplies:'', createdAt:now() })
+    setSessions(await DB.sessionsByQuarter(selQuarter.id))
+  }
+
+  const updateSession = async (id, field, val) => {
+    const s = sessions.find(x=>x.id===id)
+    if (!s) return
+    await DB.saveSession({...s,[field]:val})
+    setSessions(prev=>prev.map(x=>x.id===id?{...x,[field]:val}:x))
+  }
+
+  const deleteSession = async (id) => {
+    await DB.deleteSession(id)
+    const all = (await DB.sessionsByQuarter(selQuarter.id)).map((s,i)=>({...s,session:i+1}))
+    await Promise.all(all.map(s=>DB.saveSession(s)))
+    setSessions(all)
+  }
+
+  const saveFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!fileForm.title.trim()) { error('파일 제목을 먼저 입력해주세요.'); e.target.value=''; return }
+    const reader = new FileReader()
+    reader.onload = async ev => {
+      await DB.saveFile({ id:uid(), productId:selProd.id, fileType:fileForm.fileType, title:fileForm.title, fileName:file.name, fileUrl:ev.target.result, createdAt:now() })
+      setFiles(await DB.filesByProduct(selProd.id))
+      setFileForm({ fileType:'annual', title:'' })
+      success('파일이 등록되었습니다.')
+    }
+    reader.readAsDataURL(file)
+    e.target.value=''
+  }
+
+  const deleteFile = async (id) => {
+    await DB.deleteFile(id)
+    setFiles(await DB.filesByProduct(selProd.id))
+  }
+
+  const FILE_TYPE = { annual:'📅 연간지도안', session:'📖 차시별지도안', promo:'🖼 홍보물' }
 
   return (
     <div>
-      <div style={{ padding:'16px', background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, marginBottom:'20px' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'8px' }}>
-          <div>
-            <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>교구명 *</label>
-            <input style={iSt} value={form.name} onChange={set('name')} placeholder="교구명" />
-          </div>
-          <div>
-            <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>유형</label>
-            <select style={iSt} value={form.type} onChange={set('type')}>
-              <option value="annual">📅 연간 등록</option>
-              <option value="session">📖 차시별 등록</option>
-              <option value="item">📦 교구 등록</option>
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>가격 (원)</label>
-            <input style={iSt} type="number" value={form.price} onChange={set('price')} placeholder="0" />
-          </div>
-          <div>
-            <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>설명</label>
-            <input style={iSt} value={form.description} onChange={set('description')} placeholder="설명 (선택)" />
-          </div>
+      {modal}
+      <ProdForm form={form} setForm={setForm} onSave={saveProd} editing={false} />
+
+      {subjectProds.length===0 ? <Empty icon="🎒" msg="등록된 교구가 없습니다." /> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
+          {subjectProds.map(p=>(
+            <div key={p.id} onClick={()=>{ setSelProd(p); setTab('quarters') }} style={{
+              padding:'12px 16px', borderRadius:'12px',
+              border:`2px solid ${selProd?.id===p.id?C.primary:C.border}`,
+              background:selProd?.id===p.id?'#fff7ed':C.card,
+              cursor:'pointer', display:'flex', alignItems:'center', gap:'12px',
+            }}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>🎒 {p.name}</span>
+                  <span style={{ fontSize:'11px', padding:'1px 7px', borderRadius:'999px', background:'#eff6ff', color:C.blue, fontWeight:600 }}>{p.year}년</span>
+                </div>
+                <PriceTags p={p} />
+              </div>
+              <button type="button" onClick={e=>{ e.stopPropagation(); deleteProd(p.id) }} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+            </div>
+          ))}
         </div>
-        <div style={{ display:'flex', justifyContent:'flex-end', gap:'8px' }}>
-          {editing && <Btn onClick={()=>{ setEditing(null); setForm({name:'',type:'annual',price:'',description:''}) }} secondary>취소</Btn>}
-          <Btn onClick={handleSave}>{editing?'수정 저장':'+ 교구 추가'}</Btn>
-        </div>
-      </div>
-      {confirmModal}
-      {subjectProds.length===0
-        ? <Empty icon="🎒" msg="등록된 교구가 없습니다." />
-        : (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))', gap:'10px' }}>
-            {subjectProds.map(p=>{
-              const tc = TYPE_COLOR[p.type]||TYPE_COLOR.item
-              return (
-                <div key={p.id} style={{ padding:'14px', background:C.card, borderRadius:'12px', border:`1px solid ${C.border}` }}>
-                  <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'6px' }}>🎒 {p.name}</div>
-                  <div style={{ display:'flex', gap:'5px', marginBottom:'8px', flexWrap:'wrap' }}>
-                    <span style={{ fontSize:'11px', padding:'1px 6px', borderRadius:'4px', background:tc.bg, color:tc.color }}>{TYPE_LABEL[p.type]}</span>
-                    {p.price>0 && <span style={{ fontSize:'11px', color:C.muted }}>{Number(p.price).toLocaleString()}원</span>}
-                    {p.description && <span style={{ fontSize:'11px', color:C.muted }}>{p.description}</span>}
+      )}
+
+      {selProd && (
+        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+          <div style={{ borderBottom:`1px solid ${C.border}` }}>
+            <div style={{ padding:'14px 20px 0', background:'#fff7ed' }}>
+              <div style={{ fontSize:'15px', fontWeight:700, color:C.primary, marginBottom:'12px' }}>🎒 {selProd.name} <span style={{ fontSize:'12px', fontWeight:400, color:C.muted }}>{selProd.year}년</span></div>
+              <div style={{ display:'flex', gap:'4px' }}>
+                {[['quarters','📋 분기 · 차시'],['files','📁 파일 관리']].map(([t,l])=>(
+                  <button key={t} type="button" onClick={()=>setTab(t)} style={{
+                    padding:'9px 20px', borderRadius:'8px 8px 0 0', border:'none',
+                    background:tab===t?C.card:'transparent',
+                    color:tab===t?C.primary:C.muted, fontWeight:tab===t?700:400,
+                    fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                    borderBottom:tab===t?`2px solid ${C.primary}`:'2px solid transparent',
+                  }}>{l}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {tab==='quarters' && (
+            <div style={{ padding:'20px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
+                <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>분기</span>
+                {quarters.map(q=>(
+                  <div key={q.id} style={{ display:'flex', alignItems:'center', gap:'2px' }}>
+                    <button type="button" onClick={()=>setSelQuarter(q)} style={{
+                      padding:'6px 16px', borderRadius:'999px',
+                      border:`2px solid ${selQuarter?.id===q.id?C.primary:C.border}`,
+                      background:selQuarter?.id===q.id?C.primary:'#fff',
+                      color:selQuarter?.id===q.id?'#fff':C.muted,
+                      fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                    }}>{q.label}</button>
+                    <button type="button" onClick={()=>deleteQuarter(q.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'14px', padding:'0 2px' }}>✕</button>
                   </div>
-                  <div style={{ display:'flex', gap:'5px' }}>
-                    <Btn onClick={()=>{ setEditing(p); setForm({name:p.name,type:p.type,price:p.price||'',description:p.description||''}) }} secondary style={{ padding:'4px 10px', fontSize:'11px' }}>수정</Btn>
-                    <Btn onClick={async()=>{ const ok=await confirm('교구를 삭제하시겠습니까?'); if(ok){ await HQProducts.delete(p.id); onReload(); success('삭제되었습니다.') } }} danger style={{ padding:'4px 10px', fontSize:'11px' }}>삭제</Btn>
+                ))}
+                <button type="button" onClick={addQuarter} style={{ padding:'6px 14px', borderRadius:'999px', border:`2px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 분기 추가</button>
+              </div>
+
+              {quarters.length===0 && <div style={{ padding:'20px', textAlign:'center', fontSize:'13px', color:C.muted, background:C.bg, borderRadius:'10px', border:`1px dashed ${C.border}` }}>분기를 먼저 추가해주세요.</div>}
+              {!selQuarter && quarters.length>0 && <div style={{ padding:'20px', textAlign:'center', fontSize:'13px', color:C.muted, background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}` }}>분기를 선택하면 차시를 관리할 수 있습니다.</div>}
+
+              {selQuarter && (
+                <div style={{ background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px' }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
+                    <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
+                      {selQuarter.label} 차시 <span style={{ fontSize:'12px', color:C.muted, fontWeight:400 }}>{sessions.length}개</span>
+                    </div>
+                    <button type="button" onClick={addSession} style={{ padding:'5px 14px', borderRadius:'7px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 차시 추가</button>
+                  </div>
+                  {sessions.length>0 && (
+                    <div style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 20px', gap:'5px', padding:'4px 8px', marginBottom:'4px' }}>
+                      <span style={{ fontSize:'11px', color:C.muted, textAlign:'center' }}>차시</span>
+                      <span style={{ fontSize:'11px', color:C.muted }}>제목</span>
+                      <span style={{ fontSize:'11px', color:C.muted }}>준비물</span>
+                    </div>
+                  )}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'5px', maxHeight:'320px', overflowY:'auto' }}>
+                    {sessions.length===0
+                      ? <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', padding:'16px' }}>차시가 없습니다.</div>
+                      : sessions.map(s=>(
+                        <div key={s.id} style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 20px', gap:'5px', alignItems:'center' }}>
+                          <span style={{ fontSize:'11px', fontWeight:700, color:C.blue, textAlign:'center' }}>{s.session}</span>
+                          <input style={{ ...iSt, padding:'6px 8px', fontSize:'12px', background:'#fff' }} value={s.title} onChange={e=>updateSession(s.id,'title',e.target.value)} placeholder="제목" />
+                          <input style={{ ...iSt, padding:'6px 8px', fontSize:'12px', background:'#fff' }} value={s.supplies} onChange={e=>updateSession(s.id,'supplies',e.target.value)} placeholder="준비물" />
+                          <button type="button" onClick={()=>deleteSession(s.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'15px', lineHeight:1 }}>✕</button>
+                        </div>
+                      ))
+                    }
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        )
-      }
+              )}
+            </div>
+          )}
+
+          {tab==='files' && (
+            <div style={{ padding:'20px' }}>
+              <div style={{ background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px', marginBottom:'16px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
+                  <div>
+                    <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>파일 유형</label>
+                    <select style={iSt} value={fileForm.fileType} onChange={e=>setFileForm(f=>({...f,fileType:e.target.value}))}>
+                      <option value="annual">📅 연간지도안</option>
+                      <option value="session">📖 차시별지도안</option>
+                      <option value="promo">🖼 홍보물</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>파일 제목 *</label>
+                    <input style={iSt} value={fileForm.title} onChange={e=>setFileForm(f=>({...f,title:e.target.value}))} placeholder="예: 연간지도안" />
+                  </div>
+                </div>
+                <input ref={fileRef} type="file" accept=".pdf,.xlsx,.xls,.hwp,.hwpx,.pptx,.jpg,.png" style={{ display:'none' }} onChange={saveFile} />
+                <button type="button" onClick={()=>fileRef.current?.click()} style={{ width:'100%', padding:'10px', borderRadius:'9px', border:`1.5px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📎 파일 선택하여 등록</button>
+              </div>
+              {files.length===0 ? <Empty icon="📁" msg="등록된 파일이 없습니다." /> :
+                files.map(f=>(
+                  <div key={f.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}`, marginBottom:'6px' }}>
+                    <span style={{ fontSize:'12px', color:C.blue, fontWeight:600 }}>{FILE_TYPE[f.fileType]}</span>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{f.title}</div>
+                      <div style={{ fontSize:'11px', color:C.muted }}>{f.fileName}</div>
+                    </div>
+                    <a href={f.fileUrl} download={f.fileName} style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #86efac', background:'#f0fdf4', color:C.success, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>⬇ 다운</a>
+                    <button type="button" onClick={()=>deleteFile(f.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'18px', lineHeight:1 }}>✕</button>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 // ─── 교구 관리 페이지
 function VendorProductsPage({ vendorId, subjects, products, onReload }) {
-  // '' = 전체 / subjectId = 해당 과목 필터
   const [filterSubjectId, setFilterSubjectId] = useState('')
-
-  // 필터된 과목 목록
-  const filteredSubjects = filterSubjectId
-    ? subjects.filter(s=>s.id===filterSubjectId)
-    : subjects
+  const filteredSubjects = filterSubjectId ? subjects.filter(s=>s.id===filterSubjectId) : subjects
 
   return (
     <div style={{ padding:'28px', fontFamily:'Noto Sans KR, sans-serif', maxWidth:'1000px' }}>
       <h2 style={{ fontSize:'22px', fontWeight:700, color:C.text, margin:'0 0 6px' }}>🎒 교구 관리</h2>
-      <p style={{ fontSize:'13px', color:C.muted, marginBottom:'20px' }}>등록된 교구를 관리합니다. 과목을 클릭하면 해당 과목만 보입니다.</p>
+      <p style={{ fontSize:'13px', color:C.muted, marginBottom:'20px' }}>과목을 클릭하면 해당 과목만 보입니다.</p>
 
       {subjects.length===0 ? (
         <div style={{ padding:'18px', background:'#fff7ed', borderRadius:'12px', border:'1px solid #fed7aa', fontSize:'14px', color:C.primary }}>
@@ -825,52 +926,36 @@ function VendorProductsPage({ vendorId, subjects, products, onReload }) {
         </div>
       ) : (
         <>
-          {/* 과목 필터 탭 */}
           <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'24px' }}>
-            <button type="button" onClick={()=>setFilterSubjectId('')} style={{
-              padding:'8px 18px', borderRadius:'999px',
-              border:`2px solid ${filterSubjectId===''?C.primary:C.border}`,
-              background:filterSubjectId===''?'#fff7ed':C.card,
-              color:filterSubjectId===''?C.primary:C.muted,
-              fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-            }}>전체</button>
+            <button type="button" onClick={()=>setFilterSubjectId('')} style={{ padding:'8px 18px', borderRadius:'999px', border:`2px solid ${filterSubjectId===''?C.primary:C.border}`, background:filterSubjectId===''?'#fff7ed':C.card, color:filterSubjectId===''?C.primary:C.muted, fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>전체</button>
             {subjects.map(s=>{
               const t = SUBJECT_TYPES.find(x=>x.value===s.subjectType)||SUBJECT_TYPES[0]
-              const isSelected = filterSubjectId===s.id
+              const isSel = filterSubjectId===s.id
               return (
-                <button key={s.id} type="button" onClick={()=>setFilterSubjectId(isSelected?'':s.id)} style={{
-                  padding:'8px 18px', borderRadius:'999px',
-                  border:`2px solid ${isSelected?t.color:C.border}`,
-                  background:isSelected?t.bg:C.card, cursor:'pointer',
-                  fontFamily:'Noto Sans KR, sans-serif',
-                }}>
-                  <span style={{ fontSize:'11px', fontWeight:700, color:isSelected?t.color:C.muted }}>{t.label} </span>
-                  <span style={{ fontSize:'13px', fontWeight:600, color:isSelected?t.color:C.text }}>{s.name}</span>
+                <button key={s.id} type="button" onClick={()=>setFilterSubjectId(isSel?'':s.id)} style={{ padding:'8px 18px', borderRadius:'999px', border:`2px solid ${isSel?t.color:C.border}`, background:isSel?t.bg:C.card, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  <span style={{ fontSize:'11px', fontWeight:700, color:isSel?t.color:C.muted }}>{t.label} </span>
+                  <span style={{ fontSize:'13px', fontWeight:600, color:isSel?t.color:C.text }}>{s.name}</span>
                 </button>
               )
             })}
           </div>
 
-          {/* 과목별 교구 목록 — 전체 펼쳐서 표시 */}
           <div style={{ display:'flex', flexDirection:'column', gap:'28px' }}>
-            {filteredSubjects.map(s=>(
-              <div key={s.id}>
-                {/* 과목 헤더 */}
-                <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'14px', paddingBottom:'10px', borderBottom:`2px solid ${C.border}` }}>
-                  <span style={{ fontSize:'16px', fontWeight:700, color:C.text }}>{s.name}</span>
-                  <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'999px',
-                    background: SUBJECT_TYPES.find(x=>x.value===s.subjectType)?.bg||'#f3f4f6',
-                    color: SUBJECT_TYPES.find(x=>x.value===s.subjectType)?.color||C.muted,
-                  }}>
-                    {SUBJECT_TYPES.find(x=>x.value===s.subjectType)?.label} 유형
-                  </span>
+            {filteredSubjects.map(s=>{
+              const t = SUBJECT_TYPES.find(x=>x.value===s.subjectType)||SUBJECT_TYPES[0]
+              return (
+                <div key={s.id}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'14px', paddingBottom:'10px', borderBottom:`2px solid ${C.border}` }}>
+                    <span style={{ fontSize:'16px', fontWeight:700, color:C.text }}>{s.name}</span>
+                    <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'999px', background:t.bg, color:t.color }}>{t.label} 유형</span>
+                  </div>
+                  {s.subjectType==='A'
+                    ? <TypeAProducts vendorId={vendorId} subjectId={s.id} products={products} onReload={onReload} />
+                    : <TypeBCProducts vendorId={vendorId} subjectId={s.id} products={products} onReload={onReload} />
+                  }
                 </div>
-                {s.subjectType==='A'
-                  ? <TypeAProducts vendorId={vendorId} subjectId={s.id} products={products} onReload={onReload} />
-                  : <TypeBCProducts vendorId={vendorId} subjectId={s.id} products={products} onReload={onReload} />
-                }
-              </div>
-            ))}
+              )
+            })}
           </div>
         </>
       )}
@@ -887,8 +972,8 @@ export function VendorApp({ vendorSession, onLogout }) {
 
   const reload = useCallback(async () => {
     if (!vendorId) return
-    setSubjects(await HQSubjects.byVendor(vendorId))
-    setProducts(await HQProducts.byVendor(vendorId))
+    setSubjects(await DB.subjectsByVendor(vendorId))
+    setProducts(await DB.productsByVendor(vendorId))
   }, [vendorId])
 
   useEffect(() => { reload() }, [reload])
