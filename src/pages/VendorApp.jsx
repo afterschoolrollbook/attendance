@@ -49,11 +49,16 @@ function Btn({ children, onClick, disabled, secondary, danger, style={} }) {
   const color = disabled?'#9ca3af':secondary?'#374151':'#fff'
   const bdr   = secondary?'1.5px solid #e5e7eb':'none'
   return (
-    <button onClick={disabled?undefined:onClick} style={{
-      padding:'8px 16px', borderRadius:'9px', border:bdr, background:bg, color,
-      fontWeight:600, fontSize:'13px', cursor:disabled?'not-allowed':'pointer',
-      fontFamily:'Noto Sans KR, sans-serif', ...style,
-    }}>{children}</button>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!!disabled}
+      style={{
+        padding:'8px 16px', borderRadius:'9px', border:bdr, background:bg, color,
+        fontWeight:600, fontSize:'13px', cursor:disabled?'not-allowed':'pointer',
+        fontFamily:'Noto Sans KR, sans-serif', ...style,
+      }}
+    >{children}</button>
   )
 }
 
@@ -218,8 +223,17 @@ function VendorSubjectsPage({ vendorId, subjects, onReload }) {
           <input style={{ ...iSt, flex:1 }} placeholder="과목명 입력 (예: 로봇, 항공과학, 미술)"
             value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}
             onKeyDown={e=>e.key==='Enter'&&handleSave()} />
-          <Btn onClick={handleSave}>{editing?'수정 저장':'+ 추가'}</Btn>
-          {editing && <Btn onClick={()=>{ setEditing(null); setForm({name:'',subjectType:'A'}) }} secondary>취소</Btn>}
+          <button onClick={handleSave} style={{
+            flexShrink:0, padding:'9px 20px', borderRadius:'9px', border:'none',
+            background:'#f97316', color:'#fff', fontWeight:700, fontSize:'14px',
+            cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+          }}>{editing?'수정 저장':'+ 추가'}</button>
+          {editing && (
+            <button onClick={()=>{ setEditing(null); setForm({name:'',subjectType:'A'}) }} style={{
+              flexShrink:0, padding:'9px 14px', borderRadius:'9px', border:'1px solid #e5e7eb',
+              background:'#fff', color:'#6b7280', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+            }}>취소</button>
+          )}
         </div>
       </div>
 
