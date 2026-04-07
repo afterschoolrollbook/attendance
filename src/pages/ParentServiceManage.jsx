@@ -528,20 +528,17 @@ function ParentListTab({ user, config }) {
                         </button>
                       ) : <span style={{ fontSize:'12px', color:'#d1d5db' }}>전화번호 없음</span>}
                     </td>
-                    <td style={{ padding:'11px 14px', textAlign:'center' }}>
+                    <td style={{ padding:'11px 14px' }}>
                       <button
                         onClick={() => s.joined ? handleTeacherWithdraw(s) : showError('아직 미가입 상태입니다.')}
-                        title={s.joined ? '출결서비스 종료' : '미가입'}
                         style={{
-                          width:'28px', height:'28px', borderRadius:'50%',
-                          border: s.joined ? '1.5px solid #fca5a5' : '1.5px solid #e5e7eb',
+                          padding:'5px 10px', borderRadius:'7px', cursor: s.joined ? 'pointer' : 'default',
+                          fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', fontWeight:700, whiteSpace:'nowrap',
                           background: s.joined ? '#fef2f2' : '#f9fafb',
-                          color: s.joined ? '#dc2626' : '#d1d5db',
-                          fontSize:'14px', fontWeight:700,
-                          cursor: s.joined ? 'pointer' : 'default',
-                          display:'inline-flex', alignItems:'center', justifyContent:'center', lineHeight:1,
+                          color:      s.joined ? '#dc2626'  : '#d1d5db',
+                          border:     `1.5px solid ${s.joined ? '#fca5a5' : '#e5e7eb'}`,
                         }}>
-                        ✕
+                        {s.joined ? '🚫 종료' : '종료'}
                       </button>
                     </td>
                   </tr>
