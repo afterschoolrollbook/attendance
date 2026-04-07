@@ -3,6 +3,7 @@ import { Settings, Students as StudentsDB, Classes as ClassesDB } from '../lib/d
 import { FEATURES, FEATURE_LABELS, LEVEL_NAMES } from '../constants/permissions.js'
 import { Card, PageHeader, Toggle, Btn, Modal, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
+import { isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316', success:'#16a34a' }
 
@@ -395,6 +396,158 @@ function SolapiSection() {
 }
 
 // ─── 섹션: 지역/학교 관리
+// ─── 웹 푸시 알림 설정
+function PushSection() {
+  const init = Settings.get('push') || { vapidPublicKey: '', enabled: false }
+  const [cfg,       setCfg]       = useState(init)
+  const [generating, setGenerating] = useState(false)
+  const [status,    setStatus]    = useState(null) // 'ok' | 'error' | null
+  const [msg,       setMsg]       = useState('')
+  const { addToast } = useToast()
+
+  const save = (next) => {
+    Settings.set('push', next)
+    setCfg(next)
+  }
+
+  // Edge Function 호출로 VAPID 키 자동 생성
+  const generateVapid = async () => {
+    if (!isConfigured) {
+      setStatus('error')
+      setMsg('Supabase가 연결되어야 합니다. 환경변수(VITE_SUPABASE_URL)를 확인해주세요.')
+      return
+    }
+    setGenerating(true)
+    setStatus(null)
+    setMsg('')
+    try {
+      const res = await fetch(`${FUNCTIONS_BASE}/generate-vapid`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || '생성 실패')
+
+      // 공개키만 프론트에 저장 (비밀키는 서버 Secrets에만 저장됨)
+      const next = { ...cfg, vapidPublicKey: data.publicKey, enabled: true }
+      save(next)
+      setStatus('ok')
+      setMsg('VAPID 키가 생성되어 서버에 등록되었습니다. 웹 푸시 발송이 활성화됩니다.')
+      addToast('VAPID 키 생성 완료! 웹 푸시가 활성화되었습니다.', 'success')
+    } catch (e) {
+      setStatus('error')
+      setMsg(`오류: ${e.message}`)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const mono = { fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }
+  const hasKey = !!cfg.vapidPublicKey
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+      {/* 상태 카드 */}
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '15px', color: C.text, marginBottom: '4px' }}>🔔 웹 푸시 알림</div>
+            <div style={{ fontSize: '13px', color: C.muted }}>
+              선생님이 출석 체크하면 학부모 기기로 즉시 알림이 전송됩니다.<br />
+              카카오 알림톡 없이 무료로 작동합니다.
+            </div>
+          </div>
+          <Toggle
+            checked={cfg.enabled && hasKey}
+            onChange={v => {
+              if (v && !hasKey) {
+                setStatus('error')
+                setMsg('먼저 VAPID 키를 생성해주세요.')
+                return
+              }
+              save({ ...cfg, enabled: v })
+              addToast(v ? '웹 푸시 알림 활성화' : '웹 푸시 알림 비활성화')
+            }}
+          />
+        </div>
+
+        {/* 현재 상태 표시 */}
+        <div style={{
+          padding: '12px 16px', borderRadius: '10px',
+          background: hasKey ? '#f0fdf4' : '#fafafa',
+          border: `1px solid ${hasKey ? '#86efac' : C.border}`,
+          marginBottom: '16px',
+        }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: hasKey ? '#16a34a' : C.muted, marginBottom: hasKey ? '6px' : 0 }}>
+            {hasKey ? '✅ VAPID 키 등록됨' : '⬜ VAPID 키 미등록 — 아래 버튼으로 자동 생성하세요'}
+          </div>
+          {hasKey && (
+            <div style={{ ...mono, color: '#374151' }}>
+              공개키: {cfg.vapidPublicKey.slice(0, 40)}...
+            </div>
+          )}
+        </div>
+
+        {/* 생성 버튼 */}
+        <button
+          onClick={generateVapid}
+          disabled={generating}
+          style={{
+            padding: '11px 22px', borderRadius: '8px', border: 'none',
+            background: generating ? '#d1d5db' : C.primary,
+            color: '#fff', fontSize: '14px', fontWeight: 700,
+            cursor: generating ? 'not-allowed' : 'pointer',
+            fontFamily: 'Noto Sans KR, sans-serif',
+          }}
+        >
+          {generating ? '⏳ 생성 중...' : hasKey ? '🔄 VAPID 키 재생성' : '✨ VAPID 키 자동 생성'}
+        </button>
+
+        {hasKey && (
+          <div style={{ fontSize: '12px', color: '#d97706', marginTop: '8px' }}>
+            ⚠️ 재생성 시 기존 구독자는 학부모가 재가입해야 알림을 받을 수 있습니다.
+          </div>
+        )}
+
+        {/* 결과 메시지 */}
+        {status && (
+          <div style={{
+            marginTop: '12px', padding: '10px 14px', borderRadius: '8px',
+            background: status === 'ok' ? '#f0fdf4' : '#fef2f2',
+            border: `1px solid ${status === 'ok' ? '#86efac' : '#fca5a5'}`,
+            fontSize: '13px', color: status === 'ok' ? '#15803d' : '#b91c1c',
+          }}>
+            {msg}
+          </div>
+        )}
+      </Card>
+
+      {/* 작동 조건 안내 */}
+      <Card>
+        <div style={{ fontWeight: 700, fontSize: '14px', color: C.text, marginBottom: '12px' }}>📋 작동 조건 안내</div>
+        {[
+          ['Android Chrome / Samsung Browser', '✅ 브라우저에서 바로 작동'],
+          ['PC Chrome / Edge / Firefox', '✅ 브라우저에서 바로 작동'],
+          ['iPhone Safari (iOS 16.4 이상)', '📲 홈 화면에 추가(PWA) 후 작동'],
+          ['iPhone Safari (iOS 16.3 이하)', '❌ 미지원'],
+          ['카카오 인앱 브라우저', '❌ 미지원 — 기본 브라우저로 접속 안내 필요'],
+        ].map(([env, desc]) => (
+          <div key={env} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${C.border}`, fontSize: '13px' }}>
+            <span style={{ color: C.text }}>{env}</span>
+            <span style={{ color: C.muted }}>{desc}</span>
+          </div>
+        ))}
+      </Card>
+
+    </div>
+  )
+}
+
 function RegionSection() {
   const [regions,    setRegions]    = useState(() => (Settings.get('regionMap') || {}).regions    || [])
   const [neisApiKey, setNeisApiKey] = useState(() => (Settings.get('regionMap') || {}).neisApiKey || '')
@@ -1290,6 +1443,7 @@ export function AdminSettings() {
           { key:'social',      label:'🔑 소셜 로그인' },
           { key:'email',       label:'📧 이메일 발송' },
           { key:'solapi',      label:'📱 문자·알림톡' },
+          { key:'push',        label:'🔔 푸시 알림' },
           { key:'service',     label:'⚙️ 기본 설정' },
           { key:'region',      label:'🗺️ 지역/학교' },
           { key:'teacher',     label:'🎓 강사 서비스' },
@@ -1305,6 +1459,7 @@ export function AdminSettings() {
       {tab === 'social'      && <SocialSection />}
       {tab === 'email'       && <EmailSection />}
       {tab === 'solapi'      && <SolapiSection />}
+      {tab === 'push'        && <PushSection />}
       {tab === 'service'     && <ServiceSection />}
       {tab === 'region'      && <RegionSection />}
       {tab === 'teacher'     && <TeacherServiceSection />}
