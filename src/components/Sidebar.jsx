@@ -40,7 +40,8 @@ const ADMIN_NAV = [
 
 // ✅ Lv.5 전용 — 본사 운영 메뉴
 const HQ_NAV = [
-  { path: 'vendor_manage', label: '업체 관리', icon: '🏢' },
+  { path: 'vendor_manage', label: '업체 관리',      icon: '🏢' },
+  { path: 'school_manage', label: '학교 담당자 관리', icon: '🏫' },
 ]
 
 const KEY_MENU = 'asa_mymenu_settings'
