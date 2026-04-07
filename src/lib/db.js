@@ -45,13 +45,15 @@ async function flushPending() {
   if (!q.length) return
   pendingQ.clear()
   const results = await Promise.allSettled(
-    q.map(({ action, table, payload }) =>
-      dbCall(action, table, payload).catch(e => {
-        console.warn(`[Supabase flush 실패] ${action}/${table}:`, e.message)
+    q.map(({ action, table, payload }) => {
+      // ✅ insert → upsert 변환: 재전송 시 중복 키 오류 방지
+      const safeAction = action === 'insert' ? 'upsert' : action
+      return dbCall(safeAction, table, payload).catch(e => {
+        console.warn(`[Supabase flush 실패] ${safeAction}/${table}:`, e.message)
         pendingQ.push({ action, table, payload, ts: Date.now() })
         throw e
       })
-    )
+    })
   )
   const ok = results.filter(r => r.status === 'fulfilled').length
   console.log(`[Supabase] 대기열 재전송: ${ok}/${q.length}건 성공`)
@@ -118,10 +120,11 @@ export async function initFromSupabase() {
         cache.set(t, merged)
 
         // 로컬에만 있는 레코드(Supabase sync 실패분) → Supabase 재전송
+        // ✅ insert → upsert: 이미 Supabase에 있어도 중복 키 오류 없이 처리
         const remoteIds = new Set(remote.map(r => r.id))
         local.filter(r => !remoteIds.has(r.id) && !r._deleted).forEach(r => {
           console.log(`[Supabase] 미sync 재전송: ${t}/${r.id}`)
-          sync('insert', t, { data: r })
+          sync('upsert', t, { data: r })
         })
       } catch (e) {
         console.warn(`[Supabase] ${t} 동기화 실패 — 로컬 데이터 유지:`, e.message)
