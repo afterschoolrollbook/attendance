@@ -58,6 +58,9 @@ const TABLE_MAP: Record<string, string> = {
   hqVendorQuarters:       'hqVendorQuarters',
   hqVendorSessions:       'hqVendorSessions',
   hqVendorFiles:          'hqVendorFiles',
+  // 업체 계정 관리
+  hqVendors:              'hqVendors',
+  hqVendorUsers:          'hqVendorUsers',
 }
 
 // 컬럼이 camelCase로 저장된 테이블 — snake 변환 없이 그대로 사용
@@ -70,6 +73,7 @@ const CAMEL_TABLES = new Set([
   'messageGuides', 'messageCategories', 'teacherProfiles',
   'hqVendorSubjects', 'hqVendorProducts', 'hqVendorStages',
   'hqVendorContents', 'hqVendorQuarters', 'hqVendorSessions', 'hqVendorFiles',
+  'hqVendors', 'hqVendorUsers',
 ])
 
 // camelCase → snake_case 변환
