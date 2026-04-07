@@ -395,147 +395,125 @@ function SolapiSection() {
   )
 }
 
-// ─── 섹션: 지역/학교 관리
 // ─── 웹 푸시 알림 설정
 function PushSection() {
   const init = Settings.get('push') || { vapidPublicKey: '', enabled: false }
-  const [cfg,       setCfg]       = useState(init)
+  const [cfg,        setCfg]        = useState(init)
   const [generating, setGenerating] = useState(false)
-  const [status,    setStatus]    = useState(null) // 'ok' | 'error' | null
-  const [msg,       setMsg]       = useState('')
+  const [genResult,  setGenResult]  = useState(null) // { publicKey, privateKey } | null
+  const [error,      setError]      = useState('')
+  const [copied,     setCopied]     = useState('')   // 'pub' | 'priv' | ''
   const { addToast } = useToast()
 
-  const save = (next) => {
-    Settings.set('push', next)
-    setCfg(next)
-  }
+  const save = (next) => { Settings.set('push', next); setCfg(next) }
 
-  // Edge Function 호출로 VAPID 키 자동 생성
   const generateVapid = async () => {
-    if (!isConfigured) {
-      setStatus('error')
-      setMsg('Supabase가 연결되어야 합니다. 환경변수(VITE_SUPABASE_URL)를 확인해주세요.')
-      return
-    }
-    setGenerating(true)
-    setStatus(null)
-    setMsg('')
+    if (!isConfigured) { setError('Supabase가 연결되지 않았습니다.'); return }
+    setGenerating(true); setError(''); setGenResult(null)
     try {
       const res = await fetch(`${FUNCTIONS_BASE}/generate-vapid`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
         body: JSON.stringify({}),
       })
       const data = await res.json()
       if (!data.success) throw new Error(data.error || '생성 실패')
-
-      // 공개키만 프론트에 저장 (비밀키는 서버 Secrets에만 저장됨)
-      const next = { ...cfg, vapidPublicKey: data.publicKey, enabled: true }
-      save(next)
-      setStatus('ok')
-      setMsg('VAPID 키가 생성되어 서버에 등록되었습니다. 웹 푸시 발송이 활성화됩니다.')
-      addToast('VAPID 키 생성 완료! 웹 푸시가 활성화되었습니다.', 'success')
+      // 공개키는 Settings에 저장, 비밀키는 화면에 표시해서 관리자가 Secrets에 직접 등록
+      save({ ...cfg, vapidPublicKey: data.publicKey, enabled: true })
+      setGenResult({ publicKey: data.publicKey, privateKey: data.privateKey })
+      addToast('VAPID 키 생성 완료!', 'success')
     } catch (e) {
-      setStatus('error')
-      setMsg(`오류: ${e.message}`)
+      setError(`오류: ${e.message}`)
     } finally {
       setGenerating(false)
     }
   }
 
-  const mono = { fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-all' }
+  const copyText = (text, key) => {
+    navigator.clipboard.writeText(text)
+    setCopied(key)
+    setTimeout(() => setCopied(''), 2000)
+  }
+
+  const mono = { fontFamily: 'monospace', fontSize: '11px', wordBreak: 'break-all', lineHeight: 1.6 }
   const hasKey = !!cfg.vapidPublicKey
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
-      {/* 상태 카드 */}
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: '15px', color: C.text, marginBottom: '4px' }}>🔔 웹 푸시 알림</div>
-            <div style={{ fontSize: '13px', color: C.muted }}>
-              선생님이 출석 체크하면 학부모 기기로 즉시 알림이 전송됩니다.<br />
-              카카오 알림톡 없이 무료로 작동합니다.
-            </div>
+            <div style={{ fontSize: '13px', color: C.muted }}>선생님이 출석 체크하면 학부모 기기로 즉시 알림 전송. 무료.</div>
           </div>
-          <Toggle
-            checked={cfg.enabled && hasKey}
-            onChange={v => {
-              if (v && !hasKey) {
-                setStatus('error')
-                setMsg('먼저 VAPID 키를 생성해주세요.')
-                return
-              }
-              save({ ...cfg, enabled: v })
-              addToast(v ? '웹 푸시 알림 활성화' : '웹 푸시 알림 비활성화')
-            }}
-          />
+          <Toggle checked={cfg.enabled && hasKey} onChange={v => {
+            if (v && !hasKey) { setError('먼저 VAPID 키를 생성해주세요.'); return }
+            save({ ...cfg, enabled: v })
+            addToast(v ? '웹 푸시 활성화' : '웹 푸시 비활성화')
+          }} />
         </div>
 
-        {/* 현재 상태 표시 */}
-        <div style={{
-          padding: '12px 16px', borderRadius: '10px',
-          background: hasKey ? '#f0fdf4' : '#fafafa',
-          border: `1px solid ${hasKey ? '#86efac' : C.border}`,
-          marginBottom: '16px',
+        {/* 현재 상태 */}
+        <div style={{ padding: '10px 14px', borderRadius: '8px', background: hasKey ? '#f0fdf4' : '#fafafa', border: `1px solid ${hasKey ? '#86efac' : C.border}`, marginBottom: '14px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: hasKey ? C.success : C.muted }}>
+            {hasKey ? '✅ VAPID 키 등록됨' : '⬜ VAPID 키 미등록'}
+          </div>
+          {hasKey && <div style={{ ...mono, color: '#374151', marginTop: '4px' }}>공개키: {cfg.vapidPublicKey.slice(0, 40)}...</div>}
+        </div>
+
+        <button onClick={generateVapid} disabled={generating} style={{
+          padding: '11px 22px', borderRadius: '8px', border: 'none',
+          background: generating ? '#d1d5db' : C.primary, color: '#fff',
+          fontSize: '14px', fontWeight: 700, cursor: generating ? 'not-allowed' : 'pointer',
+          fontFamily: 'Noto Sans KR, sans-serif',
         }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: hasKey ? '#16a34a' : C.muted, marginBottom: hasKey ? '6px' : 0 }}>
-            {hasKey ? '✅ VAPID 키 등록됨' : '⬜ VAPID 키 미등록 — 아래 버튼으로 자동 생성하세요'}
-          </div>
-          {hasKey && (
-            <div style={{ ...mono, color: '#374151' }}>
-              공개키: {cfg.vapidPublicKey.slice(0, 40)}...
-            </div>
-          )}
-        </div>
-
-        {/* 생성 버튼 */}
-        <button
-          onClick={generateVapid}
-          disabled={generating}
-          style={{
-            padding: '11px 22px', borderRadius: '8px', border: 'none',
-            background: generating ? '#d1d5db' : C.primary,
-            color: '#fff', fontSize: '14px', fontWeight: 700,
-            cursor: generating ? 'not-allowed' : 'pointer',
-            fontFamily: 'Noto Sans KR, sans-serif',
-          }}
-        >
           {generating ? '⏳ 생성 중...' : hasKey ? '🔄 VAPID 키 재생성' : '✨ VAPID 키 자동 생성'}
         </button>
-
-        {hasKey && (
-          <div style={{ fontSize: '12px', color: '#d97706', marginTop: '8px' }}>
-            ⚠️ 재생성 시 기존 구독자는 학부모가 재가입해야 알림을 받을 수 있습니다.
-          </div>
-        )}
-
-        {/* 결과 메시지 */}
-        {status && (
-          <div style={{
-            marginTop: '12px', padding: '10px 14px', borderRadius: '8px',
-            background: status === 'ok' ? '#f0fdf4' : '#fef2f2',
-            border: `1px solid ${status === 'ok' ? '#86efac' : '#fca5a5'}`,
-            fontSize: '13px', color: status === 'ok' ? '#15803d' : '#b91c1c',
-          }}>
-            {msg}
-          </div>
-        )}
+        {hasKey && <div style={{ fontSize: '12px', color: '#d97706', marginTop: '6px' }}>⚠️ 재생성 시 기존 학부모는 재가입 필요</div>}
+        {error && <div style={{ marginTop: '10px', padding: '10px', borderRadius: '8px', background: '#fef2f2', border: '1px solid #fca5a5', fontSize: '13px', color: '#b91c1c' }}>{error}</div>}
       </Card>
 
-      {/* 작동 조건 안내 */}
+      {/* 생성 결과 — 비밀키 Secrets 등록 안내 */}
+      {genResult && (
+        <Card>
+          <div style={{ fontWeight: 700, fontSize: '14px', color: C.text, marginBottom: '4px' }}>🔑 생성된 키 — Supabase Secrets에 등록하세요</div>
+          <div style={{ fontSize: '12px', color: '#d97706', marginBottom: '14px' }}>⚠️ 비밀키는 지금만 표시됩니다. 반드시 아래 절차대로 저장하세요.</div>
+
+          {[
+            { label: 'VAPID_PUBLIC_KEY', value: genResult.publicKey, key: 'pub' },
+            { label: 'VAPID_PRIVATE_KEY', value: genResult.privateKey, key: 'priv' },
+            { label: 'VAPID_EMAIL', value: 'mailto:admin@afterschool.app', key: 'email' },
+          ].map(item => (
+            <div key={item.key} style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: C.muted, marginBottom: '4px' }}>{item.label}</div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                <div style={{ ...mono, flex: 1, padding: '8px 10px', background: '#f4f4f5', borderRadius: '6px', border: `1px solid ${C.border}` }}>{item.value}</div>
+                <button onClick={() => copyText(item.value, item.key)} style={{
+                  padding: '8px 12px', borderRadius: '6px', border: 'none', whiteSpace: 'nowrap',
+                  background: copied === item.key ? C.success : '#e5e7eb', color: copied === item.key ? '#fff' : C.text,
+                  fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+                }}>{copied === item.key ? '✅ 복사됨' : '복사'}</button>
+              </div>
+            </div>
+          ))}
+
+          <div style={{ marginTop: '8px', padding: '12px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fde68a', fontSize: '12px', color: '#92400e', lineHeight: 1.8 }}>
+            <b>등록 방법:</b><br />
+            Supabase Dashboard → Edge Functions → <b>Secrets</b> 탭<br />
+            → 위 3개 키/값을 각각 추가 → Save
+          </div>
+        </Card>
+      )}
+
+      {/* 작동 조건 */}
       <Card>
         <div style={{ fontWeight: 700, fontSize: '14px', color: C.text, marginBottom: '12px' }}>📋 작동 조건 안내</div>
         {[
-          ['Android Chrome / Samsung Browser', '✅ 브라우저에서 바로 작동'],
-          ['PC Chrome / Edge / Firefox', '✅ 브라우저에서 바로 작동'],
-          ['iPhone Safari (iOS 16.4 이상)', '📲 홈 화면에 추가(PWA) 후 작동'],
+          ['Android Chrome / Samsung Browser', '✅ 바로 작동'],
+          ['PC Chrome / Edge / Firefox', '✅ 바로 작동'],
+          ['iPhone Safari (iOS 16.4 이상)', '📲 홈 화면 추가(PWA) 후 작동'],
           ['iPhone Safari (iOS 16.3 이하)', '❌ 미지원'],
-          ['카카오 인앱 브라우저', '❌ 미지원 — 기본 브라우저로 접속 안내 필요'],
+          ['카카오 인앱 브라우저', '❌ 미지원'],
         ].map(([env, desc]) => (
           <div key={env} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${C.border}`, fontSize: '13px' }}>
             <span style={{ color: C.text }}>{env}</span>
@@ -543,7 +521,6 @@ function PushSection() {
           </div>
         ))}
       </Card>
-
     </div>
   )
 }
