@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Students as StudentsDB, Users, ParentMembers, TeacherParentLinks, Classes as ClassesDB } from '../lib/db.js'
 import { dbCall, isConfigured } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
+import { subscribePush, registerSW } from '../lib/webpush.js'
 // ✅ ParentServiceManage의 설정을 공유해서 선생님이 수정한 약관·문구가 여기에도 반영됩니다
 import { loadParentServiceConfig, DEFAULT_CONFIG } from './ParentServiceManage.jsx'
 
@@ -627,7 +628,7 @@ export function ParentInvite() {
     }
   }, [])
 
-  const handleJoin = () => {
+  const handleJoin = async () => {
     if (!agree1 || !agree2) return
 
     // 첫 번째 학생 기준으로 수업 정보 조회
@@ -636,7 +637,7 @@ export function ParentInvite() {
       ? ClassesDB.byTeacher(teacherId).find(c => c.id === s0.classIds[0])
       : null
 
-    ParentMembers.join(phone, {
+    const member = ParentMembers.join(phone, {
       marketingAgree:  agreeMarketing,
       invitedByTeacher: teacherId,
       studentName:  s0?.name || '',
@@ -651,6 +652,18 @@ export function ParentInvite() {
       StudentsDB.update(s.id, { parentJoined:true, parentInviteSentAt: s.parentInviteSentAt||now() })
       try { TeacherParentLinks.link(teacherId, s, s.classIds?.[0]||'') } catch {}
     })
+
+    // ── 웹 푸시 구독 (출결서비스 이용 동의 = 알림 동의)
+    try {
+      await registerSW()
+      const subJson = await subscribePush()
+      if (subJson && member) {
+        ParentMembers.savePushSubscription(phone, teacherId, subJson)
+      }
+    } catch (e) {
+      console.warn('[Push] 구독 실패:', e.message)
+    }
+
     setStep('done')
     if (installPromptRef.current) setTimeout(()=>setShowInstallBanner(true), 600)
   }
