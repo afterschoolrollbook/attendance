@@ -30,6 +30,10 @@ import { MessageGuide } from './pages/MessageGuide.jsx'
 import { ParentInvite } from './pages/ParentInvite.jsx'
 import { ParentLogin }  from './pages/ParentLogin.jsx'
 import ParentServiceManage from './pages/ParentServiceManage.jsx'
+// ✅ 업체 포털
+import { VendorManage } from './pages/VendorManage.jsx'
+import { VendorAuth }   from './pages/VendorAuth.jsx'
+import { VendorApp }    from './pages/VendorApp.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer, ConfirmDialog, useConfirmDialog } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
@@ -102,6 +106,12 @@ export default function App() {
   const { toasts } = useToast()
   const { confirmDialogProps } = useConfirmDialog()
 
+  // ✅ 업체 세션 상태
+  const [vendorSession, setVendorSession] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('asa_vendor_session') || 'null') }
+    catch { return null }
+  })
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768)
     window.addEventListener('resize', handleResize)
@@ -111,6 +121,26 @@ export default function App() {
   // 네이버/카카오 콜백 — DB 불필요, 바로 렌더
   if (window.location.pathname === '/naver-callback')  return <NaverCallback />
   if (window.location.pathname === '/kakao-callback')  return <KakaoCallback />
+
+  // ✅ 업체 포털 분기 (?vendor=1 또는 /vendor-login 접속 시)
+  const isVendorPath =
+    window.location.search.includes('vendor') ||
+    window.location.pathname.includes('vendor-login')
+
+  if (isVendorPath) {
+    if (vendorSession) {
+      return (
+        <VendorApp
+          vendorSession={vendorSession}
+          onLogout={() => {
+            localStorage.removeItem('asa_vendor_session')
+            setVendorSession(null)
+          }}
+        />
+      )
+    }
+    return <VendorAuth onLogin={(session) => setVendorSession(session)} />
+  }
 
   useEffect(() => {
     async function init() {
@@ -200,6 +230,8 @@ export default function App() {
       case 'revenue':         return <Revenue      user={user} />
       case 'supplies':        return <Supplies     user={user} />
       case 'messageguide':    return <MessageGuide user={user} />
+      // ✅ 본사 업체 관리 (Lv.5 전용)
+      case 'vendor_manage':   return <VendorManage user={user} />
       default:                return <Dashboard {...pageProps} />
     }
   }
