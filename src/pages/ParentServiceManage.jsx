@@ -268,20 +268,14 @@ function ParentListTab({ user, config }) {
     const applyOpen  = !!(cls?.applyStartAt && cls?.applyEndAt &&
                           nowTs >= new Date(cls.applyStartAt) && nowTs <= new Date(cls.applyEndAt))
 
-    // 수업상태 계산
+    // 수업 상태 — 수업중/신청기간은 동시에 가능하므로 독립 계산
     let classStatus = 'none'
     if (s.status === 'cancelled') {
       classStatus = 'cancelled'
     } else if (cls) {
-      if (applyOpen) {
-        classStatus = 'applying'           // 🔵 신청기간
-      } else if (classEnded) {
-        classStatus = 'ended'              // ⚫ 수업종료
-      } else if (cls.startDate && todayStr >= cls.startDate) {
-        classStatus = inRoster ? 'active' : 'active_no_roster'   // 🟢 수업중 (명단있음/없음)
-      } else {
-        classStatus = 'upcoming'           // 🟡 수업예정
-      }
+      if (cls.endDate && todayStr > cls.endDate)          classStatus = 'ended'
+      else if (cls.startDate && todayStr >= cls.startDate) classStatus = 'active'
+      else                                                 classStatus = 'upcoming'
     }
 
     // 자동종료 대상: 가입 중 && 수업종료 && 신청기간끝 && 명단없음
@@ -579,7 +573,7 @@ function ParentListTab({ user, config }) {
                     <td style={{ padding:'11px 14px' }}>
                       <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
                         {/* 1줄: 수업 진행 상태 */}
-                        {s.classStatus === 'active' || s.classStatus === 'active_no_roster' ? (
+                        {s.classStatus === 'active' ? (
                           <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'5px',
                             background:'#f0fdf4', border:'1px solid #86efac', color:'#15803d', whiteSpace:'nowrap', width:'fit-content' }}>
                             🟢 수업중
@@ -1068,7 +1062,7 @@ export default function ParentServiceManage({ user }) {
   }
 
   return (
-    <div style={{ padding:'24px', maxWidth:'1000px', margin:'0 auto', fontFamily:'Noto Sans KR, sans-serif' }}>
+    <div style={{ padding:'24px', fontFamily:'Noto Sans KR, sans-serif' }}>
       <PageHeader
         title="📲 출결 서비스 관리"
         sub="학부모 초대 현황 관리 및 약관·문구 설정"
