@@ -252,12 +252,16 @@ function ParentListTab({ user, config }) {
   // 각 학생에 학부모 가입 상태 enriched
   const enriched = withPhone.map(s => {
     const member = ParentMembers?.findByPhoneAndTeacher?.(s.parentPhone, teacherId) || null
+    // 첫 번째 수업 기준 학기제/분기제
+    const cls = (s.classIds || []).map(cid => classes.find(c => c.id === cid)).filter(Boolean)[0] || null
     return {
-      ...s, member,
-      joined:    !!member?.appJoined,
-      withdrawn: !!(member && !member.appJoined && member.withdrawnAt),
-      invited:   !!s.parentInviteSentAt,
-      marketing: !!member?.marketingAgree,
+      ...s, member, cls,
+      joined:        !!member?.appJoined,
+      withdrawn:     !!(member && !member.appJoined && member.withdrawnAt),
+      invited:       !!s.parentInviteSentAt,
+      marketing:     !!member?.marketingAgree,
+      termType:      cls?.termType || null,         // 'semester' | 'quarter' | null
+      autoEndLinked: !!member?.appJoined,            // 가입 상태면 자동종료 대상
     }
   })
 
@@ -439,7 +443,7 @@ function ParentListTab({ user, config }) {
           <table style={{ width:'100%', borderCollapse:'collapse' }}>
             <thead>
               <tr style={{ background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
-                {['#', '학교', '수업·반', '학년/반', '학생 이름', '학부모 전화', '가입상태', '마케팅', '초대', '종료'].map(h => (
+                {['#', '학교', '수업·반', '학년/반', '학생 이름', '학부모 전화', '가입상태', '운영방식', '마케팅', '초대', '종료'].map(h => (
                   <th key={h} style={{ padding:'11px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', whiteSpace:'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -491,6 +495,20 @@ function ParentListTab({ user, config }) {
                       )}
                     </td>
                     <td style={{ padding:'11px 14px' }}>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                        <span style={{ fontSize:'11px', fontWeight:600, padding:'2px 7px', borderRadius:'5px', width:'fit-content',
+                          background: s.termType==='semester' ? '#eff6ff' : s.termType==='quarter' ? '#faf5ff' : '#f9fafb',
+                          color:      s.termType==='semester' ? '#1d4ed8' : s.termType==='quarter' ? '#7c3aed'  : '#9ca3af',
+                          border:     `1px solid ${s.termType==='semester' ? '#bfdbfe' : s.termType==='quarter' ? '#e9d5ff' : '#e5e7eb'}`,
+                        }}>
+                          {s.termType==='semester' ? '학기제' : s.termType==='quarter' ? '분기제' : '-'}
+                        </span>
+                        {s.autoEndLinked && (
+                          <span style={{ fontSize:'10px', color:'#f97316', fontWeight:600 }}>⚙️ 자동종료 연결</span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ padding:'11px 14px' }}>
                       {s.marketing
                         ? <span style={{ fontSize:'12px', fontWeight:600, padding:'2px 8px', borderRadius:'5px', background:'#faf5ff', border:'1px solid #e9d5ff', color:'#7c3aed' }}>동의</span>
                         : <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>
@@ -511,13 +529,20 @@ function ParentListTab({ user, config }) {
                       ) : <span style={{ fontSize:'12px', color:'#d1d5db' }}>전화번호 없음</span>}
                     </td>
                     <td style={{ padding:'11px 14px', textAlign:'center' }}>
-                      {s.joined ? (
-                        <button onClick={() => handleTeacherWithdraw(s)}
-                          title="출결서비스 종료"
-                          style={{ width:'28px', height:'28px', borderRadius:'50%', border:'1.5px solid #fca5a5', background:'#fef2f2', color:'#dc2626', fontSize:'14px', fontWeight:700, cursor:'pointer', display:'inline-flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
-                          ✕
-                        </button>
-                      ) : <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>}
+                      <button
+                        onClick={() => s.joined ? handleTeacherWithdraw(s) : showError('아직 미가입 상태입니다.')}
+                        title={s.joined ? '출결서비스 종료' : '미가입'}
+                        style={{
+                          width:'28px', height:'28px', borderRadius:'50%',
+                          border: s.joined ? '1.5px solid #fca5a5' : '1.5px solid #e5e7eb',
+                          background: s.joined ? '#fef2f2' : '#f9fafb',
+                          color: s.joined ? '#dc2626' : '#d1d5db',
+                          fontSize:'14px', fontWeight:700,
+                          cursor: s.joined ? 'pointer' : 'default',
+                          display:'inline-flex', alignItems:'center', justifyContent:'center', lineHeight:1,
+                        }}>
+                        ✕
+                      </button>
                     </td>
                   </tr>
                 )
@@ -680,15 +705,18 @@ function ServiceSettingsTab({ config, teacherId, onChange, showToast }) {
         {section === 'auto_end' && <>
           <InfoBox color="#92400e" bg="#fffbeb" border="#fde68a">
             💡 아래 조건이 충족되면 출결서비스가 <strong>자동으로 종료</strong>됩니다.<br/>
-            각 항목을 ON/OFF하거나 안내 문구를 수정할 수 있습니다.
+            각 항목을 ON/OFF하거나 설정을 변경할 수 있습니다.
           </InfoBox>
 
-          {/* 조건 1 — 분기 명단 미포함 */}
+          {/* 조건 1 — 분기/학기 명단 미포함 */}
           <div style={{ background:'#fff', borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px' }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
               <div>
-                <div style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>📋 분기 명단 미포함 시 자동 종료</div>
-                <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>선생님이 "분기 명단 확정" 버튼을 눌렀을 때 현재 명단에 없는 학부모는 자동 종료됩니다.</div>
+                <div style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>📋 분기·학기 명단 미포함 시 자동 종료</div>
+                <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px', lineHeight:1.7 }}>
+                  학부모 현황 탭의 <strong style={{ color:C.primary }}>📋 분기 명단 확정</strong> 버튼을 누르면<br/>
+                  현재 명단에 없는 학부모의 출결서비스가 자동 종료됩니다.
+                </div>
               </div>
               <label style={{ display:'flex', alignItems:'center', gap:'6px', cursor:'pointer', flexShrink:0 }}>
                 <input type="checkbox"
@@ -700,17 +728,23 @@ function ServiceSettingsTab({ config, teacherId, onChange, showToast }) {
                 </span>
               </label>
             </div>
-            <div style={{ fontSize:'12px', color:'#6b7280', background:'#f9fafb', borderRadius:'8px', padding:'10px 12px', lineHeight:1.8 }}>
-              종료 사유 코드: <code style={{ background:'#e5e7eb', borderRadius:'4px', padding:'1px 5px' }}>not_in_roster</code>
+            <div style={{ background:'#fff7ed', borderRadius:'8px', padding:'10px 14px', fontSize:'12px', color:'#92400e', lineHeight:1.8 }}>
+              ① 새 분기·학기 수업 등록 후<br/>
+              ② 학부모 현황 탭으로 이동<br/>
+              ③ <strong>📋 분기 명단 확정</strong> 버튼 클릭<br/>
+              → 이전 명단에는 있었지만 현재 명단에 없는 학부모 자동 종료
             </div>
           </div>
 
-          {/* 조건 2 — 수업 취소 시 자동 종료 */}
+          {/* 조건 2 — 수업 삭제 시 자동 종료 */}
           <div style={{ background:'#fff', borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px' }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
               <div>
                 <div style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>🗑️ 수업 삭제 시 자동 종료</div>
-                <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>선생님이 수업을 삭제하면 해당 수업 학생의 학부모 출결서비스가 자동 종료됩니다.</div>
+                <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px', lineHeight:1.7 }}>
+                  수업을 삭제하면 해당 수업 학생의 학부모<br/>
+                  출결서비스가 자동으로 종료됩니다.
+                </div>
               </div>
               <label style={{ display:'flex', alignItems:'center', gap:'6px', cursor:'pointer', flexShrink:0 }}>
                 <input type="checkbox"
@@ -722,14 +756,35 @@ function ServiceSettingsTab({ config, teacherId, onChange, showToast }) {
                 </span>
               </label>
             </div>
-            <div style={{ fontSize:'12px', color:'#6b7280', background:'#f9fafb', borderRadius:'8px', padding:'10px 12px', lineHeight:1.8 }}>
-              종료 사유 코드: <code style={{ background:'#e5e7eb', borderRadius:'4px', padding:'1px 5px' }}>class_cancelled</code>
+          </div>
+
+          {/* 현재 가입자 중 자동종료 대상 현황 */}
+          <div style={{ background:'#f9fafb', borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px' }}>
+            <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📊 현재 자동종료 연결 현황</div>
+            <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
+              {[
+                { label:'학기제 가입', count: 0, color:'#1d4ed8', bg:'#eff6ff', border:'#bfdbfe', key:'semester' },
+                { label:'분기제 가입', count: 0, color:'#7c3aed', bg:'#faf5ff', border:'#e9d5ff', key:'quarter'  },
+              ].map(item => {
+                const cnt_ = (ParentMembers.all() || []).filter(m =>
+                  m.teacherId === teacherId && m.appJoined && !m.withdrawnAt
+                ).length
+                return (
+                  <div key={item.key} style={{ flex:1, minWidth:'120px', background:item.bg, borderRadius:'10px', border:`1px solid ${item.border}`, padding:'12px 14px', textAlign:'center' }}>
+                    <div style={{ fontSize:'20px', fontWeight:800, color:item.color }}>{item.key==='semester' ? cnt_ : 0}</div>
+                    <div style={{ fontSize:'11px', color:item.color, marginTop:'3px' }}>{item.label}</div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ fontSize:'11px', color:C.muted, marginTop:'10px', lineHeight:1.8 }}>
+              ※ 각 학생의 운영방식은 학부모 현황 탭 테이블의 <strong>운영방식</strong> 컬럼에서 확인할 수 있습니다.
             </div>
           </div>
 
-          {/* 약관에 자동종료 문구 안내 */}
+          {/* 약관 문구 안내 */}
           <div style={{ background:'#f0fdf4', borderRadius:'10px', border:'1px solid #86efac', padding:'12px 14px', fontSize:'12px', color:'#15803d', lineHeight:1.9 }}>
-            💡 아래 문구가 <strong>이용약관</strong>에 포함되어 있는지 확인하세요.<br/>
+            💡 아래 문구가 <strong>이용약관</strong>에 포함되어 있는지 확인하세요.
             <div style={{ marginTop:'8px', background:'#dcfce7', borderRadius:'8px', padding:'10px 12px', color:'#166534', whiteSpace:'pre-line' }}>
 {`출결서비스는 아래의 경우 자동으로 종료될 수 있습니다.
 · 담당 선생님이 해당 수업을 취소하는 경우
