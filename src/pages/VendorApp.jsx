@@ -343,6 +343,13 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
 
   const subjectProds = products.filter(p=>p.subjectId===subjectId && p.type==='textbook')
 
+  // 교구 목록 로드 시 첫 번째 교구 자동 선택
+  useEffect(() => {
+    if (subjectProds.length > 0 && !selProd) {
+      setSelProd(subjectProds[0])
+    }
+  }, [subjectProds.length])
+
   // 교구 선택
   useEffect(() => {
     if (!selProd) return
@@ -799,51 +806,72 @@ function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
 
 // ─── 교구 관리 페이지
 function VendorProductsPage({ vendorId, subjects, products, onReload }) {
-  const [selSubjectId, setSelSubjectId] = useState('')
-  const selSubject = subjects.find(s=>s.id===selSubjectId)
+  // '' = 전체 / subjectId = 해당 과목 필터
+  const [filterSubjectId, setFilterSubjectId] = useState('')
+
+  // 필터된 과목 목록
+  const filteredSubjects = filterSubjectId
+    ? subjects.filter(s=>s.id===filterSubjectId)
+    : subjects
 
   return (
     <div style={{ padding:'28px', fontFamily:'Noto Sans KR, sans-serif', maxWidth:'1000px' }}>
       <h2 style={{ fontSize:'22px', fontWeight:700, color:C.text, margin:'0 0 6px' }}>🎒 교구 관리</h2>
-      <p style={{ fontSize:'13px', color:C.muted, marginBottom:'20px' }}>과목을 선택하면 해당 유형에 맞는 교구 등록 화면이 나타납니다.</p>
+      <p style={{ fontSize:'13px', color:C.muted, marginBottom:'20px' }}>등록된 교구를 관리합니다. 과목을 클릭하면 해당 과목만 보입니다.</p>
 
-      {subjects.length===0
-        ? <div style={{ padding:'18px', background:'#fff7ed', borderRadius:'12px', border:'1px solid #fed7aa', fontSize:'14px', color:C.primary }}>
-            ⚠️ 먼저 <strong>과목 관리</strong>에서 과목을 등록해주세요.
-          </div>
-        : (
+      {subjects.length===0 ? (
+        <div style={{ padding:'18px', background:'#fff7ed', borderRadius:'12px', border:'1px solid #fed7aa', fontSize:'14px', color:C.primary }}>
+          ⚠️ 먼저 <strong>과목 관리</strong>에서 과목을 등록해주세요.
+        </div>
+      ) : (
+        <>
+          {/* 과목 필터 탭 */}
           <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'24px' }}>
+            <button type="button" onClick={()=>setFilterSubjectId('')} style={{
+              padding:'8px 18px', borderRadius:'999px',
+              border:`2px solid ${filterSubjectId===''?C.primary:C.border}`,
+              background:filterSubjectId===''?'#fff7ed':C.card,
+              color:filterSubjectId===''?C.primary:C.muted,
+              fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+            }}>전체</button>
             {subjects.map(s=>{
               const t = SUBJECT_TYPES.find(x=>x.value===s.subjectType)||SUBJECT_TYPES[0]
-              const isSelected = selSubjectId===s.id
+              const isSelected = filterSubjectId===s.id
               return (
-                <button key={s.id} onClick={()=>setSelSubjectId(s.id)} style={{
-                  padding:'10px 18px', borderRadius:'10px',
+                <button key={s.id} type="button" onClick={()=>setFilterSubjectId(isSelected?'':s.id)} style={{
+                  padding:'8px 18px', borderRadius:'999px',
                   border:`2px solid ${isSelected?t.color:C.border}`,
                   background:isSelected?t.bg:C.card, cursor:'pointer',
                   fontFamily:'Noto Sans KR, sans-serif',
                 }}>
-                  <span style={{ fontSize:'11px', fontWeight:700, color:isSelected?t.color:C.muted }}>{t.label}</span>
-                  <span style={{ fontSize:'14px', fontWeight:600, color:isSelected?t.color:C.text, marginLeft:'6px' }}>{s.name}</span>
+                  <span style={{ fontSize:'11px', fontWeight:700, color:isSelected?t.color:C.muted }}>{t.label} </span>
+                  <span style={{ fontSize:'13px', fontWeight:600, color:isSelected?t.color:C.text }}>{s.name}</span>
                 </button>
               )
             })}
           </div>
-        )
-      }
 
-      {selSubject && (
-        <>
-          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'20px', paddingBottom:'14px', borderBottom:`1px solid ${C.border}` }}>
-            <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{selSubject.name}</span>
-            <span style={{ fontSize:'12px', padding:'2px 8px', borderRadius:'999px', background:C.bg, border:`1px solid ${C.border}`, color:C.muted }}>
-              {SUBJECT_TYPES.find(x=>x.value===selSubject.subjectType)?.label} 유형
-            </span>
+          {/* 과목별 교구 목록 — 전체 펼쳐서 표시 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'28px' }}>
+            {filteredSubjects.map(s=>(
+              <div key={s.id}>
+                {/* 과목 헤더 */}
+                <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'14px', paddingBottom:'10px', borderBottom:`2px solid ${C.border}` }}>
+                  <span style={{ fontSize:'16px', fontWeight:700, color:C.text }}>{s.name}</span>
+                  <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'999px',
+                    background: SUBJECT_TYPES.find(x=>x.value===s.subjectType)?.bg||'#f3f4f6',
+                    color: SUBJECT_TYPES.find(x=>x.value===s.subjectType)?.color||C.muted,
+                  }}>
+                    {SUBJECT_TYPES.find(x=>x.value===s.subjectType)?.label} 유형
+                  </span>
+                </div>
+                {s.subjectType==='A'
+                  ? <TypeAProducts vendorId={vendorId} subjectId={s.id} products={products} onReload={onReload} />
+                  : <TypeBCProducts vendorId={vendorId} subjectId={s.id} products={products} onReload={onReload} />
+                }
+              </div>
+            ))}
           </div>
-          {selSubject.subjectType==='A'
-            ? <TypeAProducts vendorId={vendorId} subjectId={selSubject.id} products={products} onReload={onReload} />
-            : <TypeBCProducts vendorId={vendorId} subjectId={selSubject.id} products={products} onReload={onReload} />
-          }
         </>
       )}
     </div>
