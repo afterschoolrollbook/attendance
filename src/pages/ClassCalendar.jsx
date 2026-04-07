@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { calcSessionDates, getDayLabel } from '../lib/utils.js'
 import { CANCEL_REASONS } from '../constants/config.js'
-import { Modal, Select, Input, Btn } from '../components/Atoms.jsx'
+import { Select, Input, Btn } from '../components/Atoms.jsx'
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -425,160 +425,170 @@ export function ClassCalendar({ cls, onUpdate }) {
         )}
       </div>
 
-      {/* 신청기간 모달 */}
-      <Modal open={showApplyPeriod} onClose={() => setShowApplyPeriod(false)} title="📅 신청기간 설정" width={400}>
-        <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-          <div style={{ fontSize:'13px', color:'#6b7280', lineHeight:1.6 }}>
-            수강 신청 접수 기간을 설정합니다.<br/>
-            <span style={{ fontSize:'12px', color:'#9ca3af' }}>날짜와 시간까지 입력하면 달력에 신청기간이 표시됩니다.</span>
+      {/* 신청기간 설정 인라인 패널 */}
+      {showApplyPeriod && (
+        <div style={{ marginTop:'14px', borderRadius:'14px', border:'1.5px solid #bfdbfe',
+          background:'#eff6ff', padding:'16px', boxShadow:'0 2px 12px rgba(0,0,0,0.08)' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+            <div style={{ fontSize:'14px', fontWeight:700, color:'#1d4ed8' }}>📅 신청기간 설정</div>
+            <button onClick={() => setShowApplyPeriod(false)}
+              style={{ background:'none', border:'none', fontSize:'18px', color:'#9ca3af', cursor:'pointer', lineHeight:1, padding:'0 4px' }}>✕</button>
           </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-            <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>신청 시작</label>
-            <input type="datetime-local" value={applyStart} onChange={e => setApplyStart(e.target.value)}
-              style={{ padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb',
-                fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:'#111827' }} />
+          <div style={{ fontSize:'13px', color:'#3b82f6', marginBottom:'14px', lineHeight:1.6 }}>
+            수강 신청 접수 기간을 설정합니다. 날짜와 시간까지 입력하세요.
           </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-            <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>신청 종료</label>
-            <input type="datetime-local" value={applyEnd} onChange={e => setApplyEnd(e.target.value)}
-              style={{ padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb',
-                fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:'#111827' }} />
+          <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+              <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>신청 시작</label>
+              <input type="datetime-local" value={applyStart} onChange={e => setApplyStart(e.target.value)}
+                style={{ padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #bfdbfe',
+                  fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:'#111827', background:'#fff' }} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+              <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>신청 종료</label>
+              <input type="datetime-local" value={applyEnd} onChange={e => setApplyEnd(e.target.value)}
+                style={{ padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #bfdbfe',
+                  fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:'#111827', background:'#fff' }} />
+            </div>
+            {applyStart && applyEnd && (
+              <div style={{ padding:'10px 14px', borderRadius:'9px', background:'#fff', border:'1px solid #bfdbfe', fontSize:'13px', color:'#1d4ed8' }}>
+                📅 {fmtDT(applyStart)} ~ {fmtDT(applyEnd)}
+              </div>
+            )}
+            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+              <Btn variant="ghost" onClick={() => setShowApplyPeriod(false)}>닫기</Btn>
+              {(cls.applyStartAt || cls.applyEndAt) && (
+                <Btn variant="danger" onClick={() => { onUpdate({ ...cls, applyStartAt: null, applyEndAt: null }); setShowApplyPeriod(false) }}>삭제</Btn>
+              )}
+              <Btn onClick={saveApplyPeriod}>저장</Btn>
+            </div>
           </div>
-          {applyStart && applyEnd && (
-            <div style={{ padding:'10px 14px', borderRadius:'9px', background:'#eff6ff', border:'1px solid #bfdbfe', fontSize:'13px', color:'#1d4ed8' }}>
-              📅 {fmtDT(applyStart)} ~ {fmtDT(applyEnd)}
+        </div>
+      )}
+
+      {/* ── 인라인 패널 (모달 대신) ── */}
+      {(showNormalAction || showRegisteredAction || showCancel || showMakeup) && (
+        <div style={{ marginTop:'14px', borderRadius:'14px', border:'1.5px solid #e5e7eb',
+          background:'#fff', padding:'16px', boxShadow:'0 2px 12px rgba(0,0,0,0.08)' }}>
+
+          {/* 헤더 */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+            <div style={{ fontSize:'14px', fontWeight:700, color:'#374151' }}>
+              {showCancel ? '🚫 공휴일 처리' : showMakeup ? '🔄 보강일 추가'
+                : showNormalAction ? '📅 날짜 등록' : '📅 날짜 변경'}
+              <span style={{ fontWeight:400, color:'#9ca3af', marginLeft:'8px', fontSize:'13px' }}>
+                {selectedDate} ({selectedDate && getDayLabel(selectedDate)}요일)
+              </span>
+            </div>
+            <button onClick={() => { setShowNormalAction(false); setShowRegisteredAction(false); setShowCancel(false); setShowMakeup(false) }}
+              style={{ background:'none', border:'none', fontSize:'18px', color:'#9ca3af', cursor:'pointer', lineHeight:1, padding:'0 4px' }}>✕</button>
+          </div>
+
+          {/* 빈 날짜 — 등록 선택 */}
+          {showNormalAction && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              {[
+                { label:'🚫 공휴일', desc:'공휴일, 선거일, 재량휴일, 강사사정 등', border:'#fca5a5', bg:'#fef2f2', hover:'#fee2e2', color:'#ef4444',
+                  action: () => { setShowNormalAction(false); setReason('public_holiday'); setMemo(''); setShowCancel(true) } },
+                { label:'🔄 보강', desc:'이 날을 보강일로 추가', border:'#93c5fd', bg:'#eff6ff', hover:'#dbeafe', color:'#3b82f6',
+                  action: () => { setShowNormalAction(false); setMemo(''); setShowMakeup(true) } },
+                { label:'📚 수업일', desc:'이 날을 수업일로 추가', border:'#fed7aa', bg:'#fff7ed', hover:'#ffedd5', color:'#ea580c',
+                  action: () => {
+                    if (!makeupDates.some(m => m.date === selectedDate))
+                      onUpdate({ ...cls, makeupDates: [...makeupDates, { date: selectedDate, memo: '수업일', type: 'session' }] })
+                    setShowNormalAction(false)
+                  } },
+              ].map(btn => (
+                <button key={btn.label} onClick={btn.action}
+                  style={{ padding:'12px 16px', borderRadius:'12px', border:`1.5px solid ${btn.border}`, background:btn.bg, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}
+                  onMouseEnter={e => e.currentTarget.style.background=btn.hover}
+                  onMouseLeave={e => e.currentTarget.style.background=btn.bg}>
+                  <div style={{ fontSize:'14px', fontWeight:700, color:btn.color, marginBottom:'2px' }}>{btn.label}</div>
+                  <div style={{ fontSize:'12px', color:'#9ca3af' }}>{btn.desc}</div>
+                </button>
+              ))}
             </div>
           )}
-          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-            <Btn variant="ghost" onClick={() => setShowApplyPeriod(false)}>닫기</Btn>
-            {(cls.applyStartAt || cls.applyEndAt) && (
-              <Btn variant="danger" onClick={() => { onUpdate({ ...cls, applyStartAt: null, applyEndAt: null }); setShowApplyPeriod(false) }}>삭제</Btn>
-            )}
-            <Btn onClick={saveApplyPeriod}>저장</Btn>
-          </div>
-        </div>
-      </Modal>
 
-      {/* 빈 날짜 클릭 — 공휴일 / 보강 / 수업일 */}
-      <Modal open={showNormalAction} onClose={() => setShowNormalAction(false)} title="날짜 등록" width={360}>
-        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-          <div style={{ fontSize:'14px', color:'#374151', marginBottom:'4px' }}>
-            <strong>{selectedDate}</strong> ({selectedDate && getDayLabel(selectedDate)}요일)을 무엇으로 등록할까요?
-          </div>
-          {[
-            { label:'🚫 공휴일', desc:'공휴일, 선거일, 재량휴일, 강사사정 등', border:'#fca5a5', bg:'#fef2f2', hover:'#fee2e2', color:'#ef4444',
-              action: () => { setShowNormalAction(false); setReason('public_holiday'); setMemo(''); setShowCancel(true) } },
-            { label:'🔄 보강', desc:'이 날을 보강일로 추가', border:'#93c5fd', bg:'#eff6ff', hover:'#dbeafe', color:'#3b82f6',
-              action: () => { setShowNormalAction(false); setMemo(''); setShowMakeup(true) } },
-            { label:'📚 수업일', desc:'이 날을 수업일로 추가', border:'#fed7aa', bg:'#fff7ed', hover:'#ffedd5', color:'#ea580c',
-              action: () => {
-                if (!makeupDates.some(m => m.date === selectedDate))
-                  onUpdate({ ...cls, makeupDates: [...makeupDates, { date: selectedDate, memo: '수업일', type: 'session' }] })
-                setShowNormalAction(false)
-              } },
-          ].map(btn => (
-            <button key={btn.label} onClick={btn.action}
-              style={{ padding:'12px 16px', borderRadius:'12px', border:`1.5px solid ${btn.border}`, background:btn.bg, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}
-              onMouseEnter={e => e.currentTarget.style.background=btn.hover}
-              onMouseLeave={e => e.currentTarget.style.background=btn.bg}>
-              <div style={{ fontSize:'14px', fontWeight:700, color:btn.color, marginBottom:'2px' }}>{btn.label}</div>
-              <div style={{ fontSize:'12px', color:'#9ca3af' }}>{btn.desc}</div>
-            </button>
-          ))}
-          <Btn variant="ghost" onClick={() => setShowNormalAction(false)}>닫기</Btn>
-        </div>
-      </Modal>
-
-      {/* 있는 날짜 클릭 (수업일/휴일/보강) — 정상일 / 공휴일 / 보강 / 수업일 */}
-      <Modal open={showRegisteredAction} onClose={() => setShowRegisteredAction(false)} title="날짜 변경" width={360}>
-        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-          <div style={{ fontSize:'14px', color:'#374151', marginBottom:'4px' }}>
-            <strong>{selectedDate}</strong> ({selectedDate && getDayLabel(selectedDate)}요일) —&nbsp;
-            {clickType === 'session' ? '수업일' : clickType === 'cancelled' ? '휴일' : '보강'}로 등록되어 있습니다.
-          </div>
-          {[
-            { label:'✅ 정상일', desc:'등록을 취소하고 원래 상태로 되돌리기', border:'#86efac', bg:'#f0fdf4', hover:'#dcfce7', color:'#16a34a',
-              action: () => {
-                let updated = { ...cls }
-                if (clickType === 'cancelled') updated.cancelledDates = cancelledDates.filter(c => c.date !== selectedDate)
-                else if (clickType === 'makeup') updated.makeupDates = makeupDates.filter(m => m.date !== selectedDate)
-                // session → 이미 정상일, 아무것도 안 함
-                onUpdate(updated); setShowRegisteredAction(false)
-              } },
-            { label:'🚫 공휴일', desc:'공휴일, 선거일, 재량휴일, 강사사정 등', border:'#fca5a5', bg:'#fef2f2', hover:'#fee2e2', color:'#ef4444',
-              action: () => {
-                // 기존 보강/취소 기록 제거 후 공휴일 사유 선택
-                let updated = { ...cls }
-                if (clickType === 'makeup') updated.makeupDates = makeupDates.filter(m => m.date !== selectedDate)
-                onUpdate(updated)
-                setShowRegisteredAction(false); setReason('public_holiday'); setMemo(''); setShowCancel(true)
-              } },
-            { label:'🔄 보강', desc:'이 날을 보강일로 변경', border:'#93c5fd', bg:'#eff6ff', hover:'#dbeafe', color:'#3b82f6',
-              action: () => {
-                let updated = { ...cls }
-                if (clickType === 'cancelled') updated.cancelledDates = cancelledDates.filter(c => c.date !== selectedDate)
-                if (!makeupDates.some(m => m.date === selectedDate))
-                  updated.makeupDates = [...(updated.makeupDates || makeupDates), { date: selectedDate, memo: '보강' }]
-                onUpdate(updated); setShowRegisteredAction(false)
-              } },
-            { label:'📚 수업일', desc:'이 날을 수업일로 변경', border:'#fed7aa', bg:'#fff7ed', hover:'#ffedd5', color:'#ea580c',
-              action: () => {
-                let updated = { ...cls }
-                if (clickType === 'cancelled') {
-                  // 취소된 수업일 → cancelledDates에서 제거만 (makeupDates 추가 X)
-                  updated.cancelledDates = cancelledDates.filter(c => c.date !== selectedDate)
-                } else if (clickType === 'makeup') {
-                  // 보강일 → type을 'session'으로 변경
-                  updated.makeupDates = makeupDates.map(m =>
-                    m.date === selectedDate ? { ...m, type: 'session' } : m
-                  )
-                }
-                // session이면 이미 수업일이므로 아무것도 안 함
-                onUpdate(updated); setShowRegisteredAction(false)
-              } },
-          ].map(btn => (
-            <button key={btn.label} onClick={btn.action}
-              style={{ padding:'12px 16px', borderRadius:'12px', border:`1.5px solid ${btn.border}`, background:btn.bg, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}
-              onMouseEnter={e => e.currentTarget.style.background=btn.hover}
-              onMouseLeave={e => e.currentTarget.style.background=btn.bg}>
-              <div style={{ fontSize:'14px', fontWeight:700, color:btn.color, marginBottom:'2px' }}>{btn.label}</div>
-              <div style={{ fontSize:'12px', color:'#9ca3af' }}>{btn.desc}</div>
-            </button>
-          ))}
-          <Btn variant="ghost" onClick={() => setShowRegisteredAction(false)}>닫기</Btn>
-        </div>
-      </Modal>
-
-      {/* 공휴일 사유 선택 모달 */}
-      <Modal open={showCancel} onClose={() => setShowCancel(false)} title="공휴일 처리" width={400}>
-        <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-          <div style={{ fontSize:'14px', color:'#374151' }}>
-            <strong>{selectedDate}</strong> ({selectedDate && getDayLabel(selectedDate)}요일)의 사유를 선택하세요.
-          </div>
-          <Select label="사유" value={reason} onChange={setReason} options={CANCEL_OPTIONS} />
-          {reason === 'etc' && (
-            <Input label="직접 입력" value={memo} onChange={setMemo} placeholder="사유를 입력하세요" />
+          {/* 있는 날짜 — 변경 선택 */}
+          {showRegisteredAction && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              <div style={{ fontSize:'13px', color:'#6b7280', marginBottom:'4px' }}>
+                현재 <strong>{clickType === 'session' ? '수업일' : clickType === 'cancelled' ? '휴일' : '보강'}</strong>로 등록되어 있습니다.
+              </div>
+              {[
+                { label:'✅ 정상일', desc:'등록을 취소하고 원래 상태로 되돌리기', border:'#86efac', bg:'#f0fdf4', hover:'#dcfce7', color:'#16a34a',
+                  action: () => {
+                    let updated = { ...cls }
+                    if (clickType === 'cancelled') updated.cancelledDates = cancelledDates.filter(c => c.date !== selectedDate)
+                    else if (clickType === 'makeup') updated.makeupDates = makeupDates.filter(m => m.date !== selectedDate)
+                    onUpdate(updated); setShowRegisteredAction(false)
+                  } },
+                { label:'🚫 공휴일', desc:'공휴일, 선거일, 재량휴일, 강사사정 등', border:'#fca5a5', bg:'#fef2f2', hover:'#fee2e2', color:'#ef4444',
+                  action: () => {
+                    let updated = { ...cls }
+                    if (clickType === 'makeup') updated.makeupDates = makeupDates.filter(m => m.date !== selectedDate)
+                    onUpdate(updated)
+                    setShowRegisteredAction(false); setReason('public_holiday'); setMemo(''); setShowCancel(true)
+                  } },
+                { label:'🔄 보강', desc:'이 날을 보강일로 변경', border:'#93c5fd', bg:'#eff6ff', hover:'#dbeafe', color:'#3b82f6',
+                  action: () => {
+                    let updated = { ...cls }
+                    if (clickType === 'cancelled') updated.cancelledDates = cancelledDates.filter(c => c.date !== selectedDate)
+                    if (!makeupDates.some(m => m.date === selectedDate))
+                      updated.makeupDates = [...(updated.makeupDates || makeupDates), { date: selectedDate, memo: '보강' }]
+                    onUpdate(updated); setShowRegisteredAction(false)
+                  } },
+                { label:'📚 수업일', desc:'이 날을 수업일로 변경', border:'#fed7aa', bg:'#fff7ed', hover:'#ffedd5', color:'#ea580c',
+                  action: () => {
+                    let updated = { ...cls }
+                    if (clickType === 'cancelled') {
+                      updated.cancelledDates = cancelledDates.filter(c => c.date !== selectedDate)
+                    } else if (clickType === 'makeup') {
+                      updated.makeupDates = makeupDates.map(m =>
+                        m.date === selectedDate ? { ...m, type: 'session' } : m
+                      )
+                    }
+                    onUpdate(updated); setShowRegisteredAction(false)
+                  } },
+              ].map(btn => (
+                <button key={btn.label} onClick={btn.action}
+                  style={{ padding:'12px 16px', borderRadius:'12px', border:`1.5px solid ${btn.border}`, background:btn.bg, cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif' }}
+                  onMouseEnter={e => e.currentTarget.style.background=btn.hover}
+                  onMouseLeave={e => e.currentTarget.style.background=btn.bg}>
+                  <div style={{ fontSize:'14px', fontWeight:700, color:btn.color, marginBottom:'2px' }}>{btn.label}</div>
+                  <div style={{ fontSize:'12px', color:'#9ca3af' }}>{btn.desc}</div>
+                </button>
+              ))}
+            </div>
           )}
-          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-            <Btn variant="ghost" onClick={() => setShowCancel(false)}>닫기</Btn>
-            <Btn variant="danger" onClick={handleCancelSave}>공휴일 처리</Btn>
-          </div>
-        </div>
-      </Modal>
 
-      {/* 보강 메모 모달 */}
-      <Modal open={showMakeup} onClose={() => setShowMakeup(false)} title="보강일 추가" width={400}>
-        <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-          <div style={{ fontSize:'14px', color:'#374151' }}>
-            <strong>{selectedDate}</strong> ({selectedDate && getDayLabel(selectedDate)}요일)을 보강일로 추가합니다.
-          </div>
-          <Input label="메모 (선택)" value={memo} onChange={setMemo} placeholder="예: 5월 5일 어린이날 보강" />
-          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-            <Btn variant="ghost" onClick={() => setShowMakeup(false)}>닫기</Btn>
-            <Btn onClick={handleMakeupSave}>보강 추가</Btn>
-          </div>
+          {/* 공휴일 사유 */}
+          {showCancel && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+              <Select label="사유" value={reason} onChange={setReason} options={CANCEL_OPTIONS} />
+              {reason === 'etc' && (
+                <Input label="직접 입력" value={memo} onChange={setMemo} placeholder="사유를 입력하세요" />
+              )}
+              <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+                <Btn variant="ghost" onClick={() => setShowCancel(false)}>닫기</Btn>
+                <Btn variant="danger" onClick={handleCancelSave}>공휴일 처리</Btn>
+              </div>
+            </div>
+          )}
+
+          {/* 보강 메모 */}
+          {showMakeup && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+              <Input label="메모 (선택)" value={memo} onChange={setMemo} placeholder="예: 5월 5일 어린이날 보강" />
+              <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+                <Btn variant="ghost" onClick={() => setShowMakeup(false)}>닫기</Btn>
+                <Btn onClick={handleMakeupSave}>보강 추가</Btn>
+              </div>
+            </div>
+          )}
         </div>
-      </Modal>
+      )}
     </div>
   )
 }
