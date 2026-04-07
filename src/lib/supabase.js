@@ -42,4 +42,18 @@ export async function naverOAuth(code, state) {
   return callFunction('naver-oauth', { code, state })
 }
 
+// ─── 웹 푸시 발송
+// subscription: JSON 문자열 (ParentMembers의 pushSubscription 필드)
+// title/body: 알림 제목/내용
+// url: 클릭 시 이동할 경로 (기본 /parent-invite)
+export async function sendPush(subscription, { title, body, url = '/parent-invite', tag = 'attendance' }) {
+  if (!subscription) return  // 구독 없으면 조용히 스킵
+  try {
+    await callFunction('send-push', { subscription, title, body, url, tag })
+  } catch (e) {
+    // 푸시 실패해도 출석 처리에 영향 없어야 함
+    console.warn('[Push] 발송 실패:', e.message)
+  }
+}
+
 export { isConfigured, FUNCTIONS_BASE }
