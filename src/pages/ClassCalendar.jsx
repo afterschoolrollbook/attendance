@@ -16,13 +16,17 @@ const TERM_COLORS = [
 ]
 const getTermColor = (termNum) => TERM_COLORS[(termNum - 1) % TERM_COLORS.length] || TERM_COLORS[0]
 
-function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, makeupDates, termMap, onDateClick }) {
+function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, makeupDates, termMap, onDateClick, applyStartAt, applyEndAt }) {
   const firstDay = new Date(year, month, 1).getDay()
   const lastDate = new Date(year, month + 1, 0).getDate()
   const cells = []
   for (let i = 0; i < firstDay; i++) cells.push(null)
   for (let d = 1; d <= lastDate; d++) cells.push(d)
   const makeupSet = new Set(makeupDates.map(m => m.date))
+
+  // 신청기간 날짜 범위 계산 (날짜 단위)
+  const applyStartDay = applyStartAt ? applyStartAt.slice(0,10) : null
+  const applyEndDay   = applyEndAt   ? applyEndAt.slice(0,10)   : null
 
   return (
     <div>
@@ -48,18 +52,29 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           const dow = (firstDay + day - 1) % 7
           const isSun = dow === 0, isSat = dow === 6
 
+          // 신청기간 포함 여부
+          const inApply = applyStartDay && applyEndDay && dateStr >= applyStartDay && dateStr <= applyEndDay
+          const isApplyStart = applyStartDay === dateStr
+          const isApplyEnd   = applyEndDay === dateStr
+          const applyDot = inApply ? (
+            <div style={{ width:'5px', height:'5px', borderRadius:'50%', background:'#3b82f6', margin:'1px auto 0' }} />
+          ) : null
+
           // 수동 추가 수업일 (makeupDates + type:'session')
           if (isMakeup && makeupInfo?.type === 'session') {
             return (
               <button key={day} onClick={() => onDateClick(dateStr, 'makeup')}
                 title={`수업일 ${sessInfo?.total||''}차시: ${makeupInfo?.memo||''} — 클릭하면 변경`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
-                  background:'#fff7ed', outline:'1.5px solid #f97316', outlineOffset:'-1px',
+                  background: inApply ? '#fff7ed' : '#fff7ed',
+                  outline: inApply ? '1.5px solid #93c5fd' : '1.5px solid #f97316',
+                  outlineOffset:'-1px',
                   textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
                 <div style={{ fontSize:'12px', fontWeight:700, color: isSun?'#ef4444': isSat?'#3b82f6':'#111827' }}>{day}</div>
                 <div style={{ fontSize:'10px', color:'#ea580c', fontWeight:700, lineHeight:1.2 }}>수업일</div>
                 <div style={{ fontSize:'9px', color:'#fff', background:'#f97316', borderRadius:'4px',
                   padding:'0 3px', marginTop:'1px', lineHeight:'14px' }}>{sessInfo?.total||''}차시</div>
+                {applyDot}
               </button>
             )
           }
@@ -75,6 +90,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                 <div style={{ fontSize:'12px', fontWeight:700, color: isSun?'#ef4444': isSat?'#3b82f6':'#1d4ed8' }}>{day}</div>
                 <div style={{ fontSize:'10px', color:'#3b82f6', fontWeight:700, lineHeight:1.2 }}>보강</div>
                 {makeupInfo?.memo && <div style={{ fontSize:'9px', color:'#93c5fd', lineHeight:1.1 }}>{makeupInfo.memo.slice(0,4)}</div>}
+                {applyDot}
               </button>
             )
           }
@@ -89,6 +105,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                   textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
                 <div style={{ fontSize:'12px', fontWeight:700, color:'#d1d5db' }}>{day}</div>
                 <div style={{ fontSize:'9px', color:'#ef4444', lineHeight:1.2 }}>{reasonLabel||'취소'}</div>
+                {applyDot}
               </button>
             )
           }
@@ -110,21 +127,25 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                   padding:'0 3px', marginTop:'1px', lineHeight:'14px', whiteSpace:'nowrap' }}>
                   {sessInfo.termNum}텀{sessInfo.termSess}차
                 </div>
+                {applyDot}
               </button>
             )
           }
 
-          // 일반 날짜 (클릭 → 휴일/보강 선택)
+          // 일반 날짜 — 신청기간 내 날짜는 파란 배경
           return (
             <button key={day} onClick={() => onDateClick(dateStr, 'normal')}
-              title="클릭하면 휴일 또는 보강 추가"
+              title={inApply ? '신청기간' : '클릭하면 휴일 또는 보강 추가'}
               style={{ padding:'6px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
-                background:'transparent', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif',
-                color: isSun?'#fca5a5': isSat?'#93c5fd':'#9ca3af', fontSize:'12px',
+                background: inApply ? '#eff6ff' : 'transparent',
+                outline: inApply ? '1px solid #bfdbfe' : 'none',
+                textAlign:'center', fontFamily:'Noto Sans KR, sans-serif',
+                color: isSun?'#fca5a5': isSat?'#93c5fd': inApply ? '#1d4ed8' : '#9ca3af', fontSize:'12px',
                 transition:'all .12s' }}
-              onMouseEnter={e => e.currentTarget.style.background='#f0fdf4'}
-              onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+              onMouseEnter={e => e.currentTarget.style.background= inApply ? '#dbeafe' : '#f0fdf4'}
+              onMouseLeave={e => e.currentTarget.style.background= inApply ? '#eff6ff' : 'transparent'}>
               {day}
+              {inApply && <div style={{ width:'4px', height:'4px', borderRadius:'50%', background:'#3b82f6', margin:'1px auto 0' }} />}
             </button>
           )
         })}
@@ -142,6 +163,11 @@ export function ClassCalendar({ cls, onUpdate }) {
   const [showMakeup,    setShowMakeup]    = useState(false)
   const [reason,        setReason]        = useState('public_holiday')
   const [memo,          setMemo]          = useState('')
+
+  // 신청기간 모달
+  const [showApplyPeriod, setShowApplyPeriod] = useState(false)
+  const [applyStart, setApplyStart] = useState('')
+  const [applyEnd,   setApplyEnd]   = useState('')
 
   const CANCEL_OPTIONS = [
     { value: 'public_holiday', label: '공휴일' },
@@ -208,6 +234,29 @@ export function ClassCalendar({ cls, onUpdate }) {
     cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1)
   }
 
+  // 신청기간 모달 열 때 기존 값 로드
+  const openApplyPeriod = () => {
+    setApplyStart(cls.applyStartAt ? cls.applyStartAt.slice(0,16) : '')
+    setApplyEnd(  cls.applyEndAt   ? cls.applyEndAt.slice(0,16)   : '')
+    setShowApplyPeriod(true)
+  }
+  const saveApplyPeriod = () => {
+    onUpdate({ ...cls, applyStartAt: applyStart || null, applyEndAt: applyEnd || null })
+    setShowApplyPeriod(false)
+  }
+
+  // 신청기간 상태 계산
+  const now = new Date()
+  const applyStartD = cls.applyStartAt ? new Date(cls.applyStartAt) : null
+  const applyEndD   = cls.applyEndAt   ? new Date(cls.applyEndAt)   : null
+  const isApplyOpen = applyStartD && applyEndD && now >= applyStartD && now <= applyEndD
+  const isApplyPast = applyEndD && now > applyEndD
+  const fmtDT = (iso) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+  }
+
   const handleDateClick = (date, type) => {
     setSelectedDate(date)
     setClickType(type)
@@ -258,6 +307,34 @@ export function ClassCalendar({ cls, onUpdate }) {
 
   return (
     <div>
+      {/* 신청기간 배너 */}
+      {(cls.applyStartAt || cls.applyEndAt) && (
+        <div style={{
+          display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px',
+          borderRadius:'10px', marginBottom:'12px',
+          background: isApplyOpen ? '#f0fdf4' : isApplyPast ? '#f9fafb' : '#eff6ff',
+          border: `1.5px solid ${isApplyOpen ? '#86efac' : isApplyPast ? '#e5e7eb' : '#93c5fd'}`,
+        }}>
+          <span style={{ fontSize:'16px' }}>{isApplyOpen ? '🟢' : isApplyPast ? '⚫' : '🔵'}</span>
+          <div style={{ flex:1, fontSize:'13px', color: isApplyOpen ? '#15803d' : isApplyPast ? '#9ca3af' : '#1d4ed8', fontWeight:600 }}>
+            {isApplyOpen ? '신청 접수 중' : isApplyPast ? '신청 종료됨' : '신청 예정'}
+            <span style={{ fontWeight:400, marginLeft:'8px', fontSize:'12px' }}>
+              {fmtDT(cls.applyStartAt)} ~ {fmtDT(cls.applyEndAt)}
+            </span>
+          </div>
+          <button onClick={openApplyPeriod}
+            style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #e5e7eb', background:'#fff',
+              fontSize:'12px', color:'#6b7280', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            수정
+          </button>
+          <button onClick={() => onUpdate({ ...cls, applyStartAt: null, applyEndAt: null })}
+            style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background:'none',
+              fontSize:'12px', color:'#d1d5db', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* 요약 */}
       <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'16px', alignItems:'center' }}>
         {termSummary.map(t => {
@@ -277,6 +354,14 @@ export function ClassCalendar({ cls, onUpdate }) {
           {cancelCount > 0 && <span style={{ color:'#ef4444' }}>휴일 {cancelCount}회</span>}
           {makeupCount > 0 && <span style={{ color:'#3b82f6' }}>보강 {makeupCount}회</span>}
         </div>
+        {!cls.applyStartAt && (
+          <button onClick={openApplyPeriod}
+            style={{ marginLeft:'auto', padding:'5px 12px', borderRadius:'7px', border:'1.5px dashed #93c5fd',
+              background:'#eff6ff', color:'#3b82f6', fontSize:'12px', fontWeight:600,
+              cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            📅 신청기간 설정
+          </button>
+        )}
       </div>
 
       {/* 경고 배너 */}
@@ -306,6 +391,7 @@ export function ClassCalendar({ cls, onUpdate }) {
               sessionMap={sessionMap} cancelled={cancelled}
               cancelledDates={cancelledDates} makeupDates={makeupDates}
               termMap={termMap} onDateClick={handleDateClick}
+              applyStartAt={cls.applyStartAt} applyEndAt={cls.applyEndAt}
             />
           </div>
         ))}
@@ -328,7 +414,50 @@ export function ClassCalendar({ cls, onUpdate }) {
           <span style={{ width:'14px', height:'14px', borderRadius:'4px', background:'#eff6ff',
             border:'1.5px solid #3b82f6', display:'inline-block', flexShrink:0 }} />보강
         </span>
+        {(cls.applyStartAt || cls.applyEndAt) && (
+          <span style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+            <span style={{ width:'14px', height:'14px', borderRadius:'4px', background:'#eff6ff',
+              border:'1px solid #bfdbfe', display:'inline-block', flexShrink:0, position:'relative' }}>
+              <span style={{ width:'5px', height:'5px', borderRadius:'50%', background:'#3b82f6',
+                position:'absolute', bottom:'2px', left:'50%', transform:'translateX(-50%)' }} />
+            </span>신청기간
+          </span>
+        )}
       </div>
+
+      {/* 신청기간 모달 */}
+      <Modal open={showApplyPeriod} onClose={() => setShowApplyPeriod(false)} title="📅 신청기간 설정" width={400}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+          <div style={{ fontSize:'13px', color:'#6b7280', lineHeight:1.6 }}>
+            수강 신청 접수 기간을 설정합니다.<br/>
+            <span style={{ fontSize:'12px', color:'#9ca3af' }}>날짜와 시간까지 입력하면 달력에 신청기간이 표시됩니다.</span>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+            <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>신청 시작</label>
+            <input type="datetime-local" value={applyStart} onChange={e => setApplyStart(e.target.value)}
+              style={{ padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb',
+                fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:'#111827' }} />
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+            <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>신청 종료</label>
+            <input type="datetime-local" value={applyEnd} onChange={e => setApplyEnd(e.target.value)}
+              style={{ padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb',
+                fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:'#111827' }} />
+          </div>
+          {applyStart && applyEnd && (
+            <div style={{ padding:'10px 14px', borderRadius:'9px', background:'#eff6ff', border:'1px solid #bfdbfe', fontSize:'13px', color:'#1d4ed8' }}>
+              📅 {fmtDT(applyStart)} ~ {fmtDT(applyEnd)}
+            </div>
+          )}
+          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+            <Btn variant="ghost" onClick={() => setShowApplyPeriod(false)}>닫기</Btn>
+            {(cls.applyStartAt || cls.applyEndAt) && (
+              <Btn variant="danger" onClick={() => { onUpdate({ ...cls, applyStartAt: null, applyEndAt: null }); setShowApplyPeriod(false) }}>삭제</Btn>
+            )}
+            <Btn onClick={saveApplyPeriod}>저장</Btn>
+          </div>
+        </div>
+      </Modal>
 
       {/* 빈 날짜 클릭 — 공휴일 / 보강 / 수업일 */}
       <Modal open={showNormalAction} onClose={() => setShowNormalAction(false)} title="날짜 등록" width={360}>

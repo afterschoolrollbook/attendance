@@ -254,14 +254,35 @@ function ParentListTab({ user, config }) {
     const member = ParentMembers?.findByPhoneAndTeacher?.(s.parentPhone, teacherId) || null
     // 첫 번째 수업 기준 학기제/분기제
     const cls = (s.classIds || []).map(cid => classes.find(c => c.id === cid)).filter(Boolean)[0] || null
+
+    // 수업 상태 계산
+    const todayStr = new Date().toISOString().slice(0,10)
+    const nowTs = new Date()
+    let classStatus = 'none'
+    if (s.status === 'cancelled') {
+      classStatus = 'cancelled'
+    } else if (cls) {
+      const applyStart = cls.applyStartAt ? new Date(cls.applyStartAt) : null
+      const applyEnd   = cls.applyEndAt   ? new Date(cls.applyEndAt)   : null
+      if (applyStart && applyEnd && nowTs >= applyStart && nowTs <= applyEnd) {
+        classStatus = 'applying'
+      } else if (cls.endDate && todayStr > cls.endDate) {
+        classStatus = 'ended'
+      } else if (cls.startDate && todayStr >= cls.startDate) {
+        classStatus = 'active'
+      } else if (cls.startDate && todayStr < cls.startDate) {
+        classStatus = 'upcoming'
+      }
+    }
+
     return {
-      ...s, member, cls,
+      ...s, member, cls, classStatus,
       joined:        !!member?.appJoined,
       withdrawn:     !!(member && !member.appJoined && member.withdrawnAt),
       invited:       !!s.parentInviteSentAt,
       marketing:     !!member?.marketingAgree,
-      termType:      cls?.termType || null,         // 'semester' | 'quarter' | null
-      autoEndLinked: !!member?.appJoined,            // 가입 상태면 자동종료 대상
+      termType:      cls?.termType || null,
+      autoEndLinked: !!member?.appJoined,
     }
   })
 
@@ -443,7 +464,7 @@ function ParentListTab({ user, config }) {
           <table style={{ width:'100%', borderCollapse:'collapse' }}>
             <thead>
               <tr style={{ background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
-                {['#', '학교', '수업·반', '학년/반', '학생 이름', '학부모 전화', '가입상태', '운영방식', '마케팅', '초대', '종료'].map(h => (
+                {['#', '학교', '수업·반', '학년/반', '학생 이름', '학부모 전화', '수업상태', '가입상태', '운영방식', '마케팅', '초대', '종료'].map(h => (
                   <th key={h} style={{ padding:'11px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', whiteSpace:'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -484,6 +505,41 @@ function ParentListTab({ user, config }) {
                     </td>
                     <td style={{ padding:'11px 14px', fontSize:'13px', color:'#374151', whiteSpace:'nowrap' }}>
                       {fmtPhone(s.parentPhone) || '-'}
+                    </td>
+                    <td style={{ padding:'11px 14px' }}>
+                      {s.classStatus === 'applying' && (
+                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
+                          background:'#eff6ff', border:'1px solid #93c5fd', color:'#1d4ed8', whiteSpace:'nowrap' }}>
+                          🔵 신청기간
+                        </span>
+                      )}
+                      {s.classStatus === 'active' && (
+                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
+                          background:'#f0fdf4', border:'1px solid #86efac', color:'#15803d', whiteSpace:'nowrap' }}>
+                          🟢 수업중
+                        </span>
+                      )}
+                      {s.classStatus === 'upcoming' && (
+                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
+                          background:'#fefce8', border:'1px solid #fde047', color:'#a16207', whiteSpace:'nowrap' }}>
+                          🟡 수업예정
+                        </span>
+                      )}
+                      {s.classStatus === 'ended' && (
+                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
+                          background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af', whiteSpace:'nowrap' }}>
+                          ⚫ 수업종료
+                        </span>
+                      )}
+                      {s.classStatus === 'cancelled' && (
+                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
+                          background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626', whiteSpace:'nowrap' }}>
+                          🔴 취소
+                        </span>
+                      )}
+                      {s.classStatus === 'none' && (
+                        <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>
+                      )}
                     </td>
                     <td style={{ padding:'11px 14px' }}>
                       {s.joined ? (
