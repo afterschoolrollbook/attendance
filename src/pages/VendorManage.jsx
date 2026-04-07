@@ -5,6 +5,41 @@
  */
 import React, { useState, useEffect, useCallback } from 'react'
 import { uid, now } from '../lib/utils.js'
+import { isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
+
+// 초대 이메일 직접 발송 (subject + html 커스텀)
+async function sendInviteEmail(to, vendorName, link) {
+  const res = await fetch(`${FUNCTIONS_BASE}/send-email`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify({
+      to,
+      subject: '[방과후 출석부] 업체 파트너 초대 안내',
+      html: `
+        <div style="font-family:'Noto Sans KR',sans-serif;max-width:500px;margin:0 auto;padding:40px 20px;">
+          <h1 style="color:#f97316;font-size:24px;margin-bottom:8px">방과후 출석부</h1>
+          <p style="color:#374151;font-size:16px;margin-bottom:8px">안녕하세요, <strong>${vendorName}</strong> 담당자님.</p>
+          <p style="color:#374151;font-size:15px;margin-bottom:32px">업체 파트너로 초대드립니다. 아래 버튼을 클릭하여 계정을 만들어주세요.</p>
+          <div style="text-align:center;margin-bottom:32px;">
+            <a href="${link}" style="display:inline-block;background:#f97316;color:#fff;font-size:16px;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none;">
+              🎒 업체 계정 만들기
+            </a>
+          </div>
+          <div style="background:#f9fafb;border-radius:10px;padding:16px;font-size:13px;color:#6b7280;line-height:1.7;">
+            <div>• 가입 시 본사에 등록된 휴대폰 번호 또는 이메일로 본인 확인이 필요합니다.</div>
+            <div>• 본인이 요청하지 않은 경우 이 메일을 무시하셔도 됩니다.</div>
+          </div>
+        </div>
+      `,
+    }),
+  })
+  const data = await res.json()
+  if (!data.success) throw new Error(data.error || '이메일 발송 실패')
+  return data
+}
 import { useToast } from '../hooks/useToast.js'
 
 // ─── 색상
@@ -114,44 +149,102 @@ function Badge({ status }) {
 }
 
 // ─────────────────────────────────
-// 초대 모달
+// 초대 모달 — 이메일 발송 전용
 // ─────────────────────────────────
 function InviteModal({ vendor, onClose, onSent }) {
-  const [via, setVia] = useState('sms')
-  const link = `${window.location.origin}?vendor=1`
-  const msgs = {
-    sms:   `[방과후 출석부] ${vendor.name} 담당자님, 업체 파트너 초대드립니다!\n아래 링크에서 계정을 만들어 주세요 👇\n${link}`,
-    kakao: `안녕하세요 😊 ${vendor.name} 담당자님!\n방과후 출석부 업체 파트너로 초대드립니다.\n\n${link}`,
-    email: `안녕하세요, ${vendor.name} 담당자님.\n업체 파트너 초대 안내입니다.\n\n${link}\n\n감사합니다.`,
-  }
-  const msg   = msgs[via]
-  const phone = vendor.phone?.replace(/[^0-9]/g,'') || ''
+  const link    = `${window.location.origin}?vendor=1`
+  const [email, setEmail]     = useState(vendor.email || '')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent]       = useState(false)
+  const [err, setErr]         = useState('')
+  const { success, error: toastError } = useToast()
 
-  const handleSend = () => {
-    if (via==='sms')   window.open(`sms:${phone}?body=${encodeURIComponent(msg)}`)
-    if (via==='kakao') { navigator.clipboard.writeText(msg).then(()=>alert('복사되었습니다. 카카오톡에 붙여넣기 해주세요.')) }
-    if (via==='email') window.open(`mailto:${vendor.email||''}?subject=${encodeURIComponent('[방과후 출석부] 업체 파트너 초대')}&body=${encodeURIComponent(msg)}`)
-    onSent(); onClose()
+  const handleSend = async () => {
+    if (!email.trim()) { setErr('이메일을 입력해주세요.'); return }
+    if (!email.includes('@')) { setErr('올바른 이메일 주소를 입력해주세요.'); return }
+    setErr('')
+    setSending(true)
+
+    const subject = '[방과후 출석부] 업체 파트너 초대 안내'
+    const body    = `안녕하세요, ${vendor.name} 담당자님.\n\n방과후 출석부 플랫폼 업체 파트너로 초대드립니다.\n\n아래 링크에서 업체 계정을 만드신 후 과목 및 교구를 등록해 주시기 바랍니다.\n\n👉 ${link}\n\n가입 시 본사에 등록된 휴대폰 번호 또는 이메일로 본인 확인 후 가입하실 수 있습니다.\n\n감사합니다.\n방과후 출석부 운영팀`
+
+    try {
+      if (isConfigured) {
+        await sendInviteEmail(email.trim(), vendor.name, link)
+      } else {
+        console.log('[개발모드] 초대 이메일:', { to: email, link })
+        await new Promise(r => setTimeout(r, 800))
+      }
+      setSent(true)
+      onSent()
+      success(`${email} 로 초대 이메일을 발송했습니다.`)
+    } catch (e) {
+      toastError('이메일 발송에 실패했습니다.')
+      setErr('이메일 발송 실패. Resend API 키를 확인해주세요.')
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
-    <Modal title={`📨 초대 발송 — ${vendor.name}`} onClose={onClose} width={460}>
-      <div style={{ display:'flex', gap:'8px', marginBottom:'14px' }}>
-        {[['sms','📱 문자'],['kakao','💛 카카오'],['email','📧 이메일']].map(([v,l])=>(
-          <button key={v} onClick={()=>setVia(v)} style={{
-            flex:1, padding:'8px', borderRadius:'8px', border:`2px solid ${via===v?C.primary:C.border}`,
-            background:via===v?'#fff7ed':C.card, color:via===v?C.primary:C.muted,
-            fontWeight:600, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-          }}>{l}</button>
-        ))}
-      </div>
-      <textarea value={msg} readOnly rows={6} style={{ ...iSt, resize:'none', background:'#f9fafb' }} />
-      {via==='sms'   && !phone       && <p style={{ color:C.danger, fontSize:'12px', margin:'6px 0 0' }}>⚠️ 연락처가 없습니다.</p>}
-      {via==='email' && !vendor.email && <p style={{ color:C.danger, fontSize:'12px', margin:'6px 0 0' }}>⚠️ 이메일이 없습니다.</p>}
-      <div style={{ display:'flex', justifyContent:'flex-end', gap:'8px', marginTop:'16px' }}>
-        <Btn onClick={onClose} secondary>취소</Btn>
-        <Btn onClick={handleSend}>발송</Btn>
-      </div>
+    <Modal title={`📧 초대 이메일 발송 — ${vendor.name}`} onClose={onClose} width={440}>
+      {sent ? (
+        // 발송 완료 화면
+        <div style={{ textAlign:'center', padding:'20px 0' }}>
+          <div style={{ fontSize:'48px', marginBottom:'12px' }}>✅</div>
+          <div style={{ fontSize:'16px', fontWeight:700, color:C.success, marginBottom:'6px' }}>초대 이메일 발송 완료!</div>
+          <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px' }}>{email}</div>
+          <Btn onClick={onClose}>확인</Btn>
+        </div>
+      ) : (
+        <>
+          {/* 업체 정보 */}
+          <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}`, marginBottom:'16px' }}>
+            <div style={{ fontSize:'12px', color:C.muted, marginBottom:'4px' }}>초대할 업체</div>
+            <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>🏢 {vendor.name}</div>
+            {vendor.managerName && <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>담당자: {vendor.managerName}</div>}
+          </div>
+
+          {/* 이메일 입력 */}
+          <div style={{ marginBottom:'12px' }}>
+            <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>받는 이메일 주소</label>
+            <input
+              style={iSt}
+              type="email"
+              value={email}
+              onChange={e => { setEmail(e.target.value); setErr('') }}
+              placeholder="vendor@example.com"
+              onKeyDown={e => e.key === 'Enter' && handleSend()}
+            />
+            {err && <p style={{ color:C.danger, fontSize:'12px', margin:'4px 0 0' }}>⚠️ {err}</p>}
+          </div>
+
+          {/* 발송 내용 미리보기 */}
+          <div style={{ padding:'12px 14px', background:'#eff6ff', borderRadius:'10px', border:'1px solid #bfdbfe', marginBottom:'16px' }}>
+            <div style={{ fontSize:'11px', fontWeight:700, color:C.blue, marginBottom:'6px' }}>📧 발송 내용 미리보기</div>
+            <div style={{ fontSize:'12px', color:C.text, lineHeight:'1.6' }}>
+              안녕하세요, {vendor.name} 담당자님.<br />
+              방과후 출석부 플랫폼 업체 파트너로 초대드립니다.<br /><br />
+              👉 <span style={{ color:C.blue, wordBreak:'break-all' }}>{link}</span><br /><br />
+              가입 시 본사에 등록된 휴대폰 번호 또는 이메일로<br />
+              본인 확인 후 가입하실 수 있습니다.
+            </div>
+          </div>
+
+          {!isConfigured && (
+            <div style={{ padding:'8px 12px', background:'#fef9c3', borderRadius:'8px', border:'1px solid #fde047', marginBottom:'12px', fontSize:'12px', color:'#854d0e' }}>
+              ⚠️ 개발 모드 — 실제 이메일은 발송되지 않습니다. (콘솔 출력)
+            </div>
+          )}
+
+          <div style={{ display:'flex', justifyContent:'flex-end', gap:'8px' }}>
+            <Btn onClick={onClose} secondary>취소</Btn>
+            <Btn onClick={handleSend} disabled={sending || !email}>
+              {sending ? '발송 중...' : '📧 초대 이메일 발송'}
+            </Btn>
+          </div>
+        </>
+      )}
     </Modal>
   )
 }
