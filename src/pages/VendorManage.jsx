@@ -16,8 +16,25 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { uid, now } from '../lib/utils.js'
 import { dbCall, isConfigured } from '../lib/supabase.js'
-import { Btn, Modal, EmptyState, PageHeader } from '../components/Atoms.jsx'
+import { Modal, EmptyState } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
+
+// ─── 버튼 헬퍼
+function Btn({ children, onClick, disabled, secondary, danger, style }) {
+  const bg = danger ? '#ef4444' : secondary ? '#fff' : '#f97316'
+  const color = (secondary && !danger) ? '#374151' : '#fff'
+  const border = secondary ? '1.5px solid #e5e7eb' : 'none'
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      padding:'8px 16px', borderRadius:'9px', border,
+      background: disabled ? '#d1d5db' : bg, color: disabled ? '#9ca3af' : color,
+      fontWeight:600, fontSize:'13px', cursor: disabled ? 'not-allowed' : 'pointer',
+      fontFamily:'Noto Sans KR, sans-serif', transition:'opacity .15s',
+      ...style,
+    }}>{children}</button>
+  )
+}
+
 
 // ─── 색상 상수
 const C = {
