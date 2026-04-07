@@ -229,6 +229,9 @@ function ParentListTab({ user, config }) {
 
   // 초대 모달
   const [inviteTarget, setInviteTarget] = useState(null)
+  // 자동종료 예외 메모 모달
+  const [exceptionTarget, setExceptionTarget] = useState(null)
+  const [exceptionMemo,   setExceptionMemo]   = useState('')
 
   // 년도/학교 목록 — Students.jsx와 동일 로직
   const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
@@ -252,31 +255,41 @@ function ParentListTab({ user, config }) {
   // 각 학생에 학부모 가입 상태 enriched
   const enriched = withPhone.map(s => {
     const member = ParentMembers?.findByPhoneAndTeacher?.(s.parentPhone, teacherId) || null
-    // 첫 번째 수업 기준 학기제/분기제
     const cls = (s.classIds || []).map(cid => classes.find(c => c.id === cid)).filter(Boolean)[0] || null
 
-    // 수업 상태 계산
     const todayStr = new Date().toISOString().slice(0,10)
     const nowTs = new Date()
+
+    // 세부 조건
+    const inRoster   = s.status === 'confirmed'
+    const classEnded = !!(cls?.endDate && todayStr > cls.endDate)
+    const applyOver  = !!(cls?.applyEndAt && nowTs > new Date(cls.applyEndAt))
+    // 신청기간 진행 중
+    const applyOpen  = !!(cls?.applyStartAt && cls?.applyEndAt &&
+                          nowTs >= new Date(cls.applyStartAt) && nowTs <= new Date(cls.applyEndAt))
+
+    // 수업상태 계산
     let classStatus = 'none'
     if (s.status === 'cancelled') {
       classStatus = 'cancelled'
     } else if (cls) {
-      const applyStart = cls.applyStartAt ? new Date(cls.applyStartAt) : null
-      const applyEnd   = cls.applyEndAt   ? new Date(cls.applyEndAt)   : null
-      if (applyStart && applyEnd && nowTs >= applyStart && nowTs <= applyEnd) {
-        classStatus = 'applying'
-      } else if (cls.endDate && todayStr > cls.endDate) {
-        classStatus = 'ended'
+      if (applyOpen) {
+        classStatus = 'applying'           // 🔵 신청기간
+      } else if (classEnded) {
+        classStatus = 'ended'              // ⚫ 수업종료
       } else if (cls.startDate && todayStr >= cls.startDate) {
-        classStatus = 'active'
-      } else if (cls.startDate && todayStr < cls.startDate) {
-        classStatus = 'upcoming'
+        classStatus = inRoster ? 'active' : 'active_no_roster'   // 🟢 수업중 (명단있음/없음)
+      } else {
+        classStatus = 'upcoming'           // 🟡 수업예정
       }
     }
 
+    // 자동종료 대상: 가입 중 && 수업종료 && 신청기간끝 && 명단없음
+    const autoEndTarget = !!(member?.appJoined && classEnded && applyOver && !inRoster && !s.autoEndException)
+
     return {
       ...s, member, cls, classStatus,
+      inRoster, classEnded, applyOver, applyOpen, autoEndTarget,
       joined:        !!member?.appJoined,
       withdrawn:     !!(member && !member.appJoined && member.withdrawnAt),
       invited:       !!s.parentInviteSentAt,
@@ -330,7 +343,42 @@ function ParentListTab({ user, config }) {
     refresh()
   }
 
-  // 분기 명단 확정 — 현재 명단에 없는 가입자 자동 종료
+  // 자동종료 일괄 실행
+  const handleAutoEnd = async () => {
+    const targets = enriched.filter(s => s.autoEndTarget)
+    if (targets.length === 0) { showSuccess('자동종료 대상이 없습니다.'); return }
+    const ok = await confirm(
+      `자동종료 대상 ${targets.length}명의 출결서비스를 종료하시겠습니까?\n(수업종료 + 신청기간종료 + 명단없음 조건)`
+    )
+    if (!ok) return
+    targets.forEach(s => {
+      ParentMembers.withdrawByTeacher(s.parentPhone, teacherId, 'auto_end')
+      if (s.member) TeacherParentLinks.unlinkByMember(teacherId, s.member.id, 'auto_end')
+    })
+    showSuccess(`${targets.length}명 자동종료 완료`)
+    refresh()
+  }
+
+  // 예외 처리 저장 (자동종료 제외)
+  const handleSaveException = async () => {
+    if (!exceptionTarget) return
+    await StudentsDB.update(exceptionTarget.id, {
+      autoEndException: true,
+      autoEndExceptionMemo: exceptionMemo,
+      autoEndExceptionAt: new Date().toISOString(),
+    })
+    showSuccess(`${exceptionTarget.name} 예외 처리됨`)
+    setExceptionTarget(null)
+    setExceptionMemo('')
+    refresh()
+  }
+
+  // 예외 해제
+  const handleRemoveException = async (s) => {
+    await StudentsDB.update(s.id, { autoEndException: false, autoEndExceptionMemo: '', autoEndExceptionAt: null })
+    showSuccess('예외 해제됨')
+    refresh()
+  }
   const handleRosterConfirm = async () => {
     const currentPhones = new Set(
       allStudents.filter(s => s.parentPhone).map(s => s.parentPhone.replace(/[^0-9]/g, ''))
@@ -447,6 +495,15 @@ function ParentListTab({ user, config }) {
             style={{ padding:'8px 16px', borderRadius:'8px', border:'1.5px solid #ef4444', background:'#fef2f2', color:'#dc2626', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             📋 분기 명단 확정
           </button>
+          {enriched.filter(s => s.autoEndTarget).length > 0 && (
+            <button onClick={handleAutoEnd}
+              style={{ padding:'8px 16px', borderRadius:'8px', border:'1.5px solid #7c3aed', background:'#faf5ff', color:'#7c3aed', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', gap:'6px' }}>
+              ⚡ 자동종료
+              <span style={{ background:'#7c3aed', color:'#fff', borderRadius:'10px', padding:'1px 7px', fontSize:'11px' }}>
+                {enriched.filter(s => s.autoEndTarget).length}명
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -460,12 +517,25 @@ function ParentListTab({ user, config }) {
       {filtered.length === 0 ? (
         <EmptyState icon="📲" title="표시할 학부모가 없습니다" desc="학생 등록 시 학부모 전화번호를 입력하면 이 목록에 나타납니다." />
       ) : (
-        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-          <table style={{ width:'100%', borderCollapse:'collapse' }}>
+        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflowX:'auto' }}>
+          <table style={{ width:'100%', minWidth:'1100px', borderCollapse:'collapse' }}>
             <thead>
               <tr style={{ background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
-                {['#', '학교', '수업·반', '학년/반', '학생 이름', '학부모 전화', '수업상태', '가입상태', '운영방식', '마케팅', '초대', '종료'].map(h => (
-                  <th key={h} style={{ padding:'11px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', whiteSpace:'nowrap' }}>{h}</th>
+                {[
+                  { label:'#',         w:'44px'  },
+                  { label:'학교',       w:'100px' },
+                  { label:'수업·반',    w:'130px' },
+                  { label:'학년/반',    w:'90px'  },
+                  { label:'학생 이름',  w:'90px'  },
+                  { label:'학부모 전화',w:'130px' },
+                  { label:'수업상태',   w:'100px' },
+                  { label:'가입상태',   w:'80px'  },
+                  { label:'운영방식',   w:'90px'  },
+                  { label:'마케팅',     w:'70px'  },
+                  { label:'초대',       w:'90px'  },
+                  { label:'종료',       w:'80px'  },
+                ].map(h => (
+                  <th key={h.label} style={{ padding:'11px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', whiteSpace:'nowrap', minWidth:h.w }}>{h.label}</th>
                 ))}
               </tr>
             </thead>
@@ -507,48 +577,101 @@ function ParentListTab({ user, config }) {
                       {fmtPhone(s.parentPhone) || '-'}
                     </td>
                     <td style={{ padding:'11px 14px' }}>
-                      {s.classStatus === 'applying' && (
-                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
-                          background:'#eff6ff', border:'1px solid #93c5fd', color:'#1d4ed8', whiteSpace:'nowrap' }}>
-                          🔵 신청기간
-                        </span>
-                      )}
-                      {s.classStatus === 'active' && (
-                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
-                          background:'#f0fdf4', border:'1px solid #86efac', color:'#15803d', whiteSpace:'nowrap' }}>
-                          🟢 수업중
-                        </span>
-                      )}
-                      {s.classStatus === 'upcoming' && (
-                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
-                          background:'#fefce8', border:'1px solid #fde047', color:'#a16207', whiteSpace:'nowrap' }}>
-                          🟡 수업예정
-                        </span>
-                      )}
-                      {s.classStatus === 'ended' && (
-                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
-                          background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af', whiteSpace:'nowrap' }}>
-                          ⚫ 수업종료
-                        </span>
-                      )}
-                      {s.classStatus === 'cancelled' && (
-                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
-                          background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626', whiteSpace:'nowrap' }}>
-                          🔴 취소
-                        </span>
-                      )}
-                      {s.classStatus === 'none' && (
-                        <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>
-                      )}
+                      <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                        {/* 수업상태 */}
+                        {(s.classStatus === 'applying') && (
+                          <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'5px',
+                            background:'#eff6ff', border:'1px solid #93c5fd', color:'#1d4ed8', whiteSpace:'nowrap' }}>
+                            🔵 신청기간
+                          </span>
+                        )}
+                        {(s.classStatus === 'active' || s.classStatus === 'active_no_roster') && (
+                          <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'5px',
+                            background:'#f0fdf4', border:'1px solid #86efac', color:'#15803d', whiteSpace:'nowrap' }}>
+                            🟢 수업중
+                          </span>
+                        )}
+                        {s.classStatus === 'upcoming' && (
+                          <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'5px',
+                            background:'#fefce8', border:'1px solid #fde047', color:'#a16207', whiteSpace:'nowrap' }}>
+                            🟡 수업예정
+                          </span>
+                        )}
+                        {s.classStatus === 'ended' && (
+                          <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'5px',
+                            background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af', whiteSpace:'nowrap' }}>
+                            ⚫ 수업종료
+                          </span>
+                        )}
+                        {s.classStatus === 'cancelled' && (
+                          <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'5px',
+                            background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626', whiteSpace:'nowrap' }}>
+                            🔴 취소
+                          </span>
+                        )}
+                        {s.classStatus === 'none' && <span style={{ fontSize:'11px', color:'#d1d5db' }}>-</span>}
+
+                        {/* 세부 조건 태그 */}
+                        <div style={{ display:'flex', gap:'3px', flexWrap:'wrap', marginTop:'1px' }}>
+                          {s.classEnded && (
+                            <span style={{ fontSize:'10px', padding:'1px 5px', borderRadius:'4px',
+                              background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af' }}>종료</span>
+                          )}
+                          {s.applyOver && (
+                            <span style={{ fontSize:'10px', padding:'1px 5px', borderRadius:'4px',
+                              background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af' }}>신청끝</span>
+                          )}
+                          {s.inRoster ? (
+                            <span style={{ fontSize:'10px', padding:'1px 5px', borderRadius:'4px',
+                              background:'#f0fdf4', border:'1px solid #86efac', color:'#15803d' }}>명단✓</span>
+                          ) : (
+                            <span style={{ fontSize:'10px', padding:'1px 5px', borderRadius:'4px',
+                              background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>명단✗</span>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td style={{ padding:'11px 14px' }}>
-                      {s.joined ? (
-                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px', background:'#f0fdf4', border:'1px solid #86efac', color:'#16a34a' }}>✅ 가입</span>
-                      ) : s.withdrawn ? (
-                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px', background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>종료</span>
-                      ) : (
-                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px', background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af' }}>미가입</span>
-                      )}
+                      <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                        {/* 가입상태 */}
+                        {s.joined ? (
+                          <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
+                            background: s.autoEndTarget ? '#faf5ff' : '#f0fdf4',
+                            border: `1px solid ${s.autoEndTarget ? '#d8b4fe' : '#86efac'}`,
+                            color: s.autoEndTarget ? '#7c3aed' : '#16a34a', whiteSpace:'nowrap' }}>
+                            {s.autoEndTarget ? '⚠️ 자동종료대상' : '✅ 가입'}
+                          </span>
+                        ) : s.withdrawn ? (
+                          <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
+                            background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>종료</span>
+                        ) : (
+                          <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
+                            background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af' }}>미가입</span>
+                        )}
+                        {/* 예외 처리 버튼 / 예외 상태 표시 */}
+                        {s.autoEndTarget && !s.autoEndException && (
+                          <button onClick={() => { setExceptionTarget(s); setExceptionMemo('') }}
+                            style={{ padding:'2px 8px', borderRadius:'5px', border:'1.5px solid #f59e0b',
+                              background:'#fffbeb', color:'#b45309', fontSize:'11px', fontWeight:700,
+                              cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                            🛡 예외 처리
+                          </button>
+                        )}
+                        {s.autoEndException && (
+                          <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
+                            <span style={{ fontSize:'10px', padding:'2px 6px', borderRadius:'4px',
+                              background:'#fffbeb', border:'1px solid #fde68a', color:'#92400e', whiteSpace:'nowrap' }}>
+                              🛡 예외: {s.autoEndExceptionMemo || '메모없음'}
+                            </span>
+                            <button onClick={() => handleRemoveException(s)}
+                              style={{ padding:'1px 6px', borderRadius:'4px', border:'1px solid #e5e7eb',
+                                background:'none', color:'#9ca3af', fontSize:'10px', cursor:'pointer',
+                                fontFamily:'Noto Sans KR, sans-serif' }}>
+                              예외 해제
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding:'11px 14px' }}>
                       <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
@@ -613,6 +736,34 @@ function ParentListTab({ user, config }) {
           onClose={() => setInviteTarget(null)}
           onSent={() => { setInviteTarget(null); refresh() }}
         />
+      )}
+
+      {/* 예외 처리 모달 */}
+      {exceptionTarget && (
+        <Modal open={true} onClose={() => setExceptionTarget(null)} title={`🛡 예외 처리 — ${exceptionTarget.name}`} width={400}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+            <div style={{ padding:'10px 14px', borderRadius:'9px', background:'#faf5ff', border:'1px solid #e9d5ff', fontSize:'13px', color:'#7c3aed', lineHeight:1.6 }}>
+              자동종료 대상이지만 예외적으로 유지할 경우 사용합니다.<br/>
+              <span style={{ fontSize:'12px', color:'#a78bfa' }}>수업종료 + 신청기간종료 + 명단없음 조건 충족</span>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+              <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>예외 사유 메모</label>
+              <textarea
+                value={exceptionMemo}
+                onChange={e => setExceptionMemo(e.target.value)}
+                placeholder="예: 다음 분기 재등록 예정, 학부모 요청으로 유지 등"
+                rows={3}
+                style={{ padding:'10px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb',
+                  fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical',
+                  outline:'none', lineHeight:1.6, width:'100%', boxSizing:'border-box' }}
+              />
+            </div>
+            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+              <Btn variant="ghost" onClick={() => setExceptionTarget(null)}>닫기</Btn>
+              <Btn onClick={handleSaveException}>예외 저장</Btn>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   )
