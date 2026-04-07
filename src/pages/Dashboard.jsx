@@ -40,10 +40,22 @@ function useWeather(lat, lng) {
   const [w, setW] = useState(null)
   useEffect(() => {
     const la = lat || 37.39, lo = lng || 126.95
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,weathercode,windspeed_10m&timezone=Asia%2FSeoul`)
-      .then(r => r.json())
-      .then(d => setW({ temp: Math.round(d.current.temperature_2m), code: d.current.weathercode, wind: Math.round(d.current.windspeed_10m) }))
-      .catch(() => setW(null))
+    // ✅ AbortController로 타임아웃 5초 설정 + 오류 콘솔 억제
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 5000)
+    fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,weathercode,windspeed_10m&timezone=Asia%2FSeoul`,
+      { signal: controller.signal }
+    )
+      .then(r => { if (!r.ok) throw new Error('weather fetch failed'); return r.json() })
+      .then(d => {
+        clearTimeout(timer)
+        if (d?.current) {
+          setW({ temp: Math.round(d.current.temperature_2m), code: d.current.weathercode, wind: Math.round(d.current.windspeed_10m) })
+        }
+      })
+      .catch(() => { clearTimeout(timer); setW(null) })  // 오류는 조용히 처리
+    return () => { clearTimeout(timer); controller.abort() }
   }, [lat, lng])
   return w
 }
@@ -956,7 +968,10 @@ function MobileDashboard({ user, onNav }) {
     if (!q.trim()) return
     setLocSearching(true)
     try {
-      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=ko`)
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 5000)
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=ko`, { signal: controller.signal })
+      clearTimeout(timer)
       const data = await res.json()
       setLocResults(data.results || [])
     } catch { setLocResults([]) }
@@ -1290,7 +1305,10 @@ export function Dashboard({ user, onNav }) {
     if (!q.trim()) return
     setLocSearching(true)
     try {
-      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=ko`)
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 5000)
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=ko`, { signal: controller.signal })
+      clearTimeout(timer)
       const data = await res.json()
       setLocResults(data.results || [])
     } catch { setLocResults([]) }
