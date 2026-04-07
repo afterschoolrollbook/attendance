@@ -28,7 +28,6 @@ import { Revenue }      from './pages/Revenue.jsx'
 import { Supplies }     from './pages/Supplies.jsx'
 import { MessageGuide } from './pages/MessageGuide.jsx'
 import { ParentInvite } from './pages/ParentInvite.jsx'
-import { ParentLogin }  from './pages/ParentLogin.jsx'
 import ParentServiceManage from './pages/ParentServiceManage.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer, ConfirmDialog, useConfirmDialog } from './components/Atoms.jsx'
@@ -108,11 +107,9 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // 네이버/카카오 콜백 + 학부모 초대 페이지 — 로그인 없이 바로 렌더
+  // 네이버/카카오 콜백 — DB 불필요, 바로 렌더
   if (window.location.pathname === '/naver-callback')  return <NaverCallback />
   if (window.location.pathname === '/kakao-callback')  return <KakaoCallback />
-  if (window.location.pathname === '/parent-invite')   return <ParentInvite />
-  if (window.location.pathname === '/parent-login')    return <ParentLogin />
 
   useEffect(() => {
     async function init() {
@@ -169,6 +166,10 @@ export default function App() {
       <div style={{ fontSize:'13px', color:'#9ca3af' }}>{isConfigured ? '서버 연결 중...' : '로딩 중...'}</div>
     </div>
   )
+
+  // DB 준비 완료 후 학부모 페이지 렌더
+  if (window.location.pathname === '/parent-invite') return <ParentInvite />
+  if (window.location.pathname === '/parent-login')  return <ParentLogin />
 
   if (!user) return <Auth onLogin={handleLogin} />
 
