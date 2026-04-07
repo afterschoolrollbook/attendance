@@ -12,11 +12,12 @@
  * SQL 파일: migration_parent_service.sql 실행 필요
  */
 import React, { useState, useEffect, useCallback } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, ParentMembers } from '../lib/db.js'
-import { dbCall, isConfigured } from '../lib/supabase.js'
+import { Classes as ClassesDB, Students as StudentsDB, ParentMembers, TeacherParentLinks } from '../lib/db.js'
+import { supabase, isConfigured } from '../lib/supabase.js'
 import { uid, now, fmtPhone, sortClasses } from '../lib/utils.js'
 import { Btn, Modal, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../hooks/useConfirm.js'
 
 // ─────────────────────────────────────────────
 // 설정 기본값 & localStorage
@@ -109,24 +110,26 @@ export function loadParentServiceConfig() {
 
 // Supabase에서 최신 설정 로드
 async function fetchConfigFromSupabase(teacherId) {
-  if (!isConfigured) return null
+  if (!isConfigured || !supabase) return null
   try {
-    const rows = await dbCall('select', 'teacher_service_configs', {
-      filters: { teacher_id: teacherId, config_key: DB_KEY },
-      single: true,
-    })
-    return rows?.config_value || null
+    const { data } = await supabase
+      .from('teacher_service_configs')
+      .select('config_value')
+      .eq('teacher_id', teacherId)
+      .eq('config_key', DB_KEY)
+      .single()
+    return data?.config_value || null
   } catch { return null }
 }
 
 // Supabase에 설정 저장
 async function saveConfigToSupabase(teacherId, cfg) {
-  if (!isConfigured) return
+  if (!isConfigured || !supabase) return
   try {
-    await dbCall('upsert', 'teacher_service_configs', {
-      record: { teacher_id: teacherId, config_key: DB_KEY, config_value: cfg, updated_at: new Date().toISOString() },
-      onConflict: 'teacher_id,config_key',
-    })
+    await supabase
+      .from('teacher_service_configs')
+      .upsert({ teacher_id: teacherId, config_key: DB_KEY, config_value: cfg, updated_at: new Date().toISOString() },
+               { onConflict: 'teacher_id,config_key' })
   } catch (e) {
     console.warn('[ParentServiceConfig] Supabase 저장 실패:', e)
   }
@@ -214,7 +217,8 @@ function InviteModal({ student, user, config, onClose, onSent }) {
 // ─────────────────────────────────────────────
 function ParentListTab({ user, config }) {
   const teacherId = user?.id
-  const { success: showToast } = useToast()
+  const { success: showSuccess, error: showError } = useToast()
+  const { confirm } = useConfirm()
 
   const classes = ClassesDB.byTeacher(teacherId)
 
@@ -222,7 +226,8 @@ function ParentListTab({ user, config }) {
   const [ctxYear,   setCtxYear]   = useState('')
   const [ctxSchool, setCtxSchool] = useState('')
   const [ctxClass,  setCtxClass]  = useState('')
-  const [subTab,    setSubTab]    = useState('all')   // all | joined | not_joined | withdrawn
+  const [ctxStatus, setCtxStatus] = useState('') // '' | joined | not_joined | withdrawn
+  const [subTab,    setSubTab]    = useState('all')
   const [tick,      setTick]      = useState(0)
   const refresh = () => setTick(t => t + 1)
 
@@ -250,7 +255,7 @@ function ParentListTab({ user, config }) {
 
   // 각 학생에 학부모 가입 상태 enriched
   const enriched = withPhone.map(s => {
-    const member = ParentMembers?.findByPhone?.(s.parentPhone) || null
+    const member = ParentMembers?.findByPhoneAndTeacher?.(s.parentPhone, teacherId) || null
     return {
       ...s, member,
       joined:    !!member?.appJoined,
@@ -271,13 +276,16 @@ function ParentListTab({ user, config }) {
     if (subTab === 'joined')     return s.joined
     if (subTab === 'not_joined') return !s.joined && !s.withdrawn
     if (subTab === 'withdrawn')  return s.withdrawn
+    // 필터 바 상태 필터
+    if (ctxStatus === 'joined')     return s.joined
+    if (ctxStatus === 'not_joined') return !s.joined && !s.withdrawn
+    if (ctxStatus === 'withdrawn')  return s.withdrawn
     return true
   })
 
-  // 일괄 초대 — 미가입 학생 전체
   const bulkInvite = () => {
     const targets = enriched.filter(s => !s.joined && s.parentPhone)
-    if (targets.length === 0) { showToast('초대할 학부모가 없습니다.'); return }
+    if (targets.length === 0) { showSuccess('초대할 학부모가 없습니다.'); return }
     const teacherName = user?.nickname || user?.name || ''
     targets.forEach(s => {
       const phone = s.parentPhone.replace(/[^0-9]/g, '')
@@ -287,7 +295,46 @@ function ParentListTab({ user, config }) {
       window.open(`sms:${phone}?body=${encodeURIComponent(text)}`)
       StudentsDB.update(s.id, { parentInviteSentAt: new Date().toISOString() })
     })
-    showToast(`${targets.length}명에게 초대 문자를 발송했습니다.`)
+    showSuccess(`${targets.length}명에게 초대 문자를 발송했습니다.`)
+    refresh()
+  }
+
+  // 선생님이 직접 출결서비스 종료 (X 버튼)
+  const handleTeacherWithdraw = async (s) => {
+    const ok = await confirm(`${s.name} 학부모님의 출결서비스를 종료하시겠습니까?`)
+    if (!ok) return
+    ParentMembers.withdrawByTeacher(s.parentPhone, teacherId, 'teacher_request')
+    if (s.member) TeacherParentLinks.unlinkByMember(teacherId, s.member.id, 'teacher_request')
+    showSuccess(`${s.name} 출결서비스가 종료되었습니다.`)
+    refresh()
+  }
+
+  // 분기 명단 확정 — 현재 명단에 없는 가입자 자동 종료
+  const handleRosterConfirm = async () => {
+    const currentPhones = new Set(
+      allStudents.filter(s => s.parentPhone).map(s => s.parentPhone.replace(/[^0-9]/g, ''))
+    )
+    const activeMembers = ParentMembers.all().filter(m =>
+      m.teacherId === teacherId && m.appJoined && !m.withdrawnAt
+    )
+    const toEnd = activeMembers.filter(m => !currentPhones.has(m.phone))
+    if (toEnd.length === 0) {
+      showSuccess('종료할 대상이 없습니다. 현재 명단과 일치합니다.')
+      return
+    }
+    const ok = await confirm(
+      `현재 명단에 없는 학부모 ${toEnd.length}명의 출결서비스가 자동 종료됩니다.\n계속하시겠습니까?`
+    )
+    if (!ok) return
+    toEnd.forEach(m => {
+      ParentMembers.update(m.id, {
+        appJoined: false,
+        withdrawnAt: new Date().toISOString(),
+        withdrawReason: 'not_in_roster',
+      })
+      TeacherParentLinks.unlinkByMember(teacherId, m.id, 'not_in_roster')
+    })
+    showSuccess(`${toEnd.length}명의 출결서비스가 자동 종료되었습니다.`)
     refresh()
   }
 
@@ -335,8 +382,17 @@ function ParentListTab({ user, config }) {
               ))}
             </select>
           </div>
-          {(ctxYear || ctxSchool || ctxClass) && (
-            <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxClass('') }}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>가입상태</label>
+            <select value={ctxStatus} onChange={e => setCtxStatus(e.target.value)} style={selSt}>
+              <option value="">전체 상태</option>
+              <option value="joined">가입</option>
+              <option value="not_joined">미가입</option>
+              <option value="withdrawn">종료</option>
+            </select>
+          </div>
+          {(ctxYear || ctxSchool || ctxClass || ctxStatus) && (
+            <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxClass(''); setCtxStatus('') }}
               style={{ fontSize:'11px', color:'#9ca3af', background:'none', border:'none', cursor:'pointer', textDecoration:'underline', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'1px' }}>
               초기화
             </button>
@@ -344,16 +400,15 @@ function ParentListTab({ user, config }) {
         </div>
       </div>
 
-      {/* 서브탭 + 일괄 초대 버튼 */}
       <div style={{ display:'flex', gap:'8px', marginBottom:'14px', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between' }}>
         <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
           {[
             { key:'all',       label:`전체 ${cnt.all}` },
             { key:'joined',    label:`가입 ${cnt.joined}` },
             { key:'not_joined',label:`미가입 ${cnt.not_joined}` },
-            { key:'withdrawn', label:`탈퇴 ${cnt.withdrawn}` },
+            { key:'withdrawn', label:`종료 ${cnt.withdrawn}` },
           ].map(f => (
-            <button key={f.key} onClick={() => setSubTab(f.key)} style={{
+            <button key={f.key} onClick={() => { setSubTab(f.key); setCtxStatus('') }} style={{
               padding:'6px 12px', borderRadius:'7px', border:'none', cursor:'pointer',
               background: subTab===f.key ? C.primary : '#f3f4f6',
               color: subTab===f.key ? '#fff' : '#374151',
@@ -362,10 +417,16 @@ function ParentListTab({ user, config }) {
             }}>{f.label}</button>
           ))}
         </div>
-        <button onClick={bulkInvite}
-          style={{ padding:'8px 16px', borderRadius:'8px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-          📨 미가입 전체 초대
-        </button>
+        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+          <button onClick={bulkInvite}
+            style={{ padding:'8px 16px', borderRadius:'8px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            📨 미가입 전체 초대
+          </button>
+          <button onClick={handleRosterConfirm}
+            style={{ padding:'8px 16px', borderRadius:'8px', border:'1.5px solid #ef4444', background:'#fef2f2', color:'#dc2626', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            📋 분기 명단 확정
+          </button>
+        </div>
       </div>
 
       {/* 안내 박스 */}
@@ -382,7 +443,7 @@ function ParentListTab({ user, config }) {
           <table style={{ width:'100%', borderCollapse:'collapse' }}>
             <thead>
               <tr style={{ background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
-                {['#', '학교', '수업·반', '학년/반', '학생 이름', '학부모 전화', '가입상태', '마케팅', '초대'].map(h => (
+                {['#', '학교', '수업·반', '학년/반', '학생 이름', '학부모 전화', '가입상태', '마케팅', '초대', '종료'].map(h => (
                   <th key={h} style={{ padding:'11px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', whiteSpace:'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -428,7 +489,7 @@ function ParentListTab({ user, config }) {
                       {s.joined ? (
                         <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px', background:'#f0fdf4', border:'1px solid #86efac', color:'#16a34a' }}>✅ 가입</span>
                       ) : s.withdrawn ? (
-                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px', background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>탈퇴</span>
+                        <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px', background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>종료</span>
                       ) : (
                         <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px', background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af' }}>미가입</span>
                       )}
@@ -452,6 +513,15 @@ function ParentListTab({ user, config }) {
                           {s.joined ? '✅ 가입됨' : s.invited ? '📨 재발송' : '📨 초대'}
                         </button>
                       ) : <span style={{ fontSize:'12px', color:'#d1d5db' }}>전화번호 없음</span>}
+                    </td>
+                    <td style={{ padding:'11px 14px', textAlign:'center' }}>
+                      {s.joined ? (
+                        <button onClick={() => handleTeacherWithdraw(s)}
+                          title="출결서비스 종료"
+                          style={{ width:'28px', height:'28px', borderRadius:'50%', border:'1.5px solid #fca5a5', background:'#fef2f2', color:'#dc2626', fontSize:'14px', fontWeight:700, cursor:'pointer', display:'inline-flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
+                          ✕
+                        </button>
+                      ) : <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>}
                     </td>
                   </tr>
                 )
@@ -506,6 +576,7 @@ function ServiceSettingsTab({ config, teacherId, onChange, showToast }) {
     { id:'privacy',   icon:'🔒', label:'개인정보 동의' },
     { id:'marketing', icon:'📣', label:'마케팅 동의' },
     { id:'sms',       icon:'💬', label:'초대 SMS 문자' },
+    { id:'auto_end',  icon:'⚙️', label:'자동 종료 설정' },
     { id:'withdraw',  icon:'👋', label:'탈퇴 안내' },
   ]
 
@@ -606,6 +677,69 @@ function ServiceSettingsTab({ config, teacherId, onChange, showToast }) {
                 .replace(/{선생님}/g, '홍길동')
                 .replace(/{학생}/g,   '김철수')
                 .replace(/{링크}/g,   `${window.location.origin}/parent-invite?teacher=xxx&phone=01012345678`)}
+            </div>
+          </div>
+        </>}
+
+        {section === 'auto_end' && <>
+          <InfoBox color="#92400e" bg="#fffbeb" border="#fde68a">
+            💡 아래 조건이 충족되면 출결서비스가 <strong>자동으로 종료</strong>됩니다.<br/>
+            각 항목을 ON/OFF하거나 안내 문구를 수정할 수 있습니다.
+          </InfoBox>
+
+          {/* 조건 1 — 분기 명단 미포함 */}
+          <div style={{ background:'#fff', borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px' }}>
+              <div>
+                <div style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>📋 분기 명단 미포함 시 자동 종료</div>
+                <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>선생님이 "분기 명단 확정" 버튼을 눌렀을 때 현재 명단에 없는 학부모는 자동 종료됩니다.</div>
+              </div>
+              <label style={{ display:'flex', alignItems:'center', gap:'6px', cursor:'pointer', flexShrink:0 }}>
+                <input type="checkbox"
+                  checked={local.autoEndOnRoster !== false}
+                  onChange={e => set('autoEndOnRoster', e.target.checked)}
+                  style={{ width:'16px', height:'16px', accentColor: C.primary }} />
+                <span style={{ fontSize:'13px', fontWeight:600, color: local.autoEndOnRoster !== false ? C.primary : C.muted }}>
+                  {local.autoEndOnRoster !== false ? 'ON' : 'OFF'}
+                </span>
+              </label>
+            </div>
+            <div style={{ fontSize:'12px', color:'#6b7280', background:'#f9fafb', borderRadius:'8px', padding:'10px 12px', lineHeight:1.8 }}>
+              종료 사유 코드: <code style={{ background:'#e5e7eb', borderRadius:'4px', padding:'1px 5px' }}>not_in_roster</code>
+            </div>
+          </div>
+
+          {/* 조건 2 — 수업 취소 시 자동 종료 */}
+          <div style={{ background:'#fff', borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px' }}>
+              <div>
+                <div style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>🗑️ 수업 삭제 시 자동 종료</div>
+                <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>선생님이 수업을 삭제하면 해당 수업 학생의 학부모 출결서비스가 자동 종료됩니다.</div>
+              </div>
+              <label style={{ display:'flex', alignItems:'center', gap:'6px', cursor:'pointer', flexShrink:0 }}>
+                <input type="checkbox"
+                  checked={local.autoEndOnClassDelete !== false}
+                  onChange={e => set('autoEndOnClassDelete', e.target.checked)}
+                  style={{ width:'16px', height:'16px', accentColor: C.primary }} />
+                <span style={{ fontSize:'13px', fontWeight:600, color: local.autoEndOnClassDelete !== false ? C.primary : C.muted }}>
+                  {local.autoEndOnClassDelete !== false ? 'ON' : 'OFF'}
+                </span>
+              </label>
+            </div>
+            <div style={{ fontSize:'12px', color:'#6b7280', background:'#f9fafb', borderRadius:'8px', padding:'10px 12px', lineHeight:1.8 }}>
+              종료 사유 코드: <code style={{ background:'#e5e7eb', borderRadius:'4px', padding:'1px 5px' }}>class_cancelled</code>
+            </div>
+          </div>
+
+          {/* 약관에 자동종료 문구 안내 */}
+          <div style={{ background:'#f0fdf4', borderRadius:'10px', border:'1px solid #86efac', padding:'12px 14px', fontSize:'12px', color:'#15803d', lineHeight:1.9 }}>
+            💡 아래 문구가 <strong>이용약관</strong>에 포함되어 있는지 확인하세요.<br/>
+            <div style={{ marginTop:'8px', background:'#dcfce7', borderRadius:'8px', padding:'10px 12px', color:'#166534', whiteSpace:'pre-line' }}>
+{`출결서비스는 아래의 경우 자동으로 종료될 수 있습니다.
+· 담당 선생님이 해당 수업을 취소하는 경우
+· 새 분기/학기 수업 명단에 포함되지 않은 경우
+서비스 재이용을 원하시면 담당 선생님께
+문자 또는 카카오톡으로 문의해 주세요.`}
             </div>
           </div>
         </>}
