@@ -32,6 +32,10 @@ import { ParentLogin }  from './pages/ParentLogin.jsx'
 import ParentServiceManage from './pages/ParentServiceManage.jsx'
 // ✅ 업체 포털
 import { VendorManage } from './pages/VendorManage.jsx'
+// ✅ 학교 담당자 포털
+import { SchoolAuth, LS_SCHOOL_SESSION } from './pages/SchoolAuth.jsx'
+import { SchoolAdminApp } from './pages/SchoolAdminApp.jsx'
+import { SchoolAdminManage } from './pages/SchoolAdminManage.jsx'
 import { VendorAuth }   from './pages/VendorAuth.jsx'
 import { VendorApp }    from './pages/VendorApp.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
@@ -109,6 +113,12 @@ export default function App() {
   // ✅ 업체 세션 상태
   const [vendorSession, setVendorSession] = useState(() => {
     try { return JSON.parse(localStorage.getItem('asa_vendor_session') || 'null') }
+    catch { return null }
+  })
+
+  // ✅ 학교 담당자 세션 상태
+  const [schoolSession, setSchoolSession] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('asa_school_session') || 'null') }
     catch { return null }
   })
 
@@ -198,6 +208,27 @@ export default function App() {
     </div>
   )
 
+  // ✅ 학교 담당자 포털 분기 (?school=1 또는 /school 접속 시)
+  const isSchoolPath =
+    window.location.search.includes('school') ||
+    window.location.pathname === '/school'
+
+  if (isSchoolPath) {
+    if (schoolSession) {
+      return (
+        <SchoolAdminApp
+          session={schoolSession}
+          onLogout={() => {
+            localStorage.removeItem('asa_school_session')
+            setSchoolSession(null)
+            window.location.href = '/school'
+          }}
+        />
+      )
+    }
+    return <SchoolAuth onLogin={(s) => setSchoolSession(s)} />
+  }
+
   // DB 준비 완료 후 학부모 페이지 렌더
   if (window.location.pathname === '/parent-invite') return <ParentInvite />
   if (window.location.pathname === '/parent-login')  return <ParentLogin />
@@ -232,6 +263,8 @@ export default function App() {
       case 'messageguide':    return <MessageGuide user={user} />
       // ✅ 본사 업체 관리 (Lv.5 전용)
       case 'vendor_manage':   return <VendorManage user={user} />
+      // ✅ 본사 학교 담당자 관리 (Lv.5 전용)
+      case 'school_manage':   return <SchoolAdminManage user={user} />
       default:                return <Dashboard {...pageProps} />
     }
   }
