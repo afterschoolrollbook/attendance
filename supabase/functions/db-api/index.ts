@@ -50,6 +50,11 @@ const TABLE_MAP: Record<string, string> = {
   messageGuides:          'messageGuides',
   messageCategories:      'messageCategories',
   teacherProfiles:        'teacherProfiles',
+  // 본사 업체 관리
+  hqVendors:              'hq_vendors',
+  hqVendorSubjects:       'hq_vendor_subjects',
+  hqVendorProducts:       'hq_vendor_products',
+  vendorAccounts:         'vendor_accounts',
 }
 
 // 컬럼이 camelCase로 저장된 테이블 — snake 변환 없이 그대로 사용
