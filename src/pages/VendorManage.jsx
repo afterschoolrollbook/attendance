@@ -161,7 +161,7 @@ function InviteModal({ vendor, onClose, onSent }) {
 // ─────────────────────────────────
 function VendorFormModal({ vendor, onClose, onSave }) {
   const [form, setForm] = useState({ name:'', managerName:'', phone:'', email:'', kakaoId:'', memo:'', ...(vendor||{}) })
-  const set = (k,v) => setForm(f=>({...f,[k]:v}))
+  const set = (k) => (e) => setForm(f=>({...f,[k]:e.target.value}))
 
   const handleSave = () => {
     if (!form.name.trim()) { alert('업체명을 입력해주세요.'); return }
@@ -169,25 +169,36 @@ function VendorFormModal({ vendor, onClose, onSave }) {
     onClose()
   }
 
-  const Row = ({ label, k, type='text', placeholder='' }) => (
-    <div style={{ marginBottom:'10px' }}>
-      <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'3px' }}>{label}</label>
-      <input style={iSt} type={type} value={form[k]||''} onChange={e=>set(k,e.target.value)} placeholder={placeholder} />
-    </div>
-  )
-
+  // ✅ Row를 함수 내부에 정의하지 않고 input을 직접 나열 — 리렌더 시 포커스 날아가는 문제 방지
   return (
     <Modal title={vendor ? '✏️ 업체 수정' : '🏢 업체 등록'} onClose={onClose} width={460}>
-      <Row label="업체명 *"   k="name"        placeholder="예: 로봇사이언스 주식회사" />
-      <Row label="담당자명"   k="managerName" placeholder="예: 홍길동" />
-      <Row label="📱 휴대폰"  k="phone"       placeholder="010-0000-0000" />
-      <Row label="📧 이메일"  k="email"       type="email" placeholder="vendor@example.com" />
-      <Row label="💛 카카오ID" k="kakaoId"    placeholder="카카오톡 아이디" />
-      <div style={{ marginBottom:'10px' }}>
-        <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'3px' }}>메모</label>
-        <textarea style={{ ...iSt, resize:'vertical' }} rows={2} value={form.memo||''} onChange={e=>set('memo',e.target.value)} placeholder="내부 메모" />
+      <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+        <div>
+          <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'3px' }}>업체명 *</label>
+          <input style={iSt} value={form.name||''} onChange={set('name')} placeholder="예: 로봇사이언스 주식회사" />
+        </div>
+        <div>
+          <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'3px' }}>담당자명</label>
+          <input style={iSt} value={form.managerName||''} onChange={set('managerName')} placeholder="예: 홍길동" />
+        </div>
+        <div>
+          <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'3px' }}>📱 휴대폰</label>
+          <input style={iSt} value={form.phone||''} onChange={set('phone')} placeholder="010-0000-0000" />
+        </div>
+        <div>
+          <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'3px' }}>📧 이메일</label>
+          <input style={iSt} type="email" value={form.email||''} onChange={set('email')} placeholder="vendor@example.com" />
+        </div>
+        <div>
+          <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'3px' }}>💛 카카오ID</label>
+          <input style={iSt} value={form.kakaoId||''} onChange={set('kakaoId')} placeholder="카카오톡 아이디" />
+        </div>
+        <div>
+          <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'3px' }}>메모</label>
+          <textarea style={{ ...iSt, resize:'vertical' }} rows={2} value={form.memo||''} onChange={set('memo')} placeholder="내부 메모" />
+        </div>
       </div>
-      <div style={{ display:'flex', justifyContent:'flex-end', gap:'8px', marginTop:'8px' }}>
+      <div style={{ display:'flex', justifyContent:'flex-end', gap:'8px', marginTop:'16px' }}>
         <Btn onClick={onClose} secondary>취소</Btn>
         <Btn onClick={handleSave}>저장</Btn>
       </div>
