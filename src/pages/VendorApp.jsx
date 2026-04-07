@@ -781,6 +781,18 @@ function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
     setSelQuarter(all[0]||null)
   }
 
+  const bulkCreateSessions = async () => {
+    const n = Number(bulkSessCount)||0
+    if (n < 1) return
+    const existing = await DB.sessionsByQuarter(selQuarter.id)
+    const next = existing.length + 1
+    await Promise.all(Array.from({length:n},(_,i)=>
+      DB.saveSession({ id:uid(), quarterId:selQuarter.id, productId:selProd.id, session:next+i, title:'', supplies:'', createdAt:now() })
+    ))
+    setSessions(await DB.sessionsByQuarter(selQuarter.id))
+    success(`${n}개 차시가 생성되었습니다.`)
+  }
+
   const downloadSampleB = () => {
     const ws = XLSX.utils.aoa_to_sheet([
       ['차시', '제목', '준비물'],
@@ -939,14 +951,28 @@ function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
 
               {selQuarter && (
                 <div style={{ background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px' }}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px', flexWrap:'wrap', gap:'8px' }}>
                     <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
                       {selQuarter.label} 차시 <span style={{ fontSize:'12px', color:C.muted, fontWeight:400 }}>{sessions.length}개</span>
                     </div>
-                    <button type="button" onClick={addSession} style={{ padding:'5px 14px', borderRadius:'7px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 차시 추가</button>
-                    <button type="button" onClick={downloadSampleB} style={{ padding:'4px 12px', borderRadius:'7px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📥 샘플</button>
-                    <input ref={xlsxRef} type="file" accept=".xlsx,.xls,.csv" style={{ display:'none' }} onChange={uploadXlsxB} />
-                    <button type="button" onClick={()=>xlsxRef.current?.click()} style={{ padding:'4px 12px', borderRadius:'7px', border:'none', background:'#16a34a', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📤 엑셀 업로드</button>
+                    <div style={{ display:'flex', gap:'6px', alignItems:'center', flexWrap:'wrap' }}>
+                      {[['one','한 개씩'],['bulk','개수로']].map(([m,l])=>(
+                        <button key={m} type="button" onClick={()=>setSessMode(m)} style={{ padding:'4px 12px', borderRadius:'7px', fontSize:'12px', cursor:'pointer', border:`1.5px solid ${sessMode===m?C.blue:C.border}`, background:sessMode===m?'#eff6ff':'#fff', color:sessMode===m?C.blue:C.muted, fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>{l}</button>
+                      ))}
+                      {sessMode==='bulk' && (
+                        <>
+                          <input style={{ ...iSt, width:'60px', padding:'4px 8px' }} type="number" min="1" value={bulkSessCount} onChange={e=>setBulkSessCount(e.target.value)} />
+                          <span style={{ fontSize:'12px', color:C.muted }}>개</span>
+                          <button type="button" onClick={bulkCreateSessions} style={{ padding:'4px 14px', borderRadius:'7px', border:'none', background:C.blue, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>생성</button>
+                        </>
+                      )}
+                      {sessMode==='one' && (
+                        <button type="button" onClick={addSession} style={{ padding:'4px 14px', borderRadius:'7px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 차시 추가</button>
+                      )}
+                      <button type="button" onClick={downloadSampleB} style={{ padding:'4px 12px', borderRadius:'7px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📥 샘플</button>
+                      <input ref={xlsxRef} type="file" accept=".xlsx,.xls,.csv" style={{ display:'none' }} onChange={uploadXlsxB} />
+                      <button type="button" onClick={()=>xlsxRef.current?.click()} style={{ padding:'4px 12px', borderRadius:'7px', border:'none', background:'#16a34a', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📤 엑셀 업로드</button>
+                    </div>
                   </div>
                   {sessions.length>0 && (
                     <div style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 20px', gap:'5px', padding:'4px 8px', marginBottom:'4px' }}>
