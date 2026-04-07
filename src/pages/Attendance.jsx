@@ -1,9 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
+import { sendPush, isConfigured } from '../lib/supabase.js'
+
+// ── 웹 푸시 발송 헬퍼
+function pushAttendance(student, status, extra = {}) {
+  if (!isConfigured) return
+  if (status === 'pending') return
+  if (!student?.parentPhone) return
+  const subs = ParentMembers.getPushSubscriptions(student.parentPhone)
+  if (!subs.length) return
+  const label = { present:'출석', absent:'결석', late:'지각', early:'조퇴' }[status] || status
+  const title = `${student.name} ${label} 알림`
+  const body  = extra.absentReason ? `사유: ${extra.absentReason}` : `${student.name} 학생이 ${label} 처리되었습니다.`
+  subs.forEach(sub => sendPush(sub, { title, body, tag: 'attendance' }))
+}
 
 // 결석 사유 (출석체크용 확장)
 const ABSENT_REASONS = [
@@ -814,6 +828,7 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
       ...extra, markedAt: now(),
     })
     setTick(t => t + 1)
+    pushAttendance(sorted.find(s => s.id === studentId), status, extra)
   }
   const markAll = (status) => sorted.forEach(s => mark(s.id, status))
 
@@ -1093,6 +1108,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
       ...extra, markedAt: now(),
     })
     setTick(t => t+1)
+    pushAttendance(activeStudents.find(s => s.id === studentId), status, extra)
   }
   const markAll = (status) => activeStudents.forEach(s => mark(s.id, status))
 
@@ -1759,6 +1775,7 @@ function MobileAttendance({ user, pageParams = {} }) {
       ...extra,
     })
     setTick(t => t+1)
+    pushAttendance(students.find(s => s.id === studentId), status, extra)
   }
   const markAll = (status) => students.forEach(s => mark(s.id, status))
 
