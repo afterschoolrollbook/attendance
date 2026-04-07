@@ -93,6 +93,8 @@ const SYNC_TABLES = [
   'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress', 'supplyProgressLogs', 'supplySessionChecks',
   // 지사 / 학부모 회원 / 연결 정보
   'branches', 'parentMembers', 'teacherParentLinks',
+  // 출결 서비스 설정
+  'teacherServiceConfigs',
   // 안내 문구
   'messageGuides', 'messageCategories',
   // 선생님 프로필
@@ -381,8 +383,14 @@ export const TeacherParentLinks = {
 
   link(teacherId, student, classId) {
     if (!student.parentPhone) return
-    const parent = ParentMembers.upsert(student.parentPhone)
-    if (!parent) return
+    const clean = student.parentPhone.replace(/[^0-9]/g, '')
+    let parent = ParentMembers.findByPhoneAndTeacher(clean, teacherId)
+    if (!parent) {
+      // 아직 가입 전이면 최소 레코드 생성
+      const record = { id: uid(), phone: clean, name: '', memo: '', appJoined: false, teacherId, createdAt: now() }
+      db.insert('parentMembers', record)
+      parent = record
+    }
     const existing = db.get('teacherParentLinks').find(l =>
       l.teacherId === teacherId && l.parentMemberId === parent.id && l.studentId === student.id
     )
