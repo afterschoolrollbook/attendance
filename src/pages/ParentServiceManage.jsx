@@ -30,16 +30,22 @@ function ScrollTable({ children }) {
   const sync2   = useRef(false)
   return (
     <div style={{ borderRadius:'14px', border:'1px solid #e5e7eb', background:'#fff', overflow:'hidden' }}>
-      {/* 실제 테이블 스크롤 영역 */}
-      <div ref={bodyRef} style={{ overflowX:'scroll', overflowY:'visible' }}
+      {/* 실제 테이블 — 스크롤바 CSS로 숨김 */}
+      <style>{`
+        .scrolltable-body::-webkit-scrollbar { display: none; }
+        .scrolltable-body { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+      <div ref={bodyRef} className="scrolltable-body"
+        style={{ overflowX:'scroll', overflowY:'visible' }}
         onScroll={() => {
           if (sync2.current) { sync2.current = false; return }
           if (barRef.current) { sync1.current = true; barRef.current.scrollLeft = bodyRef.current.scrollLeft }
         }}>
         {children}
       </div>
-      {/* 하단 sticky 스크롤바 */}
-      <div ref={barRef} style={{ position:'sticky', bottom:0, overflowX:'scroll', overflowY:'hidden', height:'14px', background:'#f9fafb', borderTop:'1px solid #e5e7eb' }}
+      {/* 하단 sticky 스크롤바 — 이것만 보임 */}
+      <div ref={barRef}
+        style={{ position:'sticky', bottom:0, overflowX:'scroll', overflowY:'hidden', height:'12px', background:'#f1f5f9', borderTop:'1px solid #e5e7eb' }}
         onScroll={() => {
           if (sync1.current) { sync1.current = false; return }
           if (bodyRef.current) { sync2.current = true; bodyRef.current.scrollLeft = barRef.current.scrollLeft }
