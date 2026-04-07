@@ -1,9 +1,11 @@
 /**
  * VendorAuth.jsx
  * 업체 전용 로그인 · 회원가입 · 아이디찾기 · 비밀번호 초기화
+ * ✅ 업체 조회/계정 — Supabase hq_vendors, vendor_accounts 테이블 사용
  */
 import React, { useState } from 'react'
 import { uid, now } from '../lib/utils.js'
+import { dbCall, isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
 
 const C = {
   primary: '#f97316', text: '#111827', muted: '#6b7280',
@@ -11,34 +13,42 @@ const C = {
   bg: '#fff7ed',
 }
 
-const LS_VENDORS  = 'asa_hq_vendors'
-const LS_ACCOUNTS = 'asa_vendor_accounts'
-const LS_SESSION  = 'asa_vendor_session'
+const LS_SESSION = 'asa_vendor_session'
 
-function lsGet(key) { try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] } }
-function lsSet(key, arr) { localStorage.setItem(key, JSON.stringify(arr)) }
-
-const VendorAccounts = {
-  all:        ()      => lsGet(LS_ACCOUNTS),
-  byEmail:    (email) => lsGet(LS_ACCOUNTS).find(a => a.email?.toLowerCase() === email?.toLowerCase()),
-  byVendorId: (vid)   => lsGet(LS_ACCOUNTS).find(a => a.vendorId === vid),
-  save:       (a)     => {
-    const arr = lsGet(LS_ACCOUNTS)
-    const idx = arr.findIndex(x => x.id === a.id)
-    idx >= 0 ? arr.splice(idx, 1, a) : arr.push(a)
-    lsSet(LS_ACCOUNTS, arr)
+// ─── Supabase에서 업체 조회
+const HQVendors = {
+  byPhone: async (phone) => {
+    if (!isConfigured) return null
+    const clean = phone?.replace(/[^0-9]/g, '')
+    const rows = await dbCall('getAll', 'hqVendors')
+    return rows?.find(v => v.phone?.replace(/[^0-9]/g,'') === clean) || null
+  },
+  byEmail: async (email) => {
+    if (!isConfigured) return null
+    const rows = await dbCall('getAll', 'hqVendors')
+    return rows?.find(v => v.email?.toLowerCase() === email?.toLowerCase()) || null
+  },
+  save: async (v) => {
+    if (!isConfigured) return
+    await dbCall('upsert', 'hqVendors', { data: v })
   },
 }
 
-const HQVendors = {
-  all:     ()      => lsGet(LS_VENDORS),
-  byPhone: (phone) => lsGet(LS_VENDORS).find(v => v.phone?.replace(/[^0-9]/g,'') === phone?.replace(/[^0-9]/g,'')),
-  byEmail: (email) => lsGet(LS_VENDORS).find(v => v.email?.toLowerCase() === email?.toLowerCase()),
-  save:    (v)     => {
-    const arr = lsGet(LS_VENDORS)
-    const idx = arr.findIndex(x => x.id === v.id)
-    idx >= 0 ? arr.splice(idx, 1, v) : arr.push(v)
-    lsSet(LS_VENDORS, arr)
+// ─── Supabase에서 업체 계정 조회/저장
+const VendorAccounts = {
+  byEmail: async (email) => {
+    if (!isConfigured) return null
+    const rows = await dbCall('getAll', 'vendorAccounts')
+    return rows?.find(a => a.email?.toLowerCase() === email?.toLowerCase()) || null
+  },
+  byVendorId: async (vid) => {
+    if (!isConfigured) return null
+    const rows = await dbCall('getAll', 'vendorAccounts')
+    return rows?.find(a => a.vendorId === vid) || null
+  },
+  save: async (a) => {
+    if (!isConfigured) return
+    await dbCall('upsert', 'vendorAccounts', { data: a })
   },
 }
 
@@ -79,20 +89,21 @@ function LoginTab({ onLogin, onSwitch, onFindId, onResetPw }) {
   const [err, setErr]         = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setErr('')
     if (!email || !pw) return
     setLoading(true)
-    setTimeout(() => {
-      const acc = VendorAccounts.byEmail(email.trim())
-      if (!acc) { setErr('등록된 업체 계정이 없습니다.'); setLoading(false); return }
-      if (acc.pw !== pw) { setErr('비밀번호가 올바르지 않습니다.'); setLoading(false); return }
-      const vendor = HQVendors.all().find(v => v.id === acc.vendorId)
-      if (!vendor) { setErr('연결된 업체 정보가 없습니다.'); setLoading(false); return }
+    try {
+      const acc = await VendorAccounts.byEmail(email.trim())
+      if (!acc) { setErr('등록된 업체 계정이 없습니다.'); return }
+      if (acc.pw !== pw) { setErr('비밀번호가 올바르지 않습니다.'); return }
+      const vendors = await dbCall('getAll', 'hqVendors')
+      const vendor = vendors?.find(v => v.id === acc.vendorId)
+      if (!vendor) { setErr('연결된 업체 정보가 없습니다.'); return }
       localStorage.setItem(LS_SESSION, JSON.stringify({ ...acc, vendor }))
       onLogin({ ...acc, vendor })
-      setLoading(false)
-    }, 400)
+    } catch { setErr('오류가 발생했습니다. 다시 시도해주세요.') }
+    finally { setLoading(false) }
   }
 
   return (
@@ -150,17 +161,18 @@ function FindIdTab({ onBack }) {
   const [result, setResult] = useState(null)
   const [err, setErr]       = useState('')
 
-  const handleFind = () => {
+  const handleFind = async () => {
     setErr('')
     setResult(null)
-    const vendor = HQVendors.byPhone(phone)
-    if (!vendor) { setErr('본사에 등록된 전화번호가 아닙니다.'); return }
-    const acc = VendorAccounts.byVendorId(vendor.id)
-    if (!acc) { setErr('해당 업체로 가입된 계정이 없습니다.\n업체 가입을 먼저 진행해주세요.'); return }
-    // 이메일 마스킹: abc***@example.com
-    const [local, domain] = acc.email.split('@')
-    const masked = local.slice(0, 3) + '***@' + domain
-    setResult({ masked, vendorName: vendor.name })
+    try {
+      const vendor = await HQVendors.byPhone(phone)
+      if (!vendor) { setErr('본사에 등록된 전화번호가 아닙니다.'); return }
+      const acc = await VendorAccounts.byVendorId(vendor.id)
+      if (!acc) { setErr('해당 업체로 가입된 계정이 없습니다.\n업체 가입을 먼저 진행해주세요.'); return }
+      const [local, domain] = acc.email.split('@')
+      const masked = local.slice(0, 3) + '***@' + domain
+      setResult({ masked, vendorName: vendor.name })
+    } catch { setErr('오류가 발생했습니다. 다시 시도해주세요.') }
   }
 
   return (
@@ -215,15 +227,28 @@ function ResetPwTab({ onBack }) {
   const [targetAcc, setTargetAcc] = useState(null)
 
   // Step 1 → 2: 이메일 확인 + 인증번호 발송
-  const handleSendCode = () => {
+  const handleSendCode = async () => {
     setErr('')
-    const acc = VendorAccounts.byEmail(email.trim())
-    if (!acc) { setErr('가입되지 않은 이메일입니다.'); return }
-    setTargetAcc(acc)
-    const code6 = String(Math.floor(100000 + Math.random() * 900000))
-    setSentCode(code6)
-    alert(`[개발 모드] 인증번호: ${code6}\n실제 운영 시 이메일로 발송됩니다.`)
-    setStep(2)
+    try {
+      const acc = await VendorAccounts.byEmail(email.trim())
+      if (!acc) { setErr('가입되지 않은 이메일입니다.'); return }
+      setTargetAcc(acc)
+      const code6 = String(Math.floor(100000 + Math.random() * 900000))
+      setSentCode(code6)
+      // Resend API로 인증번호 발송
+      if (isConfigured && FUNCTIONS_BASE) {
+        try {
+          await fetch(`${FUNCTIONS_BASE}/send-email`, {
+            method:'POST',
+            headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+            body: JSON.stringify({ to: email.trim(), code: code6 }),
+          })
+        } catch { /* 발송 실패해도 진행 */ }
+      } else {
+        alert(`[개발 모드] 인증번호: ${code6}`)
+      }
+      setStep(2)
+    } catch { setErr('오류가 발생했습니다.') }
   }
 
   // Step 2 → 3: 인증번호 확인
@@ -233,12 +258,14 @@ function ResetPwTab({ onBack }) {
   }
 
   // Step 3: 새 비번 저장
-  const handleReset = () => {
+  const handleReset = async () => {
     setErr('')
     if (pw.length < 4) { setErr('비밀번호는 4자 이상이어야 합니다.'); return }
     if (pw !== pwConfirm) { setErr('비밀번호가 일치하지 않습니다.'); return }
-    VendorAccounts.save({ ...targetAcc, pw })
-    setDone(true)
+    try {
+      await VendorAccounts.save({ ...targetAcc, pw })
+      setDone(true)
+    } catch { setErr('오류가 발생했습니다.') }
   }
 
   // 진행바 컴포넌트
@@ -381,23 +408,39 @@ function RegisterTab({ onDone, onSwitch }) {
   const [err, setErr]             = useState('')
   const [loading, setLoading]     = useState(false)
 
-  const handleCheckVendor = () => {
+  const handleCheckVendor = async () => {
     setErr('')
-    const vendor = HQVendors.byPhone(phone) || HQVendors.byEmail(phone.includes('@') ? phone : '')
-    if (!vendor) { setErr('본사에 등록된 업체 정보가 없습니다.\n담당자에게 업체 등록을 요청해주세요.'); return }
-    if (VendorAccounts.byVendorId(vendor.id)) { setErr('이미 가입된 업체입니다. 로그인해주세요.'); return }
-    setMatchedVendor(vendor)
-    if (vendor.email) setRegEmail(vendor.email)
-    setStep(2)
+    try {
+      const cleanPhone = phone.replace(/[^0-9@._\-a-zA-Z]/g, '')
+      const vendor = phone.includes('@')
+        ? await HQVendors.byEmail(phone)
+        : (await HQVendors.byPhone(phone)) || (await HQVendors.byEmail(phone))
+      if (!vendor) { setErr('본사에 등록된 업체 정보가 없습니다.\n담당자에게 업체 등록을 요청해주세요.'); return }
+      const existing = await VendorAccounts.byVendorId(vendor.id)
+      if (existing) { setErr('이미 가입된 업체입니다. 로그인해주세요.'); return }
+      setMatchedVendor(vendor)
+      if (vendor.email) setRegEmail(vendor.email)
+      setStep(2)
+    } catch { setErr('오류가 발생했습니다. 다시 시도해주세요.') }
   }
 
-  const handleSendCode = () => {
+  const handleSendCode = async () => {
     if (!regEmail.includes('@')) { setErr('올바른 이메일을 입력해주세요.'); return }
-    if (VendorAccounts.byEmail(regEmail)) { setErr('이미 사용 중인 이메일입니다.'); return }
+    if (await VendorAccounts.byEmail(regEmail)) { setErr('이미 사용 중인 이메일입니다.'); return }
     const code6 = String(Math.floor(100000 + Math.random() * 900000))
     setSentCode(code6)
     setErr('')
-    alert(`[개발 모드] 인증번호: ${code6}\n실제 운영 시 이메일로 발송됩니다.`)
+    if (isConfigured && FUNCTIONS_BASE) {
+      try {
+        await fetch(`${FUNCTIONS_BASE}/send-email`, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ to: regEmail, code: code6 }),
+        })
+      } catch {}
+    } else {
+      alert(`[개발 모드] 인증번호: ${code6}`)
+    }
   }
 
   const handleVerifyCode = () => {
@@ -405,20 +448,20 @@ function RegisterTab({ onDone, onSwitch }) {
     else setErr('인증번호가 올바르지 않습니다.')
   }
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     setErr('')
     if (!verified) { setErr('이메일 인증을 완료해주세요.'); return }
     if (pw.length < 4) { setErr('비밀번호는 4자 이상이어야 합니다.'); return }
     if (pw !== pwConfirm) { setErr('비밀번호가 일치하지 않습니다.'); return }
     setLoading(true)
-    setTimeout(() => {
+    try {
       const acc = { id:uid(), vendorId:matchedVendor.id, email:regEmail, pw, name: name || matchedVendor.managerName || matchedVendor.name, createdAt:now() }
-      VendorAccounts.save(acc)
-      HQVendors.save({ ...matchedVendor, status:'joined', joinedAt: now() })
+      await VendorAccounts.save(acc)
+      await HQVendors.save({ ...matchedVendor, status:'joined', joinedAt: now() })
       localStorage.setItem(LS_SESSION, JSON.stringify({ ...acc, vendor: matchedVendor }))
-      setLoading(false)
       onDone({ ...acc, vendor: matchedVendor })
-    }, 500)
+    } catch { setErr('가입 중 오류가 발생했습니다.') }
+    finally { setLoading(false) }
   }
 
   return (
