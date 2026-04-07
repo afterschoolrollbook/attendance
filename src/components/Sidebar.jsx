@@ -38,6 +38,11 @@ const ADMIN_NAV = [
   { path: 'adsense',        label: '광고 관리',  icon: '📢', feature: FEATURES.MANAGE_AD },
 ]
 
+// ✅ Lv.5 전용 — 본사 운영 메뉴
+const HQ_NAV = [
+  { path: 'vendor_manage', label: '업체 관리', icon: '🏢' },
+]
+
 const KEY_MENU = 'asa_mymenu_settings'
 function getMenuConfig() {
   return JSON.parse(localStorage.getItem(KEY_MENU) || '{"training":true,"certificates":true,"career":true,"awards":true,"proposals":true,"jobs":true}')
@@ -51,11 +56,12 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
   const levelLabels = { 1:'Lv.1 미인증', 2:'Lv.2 인증', 3:'Lv.3 우수', 4:'Lv.4 파트너', 5:'Lv.5 관리자' }
 
   const visibleMyNav = MY_NAV.filter(item => menuCfg[item.menuKey] !== false)
+  const isSuperAdmin = user?.level === 5  // ✅ Lv.5 판별
 
   const handleNav = (path) => { onNav(path); if (mobile) onClose?.() }
   const handleLogout = () => { onLogout(); if (mobile) onClose?.() }
 
-  // 모바일: 오버레이 + 슬라이드 드로어
+  // ── 모바일: 오버레이 + 슬라이드 드로어
   if (mobile) return (
     <>
       {open && (
@@ -98,6 +104,13 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
               {ADMIN_NAV.map(item => <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />)}
             </>
           )}
+          {/* ✅ Lv.5 전용 본사 운영 — 모바일 */}
+          {isSuperAdmin && (
+            <>
+              <div style={{ fontSize:'11px', color:'#a78bfa', padding:'10px 16px 4px', fontWeight:700 }}>본사 운영</div>
+              {HQ_NAV.map(item => <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} accent="#8b5cf6" />)}
+            </>
+          )}
         </nav>
         <div style={{ padding:'12px 16px', borderTop:'1px solid #27272a' }}>
           <button onClick={handleLogout} style={{ background:'none', border:'none', cursor:'pointer', color:'#71717a', fontSize:'14px', padding:'6px 0', display:'flex', alignItems:'center', gap:'8px', width:'100%', fontFamily:'Noto Sans KR, sans-serif' }}>
@@ -108,7 +121,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
     </>
   )
 
-  // PC 기존 레이아웃
+  // ── PC 레이아웃
   return (
     <aside style={{
       width: '220px', minWidth: '220px', background: '#18181b',
@@ -146,7 +159,6 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
         <div style={{ fontSize:'11px', color:'#52525b', padding:'12px 20px 4px', fontWeight:600, letterSpacing:'0.05em' }}>
           선생님 커리어
         </div>
-
         {MY_NAV_FIXED.map(item => (
           <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} />
         ))}
@@ -161,6 +173,18 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
             </div>
             {ADMIN_NAV.map(item => (
               <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} />
+            ))}
+          </>
+        )}
+
+        {/* ✅ Lv.5 전용 본사 운영 — PC */}
+        {isSuperAdmin && (
+          <>
+            <div style={{ fontSize:'11px', color:'#a78bfa', padding:'12px 20px 4px', fontWeight:700, letterSpacing:'0.05em' }}>
+              본사 운영
+            </div>
+            {HQ_NAV.map(item => (
+              <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} accent="#8b5cf6" />
             ))}
           </>
         )}
@@ -184,17 +208,21 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
   )
 }
 
-function NavItem({ item, active, onClick }) {
+// ✅ accent prop 추가 — 본사 메뉴는 보라색
+function NavItem({ item, active, onClick, accent }) {
+  const activeColor = accent || '#f97316'
+  const activeBg    = accent ? '#8b5cf618' : '#f9731618'
+
   return (
     <button
       onClick={onClick}
       style={{
         width:'100%', display:'flex', alignItems:'center', gap:'10px',
         padding:'10px 20px',
-        background: active ? '#f9731618' : 'none',
+        background: active ? activeBg : 'none',
         border:'none',
-        borderLeft: active ? '3px solid #f97316' : '3px solid transparent',
-        color: active ? '#f97316' : '#a1a1aa',
+        borderLeft: active ? `3px solid ${activeColor}` : '3px solid transparent',
+        color: active ? activeColor : '#a1a1aa',
         fontSize:'14px', fontWeight: active ? 600 : 400,
         cursor:'pointer', textAlign:'left', transition:'all .15s',
         fontFamily:'Noto Sans KR, sans-serif',
