@@ -271,26 +271,55 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
   const { success } = useToast()
   const fileRef = React.useRef()
 
-  const [prodForm, setProdForm] = useState({ name:'', maxStage:1 })
+  // 교구
+  const [prodForm, setProdForm] = useState({ name:'' })
   const [selProd, setSelProd]   = useState(null)
-  const [selStage, setSelStage] = useState(1)
-  const [contents, setContents] = useState([])
-  const [files, setFiles]       = useState([])
-  const [contForm, setContForm] = useState({ session:1, title:'' })
-  const [fileForm, setFileForm] = useState({ fileType:'annual', title:'', stage:'' })
+
+  // 단계 — 교구에 붙는 stages 배열 (localStorage)
+  const getStages = (pid) => JSON.parse(localStorage.getItem(`asa_stages_${pid}`)||'[]')
+  const setStages = (pid, arr) => localStorage.setItem(`asa_stages_${pid}`, JSON.stringify(arr))
+
+  const [stages, setStagesState]   = useState([])
+  const [selStage, setSelStage]     = useState(null)
+
+  // 목차
+  const getConts = (pid, stageId) => JSON.parse(localStorage.getItem(`asa_conts_${pid}_${stageId}`)||'[]')
+  const setConts = (pid, stageId, arr) => localStorage.setItem(`asa_conts_${pid}_${stageId}`, JSON.stringify(arr))
+  const [contents, setContents]     = useState([])
+  // 목차 입력 폼 — 개수 미리 설정 or 한 개씩 추가
+  const [contMode, setContMode]     = useState('one')   // 'one' | 'bulk'
+  const [bulkCount, setBulkCount]   = useState(12)
+  const [contForm, setContForm]     = useState({ title:'', supplies:'' })
+
+  // 파일
+  const getFiles = (pid) => JSON.parse(localStorage.getItem(`asa_files_${pid}`)||'[]')
+  const setFilesLS = (pid, arr) => localStorage.setItem(`asa_files_${pid}`, JSON.stringify(arr))
+  const [files, setFiles]           = useState([])
+  const [fileForm, setFileForm]     = useState({ fileType:'annual', title:'', stage:'' })
 
   const subjectProds = products.filter(p=>p.subjectId===subjectId && p.type==='textbook')
 
+  // 교구 선택 시 데이터 로드
   useEffect(() => {
     if (!selProd) return
-    setContents(JSON.parse(localStorage.getItem(`asa_contents_${selProd.id}`)||'[]'))
-    setFiles(JSON.parse(localStorage.getItem(`asa_files_${selProd.id}`)||'[]'))
+    const s = getStages(selProd.id)
+    setStagesState(s)
+    setSelStage(s[0] || null)
+    setFiles(getFiles(selProd.id))
   }, [selProd])
 
+  // 단계 선택 시 목차 로드
+  useEffect(() => {
+    if (!selProd || !selStage) return
+    setContents(getConts(selProd.id, selStage.id))
+  }, [selStage])
+
+  // 교구 저장
   const saveProd = async () => {
     if (!prodForm.name.trim()) return alert('교구명을 입력해주세요.')
-    await HQProducts.save({ id:uid(), vendorId, subjectId, type:'textbook', name:prodForm.name, maxStage:Number(prodForm.maxStage)||1, createdAt:now() })
-    setProdForm({ name:'', maxStage:1 })
+    const item = { id:uid(), vendorId, subjectId, type:'textbook', name:prodForm.name, createdAt:now() }
+    await HQProducts.save(item)
+    setProdForm({ name:'' })
     onReload()
     success('교구가 등록되었습니다.')
   }
@@ -303,33 +332,74 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
     success('삭제되었습니다.')
   }
 
-  const saveContent = () => {
-    if (!contForm.title.trim()) return alert('목차 제목을 입력해주세요.')
-    const key = `asa_contents_${selProd.id}`
-    const all = [...JSON.parse(localStorage.getItem(key)||'[]'), { id:uid(), productId:selProd.id, stage:selStage, session:Number(contForm.session), title:contForm.title }]
-    all.sort((a,b)=>a.stage-b.stage||a.session-b.session)
-    localStorage.setItem(key, JSON.stringify(all))
-    setContents(all)
-    setContForm(f=>({...f, session:Number(f.session)+1, title:''}))
-    success('목차가 추가되었습니다.')
+  // 단계 추가
+  const addStage = () => {
+    const arr = getStages(selProd.id)
+    const newStage = { id:uid(), productId:selProd.id, label:`${arr.length+1}단계`, order:arr.length+1 }
+    arr.push(newStage)
+    setStages(selProd.id, arr)
+    setStagesState(arr)
+    setSelStage(newStage)
+    success(`${newStage.label} 추가되었습니다.`)
   }
 
-  const deleteContent = (id) => {
-    const key = `asa_contents_${selProd.id}`
-    const all = JSON.parse(localStorage.getItem(key)||'[]').filter(c=>c.id!==id)
-    localStorage.setItem(key, JSON.stringify(all))
+  const deleteStage = (stageId) => {
+    if (!window.confirm('단계를 삭제하시겠습니까?
+해당 단계의 목차도 삭제됩니다.')) return
+    const arr = getStages(selProd.id).filter(s=>s.id!==stageId)
+    setStages(selProd.id, arr)
+    setStagesState(arr)
+    localStorage.removeItem(`asa_conts_${selProd.id}_${stageId}`)
+    setSelStage(arr[0]||null)
+    success('삭제되었습니다.')
+  }
+
+  // 목차 개수 미리 생성
+  const bulkCreate = () => {
+    const n = Number(bulkCount)||0
+    if (n < 1) return
+    const existing = getConts(selProd.id, selStage.id)
+    const nextSession = existing.length + 1
+    const newItems = Array.from({length:n}, (_,i) => ({
+      id:uid(), stageId:selStage.id, session:nextSession+i, title:'', supplies:'',
+    }))
+    const all = [...existing, ...newItems]
+    setConts(selProd.id, selStage.id, all)
+    setContents(all)
+    success(`${n}개 목차가 추가되었습니다.`)
+  }
+
+  // 목차 한 개 추가
+  const addOneCont = () => {
+    const existing = getConts(selProd.id, selStage.id)
+    const item = { id:uid(), stageId:selStage.id, session:existing.length+1, title:'', supplies:'' }
+    const all = [...existing, item]
+    setConts(selProd.id, selStage.id, all)
     setContents(all)
   }
 
+  // 목차 인라인 수정
+  const updateCont = (id, field, val) => {
+    const all = contents.map(c=>c.id===id?{...c,[field]:val}:c)
+    setConts(selProd.id, selStage.id, all)
+    setContents(all)
+  }
+
+  const deleteCont = (id) => {
+    const all = contents.filter(c=>c.id!==id).map((c,i)=>({...c,session:i+1}))
+    setConts(selProd.id, selStage.id, all)
+    setContents(all)
+  }
+
+  // 파일 등록
   const saveFile = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     if (!fileForm.title.trim()) { alert('파일 제목을 먼저 입력해주세요.'); e.target.value=''; return }
     const reader = new FileReader()
     reader.onload = ev => {
-      const key = `asa_files_${selProd.id}`
-      const all = [...JSON.parse(localStorage.getItem(key)||'[]'), { id:uid(), productId:selProd.id, fileType:fileForm.fileType, stage:fileForm.stage, title:fileForm.title, fileName:file.name, fileData:ev.target.result }]
-      localStorage.setItem(key, JSON.stringify(all))
+      const all = [...getFiles(selProd.id), { id:uid(), fileType:fileForm.fileType, stageLabel:fileForm.stage, title:fileForm.title, fileName:file.name, fileData:ev.target.result }]
+      setFilesLS(selProd.id, all)
       setFiles(all)
       setFileForm({ fileType:'annual', title:'', stage:'' })
       success('파일이 등록되었습니다.')
@@ -339,9 +409,8 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
   }
 
   const deleteFile = (id) => {
-    const key = `asa_files_${selProd.id}`
-    const all = JSON.parse(localStorage.getItem(key)||'[]').filter(f=>f.id!==id)
-    localStorage.setItem(key, JSON.stringify(all))
+    const all = getFiles(selProd.id).filter(f=>f.id!==id)
+    setFilesLS(selProd.id, all)
     setFiles(all)
   }
 
@@ -352,17 +421,17 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
       {/* 교구 등록 */}
       <div style={{ padding:'16px', background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, marginBottom:'16px' }}>
         <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'10px' }}>📦 교구(교재) 등록</div>
-        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-          <div style={{ flex:2, minWidth:'160px' }}>
+        <div style={{ display:'flex', gap:'8px' }}>
+          <div style={{ flex:1 }}>
             <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>교구명 *</label>
-            <input style={iSt} value={prodForm.name} onChange={e=>setProdForm(f=>({...f,name:e.target.value}))} placeholder="예: 큐보, 로이봇" />
-          </div>
-          <div style={{ flex:1, minWidth:'80px' }}>
-            <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>총 단계 수</label>
-            <input style={iSt} type="number" min="1" max="20" value={prodForm.maxStage} onChange={e=>setProdForm(f=>({...f,maxStage:e.target.value}))} />
+            <input style={iSt} value={prodForm.name} onChange={e=>setProdForm(f=>({...f,name:e.target.value}))}
+              onKeyDown={e=>e.key==='Enter'&&saveProd()} placeholder="예: 큐보, 로이봇" />
           </div>
           <div style={{ alignSelf:'flex-end' }}>
-            <Btn onClick={saveProd}>+ 교구 추가</Btn>
+            <button type="button" onClick={saveProd} style={{
+              padding:'9px 20px', borderRadius:'9px', border:'none', background:C.primary,
+              color:'#fff', fontWeight:700, fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+            }}>+ 교구 추가</button>
           </div>
         </div>
       </div>
@@ -373,7 +442,7 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
         : (
           <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
             {subjectProds.map(p=>(
-              <div key={p.id} onClick={()=>{ setSelProd(p); setSelStage(1) }} style={{
+              <div key={p.id} onClick={()=>{ setSelProd(p); setSelStage(null) }} style={{
                 padding:'12px 16px', borderRadius:'12px',
                 border:`2px solid ${selProd?.id===p.id?C.primary:C.border}`,
                 background:selProd?.id===p.id?'#fff7ed':C.card,
@@ -381,61 +450,130 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
               }}>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>📦 {p.name}</div>
-                  <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>총 {p.maxStage}단계</div>
+                  <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+                    {getStages(p.id).length}단계 등록
+                  </div>
                 </div>
-                <Btn onClick={e=>{ e.stopPropagation(); deleteProd(p.id) }} danger style={{ padding:'4px 10px', fontSize:'11px' }}>삭제</Btn>
+                <button type="button" onClick={e=>{ e.stopPropagation(); deleteProd(p.id) }} style={{
+                  padding:'4px 12px', borderRadius:'7px', border:'1px solid #fca5a5',
+                  background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                }}>삭제</button>
               </div>
             ))}
           </div>
         )
       }
 
-      {/* 선택된 교구 — 단계·목차·파일 */}
+      {/* 선택된 교구 상세 */}
       {selProd && (
         <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-          <div style={{ padding:'14px 20px', borderBottom:`1px solid ${C.border}`, background:'#fff7ed' }}>
-            <span style={{ fontSize:'15px', fontWeight:700, color:C.primary }}>📦 {selProd.name}</span>
-            <span style={{ fontSize:'12px', color:C.muted, marginLeft:'10px' }}>단계 · 목차 · 파일 관리</span>
+          <div style={{ padding:'14px 20px', borderBottom:`1px solid ${C.border}`, background:'#fff7ed', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div>
+              <span style={{ fontSize:'15px', fontWeight:700, color:C.primary }}>📦 {selProd.name}</span>
+              <span style={{ fontSize:'12px', color:C.muted, marginLeft:'10px' }}>단계 · 목차 · 파일 관리</span>
+            </div>
           </div>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr' }}>
-            {/* 목차 */}
+
+            {/* 왼쪽: 단계 + 목차 */}
             <div style={{ padding:'18px', borderRight:`1px solid ${C.border}` }}>
-              <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'12px' }}>📋 단계별 목차</div>
-              <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'12px' }}>
-                {Array.from({length:selProd.maxStage},(_,i)=>i+1).map(st=>(
-                  <button key={st} onClick={()=>setSelStage(st)} style={{
-                    padding:'5px 12px', borderRadius:'999px',
-                    border:`1.5px solid ${selStage===st?C.primary:C.border}`,
-                    background:selStage===st?'#fff7ed':C.bg, color:selStage===st?C.primary:C.muted,
-                    fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                  }}>{st}단계</button>
-                ))}
+
+              {/* 단계 탭 + 추가 버튼 */}
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px' }}>
+                <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>📋 단계별 목차</div>
+                <button type="button" onClick={addStage} style={{
+                  padding:'4px 12px', borderRadius:'7px', border:`1px solid ${C.primary}`,
+                  background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:600,
+                  cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                }}>+ 단계 추가</button>
               </div>
-              <div style={{ display:'flex', gap:'6px', marginBottom:'10px' }}>
-                <input style={{ ...iSt, width:'55px' }} type="number" min="1" value={contForm.session}
-                  onChange={e=>setContForm(f=>({...f,session:e.target.value}))} placeholder="차시" />
-                <input style={{ ...iSt, flex:1 }} value={contForm.title}
-                  onChange={e=>setContForm(f=>({...f,title:e.target.value}))}
-                  onKeyDown={e=>e.key==='Enter'&&saveContent()}
-                  placeholder="목차 제목 입력" />
-                <Btn onClick={saveContent} style={{ flexShrink:0, padding:'6px 12px', fontSize:'12px' }}>추가</Btn>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'5px', maxHeight:'260px', overflowY:'auto' }}>
-                {contents.filter(c=>c.stage===selStage).length===0
-                  ? <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', padding:'16px' }}>{selStage}단계 목차가 없습니다.</div>
-                  : contents.filter(c=>c.stage===selStage).map(c=>(
-                    <div key={c.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 10px', background:C.bg, borderRadius:'8px', border:`1px solid ${C.border}` }}>
-                      <span style={{ fontSize:'11px', fontWeight:700, color:C.blue, width:'26px', flexShrink:0 }}>{c.session}차</span>
-                      <span style={{ flex:1, fontSize:'13px', color:C.text }}>{c.title}</span>
-                      <button onClick={()=>deleteContent(c.id)} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', lineHeight:1 }}>✕</button>
+
+              {/* 단계 탭 */}
+              {stages.length===0
+                ? <div style={{ fontSize:'12px', color:C.muted, padding:'12px 0' }}>단계를 추가해주세요.</div>
+                : (
+                  <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'14px' }}>
+                    {stages.map(st=>(
+                      <div key={st.id} style={{ display:'flex', alignItems:'center', gap:'2px' }}>
+                        <button type="button" onClick={()=>setSelStage(st)} style={{
+                          padding:'5px 12px', borderRadius:'999px',
+                          border:`1.5px solid ${selStage?.id===st.id?C.primary:C.border}`,
+                          background:selStage?.id===st.id?'#fff7ed':C.bg,
+                          color:selStage?.id===st.id?C.primary:C.muted,
+                          fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                        }}>{st.label}</button>
+                        <button type="button" onClick={()=>deleteStage(st.id)} style={{
+                          background:'none', border:'none', color:'#d1d5db', cursor:'pointer',
+                          fontSize:'13px', padding:'0 2px', lineHeight:1,
+                        }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+
+              {/* 목차 관리 */}
+              {selStage && (
+                <>
+                  {/* 추가 방식 선택 */}
+                  <div style={{ display:'flex', gap:'6px', marginBottom:'10px' }}>
+                    {[['one','한 개씩 추가'],['bulk','개수로 미리 생성']].map(([m,l])=>(
+                      <button key={m} type="button" onClick={()=>setContMode(m)} style={{
+                        padding:'5px 12px', borderRadius:'7px', fontSize:'12px', cursor:'pointer',
+                        border:`1.5px solid ${contMode===m?C.blue:C.border}`,
+                        background:contMode===m?'#eff6ff':C.bg, color:contMode===m?C.blue:C.muted,
+                        fontFamily:'Noto Sans KR, sans-serif', fontWeight:600,
+                      }}>{l}</button>
+                    ))}
+                  </div>
+
+                  {contMode==='bulk' && (
+                    <div style={{ display:'flex', gap:'6px', marginBottom:'10px', alignItems:'center' }}>
+                      <input style={{ ...iSt, width:'70px' }} type="number" min="1" value={bulkCount}
+                        onChange={e=>setBulkCount(e.target.value)} />
+                      <span style={{ fontSize:'13px', color:C.muted }}>개 목차 생성</span>
+                      <button type="button" onClick={bulkCreate} style={{
+                        padding:'6px 14px', borderRadius:'7px', border:'none', background:C.blue,
+                        color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                      }}>생성</button>
                     </div>
-                  ))
-                }
-              </div>
+                  )}
+
+                  {/* 목차 목록 — 인라인 편집 */}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'320px', overflowY:'auto', marginBottom:'8px' }}>
+                    {contents.length===0
+                      ? <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', padding:'16px' }}>목차가 없습니다.</div>
+                      : contents.map((c,i)=>(
+                        <div key={c.id} style={{ display:'grid', gridTemplateColumns:'28px 1fr 1fr 20px', gap:'5px', alignItems:'center', padding:'6px 8px', background:C.bg, borderRadius:'8px', border:`1px solid ${C.border}` }}>
+                          <span style={{ fontSize:'11px', fontWeight:700, color:C.blue, textAlign:'center' }}>{c.session}</span>
+                          <input style={{ ...iSt, padding:'5px 8px', fontSize:'12px' }}
+                            value={c.title} onChange={e=>updateCont(c.id,'title',e.target.value)}
+                            placeholder="제목" />
+                          <input style={{ ...iSt, padding:'5px 8px', fontSize:'12px' }}
+                            value={c.supplies} onChange={e=>updateCont(c.id,'supplies',e.target.value)}
+                            placeholder="준비물" />
+                          <button type="button" onClick={()=>deleteCont(c.id)} style={{
+                            background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'15px', lineHeight:1,
+                          }}>✕</button>
+                        </div>
+                      ))
+                    }
+                  </div>
+
+                  {/* 한 개씩 추가 */}
+                  {contMode==='one' && (
+                    <button type="button" onClick={addOneCont} style={{
+                      width:'100%', padding:'7px', borderRadius:'8px', border:`1.5px dashed ${C.border}`,
+                      background:C.bg, color:C.muted, fontSize:'12px', cursor:'pointer',
+                      fontFamily:'Noto Sans KR, sans-serif',
+                    }}>+ 목차 한 줄 추가</button>
+                  )}
+                </>
+              )}
             </div>
 
-            {/* 파일 */}
+            {/* 오른쪽: 파일 */}
             <div style={{ padding:'18px' }}>
               <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'12px' }}>📁 지도안 · 홍보물 파일</div>
               <div style={{ background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}`, padding:'12px', marginBottom:'10px' }}>
@@ -450,7 +588,7 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
                   </div>
                   <div>
                     <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>단계 (선택)</label>
-                    <input style={iSt} type="number" min="1" value={fileForm.stage} onChange={e=>setFileForm(f=>({...f,stage:e.target.value}))} placeholder="예: 1" />
+                    <input style={iSt} value={fileForm.stage} onChange={e=>setFileForm(f=>({...f,stage:e.target.value}))} placeholder="예: 1단계" />
                   </div>
                 </div>
                 <div style={{ marginBottom:'8px' }}>
@@ -458,13 +596,13 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
                   <input style={iSt} value={fileForm.title} onChange={e=>setFileForm(f=>({...f,title:e.target.value}))} placeholder="예: 1단계 연간지도안" />
                 </div>
                 <input ref={fileRef} type="file" accept=".pdf,.xlsx,.xls,.hwp,.hwpx,.pptx,.jpg,.png" style={{ display:'none' }} onChange={saveFile} />
-                <button onClick={()=>fileRef.current?.click()} style={{
+                <button type="button" onClick={()=>fileRef.current?.click()} style={{
                   width:'100%', padding:'8px', borderRadius:'8px', border:`1.5px dashed ${C.border}`,
                   background:C.card, color:C.muted, fontSize:'13px', cursor:'pointer',
                   fontFamily:'Noto Sans KR, sans-serif',
                 }}>📎 파일 선택하여 등록</button>
               </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'5px', maxHeight:'260px', overflowY:'auto' }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:'5px', maxHeight:'300px', overflowY:'auto' }}>
                 {files.length===0
                   ? <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', padding:'16px' }}>등록된 파일이 없습니다.</div>
                   : files.map(f=>(
@@ -472,10 +610,10 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
                       <span style={{ fontSize:'11px', color:C.blue, flexShrink:0 }}>{FILE_TYPE[f.fileType]}</span>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:'12px', fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{f.title}</div>
-                        <div style={{ fontSize:'10px', color:C.muted }}>{f.fileName}{f.stage?` · ${f.stage}단계`:''}</div>
+                        <div style={{ fontSize:'10px', color:C.muted }}>{f.fileName}{f.stageLabel?` · ${f.stageLabel}`:''}</div>
                       </div>
                       <a href={f.fileData} download={f.fileName} style={{ fontSize:'13px', color:C.success, textDecoration:'none' }}>⬇</a>
-                      <button onClick={()=>deleteFile(f.id)} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', lineHeight:1 }}>✕</button>
+                      <button type="button" onClick={()=>deleteFile(f.id)} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', lineHeight:1 }}>✕</button>
                     </div>
                   ))
                 }
@@ -487,6 +625,7 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
     </div>
   )
 }
+
 
 // ─── B형·C형 교구 관리
 function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
