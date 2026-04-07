@@ -74,49 +74,21 @@ function Empty({ icon, msg }) {
   )
 }
 
-// ─── 모달 (드래그 가능 + 입력 정상 동작)
+// ─── 모달 (심플 — 드래그 없음, 입력 100% 정상)
 function Modal({ title, onClose, width=480, children }) {
-  const [pos, setPos] = React.useState({ x: 0, y: 0 })
-  const dragging = React.useRef(false)
-  const startRef = React.useRef({ mx:0, my:0, x:0, y:0 })
-
-  const onMouseDown = (e) => {
-    // 제목 영역(h2 텍스트)만 드래그 허용 — 입력/버튼은 완전 제외
-    if (e.target.tagName !== 'DIV') return
-    dragging.current = true
-    startRef.current = { mx: e.clientX, my: e.clientY, x: pos.x, y: pos.y }
-    // ✅ preventDefault 제거 — 포커스 방해 안 함
-  }
-  const onMouseMove = React.useCallback((e) => {
-    if (!dragging.current) return
-    setPos({ x: startRef.current.x + e.clientX - startRef.current.mx, y: startRef.current.y + e.clientY - startRef.current.my })
-  }, [])
-  const onMouseUp = React.useCallback(() => { dragging.current = false }, [])
-
-  React.useEffect(() => {
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-    return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp) }
-  }, [onMouseMove, onMouseUp])
-
   return (
-    <div style={{
-      position:'fixed', inset:0, zIndex:2000,
-      background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center',
-    }} onClick={e=>{ if(e.target===e.currentTarget) onClose() }}>
-      <div
-        onClick={e=>e.stopPropagation()}
-        style={{
-          background:'#fff', borderRadius:'16px', width:`${width}px`, maxWidth:'95vw',
-          maxHeight:'90vh', overflowY:'auto', padding:'24px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)',
-          transform: `translate(${pos.x}px, ${pos.y}px)`,
-          userSelect: dragging.current ? 'none' : 'auto',
-        }}
-      >
-        <div
-          onMouseDown={onMouseDown}
-          style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'18px', cursor:'move' }}
-        >
+    <div
+      style={{
+        position:'fixed', inset:0, zIndex:2000,
+        background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center',
+      }}
+      onMouseDown={e=>{ if(e.target===e.currentTarget) onClose() }}
+    >
+      <div style={{
+        background:'#fff', borderRadius:'16px', width:`${width}px`, maxWidth:'95vw',
+        maxHeight:'90vh', overflowY:'auto', padding:'24px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)',
+      }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'18px' }}>
           <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>{title}</div>
           <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted, lineHeight:1 }}>✕</button>
         </div>
