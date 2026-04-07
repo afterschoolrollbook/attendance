@@ -82,12 +82,15 @@ function Modal({ title, onClose, width=480, children }) {
         position:'fixed', inset:0, zIndex:2000,
         background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center',
       }}
-      onMouseDown={e=>{ if(e.target===e.currentTarget) onClose() }}
+      onClick={e=>{ if(e.target===e.currentTarget) onClose() }}
     >
-      <div style={{
-        background:'#fff', borderRadius:'16px', width:`${width}px`, maxWidth:'95vw',
-        maxHeight:'90vh', overflowY:'auto', padding:'24px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)',
-      }}>
+      <div
+        onClick={e=>e.stopPropagation()}
+        style={{
+          background:'#fff', borderRadius:'16px', width:`${width}px`, maxWidth:'95vw',
+          maxHeight:'90vh', overflowY:'auto', padding:'24px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)',
+        }}
+      >
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'18px' }}>
           <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>{title}</div>
           <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted, lineHeight:1 }}>✕</button>
