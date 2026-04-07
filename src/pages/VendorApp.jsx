@@ -373,6 +373,7 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
   const [files, setFiles]       = useState([])
   const [fileForm, setFileForm] = useState({ fileType:'annual', title:'', stageLabel:'' })
   const xlsxRef = useRef()
+  const [editProd, setEditProd] = useState(null) // 수정 중인 교구
 
   const subjectProds = products.filter(p=>p.subjectId===subjectId && p.type==='textbook')
 
@@ -401,12 +402,22 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
 
   const saveProd = async () => {
     if (!form.name.trim()) { error('교구명을 입력해주세요.'); return }
-    await DB.saveProduct({ id:uid(), vendorId, subjectId, type:'textbook', name:form.name, year:form.year,
-      priceRetail:Number(form.priceRetail)||0, priceSchool:Number(form.priceSchool)||0,
-      priceBranch:Number(form.priceBranch)||0, priceTeacher:Number(form.priceTeacher)||0, createdAt:now() })
-    setForm({...EMPTY_PROD})
-    onReload()
-    success('교구가 추가되었습니다.')
+    if (editProd) {
+      await DB.saveProduct({ ...editProd, name:form.name, year:form.year,
+        priceRetail:Number(form.priceRetail)||0, priceSchool:Number(form.priceSchool)||0,
+        priceBranch:Number(form.priceBranch)||0, priceTeacher:Number(form.priceTeacher)||0 })
+      setEditProd(null)
+      setForm({...EMPTY_PROD})
+      onReload()
+      success('교구가 수정되었습니다.')
+    } else {
+      await DB.saveProduct({ id:uid(), vendorId, subjectId, type:'textbook', name:form.name, year:form.year,
+        priceRetail:Number(form.priceRetail)||0, priceSchool:Number(form.priceSchool)||0,
+        priceBranch:Number(form.priceBranch)||0, priceTeacher:Number(form.priceTeacher)||0, createdAt:now() })
+      setForm({...EMPTY_PROD})
+      onReload()
+      success('교구가 추가되었습니다.')
+    }
   }
 
   const deleteProd = async (id) => {
@@ -561,9 +572,19 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
                 </div>
                 <PriceTags p={p} />
               </div>
-              <button type="button" onClick={e=>{ e.stopPropagation(); deleteProd(p.id) }} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+              <div style={{ display:'flex', gap:'6px' }}>
+                <button type="button" onClick={e=>{ e.stopPropagation(); setEditProd(p); setForm({name:p.name,year:p.year,priceRetail:p.priceRetail,priceSchool:p.priceSchool,priceBranch:p.priceBranch,priceTeacher:p.priceTeacher}) }} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #bfdbfe', background:'#eff6ff', color:C.blue, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                <button type="button" onClick={e=>{ e.stopPropagation(); deleteProd(p.id) }} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {editProd && (
+        <div style={{ background:'#eff6ff', borderRadius:'12px', border:'2px solid #3b82f6', padding:'14px 16px', marginBottom:'12px' }}>
+          <div style={{ fontSize:'13px', fontWeight:700, color:C.blue, marginBottom:'10px' }}>✏️ {editProd.name} 수정 중</div>
+          <ProdForm form={form} setForm={setForm} onSave={saveProd} onCancel={()=>{ setEditProd(null); setForm({...EMPTY_PROD}) }} editing={true} />
         </div>
       )}
 
@@ -746,12 +767,17 @@ function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
 
   const saveProd = async () => {
     if (!form.name.trim()) { error('교구명을 입력해주세요.'); return }
-    await DB.saveProduct({ id:uid(), vendorId, subjectId, type:'bc_product', name:form.name, year:form.year,
-      priceRetail:Number(form.priceRetail)||0, priceSchool:Number(form.priceSchool)||0,
-      priceBranch:Number(form.priceBranch)||0, priceTeacher:Number(form.priceTeacher)||0, createdAt:now() })
-    setForm({...EMPTY_PROD})
-    onReload()
-    success('교구가 추가되었습니다.')
+    if (editProd) {
+      await DB.saveProduct({ ...editProd, name:form.name, year:form.year,
+        priceRetail:Number(form.priceRetail)||0, priceSchool:Number(form.priceSchool)||0,
+        priceBranch:Number(form.priceBranch)||0, priceTeacher:Number(form.priceTeacher)||0 })
+      setEditProd(null); setForm({...EMPTY_PROD}); onReload(); success('교구가 수정되었습니다.')
+    } else {
+      await DB.saveProduct({ id:uid(), vendorId, subjectId, type:'bc_product', name:form.name, year:form.year,
+        priceRetail:Number(form.priceRetail)||0, priceSchool:Number(form.priceSchool)||0,
+        priceBranch:Number(form.priceBranch)||0, priceTeacher:Number(form.priceTeacher)||0, createdAt:now() })
+      setForm({...EMPTY_PROD}); onReload(); success('교구가 추가되었습니다.')
+    }
   }
 
   const deleteProd = async (id) => {
@@ -902,9 +928,19 @@ function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
                 </div>
                 <PriceTags p={p} />
               </div>
-              <button type="button" onClick={e=>{ e.stopPropagation(); deleteProd(p.id) }} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+              <div style={{ display:'flex', gap:'6px' }}>
+                <button type="button" onClick={e=>{ e.stopPropagation(); setEditProd(p); setForm({name:p.name,year:p.year,priceRetail:p.priceRetail,priceSchool:p.priceSchool,priceBranch:p.priceBranch,priceTeacher:p.priceTeacher}) }} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #bfdbfe', background:'#eff6ff', color:C.blue, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                <button type="button" onClick={e=>{ e.stopPropagation(); deleteProd(p.id) }} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {editProd && (
+        <div style={{ background:'#eff6ff', borderRadius:'12px', border:'2px solid #3b82f6', padding:'14px 16px', marginBottom:'12px' }}>
+          <div style={{ fontSize:'13px', fontWeight:700, color:C.blue, marginBottom:'10px' }}>✏️ {editProd.name} 수정 중</div>
+          <ProdForm form={form} setForm={setForm} onSave={saveProd} onCancel={()=>{ setEditProd(null); setForm({...EMPTY_PROD}) }} editing={true} />
         </div>
       )}
 
