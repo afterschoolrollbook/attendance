@@ -81,23 +81,23 @@ function Modal({ title, onClose, width=480, children }) {
   const startRef = React.useRef({ mx:0, my:0, x:0, y:0 })
 
   const onMouseDown = (e) => {
-    // 버튼·입력·선택은 드래그 제외
-    if (['INPUT','TEXTAREA','SELECT','BUTTON'].includes(e.target.tagName)) return
+    // 제목 영역(h2 텍스트)만 드래그 허용 — 입력/버튼은 완전 제외
+    if (e.target.tagName !== 'DIV') return
     dragging.current = true
     startRef.current = { mx: e.clientX, my: e.clientY, x: pos.x, y: pos.y }
-    e.preventDefault()
+    // ✅ preventDefault 제거 — 포커스 방해 안 함
   }
-  const onMouseMove = (e) => {
+  const onMouseMove = React.useCallback((e) => {
     if (!dragging.current) return
     setPos({ x: startRef.current.x + e.clientX - startRef.current.mx, y: startRef.current.y + e.clientY - startRef.current.my })
-  }
-  const onMouseUp = () => { dragging.current = false }
+  }, [])
+  const onMouseUp = React.useCallback(() => { dragging.current = false }, [])
 
   React.useEffect(() => {
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
     return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp) }
-  }, [pos])
+  }, [onMouseMove, onMouseUp])
 
   return (
     <div style={{
