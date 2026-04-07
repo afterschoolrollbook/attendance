@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Students as StudentsDB, Users, ParentMembers, TeacherParentLinks, Classes as ClassesDB } from '../lib/db.js'
+import { dbCall, isConfigured } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 // ✅ ParentServiceManage의 설정을 공유해서 선생님이 수정한 약관·문구가 여기에도 반영됩니다
 import { loadParentServiceConfig, DEFAULT_CONFIG } from './ParentServiceManage.jsx'
@@ -265,72 +266,105 @@ function WithdrawSection({ phone, teacher }) {
 
 // ── 학부모 홈
 export function ParentHome({ students: studentsProp, teacher: teacherProp, phone, teacherId, memberRecord }) {
-  // ParentLogin에서 진입 시: teacherId + memberRecord로 students/teacher 자동 조회
-  const resolvedTeacher  = teacherProp  || (teacherId ? Users.find(teacherId) : null)
-  const resolvedStudents = studentsProp || (teacherId && phone
-    ? StudentsDB.byTeacher(teacherId).filter(s =>
-        s.parentPhone?.replace(/[^0-9]/g,'') === phone.replace(/[^0-9]/g,'')
-      )
-    : []
-  )
-  const students = resolvedStudents
-  const teacher  = resolvedTeacher
-  const [attData, setAttData]         = useState({})
-  const [classes, setClasses]         = useState([])
-  const [attPopup, setAttPopup]       = useState(null)
-  const [expandedCls, setExpandedCls] = useState(null)
-  const [imgModal, setImgModal]       = useState(null)
-  const [seenKeys, setSeenKeys]       = useState(()=>{
+  const normalizedPhone = phone?.replace(/[^0-9]/g,'') || ''
+  const cfg = loadParentServiceConfig()
+
+  const [allStudents, setAllStudents] = useState([])
+  const [allClasses,  setAllClasses]  = useState([])
+  const [allTeachers, setAllTeachers] = useState({}) // teacherId → teacher
+  const [attData,     setAttData]     = useState({}) // studentId → 출결[]
+  const [activeTab,   setActiveTab]   = useState(null)
+  const [attPopup,    setAttPopup]    = useState(null)
+  const [imgModal,    setImgModal]    = useState(null)
+  const [loading,     setLoading]     = useState(true)
+  const [seenKeys,    setSeenKeys]    = useState(()=>{
     try { return new Set(JSON.parse(localStorage.getItem('asa_parent_seen')||'[]')) } catch { return new Set() }
   })
 
-  // 선생님이 설정한 탈퇴 문구 로드
-  const cfg = loadParentServiceConfig()
-
   const statusMap = {
-    present: { label:'출석', color:'#16a34a', bg:'#f0fdf4', emoji:'✅' },
-    late:    { label:'지각', color:'#d97706', bg:'#fffbeb', emoji:'🕐' },
-    early:   { label:'조퇴', color:'#7c3aed', bg:'#f5f3ff', emoji:'🚶' },
-    absent:  { label:'결석', color:'#ef4444', bg:'#fef2f2', emoji:'❌' },
-    pending: { label:'미처리', color:'#9ca3af', bg:'#f9fafb', emoji:'⬜' },
+    present: { label:'출석', color:'#16a34a', bg:'#f0fdf4', emoji:'✅', big:'🎉' },
+    late:    { label:'지각', color:'#d97706', bg:'#fffbeb', emoji:'🕐', big:'🕐' },
+    early:   { label:'조퇴', color:'#7c3aed', bg:'#f5f3ff', emoji:'🚶', big:'🚶' },
+    absent:  { label:'결석', color:'#ef4444', bg:'#fef2f2', emoji:'❌', big:'😢' },
+    pending: { label:'미처리', color:'#9ca3af', bg:'#f9fafb', emoji:'⬜', big:'⬜' },
   }
 
-  useEffect(()=>{
-    const data = {}
-    students.forEach(s=>{
+  const playBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.frequency.value = 880; osc.type = 'sine'
+      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6)
+      osc.start(); osc.stop(ctx.currentTime + 0.6)
+    } catch {}
+  }
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
       try {
-        const keys = Object.keys(localStorage).filter(k=>k.startsWith('attendance_'))
-        const recs = keys.flatMap(k=>{ try{return JSON.parse(localStorage.getItem(k))||[]}catch{return[]} })
-          .filter(r=>r.studentId===s.id)
-        recs.sort((a,b)=>(b.date||'').localeCompare(a.date||''))
-        data[s.id] = recs.slice(0,30)
-      } catch{}
-    })
-    setAttData(data)
+        // 1) 이 전화번호의 모든 학생 (전체 선생님 통합)
+        const allS = StudentsDB.all().filter(s =>
+          s.parentPhone?.replace(/[^0-9]/g,'') === normalizedPhone
+        )
+        setAllStudents(allS)
 
-    for (const s of students) {
-      const keys = Object.keys(localStorage).filter(k=>k.startsWith('attendance_'))
-      const recs = keys.flatMap(k=>{ try{return JSON.parse(localStorage.getItem(k))||[]}catch{return[]} })
-        .filter(r=>r.studentId===s.id && r.status!=='pending')
-      if (!recs.length) continue
-      recs.sort((a,b)=>(b.markedAt||b.date||'').localeCompare(a.markedAt||a.date||''))
-      const latest = recs[0]
-      const key = `${s.id}_${latest.date}_${latest.status}`
-      if (!seenKeys.has(key)) { setAttPopup({ record:latest, studentName:s.name }); break }
-    }
+        // 2) 수업 + 선생님 매핑
+        const allCls = ClassesDB.all()
+        const clsIds = new Set(allS.flatMap(s => s.classIds || []))
+        const myClasses = allCls.filter(c => clsIds.has(c.id))
+        setAllClasses(myClasses)
+        if (myClasses.length > 0) setActiveTab(myClasses[0].id)
 
-    if (teacher?.id) {
-      const cls = ClassesDB.byTeacher(teacher.id)
-      const sids = new Set(students.flatMap(s=>s.classIds||[]))
-      const filtered = cls.filter(c=>sids.has(c.id))
-      setClasses(filtered)
-      if (filtered.length > 0) setExpandedCls(filtered[0].id)
+        const tMap = {}
+        myClasses.forEach(c => {
+          if (c.teacherId && !tMap[c.teacherId]) {
+            const t = Users.find(c.teacherId)
+            if (t) tMap[c.teacherId] = t
+          }
+        })
+        setAllTeachers(tMap)
+
+        // 3) Supabase에서 출결 조회
+        if (isConfigured && allS.length > 0) {
+          const results = await Promise.all(
+            allS.map(s => dbCall('where', 'attendance', { where: { studentId: s.id } }).catch(() => []))
+          )
+          const data = {}
+          allS.forEach((s, i) => {
+            const recs = (results[i] || []).filter(r => r.status && r.status !== 'pending')
+            recs.sort((a,b) => (b.markedAt||b.date||'').localeCompare(a.markedAt||a.date||''))
+            data[s.id] = recs.slice(0, 50)
+          })
+          setAttData(data)
+
+          // 팝업 — 미확인 최신 출결
+          for (const s of allS) {
+            const recs = data[s.id] || []
+            if (!recs.length) continue
+            const latest = recs[0]
+            const key = `${s.id}_${latest.date}_${latest.status}`
+            if (!seenKeys.has(key)) {
+              const cls = myClasses.find(c => c.id === latest.classId)
+              setAttPopup({ record: latest, studentName: s.name, className: cls?.className || '' })
+              playBeep()
+              break
+            }
+          }
+        }
+      } finally {
+        setLoading(false)
+      }
     }
-  },[])
+    load()
+  }, [normalizedPhone])
 
   const closePopup = () => {
     if (attPopup) {
-      const s = students.find(s=>s.name===attPopup.studentName)
+      const s = allStudents.find(s => s.name === attPopup.studentName)
       const key = `${s?.id}_${attPopup.record.date}_${attPopup.record.status}`
       const next = new Set([...seenKeys, key])
       setSeenKeys(next)
@@ -340,246 +374,215 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
   }
 
   const fmtDays = (days=[]) => days.join('·')
-  const fmtTime = (t) => t || ''
+
+  // AttPopup — 수업명 포함
+  const AttPopupFull = ({ record, studentName, className, onClose }) => {
+    const st = statusMap[record.status] || statusMap.present
+    return (
+      <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.6)',
+        display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}>
+        <div style={{ background:st.bg, border:`3px solid ${st.color}`, borderRadius:'28px',
+          padding:'40px 28px', maxWidth:'320px', width:'100%', textAlign:'center',
+          boxShadow:'0 24px 64px rgba(0,0,0,0.28)', animation:'popIn .28s cubic-bezier(.34,1.56,.64,1)' }}>
+          <style>{`@keyframes popIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}`}</style>
+          <div style={{ fontSize:'72px', lineHeight:1, marginBottom:'14px' }}>{st.big}</div>
+          <div style={{ fontSize:'13px', fontWeight:700, color:st.color, marginBottom:'4px', opacity:0.8 }}>{className}</div>
+          <div style={{ fontSize:'28px', fontWeight:900, color:st.color, marginBottom:'6px' }}>
+            {studentName} {st.label}!
+          </div>
+          <div style={{ fontSize:'14px', color:C.muted, marginBottom:'4px' }}>{record.date}</div>
+          {record.absentReason && <div style={{ fontSize:'13px', color:C.muted }}>사유: {record.absentReason}</div>}
+          {record.note && (
+            <div style={{ fontSize:'13px', background:'rgba(0,0,0,0.06)', borderRadius:'10px',
+              padding:'10px 14px', margin:'10px 0', color:C.text, lineHeight:1.6 }}>
+              💬 {record.note}
+            </div>
+          )}
+          <button onClick={onClose} style={{ marginTop:'12px', padding:'15px', width:'100%',
+            borderRadius:'14px', border:'none', background:st.color, color:'#fff',
+            fontSize:'18px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            확인
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const activeClass = allClasses.find(c => c.id === activeTab)
+  const activeStudents = allStudents.filter(s => s.classIds?.includes(activeTab))
+  const activeTeacher = activeClass ? allTeachers[activeClass.teacherId] : null
+
+  if (loading) return (
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center',
+      background:'#fff7ed', flexDirection:'column', gap:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
+      <div style={{ fontSize:'40px' }}>📋</div>
+      <div style={{ fontSize:'14px', color:C.muted }}>출결 정보 불러오는 중...</div>
+    </div>
+  )
 
   return (
     <div style={{ minHeight:'100vh', background:'#f4f5f7', fontFamily:'Noto Sans KR, sans-serif', paddingBottom:'32px' }}>
-      {attPopup && <AttPopup record={attPopup.record} studentName={attPopup.studentName} onClose={closePopup}/>}
+      {attPopup && <AttPopupFull record={attPopup.record} studentName={attPopup.studentName} className={attPopup.className} onClose={closePopup}/>}
 
       {imgModal && (
-        <div onClick={()=>setImgModal(null)} style={{
-          position:'fixed', inset:0, zIndex:9998, background:'rgba(0,0,0,0.85)',
-          display:'flex', alignItems:'center', justifyContent:'center', padding:'20px',
-        }}>
+        <div onClick={()=>setImgModal(null)} style={{ position:'fixed', inset:0, zIndex:9998,
+          background:'rgba(0,0,0,0.85)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
           <img src={imgModal} style={{ maxWidth:'100%', maxHeight:'90vh', borderRadius:'12px' }} alt="수업 이미지"/>
         </div>
       )}
 
+      {/* 헤더 */}
       <div style={{ background:'#18181b', padding:'16px 20px', display:'flex', alignItems:'center', gap:'10px' }}>
         <span style={{ fontSize:'22px' }}>📋</span>
         <span style={{ fontSize:'16px', fontWeight:700, color:'#fff' }}>방과후 출석부</span>
         <span style={{ fontSize:'12px', color:'#a1a1aa', marginLeft:'auto' }}>학부모 페이지</span>
       </div>
 
-      <div style={{ padding:'20px 16px', maxWidth:'480px', margin:'0 auto', display:'flex', flexDirection:'column', gap:'16px' }}>
-
-        <div style={{ background:'#fff7ed', borderRadius:'14px', border:'1px solid #fed7aa', padding:'16px 18px' }}>
-          <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>안녕하세요! 👋</div>
-          <div style={{ fontSize:'13px', color:C.muted }}>{teacher?.nickname||teacher?.name} 선생님 반 학부모님</div>
+      {/* 인사 + 전화번호 */}
+      <div style={{ padding:'16px 16px 0', maxWidth:'480px', margin:'0 auto' }}>
+        <div style={{ background:'#fff7ed', borderRadius:'14px', border:'1px solid #fed7aa', padding:'14px 16px', marginBottom:'12px' }}>
+          <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>안녕하세요! 👋</div>
           <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>📱 {fmtPhone(phone)}</div>
+        </div>
 
-          {teacher?.phone && (
-            <div style={{ marginTop:'12px', paddingTop:'12px', borderTop:'1px solid #fed7aa' }}>
-              <div style={{ fontSize:'11px', fontWeight:700, color:'#9a3412', marginBottom:'6px' }}>🚨 선생님 긴급연락처</div>
-              <a href={`tel:${teacher.phone}`} style={{
-                display:'flex', alignItems:'center', gap:'8px',
-                padding:'10px 12px', borderRadius:'10px', background:'#fff',
-                border:'1px solid #fed7aa', textDecoration:'none',
-              }}>
+        {/* 수업 탭 */}
+        {allClasses.length > 1 && (
+          <div style={{ display:'flex', gap:'6px', overflowX:'auto', paddingBottom:'4px', marginBottom:'12px' }}>
+            {allClasses.map(cls => (
+              <button key={cls.id} onClick={() => setActiveTab(cls.id)}
+                style={{ flexShrink:0, padding:'8px 14px', borderRadius:'20px', border:'none',
+                  background: activeTab===cls.id ? C.primary : '#e5e7eb',
+                  color: activeTab===cls.id ? '#fff' : C.muted,
+                  fontSize:'13px', fontWeight:700, cursor:'pointer',
+                  fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
+                {cls.className}{cls.section ? ` ${cls.section}반` : ''}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 선택된 수업 내용 */}
+      {activeClass && (
+        <div style={{ padding:'0 16px', maxWidth:'480px', margin:'0 auto', display:'flex', flexDirection:'column', gap:'12px' }}>
+
+          {/* 선생님 연락처 */}
+          {activeTeacher?.phone && (
+            <div style={{ background:'#fff7ed', borderRadius:'14px', border:'1px solid #fed7aa', padding:'12px 14px' }}>
+              <div style={{ fontSize:'11px', fontWeight:700, color:'#9a3412', marginBottom:'6px' }}>🚨 {activeTeacher.nickname||activeTeacher.name} 선생님 긴급연락처</div>
+              <a href={`tel:${activeTeacher.phone}`} style={{ display:'flex', alignItems:'center', gap:'8px',
+                padding:'10px 12px', borderRadius:'10px', background:'#fff', border:'1px solid #fed7aa', textDecoration:'none' }}>
                 <span style={{ fontSize:'18px' }}>📞</span>
                 <div>
-                  <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{fmtPhone(teacher.phone)}</div>
-                  <div style={{ fontSize:'11px', color:C.muted }}>{teacher.nickname||teacher.name} 선생님</div>
+                  <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{fmtPhone(activeTeacher.phone)}</div>
+                  <div style={{ fontSize:'11px', color:C.muted }}>{activeTeacher.nickname||activeTeacher.name} 선생님</div>
                 </div>
                 <span style={{ marginLeft:'auto', fontSize:'12px', color:C.primary, fontWeight:600 }}>전화</span>
               </a>
             </div>
           )}
-        </div>
 
-        {classes.map(cls => (
-          <div key={cls.id} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-            <div
-              onClick={()=>setExpandedCls(expandedCls===cls.id ? null : cls.id)}
-              style={{ padding:'14px 16px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'space-between',
-                background:'linear-gradient(135deg,#f0fdf4,#fff)', borderBottom: expandedCls===cls.id?`1px solid ${C.border}`:'none' }}>
-              <div>
-                <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>
-                  📚 {cls.className}{cls.section ? ` (${cls.section}반)` : ''}
-                </div>
-                <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                  {cls.organization} · {fmtDays(cls.days)} {fmtTime(cls.time)}
-                </div>
-              </div>
-              <span style={{ fontSize:'18px', color:C.muted, transform: expandedCls===cls.id?'rotate(180deg)':'none', transition:'transform .2s' }}>⌄</span>
+          {/* 수업 정보 */}
+          <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'14px 16px' }}>
+            <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'10px' }}>
+              📚 {activeClass.className}{activeClass.section ? ` (${activeClass.section}반)` : ''}
             </div>
-
-            {expandedCls===cls.id && (
-              <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:'14px' }}>
-
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-                  {[
-                    { icon:'🏫', label:'학교', val: cls.organization || '-' },
-                    { icon:'📍', label:'수업 장소', val: cls.classLocation || cls.class_location || '-' },
-                    { icon:'⏰', label:'수업 시간', val: cls.time ? `${fmtDays(cls.days)} ${cls.time}${cls.timeEnd ? ' ~ '+cls.timeEnd : ''}` : fmtDays(cls.days) || '-' },
-                    { icon:'📅', label:'수업 기간', val: cls.startDate && cls.endDate ? `${cls.startDate} ~ ${cls.endDate}` : '-' },
-                    { icon:'📋', label:'운영 방식', val: cls.termType==='semester'?'학기제':'분기제' },
-                  ].map(item=>(
-                    <div key={item.label} style={{ padding:'10px 12px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
-                      <div style={{ fontSize:'10px', color:C.muted, marginBottom:'3px' }}>{item.icon} {item.label}</div>
-                      <div style={{ fontSize:'12px', fontWeight:600, color:C.text }}>{item.val}</div>
-                    </div>
-                  ))}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+              {[
+                { icon:'🏫', label:'학교', val: activeClass.organization || '-' },
+                { icon:'📍', label:'수업 장소', val: activeClass.classLocation || '-' },
+                { icon:'⏰', label:'수업 시간', val: activeClass.time ? `${fmtDays(activeClass.days)} ${activeClass.time}${activeClass.timeEnd?' ~ '+activeClass.timeEnd:''}` : fmtDays(activeClass.days)||'-' },
+                { icon:'📅', label:'수업 기간', val: activeClass.startDate && activeClass.endDate ? `${activeClass.startDate} ~ ${activeClass.endDate}` : '-' },
+              ].map(item => (
+                <div key={item.label} style={{ padding:'10px 12px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
+                  <div style={{ fontSize:'10px', color:C.muted, marginBottom:'3px' }}>{item.icon} {item.label}</div>
+                  <div style={{ fontSize:'12px', fontWeight:600, color:C.text }}>{item.val}</div>
                 </div>
-
-                {(cls.officePhone || cls.office_phone || cls.schoolAddress || cls.school_address) && (
-                  <div style={{ padding:'12px 14px', background:'#eff6ff', borderRadius:'10px', border:'1px solid #bfdbfe' }}>
-                    <div style={{ fontSize:'11px', fontWeight:700, color:'#1d4ed8', marginBottom:'8px' }}>🏫 학교 정보</div>
-                    {(cls.officePhone || cls.office_phone) && (
-                      <a href={`tel:${cls.officePhone || cls.office_phone}`} style={{ display:'flex', alignItems:'center', gap:'6px', textDecoration:'none', marginBottom:'4px' }}>
-                        <span style={{ fontSize:'13px' }}>📞</span>
-                        <span style={{ fontSize:'13px', fontWeight:600, color:'#1d4ed8' }}>교무실: {fmtPhone(cls.officePhone || cls.office_phone)}</span>
-                      </a>
-                    )}
-                    {(cls.schoolAddress || cls.school_address) && (
-                      <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                        <span style={{ fontSize:'13px' }}>📍</span>
-                        <span style={{ fontSize:'12px', color:'#374151' }}>{cls.schoolAddress || cls.school_address}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {cls.description && (
-                  <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
-                    <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'6px' }}>📝 수업 안내</div>
-                    <div style={{ fontSize:'13px', color:C.text, lineHeight:1.7, whiteSpace:'pre-wrap' }}>{cls.description}</div>
-                  </div>
-                )}
-
-                <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
-                  <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'10px' }}>📅 수업 달력</div>
-                  <ClassCalendar cls={cls}/>
-                </div>
-
-                <div>
-                  <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🖼️ 수업 홍보물</div>
-                  {(cls.promotionImgs?.length > 0 || cls.promotionImg) ? (
-                    <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-                      {(cls.promotionImgs || (cls.promotionImg ? [cls.promotionImg] : [])).map((img,i)=>(
-                        <img key={i} src={img} onClick={()=>setImgModal(img)}
-                          style={{ width:'100px', height:'100px', objectFit:'cover', borderRadius:'10px',
-                            border:`1px solid ${C.border}`, cursor:'pointer' }}
-                          alt={`홍보물 ${i+1}`}/>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ padding:'14px', borderRadius:'10px', border:`1.5px dashed ${C.border}`,
-                      textAlign:'center', fontSize:'12px', color:'#9ca3af' }}>홍보물</div>
-                  )}
-                </div>
-
-                <div>
-                  <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📄 수업 안내장</div>
-                  {cls.noticeFiles?.length > 0 ? (
-                    <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                      {cls.noticeFiles.map((f, i) => (
-                        f.fileType === 'application/pdf' ? (
-                          <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
-                            style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 12px',
-                              borderRadius:'10px', background:'#fef2f2', border:'1px solid #fecaca', textDecoration:'none' }}>
-                            <span style={{ fontSize:'20px' }}>📋</span>
-                            <div style={{ flex:1 }}>
-                              <div style={{ fontSize:'13px', fontWeight:600, color:'#991b1b' }}>{f.name || `안내장 ${i+1}`}</div>
-                              <div style={{ fontSize:'11px', color:C.muted }}>PDF — 탭하여 열기</div>
-                            </div>
-                            <span style={{ fontSize:'12px', color:'#ef4444' }}>열기 →</span>
-                          </a>
-                        ) : (
-                          <img key={i} src={f.url} onClick={()=>setImgModal(f.url)}
-                            style={{ width:'100%', borderRadius:'10px', border:`1px solid ${C.border}`,
-                              cursor:'pointer', maxHeight:'200px', objectFit:'cover' }}
-                            alt={f.name || `안내장 ${i+1}`}/>
-                        )
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ padding:'14px', borderRadius:'10px', border:`1.5px dashed ${C.border}`,
-                      textAlign:'center', fontSize:'12px', color:'#9ca3af' }}>안내장</div>
-                  )}
-                </div>
-
+              ))}
+            </div>
+            {activeClass.description && (
+              <div style={{ marginTop:'10px', padding:'10px 12px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
+                <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'4px' }}>📝 수업 안내</div>
+                <div style={{ fontSize:'13px', color:C.text, lineHeight:1.7, whiteSpace:'pre-wrap' }}>{activeClass.description}</div>
               </div>
             )}
           </div>
-        ))}
 
-        {students.map(s => {
-          const recs    = attData[s.id] || []
-          const total   = recs.length
-          const present = recs.filter(r=>r.status==='present'||r.status==='late').length
-          const absent  = recs.filter(r=>r.status==='absent').length
-          const rate    = total>0 ? Math.round(present/total*100) : 0
-          const recent  = recs.slice(0,10)
+          {/* 수업 달력 */}
+          <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'14px 16px' }}>
+            <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'10px' }}>📅 수업 달력</div>
+            <ClassCalendar cls={activeClass}/>
+          </div>
 
-          return (
-            <div key={s.id} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-              <div style={{ padding:'14px 16px', background:'linear-gradient(135deg,#fff7ed,#fff)', borderBottom:`1px solid ${C.border}` }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <div>
-                    <span style={{ fontSize:'18px', fontWeight:700, color:C.text }}>{s.name}</span>
-                    <span style={{ fontSize:'13px', color:C.muted, marginLeft:'8px' }}>
-                      {s.grade?`${s.grade}학년`:''}{s.classNum?` ${s.classNum}반`:''}
-                    </span>
-                  </div>
-                  <div style={{ textAlign:'right' }}>
-                    <div style={{ fontSize:'22px', fontWeight:700, color:rate>=80?C.success:C.primary }}>{rate}%</div>
-                    <div style={{ fontSize:'11px', color:C.muted }}>출석률</div>
-                  </div>
-                </div>
-                <div style={{ marginTop:'10px', height:'6px', background:'#f3f4f6', borderRadius:'999px', overflow:'hidden' }}>
-                  <div style={{ width:`${rate}%`, height:'100%', background:rate>=80?C.success:C.primary, borderRadius:'999px', transition:'width .4s' }}/>
-                </div>
-                <div style={{ display:'flex', gap:'16px', marginTop:'10px' }}>
-                  {[{label:'출석',val:present,color:C.success},{label:'결석',val:absent,color:'#ef4444'},{label:'전체',val:total,color:C.muted}].map(item=>(
-                    <div key={item.label} style={{ textAlign:'center' }}>
-                      <div style={{ fontSize:'16px', fontWeight:700, color:item.color }}>{item.val}</div>
-                      <div style={{ fontSize:'11px', color:C.muted }}>{item.label}</div>
+          {/* 학생별 출결 */}
+          {activeStudents.map(s => {
+            const recs    = (attData[s.id] || []).filter(r => r.classId === activeTab)
+            const total   = recs.length
+            const present = recs.filter(r => r.status==='present'||r.status==='late').length
+            const absent  = recs.filter(r => r.status==='absent').length
+            const rate    = total > 0 ? Math.round(present/total*100) : 0
+            return (
+              <div key={s.id} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                <div style={{ padding:'14px 16px', background:'linear-gradient(135deg,#fff7ed,#fff)', borderBottom:`1px solid ${C.border}` }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <div>
+                      <span style={{ fontSize:'18px', fontWeight:700, color:C.text }}>{s.name}</span>
+                      <span style={{ fontSize:'13px', color:C.muted, marginLeft:'8px' }}>
+                        {s.grade?`${s.grade}학년`:''}{s.classNum?` ${s.classNum}반`:''}
+                      </span>
                     </div>
-                  ))}
+                    <div style={{ textAlign:'right' }}>
+                      <div style={{ fontSize:'22px', fontWeight:700, color:rate>=80?C.success:C.primary }}>{rate}%</div>
+                      <div style={{ fontSize:'11px', color:C.muted }}>출석률</div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop:'8px', height:'6px', background:'#f3f4f6', borderRadius:'999px', overflow:'hidden' }}>
+                    <div style={{ width:`${rate}%`, height:'100%', background:rate>=80?C.success:C.primary, borderRadius:'999px', transition:'width .4s' }}/>
+                  </div>
+                  <div style={{ display:'flex', gap:'16px', marginTop:'8px' }}>
+                    {[{label:'출석',val:present,color:C.success},{label:'결석',val:absent,color:'#ef4444'},{label:'전체',val:total,color:C.muted}].map(item=>(
+                      <div key={item.label} style={{ textAlign:'center' }}>
+                        <div style={{ fontSize:'16px', fontWeight:700, color:item.color }}>{item.val}</div>
+                        <div style={{ fontSize:'11px', color:C.muted }}>{item.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ padding:'12px 16px' }}>
+                  <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>최근 출결 기록</div>
+                  {recs.length===0 ? (
+                    <div style={{ fontSize:'13px', color:'#9ca3af', textAlign:'center', padding:'12px 0' }}>출결 기록이 없습니다</div>
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                      {recs.slice(0,10).map((r,i) => {
+                        const st = statusMap[r.status]||statusMap.pending
+                        return (
+                          <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+                            padding:'7px 10px', borderRadius:'8px', background:st.bg }}>
+                            <span style={{ fontSize:'13px', color:C.muted }}>{r.date}</span>
+                            <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                              {r.absentReason && <span style={{ fontSize:'11px', color:C.muted }}>({r.absentReason})</span>}
+                              <span style={{ fontSize:'12px', fontWeight:700, color:st.color }}>{st.emoji} {st.label}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
-              <div style={{ padding:'12px 16px' }}>
-                <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>최근 출결 기록</div>
-                {recent.length===0 ? (
-                  <div style={{ fontSize:'13px', color:'#9ca3af', textAlign:'center', padding:'12px 0' }}>출결 기록이 없습니다</div>
-                ) : (
-                  <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                    {recent.map((r,i)=>{
-                      const st = statusMap[r.status]||statusMap.pending
-                      return (
-                        <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-                          padding:'7px 10px', borderRadius:'8px', background:st.bg }}>
-                          <span style={{ fontSize:'13px', color:C.muted }}>{r.date}</span>
-                          <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                            {r.absentReason && <span style={{ fontSize:'11px', color:C.muted }}>({r.absentReason})</span>}
-                            <span style={{ fontSize:'12px', fontWeight:700, color:st.color }}>{st.emoji} {st.label}</span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
+            )
+          })}
 
-        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px', opacity:0.5 }}>
-          <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'4px' }}>📢 수업 공지</div>
-          <div style={{ fontSize:'13px', color:C.muted }}>추후 구현 예정입니다</div>
+          {/* 탈퇴 */}
+          <WithdrawSection phone={phone} teacher={activeTeacher} />
+
         </div>
-        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px', opacity:0.5 }}>
-          <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'4px' }}>🎉 행사·이벤트</div>
-          <div style={{ fontSize:'13px', color:C.muted }}>추후 구현 예정입니다</div>
-        </div>
-
-        <WithdrawSection phone={phone} teacher={teacher} />
-
-      </div>
+      )}
     </div>
   )
 }
+
 
 // ── 메인
 export function ParentInvite() {
