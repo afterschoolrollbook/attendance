@@ -208,7 +208,7 @@ export default function App() {
       {isMobile && <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />}
       <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout}
                mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <main style={{ flex:1, overflowY:'auto', minHeight:'100vh', paddingTop: isMobile ? '52px' : 0, paddingBottom: isMobile ? '60px' : 0 }}>
+      <main style={{ flex:1, overflow:'auto', minHeight:'100vh', paddingTop: isMobile ? '52px' : 0, paddingBottom: isMobile ? '60px' : 0 }}>
         {renderPage()}
       </main>
       {isMobile && <MobileBottomNav currentPage={page} onNav={handleNav} />}
