@@ -518,21 +518,21 @@ function ParentListTab({ user, config }) {
         <EmptyState icon="📲" title="표시할 학부모가 없습니다" desc="학생 등록 시 학부모 전화번호를 입력하면 이 목록에 나타납니다." />
       ) : (
         <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflowX:'auto' }}>
-          <table style={{ width:'100%', minWidth:'1100px', borderCollapse:'collapse' }}>
+          <table style={{ width:'100%', minWidth:'1300px', borderCollapse:'collapse' }}>
             <thead>
               <tr style={{ background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
                 {[
                   { label:'#',         w:'44px'  },
-                  { label:'학교',       w:'100px' },
-                  { label:'수업·반',    w:'130px' },
+                  { label:'학교',       w:'110px' },
+                  { label:'수업·반',    w:'150px' },
                   { label:'학년/반',    w:'90px'  },
-                  { label:'학생 이름',  w:'90px'  },
-                  { label:'학부모 전화',w:'130px' },
-                  { label:'수업상태',   w:'100px' },
-                  { label:'가입상태',   w:'80px'  },
+                  { label:'학생 이름',  w:'100px' },
+                  { label:'학부모 전화',w:'140px' },
+                  { label:'수업상태',   w:'150px' },
+                  { label:'가입상태',   w:'140px' },
                   { label:'운영방식',   w:'90px'  },
                   { label:'마케팅',     w:'70px'  },
-                  { label:'초대',       w:'90px'  },
+                  { label:'초대',       w:'100px' },
                   { label:'종료',       w:'80px'  },
                 ].map(h => (
                   <th key={h.label} style={{ padding:'11px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', whiteSpace:'nowrap', minWidth:h.w }}>{h.label}</th>
@@ -577,58 +577,62 @@ function ParentListTab({ user, config }) {
                       {fmtPhone(s.parentPhone) || '-'}
                     </td>
                     <td style={{ padding:'11px 14px' }}>
-                      <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-                        {/* 수업상태 */}
-                        {(s.classStatus === 'applying') && (
+                      <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                        {/* 1줄: 수업 진행 상태 */}
+                        {s.classStatus === 'active' || s.classStatus === 'active_no_roster' ? (
                           <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'5px',
-                            background:'#eff6ff', border:'1px solid #93c5fd', color:'#1d4ed8', whiteSpace:'nowrap' }}>
-                            🔵 신청기간
-                          </span>
-                        )}
-                        {(s.classStatus === 'active' || s.classStatus === 'active_no_roster') && (
-                          <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'5px',
-                            background:'#f0fdf4', border:'1px solid #86efac', color:'#15803d', whiteSpace:'nowrap' }}>
+                            background:'#f0fdf4', border:'1px solid #86efac', color:'#15803d', whiteSpace:'nowrap', width:'fit-content' }}>
                             🟢 수업중
                           </span>
-                        )}
-                        {s.classStatus === 'upcoming' && (
+                        ) : s.classStatus === 'upcoming' ? (
                           <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'5px',
-                            background:'#fefce8', border:'1px solid #fde047', color:'#a16207', whiteSpace:'nowrap' }}>
+                            background:'#fefce8', border:'1px solid #fde047', color:'#a16207', whiteSpace:'nowrap', width:'fit-content' }}>
                             🟡 수업예정
                           </span>
-                        )}
-                        {s.classStatus === 'ended' && (
+                        ) : s.classStatus === 'ended' ? (
                           <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'5px',
-                            background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af', whiteSpace:'nowrap' }}>
+                            background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af', whiteSpace:'nowrap', width:'fit-content' }}>
                             ⚫ 수업종료
                           </span>
-                        )}
-                        {s.classStatus === 'cancelled' && (
+                        ) : s.classStatus === 'cancelled' ? (
                           <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'5px',
-                            background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626', whiteSpace:'nowrap' }}>
+                            background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626', whiteSpace:'nowrap', width:'fit-content' }}>
                             🔴 취소
                           </span>
+                        ) : (
+                          <span style={{ fontSize:'11px', color:'#d1d5db' }}>-</span>
                         )}
-                        {s.classStatus === 'none' && <span style={{ fontSize:'11px', color:'#d1d5db' }}>-</span>}
 
-                        {/* 세부 조건 태그 */}
-                        <div style={{ display:'flex', gap:'3px', flexWrap:'wrap', marginTop:'1px' }}>
-                          {s.classEnded && (
-                            <span style={{ fontSize:'10px', padding:'1px 5px', borderRadius:'4px',
-                              background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af' }}>종료</span>
-                          )}
-                          {s.applyOver && (
-                            <span style={{ fontSize:'10px', padding:'1px 5px', borderRadius:'4px',
-                              background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af' }}>신청끝</span>
-                          )}
-                          {s.inRoster ? (
-                            <span style={{ fontSize:'10px', padding:'1px 5px', borderRadius:'4px',
-                              background:'#f0fdf4', border:'1px solid #86efac', color:'#15803d' }}>명단✓</span>
-                          ) : (
-                            <span style={{ fontSize:'10px', padding:'1px 5px', borderRadius:'4px',
-                              background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626' }}>명단✗</span>
-                          )}
-                        </div>
+                        {/* 2줄: 신청기간 여부 (독립) */}
+                        {s.applyOpen ? (
+                          <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'5px',
+                            background:'#eff6ff', border:'1px solid #93c5fd', color:'#1d4ed8', whiteSpace:'nowrap', width:'fit-content' }}>
+                            🔵 신청기간
+                          </span>
+                        ) : s.applyOver ? (
+                          <span style={{ fontSize:'11px', padding:'2px 7px', borderRadius:'5px',
+                            background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af', whiteSpace:'nowrap', width:'fit-content' }}>
+                            신청기간 종료
+                          </span>
+                        ) : s.cls?.applyStartAt ? (
+                          <span style={{ fontSize:'11px', padding:'2px 7px', borderRadius:'5px',
+                            background:'#fefce8', border:'1px solid #fde047', color:'#a16207', whiteSpace:'nowrap', width:'fit-content' }}>
+                            신청 예정
+                          </span>
+                        ) : null}
+
+                        {/* 3줄: 명단 여부 (독립) */}
+                        {s.inRoster ? (
+                          <span style={{ fontSize:'11px', padding:'2px 7px', borderRadius:'5px',
+                            background:'#f0fdf4', border:'1px solid #86efac', color:'#15803d', whiteSpace:'nowrap', width:'fit-content' }}>
+                            📋 명단있음
+                          </span>
+                        ) : (
+                          <span style={{ fontSize:'11px', padding:'2px 7px', borderRadius:'5px',
+                            background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626', whiteSpace:'nowrap', width:'fit-content' }}>
+                            📋 명단없음
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td style={{ padding:'11px 14px' }}>
@@ -648,25 +652,26 @@ function ParentListTab({ user, config }) {
                           <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
                             background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af' }}>미가입</span>
                         )}
-                        {/* 예외 처리 버튼 / 예외 상태 표시 */}
-                        {s.autoEndTarget && !s.autoEndException && (
+                        {/* 예외 처리 — 가입 중이면 항상 표시 */}
+                        {s.joined && !s.autoEndException && (
                           <button onClick={() => { setExceptionTarget(s); setExceptionMemo('') }}
-                            style={{ padding:'2px 8px', borderRadius:'5px', border:'1.5px solid #f59e0b',
+                            style={{ padding:'3px 8px', borderRadius:'5px', border:'1.5px solid #f59e0b',
                               background:'#fffbeb', color:'#b45309', fontSize:'11px', fontWeight:700,
-                              cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                              cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
+                              textAlign:'left' }}>
                             🛡 예외 처리
                           </button>
                         )}
                         {s.autoEndException && (
                           <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
                             <span style={{ fontSize:'10px', padding:'2px 6px', borderRadius:'4px',
-                              background:'#fffbeb', border:'1px solid #fde68a', color:'#92400e', whiteSpace:'nowrap' }}>
-                              🛡 예외: {s.autoEndExceptionMemo || '메모없음'}
+                              background:'#fffbeb', border:'1px solid #fde68a', color:'#92400e' }}>
+                              🛡 {s.autoEndExceptionMemo || '예외처리됨'}
                             </span>
                             <button onClick={() => handleRemoveException(s)}
-                              style={{ padding:'1px 6px', borderRadius:'4px', border:'1px solid #e5e7eb',
+                              style={{ padding:'2px 6px', borderRadius:'4px', border:'1px solid #e5e7eb',
                                 background:'none', color:'#9ca3af', fontSize:'10px', cursor:'pointer',
-                                fontFamily:'Noto Sans KR, sans-serif' }}>
+                                fontFamily:'Noto Sans KR, sans-serif', textAlign:'left' }}>
                               예외 해제
                             </button>
                           </div>
@@ -738,32 +743,38 @@ function ParentListTab({ user, config }) {
         />
       )}
 
-      {/* 예외 처리 모달 */}
+      {/* 예외 처리 인라인 패널 */}
       {exceptionTarget && (
-        <Modal open={true} onClose={() => setExceptionTarget(null)} title={`🛡 예외 처리 — ${exceptionTarget.name}`} width={400}>
-          <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
-            <div style={{ padding:'10px 14px', borderRadius:'9px', background:'#faf5ff', border:'1px solid #e9d5ff', fontSize:'13px', color:'#7c3aed', lineHeight:1.6 }}>
-              자동종료 대상이지만 예외적으로 유지할 경우 사용합니다.<br/>
-              <span style={{ fontSize:'12px', color:'#a78bfa' }}>수업종료 + 신청기간종료 + 명단없음 조건 충족</span>
+        <div style={{ marginTop:'14px', borderRadius:'14px', border:'1.5px solid #fde68a',
+          background:'#fffbeb', padding:'16px', boxShadow:'0 2px 12px rgba(0,0,0,0.08)' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
+            <div style={{ fontSize:'14px', fontWeight:700, color:'#b45309' }}>
+              🛡 예외 처리
+              <span style={{ fontWeight:400, color:'#9ca3af', marginLeft:'8px', fontSize:'13px' }}>
+                {exceptionTarget.name}
+              </span>
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-              <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>예외 사유 메모</label>
-              <textarea
-                value={exceptionMemo}
-                onChange={e => setExceptionMemo(e.target.value)}
-                placeholder="예: 다음 분기 재등록 예정, 학부모 요청으로 유지 등"
-                rows={3}
-                style={{ padding:'10px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb',
-                  fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical',
-                  outline:'none', lineHeight:1.6, width:'100%', boxSizing:'border-box' }}
-              />
-            </div>
-            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-              <Btn variant="ghost" onClick={() => setExceptionTarget(null)}>닫기</Btn>
-              <Btn onClick={handleSaveException}>예외 저장</Btn>
-            </div>
+            <button onClick={() => setExceptionTarget(null)}
+              style={{ background:'none', border:'none', fontSize:'18px', color:'#9ca3af', cursor:'pointer', lineHeight:1, padding:'0 4px' }}>✕</button>
           </div>
-        </Modal>
+          <div style={{ fontSize:'13px', color:'#92400e', marginBottom:'12px', lineHeight:1.6 }}>
+            자동종료 대상에서 제외합니다. 사유를 메모해 두세요.
+          </div>
+          <textarea
+            value={exceptionMemo}
+            onChange={e => setExceptionMemo(e.target.value)}
+            placeholder="예: 다음 분기 재등록 예정, 학부모 요청으로 유지 등"
+            rows={3}
+            autoFocus
+            style={{ width:'100%', padding:'10px 12px', borderRadius:'8px', border:'1.5px solid #fde68a',
+              fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', resize:'vertical',
+              outline:'none', lineHeight:1.6, boxSizing:'border-box', background:'#fff' }}
+          />
+          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', marginTop:'10px' }}>
+            <Btn variant="ghost" onClick={() => setExceptionTarget(null)}>닫기</Btn>
+            <Btn onClick={handleSaveException}>예외 저장</Btn>
+          </div>
+        </div>
       )}
     </div>
   )
