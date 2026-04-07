@@ -5,7 +5,8 @@
  * ✅ 연도별 관리
  * ✅ 금액: 시중소비자가/학교공급가/지사공급가/선생님공급가
  */
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import * as XLSX from 'xlsx'
 import { uid, now } from '../lib/utils.js'
 import { dbCall } from '../lib/supabase.js'
 import { useToast } from '../hooks/useToast.js'
@@ -371,6 +372,7 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
   const [bulkCount, setBulkCount] = useState(12)
   const [files, setFiles]       = useState([])
   const [fileForm, setFileForm] = useState({ fileType:'annual', title:'', stageLabel:'' })
+  const xlsxRef = useRef()
 
   const subjectProds = products.filter(p=>p.subjectId===subjectId && p.type==='textbook')
 
@@ -445,6 +447,55 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
     const all = await DB.contentsByStage(selStage.id)
     setContents(all)
     success(`${n}개 목차가 생성되었습니다.`)
+  }
+
+  // 샘플 엑셀 다운로드
+  const downloadSample = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['차시', '제목', '준비물'],
+      [1, '예시 제목', '예시 준비물'],
+      [2, '', ''],
+    ])
+    ws['!cols'] = [{wch:6},{wch:30},{wch:30}]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '목차')
+    XLSX.writeFile(wb, `${selStage?.label||'목차'}_샘플.xlsx`)
+  }
+
+  // 엑셀 업로드
+  const uploadXlsx = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const reader = new FileReader()
+    reader.onload = async ev => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type:'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' })
+        // 첫 행 헤더 스킵
+        const dataRows = rows.slice(1).filter(r => r[0] || r[1] || r[2])
+        if (!dataRows.length) { error('데이터가 없습니다.'); return }
+        const existing = await DB.contentsByStage(selStage.id)
+        let next = existing.length + 1
+        await Promise.all(dataRows.map((r, i) =>
+          DB.saveContent({
+            id: uid(),
+            stageId: selStage.id,
+            productId: selProd.id,
+            session: Number(r[0]) || next + i,
+            title: String(r[1] || ''),
+            supplies: String(r[2] || ''),
+            createdAt: now(),
+          })
+        ))
+        setContents(await DB.contentsByStage(selStage.id))
+        success(`${dataRows.length}개 목차가 업로드되었습니다.`)
+      } catch(err) {
+        error('엑셀 파일을 읽을 수 없습니다.')
+      }
+    }
+    reader.readAsArrayBuffer(file)
   }
 
   const addOneCont = async () => {
@@ -577,6 +628,9 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
                       {contMode==='one' && (
                         <button type="button" onClick={addOneCont} style={{ padding:'4px 14px', borderRadius:'7px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 목차 추가</button>
                       )}
+                      <button type="button" onClick={downloadSample} style={{ padding:'4px 12px', borderRadius:'7px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📥 샘플</button>
+                      <input ref={xlsxRef} type="file" accept=".xlsx,.xls,.csv" style={{ display:'none' }} onChange={uploadXlsx} />
+                      <button type="button" onClick={()=>xlsxRef.current?.click()} style={{ padding:'4px 12px', borderRadius:'7px', border:'none', background:'#16a34a', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📤 엑셀 업로드</button>
                     </div>
                   </div>
                   {contents.length>0 && (
@@ -654,6 +708,7 @@ function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
   const { success, error } = useToast()
   const { confirm, modal } = useConfirmModal()
   const fileRef = React.useRef()
+  const xlsxRef = useRef()
 
   const [form, setForm]         = useState({...EMPTY_PROD})
   const [selProd, setSelProd]   = useState(null)
@@ -724,6 +779,52 @@ function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
     const all = await DB.quartersByProduct(selProd.id)
     setQuarters(all)
     setSelQuarter(all[0]||null)
+  }
+
+  const downloadSampleB = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['차시', '제목', '준비물'],
+      [1, '예시 제목', '예시 준비물'],
+      [2, '', ''],
+    ])
+    ws['!cols'] = [{wch:6},{wch:30},{wch:30}]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '차시')
+    XLSX.writeFile(wb, `${selQuarter?.label||'차시'}_샘플.xlsx`)
+  }
+
+  const uploadXlsxB = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const reader = new FileReader()
+    reader.onload = async ev => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type:'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' })
+        const dataRows = rows.slice(1).filter(r => r[0] || r[1] || r[2])
+        if (!dataRows.length) { error('데이터가 없습니다.'); return }
+        const existing = await DB.sessionsByQuarter(selQuarter.id)
+        let next = existing.length + 1
+        await Promise.all(dataRows.map((r, i) =>
+          DB.saveSession({
+            id: uid(),
+            quarterId: selQuarter.id,
+            productId: selProd.id,
+            session: Number(r[0]) || next + i,
+            title: String(r[1] || ''),
+            supplies: String(r[2] || ''),
+            createdAt: now(),
+          })
+        ))
+        setSessions(await DB.sessionsByQuarter(selQuarter.id))
+        success(`${dataRows.length}개 차시가 업로드되었습니다.`)
+      } catch(err) {
+        error('엑셀 파일을 읽을 수 없습니다.')
+      }
+    }
+    reader.readAsArrayBuffer(file)
   }
 
   const addSession = async () => {
@@ -843,6 +944,9 @@ function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
                       {selQuarter.label} 차시 <span style={{ fontSize:'12px', color:C.muted, fontWeight:400 }}>{sessions.length}개</span>
                     </div>
                     <button type="button" onClick={addSession} style={{ padding:'5px 14px', borderRadius:'7px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 차시 추가</button>
+                    <button type="button" onClick={downloadSampleB} style={{ padding:'4px 12px', borderRadius:'7px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📥 샘플</button>
+                    <input ref={xlsxRef} type="file" accept=".xlsx,.xls,.csv" style={{ display:'none' }} onChange={uploadXlsxB} />
+                    <button type="button" onClick={()=>xlsxRef.current?.click()} style={{ padding:'4px 12px', borderRadius:'7px', border:'none', background:'#16a34a', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📤 엑셀 업로드</button>
                   </div>
                   {sessions.length>0 && (
                     <div style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 20px', gap:'5px', padding:'4px 8px', marginBottom:'4px' }}>
