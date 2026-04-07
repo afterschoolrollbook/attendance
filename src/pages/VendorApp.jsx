@@ -71,6 +71,46 @@ function Empty({ icon, msg }) {
   )
 }
 
+// ─── 확인 모달 (window.confirm 대체)
+function ConfirmModal({ message, onConfirm, onClose }) {
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:3000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
+      onClick={e=>{ if(e.target===e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:'16px', width:'360px', padding:'24px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
+        <div style={{ fontSize:'15px', color:C.text, marginBottom:'20px', lineHeight:'1.6', whiteSpace:'pre-line' }}>{message}</div>
+        <div style={{ display:'flex', justifyContent:'flex-end', gap:'8px' }}>
+          <button type="button" onClick={onClose} style={{
+            padding:'8px 18px', borderRadius:'9px', border:'1.5px solid #e5e7eb',
+            background:'#fff', color:'#374151', fontWeight:600, fontSize:'13px',
+            cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+          }}>취소</button>
+          <button type="button" onClick={()=>{ onConfirm(); onClose() }} style={{
+            padding:'8px 18px', borderRadius:'9px', border:'none',
+            background:'#ef4444', color:'#fff', fontWeight:600, fontSize:'13px',
+            cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+          }}>확인</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── useConfirmModal 훅
+function useConfirmModal() {
+  const [state, setState] = React.useState(null)
+  const confirm = (message) => new Promise(resolve => {
+    setState({ message, resolve })
+  })
+  const modal = state ? (
+    <ConfirmModal
+      message={state.message}
+      onConfirm={()=>state.resolve(true)}
+      onClose={()=>{ state.resolve(false); setState(null) }}
+    />
+  ) : null
+  return { confirm, modal }
+}
+
 // ─── 사이드바
 const VENDOR_NAV = [
   { path:'dashboard', label:'대시보드',  icon:'🏠' },
@@ -173,10 +213,11 @@ function VendorDashboard({ vendorSession, subjects, products }) {
 function VendorSubjectsPage({ vendorId, subjects, onReload }) {
   const [form, setForm]       = useState({ name:'', subjectType:'A' })
   const [editing, setEditing] = useState(null)
-  const { success } = useToast()
+  const { success, error } = useToast()
+  const { confirm, modal: confirmModal } = useConfirmModal()
 
   const handleSave = async () => {
-    if (!form.name.trim()) return
+    if (!form.name.trim()) { error('과목명을 입력해주세요.'); return }
     const item = editing
       ? { ...editing, name:form.name, subjectType:form.subjectType }
       : { id:uid(), vendorId, name:form.name, subjectType:form.subjectType, createdAt:now() }
@@ -188,7 +229,8 @@ function VendorSubjectsPage({ vendorId, subjects, onReload }) {
   }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('과목을 삭제하시겠습니까?\n연결된 교구도 함께 삭제됩니다.')) return
+    const ok = await confirm('과목을 삭제하시겠습니까?\n연결된 교구도 함께 삭제됩니다.')
+    if (!ok) return
     await HQSubjects.delete(id)
     const prods = await HQProducts.bySubject(id)
     await Promise.all(prods.map(p=>HQProducts.delete(p.id)))
@@ -237,6 +279,7 @@ function VendorSubjectsPage({ vendorId, subjects, onReload }) {
         </div>
       </div>
 
+      {confirmModal}
       {subjects.length===0
         ? <Empty icon="📚" msg="등록된 과목이 없습니다." />
         : (
@@ -268,7 +311,8 @@ function VendorSubjectsPage({ vendorId, subjects, onReload }) {
 
 // ─── A형 교구 관리 (교재형 — 단계·목차·지도안)
 function TypeAProducts({ vendorId, subjectId, products, onReload }) {
-  const { success } = useToast()
+  const { success, error } = useToast()
+  const { confirm, modal: confirmModal } = useConfirmModal()
   const fileRef = React.useRef()
 
   // 교구
@@ -316,7 +360,7 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
 
   // 교구 저장
   const saveProd = async () => {
-    if (!prodForm.name.trim()) return alert('교구명을 입력해주세요.')
+    if (!prodForm.name.trim()) { error('교구명을 입력해주세요.'); return }
     const item = { id:uid(), vendorId, subjectId, type:'textbook', name:prodForm.name, createdAt:now() }
     await HQProducts.save(item)
     setProdForm({ name:'' })
@@ -325,7 +369,8 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
   }
 
   const deleteProd = async (id) => {
-    if (!window.confirm('교구를 삭제하시겠습니까?')) return
+    const ok = await confirm('교구를 삭제하시겠습니까?')
+    if (!ok) return
     await HQProducts.delete(id)
     if (selProd?.id===id) setSelProd(null)
     onReload()
@@ -343,9 +388,9 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
     success(`${newStage.label} 추가되었습니다.`)
   }
 
-  const deleteStage = (stageId) => {
-    if (!window.confirm('단계를 삭제하시겠습니까?
-해당 단계의 목차도 삭제됩니다.')) return
+  const deleteStage = async (stageId) => {
+    const ok = await confirm('단계를 삭제하시겠습니까?\n해당 단계의 목차도 삭제됩니다.')
+    if (!ok) return
     const arr = getStages(selProd.id).filter(s=>s.id!==stageId)
     setStages(selProd.id, arr)
     setStagesState(arr)
@@ -395,7 +440,7 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
   const saveFile = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!fileForm.title.trim()) { alert('파일 제목을 먼저 입력해주세요.'); e.target.value=''; return }
+    if (!fileForm.title.trim()) { error('파일 제목을 먼저 입력해주세요.'); e.target.value=''; return }
     const reader = new FileReader()
     reader.onload = ev => {
       const all = [...getFiles(selProd.id), { id:uid(), fileType:fileForm.fileType, stageLabel:fileForm.stage, title:fileForm.title, fileName:file.name, fileData:ev.target.result }]
@@ -436,6 +481,7 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
         </div>
       </div>
 
+      {confirmModal}
       {/* 교구 목록 */}
       {subjectProds.length===0
         ? <Empty icon="📦" msg="등록된 교구가 없습니다." />
@@ -629,14 +675,15 @@ function TypeAProducts({ vendorId, subjectId, products, onReload }) {
 
 // ─── B형·C형 교구 관리
 function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
-  const { success } = useToast()
+  const { success, error } = useToast()
+  const { confirm, modal: confirmModal } = useConfirmModal()
   const [form, setForm]       = useState({ name:'', type:'annual', price:'', description:'' })
   const [editing, setEditing] = useState(null)
   const set = (k) => (e) => setForm(f=>({...f,[k]:e.target.value}))
   const subjectProds = products.filter(p=>p.subjectId===subjectId)
 
   const handleSave = async () => {
-    if (!form.name.trim()) return alert('교구명을 입력해주세요.')
+    if (!form.name.trim()) { error('교구명을 입력해주세요.'); return }
     const item = editing
       ? { ...editing, ...form, price:Number(form.price)||0 }
       : { id:uid(), vendorId, subjectId, ...form, price:Number(form.price)||0, createdAt:now() }
@@ -680,6 +727,7 @@ function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
           <Btn onClick={handleSave}>{editing?'수정 저장':'+ 교구 추가'}</Btn>
         </div>
       </div>
+      {confirmModal}
       {subjectProds.length===0
         ? <Empty icon="🎒" msg="등록된 교구가 없습니다." />
         : (
@@ -696,7 +744,7 @@ function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
                   </div>
                   <div style={{ display:'flex', gap:'5px' }}>
                     <Btn onClick={()=>{ setEditing(p); setForm({name:p.name,type:p.type,price:p.price||'',description:p.description||''}) }} secondary style={{ padding:'4px 10px', fontSize:'11px' }}>수정</Btn>
-                    <Btn onClick={async()=>{ if(window.confirm('삭제?')){ await HQProducts.delete(p.id); onReload(); success('삭제되었습니다.') } }} danger style={{ padding:'4px 10px', fontSize:'11px' }}>삭제</Btn>
+                    <Btn onClick={async()=>{ const ok=await confirm('교구를 삭제하시겠습니까?'); if(ok){ await HQProducts.delete(p.id); onReload(); success('삭제되었습니다.') } }} danger style={{ padding:'4px 10px', fontSize:'11px' }}>삭제</Btn>
                   </div>
                 </div>
               )
