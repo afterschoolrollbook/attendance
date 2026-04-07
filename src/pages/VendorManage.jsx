@@ -50,30 +50,24 @@ const C = {
 }
 
 // ─── localStorage
-const LS_VENDORS  = 'asa_hq_vendors'
-const LS_SUBJECTS = 'asa_hq_vendor_subjects'
-const LS_PRODUCTS = 'asa_hq_vendor_products'
-
-function lsGet(key)      { try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] } }
-function lsSet(key, arr) { localStorage.setItem(key, JSON.stringify(arr)) }
-
+// ✅ 모두 Supabase 직접 조회/저장
 const HQVendors = {
-  all:    ()    => lsGet(LS_VENDORS),
-  save:   (v)   => { const a=lsGet(LS_VENDORS); const i=a.findIndex(x=>x.id===v.id); i>=0?a.splice(i,1,v):a.push(v); lsSet(LS_VENDORS,a) },
-  delete: (id)  => lsSet(LS_VENDORS, lsGet(LS_VENDORS).filter(v=>v.id!==id)),
+  all:    async ()    => (await dbCall('getAll', 'hqVendors')) || [],
+  save:   async (v)   => dbCall('upsert', 'hqVendors', { data: v }),
+  delete: async (id)  => dbCall('delete', 'hqVendors', { id }),
 }
 const HQSubjects = {
-  all:      ()    => lsGet(LS_SUBJECTS),
-  byVendor: (vid) => lsGet(LS_SUBJECTS).filter(s=>s.vendorId===vid),
-  save:     (s)   => { const a=lsGet(LS_SUBJECTS); const i=a.findIndex(x=>x.id===s.id); i>=0?a.splice(i,1,s):a.push(s); lsSet(LS_SUBJECTS,a) },
-  delete:   (id)  => lsSet(LS_SUBJECTS, lsGet(LS_SUBJECTS).filter(s=>s.id!==id)),
+  all:      async ()    => (await dbCall('getAll', 'hqVendorSubjects')) || [],
+  byVendor: async (vid) => ((await dbCall('getAll', 'hqVendorSubjects')) || []).filter(s=>s.vendorId===vid),
+  save:     async (s)   => dbCall('upsert', 'hqVendorSubjects', { data: s }),
+  delete:   async (id)  => dbCall('delete', 'hqVendorSubjects', { id }),
 }
 const HQProducts = {
-  all:       ()    => lsGet(LS_PRODUCTS),
-  byVendor:  (vid) => lsGet(LS_PRODUCTS).filter(p=>p.vendorId===vid),
-  bySubject: (sid) => lsGet(LS_PRODUCTS).filter(p=>p.subjectId===sid),
-  save:      (p)   => { const a=lsGet(LS_PRODUCTS); const i=a.findIndex(x=>x.id===p.id); i>=0?a.splice(i,1,p):a.push(p); lsSet(LS_PRODUCTS,a) },
-  delete:    (id)  => lsSet(LS_PRODUCTS, lsGet(LS_PRODUCTS).filter(p=>p.id!==id)),
+  all:       async ()    => (await dbCall('getAll', 'hqVendorProducts')) || [],
+  byVendor:  async (vid) => ((await dbCall('getAll', 'hqVendorProducts')) || []).filter(p=>p.vendorId===vid),
+  bySubject: async (sid) => ((await dbCall('getAll', 'hqVendorProducts')) || []).filter(p=>p.subjectId===sid),
+  save:      async (p)   => dbCall('upsert', 'hqVendorProducts', { data: p }),
+  delete:    async (id)  => dbCall('delete', 'hqVendorProducts', { id }),
 }
 
 // ─── 공통 스타일
@@ -310,23 +304,23 @@ function VendorDetailDrawer({ vendor, onClose }) {
   const [prodForm, setProdForm] = useState({ name:'', subjectId:'', type:'annual', price:'', description:'' })
   const { success } = useToast()
 
-  const reload = useCallback(() => {
-    setSubjects(HQSubjects.byVendor(vendor.id))
-    setProducts(HQProducts.byVendor(vendor.id))
+  const reload = useCallback(async () => {
+    setSubjects(await HQSubjects.byVendor(vendor.id))
+    setProducts(await HQProducts.byVendor(vendor.id))
   }, [vendor.id])
   useEffect(() => { reload() }, [reload])
 
-  const saveSubject = () => {
+  const saveSubject = async () => {
     if (!subjName.trim()) return
-    HQSubjects.save({ id:uid(), vendorId:vendor.id, name:subjName.trim(), createdAt:now() })
+    await HQSubjects.save({ id:uid(), vendorId:vendor.id, name:subjName.trim(), createdAt:now() })
     setSubjName('')
     reload()
     success('과목이 추가되었습니다.')
   }
 
-  const saveProduct = () => {
+  const saveProduct = async () => {
     if (!prodForm.name.trim()) { alert('교구명을 입력해주세요.'); return }
-    HQProducts.save({ id:uid(), vendorId:vendor.id, ...prodForm, price:Number(prodForm.price)||0, createdAt:now() })
+    await HQProducts.save({ id:uid(), vendorId:vendor.id, ...prodForm, price:Number(prodForm.price)||0, createdAt:now() })
     setProdForm({ name:'', subjectId:'', type:'annual', price:'', description:'' })
     reload()
     success('교구가 추가되었습니다.')
@@ -378,7 +372,7 @@ function VendorDetailDrawer({ vendor, onClose }) {
                   <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 12px', background:C.bg, borderRadius:'9px', border:`1px solid ${C.border}`, marginBottom:'8px' }}>
                     <span style={{ flex:1, fontSize:'14px', fontWeight:500 }}>📚 {s.name}</span>
                     <span style={{ fontSize:'11px', color:C.muted }}>{HQProducts.bySubject(s.id).length}개 교구</span>
-                    <button onClick={()=>{ if(window.confirm('삭제하시겠습니까?')){ HQSubjects.delete(s.id); reload(); success('삭제되었습니다.') } }}
+                    <button onClick={()=>{ if(window.confirm('삭제하시겠습니까?')){ HQSubjects.delete(s.id).then(()=>{ reload(); success('삭제되었습니다.') }) } }}
                       style={{ padding:'3px 9px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                   </div>
                 ))
@@ -428,7 +422,7 @@ function VendorDetailDrawer({ vendor, onClose }) {
                     <div key={p.id} style={{ padding:'10px 12px', background:C.card, borderRadius:'9px', border:`1px solid ${C.border}`, marginBottom:'8px' }}>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                         <span style={{ fontSize:'13px', fontWeight:600 }}>🎒 {p.name}</span>
-                        <button onClick={()=>{ if(window.confirm('삭제하시겠습니까?')){ HQProducts.delete(p.id); reload(); success('삭제되었습니다.') } }}
+                        <button onClick={()=>{ if(window.confirm('삭제하시겠습니까?')){ HQProducts.delete(p.id).then(()=>{ reload(); success('삭제되었습니다.') }) } }}
                           style={{ padding:'3px 9px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                       </div>
                       <div style={{ display:'flex', gap:'6px', marginTop:'4px', flexWrap:'wrap' }}>
@@ -467,30 +461,32 @@ export function VendorManage({ user }) {
 
   const { success } = useToast()
 
-  const reload = useCallback(() => {
-    setVendors(HQVendors.all())
-    setSubjects(HQSubjects.all())
-    setProducts(HQProducts.all())
+  const reload = useCallback(async () => {
+    setVendors(await HQVendors.all())
+    setSubjects(await HQSubjects.all())
+    setProducts(await HQProducts.all())
   }, [])
   useEffect(() => { reload() }, [reload])
 
-  const handleSaveVendor = (form) => {
-    HQVendors.save({ ...form, id:form.id||uid(), status:form.status||'pending', createdAt:form.createdAt||now() })
+  const handleSaveVendor = async (form) => {
+    await HQVendors.save({ ...form, id:form.id||uid(), status:form.status||'pending', createdAt:form.createdAt||now() })
     reload()
     success(form.id ? '업체가 수정되었습니다.' : '업체가 등록되었습니다.')
   }
 
-  const handleDelete = (id) => {
-    HQVendors.delete(id)
-    HQSubjects.all().filter(s=>s.vendorId===id).forEach(s=>HQSubjects.delete(s.id))
-    HQProducts.all().filter(p=>p.vendorId===id).forEach(p=>HQProducts.delete(p.id))
+  const handleDelete = async (id) => {
+    await HQVendors.delete(id)
+    const subs = await HQSubjects.all()
+    const prods = await HQProducts.all()
+    await Promise.all(subs.filter(s=>s.vendorId===id).map(s=>HQSubjects.delete(s.id)))
+    await Promise.all(prods.filter(p=>p.vendorId===id).map(p=>HQProducts.delete(p.id)))
     setDeleteTarget(null)
     reload()
     success('업체가 삭제되었습니다.')
   }
 
-  const handleInviteSent = (vendor) => {
-    HQVendors.save({ ...vendor, status:'invited', invitedAt:now() })
+  const handleInviteSent = async (vendor) => {
+    await HQVendors.save({ ...vendor, status:'invited', invitedAt:now() })
     reload()
     success('초대가 발송되었습니다.')
   }
