@@ -403,7 +403,7 @@ function PushSection() {
   const [genResult,  setGenResult]  = useState(null) // { publicKey, privateKey } | null
   const [error,      setError]      = useState('')
   const [copied,     setCopied]     = useState('')   // 'pub' | 'priv' | ''
-  const { addToast } = useToast()
+  const { success, toastError } = useToast()
 
   const save = (next) => { Settings.set('push', next); setCfg(next) }
 
@@ -421,7 +421,7 @@ function PushSection() {
       // 공개키는 Settings에 저장, 비밀키는 화면에 표시해서 관리자가 Secrets에 직접 등록
       save({ ...cfg, vapidPublicKey: data.publicKey, enabled: true })
       setGenResult({ publicKey: data.publicKey, privateKey: data.privateKey })
-      addToast('VAPID 키 생성 완료!', 'success')
+      success('VAPID 키 생성 완료!')
     } catch (e) {
       setError(`오류: ${e.message}`)
     } finally {
@@ -449,7 +449,7 @@ function PushSection() {
           <Toggle checked={cfg.enabled && hasKey} onChange={v => {
             if (v && !hasKey) { setError('먼저 VAPID 키를 생성해주세요.'); return }
             save({ ...cfg, enabled: v })
-            addToast(v ? '웹 푸시 활성화' : '웹 푸시 비활성화')
+            success(v ? '웹 푸시 활성화' : '웹 푸시 비활성화')
           }} />
         </div>
 
