@@ -34,6 +34,7 @@ const TABLE_MAP: Record<string, string> = {
   points:               'points',
   parentMembers:        'parent_members',
   teacherParentLinks:   'teacher_parent_links',
+  teacherServiceConfigs: 'teacher_service_configs',   // ← 추가
   // 교구 관리
   supplySubjects:         'supplySubjects',
   supplyVendors:          'supplyVendors',
@@ -179,7 +180,6 @@ serve(async (req) => {
         break
       }
       case 'storageUpload': {
-        // base64 → Uint8Array 변환 후 Storage에 업로드 (service_role 키로 실행되므로 RLS 우회)
         const { bucket, path: filePath, base64, contentType } = body
         const binaryStr = atob(base64)
         const bytes = new Uint8Array(binaryStr.length)
