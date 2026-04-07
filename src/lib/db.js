@@ -372,6 +372,28 @@ export const ParentMembers = {
       withdrawReason: reason,
     })
   },
+
+  // 웹 푸시 구독 정보 저장
+  savePushSubscription(phone, teacherId, subscriptionJson) {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    const member = this.findByPhoneAndTeacher(clean, teacherId)
+    if (!member) return
+    db.update('parentMembers', member.id, { pushSubscription: subscriptionJson })
+    if (isConfigured) {
+      dbCall('update', 'parentMembers', {
+        id: member.id,
+        fields: { push_subscription: subscriptionJson },
+      }).catch(e => console.warn('[Push] 구독 저장 실패:', e.message))
+    }
+  },
+
+  // 전화번호로 구독 정보 전체 조회 (선생님 여러 명 대응)
+  getPushSubscriptions(phone) {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    return db.get('parentMembers')
+      .filter(p => p.phone === clean && p.pushSubscription)
+      .map(p => p.pushSubscription)
+  },
 }
 
 // ─── 선생님-학부모 연결
