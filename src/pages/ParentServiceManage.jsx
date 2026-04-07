@@ -11,7 +11,7 @@
  *
  * SQL 파일: migration_parent_service.sql 실행 필요
  */
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, ParentMembers, TeacherParentLinks } from '../lib/db.js'
 import { dbCall, isConfigured } from '../lib/supabase.js'
 import { uid, now, fmtPhone, sortClasses } from '../lib/utils.js'
@@ -22,6 +22,34 @@ import { useConfirm } from '../hooks/useConfirm.js'
 // ─────────────────────────────────────────────
 // 설정 기본값 & localStorage
 // ─────────────────────────────────────────────
+// 가로 스크롤바를 화면 하단에 항상 고정하는 래퍼
+function ScrollTable({ children }) {
+  const bodyRef = useRef(null)
+  const barRef  = useRef(null)
+  const sync1   = useRef(false)
+  const sync2   = useRef(false)
+  return (
+    <div style={{ borderRadius:'14px', border:'1px solid #e5e7eb', background:'#fff', overflow:'hidden' }}>
+      {/* 실제 테이블 스크롤 영역 */}
+      <div ref={bodyRef} style={{ overflowX:'scroll', overflowY:'visible' }}
+        onScroll={() => {
+          if (sync2.current) { sync2.current = false; return }
+          if (barRef.current) { sync1.current = true; barRef.current.scrollLeft = bodyRef.current.scrollLeft }
+        }}>
+        {children}
+      </div>
+      {/* 하단 sticky 스크롤바 */}
+      <div ref={barRef} style={{ position:'sticky', bottom:0, overflowX:'scroll', overflowY:'hidden', height:'14px', background:'#f9fafb', borderTop:'1px solid #e5e7eb' }}
+        onScroll={() => {
+          if (sync1.current) { sync1.current = false; return }
+          if (bodyRef.current) { sync2.current = true; bodyRef.current.scrollLeft = barRef.current.scrollLeft }
+        }}>
+        <div style={{ minWidth:'1500px', height:'1px' }} />
+      </div>
+    </div>
+  )
+}
+
 const LS_KEY  = 'asa_parent_service_config'
 const DB_KEY  = 'parent_service'
 
@@ -511,8 +539,8 @@ function ParentListTab({ user, config }) {
       {filtered.length === 0 ? (
         <EmptyState icon="📲" title="표시할 학부모가 없습니다" desc="학생 등록 시 학부모 전화번호를 입력하면 이 목록에 나타납니다." />
       ) : (
-        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflowX:'auto' }}>
-          <table style={{ width:'100%', minWidth:'1300px', borderCollapse:'collapse' }}>
+        <ScrollTable>
+          <table style={{ width:'100%', minWidth:'1500px', borderCollapse:'collapse' }}>
             <thead>
               <tr style={{ background:'#f9fafb', borderBottom:`1px solid ${C.border}`, position:'sticky', top:0, zIndex:1 }}>
                 {[
@@ -725,7 +753,7 @@ function ParentListTab({ user, config }) {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       )}
 
       {inviteTarget && (
