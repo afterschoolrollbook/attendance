@@ -514,7 +514,7 @@ function ParentListTab({ user, config }) {
         <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflowX:'auto' }}>
           <table style={{ width:'100%', minWidth:'1300px', borderCollapse:'collapse' }}>
             <thead>
-              <tr style={{ background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
+              <tr style={{ background:'#f9fafb', borderBottom:`1px solid ${C.border}`, position:'sticky', top:0, zIndex:1 }}>
                 {[
                   { label:'#',         w:'44px'  },
                   { label:'학교',       w:'110px' },
@@ -523,11 +523,12 @@ function ParentListTab({ user, config }) {
                   { label:'학생 이름',  w:'100px' },
                   { label:'학부모 전화',w:'140px' },
                   { label:'수업상태',   w:'150px' },
-                  { label:'가입상태',   w:'140px' },
+                  { label:'가입상태',   w:'100px' },
                   { label:'운영방식',   w:'90px'  },
                   { label:'마케팅',     w:'70px'  },
                   { label:'초대',       w:'100px' },
                   { label:'종료',       w:'80px'  },
+                  { label:'예외',       w:'110px' },
                 ].map(h => (
                   <th key={h.label} style={{ padding:'11px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', whiteSpace:'nowrap', minWidth:h.w }}>{h.label}</th>
                 ))}
@@ -646,30 +647,7 @@ function ParentListTab({ user, config }) {
                           <span style={{ fontSize:'12px', fontWeight:700, padding:'3px 9px', borderRadius:'6px',
                             background:'#f9fafb', border:'1px solid #e5e7eb', color:'#9ca3af' }}>미가입</span>
                         )}
-                        {/* 예외 처리 — 가입 중이면 항상 표시 */}
-                        {s.joined && !s.autoEndException && (
-                          <button onClick={() => { setExceptionTarget(s); setExceptionMemo('') }}
-                            style={{ padding:'3px 8px', borderRadius:'5px', border:'1.5px solid #f59e0b',
-                              background:'#fffbeb', color:'#b45309', fontSize:'11px', fontWeight:700,
-                              cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
-                              textAlign:'left' }}>
-                            🛡 예외 처리
-                          </button>
-                        )}
-                        {s.autoEndException && (
-                          <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
-                            <span style={{ fontSize:'10px', padding:'2px 6px', borderRadius:'4px',
-                              background:'#fffbeb', border:'1px solid #fde68a', color:'#92400e' }}>
-                              🛡 {s.autoEndExceptionMemo || '예외처리됨'}
-                            </span>
-                            <button onClick={() => handleRemoveException(s)}
-                              style={{ padding:'2px 6px', borderRadius:'4px', border:'1px solid #e5e7eb',
-                                background:'none', color:'#9ca3af', fontSize:'10px', cursor:'pointer',
-                                fontFamily:'Noto Sans KR, sans-serif', textAlign:'left' }}>
-                              예외 해제
-                            </button>
-                          </div>
-                        )}
+                        {/* 예외 처리 — 가입상태 td에서 제거, 별도 컬럼으로 이동 */}
                       </div>
                     </td>
                     <td style={{ padding:'11px 14px' }}>
@@ -718,6 +696,29 @@ function ParentListTab({ user, config }) {
                         }}>
                         {s.joined ? '🚫 종료' : '종료'}
                       </button>
+                    </td>
+                    <td style={{ padding:'11px 14px' }}>
+                      {!s.withdrawn && !s.autoEndException ? (
+                        <button onClick={() => { setExceptionTarget(s); setExceptionMemo('') }}
+                          style={{ padding:'5px 10px', borderRadius:'7px', border:'1.5px solid #f59e0b',
+                            background:'#fffbeb', color:'#b45309', fontSize:'12px', fontWeight:700,
+                            cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                          🛡 예외 처리
+                        </button>
+                      ) : s.autoEndException ? (
+                        <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                          <span style={{ fontSize:'11px', padding:'2px 7px', borderRadius:'5px',
+                            background:'#fffbeb', border:'1px solid #fde68a', color:'#92400e', whiteSpace:'nowrap' }}>
+                            🛡 {s.autoEndExceptionMemo || '예외처리됨'}
+                          </span>
+                          <button onClick={() => handleRemoveException(s)}
+                            style={{ padding:'2px 7px', borderRadius:'5px', border:'1px solid #e5e7eb',
+                              background:'none', color:'#9ca3af', fontSize:'11px', cursor:'pointer',
+                              fontFamily:'Noto Sans KR, sans-serif' }}>
+                            해제
+                          </button>
+                        </div>
+                      ) : <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>}
                     </td>
                   </tr>
                 )
