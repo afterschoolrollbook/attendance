@@ -119,17 +119,38 @@ function AdminForm({ admin, onSave, onCancel }) {
 // ── 초대 이메일 발송
 async function sendInviteEmail(admin) {
   const link = `${window.location.origin}/school`
-  const body = `안녕하세요 ${admin.adminName||'담당자'}님,\n\n방과후 출석부 학교 담당자 포털에 초대되었습니다.\n\n학교: ${admin.schoolName}\n아래 링크로 접속하여 가입해주세요.\n\n${link}\n\n등록된 이메일: ${admin.email}\n\n감사합니다.`
+  const html = `
+    <div style="font-family:'Noto Sans KR',sans-serif;max-width:520px;margin:0 auto;padding:40px 20px;">
+      <h1 style="color:#3b82f6;font-size:22px;margin-bottom:6px">🏫 방과후 출석부</h1>
+      <p style="color:#374151;font-size:15px;margin-bottom:24px">학교 담당자 포털에 초대되었습니다.</p>
+      <div style="background:#eff6ff;border:2px solid #93c5fd;border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+        <div style="font-size:14px;color:#1e3a5f;margin-bottom:6px">🏫 학교: <strong>${admin.schoolName}</strong></div>
+        <div style="font-size:14px;color:#1e3a5f;margin-bottom:16px">👤 담당자: <strong>${admin.adminName||''}</strong></div>
+        <a href="${link}" style="display:inline-block;background:#3b82f6;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:700;">
+          포털 접속 및 가입하기 →
+        </a>
+      </div>
+      <p style="color:#6b7280;font-size:13px;line-height:1.7">
+        접속 URL: ${link}<br/>
+        등록된 이메일: ${admin.email}<br/><br/>
+        본인이 요청하지 않은 경우 이 메일을 무시하셔도 됩니다.
+      </p>
+    </div>
+  `
   if (!isConfigured) {
-    alert(`[개발모드] 초대 이메일 내용:\n\n${body}`)
+    alert(`[개발모드] 초대 링크: ${link}`)
     return true
   }
   try {
-    await fetch(`${FUNCTIONS_BASE}/send-email`, {
+    const res = await fetch(`${FUNCTIONS_BASE}/send-email`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ to: admin.email, subject:'[방과후 출석부] 학교 담당자 포털 초대', text: body }),
+      body: JSON.stringify({
+        to: admin.email,
+        subject: `[방과후 출석부] ${admin.schoolName} 담당자 포털 초대`,
+        html,
+      }),
     })
-    return true
+    return res.ok
   } catch { return false }
 }
 
