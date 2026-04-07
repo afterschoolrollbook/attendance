@@ -5,7 +5,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react'
 import { uid, now } from '../lib/utils.js'
-import { isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
+import { dbCall, isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
 
 // 초대 이메일 직접 발송 (subject + html 커스텀)
 async function sendInviteEmail(to, vendorName, link) {
