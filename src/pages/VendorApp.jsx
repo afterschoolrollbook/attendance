@@ -736,9 +736,12 @@ function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
   const [tab, setTab]           = useState('quarters')
   const [quarters, setQuarters] = useState([])
   const [selQuarter, setSelQuarter] = useState(null)
-  const [sessions, setSessions] = useState([])
-  const [files, setFiles]       = useState([])
-  const [fileForm, setFileForm] = useState({ fileType:'annual', title:'' })
+  const [sessions, setSessions]   = useState([])
+  const [sessMode, setSessMode]   = useState('one')
+  const [bulkSessCount, setBulkSessCount] = useState(12)
+  const [editProd, setEditProd]   = useState(null)
+  const [files, setFiles]         = useState([])
+  const [fileForm, setFileForm]   = useState({ fileType:'annual', title:'' })
 
   const subjectProds = products.filter(p=>p.subjectId===subjectId && p.type!=='textbook')
 
