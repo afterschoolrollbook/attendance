@@ -7,7 +7,7 @@
  * - 담당 선생님 학생 현황 조회
  */
 import React, { useState, useEffect, useCallback } from 'react'
-import { dbCall, isConfigured } from '../lib/supabase.js'
+import { dbCall, isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
 
@@ -380,12 +380,48 @@ function NoticesTab({ session }) {
 }
 
 // ── 선생님 현황 탭
+const CURRENT_YEAR = new Date().getFullYear()
+
+// 파일(base64) 업로드 헬퍼
+function useFileField(formState, setFormState, key) {
+  const ref = React.useRef()
+  const pick = () => ref.current?.click()
+  const onChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => setFormState(f => ({
+      ...f,
+      [key]: { name: file.name, data: ev.target.result }
+    }))
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+  const val = formState[key]
+  return { ref, pick, onChange, name: val?.name, data: val?.data }
+}
+
 function TeachersTab({ session }) {
   const { success, error } = useToast()
-  const [teachers, setTeachers] = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [showAdd, setShowAdd]   = useState(false)
-  const [form, setForm]         = useState({ teacherName:'', teacherPhone:'', teacherId:'' })
+  const [teachers,    setTeachers]    = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [modalMode,   setModalMode]   = useState(null)  // null | 'add' | 'edit'
+  const [editTarget,  setEditTarget]  = useState(null)
+  const [selYear,     setSelYear]     = useState(CURRENT_YEAR)
+  const [detailItem,  setDetailItem]  = useState(null)  // 상세 보기
+
+  const EMPTY = {
+    year: CURRENT_YEAR, schoolName: session.admin?.schoolName || '',
+    teacherName: '', subject: '', days: '', teacherPhone: '', email: '',
+    feeAccount: null,    // { name, data }
+    vendorBiz:  null,    // 교구업체 사업자등록증
+    vendorAccount: null, // 교구업체 통장사본
+  }
+  const [form, setForm] = useState(EMPTY)
+
+  const feeAccField    = useFileField(form, setForm, 'feeAccount')
+  const vendorBizField = useFileField(form, setForm, 'vendorBiz')
+  const vendorAccField = useFileField(form, setForm, 'vendorAccount')
 
   const load = async () => {
     setLoading(true)
@@ -395,72 +431,267 @@ function TeachersTab({ session }) {
   }
   useEffect(() => { load() }, [])
 
+  const validate = (f) => {
+    if (!String(f.year).trim())     { error('연도를 입력해주세요.');         return false }
+    if (!f.teacherName.trim())      { error('선생님 이름을 입력해주세요.');   return false }
+    if (!f.subject.trim())          { error('과목을 입력해주세요.');          return false }
+    if (!f.days.trim())             { error('요일을 입력해주세요.');          return false }
+    if (!f.teacherPhone.trim())     { error('전화번호를 입력해주세요.');      return false }
+    if (!f.email.trim())            { error('이메일 주소를 입력해주세요.');   return false }
+    // 같은 연도+이메일 중복 체크
+    const dup = teachers.filter(t =>
+      t.year == f.year &&
+      t.email?.toLowerCase() === f.email.trim().toLowerCase() &&
+      (!editTarget || t.id !== editTarget.id)
+    )
+    if (dup.length) { error('동일 연도에 같은 이메일이 이미 등록되어 있습니다.'); return false }
+    return true
+  }
+
+  const baseData = (f) => ({
+    adminId:      session.adminId,
+    schoolName:   f.schoolName || session.admin?.schoolName || '',
+    year:         Number(f.year),
+    teacherName:  f.teacherName.trim(),
+    subject:      f.subject.trim(),
+    days:         f.days.trim(),
+    teacherPhone: f.teacherPhone.trim(),
+    email:        f.email.trim().toLowerCase(),
+    feeAccount:   f.feeAccount   || null,
+    vendorBiz:    f.vendorBiz    || null,
+    vendorAccount:f.vendorAccount|| null,
+    active: true,
+  })
+
   const handleAdd = async () => {
-    if (!form.teacherName.trim()) { error('선생님 이름을 입력해주세요.'); return }
-    await DB.saveTeacher({
-      id: uid(), adminId: session.adminId,
-      schoolName: session.admin?.schoolName || '',
-      teacherName: form.teacherName, teacherPhone: form.teacherPhone,
-      teacherId: form.teacherId || uid(),
-      active: true, createdAt: now(),
+    if (!validate(form)) return
+    await DB.saveTeacher({ id: uid(), teacherId: uid(), createdAt: now(), ...baseData(form) })
+    setModalMode(null); setForm(EMPTY)
+    success('선생님이 등록되었습니다.'); load()
+  }
+
+  const handleEdit = async () => {
+    if (!validate(form)) return
+    await dbCall('update', 'schoolAdminTeachers', { id: editTarget.id, patch: baseData(form) })
+    setModalMode(null); setEditTarget(null); setForm(EMPTY)
+    success('수정되었습니다.'); load()
+  }
+
+  const openEdit = (t) => {
+    setEditTarget(t)
+    setForm({
+      year: t.year || CURRENT_YEAR, schoolName: t.schoolName || '',
+      teacherName: t.teacherName || '', subject: t.subject || '',
+      days: t.days || '', teacherPhone: t.teacherPhone || '', email: t.email || '',
+      feeAccount: t.feeAccount || null, vendorBiz: t.vendorBiz || null, vendorAccount: t.vendorAccount || null,
     })
-    setForm({ teacherName:'', teacherPhone:'', teacherId:'' })
-    setShowAdd(false)
-    success('선생님이 추가되었습니다.')
-    load()
+    setModalMode('edit')
   }
 
   const removeTeacher = async (id) => {
     if (!window.confirm('선생님을 목록에서 제외하시겠습니까?')) return
     await dbCall('update', 'schoolAdminTeachers', { id, patch: { active: false } })
-    success('제외되었습니다.')
-    load()
+    success('제외되었습니다.'); load()
+  }
+
+  const years = [...new Set([CURRENT_YEAR, ...teachers.map(t => t.year).filter(Boolean)])].sort((a,b)=>b-a)
+  const filtered = teachers.filter(t => t.year == selYear || (!t.year && selYear === CURRENT_YEAR))
+
+  // ── 등록/수정 모달
+  const FormModal = ({ mode }) => {
+    const title = mode === 'add' ? '➕ 선생님 등록' : '✏️ 선생님 정보 수정'
+    const onSave = mode === 'add' ? handleAdd : handleEdit
+    const onClose = () => { setModalMode(null); setEditTarget(null); setForm(EMPTY) }
+    const LBL = ({ children }) => (
+      <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px', fontWeight:600 }}>{children}</label>
+    )
+    const FilePicker = ({ label, field }) => (
+      <div>
+        <LBL>{label}</LBL>
+        <input ref={field.ref} type="file" accept="image/*,application/pdf" style={{ display:'none' }} onChange={field.onChange} />
+        <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+          <button type="button" onClick={field.pick}
+            style={{ padding:'7px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:'#fff', fontSize:'12px', cursor:'pointer', color:C.muted, fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            📎 파일 선택
+          </button>
+          {field.name
+            ? <span style={{ fontSize:'11px', color:C.primary, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'120px' }}>{field.name}</span>
+            : <span style={{ fontSize:'11px', color:'#d1d5db' }}>미첨부</span>
+          }
+        </div>
+      </div>
+    )
+    return (
+      <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
+        onClick={e => e.target===e.currentTarget && onClose()}>
+        <div style={{ background:'#fff', borderRadius:'18px', width:'620px', maxWidth:'96vw', maxHeight:'90vh', overflowY:'auto', padding:'28px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+            <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>{title}</div>
+            <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>✕</button>
+          </div>
+
+          {/* 기본 정보 */}
+          <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'10px', textTransform:'uppercase', letterSpacing:'.5px' }}>기본 정보</div>
+          <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 1fr', gap:'10px', marginBottom:'10px' }}>
+            <div>
+              <LBL>연도 *</LBL>
+              <input style={iSt} type="number" value={form.year} onChange={e=>setForm(f=>({...f,year:e.target.value}))} placeholder="2026" />
+            </div>
+            <div>
+              <LBL>학교명</LBL>
+              <input style={iSt} value={form.schoolName} onChange={e=>setForm(f=>({...f,schoolName:e.target.value}))} placeholder={session.admin?.schoolName||'학교명'} />
+            </div>
+            <div>
+              <LBL>선생님 이름(본명) *</LBL>
+              <input style={iSt} value={form.teacherName} onChange={e=>setForm(f=>({...f,teacherName:e.target.value}))} placeholder="실명" />
+            </div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
+            <div>
+              <LBL>과목 *</LBL>
+              <input style={iSt} value={form.subject} onChange={e=>setForm(f=>({...f,subject:e.target.value}))} placeholder="예: 로봇, 코딩" />
+            </div>
+            <div>
+              <LBL>수업 요일 *</LBL>
+              <input style={iSt} value={form.days} onChange={e=>setForm(f=>({...f,days:e.target.value}))} placeholder="예: 월·수, 화·목" />
+            </div>
+            <div>
+              <LBL>전화번호 *</LBL>
+              <input style={iSt} value={form.teacherPhone} onChange={e=>setForm(f=>({...f,teacherPhone:e.target.value}))} placeholder="010-0000-0000" />
+            </div>
+            <div>
+              <LBL>이메일 * (앱 연결 키)</LBL>
+              <input style={iSt} type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="teacher@email.com" />
+            </div>
+          </div>
+
+          {/* 첨부 서류 */}
+          <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, margin:'16px 0 10px', textTransform:'uppercase', letterSpacing:'.5px' }}>첨부 서류</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'12px', marginBottom:'20px' }}>
+            <FilePicker label="수강료 통장사본"          field={feeAccField}    />
+            <FilePicker label="교구업체 사업자등록증"     field={vendorBizField} />
+            <FilePicker label="교구업체 통장사본"         field={vendorAccField} />
+          </div>
+
+          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+            <Btn color="secondary" onClick={onClose}>취소</Btn>
+            <Btn onClick={onSave}>{mode==='add'?'등록':'수정 저장'}</Btn>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── 상세 보기 모달
+  const DetailModal = ({ t }) => {
+    const onClose = () => setDetailItem(null)
+    const FileView = ({ label, field }) => (
+      <div style={{ marginBottom:'10px' }}>
+        <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px', fontWeight:600 }}>{label}</div>
+        {field?.data
+          ? field.data.startsWith('data:image')
+            ? <img src={field.data} alt={label} style={{ maxWidth:'100%', maxHeight:'160px', borderRadius:'8px', border:`1px solid ${C.border}` }} />
+            : <a href={field.data} download={field.name} style={{ fontSize:'12px', color:C.primary }}>📎 {field.name} 다운로드</a>
+          : <span style={{ fontSize:'12px', color:'#d1d5db' }}>미첨부</span>
+        }
+      </div>
+    )
+    return (
+      <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
+        onClick={e => e.target===e.currentTarget && onClose()}>
+        <div style={{ background:'#fff', borderRadius:'18px', width:'520px', maxWidth:'96vw', maxHeight:'90vh', overflowY:'auto', padding:'28px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+            <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>👩‍🏫 {t.teacherName} 선생님</div>
+            <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>✕</button>
+          </div>
+          {[
+            ['연도', t.year], ['학교명', t.schoolName], ['과목', t.subject],
+            ['요일', t.days], ['전화번호', t.teacherPhone], ['이메일', t.email],
+          ].map(([k,v]) => (
+            <div key={k} style={{ display:'flex', gap:'12px', padding:'8px 0', borderBottom:`1px solid ${C.border}`, fontSize:'13px' }}>
+              <span style={{ color:C.muted, width:'110px', flexShrink:0 }}>{k}</span>
+              <span style={{ color:C.text, fontWeight:500 }}>{v || '-'}</span>
+            </div>
+          ))}
+          <div style={{ marginTop:'16px' }}>
+            <FileView label="수강료 통장사본"      field={t.feeAccount}    />
+            <FileView label="교구업체 사업자등록증" field={t.vendorBiz}    />
+            <FileView label="교구업체 통장사본"     field={t.vendorAccount} />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div style={{ padding:'24px' }}>
+    <div style={{ padding:'28px', maxWidth:'1100px' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'20px' }}>
         <div>
           <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>👩‍🏫 선생님 현황</div>
-          <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>담당 학교 방과후 강사 목록</div>
+          <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>담당 학교 방과후 강사 연도별 목록</div>
         </div>
-        <Btn onClick={()=>setShowAdd(s=>!s)}>{showAdd?'취소':'+ 선생님 추가'}</Btn>
+        <Btn onClick={() => { setForm(EMPTY); setEditTarget(null); setModalMode('add') }}>+ 선생님 등록</Btn>
       </div>
 
-      {showAdd && (
-        <div style={{ background:'#eff6ff', borderRadius:'12px', border:'2px solid #93c5fd', padding:'16px', marginBottom:'16px', display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'flex-end' }}>
-          <div style={{ flex:2, minWidth:'120px' }}>
-            <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>이름 *</label>
-            <input style={iSt} value={form.teacherName} onChange={e=>setForm(f=>({...f,teacherName:e.target.value}))} placeholder="선생님 이름" />
+      {/* 연도 탭 */}
+      <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
+        {years.map(y => (
+          <button key={y} onClick={() => setSelYear(y)} style={{
+            padding:'6px 18px', borderRadius:'999px', border:'none', cursor:'pointer',
+            fontFamily:'Noto Sans KR, sans-serif', fontWeight:selYear===y?700:400, fontSize:'13px',
+            background:selYear===y?'#1e3a5f':'#e5e7eb', color:selYear===y?'#fff':C.muted,
+          }}>
+            {y}년{y===CURRENT_YEAR&&<span style={{ fontSize:'10px', opacity:.8 }}> 올해</span>}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'40px', color:C.muted }}>불러오는 중...</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'60px', color:C.muted, background:'#f8fafc', borderRadius:'14px', border:`1px dashed ${C.border}` }}>
+          <div style={{ fontSize:'40px', marginBottom:'10px' }}>👩‍🏫</div>
+          <div style={{ fontWeight:600 }}>{selYear}년 등록된 선생님이 없습니다.</div>
+          <div style={{ fontSize:'12px', marginTop:'6px' }}>위의 "+ 선생님 등록" 버튼으로 추가하세요.</div>
+        </div>
+      ) : (
+        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr 110px', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
+            <span>이름</span><span>과목·요일</span><span>전화번호</span><span>이메일</span><span>서류</span><span></span>
           </div>
-          <div style={{ flex:2, minWidth:'120px' }}>
-            <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>연락처</label>
-            <input style={iSt} value={form.teacherPhone} onChange={e=>setForm(f=>({...f,teacherPhone:e.target.value}))} placeholder="010-0000-0000" />
+          {filtered.map((t, i) => (
+            <div key={t.id} style={{
+              display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr 110px',
+              padding:'12px 16px', borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none', alignItems:'center',
+            }}>
+              <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{t.teacherName}</span>
+              <div>
+                <div style={{ fontSize:'13px', color:C.text }}>{t.subject||'-'}</div>
+                <div style={{ fontSize:'11px', color:C.muted }}>{t.days||'-'}</div>
+              </div>
+              <span style={{ fontSize:'13px', color:C.muted }}>{t.teacherPhone||'-'}</span>
+              <span style={{ fontSize:'12px', color:C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.email||'-'}</span>
+              <div style={{ fontSize:'11px', color:C.muted }}>
+                {[t.feeAccount&&'통장', t.vendorBiz&&'사업자', t.vendorAccount&&'업체통장'].filter(Boolean).join(' · ') || '-'}
+              </div>
+              <div style={{ display:'flex', gap:'4px' }}>
+                <button onClick={() => setDetailItem(t)}
+                  style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f8fafc', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>상세</button>
+                <button onClick={() => openEdit(t)}
+                  style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f8fafc', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                <button onClick={() => removeTeacher(t.id)}
+                  style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>제외</button>
+              </div>
+            </div>
+          ))}
+          <div style={{ padding:'10px 16px', background:'#f8fafc', borderTop:`1px solid ${C.border}`, fontSize:'12px', color:C.muted, textAlign:'right' }}>
+            {selYear}년 총 <strong style={{ color:C.text }}>{filtered.length}명</strong>
           </div>
-          <Btn onClick={handleAdd}>추가</Btn>
         </div>
       )}
 
-      {loading ? <div style={{ textAlign:'center', padding:'40px', color:C.muted }}>불러오는 중...</div> : (
-        teachers.length === 0
-          ? <div style={{ textAlign:'center', padding:'60px', color:C.muted, background:C.bg, borderRadius:'14px', border:`1px dashed ${C.border}` }}>
-              <div style={{ fontSize:'40px', marginBottom:'10px' }}>👩‍🏫</div>
-              <div>등록된 선생님이 없습니다.</div>
-            </div>
-          : <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 80px', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
-                <span>이름</span><span>연락처</span><span>소속 학교</span><span></span>
-              </div>
-              {teachers.map((t,i) => (
-                <div key={t.id} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 80px', padding:'12px 16px', borderBottom: i<teachers.length-1?`1px solid ${C.border}`:'none', alignItems:'center' }}>
-                  <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{t.teacherName}</span>
-                  <span style={{ fontSize:'13px', color:C.muted }}>{t.teacherPhone||'-'}</span>
-                  <span style={{ fontSize:'13px', color:C.muted }}>{t.schoolName||'-'}</span>
-                  <button onClick={()=>removeTeacher(t.id)} style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>제외</button>
-                </div>
-              ))}
-            </div>
-      )}
+      {modalMode && <FormModal mode={modalMode} />}
+      {detailItem && <DetailModal t={detailItem} />}
     </div>
   )
 }
@@ -555,266 +786,283 @@ function StudentsTab({ session }) {
   )
 }
 
+// ── 선생님 초대 이메일 발송
+async function sendTeacherInviteEmail({ teacherName, email, schoolName, adminName }) {
+  const html = `
+    <div style="font-family:'Noto Sans KR',sans-serif;max-width:520px;margin:0 auto;padding:40px 20px;">
+      <h1 style="color:#3b82f6;font-size:22px;margin-bottom:6px">📋 방과후 출석부</h1>
+      <p style="color:#374151;font-size:15px;margin-bottom:24px">
+        안녕하세요, <strong>${teacherName}</strong> 선생님!<br/>
+        <strong>${schoolName}</strong>${adminName ? ` 담당자 <strong>${adminName}</strong>님이` : '에서'} 연결을 초대했습니다.
+      </p>
+      <div style="background:#eff6ff;border:2px solid #93c5fd;border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+        <div style="font-size:14px;color:#1e3a5f;margin-bottom:6px">🏫 학교: <strong>${schoolName}</strong></div>
+        ${adminName ? `<div style="font-size:14px;color:#1e3a5f;margin-bottom:16px">👤 담당자: <strong>${adminName}</strong></div>` : ''}
+        <p style="font-size:13px;color:#374151;margin-bottom:16px;">
+          방과후 출석부 앱에 <strong>이 이메일(${email})로 가입</strong>하신 후,<br/>
+          대시보드에서 초대장을 확인하고 수락해주세요.
+        </p>
+        <a href="${window.location.origin}" style="display:inline-block;background:#3b82f6;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:700;">
+          앱 접속하기 →
+        </a>
+      </div>
+      <p style="color:#6b7280;font-size:12px;line-height:1.7;">
+        ※ 앱 가입 시 이 이메일 주소(${email})를 사용하셔야 대시보드에 초대장이 표시됩니다.<br/>
+        본인이 요청하지 않은 경우 이 메일을 무시하셔도 됩니다.
+      </p>
+    </div>
+  `
+  if (!isConfigured) {
+    alert(`[개발모드] ${teacherName}(${email}) 초대 이메일\n앱: ${window.location.origin}`)
+    return true
+  }
+  try {
+    const res = await fetch(`${FUNCTIONS_BASE}/send-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: email,
+        subject: `[방과후 출석부] ${schoolName} 담당자가 초대했습니다`,
+        html,
+      }),
+    })
+    return res.ok
+  } catch { return false }
+}
+
 // ── 선생님 연결 관리 탭
+// ● 이메일 일치(앱 가입) → 이메일 발송 + DB 초대(대시보드 팝업)
+// ● 이메일 불일치(미가입) → 이메일만 발송 (대시보드 팝업 없음)
 function ConnectTab({ session }) {
   const { success, error } = useToast()
-  const [allTeachers, setAllTeachers] = useState([])   // Supabase users (level=1, role=teacher)
-  const [linked, setLinked]           = useState([])   // schoolAdminTeachers linked
-  const [requests, setRequests]       = useState([])   // schoolTeacherConnectRequests (pending/accepted)
-  const [selected, setSelected]       = useState([])   // 선택된 teacherIds
-  const [loading, setLoading]         = useState(true)
-  const [sending, setSending]         = useState(false)
-  const [tab, setTab]                 = useState('unlinked') // 'unlinked' | 'linked'
+  const [roster,   setRoster]   = useState([])
+  const [appUsers, setAppUsers] = useState([])
+  const [invites,  setInvites]  = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [sending,  setSending]  = useState({})
+  const [selYear,  setSelYear]  = useState(CURRENT_YEAR)
 
   const load = async () => {
     setLoading(true)
     try {
-      const [teachers, linkedList, reqList] = await Promise.all([
-        dbCall('getAll', 'users').then(r => (r||[]).filter(u => u.role === 'teacher')),
-        dbCall('getAll', 'schoolAdminTeachers').then(r => (r||[]).filter(t => t.adminId === session.adminId && t.active !== false)),
-        dbCall('getAll', 'schoolTeacherConnectRequests').then(r => (r||[]).filter(q => q.adminId === session.adminId)),
+      const [r, u, inv] = await Promise.all([
+        dbCall('getAll', 'schoolAdminTeachers').then(d =>
+          (d||[]).filter(t => t.adminId === session.adminId && t.active !== false)
+        ),
+        dbCall('getAll', 'users').then(d => (d||[]).filter(u => u.role === 'teacher')),
+        dbCall('getAll', 'schoolTeacherInvites').then(d =>
+          (d||[]).filter(i => i.adminId === session.adminId)
+        ),
       ])
-      setAllTeachers(teachers)
-      setLinked(linkedList)
-      setRequests(reqList)
-    } catch(e) {
-      error('데이터 로딩 실패')
-    }
+      setRoster(r); setAppUsers(u); setInvites(inv)
+    } catch {}
     setLoading(false)
   }
-
   useEffect(() => { load() }, [])
 
-  const linkedTeacherIds  = new Set(linked.map(t => t.teacherId))
-  const pendingTeacherIds = new Set(requests.filter(r => r.status === 'pending').map(r => r.teacherId))
-  const acceptedIds       = new Set(requests.filter(r => r.status === 'accepted').map(r => r.teacherId))
+  // 이메일 기준 룩업
+  const appByEmail    = Object.fromEntries(appUsers.map(u => [u.email?.toLowerCase(), u]))
+  const inviteByEmail = Object.fromEntries(invites.map(i => [i.teacherEmail?.toLowerCase(), i]))
 
-  // 미연결 선생님: linked에 없고 accepted에도 없는 사람
-  const unlinkedTeachers = allTeachers.filter(t =>
-    !linkedTeacherIds.has(t.id) && !acceptedIds.has(t.id)
-  )
-  const linkedTeachers = allTeachers.filter(t =>
-    linkedTeacherIds.has(t.id) || acceptedIds.has(t.id)
-  )
+  const years    = [...new Set([CURRENT_YEAR, ...roster.map(t => t.year).filter(Boolean)])].sort((a,b)=>b-a)
+  const filtered = roster.filter(t => t.year == selYear || (!t.year && selYear === CURRENT_YEAR))
 
-  const toggleSelect = (id) =>
-    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-
-  const allSelected = selected.length === unlinkedTeachers.length && unlinkedTeachers.length > 0
-  const toggleAll   = () => setSelected(allSelected ? [] : unlinkedTeachers.map(t => t.id))
-
-  const sendRequests = async () => {
-    if (selected.length === 0) { error('선생님을 선택해주세요.'); return }
-    setSending(true)
-    try {
-      // 이미 pending 요청이 있는 건 skip
-      const toSend = selected.filter(tid => !pendingTeacherIds.has(tid))
-      if (toSend.length === 0) { error('선택한 선생님 모두 이미 요청이 발송된 상태입니다.'); setSending(false); return }
-      await Promise.all(toSend.map(tid =>
-        dbCall('upsert', 'schoolTeacherConnectRequests', {
-          data: {
-            id: uid(),
-            adminId:    session.adminId,
-            schoolName: session.admin?.schoolName || '',
-            teacherId:  tid,
-            status:     'pending',
-            createdAt:  now(),
-          }
-        })
-      ))
-      success(`${toSend.length}명에게 연결 요청을 발송했습니다.`)
-      setSelected([])
-      await load()
-    } catch { error('요청 발송 중 오류가 발생했습니다.') }
-    setSending(false)
+  // 상태 계산
+  // accepted  → 연결 완료 (수락됨)
+  // pending   → 초대 발송됨 (대시보드 팝업 대기)
+  // emailed   → 이메일만 발송됨 (앱 미가입 상태였음)
+  // ready     → 앱 가입됨, 아직 초대 안 보냄
+  // notjoined → 앱 미가입, 초대 안 보냄
+  const getStatus = (t) => {
+    const email = t.email?.toLowerCase()
+    const inv   = inviteByEmail[email]
+    if (inv?.status === 'accepted') return 'accepted'
+    if (inv?.status === 'pending')  return 'pending'
+    if (inv?.status === 'emailed')  return 'emailed'
+    if (appByEmail[email])          return 'ready'
+    return 'notjoined'
   }
 
-  const sendOne = async (tid) => {
-    if (pendingTeacherIds.has(tid)) { error('이미 요청이 발송된 선생님입니다.'); return }
+  const SI = {
+    accepted:  { label:'✅ 연결 완료',    bg:'#f0fdf4', badge:'#dcfce7', color:'#16a34a' },
+    pending:   { label:'📨 수락 대기 중', bg:'#fffbeb', badge:'#fef9c3', color:'#d97706' },
+    emailed:   { label:'📧 이메일 발송됨',bg:'#f0f9ff', badge:'#e0f2fe', color:'#0369a1' },
+    ready:     { label:'앱 가입됨',       bg:'#f8fafc', badge:'#eff6ff', color:'#3b82f6' },
+    notjoined: { label:'앱 미가입',       bg:'transparent', badge:'#f3f4f6', color:'#9ca3af' },
+  }
+
+  const counts = filtered.reduce((acc, t) => {
+    const s = getStatus(t); acc[s] = (acc[s]||0)+1; return acc
+  }, {})
+
+  const sendInvite = async (t) => {
+    const email = t.email?.toLowerCase()
+    if (!email) { error('이메일이 등록되지 않은 선생님입니다.'); return }
+    setSending(prev => ({ ...prev, [t.id]: true }))
     try {
-      await dbCall('upsert', 'schoolTeacherConnectRequests', {
+      const appUser       = appByEmail[email]
+      const existingInv   = inviteByEmail[email]
+      // 앱 가입 여부에 따라 status 결정
+      // 가입됨 → pending (대시보드 팝업 발송)
+      // 미가입  → emailed (이메일만, 팝업 없음)
+      const newStatus = appUser ? 'pending' : 'emailed'
+
+      // DB 저장 (가입된 선생님만 대시보드 팝업 트리거)
+      await dbCall('upsert', 'schoolTeacherInvites', {
         data: {
-          id: uid(),
-          adminId:    session.adminId,
-          schoolName: session.admin?.schoolName || '',
-          teacherId:  tid,
-          status:     'pending',
-          createdAt:  now(),
+          id:           existingInv?.id || uid(),
+          adminId:      session.adminId,
+          schoolName:   session.admin?.schoolName || '',
+          adminName:    session.admin?.adminName  || '',
+          teacherEmail: email,
+          teacherName:  t.teacherName,
+          teacherId:    appUser?.id || null,
+          status:       newStatus,
+          sentAt:       now(),
+          createdAt:    existingInv?.createdAt || now(),
         }
       })
-      success('연결 요청을 발송했습니다.')
+      // 이메일 항상 발송
+      await sendTeacherInviteEmail({
+        teacherName: t.teacherName,
+        email,
+        schoolName:  session.admin?.schoolName || '',
+        adminName:   session.admin?.adminName  || '',
+      })
+
+      if (appUser) {
+        success(`${t.teacherName} 선생님에게 초대를 발송했습니다. (이메일 + 대시보드 알림)`)
+      } else {
+        success(`${t.teacherName} 선생님에게 이메일을 발송했습니다. (앱 미가입 — 대시보드 알림 없음)`)
+      }
       await load()
-    } catch { error('요청 발송 중 오류가 발생했습니다.') }
+    } catch { error('초대 발송 중 오류가 발생했습니다.') }
+    setSending(prev => ({ ...prev, [t.id]: false }))
   }
 
-  const cancelRequest = async (teacherId) => {
-    const req = requests.find(r => r.teacherId === teacherId && r.status === 'pending')
-    if (!req) return
-    await dbCall('delete', 'schoolTeacherConnectRequests', { id: req.id })
-    success('연결 요청을 취소했습니다.')
-    await load()
+  // 일괄 초대: ready + notjoined 모두 (ready는 팝업, notjoined는 이메일만)
+  const sendBulk = async () => {
+    const targets = filtered.filter(t => ['ready','notjoined'].includes(getStatus(t)))
+    if (!targets.length) { error('발송할 선생님이 없습니다.'); return }
+    for (const t of targets) await sendInvite(t)
   }
-
-  const unlinkTeacher = async (teacherId) => {
-    if (!window.confirm('연결을 해제하시겠습니까?')) return
-    // schoolAdminTeachers 비활성화
-    const lt = linked.find(t => t.teacherId === teacherId)
-    if (lt) await dbCall('update', 'schoolAdminTeachers', { id: lt.id, patch: { active: false } })
-    // accepted request도 정리
-    const req = requests.find(r => r.teacherId === teacherId && r.status === 'accepted')
-    if (req) await dbCall('delete', 'schoolTeacherConnectRequests', { id: req.id })
-    success('연결이 해제되었습니다.')
-    await load()
-  }
-
-  const TAB_BTN = (id, label, count) => (
-    <button onClick={() => setTab(id)} style={{
-      padding:'8px 20px', borderRadius:'9px', border:'none', cursor:'pointer',
-      fontFamily:'Noto Sans KR, sans-serif', fontWeight: tab===id?700:400, fontSize:'13px',
-      background: tab===id?C.primary:'#f1f5f9', color: tab===id?'#fff':C.muted,
-      transition:'all .15s',
-    }}>
-      {label} {count > 0 && <span style={{ marginLeft:'4px', background: tab===id?'rgba(255,255,255,0.3)':'#e5e7eb', borderRadius:'999px', padding:'1px 7px', fontSize:'11px' }}>{count}</span>}
-    </button>
-  )
+  const bulkCount = filtered.filter(t => ['ready','notjoined'].includes(getStatus(t))).length
 
   return (
-    <div style={{ padding:'28px', maxWidth:'900px' }}>
-      <div style={{ marginBottom:'20px' }}>
-        <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>🔗 선생님 연결 관리</div>
-        <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>
-          레벨1 선생님에게 연결 요청을 보내고, 수락된 선생님과 연동하세요
+    <div style={{ padding:'28px', maxWidth:'960px' }}>
+      {/* 헤더 */}
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'16px', gap:'12px', flexWrap:'wrap' }}>
+        <div>
+          <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>🔗 선생님 연결 관리</div>
+          <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>명단의 선생님에게 초대를 발송하고 수락 현황을 확인하세요</div>
         </div>
+        {bulkCount > 0 && (
+          <button onClick={sendBulk} style={{
+            padding:'9px 18px', borderRadius:'10px', border:'none', cursor:'pointer',
+            background:C.primary, color:'#fff', fontWeight:700, fontSize:'13px',
+            fontFamily:'Noto Sans KR, sans-serif', boxShadow:'0 2px 8px rgba(59,130,246,0.3)',
+          }}>📨 일괄 초대 ({bulkCount}명)</button>
+        )}
       </div>
 
-      {/* 통계 카드 */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px', marginBottom:'20px' }}>
+      {/* 안내 박스 */}
+      <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'12px 16px', marginBottom:'20px', fontSize:'13px', color:'#1e40af', lineHeight:1.9 }}>
+        <strong>초대 흐름</strong><br/>
+        ① 선생님 현황 탭에서 등록 &nbsp;→&nbsp;
+        ② <strong>초대 발송</strong><br/>
+        &nbsp;&nbsp;&nbsp;• 앱 가입 선생님 → <strong>이메일 + 대시보드 팝업</strong> 동시 발송<br/>
+        &nbsp;&nbsp;&nbsp;• 앱 미가입 선생님 → <strong>이메일만</strong> 발송 (가입 후 대시보드에 팝업)<br/>
+        ③ 선생님이 대시보드에서 <strong>수락</strong> → ✅ 연결 완료
+      </div>
+
+      {/* 통계 */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'8px', marginBottom:'20px' }}>
         {[
-          { label:'연결된 선생님', value: linkedTeachers.length, color:'#16a34a', bg:'#f0fdf4' },
-          { label:'요청 발송 중',  value: [...pendingTeacherIds].filter(id => !linkedTeacherIds.has(id) && !acceptedIds.has(id)).length, color:'#d97706', bg:'#fffbeb' },
-          { label:'미연결 선생님', value: unlinkedTeachers.filter(t => !pendingTeacherIds.has(t.id)).length, color:'#6b7280', bg:'#f9fafb' },
+          { label:'전체',       value:filtered.length,      ...SI.notjoined },
+          { label:'✅ 연결 완료', value:counts.accepted||0,  ...SI.accepted  },
+          { label:'수락 대기',   value:counts.pending||0,   ...SI.pending   },
+          { label:'이메일 발송', value:counts.emailed||0,   ...SI.emailed   },
+          { label:'앱 미가입',   value:counts.notjoined||0, color:'#9ca3af', bg:'#f3f4f6' },
         ].map(s => (
-          <div key={s.label} style={{ background:s.bg, borderRadius:'14px', padding:'16px 20px', border:`1px solid ${s.color}22` }}>
-            <div style={{ fontSize:'24px', fontWeight:800, color:s.color }}>{s.value}</div>
-            <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>{s.label}</div>
+          <div key={s.label} style={{ background:s.bg, borderRadius:'12px', padding:'12px 14px', border:`1px solid ${s.color}22` }}>
+            <div style={{ fontSize:'20px', fontWeight:800, color:s.color }}>{s.value}</div>
+            <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>{s.label}</div>
           </div>
         ))}
       </div>
 
-      {/* 탭 */}
-      <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
-        {TAB_BTN('unlinked', '미연결 선생님', unlinkedTeachers.length)}
-        {TAB_BTN('linked',   '연결된 선생님', linkedTeachers.length)}
+      {/* 연도 탭 */}
+      <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
+        {years.map(y => (
+          <button key={y} onClick={() => setSelYear(y)} style={{
+            padding:'6px 18px', borderRadius:'999px', border:'none', cursor:'pointer',
+            fontFamily:'Noto Sans KR, sans-serif', fontWeight:selYear===y?700:400, fontSize:'13px',
+            background:selYear===y?'#1e3a5f':'#e5e7eb', color:selYear===y?'#fff':C.muted,
+          }}>
+            {y}년{y===CURRENT_YEAR&&<span style={{ fontSize:'10px', opacity:.8 }}> 올해</span>}
+          </button>
+        ))}
       </div>
 
       {loading ? (
-        <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>로딩 중...</div>
-      ) : tab === 'unlinked' ? (
-        <div style={{ background:C.card, borderRadius:'16px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-          {/* 상단 액션바 */}
-          <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', background:'#f8fafc' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-              <input type="checkbox" checked={allSelected} onChange={toggleAll} style={{ accentColor:C.primary, width:'15px', height:'15px' }} />
-              <span style={{ fontSize:'13px', color:C.muted }}>
-                {selected.length > 0 ? `${selected.length}명 선택됨` : '전체 선택'}
-              </span>
-            </div>
-            <button
-              onClick={sendRequests}
-              disabled={sending || selected.length === 0}
-              style={{
-                padding:'8px 18px', borderRadius:'9px', border:'none',
-                background: selected.length===0?'#e5e7eb':C.primary,
-                color: selected.length===0?C.muted:'#fff',
-                fontWeight:700, fontSize:'13px', cursor: selected.length===0?'not-allowed':'pointer',
-                fontFamily:'Noto Sans KR, sans-serif',
-              }}
-            >
-              {sending ? '발송 중...' : `📨 일괄 연결요청 (${selected.length}명)`}
-            </button>
-          </div>
-
-          {unlinkedTeachers.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>
-              미연결 선생님이 없습니다 🎉
-            </div>
-          ) : (
-            <div>
-              {unlinkedTeachers.map((t, i) => {
-                const isPending = pendingTeacherIds.has(t.id)
-                return (
-                  <div key={t.id} style={{
-                    display:'grid', gridTemplateColumns:'40px 1fr auto',
-                    padding:'12px 18px', borderBottom: i<unlinkedTeachers.length-1?`1px solid ${C.border}`:'none',
-                    alignItems:'center', gap:'12px',
-                    background: selected.includes(t.id)?'#eff6ff':'transparent',
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(t.id)}
-                      onChange={() => !isPending && toggleSelect(t.id)}
-                      disabled={isPending}
-                      style={{ accentColor:C.primary, width:'15px', height:'15px' }}
-                    />
-                    <div>
-                      <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>
-                        {t.name} 선생님
-                      </div>
-                      <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                        {t.email || t.phone || '-'} · Lv.{t.level||1}
-                      </div>
-                    </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                      {isPending ? (
-                        <>
-                          <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 10px', borderRadius:'999px', background:'#fffbeb', color:'#d97706' }}>요청 발송됨</span>
-                          <button onClick={() => cancelRequest(t.id)}
-                            style={{ fontSize:'11px', padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                            취소
-                          </button>
-                        </>
-                      ) : (
-                        <button onClick={() => sendOne(t.id)}
-                          style={{ fontSize:'12px', padding:'5px 12px', borderRadius:'7px', border:'none', background:'#eff6ff', color:C.primary, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                          요청보내기
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+        <div style={{ textAlign:'center', padding:'40px', color:C.muted }}>불러오는 중...</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'60px', color:C.muted, background:'#f8fafc', borderRadius:'14px', border:`1px dashed ${C.border}` }}>
+          <div style={{ fontSize:'36px', marginBottom:'10px' }}>👩‍🏫</div>
+          <div style={{ fontWeight:600 }}>{selYear}년 등록된 선생님이 없습니다.</div>
+          <div style={{ fontSize:'12px', marginTop:'6px' }}>선생님 현황 탭에서 먼저 등록해주세요.</div>
         </div>
       ) : (
-        // 연결된 선생님 탭
-        <div style={{ background:C.card, borderRadius:'16px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-          {linkedTeachers.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>
-              연결된 선생님이 없습니다
-            </div>
-          ) : (
-            linkedTeachers.map((t, i) => (
+        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 130px 120px', padding:'10px 18px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
+            <span>이름</span><span>과목·요일</span><span>이메일</span>
+            <span style={{ textAlign:'center' }}>상태</span>
+            <span style={{ textAlign:'center' }}>초대</span>
+          </div>
+          {filtered.map((t, i) => {
+            const st  = getStatus(t)
+            const si  = SI[st]
+            const inv = inviteByEmail[t.email?.toLowerCase()]
+            return (
               <div key={t.id} style={{
-                display:'grid', gridTemplateColumns:'1fr auto',
-                padding:'14px 18px', borderBottom: i<linkedTeachers.length-1?`1px solid ${C.border}`:'none',
-                alignItems:'center',
+                display:'grid', gridTemplateColumns:'1fr 1fr 1fr 130px 120px',
+                padding:'13px 18px', borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',
+                alignItems:'center', background:si.bg,
               }}>
                 <div>
-                  <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>
-                    ✅ {t.name} 선생님
-                  </div>
-                  <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                    {t.email || t.phone || '-'} · Lv.{t.level||1}
-                  </div>
+                  <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{t.teacherName}</div>
+                  {inv?.sentAt && <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>발송: {inv.sentAt.slice(0,10)}</div>}
                 </div>
-                <button onClick={() => unlinkTeacher(t.id)}
-                  style={{ fontSize:'12px', padding:'5px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                  연결 해제
-                </button>
+                <div>
+                  <div style={{ fontSize:'13px', color:C.text }}>{t.subject||'-'}</div>
+                  <div style={{ fontSize:'11px', color:C.muted }}>{t.days||'-'}</div>
+                </div>
+                <span style={{ fontSize:'12px', color:C.muted }}>{t.email||'-'}</span>
+                <div style={{ textAlign:'center' }}>
+                  <span style={{ fontSize:'11px', fontWeight:700, color:si.color, background:si.badge, padding:'3px 10px', borderRadius:'999px', whiteSpace:'nowrap' }}>
+                    {si.label}
+                  </span>
+                </div>
+                <div style={{ textAlign:'center' }}>
+                  {st === 'accepted' ? (
+                    <span style={{ fontSize:'12px', color:'#16a34a' }}>—</span>
+                  ) : (
+                    <button onClick={() => sendInvite(t)} disabled={!!sending[t.id]} style={{
+                      padding:'5px 12px', borderRadius:'7px', border:'none',
+                      cursor:sending[t.id]?'not-allowed':'pointer',
+                      background: st==='pending'||st==='emailed' ? '#f1f5f9' : C.primary,
+                      color:      st==='pending'||st==='emailed' ? C.muted   : '#fff',
+                      fontSize:'12px', fontWeight:700,
+                      fontFamily:'Noto Sans KR, sans-serif',
+                      opacity: sending[t.id] ? .6 : 1,
+                    }}>
+                      {sending[t.id] ? '발송 중...' : (st==='pending'||st==='emailed') ? '재발송' : '초대 발송'}
+                    </button>
+                  )}
+                </div>
               </div>
-            ))
-          )}
+            )
+          })}
         </div>
       )}
     </div>
