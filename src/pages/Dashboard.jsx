@@ -6,6 +6,7 @@ import {
   Trainings, Careers, Educations, Certificates, Awards,
   Settings,
 } from '../lib/db.js'
+import { dbCall } from '../lib/supabase.js'
 import { calcSessionDates, sortClasses, uid, now, getSessionInfo } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
 
@@ -68,6 +69,183 @@ function smBtn(bg, color) {
 //  Settings.get/set 사용 → localStorage + Supabase 자동 싱크
 //  저장 키: dashboardCards_${userId}
 // ═══════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════
+//  학교 담당자 연결 요청 팝업
+// ═══════════════════════════════════════════════════════════════════
+
+function useSchoolConnectRequests(user) {
+  const [requests, setRequests] = useState([])
+
+  const load = async () => {
+    if (!user?.id) return
+    try {
+      const all = await dbCall('getAll', 'schoolTeacherConnectRequests')
+      const pending = (all || []).filter(r => r.teacherId === user.id && r.status === 'pending')
+      setRequests(pending)
+    } catch { /* 조용히 처리 */ }
+  }
+
+  useEffect(() => {
+    load()
+    // 30초마다 폴링
+    const timer = setInterval(load, 30000)
+    return () => clearInterval(timer)
+  }, [user?.id])
+
+  return { requests, reload: load }
+}
+
+function SchoolConnectPopup({ user }) {
+  const { requests, reload } = useSchoolConnectRequests(user)
+  const [current, setCurrent] = useState(0)
+  const { success } = useToast()
+
+  if (requests.length === 0) return null
+
+  const req = requests[current]
+  if (!req) return null
+
+  const handleAccept = async () => {
+    try {
+      // 1) 요청 상태를 accepted로 변경
+      await dbCall('update', 'schoolTeacherConnectRequests', {
+        id: req.id,
+        patch: { status: 'accepted', acceptedAt: now() },
+      })
+      // 2) schoolAdminTeachers에 등록
+      await dbCall('upsert', 'schoolAdminTeachers', {
+        data: {
+          id:          uid(),
+          adminId:     req.adminId,
+          teacherId:   user.id,
+          teacherName: user.name,
+          schoolName:  req.schoolName,
+          active:      true,
+          linkedAt:    now(),
+          createdAt:   now(),
+        }
+      })
+      success(`${req.schoolName} 담당자와 연동되었습니다! 🎉`)
+      await reload()
+      // 다음 요청으로 이동
+      setCurrent(c => Math.max(0, c - 1))
+    } catch {
+      // 에러 조용히 처리 (팝업 유지)
+    }
+  }
+
+  const handleDecline = async () => {
+    try {
+      await dbCall('update', 'schoolTeacherConnectRequests', {
+        id: req.id,
+        patch: { status: 'declined', declinedAt: now() },
+      })
+      await reload()
+      setCurrent(c => Math.max(0, c - 1))
+    } catch {}
+  }
+
+  return (
+    <div style={{
+      position:'fixed', inset:0, zIndex:3000,
+      background:'rgba(0,0,0,0.5)',
+      display:'flex', alignItems:'center', justifyContent:'center',
+    }}>
+      <div style={{
+        background:'#fff', borderRadius:'20px',
+        width:'400px', maxWidth:'92vw',
+        boxShadow:'0 20px 60px rgba(0,0,0,0.25)',
+        overflow:'hidden',
+        animation:'slideUp .25s ease',
+      }}>
+        {/* 헤더 */}
+        <div style={{
+          background:'linear-gradient(135deg,#1e3a5f,#2d5a8e)',
+          padding:'22px 24px 18px',
+        }}>
+          <div style={{ fontSize:'13px', color:'#93c5fd', marginBottom:'6px', fontWeight:600 }}>
+            🔗 연결 요청
+          </div>
+          <div style={{ fontSize:'18px', fontWeight:800, color:'#fff', lineHeight:1.3 }}>
+            {req.schoolName} 담당자로부터<br/>연결 요청이 왔습니다
+          </div>
+          {requests.length > 1 && (
+            <div style={{ fontSize:'11px', color:'#7ba7d4', marginTop:'8px' }}>
+              {current + 1} / {requests.length}개 요청
+            </div>
+          )}
+        </div>
+
+        {/* 내용 */}
+        <div style={{ padding:'20px 24px' }}>
+          <div style={{
+            background:'#f8fafc', borderRadius:'12px',
+            padding:'14px 16px', marginBottom:'18px',
+            border:'1px solid #e5e7eb',
+          }}>
+            <div style={{ fontSize:'13px', color:'#374151', lineHeight:1.7 }}>
+              <div>🏫 <strong>{req.schoolName}</strong> 담당자가</div>
+              <div style={{ marginTop:'4px' }}>
+                선생님을 담당 선생님으로 등록하고<br/>
+                연동을 요청했습니다.
+              </div>
+              <div style={{ marginTop:'8px', fontSize:'12px', color:'#6b7280' }}>
+                수락 시 해당 담당자의 공지·업무 요청을<br/>
+                받아볼 수 있습니다.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display:'flex', gap:'10px' }}>
+            <button
+              onClick={handleDecline}
+              style={{
+                flex:1, padding:'12px', borderRadius:'10px',
+                border:'1px solid #e5e7eb', background:'#fff',
+                color:'#6b7280', fontWeight:600, fontSize:'14px',
+                cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+              }}
+            >
+              거절
+            </button>
+            <button
+              onClick={handleAccept}
+              style={{
+                flex:2, padding:'12px', borderRadius:'10px',
+                border:'none', background:'linear-gradient(135deg,#1e3a5f,#3b82f6)',
+                color:'#fff', fontWeight:700, fontSize:'14px',
+                cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                boxShadow:'0 4px 14px rgba(59,130,246,0.4)',
+              }}
+            >
+              ✅ 확인, 연동하기
+            </button>
+          </div>
+
+          {requests.length > 1 && (
+            <div style={{ display:'flex', justifyContent:'center', gap:'6px', marginTop:'12px' }}>
+              {requests.map((_, i) => (
+                <div key={i} onClick={() => setCurrent(i)} style={{
+                  width:'8px', height:'8px', borderRadius:'50%',
+                  background: i===current?'#3b82f6':'#d1d5db',
+                  cursor:'pointer', transition:'background .15s',
+                }} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes slideUp {
+          from { opacity:0; transform:translateY(20px) }
+          to   { opacity:1; transform:translateY(0)    }
+        }
+      `}</style>
+    </div>
+  )
+}
 
 export const DASHBOARD_CARDS = [
   { id: 'calendar',     label: '달력 & 출석부',  icon: '📅', desc: '수업 달력 및 날짜별 출결 현황',  navKey: 'classes'      },
@@ -999,6 +1177,9 @@ function MobileDashboard({ user, onNav }) {
   return (
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
+      {/* ── 학교 담당자 연결 요청 팝업 ── */}
+      <SchoolConnectPopup user={user} />
+
       {/* 인사 */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px' }}>
         <div style={{ flex:1, minWidth:0 }}>
@@ -1358,7 +1539,8 @@ export function Dashboard({ user, onNav }) {
   return (
     <div style={{ padding: '24px', maxWidth: '1100px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-      {/* ── 헤더 ── */}
+      {/* ── 학교 담당자 연결 요청 팝업 ── */}
+      <SchoolConnectPopup user={user} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 700, color: C.text }}>
