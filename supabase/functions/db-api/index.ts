@@ -66,6 +66,8 @@ const TABLE_MAP: Record<string, string> = {
   schoolAdmins:           'schoolAdmins',
   schoolAdminAccounts:    'schoolAdminAccounts',
   schoolAdminTeachers:    'schoolAdminTeachers',
+  schoolSubjects:         'schoolSubjects',        // ← 신규
+  schoolTeacherInvites:   'schoolTeacherInvites',  // ← 신규
   schoolNotices:          'schoolNotices',
   schoolNoticeSubmits:    'schoolNoticeSubmits',
 }
@@ -82,6 +84,7 @@ const CAMEL_TABLES = new Set([
   'hqVendorContents', 'hqVendorQuarters', 'hqVendorSessions', 'hqVendorFiles',
   'hqVendors', 'hqVendorUsers', 'vendorAccounts',
   'schoolAdmins', 'schoolAdminAccounts', 'schoolAdminTeachers',
+  'schoolSubjects', 'schoolTeacherInvites',  // ← 신규
   'schoolNotices', 'schoolNoticeSubmits',
 ])
 
