@@ -63,9 +63,10 @@ const DB = {
 // ── 사이드바
 function Sidebar({ session, page, onNav, onLogout }) {
   const nav = [
-    { id:'notices', icon:'📋', label:'공지·업무 관리' },
+    { id:'notices',  icon:'📋', label:'공지·업무 관리' },
+    { id:'subjects', icon:'📚', label:'과목 관리' },
     { id:'teachers', icon:'👩‍🏫', label:'선생님 현황' },
-    { id:'connect', icon:'🔗', label:'선생님 연결 관리' },
+    { id:'connect',  icon:'🔗', label:'선생님 연결 관리' },
     { id:'students', icon:'👥', label:'학생 현황' },
   ]
   return (
@@ -379,66 +380,381 @@ function NoticesTab({ session }) {
   )
 }
 
-// ── 선생님 현황 탭
+// ── 상수
 const CURRENT_YEAR = new Date().getFullYear()
+const DAYS_LIST = ['월', '화', '수', '목', '금', '토']
 
-// 파일(base64) 업로드 헬퍼
-function useFileField(formState, setFormState, key) {
-  const ref = React.useRef()
-  const pick = () => ref.current?.click()
-  const onChange = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => setFormState(f => ({
-      ...f,
-      [key]: { name: file.name, data: ev.target.result }
-    }))
-    reader.readAsDataURL(file)
-    e.target.value = ''
+// ── 과목 관리 탭 (학교별 연도 과목 등록)
+function SubjectsTab({ session }) {
+  const { success, error } = useToast()
+  const [subjects, setSubjects] = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [selYear,  setSelYear]  = useState(CURRENT_YEAR)
+  const [input,    setInput]    = useState('')
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const all = await dbCall('getAll', 'schoolSubjects')
+      setSubjects((all||[]).filter(s => s.adminId === session.adminId && s.active !== false))
+    } catch {}
+    setLoading(false)
   }
-  const val = formState[key]
-  return { ref, pick, onChange, name: val?.name, data: val?.data }
+  useEffect(() => { load() }, [])
+
+  const years = [...new Set([CURRENT_YEAR, ...subjects.map(s => s.year).filter(Boolean)])].sort((a,b)=>b-a)
+  const filtered = subjects.filter(s => s.year == selYear)
+
+  const handleAdd = async () => {
+    const name = input.trim()
+    if (!name) { error('과목명을 입력해주세요.'); return }
+    if (filtered.find(s => s.name === name)) { error('이미 등록된 과목입니다.'); return }
+    await dbCall('upsert', 'schoolSubjects', {
+      data: {
+        id: uid(), adminId: session.adminId,
+        schoolName: session.admin?.schoolName || '',
+        year: selYear, name, active: true, createdAt: now(),
+      }
+    })
+    setInput('')
+    success('과목이 등록되었습니다.')
+    load()
+  }
+
+  const handleDelete = async (id) => {
+    await dbCall('update', 'schoolSubjects', { id, patch: { active: false } })
+    success('삭제되었습니다.')
+    load()
+  }
+
+  return (
+    <div style={{ padding:'28px', maxWidth:'600px' }}>
+      <div style={{ marginBottom:'20px' }}>
+        <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>📚 과목 관리</div>
+        <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>
+          연도별 진행 과목을 등록하세요. 선생님 등록 시 목록에서 선택할 수 있습니다.
+        </div>
+      </div>
+
+      {/* 연도 탭 */}
+      <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
+        {years.map(y => (
+          <button key={y} onClick={() => setSelYear(y)} style={{
+            padding:'6px 18px', borderRadius:'999px', border:'none', cursor:'pointer',
+            fontFamily:'Noto Sans KR, sans-serif', fontWeight:selYear===y?700:400, fontSize:'13px',
+            background:selYear===y?'#1e3a5f':'#e5e7eb', color:selYear===y?'#fff':C.muted,
+          }}>
+            {y}년{y===CURRENT_YEAR&&<span style={{ fontSize:'10px', opacity:.8 }}> 올해</span>}
+          </button>
+        ))}
+        <button onClick={() => { if(!years.includes(selYear-0||CURRENT_YEAR)) setSelYear(CURRENT_YEAR) }} style={{ display:'none' }} />
+      </div>
+
+      {/* 추가 입력 */}
+      <div style={{ display:'flex', gap:'8px', marginBottom:'20px' }}>
+        <input
+          style={{ ...iSt, flex:1 }}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key==='Enter' && handleAdd()}
+          placeholder={`${selYear}년 과목명 입력 (예: 로봇, 코딩, 미술)`}
+        />
+        <Btn onClick={handleAdd}>+ 추가</Btn>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'30px', color:C.muted }}>불러오는 중...</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'40px', color:C.muted, background:'#f8fafc', borderRadius:'12px', border:`1px dashed ${C.border}` }}>
+          <div style={{ fontSize:'32px', marginBottom:'8px' }}>📚</div>
+          <div style={{ fontWeight:600 }}>{selYear}년 등록된 과목이 없습니다.</div>
+        </div>
+      ) : (
+        <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+          {filtered.map((s, i) => (
+            <div key={s.id} style={{
+              display:'flex', alignItems:'center', justifyContent:'space-between',
+              padding:'12px 16px',
+              borderBottom: i < filtered.length-1 ? `1px solid ${C.border}` : 'none',
+            }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                <span style={{ fontSize:'18px' }}>📌</span>
+                <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{s.name}</span>
+              </div>
+              <button onClick={() => handleDelete(s.id)} style={{
+                padding:'4px 10px', borderRadius:'6px', border:'1px solid #fca5a5',
+                background:'#fef2f2', color:C.danger, fontSize:'12px',
+                cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+              }}>삭제</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
+
+// ── 선생님 등록/수정 모달 (TeachersTab 밖에 정의 — 안에 두면 리렌더 시 unmount됨)
+function TeacherFormModal({ mode, form, setForm, session, subjects, onSave, onClose }) {
+  const iSt2 = {
+    width:'100%', padding:'9px 12px', borderRadius:'9px',
+    border:'1.5px solid #e5e7eb', fontSize:'13px',
+    fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box',
+  }
+  const LBL = ({ children }) => (
+    <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px', fontWeight:600 }}>{children}</label>
+  )
+
+  const toggleDay = (day) => {
+    const current = form.days ? form.days.split('·').filter(Boolean) : []
+    const next = current.includes(day)
+      ? current.filter(d => d !== day)
+      : [...current, day]
+    // 요일 순서 유지
+    const ordered = DAYS_LIST.filter(d => next.includes(d))
+    setForm(f => ({ ...f, days: ordered.join('·') }))
+  }
+
+  const selectedDays = form.days ? form.days.split('·').filter(Boolean) : []
+
+  // 파일 선택
+  const feeRef    = React.useRef()
+  const bizRef    = React.useRef()
+  const accRef    = React.useRef()
+
+  const pickFile = (ref, key) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*,application/pdf'
+    input.onchange = (e) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = ev => setForm(f => ({ ...f, [key]: { name: file.name, data: ev.target.result } }))
+      reader.readAsDataURL(file)
+    }
+    input.click()
+  }
+
+  const FilePicker = ({ label, fieldKey }) => {
+    const val = form[fieldKey]
+    return (
+      <div>
+        <LBL>{label}</LBL>
+        <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+          <button type="button" onClick={() => pickFile(null, fieldKey)}
+            style={{ padding:'7px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:'#fff', fontSize:'12px', cursor:'pointer', color:C.muted, fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            📎 파일 선택
+          </button>
+          {val?.name
+            ? <span style={{ fontSize:'11px', color:C.primary, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'120px' }}>{val.name}</span>
+            : <span style={{ fontSize:'11px', color:'#d1d5db' }}>미첨부</span>
+          }
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
+      onClick={e => e.target===e.currentTarget && onClose()}
+    >
+      <div style={{ background:'#fff', borderRadius:'18px', width:'640px', maxWidth:'96vw', maxHeight:'90vh', overflowY:'auto', padding:'28px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+          <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>
+            {mode === 'add' ? '➕ 선생님 등록' : '✏️ 선생님 정보 수정'}
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>✕</button>
+        </div>
+
+        {/* 기본 정보 */}
+        <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'10px', letterSpacing:'.8px' }}>기본 정보</div>
+        <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 1fr', gap:'10px', marginBottom:'10px' }}>
+          <div>
+            <LBL>연도 *</LBL>
+            <input style={iSt2} type="number" value={form.year}
+              onChange={e => setForm(f => ({ ...f, year: e.target.value }))}
+              placeholder="2026" />
+          </div>
+          <div>
+            <LBL>학교명</LBL>
+            <input style={iSt2} value={form.schoolName}
+              onChange={e => setForm(f => ({ ...f, schoolName: e.target.value }))}
+              placeholder={session.admin?.schoolName || '학교명'} />
+          </div>
+          <div>
+            <LBL>선생님 이름(본명) *</LBL>
+            <input style={iSt2} value={form.teacherName}
+              onChange={e => setForm(f => ({ ...f, teacherName: e.target.value }))}
+              placeholder="실명" />
+          </div>
+        </div>
+
+        {/* 과목 선택 */}
+        <div style={{ marginBottom:'10px' }}>
+          <LBL>과목 *</LBL>
+          {subjects.length > 0 ? (
+            <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'6px' }}>
+              {subjects.map(s => (
+                <button key={s.id} type="button"
+                  onClick={() => setForm(f => ({ ...f, subject: s.name }))}
+                  style={{
+                    padding:'6px 14px', borderRadius:'999px', border:'none', cursor:'pointer',
+                    fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:form.subject===s.name?700:400,
+                    background: form.subject===s.name ? '#1e3a5f' : '#e5e7eb',
+                    color: form.subject===s.name ? '#fff' : C.muted,
+                    transition:'all .15s',
+                  }}>
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <input style={iSt2} value={form.subject}
+            onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
+            placeholder="과목 선택 또는 직접 입력" />
+        </div>
+
+        {/* 요일 클릭 선택 */}
+        <div style={{ marginBottom:'10px' }}>
+          <LBL>수업 요일 *</LBL>
+          <div style={{ display:'flex', gap:'8px' }}>
+            {DAYS_LIST.map(day => (
+              <button key={day} type="button" onClick={() => toggleDay(day)}
+                style={{
+                  width:'40px', height:'40px', borderRadius:'50%', border:'none',
+                  cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                  fontSize:'14px', fontWeight:700,
+                  background: selectedDays.includes(day) ? '#1e3a5f' : '#e5e7eb',
+                  color: selectedDays.includes(day) ? '#fff' : C.muted,
+                  transition:'all .15s',
+                }}>
+                {day}
+              </button>
+            ))}
+          </div>
+          {selectedDays.length > 0 && (
+            <div style={{ fontSize:'12px', color:C.primary, marginTop:'6px' }}>
+              선택: {form.days}요일
+            </div>
+          )}
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
+          <div>
+            <LBL>전화번호 *</LBL>
+            <input style={iSt2} value={form.teacherPhone}
+              onChange={e => setForm(f => ({ ...f, teacherPhone: e.target.value }))}
+              placeholder="010-0000-0000" />
+          </div>
+          <div>
+            <LBL>이메일 * (앱 연결 키)</LBL>
+            <input style={iSt2} type="email" value={form.email}
+              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="teacher@email.com" />
+          </div>
+        </div>
+
+        {/* 첨부 서류 */}
+        <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, margin:'16px 0 10px', letterSpacing:'.8px' }}>첨부 서류</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'12px', marginBottom:'24px' }}>
+          <FilePicker label="수강료 통장사본"       fieldKey="feeAccount"    />
+          <FilePicker label="교구업체 사업자등록증"  fieldKey="vendorBiz"     />
+          <FilePicker label="교구업체 통장사본"      fieldKey="vendorAccount" />
+        </div>
+
+        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+          <Btn color="secondary" onClick={onClose}>취소</Btn>
+          <Btn onClick={onSave}>{mode==='add' ? '등록' : '수정 저장'}</Btn>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── 선생님 상세 보기 모달
+function TeacherDetailModal({ t, onClose }) {
+  const FileView = ({ label, field }) => (
+    <div style={{ marginBottom:'10px' }}>
+      <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px', fontWeight:600 }}>{label}</div>
+      {field?.data
+        ? field.data.startsWith('data:image')
+          ? <img src={field.data} alt={label} style={{ maxWidth:'100%', maxHeight:'160px', borderRadius:'8px', border:`1px solid ${C.border}` }} />
+          : <a href={field.data} download={field.name} style={{ fontSize:'12px', color:C.primary }}>📎 {field.name} 다운로드</a>
+        : <span style={{ fontSize:'12px', color:'#d1d5db' }}>미첨부</span>
+      }
+    </div>
+  )
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
+      onClick={e => e.target===e.currentTarget && onClose()}>
+      <div style={{ background:'#fff', borderRadius:'18px', width:'500px', maxWidth:'96vw', maxHeight:'90vh', overflowY:'auto', padding:'28px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+          <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>👩‍🏫 {t.teacherName} 선생님</div>
+          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>✕</button>
+        </div>
+        {[
+          ['연도', t.year], ['학교명', t.schoolName], ['과목', t.subject],
+          ['요일', t.days ? t.days+'요일' : '-'], ['전화번호', t.teacherPhone], ['이메일', t.email],
+        ].map(([k,v]) => (
+          <div key={k} style={{ display:'flex', gap:'12px', padding:'9px 0', borderBottom:`1px solid ${C.border}`, fontSize:'13px' }}>
+            <span style={{ color:C.muted, width:'110px', flexShrink:0 }}>{k}</span>
+            <span style={{ color:C.text, fontWeight:500 }}>{v||'-'}</span>
+          </div>
+        ))}
+        <div style={{ marginTop:'16px' }}>
+          <FileView label="수강료 통장사본"       field={t.feeAccount}     />
+          <FileView label="교구업체 사업자등록증"  field={t.vendorBiz}      />
+          <FileView label="교구업체 통장사본"      field={t.vendorAccount}  />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── 선생님 현황 탭
 function TeachersTab({ session }) {
   const { success, error } = useToast()
-  const [teachers,    setTeachers]    = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [modalMode,   setModalMode]   = useState(null)  // null | 'add' | 'edit'
-  const [editTarget,  setEditTarget]  = useState(null)
-  const [selYear,     setSelYear]     = useState(CURRENT_YEAR)
-  const [detailItem,  setDetailItem]  = useState(null)  // 상세 보기
+  const [teachers,   setTeachers]   = useState([])
+  const [subjects,   setSubjects]   = useState([]) // 이 학교·연도 과목 목록
+  const [loading,    setLoading]    = useState(true)
+  const [modalMode,  setModalMode]  = useState(null) // null | 'add' | 'edit'
+  const [editTarget, setEditTarget] = useState(null)
+  const [detailItem, setDetailItem] = useState(null)
+  const [selYear,    setSelYear]    = useState(CURRENT_YEAR)
 
   const EMPTY = {
     year: CURRENT_YEAR, schoolName: session.admin?.schoolName || '',
     teacherName: '', subject: '', days: '', teacherPhone: '', email: '',
-    feeAccount: null,    // { name, data }
-    vendorBiz:  null,    // 교구업체 사업자등록증
-    vendorAccount: null, // 교구업체 통장사본
+    feeAccount: null, vendorBiz: null, vendorAccount: null,
   }
   const [form, setForm] = useState(EMPTY)
 
-  const feeAccField    = useFileField(form, setForm, 'feeAccount')
-  const vendorBizField = useFileField(form, setForm, 'vendorBiz')
-  const vendorAccField = useFileField(form, setForm, 'vendorAccount')
-
   const load = async () => {
     setLoading(true)
-    const t = await DB.teachers(session.adminId)
-    setTeachers(t)
+    try {
+      const [t, s] = await Promise.all([
+        DB.teachers(session.adminId),
+        dbCall('getAll', 'schoolSubjects').then(d =>
+          (d||[]).filter(s => s.adminId === session.adminId && s.active !== false && s.year == CURRENT_YEAR)
+        ),
+      ])
+      setTeachers(t)
+      setSubjects(s)
+    } catch {}
     setLoading(false)
   }
   useEffect(() => { load() }, [])
 
   const validate = (f) => {
-    if (!String(f.year).trim())     { error('연도를 입력해주세요.');         return false }
-    if (!f.teacherName.trim())      { error('선생님 이름을 입력해주세요.');   return false }
-    if (!f.subject.trim())          { error('과목을 입력해주세요.');          return false }
-    if (!f.days.trim())             { error('요일을 입력해주세요.');          return false }
-    if (!f.teacherPhone.trim())     { error('전화번호를 입력해주세요.');      return false }
-    if (!f.email.trim())            { error('이메일 주소를 입력해주세요.');   return false }
-    // 같은 연도+이메일 중복 체크
+    if (!String(f.year).trim())  { error('연도를 입력해주세요.');       return false }
+    if (!f.teacherName.trim())   { error('선생님 이름을 입력해주세요.'); return false }
+    if (!f.subject.trim())       { error('과목을 선택해주세요.');        return false }
+    if (!f.days.trim())          { error('요일을 선택해주세요.');        return false }
+    if (!f.teacherPhone.trim())  { error('전화번호를 입력해주세요.');    return false }
+    if (!f.email.trim())         { error('이메일을 입력해주세요.');      return false }
     const dup = teachers.filter(t =>
       t.year == f.year &&
       t.email?.toLowerCase() === f.email.trim().toLowerCase() &&
@@ -449,17 +765,17 @@ function TeachersTab({ session }) {
   }
 
   const baseData = (f) => ({
-    adminId:      session.adminId,
-    schoolName:   f.schoolName || session.admin?.schoolName || '',
-    year:         Number(f.year),
-    teacherName:  f.teacherName.trim(),
-    subject:      f.subject.trim(),
-    days:         f.days.trim(),
+    adminId: session.adminId,
+    schoolName: f.schoolName || session.admin?.schoolName || '',
+    year: Number(f.year),
+    teacherName: f.teacherName.trim(),
+    subject: f.subject.trim(),
+    days: f.days.trim(),
     teacherPhone: f.teacherPhone.trim(),
-    email:        f.email.trim().toLowerCase(),
-    feeAccount:   f.feeAccount   || null,
-    vendorBiz:    f.vendorBiz    || null,
-    vendorAccount:f.vendorAccount|| null,
+    email: f.email.trim().toLowerCase(),
+    feeAccount: f.feeAccount || null,
+    vendorBiz: f.vendorBiz || null,
+    vendorAccount: f.vendorAccount || null,
     active: true,
   })
 
@@ -496,132 +812,8 @@ function TeachersTab({ session }) {
 
   const years = [...new Set([CURRENT_YEAR, ...teachers.map(t => t.year).filter(Boolean)])].sort((a,b)=>b-a)
   const filtered = teachers.filter(t => t.year == selYear || (!t.year && selYear === CURRENT_YEAR))
-
-  // ── 등록/수정 모달
-  const FormModal = ({ mode }) => {
-    const title = mode === 'add' ? '➕ 선생님 등록' : '✏️ 선생님 정보 수정'
-    const onSave = mode === 'add' ? handleAdd : handleEdit
-    const onClose = () => { setModalMode(null); setEditTarget(null); setForm(EMPTY) }
-    const LBL = ({ children }) => (
-      <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px', fontWeight:600 }}>{children}</label>
-    )
-    const FilePicker = ({ label, field }) => (
-      <div>
-        <LBL>{label}</LBL>
-        <input ref={field.ref} type="file" accept="image/*,application/pdf" style={{ display:'none' }} onChange={field.onChange} />
-        <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-          <button type="button" onClick={field.pick}
-            style={{ padding:'7px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:'#fff', fontSize:'12px', cursor:'pointer', color:C.muted, fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-            📎 파일 선택
-          </button>
-          {field.name
-            ? <span style={{ fontSize:'11px', color:C.primary, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'120px' }}>{field.name}</span>
-            : <span style={{ fontSize:'11px', color:'#d1d5db' }}>미첨부</span>
-          }
-        </div>
-      </div>
-    )
-    return (
-      <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
-        onClick={e => e.target===e.currentTarget && onClose()}>
-        <div style={{ background:'#fff', borderRadius:'18px', width:'620px', maxWidth:'96vw', maxHeight:'90vh', overflowY:'auto', padding:'28px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
-            <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>{title}</div>
-            <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>✕</button>
-          </div>
-
-          {/* 기본 정보 */}
-          <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'10px', textTransform:'uppercase', letterSpacing:'.5px' }}>기본 정보</div>
-          <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 1fr', gap:'10px', marginBottom:'10px' }}>
-            <div>
-              <LBL>연도 *</LBL>
-              <input style={iSt} type="number" value={form.year} onChange={e=>setForm(f=>({...f,year:e.target.value}))} placeholder="2026" />
-            </div>
-            <div>
-              <LBL>학교명</LBL>
-              <input style={iSt} value={form.schoolName} onChange={e=>setForm(f=>({...f,schoolName:e.target.value}))} placeholder={session.admin?.schoolName||'학교명'} />
-            </div>
-            <div>
-              <LBL>선생님 이름(본명) *</LBL>
-              <input style={iSt} value={form.teacherName} onChange={e=>setForm(f=>({...f,teacherName:e.target.value}))} placeholder="실명" />
-            </div>
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
-            <div>
-              <LBL>과목 *</LBL>
-              <input style={iSt} value={form.subject} onChange={e=>setForm(f=>({...f,subject:e.target.value}))} placeholder="예: 로봇, 코딩" />
-            </div>
-            <div>
-              <LBL>수업 요일 *</LBL>
-              <input style={iSt} value={form.days} onChange={e=>setForm(f=>({...f,days:e.target.value}))} placeholder="예: 월·수, 화·목" />
-            </div>
-            <div>
-              <LBL>전화번호 *</LBL>
-              <input style={iSt} value={form.teacherPhone} onChange={e=>setForm(f=>({...f,teacherPhone:e.target.value}))} placeholder="010-0000-0000" />
-            </div>
-            <div>
-              <LBL>이메일 * (앱 연결 키)</LBL>
-              <input style={iSt} type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="teacher@email.com" />
-            </div>
-          </div>
-
-          {/* 첨부 서류 */}
-          <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, margin:'16px 0 10px', textTransform:'uppercase', letterSpacing:'.5px' }}>첨부 서류</div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'12px', marginBottom:'20px' }}>
-            <FilePicker label="수강료 통장사본"          field={feeAccField}    />
-            <FilePicker label="교구업체 사업자등록증"     field={vendorBizField} />
-            <FilePicker label="교구업체 통장사본"         field={vendorAccField} />
-          </div>
-
-          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-            <Btn color="secondary" onClick={onClose}>취소</Btn>
-            <Btn onClick={onSave}>{mode==='add'?'등록':'수정 저장'}</Btn>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ── 상세 보기 모달
-  const DetailModal = ({ t }) => {
-    const onClose = () => setDetailItem(null)
-    const FileView = ({ label, field }) => (
-      <div style={{ marginBottom:'10px' }}>
-        <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px', fontWeight:600 }}>{label}</div>
-        {field?.data
-          ? field.data.startsWith('data:image')
-            ? <img src={field.data} alt={label} style={{ maxWidth:'100%', maxHeight:'160px', borderRadius:'8px', border:`1px solid ${C.border}` }} />
-            : <a href={field.data} download={field.name} style={{ fontSize:'12px', color:C.primary }}>📎 {field.name} 다운로드</a>
-          : <span style={{ fontSize:'12px', color:'#d1d5db' }}>미첨부</span>
-        }
-      </div>
-    )
-    return (
-      <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
-        onClick={e => e.target===e.currentTarget && onClose()}>
-        <div style={{ background:'#fff', borderRadius:'18px', width:'520px', maxWidth:'96vw', maxHeight:'90vh', overflowY:'auto', padding:'28px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
-            <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>👩‍🏫 {t.teacherName} 선생님</div>
-            <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>✕</button>
-          </div>
-          {[
-            ['연도', t.year], ['학교명', t.schoolName], ['과목', t.subject],
-            ['요일', t.days], ['전화번호', t.teacherPhone], ['이메일', t.email],
-          ].map(([k,v]) => (
-            <div key={k} style={{ display:'flex', gap:'12px', padding:'8px 0', borderBottom:`1px solid ${C.border}`, fontSize:'13px' }}>
-              <span style={{ color:C.muted, width:'110px', flexShrink:0 }}>{k}</span>
-              <span style={{ color:C.text, fontWeight:500 }}>{v || '-'}</span>
-            </div>
-          ))}
-          <div style={{ marginTop:'16px' }}>
-            <FileView label="수강료 통장사본"      field={t.feeAccount}    />
-            <FileView label="교구업체 사업자등록증" field={t.vendorBiz}    />
-            <FileView label="교구업체 통장사본"     field={t.vendorAccount} />
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // 선택된 연도의 과목만
+  const yearSubjects = subjects.filter(s => s.year == selYear)
 
   return (
     <div style={{ padding:'28px', maxWidth:'1100px' }}>
@@ -667,20 +859,17 @@ function TeachersTab({ session }) {
               <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{t.teacherName}</span>
               <div>
                 <div style={{ fontSize:'13px', color:C.text }}>{t.subject||'-'}</div>
-                <div style={{ fontSize:'11px', color:C.muted }}>{t.days||'-'}</div>
+                <div style={{ fontSize:'11px', color:C.muted }}>{t.days ? t.days+'요일' : '-'}</div>
               </div>
               <span style={{ fontSize:'13px', color:C.muted }}>{t.teacherPhone||'-'}</span>
               <span style={{ fontSize:'12px', color:C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.email||'-'}</span>
               <div style={{ fontSize:'11px', color:C.muted }}>
-                {[t.feeAccount&&'통장', t.vendorBiz&&'사업자', t.vendorAccount&&'업체통장'].filter(Boolean).join(' · ') || '-'}
+                {[t.feeAccount&&'통장', t.vendorBiz&&'사업자', t.vendorAccount&&'업체통장'].filter(Boolean).join(' · ')||'-'}
               </div>
               <div style={{ display:'flex', gap:'4px' }}>
-                <button onClick={() => setDetailItem(t)}
-                  style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f8fafc', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>상세</button>
-                <button onClick={() => openEdit(t)}
-                  style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f8fafc', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
-                <button onClick={() => removeTeacher(t.id)}
-                  style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>제외</button>
+                <button onClick={() => setDetailItem(t)} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f8fafc', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>상세</button>
+                <button onClick={() => openEdit(t)}       style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f8fafc', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                <button onClick={() => removeTeacher(t.id)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>제외</button>
               </div>
             </div>
           ))}
@@ -690,8 +879,18 @@ function TeachersTab({ session }) {
         </div>
       )}
 
-      {modalMode && <FormModal mode={modalMode} />}
-      {detailItem && <DetailModal t={detailItem} />}
+      {modalMode && (
+        <TeacherFormModal
+          mode={modalMode}
+          form={form}
+          setForm={setForm}
+          session={session}
+          subjects={yearSubjects}
+          onSave={modalMode==='add' ? handleAdd : handleEdit}
+          onClose={() => { setModalMode(null); setEditTarget(null); setForm(EMPTY) }}
+        />
+      )}
+      {detailItem && <TeacherDetailModal t={detailItem} onClose={() => setDetailItem(null)} />}
     </div>
   )
 }
@@ -1077,6 +1276,7 @@ export function SchoolAdminApp({ session, onLogout }) {
       <Sidebar session={session} page={page} onNav={setPage} onLogout={onLogout} />
       <main style={{ flex:1, overflowY:'auto' }}>
         {page === 'notices'  && <NoticesTab session={session} />}
+        {page === 'subjects' && <SubjectsTab session={session} />}
         {page === 'teachers' && <TeachersTab session={session} />}
         {page === 'connect'  && <ConnectTab session={session} />}
         {page === 'students' && <StudentsTab session={session} />}
