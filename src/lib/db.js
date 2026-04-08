@@ -101,6 +101,13 @@ const SYNC_TABLES = [
   'messageGuides', 'messageCategories',
   // 선생님 프로필
   'teacherProfiles',
+  // 학교 담당자 포털
+  'schoolAdmins', 'schoolAdminAccounts',
+  'schoolAdminTeachers',   // 선생님 명단 (연도/과목/요일/서류)
+  'schoolSubjects',        // 학교별 연도 과목 목록
+  'schoolTeacherInvites',  // 선생님 초대 내역 (대시보드 팝업 트리거)
+  'schoolNotices',         // 공지·업무 요청
+  'schoolNoticeSubmits',   // 공지 제출 현황
 ]
 
 // ─── 초기화: Supabase 데이터와 로컬 merge
