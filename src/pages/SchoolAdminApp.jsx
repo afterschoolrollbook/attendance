@@ -65,6 +65,7 @@ function Sidebar({ session, page, onNav, onLogout }) {
   const nav = [
     { id:'notices', icon:'📋', label:'공지·업무 관리' },
     { id:'teachers', icon:'👩‍🏫', label:'선생님 현황' },
+    { id:'connect', icon:'🔗', label:'선생님 연결 관리' },
     { id:'students', icon:'👥', label:'학생 현황' },
   ]
   return (
@@ -555,7 +556,255 @@ function StudentsTab({ session }) {
 }
 
 // ── 메인
-export function SchoolAdminApp({ session, onLogout }) {
+// ── 선생님 연결 관리 탭
+function ConnectTab({ session }) {
+  const { success, error } = useToast()
+  const [allTeachers, setAllTeachers] = useState([])   // Supabase users (level=1, role=teacher)
+  const [linked, setLinked]           = useState([])   // schoolAdminTeachers linked
+  const [requests, setRequests]       = useState([])   // schoolTeacherConnectRequests (pending/accepted)
+  const [selected, setSelected]       = useState([])   // 선택된 teacherIds
+  const [loading, setLoading]         = useState(true)
+  const [sending, setSending]         = useState(false)
+  const [tab, setTab]                 = useState('unlinked') // 'unlinked' | 'linked'
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const [teachers, linkedList, reqList] = await Promise.all([
+        dbCall('getAll', 'users').then(r => (r||[]).filter(u => u.role === 'teacher')),
+        dbCall('getAll', 'schoolAdminTeachers').then(r => (r||[]).filter(t => t.adminId === session.adminId && t.active !== false)),
+        dbCall('getAll', 'schoolTeacherConnectRequests').then(r => (r||[]).filter(q => q.adminId === session.adminId)),
+      ])
+      setAllTeachers(teachers)
+      setLinked(linkedList)
+      setRequests(reqList)
+    } catch(e) {
+      error('데이터 로딩 실패')
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  const linkedTeacherIds  = new Set(linked.map(t => t.teacherId))
+  const pendingTeacherIds = new Set(requests.filter(r => r.status === 'pending').map(r => r.teacherId))
+  const acceptedIds       = new Set(requests.filter(r => r.status === 'accepted').map(r => r.teacherId))
+
+  // 미연결 선생님: linked에 없고 accepted에도 없는 사람
+  const unlinkedTeachers = allTeachers.filter(t =>
+    !linkedTeacherIds.has(t.id) && !acceptedIds.has(t.id)
+  )
+  const linkedTeachers = allTeachers.filter(t =>
+    linkedTeacherIds.has(t.id) || acceptedIds.has(t.id)
+  )
+
+  const toggleSelect = (id) =>
+    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+
+  const allSelected = selected.length === unlinkedTeachers.length && unlinkedTeachers.length > 0
+  const toggleAll   = () => setSelected(allSelected ? [] : unlinkedTeachers.map(t => t.id))
+
+  const sendRequests = async () => {
+    if (selected.length === 0) { error('선생님을 선택해주세요.'); return }
+    setSending(true)
+    try {
+      // 이미 pending 요청이 있는 건 skip
+      const toSend = selected.filter(tid => !pendingTeacherIds.has(tid))
+      if (toSend.length === 0) { error('선택한 선생님 모두 이미 요청이 발송된 상태입니다.'); setSending(false); return }
+      await Promise.all(toSend.map(tid =>
+        dbCall('upsert', 'schoolTeacherConnectRequests', {
+          data: {
+            id: uid(),
+            adminId:    session.adminId,
+            schoolName: session.admin?.schoolName || '',
+            teacherId:  tid,
+            status:     'pending',
+            createdAt:  now(),
+          }
+        })
+      ))
+      success(`${toSend.length}명에게 연결 요청을 발송했습니다.`)
+      setSelected([])
+      await load()
+    } catch { error('요청 발송 중 오류가 발생했습니다.') }
+    setSending(false)
+  }
+
+  const cancelRequest = async (teacherId) => {
+    const req = requests.find(r => r.teacherId === teacherId && r.status === 'pending')
+    if (!req) return
+    await dbCall('delete', 'schoolTeacherConnectRequests', { id: req.id })
+    success('연결 요청을 취소했습니다.')
+    await load()
+  }
+
+  const unlinkTeacher = async (teacherId) => {
+    if (!window.confirm('연결을 해제하시겠습니까?')) return
+    // schoolAdminTeachers 비활성화
+    const lt = linked.find(t => t.teacherId === teacherId)
+    if (lt) await dbCall('update', 'schoolAdminTeachers', { id: lt.id, patch: { active: false } })
+    // accepted request도 정리
+    const req = requests.find(r => r.teacherId === teacherId && r.status === 'accepted')
+    if (req) await dbCall('delete', 'schoolTeacherConnectRequests', { id: req.id })
+    success('연결이 해제되었습니다.')
+    await load()
+  }
+
+  const TAB_BTN = (id, label, count) => (
+    <button onClick={() => setTab(id)} style={{
+      padding:'8px 20px', borderRadius:'9px', border:'none', cursor:'pointer',
+      fontFamily:'Noto Sans KR, sans-serif', fontWeight: tab===id?700:400, fontSize:'13px',
+      background: tab===id?C.primary:'#f1f5f9', color: tab===id?'#fff':C.muted,
+      transition:'all .15s',
+    }}>
+      {label} {count > 0 && <span style={{ marginLeft:'4px', background: tab===id?'rgba(255,255,255,0.3)':'#e5e7eb', borderRadius:'999px', padding:'1px 7px', fontSize:'11px' }}>{count}</span>}
+    </button>
+  )
+
+  return (
+    <div style={{ padding:'28px', maxWidth:'900px' }}>
+      <div style={{ marginBottom:'20px' }}>
+        <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>🔗 선생님 연결 관리</div>
+        <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>
+          레벨1 선생님에게 연결 요청을 보내고, 수락된 선생님과 연동하세요
+        </div>
+      </div>
+
+      {/* 통계 카드 */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px', marginBottom:'20px' }}>
+        {[
+          { label:'연결된 선생님', value: linkedTeachers.length, color:'#16a34a', bg:'#f0fdf4' },
+          { label:'요청 발송 중',  value: [...pendingTeacherIds].filter(id => !linkedTeacherIds.has(id) && !acceptedIds.has(id)).length, color:'#d97706', bg:'#fffbeb' },
+          { label:'미연결 선생님', value: unlinkedTeachers.filter(t => !pendingTeacherIds.has(t.id)).length, color:'#6b7280', bg:'#f9fafb' },
+        ].map(s => (
+          <div key={s.label} style={{ background:s.bg, borderRadius:'14px', padding:'16px 20px', border:`1px solid ${s.color}22` }}>
+            <div style={{ fontSize:'24px', fontWeight:800, color:s.color }}>{s.value}</div>
+            <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 탭 */}
+      <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
+        {TAB_BTN('unlinked', '미연결 선생님', unlinkedTeachers.length)}
+        {TAB_BTN('linked',   '연결된 선생님', linkedTeachers.length)}
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>로딩 중...</div>
+      ) : tab === 'unlinked' ? (
+        <div style={{ background:C.card, borderRadius:'16px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+          {/* 상단 액션바 */}
+          <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', background:'#f8fafc' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} style={{ accentColor:C.primary, width:'15px', height:'15px' }} />
+              <span style={{ fontSize:'13px', color:C.muted }}>
+                {selected.length > 0 ? `${selected.length}명 선택됨` : '전체 선택'}
+              </span>
+            </div>
+            <button
+              onClick={sendRequests}
+              disabled={sending || selected.length === 0}
+              style={{
+                padding:'8px 18px', borderRadius:'9px', border:'none',
+                background: selected.length===0?'#e5e7eb':C.primary,
+                color: selected.length===0?C.muted:'#fff',
+                fontWeight:700, fontSize:'13px', cursor: selected.length===0?'not-allowed':'pointer',
+                fontFamily:'Noto Sans KR, sans-serif',
+              }}
+            >
+              {sending ? '발송 중...' : `📨 일괄 연결요청 (${selected.length}명)`}
+            </button>
+          </div>
+
+          {unlinkedTeachers.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>
+              미연결 선생님이 없습니다 🎉
+            </div>
+          ) : (
+            <div>
+              {unlinkedTeachers.map((t, i) => {
+                const isPending = pendingTeacherIds.has(t.id)
+                return (
+                  <div key={t.id} style={{
+                    display:'grid', gridTemplateColumns:'40px 1fr auto',
+                    padding:'12px 18px', borderBottom: i<unlinkedTeachers.length-1?`1px solid ${C.border}`:'none',
+                    alignItems:'center', gap:'12px',
+                    background: selected.includes(t.id)?'#eff6ff':'transparent',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(t.id)}
+                      onChange={() => !isPending && toggleSelect(t.id)}
+                      disabled={isPending}
+                      style={{ accentColor:C.primary, width:'15px', height:'15px' }}
+                    />
+                    <div>
+                      <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>
+                        {t.name} 선생님
+                      </div>
+                      <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+                        {t.email || t.phone || '-'} · Lv.{t.level||1}
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                      {isPending ? (
+                        <>
+                          <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 10px', borderRadius:'999px', background:'#fffbeb', color:'#d97706' }}>요청 발송됨</span>
+                          <button onClick={() => cancelRequest(t.id)}
+                            style={{ fontSize:'11px', padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                            취소
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => { setSelected([t.id]); setTimeout(sendRequests, 0) }}
+                          style={{ fontSize:'12px', padding:'5px 12px', borderRadius:'7px', border:'none', background:'#eff6ff', color:C.primary, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                          요청보내기
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        // 연결된 선생님 탭
+        <div style={{ background:C.card, borderRadius:'16px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+          {linkedTeachers.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>
+              연결된 선생님이 없습니다
+            </div>
+          ) : (
+            linkedTeachers.map((t, i) => (
+              <div key={t.id} style={{
+                display:'grid', gridTemplateColumns:'1fr auto',
+                padding:'14px 18px', borderBottom: i<linkedTeachers.length-1?`1px solid ${C.border}`:'none',
+                alignItems:'center',
+              }}>
+                <div>
+                  <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>
+                    ✅ {t.name} 선생님
+                  </div>
+                  <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+                    {t.email || t.phone || '-'} · Lv.{t.level||1}
+                  </div>
+                </div>
+                <button onClick={() => unlinkTeacher(t.id)}
+                  style={{ fontSize:'12px', padding:'5px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  연결 해제
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
   const [page, setPage] = useState('notices')
 
   return (
@@ -564,6 +813,7 @@ export function SchoolAdminApp({ session, onLogout }) {
       <main style={{ flex:1, overflowY:'auto' }}>
         {page === 'notices'  && <NoticesTab session={session} />}
         {page === 'teachers' && <TeachersTab session={session} />}
+        {page === 'connect'  && <ConnectTab session={session} />}
         {page === 'students' && <StudentsTab session={session} />}
       </main>
     </div>
