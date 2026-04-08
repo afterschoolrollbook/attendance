@@ -555,7 +555,6 @@ function StudentsTab({ session }) {
   )
 }
 
-// ── 메인
 // ── 선생님 연결 관리 탭
 function ConnectTab({ session }) {
   const { success, error } = useToast()
@@ -628,6 +627,24 @@ function ConnectTab({ session }) {
       await load()
     } catch { error('요청 발송 중 오류가 발생했습니다.') }
     setSending(false)
+  }
+
+  const sendOne = async (tid) => {
+    if (pendingTeacherIds.has(tid)) { error('이미 요청이 발송된 선생님입니다.'); return }
+    try {
+      await dbCall('upsert', 'schoolTeacherConnectRequests', {
+        data: {
+          id: uid(),
+          adminId:    session.adminId,
+          schoolName: session.admin?.schoolName || '',
+          teacherId:  tid,
+          status:     'pending',
+          createdAt:  now(),
+        }
+      })
+      success('연결 요청을 발송했습니다.')
+      await load()
+    } catch { error('요청 발송 중 오류가 발생했습니다.') }
   }
 
   const cancelRequest = async (teacherId) => {
@@ -757,7 +774,7 @@ function ConnectTab({ session }) {
                           </button>
                         </>
                       ) : (
-                        <button onClick={() => { setSelected([t.id]); setTimeout(sendRequests, 0) }}
+                        <button onClick={() => sendOne(t.id)}
                           style={{ fontSize:'12px', padding:'5px 12px', borderRadius:'7px', border:'none', background:'#eff6ff', color:C.primary, fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                           요청보내기
                         </button>
@@ -804,7 +821,7 @@ function ConnectTab({ session }) {
   )
 }
 
-
+export function SchoolAdminApp({ session, onLogout }) {
   const [page, setPage] = useState('notices')
 
   return (
