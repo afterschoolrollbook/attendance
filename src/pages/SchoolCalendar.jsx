@@ -14,15 +14,12 @@ import React, { useState, useEffect, useRef } from 'react'
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
+// 분기/텀 색상
 const TERM_COLORS = [
   { bg:'#fff7ed', border:'#f97316', badge:'#f97316', text:'#ea580c' },
   { bg:'#f0fdf4', border:'#16a34a', badge:'#16a34a', text:'#15803d' },
   { bg:'#eff6ff', border:'#3b82f6', badge:'#3b82f6', text:'#1d4ed8' },
   { bg:'#fdf4ff', border:'#a855f7', badge:'#a855f7', text:'#7e22ce' },
-  { bg:'#fff1f2', border:'#f43f5e', badge:'#f43f5e', text:'#be123c' },
-  { bg:'#fefce8', border:'#eab308', badge:'#eab308', text:'#a16207' },
-  { bg:'#f0fdfa', border:'#14b8a6', badge:'#14b8a6', text:'#0f766e' },
-  { bg:'#fef9c3', border:'#ca8a04', badge:'#ca8a04', text:'#92400e' },
 ]
 const getTermColor = (n) => TERM_COLORS[(n - 1) % TERM_COLORS.length] || TERM_COLORS[0]
 
@@ -86,56 +83,39 @@ function getDatesInRange(startStr, endStr, dayNums) {
 
 const dayNameToNum = { '일':0, '월':1, '화':2, '수':3, '목':4, '금':5, '토':6 }
 
-// ══ 핵심 차시 계산 로직
-//
-// 개념:
-//   분기(quarter) = 큰 단위. 예) 1분기, 2분기
-//   텀(sub-term)  = 분기 안에서 sessionsPerTerm 차시씩 묶은 소단위
-//
-// 달력 표시:
-//   윗줄: "N분기 M차"  (분기 내 누적 차시)
-//   아랫줄: "P텀 Q차"  (텀 번호 / 텀 내 차시)
-//
-// 예) sessionsPerTerm=4:
-//   수업1 → 1분기 1차 / 1텀 1차
-//   수업4 → 1분기 4차 / 1텀 4차
-//   수업5 → 1분기 5차 / 2텀 1차
-//   수업7 → 1분기 7차 / 2텀 3차
-//
+// ══ 차시 계산
+// 요일별 독립 카운팅
+// 월요일 수업 1차시, 화요일 수업 1차시 → 같은 주에 둘 다 1차시
+// sessionsPerTerm 개씩 묶어서 텀(sub-term) 구분 (요일별 독립)
 function buildSessionMap({ allSessionDates, termBoundaries, sessionsPerTerm }) {
-  const sessionMap     = {}
-  const termMap        = {}
-  let globalSubTermNum = 0
+  const sessionMap = {}
+  const termMap    = {}
 
   termBoundaries.forEach((boundary, tIdx) => {
-    const quarterNum   = tIdx + 1
-    const termDates    = allSessionDates.filter(d => d >= boundary.start && d <= boundary.end)
+    const quarterNum = tIdx + 1
+    const termDates  = allSessionDates.filter(d => d >= boundary.start && d <= boundary.end)
 
-    let quarterSession = 0
-    let localSubTerm   = 0
-    let subTermSession = 0
+    // 요일별 독립 카운터
+    const dayCounters = {} // { dow: { total, subTermNum, inTermSess } }
 
     termDates.forEach(d => {
-      quarterSession++
-      subTermSession++
+      const dow = getDayOfWeek(d)
+      if (!dayCounters[dow]) dayCounters[dow] = { total: 0, subTermNum: 0, inTermSess: 0 }
 
-      if (subTermSession === 1) {
-        localSubTerm++
-        globalSubTermNum++
-      }
+      const dc = dayCounters[dow]
+      dc.total++
+      dc.inTermSess++
+      if (dc.inTermSess === 1) dc.subTermNum++
 
       sessionMap[d] = {
         quarterNum,
-        quarterSession,
-        localSubTerm,
-        globalSubTermNum,
-        subTermSession,
+        dayTotal:   dc.total,      // 분기 내 해당 요일 누적 차시
+        subTermNum: dc.subTermNum, // 텀 번호 (요일별 독립)
+        inTermSess: dc.inTermSess, // 텀 내 차시
       }
       termMap[d] = quarterNum
 
-      if (subTermSession >= sessionsPerTerm) {
-        subTermSession = 0
-      }
+      if (dc.inTermSess >= sessionsPerTerm) dc.inTermSess = 0
     })
   })
 
@@ -183,11 +163,6 @@ function MonthCalendar({ year, month, sessionMap, cancelledDates, makeupDates, t
                   textAlign:'center', fontFamily:'Noto Sans KR, sans-serif' }}>
                 <div style={{ fontSize:'12px', fontWeight:700, color:isSun?'#ef4444':isSat?'#3b82f6':'#1d4ed8' }}>{day}</div>
                 <div style={{ fontSize:'9px', color:'#3b82f6', fontWeight:700 }}>보강</div>
-                {sessInfo && (
-                  <div style={{ fontSize:'9px', color:'#fff', background:'#3b82f6', borderRadius:'3px', padding:'0 2px', marginTop:'1px' }}>
-                    {sessInfo.dayLabel} {sessInfo.daySession}차시
-                  </div>
-                )}
               </button>
             )
           }
@@ -213,17 +188,18 @@ function MonthCalendar({ year, month, sessionMap, cancelledDates, makeupDates, t
             return (
               <button key={day} onClick={() => onDateClick(dateStr, 'session')}
                 style={{ padding:'3px 2px', borderRadius:'7px', border:'none', cursor:'pointer',
-                  background: tc?.bg || '#fff7ed', outline:`1.5px solid ${tc?.border || '#f97316'}`,
+                  background: tc?.bg || '#fff7ed',
+                  outline: `1.5px solid ${tc?.border || '#f97316'}`,
                   outlineOffset:'-1px', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif' }}>
                 <div style={{ fontSize:'12px', fontWeight:700, color:isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{day}</div>
-                {/* 분기 내 누적 차시 */}
-                <div style={{ fontSize:'9px', color:tc?.text || '#ea580c', fontWeight:700, lineHeight:1.3 }}>
-                  {sessInfo.quarterNum}분기 {sessInfo.quarterSession}차
+                {/* 분기 내 해당 요일 누적 차시 */}
+                <div style={{ fontSize:'10px', color: tc?.text || '#ea580c', fontWeight:700, lineHeight:1.3 }}>
+                  {sessInfo.quarterNum}분기 {sessInfo.dayTotal}차시
                 </div>
                 {/* 텀 번호 + 텀 내 차시 */}
-                <div style={{ fontSize:'9px', color:'#fff', background: tc?.badge || '#f97316', borderRadius:'3px',
-                  padding:'0 2px', marginTop:'1px', lineHeight:'14px', whiteSpace:'nowrap' }}>
-                  {sessInfo.localSubTerm}텀 {sessInfo.subTermSession}차
+                <div style={{ fontSize:'9px', color:'#fff', background: tc?.badge || '#f97316',
+                  borderRadius:'3px', padding:'0 2px', marginTop:'1px', lineHeight:'14px', whiteSpace:'nowrap' }}>
+                  {sessInfo.subTermNum}텀{sessInfo.inTermSess}차
                 </div>
               </button>
             )
@@ -735,7 +711,7 @@ export function SchoolCalendar({ cls, onUpdate, session }) {
 
       {/* 범례 */}
       <div style={{ display:'flex', gap:'10px', marginTop:'12px', fontSize:'11px', color:'#9ca3af', flexWrap:'wrap' }}>
-        {termBoundaries.slice(0, Math.min(termBoundaries.length, 4)).map((b, i) => (
+        {termBoundaries.map((b, i) => (
           <span key={i} style={{ display:'flex', alignItems:'center', gap:'4px' }}>
             <span style={{ width:'14px', height:'14px', borderRadius:'4px', background:getTermColor(i+1).bg, border:`1.5px solid ${getTermColor(i+1).border}`, display:'inline-block', flexShrink:0 }} />
             {b.label}
