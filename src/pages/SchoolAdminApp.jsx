@@ -1554,6 +1554,9 @@ function TeachersTab({ session }) {
   const confirm = useSchoolConfirm()
   const [teachers,   setTeachers]   = useState([])
   const [subjects,   setSubjects]   = useState([]) // 이 학교·연도 과목 목록
+  const [invites,    setInvites]    = useState([]) // 연결 초대 현황
+  const [classMap,   setClassMap]   = useState({}) // teacherId → classes[]
+  const [studentMap, setStudentMap] = useState({}) // teacherId → students[]
   const [loading,    setLoading]    = useState(true)
   const [modalMode,  setModalMode]  = useState(null) // null | 'add' | 'edit'
   const [editTarget, setEditTarget] = useState(null)
@@ -1571,18 +1574,45 @@ function TeachersTab({ session }) {
   const load = async () => {
     setLoading(true)
     try {
-      const [t, s] = await Promise.all([
+      const [t, s, inv] = await Promise.all([
         DB.teachers(session.adminId),
         dbCall('getAll', 'schoolSubjects').then(d =>
           (d||[]).filter(s => s.adminId === session.adminId && s.active !== false && s.year == CURRENT_YEAR)
         ),
+        dbCall('getAll', 'schoolTeacherInvites').then(d =>
+          (d||[]).filter(i => i.adminId === session.adminId)
+        ),
       ])
       setTeachers(t)
       setSubjects(s)
+      setInvites(inv)
+      // 연결된 선생님의 수업/학생 수 로드
+      const cMap = {}, sMap = {}
+      await Promise.all(t.filter(x=>x.teacherId).map(async teacher => {
+        const [classes, students] = await Promise.all([
+          dbCall('where','classes',{where:{teacherId:teacher.teacherId}}).catch(()=>[]),
+          dbCall('where','students',{where:{teacherId:teacher.teacherId}}).catch(()=>[]),
+        ])
+        cMap[teacher.teacherId] = classes||[]
+        sMap[teacher.teacherId] = students||[]
+      }))
+      setClassMap(cMap)
+      setStudentMap(sMap)
     } catch {}
     setLoading(false)
   }
   useEffect(() => { load() }, [])
+
+  // 연결 상태 계산
+  const inviteByEmail = Object.fromEntries(invites.map(i => [i.teacherEmail?.toLowerCase(), i]))
+  const getConnectStatus = (t) => {
+    const inv = inviteByEmail[t.email?.toLowerCase()]
+    if (!inv) return { status: 'none',     label: '초대 안 함',  color: '#9ca3af', bg: '#f3f4f6',  icon: '—' }
+    if (inv.status === 'accepted') return { status: 'accepted', label: '✅ 연결 완료', color: '#16a34a', bg: '#f0fdf4',  icon: '✅' }
+    if (inv.status === 'pending')  return { status: 'pending',  label: '⏳ 수락 대기', color: '#d97706', bg: '#fffbeb',  icon: '⏳' }
+    if (inv.status === 'emailed')  return { status: 'emailed',  label: '📧 가입 초대', color: '#f97316', bg: '#fff7ed',  icon: '📧' }
+    return { status: inv.status, label: inv.status, color: '#9ca3af', bg: '#f3f4f6', icon: '?' }
+  }
 
   const validate = (f) => {
     if (!String(f.year).trim())  { error('연도를 입력해주세요.');       return false }
@@ -1688,40 +1718,84 @@ function TeachersTab({ session }) {
         </div>
       ) : (
         <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr 1fr 110px', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
-            <span>이름</span><span>과목·요일</span><span>계약 기간</span><span>전화번호</span><span>이메일</span><span>서류</span><span></span>
+          {/* 연결 상태 범례 */}
+          <div style={{ padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, display:'flex', gap:'16px', flexWrap:'wrap', alignItems:'center' }}>
+            <span style={{ fontSize:'11px', fontWeight:700, color:C.muted }}>연결 상태</span>
+            {[
+              { icon:'✅', label:'연결 완료 — 앱 데이터 연동 중', color:'#16a34a' },
+              { icon:'⏳', label:'수락 대기 — 초대 발송됨',       color:'#d97706' },
+              { icon:'📧', label:'가입 초대 — 미가입 선생님',      color:'#f97316' },
+              { icon:'—',  label:'초대 안 함',                     color:'#9ca3af' },
+            ].map(s => (
+              <span key={s.label} style={{ fontSize:'11px', color:s.color, fontWeight:600 }}>{s.icon} {s.label}</span>
+            ))}
           </div>
-          {filtered.map((t, i) => (
-            <div key={t.id} style={{
-              display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr 1fr 110px',
-              padding:'12px 16px', borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none', alignItems:'center',
-            }}>
-              <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{t.teacherName}</span>
-              <div>
-                <div style={{ fontSize:'13px', color:C.text }}>{t.subject||'-'}</div>
-                <div style={{ fontSize:'11px', color:C.muted }}>{t.days ? t.days+'요일' : '-'}</div>
+          <div style={{ display:'grid', gridTemplateColumns:'140px 1fr 110px 120px 130px 130px 90px 120px', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted, minWidth:'900px' }}>
+            <span>이름</span><span>과목·요일</span><span>연결 상태</span><span>앱 수업 수</span><span>앱 학생 수</span><span>계약 기간</span><span>서류</span><span></span>
+          </div>
+          {filtered.map((t, i) => {
+            const cs        = getConnectStatus(t)
+            const isLinked  = cs.status === 'accepted'
+            const classes   = classMap[t.teacherId] || []
+            const students  = studentMap[t.teacherId] || []
+            // 앱 학생 수 = 전체 수업에 등록된 학생 행 수 (중복 포함)
+            const appStudentCount = students.reduce((acc, s) => acc + (s.classIds||[]).filter(cid => classes.some(c=>c.id===cid)).length, 0)
+            return (
+              <div key={t.id} style={{
+                display:'grid', gridTemplateColumns:'140px 1fr 110px 120px 130px 130px 90px 120px',
+                padding:'12px 16px', borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',
+                alignItems:'center', minWidth:'900px',
+                background: isLinked ? '#fafffe' : '#fff',
+              }}>
+                <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{t.teacherName}</span>
+                <div>
+                  <div style={{ fontSize:'13px', color:C.text }}>{t.subject||'-'}</div>
+                  <div style={{ fontSize:'11px', color:C.muted }}>{t.days ? t.days+'요일' : '-'}</div>
+                </div>
+                {/* 연결 상태 배지 */}
+                <div>
+                  <span style={{ fontSize:'11px', fontWeight:700, color:cs.color, background:cs.bg, padding:'3px 9px', borderRadius:'999px', whiteSpace:'nowrap' }}>
+                    {cs.label}
+                  </span>
+                </div>
+                {/* 앱 수업 수 */}
+                <div style={{ fontSize:'13px', textAlign:'center' }}>
+                  {isLinked
+                    ? <span style={{ fontWeight:700, color: classes.length>0 ? C.primary : C.muted }}>{classes.length}개</span>
+                    : <span style={{ color:'#d1d5db', fontSize:'12px' }}>미연결</span>
+                  }
+                </div>
+                {/* 앱 학생 수 (수업 중복 포함) */}
+                <div style={{ fontSize:'13px', textAlign:'center' }}>
+                  {isLinked
+                    ? <span style={{ fontWeight:700, color: appStudentCount>0 ? '#7c3aed' : C.muted }}>{appStudentCount}명</span>
+                    : <span style={{ color:'#d1d5db', fontSize:'12px' }}>미연결</span>
+                  }
+                </div>
+                <div>
+                  {t.startDate
+                    ? <><div style={{ fontSize:'12px', color:C.text }}>{t.startDate}</div>
+                        <div style={{ fontSize:'11px', color:C.muted }}>~ {t.endDate||'미정'}</div></>
+                    : <span style={{ fontSize:'12px', color:'#d1d5db' }}>미설정</span>
+                  }
+                </div>
+                <div style={{ fontSize:'11px', color:C.muted }}>
+                  {[t.feeAccount&&'통장', t.vendorBiz&&'사업자', t.vendorAccount&&'업체통장'].filter(Boolean).join(' · ')||'-'}
+                </div>
+                <div style={{ display:'flex', gap:'4px' }}>
+                  <button onClick={() => setDetailItem(t)} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f8fafc', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>상세</button>
+                  <button onClick={() => openEdit(t)}       style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f8fafc', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                  <button onClick={() => removeTeacher(t.id)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>제외</button>
+                </div>
               </div>
-              <div>
-                {t.startDate
-                  ? <><div style={{ fontSize:'12px', color:C.text }}>{t.startDate}</div>
-                      <div style={{ fontSize:'11px', color:C.muted }}>~ {t.endDate||'미정'}</div></>
-                  : <span style={{ fontSize:'12px', color:'#d1d5db' }}>미설정</span>
-                }
-              </div>
-              <span style={{ fontSize:'13px', color:C.muted }}>{t.teacherPhone||'-'}</span>
-              <span style={{ fontSize:'12px', color:C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.email||'-'}</span>
-              <div style={{ fontSize:'11px', color:C.muted }}>
-                {[t.feeAccount&&'통장', t.vendorBiz&&'사업자', t.vendorAccount&&'업체통장'].filter(Boolean).join(' · ')||'-'}
-              </div>
-              <div style={{ display:'flex', gap:'4px' }}>
-                <button onClick={() => setDetailItem(t)} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f8fafc', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>상세</button>
-                <button onClick={() => openEdit(t)}       style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#f8fafc', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
-                <button onClick={() => removeTeacher(t.id)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>제외</button>
-              </div>
-            </div>
-          ))}
-          <div style={{ padding:'10px 16px', background:'#f8fafc', borderTop:`1px solid ${C.border}`, fontSize:'12px', color:C.muted, textAlign:'right' }}>
-            {selYear}년 총 <strong style={{ color:C.text }}>{filtered.length}명</strong>
+            )
+          })}
+          {/* 푸터 요약 */}
+          <div style={{ padding:'10px 16px', background:'#f8fafc', borderTop:`1px solid ${C.border}`, fontSize:'12px', color:C.muted, display:'flex', gap:'16px', justifyContent:'flex-end', flexWrap:'wrap' }}>
+            <span>{selYear}년 총 <strong style={{ color:C.text }}>{filtered.length}명</strong></span>
+            <span>✅ 연결 완료 <strong style={{ color:'#16a34a' }}>{filtered.filter(t=>getConnectStatus(t).status==='accepted').length}명</strong></span>
+            <span>⏳ 대기 <strong style={{ color:'#d97706' }}>{filtered.filter(t=>getConnectStatus(t).status==='pending').length}명</strong></span>
+            <span>— 미초대 <strong style={{ color:C.muted }}>{filtered.filter(t=>getConnectStatus(t).status==='none').length}명</strong></span>
           </div>
         </div>
       )}
@@ -2260,14 +2334,15 @@ function StudentsTab({ session }) {
   const [classMap,   setClassMap]   = useState({})
   const [studentMap, setStudentMap] = useState({})
   const [subjects,   setSubjects]   = useState([])
+  const [calendars,  setCalendars]  = useState([]) // schoolCalendar 연간 달력
   const [loading,    setLoading]    = useState(true)
 
   // 필터
   const [selYear,    setSelYear]    = useState(String(CURRENT_YEAR))
   const [selDay,     setSelDay]     = useState('all')
   const [selSubject, setSelSubject] = useState('all')
-  const [selTerm,    setSelTerm]    = useState('all')
-  const [selOps,     setSelOps]     = useState('all') // semester|quarter|all
+  const [selTerm,    setSelTerm]    = useState('all') // 'all' | '1' | '2' | ...
+  const [selOps,     setSelOps]     = useState('all') // 'all' | 'semester' | 'quarter'
 
   useEffect(() => {
     async function load() {
@@ -2276,6 +2351,9 @@ function StudentsTab({ session }) {
       setTeachers(t)
       const subj = await dbCall('getAll','schoolSubjects').catch(()=>[])
       setSubjects((subj||[]).filter(s=>s.adminId===session.adminId&&s.active!==false))
+      // 연간 수업 달력 로드 — 운영방식(학기제/분기제) 출처
+      const cal = await dbCall('getAll','schoolCalendar').catch(()=>[])
+      setCalendars((cal||[]).filter(c=>c.adminId===session.adminId))
       const cMap = {}, sMap = {}
       await Promise.all(t.map(async teacher => {
         if (!teacher.teacherId) return
@@ -2293,7 +2371,17 @@ function StudentsTab({ session }) {
     load()
   }, [session.adminId])
 
-  const TERM_LABEL = { semester:'학기제', quarter:'분기제', monthly:'월정액', custom:'자유' }
+  // ── 연간 달력에서 운영방식 파악 (해당 연도의 첫 번째 달력 기준)
+  const yearCalendar = calendars.find(c => c.startDate?.slice(0,4) === selYear)
+  // termType: 'semester' → 학기제(1학기/2학기), 'quarter' → 분기제(1~N텀)
+  const calTermType  = yearCalendar?.termType  || null   // null이면 달력 미설정
+  const calTermCount = yearCalendar?.termCount || 2      // 총 텀 수
+  // 학기제면 [1학기, 2학기], 분기제면 [1텀, 2텀, ...]
+  const termLabels   = calTermType === 'semester'
+    ? ['1학기','2학기']
+    : calTermType === 'quarter'
+      ? Array.from({length: calTermCount}, (_,i) => `${i+1}텀`)
+      : []
 
   // 전체 수업 목록
   const allClasses = teachers.flatMap(t => classMap[t.teacherId]||[])
@@ -2304,20 +2392,22 @@ function StudentsTab({ session }) {
   // 연도 필터
   const yearClasses = allClasses.filter(c=>c.startDate?.slice(0,4)===selYear)
 
-  // 요일 목록
-  const allDays = [...new Set(yearClasses.flatMap(c=>c.days||[]))].filter(Boolean)
+  // 요일 목록 (존재하는 요일만, 순서 고정)
+  const allDays = ['월','화','수','목','금','토','일'].filter(d =>
+    yearClasses.some(c=>(c.days||[]).includes(d))
+  )
 
   // 과목 목록 (schoolSubjects 기준)
   const yearSubjects = subjects.filter(s=>s.year==selYear)
 
-  // 텀 목록
-  const allTerms = [...new Set(yearClasses.map(c=>c.termCount).filter(Boolean))].sort((a,b)=>a-b)
-
-  // 필터 적용
+  // ── 필터 적용
   let filtered = yearClasses
-  if (selDay !== 'all')     filtered = filtered.filter(c=>(c.days||[]).includes(selDay))
-  if (selOps !== 'all')     filtered = filtered.filter(c=>c.termType===selOps)
-  if (selTerm !== 'all')    filtered = filtered.filter(c=>String(c.termCount)===selTerm)
+  if (selDay !== 'all')  filtered = filtered.filter(c=>(c.days||[]).includes(selDay))
+  // 운영방식: 연간 달력 termType 우선, 없으면 수업 자체 termType
+  if (selOps !== 'all')  filtered = filtered.filter(c=> {
+    const tt = calTermType || c.termType
+    return tt === selOps
+  })
   if (selSubject !== 'all') {
     const subj = yearSubjects.find(s=>s.id===selSubject)
     if (subj) {
@@ -2327,39 +2417,142 @@ function StudentsTab({ session }) {
   }
 
   const classIdSet = new Set(filtered.map(c=>c.id))
+  const classById  = Object.fromEntries(filtered.map(c=>[c.id,c]))
 
-  // 학생 목록 — 필터된 수업에 속한 학생
+  // ── 전체 학생 목록 (고유 학생)
   const allStudents = teachers.flatMap(t => studentMap[t.teacherId]||[])
-  const filteredStudents = allStudents.filter(s=>(s.classIds||[]).some(cid=>classIdSet.has(cid)))
 
-  // 학생별 선생님 + 과목
-  const getInfo = (s) => {
-    const cids = (s.classIds||[]).filter(cid=>classIdSet.has(cid))
-    const classes = cids.map(cid=>filtered.find(c=>c.id===cid)).filter(Boolean)
-    const teacher = teachers.find(t=>t.teacherId===s.teacherId)
-    const subjectNames = [...new Set(classes.map(c=>c.className).filter(Boolean))]
-    return { teacher, subjectNames }
+  // ── 수업-학생 행 생성 (한 명이 N수업 = N행, 중복 카운트)
+  const expandedRows = []
+  for (const s of allStudents) {
+    const matchedCids = (s.classIds||[]).filter(cid=>classIdSet.has(cid))
+    for (const cid of matchedCids) {
+      const cls = classById[cid]
+      if (!cls) continue
+      // 텀 필터: selTerm이 지정된 경우 해당 텀이 수업 termCount 범위 내인지 확인
+      if (selTerm !== 'all') {
+        const classTc = cls.termCount || calTermCount || 2
+        if (parseInt(selTerm) > classTc) continue
+      }
+      const teacher = teachers.find(t=>t.teacherId===s.teacherId)
+      expandedRows.push({ student:s, cls, teacher })
+    }
   }
 
-  const BtnFilter = ({val,cur,set,label}) => (
-    <button onClick={()=>set(val)} style={{
+  // ── 텀별 인원 집계
+  const termCounts = {}
+  if (termLabels.length > 0) {
+    for (let i=1; i<=termLabels.length; i++) {
+      // 해당 텀 번호가 수업 termCount 범위 내인 행만 카운트
+      termCounts[i] = allStudents.reduce((acc, s) => {
+        const matchedCids = (s.classIds||[]).filter(cid=>classIdSet.has(cid))
+        for (const cid of matchedCids) {
+          const cls = classById[cid]
+          if (!cls) continue
+          const tc = cls.termCount || calTermCount || 2
+          if (i <= tc) acc++
+        }
+        return acc
+      }, 0)
+    }
+  }
+
+  // ── 수업 태그 생성: "(월)로봇A" 형식
+  const getClassTag = (cls) => {
+    const dayStr = (cls.days||[]).map(d=>`(${d})`).join('')
+    return `${dayStr}${cls.className||''}`
+  }
+
+  const BtnFilter = ({val,cur,set,label,disabled}) => (
+    <button onClick={()=>!disabled&&set(val)} style={{
       padding:'5px 12px', borderRadius:'20px', fontSize:'12px', fontWeight:cur===val?700:400,
       border:`1.5px solid ${cur===val?C.primary:C.border}`,
       background:cur===val?C.primary:'#fff',
-      color:cur===val?'#fff':C.text,
-      cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
+      color:cur===val?'#fff': disabled?'#d1d5db':C.text,
+      cursor:disabled?'default':'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
+      opacity: disabled?0.45:1,
     }}>{label}</button>
   )
+
+  // 총 인원 수 (수업 중복 포함)
+  const totalCount     = expandedRows.length
+  const confirmedCount = expandedRows.filter(r=>r.student.status==='confirmed').length
 
   return (
     <div style={{ padding:'24px' }}>
       <div style={{ marginBottom:'16px' }}>
         <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>👥 학생 현황</div>
-        <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>담당 선생님별 학생 현황을 확인하세요</div>
+        <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>
+          한 학생이 여러 수업 수강 시 수업 수만큼 인원에 포함됩니다 (예: 4수업 = 4명)
+        </div>
       </div>
 
       {loading ? <div style={{ textAlign:'center', padding:'40px', color:C.muted }}>불러오는 중...</div> : (
         <>
+          {/* ── 데이터 출처 & 연결 상태 안내 */}
+          {(()=>{
+            const yearTeachers = teachers.filter(t => {
+              const classes = classMap[t.teacherId]||[]
+              return classes.some(c=>c.startDate?.slice(0,4)===selYear) || String(t.year||''===selYear)
+            })
+            // 연결 완료 선생님 (invites 필요 → 여기선 teacherId+classMap으로 판단)
+            const linkedTeachers   = yearTeachers.filter(t => (classMap[t.teacherId]||[]).length > 0)
+            const unlinkedTeachers = yearTeachers.filter(t => (classMap[t.teacherId]||[]).length === 0)
+            // 앱 데이터 총 학생 수 (중복 포함)
+            const appTotal = allStudents.reduce((acc,s) => {
+              const matched = (s.classIds||[]).filter(cid => (classMap[s.teacherId]||[]).some(c=>c.id===cid&&c.startDate?.slice(0,4)===selYear))
+              return acc + matched.length
+            }, 0)
+            // 학교 등록 과목 기준 정원 합계
+            const subjects_year = subjects.filter(sv=>sv.year==selYear)
+            const totalCapacity = subjects_year.reduce((a,s)=>a+(parseInt(s.capacity)||0),0)
+            const hasCapacity   = totalCapacity > 0
+
+            return (
+              <div style={{ background:'#fff', border:`1px solid ${C.border}`, borderRadius:'12px', padding:'14px 18px', marginBottom:'16px' }}>
+                <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'10px' }}>📊 인원 데이터 출처 및 연결 현황</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px', marginBottom:'12px' }}>
+                  {/* 앱 연동 데이터 */}
+                  <div style={{ background:'#eff6ff', borderRadius:'10px', padding:'12px 14px', border:'1.5px solid #bfdbfe' }}>
+                    <div style={{ fontSize:'11px', fontWeight:700, color:'#1d4ed8', marginBottom:'4px' }}>📱 앱 연동 데이터 (현재 표시)</div>
+                    <div style={{ fontSize:'20px', fontWeight:800, color:C.primary }}>{appTotal}명</div>
+                    <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>연결된 선생님 앱 기준 · 수업 중복 포함</div>
+                    <div style={{ fontSize:'11px', color:'#3b82f6', marginTop:'4px' }}>선생님 {linkedTeachers.length}명 연결 완료</div>
+                  </div>
+                  {/* 학교 등록 정원 */}
+                  <div style={{ background: hasCapacity?'#fafafa':'#f3f4f6', borderRadius:'10px', padding:'12px 14px', border:`1.5px solid ${hasCapacity?C.border:'#e5e7eb'}` }}>
+                    <div style={{ fontSize:'11px', fontWeight:700, color: hasCapacity?C.text:'#9ca3af', marginBottom:'4px' }}>🏫 과목별 정원 합계 (학교 등록)</div>
+                    <div style={{ fontSize:'20px', fontWeight:800, color: hasCapacity?C.text:'#d1d5db' }}>{hasCapacity?`${totalCapacity}명`:'미설정'}</div>
+                    <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>과목 관리 탭 정원 합산 · {subjects_year.length}개 과목</div>
+                    {!hasCapacity && <div style={{ fontSize:'11px', color:'#f97316', marginTop:'4px' }}>과목 관리에서 정원을 설정하세요</div>}
+                  </div>
+                  {/* 일치 여부 */}
+                  <div style={{ background: hasCapacity ? (appTotal===totalCapacity?'#f0fdf4':appTotal>totalCapacity?'#fef2f2':'#fffbeb') : '#f8fafc', borderRadius:'10px', padding:'12px 14px', border:`1.5px solid ${hasCapacity?(appTotal===totalCapacity?'#86efac':appTotal>totalCapacity?'#fca5a5':'#fde68a'):C.border}` }}>
+                    <div style={{ fontSize:'11px', fontWeight:700, color: hasCapacity?(appTotal===totalCapacity?'#16a34a':appTotal>totalCapacity?'#ef4444':'#d97706'):'#9ca3af', marginBottom:'4px' }}>🔍 일치 여부</div>
+                    {hasCapacity ? (
+                      <>
+                        <div style={{ fontSize:'18px', fontWeight:800, color: appTotal===totalCapacity?'#16a34a':appTotal>totalCapacity?'#ef4444':'#d97706' }}>
+                          {appTotal===totalCapacity ? '✅ 일치' : appTotal>totalCapacity ? `⚠ 초과 +${appTotal-totalCapacity}명` : `📉 미달 -${totalCapacity-appTotal}명`}
+                        </div>
+                        <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
+                          앱 {appTotal}명 vs 정원 {totalCapacity}명
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize:'13px', color:'#9ca3af' }}>정원 미설정으로<br/>비교 불가</div>
+                    )}
+                  </div>
+                </div>
+                {/* 미연결 선생님 경고 */}
+                {unlinkedTeachers.length > 0 && (
+                  <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'8px 12px', fontSize:'12px', color:'#92400e' }}>
+                    ⚠ <strong>{unlinkedTeachers.map(t=>t.teacherName).join(', ')}</strong> 선생님은 앱 미연결 상태로 학생 데이터가 없습니다. 선생님 연결 관리 탭에서 초대하세요.
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           {/* 필터 바 */}
           <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'14px 18px', marginBottom:'16px', display:'flex', flexDirection:'column', gap:'10px' }}>
 
@@ -2367,25 +2560,49 @@ function StudentsTab({ session }) {
             <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
               <span style={{ fontSize:'12px', fontWeight:700, color:C.muted, width:'60px', flexShrink:0 }}>연도</span>
               {(years.length>0?years:[String(CURRENT_YEAR)]).map(y=>(
-                <BtnFilter key={y} val={y} cur={selYear} set={setSelYear} label={`${y}년`}/>
+                <BtnFilter key={y} val={y} cur={selYear} set={v=>{setSelYear(v);setSelTerm('all');setSelOps('all')}} label={`${y}년`}/>
               ))}
             </div>
 
-            {/* 운영방식 */}
+            {/* 운영방식 — 연간 달력 termType이 있으면 표시만, 없으면 필터 버튼 */}
             <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
               <span style={{ fontSize:'12px', fontWeight:700, color:C.muted, width:'60px', flexShrink:0 }}>운영방식</span>
-              <BtnFilter val="all" cur={selOps} set={setSelOps} label="전체"/>
-              <BtnFilter val="semester" cur={selOps} set={setSelOps} label="학기제"/>
-              <BtnFilter val="quarter" cur={selOps} set={setSelOps} label="분기제"/>
+              {calTermType ? (
+                <span style={{ fontSize:'12px', fontWeight:700, padding:'4px 12px', borderRadius:'20px',
+                  background: calTermType==='semester'?'#eff6ff':'#f0fdf4',
+                  color: calTermType==='semester'?C.primary:'#16a34a',
+                  border:`1.5px solid ${calTermType==='semester'?C.primary:'#16a34a'}` }}>
+                  {calTermType==='semester'?'🎓 학기제':'📅 분기제'}
+                  <span style={{ fontWeight:400, fontSize:'11px', marginLeft:'4px', opacity:.7 }}>({yearCalendar?.title||'연간 달력'})</span>
+                </span>
+              ) : (
+                <>
+                  <BtnFilter val="all"      cur={selOps} set={setSelOps} label="전체"/>
+                  <BtnFilter val="semester" cur={selOps} set={setSelOps} label="학기제"/>
+                  <BtnFilter val="quarter"  cur={selOps} set={setSelOps} label="분기제"/>
+                  <span style={{ fontSize:'11px', color:'#f97316' }}>⚠ 연간 달력 미설정</span>
+                </>
+              )}
             </div>
 
-            {/* 요일 */}
-            {allDays.length>0&&(
+            {/* 요일 — 항상 표시, 해당 요일 없으면 흐리게 */}
+            <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+              <span style={{ fontSize:'12px', fontWeight:700, color:C.muted, width:'60px', flexShrink:0 }}>요일</span>
+              <BtnFilter val="all" cur={selDay} set={setSelDay} label="전체"/>
+              {['월','화','수','목','금','토','일'].map(d=>(
+                <BtnFilter key={d} val={d} cur={selDay} set={setSelDay} label={`${d}요일`} disabled={!allDays.includes(d)}/>
+              ))}
+            </div>
+
+            {/* 학기/텀 필터 — 연간 달력이 있을 때만 */}
+            {termLabels.length > 0 && (
               <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-                <span style={{ fontSize:'12px', fontWeight:700, color:C.muted, width:'60px', flexShrink:0 }}>요일</span>
-                <BtnFilter val="all" cur={selDay} set={setSelDay} label="전체"/>
-                {['월','화','수','목','금','토','일'].filter(d=>allDays.includes(d)).map(d=>(
-                  <BtnFilter key={d} val={d} cur={selDay} set={setSelDay} label={`${d}요일`}/>
+                <span style={{ fontSize:'12px', fontWeight:700, color:C.muted, width:'60px', flexShrink:0 }}>
+                  {calTermType==='semester'?'학기':'텀'}
+                </span>
+                <BtnFilter val="all" cur={selTerm} set={setSelTerm} label="전체"/>
+                {termLabels.map((lbl,i)=>(
+                  <BtnFilter key={i+1} val={String(i+1)} cur={selTerm} set={setSelTerm} label={lbl}/>
                 ))}
               </div>
             )}
@@ -2400,45 +2617,57 @@ function StudentsTab({ session }) {
                 ))}
               </div>
             )}
-
-            {/* 텀 */}
-            {allTerms.length>0&&(
-              <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-                <span style={{ fontSize:'12px', fontWeight:700, color:C.muted, width:'60px', flexShrink:0 }}>텀</span>
-                <BtnFilter val="all" cur={selTerm} set={setSelTerm} label="전체"/>
-                {allTerms.map(t=>(
-                  <BtnFilter key={t} val={String(t)} cur={selTerm} set={setSelTerm} label={`${t}텀`}/>
-                ))}
-              </div>
-            )}
           </div>
 
-          {/* 학생 수 요약 */}
-          <div style={{ fontSize:'13px', color:C.muted, marginBottom:'8px' }}>
-            확정 <strong style={{ color:C.success }}>{filteredStudents.filter(s=>s.status==='confirmed').length}명</strong> / 전체 <strong>{filteredStudents.length}명</strong>
+          {/* 인원 요약 카드 */}
+          <div style={{ display:'grid', gridTemplateColumns:`repeat(${Math.min(2+termLabels.length, 6)},1fr)`, gap:'8px', marginBottom:'16px' }}>
+            <div style={{ background:'#eff6ff', borderRadius:'12px', padding:'12px 16px', border:'1.5px solid #bfdbfe' }}>
+              <div style={{ fontSize:'22px', fontWeight:800, color:C.primary }}>{totalCount}명</div>
+              <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>전체 수강 인원 (수업 중복 포함)</div>
+            </div>
+            <div style={{ background:'#f0fdf4', borderRadius:'12px', padding:'12px 16px', border:'1.5px solid #86efac' }}>
+              <div style={{ fontSize:'22px', fontWeight:800, color:'#16a34a' }}>{confirmedCount}명</div>
+              <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>확정 인원</div>
+            </div>
+            {termLabels.map((lbl,i)=>(
+              <div key={i} style={{ background:'#fafafa', borderRadius:'12px', padding:'12px 16px', border:`1.5px solid ${C.border}` }}>
+                <div style={{ fontSize:'22px', fontWeight:800, color:'#374151' }}>{termCounts[i+1]||0}명</div>
+                <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>{lbl} 인원</div>
+              </div>
+            ))}
           </div>
 
           {/* 학생 테이블 */}
-          {filteredStudents.length===0
+          {expandedRows.length===0
             ? <div style={{ textAlign:'center', padding:'40px', color:C.muted, background:C.bg, borderRadius:'12px', border:`1px dashed ${C.border}` }}>조건에 맞는 학생이 없습니다.</div>
             : (
               <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflowX:'auto' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'40px 80px 1fr 130px 130px 1fr', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted, textAlign:'center', minWidth:'600px' }}>
-                  <span>#</span><span>학년·반</span><span>이름</span><span>연락처</span><span>선생님</span><span>과목</span>
+                <div style={{ display:'grid', gridTemplateColumns:'40px 100px 1fr 130px 130px 1fr', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted, textAlign:'center', minWidth:'700px' }}>
+                  <span>#</span><span>학년·반·번호</span><span>이름</span><span>연락처</span><span>선생님</span><span>수강 수업</span>
                 </div>
-                {filteredStudents.map((s,i)=>{
-                  const {teacher, subjectNames} = getInfo(s)
+                {expandedRows.map((row,i)=>{
+                  const {student:s, cls, teacher} = row
+                  const tag = getClassTag(cls)
                   return (
-                    <div key={s.id} style={{ display:'grid', gridTemplateColumns:'40px 80px 1fr 130px 130px 1fr', padding:'10px 16px', borderBottom:i<filteredStudents.length-1?`1px solid ${C.border}`:'none', alignItems:'center', fontSize:'13px', textAlign:'center', minWidth:'600px' }}>
+                    <div key={`${s.id}-${cls.id}`} style={{
+                      display:'grid', gridTemplateColumns:'40px 100px 1fr 130px 130px 1fr',
+                      padding:'10px 16px',
+                      borderBottom:i<expandedRows.length-1?`1px solid ${C.border}`:'none',
+                      alignItems:'center', fontSize:'13px', textAlign:'center', minWidth:'700px',
+                      background: i%2===0 ? '#fff' : '#fafafa',
+                    }}>
                       <span style={{ color:C.muted }}>{i+1}</span>
-                      <span style={{ color:C.muted }}>{s.grade?`${s.grade}학년`:'-'}{s.classNum?` ${s.classNum}반`:''}</span>
+                      <span style={{ color:C.muted, fontSize:'12px' }}>
+                        {s.grade?`${s.grade}학년`:''}{s.classNum?` ${s.classNum}반`:''}{s.studentNum?` ${s.studentNum}번`:''}
+                        {(!s.grade&&!s.classNum)?'-':''}
+                      </span>
                       <span style={{ fontWeight:600, color:C.text }}>{s.name}</span>
                       <span style={{ color:C.muted, fontSize:'12px' }}>{s.parentPhone||'-'}</span>
                       <span style={{ fontSize:'12px', color:C.muted }}>{teacher?.teacherName||'-'}</span>
                       <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', justifyContent:'center' }}>
-                        {subjectNames.length>0 ? subjectNames.map((sub,si)=>(
-                          <span key={si} style={{ fontSize:'11px', fontWeight:600, background:'#eff6ff', color:C.primary, padding:'2px 8px', borderRadius:'999px' }}>{sub}</span>
-                        )) : <span style={{ color:C.muted }}>-</span>}
+                        <span style={{ fontSize:'11px', fontWeight:700, background:'#eff6ff', color:C.primary, padding:'2px 9px', borderRadius:'999px', whiteSpace:'nowrap' }}>
+                          {tag}
+                        </span>
                       </div>
                     </div>
                   )
