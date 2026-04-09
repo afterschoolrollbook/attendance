@@ -761,7 +761,27 @@ function NoticesTab({ session }) {
 
   const deleteNotice = async (id) => {
     if (!window.confirm('삭제하시겠습니까?')) return
-    await DB.deleteNotice(id); success('삭제되었습니다.'); load()
+    try {
+      // 연결된 schoolTeacherInvites 초기화
+      // accepted(이미 수락)는 그대로 두고, pending/emailed(대기중)만 초기화
+      const linkedInvites = invites.filter(i => i.noticeId === id)
+      await Promise.all(linkedInvites.map(i => {
+        if (i.status === 'accepted') {
+          // 수락 완료된 건 noticeId만 제거
+          return dbCall('update', 'schoolTeacherInvites', { id: i.id, patch: { noticeId: null } })
+        } else {
+          // 대기중인 건 완전 초기화
+          return dbCall('update', 'schoolTeacherInvites', { id: i.id, patch: { noticeId: null, status: 'declined', sentAt: null } })
+        }
+      }))
+      // 연결된 schoolNoticeSubmits 삭제
+      const allSubs = await dbCall('getAll','schoolNoticeSubmits').then(d=>(d||[]).filter(s=>s.noticeId===id))
+      await Promise.all(allSubs.map(s => dbCall('delete','schoolNoticeSubmits',{ id:s.id })))
+
+      await DB.deleteNotice(id)
+      success('삭제되었습니다.')
+    } catch { }
+    load()
   }
 
   // 배포 — draft → active + 선생님들에게 submit 레코드 생성
@@ -1756,6 +1776,52 @@ function ConnectTab({ session }) {
   }
 
   const silentRefresh = () => { fetchData().catch(() => {}) }
+
+  // 초대 취소 — pending/emailed 상태 초대 취소
+  const cancelInvite = async (t) => {
+    if (!window.confirm(`${t.teacherName} 선생님의 초대를 취소하시겠습니까?`)) return
+    const inv = inviteByEmail[t.email?.toLowerCase()]
+    if (!inv) return
+    try {
+      await dbCall('update', 'schoolTeacherInvites', {
+        id: inv.id,
+        patch: { status: 'declined', noticeId: null, sentAt: null },
+      })
+      success(`${t.teacherName} 선생님 초대를 취소했습니다.`)
+      silentRefresh()
+    } catch { error('취소 중 오류가 발생했습니다.') }
+  }
+
+  // 연결 끊기 — accepted 상태 해제 + schoolAdminTeachers 비활성화
+  const disconnectTeacher = async (t) => {
+    if (!window.confirm(
+      `⚠️ ${t.teacherName} 선생님과의 연결을 끊으시겠습니까?\n\n` +
+      `• 선생님이 공지·업무를 더 이상 받을 수 없습니다.\n` +
+      `• 진행 중인 업무가 있다면 미완료로 처리됩니다.\n` +
+      `• 선생님도 대시보드에서 연결이 해제됩니다.\n\n` +
+      `정말 연결을 끊으시겠습니까?`
+    )) return
+    try {
+      const inv = inviteByEmail[t.email?.toLowerCase()]
+      if (inv) {
+        await dbCall('update', 'schoolTeacherInvites', {
+          id: inv.id,
+          patch: { status: 'declined', noticeId: null },
+        })
+      }
+      // schoolAdminTeachers에서 비활성화
+      if (t.id && !t._virtual) {
+        await dbCall('update', 'schoolAdminTeachers', {
+          id: t.id,
+          patch: { active: false },
+        })
+      }
+      success(`${t.teacherName} 선생님과의 연결을 끊었습니다.`)
+      load()
+    } catch { error('처리 중 오류가 발생했습니다.') }
+  }
+
+
   useEffect(() => { load() }, [])
 
   // 이메일 기준 룩업
@@ -2055,19 +2121,32 @@ function ConnectTab({ session }) {
                           {si.label}
                         </span>
                       </div>
-                      <div style={{ textAlign:'center' }}>
+                      <div style={{ textAlign:'center', display:'flex', flexDirection:'column', gap:'4px', alignItems:'center' }}>
                         {st === 'accepted' ? (
-                          <span style={{ fontSize:'13px', color:'#16a34a' }}>—</span>
+                          <button onClick={() => disconnectTeacher(t)} style={{
+                            padding:'5px 12px', borderRadius:'7px', border:'1px solid #fca5a5',
+                            background:'#fef2f2', color:'#ef4444', fontSize:'11px', fontWeight:700,
+                            cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
+                          }}>연결 끊기</button>
                         ) : (
-                          <button onClick={() => sendInvite(t)} disabled={!!sending[t.id]} style={{
-                            padding:'6px 14px', borderRadius:'7px', border:'none', cursor:sending[t.id]?'not-allowed':'pointer',
-                            background: st==='pending' ? '#f1f5f9' : '#3b82f6',
-                            color:      st==='pending' ? C.muted   : '#fff',
-                            fontSize:'12px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif',
-                            opacity: sending[t.id] ? .6 : 1,
-                          }}>
-                            {sending[t.id] ? '발송 중...' : st==='pending' ? '연결 재발송' : '연결 초대'}
-                          </button>
+                          <div style={{ display:'flex', flexDirection:'column', gap:'4px', alignItems:'center' }}>
+                            <button onClick={() => sendInvite(t)} disabled={!!sending[t.id]} style={{
+                              padding:'5px 12px', borderRadius:'7px', border:'none', cursor:sending[t.id]?'not-allowed':'pointer',
+                              background: st==='pending' ? '#f1f5f9' : '#3b82f6',
+                              color:      st==='pending' ? C.muted   : '#fff',
+                              fontSize:'11px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif',
+                              opacity: sending[t.id] ? .6 : 1, whiteSpace:'nowrap',
+                            }}>
+                              {sending[t.id] ? '발송 중...' : st==='pending' ? '연결 재발송' : '연결 초대'}
+                            </button>
+                            {st === 'pending' && (
+                              <button onClick={() => cancelInvite(t)} style={{
+                                padding:'4px 10px', borderRadius:'7px', border:'1px solid #e5e7eb',
+                                background:'#fff', color:'#9ca3af', fontSize:'10px', fontWeight:600,
+                                cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
+                              }}>초대 취소</button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -2138,16 +2217,23 @@ function ConnectTab({ session }) {
                           {si.label}
                         </span>
                       </div>
-                      <div style={{ textAlign:'center' }}>
+                      <div style={{ textAlign:'center', display:'flex', flexDirection:'column', gap:'4px', alignItems:'center' }}>
                         <button onClick={() => sendInvite(t)} disabled={!!sending[t.id]} style={{
-                          padding:'6px 14px', borderRadius:'7px', border:'none', cursor:sending[t.id]?'not-allowed':'pointer',
+                          padding:'5px 12px', borderRadius:'7px', border:'none', cursor:sending[t.id]?'not-allowed':'pointer',
                           background: st==='emailed' ? '#f1f5f9' : '#f97316',
                           color:      st==='emailed' ? C.muted   : '#fff',
-                          fontSize:'12px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif',
-                          opacity: sending[t.id] ? .6 : 1,
+                          fontSize:'11px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif',
+                          opacity: sending[t.id] ? .6 : 1, whiteSpace:'nowrap',
                         }}>
                           {sending[t.id] ? '발송 중...' : st==='emailed' ? '가입 재발송' : '가입 초대'}
                         </button>
+                        {st === 'emailed' && (
+                          <button onClick={() => cancelInvite(t)} style={{
+                            padding:'4px 10px', borderRadius:'7px', border:'1px solid #e5e7eb',
+                            background:'#fff', color:'#9ca3af', fontSize:'10px', fontWeight:600,
+                            cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
+                          }}>초대 취소</button>
+                        )}
                       </div>
                     </div>
                   )

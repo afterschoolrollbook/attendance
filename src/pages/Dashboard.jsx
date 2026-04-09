@@ -239,6 +239,78 @@ function SignupInvitePopup({ invites, reload }) {
 }
 
 // ── 업무 알림 패널 (대시보드 상단 고정 — 미완료 업무 상시 표시)
+// ── 연결된 학교 목록 + 연결 끊기
+function SchoolConnectionPanel({ user }) {
+  const [connections, setConnections] = useState([])
+  const { success, error } = useToast()
+
+  const load = async () => {
+    if (!user?.id) return
+    try {
+      const all = await dbCall('getAll', 'schoolAdminTeachers')
+      setConnections((all||[]).filter(t => t.teacherId === user.id && t.active !== false))
+    } catch {}
+  }
+
+  useEffect(() => {
+    load()
+  }, [user?.id])
+
+  if (connections.length === 0) return null
+
+  const handleDisconnect = async (conn) => {
+    const confirmed = window.confirm(
+      `⚠️ "${conn.schoolName}" 학교와의 연결을 끊으시겠습니까?\n\n` +
+      `• 담당자의 공지·업무를 더 이상 받을 수 없습니다.\n` +
+      `• 진행 중인 업무가 있다면 미완료로 처리됩니다.\n\n` +
+      `정말 연결을 끊으시겠습니까?`
+    )
+    if (!confirmed) return
+    try {
+      // schoolAdminTeachers 비활성화
+      await dbCall('update', 'schoolAdminTeachers', {
+        id: conn.id, patch: { active: false }
+      })
+      // schoolTeacherInvites declined 처리
+      const allInvites = await dbCall('getAll', 'schoolTeacherInvites')
+      const myInvite = (allInvites||[]).find(i =>
+        i.teacherId === user.id && i.adminId === conn.adminId && i.status === 'accepted'
+      )
+      if (myInvite) {
+        await dbCall('update', 'schoolTeacherInvites', {
+          id: myInvite.id, patch: { status: 'declined' }
+        })
+      }
+      success(`${conn.schoolName} 학교와의 연결을 끊었습니다.`)
+      load()
+    } catch { error('처리 중 오류가 발생했습니다.') }
+  }
+
+  return (
+    <div style={{ marginBottom:'12px' }}>
+      <div style={{ fontSize:'13px', fontWeight:700, color:'#1e3a5f', marginBottom:'8px' }}>🏫 연결된 학교</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+        {connections.map(conn => (
+          <div key={conn.id} style={{
+            background:'#fff', borderRadius:'12px', padding:'12px 16px',
+            border:'1px solid #e5e7eb', display:'flex', alignItems:'center', justifyContent:'space-between',
+          }}>
+            <div>
+              <div style={{ fontSize:'13px', fontWeight:700, color:'#111827' }}>🏫 {conn.schoolName}</div>
+              {conn.linkedAt && <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'2px' }}>연결일: {conn.linkedAt.slice(0,10)}</div>}
+            </div>
+            <button onClick={() => handleDisconnect(conn)} style={{
+              padding:'6px 12px', borderRadius:'8px', border:'1px solid #fca5a5',
+              background:'#fef2f2', color:'#ef4444', fontSize:'12px', fontWeight:700,
+              cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
+            }}>연결 끊기</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function SchoolTaskPanel({ user }) {
   const [tasks,    setTasks]    = useState([])
   const [expanded, setExpanded] = useState(null)  // 파일 제출 열린 항목
@@ -1351,6 +1423,7 @@ function MobileDashboard({ user, onNav }) {
       <SchoolConnectPopup user={user} />
 
       {/* ── 학교 업무 알림 (미완료 상시 표시) ── */}
+      <SchoolConnectionPanel user={user} />
       <SchoolTaskPanel user={user} />
 
       {/* 인사 */}
@@ -1716,6 +1789,7 @@ export function Dashboard({ user, onNav }) {
       <SchoolConnectPopup user={user} />
 
       {/* ── 학교 업무 알림 (미완료 상시 표시) ── */}
+      <SchoolConnectionPanel user={user} />
       <SchoolTaskPanel user={user} />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
