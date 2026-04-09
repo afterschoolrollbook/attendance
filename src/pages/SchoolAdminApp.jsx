@@ -1706,14 +1706,16 @@ function SchoolCalendarTab({ session }) {
           session={session}
           cls={selItem ? selItem : { year: parseInt(selYear), cancelledDates:[], makeupDates:[], days:[], termType:'semester', termCount:4, termSizes:[4,4,4,4] }}
           onUpdate={async (updated) => {
-            if (!updated.title?.trim() || !updated.days?.length || !updated.startDate || !updated.endDate) return
             try {
               if (selItem) {
+                // 기존 일정 업데이트
                 await dbCall('update','schoolCalendar',{ id:selItem.id, patch:{ ...updated } })
                 const merged = {...selItem, ...updated}
                 setSelItem(merged)
                 setItems(prev => prev.map(it => it.id===selItem.id ? merged : it))
-              } else if (updated.title?.trim() && updated.days?.length) {
+              } else {
+                // 신규 일정: title 또는 days가 있을 때만 생성
+                if (!updated.title?.trim() && !updated.days?.length) return
                 const newItem = { ...updated, id:uid(), adminId:session.adminId, schoolName:session.admin?.schoolName||'', createdAt:now() }
                 await dbCall('upsert','schoolCalendar',{ data: newItem })
                 setSelItem(newItem)
