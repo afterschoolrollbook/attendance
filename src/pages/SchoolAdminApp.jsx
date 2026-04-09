@@ -305,7 +305,11 @@ function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
               {Object.entries(TYPE_INFO).map(([v, info]) => (
-                <button key={v} type="button" onClick={() => setForm(f=>({...f,type:v}))} style={{
+                <button key={v} type="button" onClick={() => setForm(f=>({
+                  ...f, type:v,
+                  // 초대 유형 선택 시 완료 조건 자동으로 회신완료로 설정
+                  completeOn: (v==='invite_connect'||v==='invite_signup') ? 'replied' : f.completeOn,
+                }))} style={{
                   padding:'10px 14px', borderRadius:'10px', cursor:'pointer',
                   fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:form.type===v?700:400,
                   border: form.type===v ? `2px solid ${info.color}` : `2px solid #e5e7eb`,
@@ -325,10 +329,18 @@ function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
             {ti.icon} {ti.desc}
           </div>
 
-          {/* 완료 조건 — 공지/업무일 때만 */}
-          {(form.type === 'notice' || form.type === 'task') && (
-            <div style={{ marginTop:'10px' }}>
-              <LBL>완료 조건</LBL>
+          {/* 완료 조건 — 모든 유형에 표시 */}
+          <div style={{ marginTop:'10px' }}>
+            <LBL>완료 조건</LBL>
+            {/* 초대 유형은 회신완료 고정 안내 */}
+            {(form.type === 'invite_connect' || form.type === 'invite_signup') ? (
+              <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'9px', padding:'10px 14px', fontSize:'12px', color:'#1e40af' }}>
+                🔗 초대 방식은 <strong>회신 완료</strong>로 처리됩니다.
+                <div style={{ fontSize:'11px', color:'#3b82f6', marginTop:'4px', opacity:.85 }}>
+                  선생님이 초대를 수락하면 자동으로 회신완료 처리됩니다.
+                </div>
+              </div>
+            ) : (
               <div style={{ display:'flex', gap:'8px' }}>
                 {[
                   { v:'replied',   icon:'✉️', label:'회신 완료로 끝',  desc:'읽고 확인하면 완료' },
@@ -346,8 +358,8 @@ function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div><LBL>제목 *</LBL><input style={iSt} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="예: 2026년 1분기 서류 제출" /></div>
