@@ -63,11 +63,12 @@ const DB = {
 // ── 사이드바
 function Sidebar({ session, page, onNav, onLogout }) {
   const nav = [
-    { id:'notices',  icon:'📋', label:'공지·업무 관리' },
-    { id:'subjects', icon:'📚', label:'과목 관리' },
-    { id:'teachers', icon:'👩‍🏫', label:'선생님 현황' },
-    { id:'connect',  icon:'🔗', label:'선생님 연결 관리' },
-    { id:'students', icon:'👥', label:'학생 현황' },
+    { id:'dashboard', icon:'🏠', label:'대시보드' },
+    { id:'notices',   icon:'📋', label:'공지·업무 관리' },
+    { id:'subjects',  icon:'📚', label:'과목 관리' },
+    { id:'teachers',  icon:'👩‍🏫', label:'선생님 현황' },
+    { id:'connect',   icon:'🔗', label:'선생님 연결 관리' },
+    { id:'students',  icon:'👥', label:'학생 현황' },
   ]
   return (
     <aside style={{ width:'220px', minWidth:'220px', background:'#1e3a5f', display:'flex', flexDirection:'column', height:'100vh', position:'sticky', top:0 }}>
@@ -137,7 +138,7 @@ const NOTICE_STATUS = {
 // ── 공지 등록 모달
 function NoticeCreateModal({ session, teachers, onSave, onClose }) {
   const { success, error } = useToast()
-  const [form, setForm]       = useState({ title:'', content:'', type:'notice', startDate:'', endDate:'', dueDate:'', attachName:'', attachUrl:'' })
+  const [form, setForm]       = useState({ title:'', content:'', type:'notice', completeOn:'replied', startDate:'', endDate:'', dueDate:'', attachName:'', attachUrl:'' })
   const [targets, setTargets] = useState([])
   const [saving, setSaving]   = useState(false)
   const [appUsers, setAppUsers] = useState([])
@@ -182,6 +183,7 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
         schoolName: session.admin?.schoolName || '',
         type: form.type,
         title: form.title, content: form.content,
+        completeOn: form.completeOn || 'replied',
         startDate: form.startDate||null, endDate: form.endDate||null,
         dueDate: form.dueDate||null,
         attachName: form.attachName, attachUrl: form.attachUrl,
@@ -277,6 +279,30 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
           <div style={{ fontSize:'11px', color:ti.color, background:ti.bg, padding:'6px 10px', borderRadius:'6px', marginTop:'6px', fontWeight:500 }}>
             {ti.icon} {ti.desc}
           </div>
+
+          {/* 완료 조건 — 공지/업무일 때만 */}
+          {(form.type === 'notice' || form.type === 'task') && (
+            <div style={{ marginTop:'10px' }}>
+              <LBL>완료 조건</LBL>
+              <div style={{ display:'flex', gap:'8px' }}>
+                {[
+                  { v:'replied',   icon:'✉️', label:'회신 완료로 끝',  desc:'읽고 확인하면 완료' },
+                  { v:'submitted', icon:'📎', label:'제출 완료로 끝',  desc:'파일·서류 제출해야 완료' },
+                ].map(opt => (
+                  <button key={opt.v} type="button" onClick={() => setForm(f=>({...f, completeOn:opt.v}))} style={{
+                    flex:1, padding:'8px 12px', borderRadius:'9px', cursor:'pointer',
+                    fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', textAlign:'left',
+                    border: form.completeOn===opt.v ? `2px solid ${ti.color}` : `2px solid #e5e7eb`,
+                    background: form.completeOn===opt.v ? ti.bg : '#fff',
+                    color: form.completeOn===opt.v ? ti.color : C.muted,
+                  }}>
+                    <div style={{ fontWeight:700 }}>{opt.icon} {opt.label}</div>
+                    <div style={{ fontSize:'10px', marginTop:'2px', opacity:.8 }}>{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div><LBL>제목 *</LBL><input style={iSt} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="예: 2026년 1분기 서류 제출" /></div>
@@ -380,7 +406,70 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
   const counts  = Object.fromEntries(
     Object.keys(SUBMIT_STATUS).map(k => [k, submits.filter(s=>s.status===k).length])
   )
-  const allReplied = (counts.replied + counts.submitted) >= targets.length && targets.length > 0
+
+  // 선생님 완료 여부 계산
+  const completeOn      = notice.completeOn || 'replied'
+  const allReplied      = targets.length > 0 && (counts.replied + counts.submitted) >= targets.length
+  const allSubmitted    = targets.length > 0 && counts.submitted >= targets.length
+  const remainReplied   = targets.length - (counts.replied + counts.submitted)
+  const remainSubmitted = targets.length - counts.submitted
+
+  // 업무완료 버튼 활성 조건
+  const teacherAllDone = completeOn === 'submitted' ? allSubmitted : allReplied
+  const remainCount    = completeOn === 'submitted' ? remainSubmitted : remainReplied
+
+  // 완료 현황 메시지
+  const StatusBanner = () => {
+    if (completeOn === 'replied') {
+      // 회신 업무
+      if (allReplied) return (
+        <div style={{ background:'#f0fdf4', borderRadius:'10px', padding:'12px 16px', border:'1px solid #86efac' }}>
+          <div style={{ fontSize:'13px', color:'#16a34a', fontWeight:700 }}>
+            ✅ 모든 선생님이 회신 완료했습니다. 업무완료 버튼을 눌러주세요.
+          </div>
+        </div>
+      )
+      return (
+        <div style={{ background:'#fffbeb', borderRadius:'10px', padding:'12px 16px', border:'1px solid #fcd34d' }}>
+          <div style={{ fontSize:'13px', color:'#92400e', fontWeight:600 }}>
+            ⏳ 아직 {remainReplied}명이 회신을 하지 않았습니다.
+          </div>
+        </div>
+      )
+    }
+
+    // 제출 업무 — 회신/제출 두 단계 표시
+    return (
+      <div style={{ background: allSubmitted?'#f0fdf4':'#f8fafc', borderRadius:'10px', padding:'12px 16px', border:`1px solid ${allSubmitted?'#86efac':'#e5e7eb'}` }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+          {/* 회신 현황 */}
+          <div style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px' }}>
+            {allReplied
+              ? <span style={{ color:'#16a34a', fontWeight:700 }}>✅ 모든 선생님 회신완료.</span>
+              : <span style={{ color:'#d97706', fontWeight:600 }}>⏳ 회신 대기 {remainReplied}명.</span>
+            }
+          </div>
+          {/* 제출 현황 */}
+          <div style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px' }}>
+            {allSubmitted
+              ? <span style={{ color:'#16a34a', fontWeight:700 }}>✅ 모든 선생님 제출완료.</span>
+              : <span style={{ color:'#2563eb', fontWeight:600 }}>📎 제출 대기 {remainSubmitted}명.</span>
+            }
+          </div>
+          {allReplied && !allSubmitted && (
+            <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'2px' }}>
+              모든 선생님이 회신했지만 아직 제출이 완료되지 않았습니다.
+            </div>
+          )}
+          {allSubmitted && (
+            <div style={{ fontSize:'12px', color:'#16a34a', marginTop:'2px', fontWeight:600 }}>
+              확인 후 업무완료 버튼을 눌러주세요! 🎉
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   // 업무 전체 상태 변경
   const setNoticeStatus = async (status) => {
@@ -411,7 +500,13 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
           <span style={{ fontSize:'13px', color:C.muted }}>대상 <strong style={{ color:C.text }}>{targets.length}명</strong></span>
           {notice.startDate && <span style={{ fontSize:'12px', color:C.muted }}>📅 {notice.startDate}{notice.endDate?` ~ ${notice.endDate}`:''}</span>}
           {notice.dueDate   && <span style={{ fontSize:'12px', color:C.muted }}>⏰ 마감 {notice.dueDate}</span>}
+          <span style={{ fontSize:'12px', fontWeight:600, color:completeOn==='submitted'?'#2563eb':'#d97706', background:completeOn==='submitted'?'#eff6ff':'#fffbeb', padding:'2px 8px', borderRadius:'999px' }}>
+            완료조건: {completeOn==='submitted'?'📎 제출 완료':'✉️ 회신 완료'}
+          </span>
         </div>
+
+        {/* 선생님 완료 현황 요약 */}
+        <StatusBanner />
 
         {/* 개별 선생님 상태 요약 */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
@@ -482,12 +577,26 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
                   cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
                 }}>💾 업무중 저장</button>
               )}
-              <button onClick={()=>setNoticeStatus('done')} style={{
-                padding:'9px 18px', borderRadius:'9px', border:'none',
-                background:'#16a34a', color:'#fff', fontWeight:700, fontSize:'13px',
-                cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                boxShadow:'0 2px 8px rgba(22,163,74,0.3)',
-              }}>✅ 업무완료</button>
+              {/* 업무완료 — 선생님 완료 후에만 활성 */}
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'4px' }}>
+                <button
+                  onClick={() => teacherAllDone && setNoticeStatus('done')}
+                  style={{
+                    padding:'9px 18px', borderRadius:'9px', border:'none',
+                    background: teacherAllDone ? '#16a34a' : '#e5e7eb',
+                    color: teacherAllDone ? '#fff' : '#9ca3af',
+                    fontWeight:700, fontSize:'13px',
+                    cursor: teacherAllDone ? 'pointer' : 'not-allowed',
+                    fontFamily:'Noto Sans KR, sans-serif',
+                    boxShadow: teacherAllDone ? '0 2px 8px rgba(22,163,74,0.3)' : 'none',
+                  }}
+                >✅ 업무완료</button>
+                {!teacherAllDone && (
+                  <span style={{ fontSize:'10px', color:'#9ca3af' }}>
+                    {remainCount}명 {completeOn==='submitted'?'제출':'회신'} 대기중
+                  </span>
+                )}
+              </div>
             </>
           )}
           {notice.status === 'done' && (
@@ -1872,13 +1981,281 @@ function ConnectTab({ session }) {
   )
 }
 
+// ── 학교 담당자 대시보드
+function SchoolDashboard({ session, onNav }) {
+  const [notices,  setNotices]  = useState([])
+  const [submits,  setSubmits]  = useState([])
+  const [teachers, setTeachers] = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [calYear,  setCalYear]  = useState(new Date().getFullYear())
+  const [calMonth, setCalMonth] = useState(new Date().getMonth())
+  const [selDate,  setSelDate]  = useState(null)
+
+  const today = new Date().toISOString().slice(0,10)
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      try {
+        const [n, t, s] = await Promise.all([
+          dbCall('getAll','schoolNotices').then(d=>(d||[]).filter(x=>x.adminId===session.adminId)),
+          dbCall('getAll','schoolAdminTeachers').then(d=>(d||[]).filter(x=>x.adminId===session.adminId&&x.active!==false)),
+          dbCall('getAll','schoolNoticeSubmits').then(d=>(d||[]).filter(x=>x.adminId===session.adminId)),
+        ])
+        setNotices(n); setTeachers(t); setSubmits(s)
+      } catch {}
+      setLoading(false)
+    }
+    load()
+  }, [session.adminId])
+
+  // 업무 상태 계산
+  const getNoticeStatus = (notice) => {
+    const subs = submits.filter(s => s.noticeId === notice.id)
+    const total = (notice.targetTeacherIds||[]).length
+    if (!total) return { pending:0, replied:0, submitted:0, total:0 }
+    return {
+      total,
+      pending:   subs.filter(s=>s.status==='pending').length,
+      replied:   subs.filter(s=>s.status==='replied').length,
+      submitted: subs.filter(s=>s.status==='submitted').length,
+    }
+  }
+
+  // 달력에 표시할 이벤트 수집
+  const getEventsForDate = (dateStr) => {
+    const events = []
+    notices.forEach(n => {
+      if (n.startDate && n.startDate <= dateStr && (!n.endDate || n.endDate >= dateStr))
+        events.push({ type:'period', notice:n, color:'#3b82f6' })
+      if (n.dueDate === dateStr)
+        events.push({ type:'due', notice:n, color:'#ef4444' })
+    })
+    return events
+  }
+
+  // 업무 분류
+  const activeNotices = notices.filter(n => n.status !== 'done')
+  const urgentNotices = activeNotices.filter(n => n.dueDate && n.dueDate <= today && n.dueDate >= today)
+  const overdueNotices = activeNotices.filter(n => n.dueDate && n.dueDate < today)
+  const needActionNotices = activeNotices.filter(n => {
+    const st = getNoticeStatus(n)
+    return st.pending > 0
+  })
+
+  // 달력 렌더
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate()
+  const firstDay    = new Date(calYear, calMonth, 1).getDay()
+  const DAYS_KO     = ['일','월','화','수','목','금','토']
+  const prevMonth   = () => calMonth===0 ? (setCalYear(y=>y-1),setCalMonth(11)) : setCalMonth(m=>m-1)
+  const nextMonth   = () => calMonth===11 ? (setCalYear(y=>y+1),setCalMonth(0)) : setCalMonth(m=>m+1)
+
+  const calDays = []
+  for (let i=0; i<firstDay; i++) calDays.push(null)
+  for (let d=1; d<=daysInMonth; d++) calDays.push(d)
+
+  const selDateStr = selDate ? `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(selDate).padStart(2,'0')}` : null
+  const selEvents  = selDateStr ? getEventsForDate(selDateStr) : []
+
+  if (loading) return <div style={{ padding:'40px', textAlign:'center', color:C.muted }}>불러오는 중...</div>
+
+  return (
+    <div style={{ padding:'24px', maxWidth:'1100px' }}>
+      {/* 헤더 */}
+      <div style={{ marginBottom:'20px' }}>
+        <div style={{ fontSize:'22px', fontWeight:800, color:C.text }}>🏠 대시보드</div>
+        <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>{session.admin?.schoolName} — {today}</div>
+      </div>
+
+      {/* 요약 카드 */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'12px', marginBottom:'24px' }}>
+        {[
+          { label:'전체 업무',     value:notices.length,         color:'#6b7280', bg:'#f9fafb', icon:'📋', nav:'notices' },
+          { label:'진행중',        value:activeNotices.length,   color:'#3b82f6', bg:'#eff6ff', icon:'🔄', nav:'notices' },
+          { label:'⚠️ 확인 필요', value:needActionNotices.length,color:'#d97706', bg:'#fffbeb', icon:'⚠️', nav:'notices' },
+          { label:'등록 선생님',   value:teachers.length,        color:'#16a34a', bg:'#f0fdf4', icon:'👩‍🏫', nav:'teachers' },
+        ].map(s => (
+          <div key={s.label} onClick={()=>onNav(s.nav)}
+            style={{ background:s.bg, borderRadius:'14px', padding:'16px 20px', border:`1px solid ${s.color}22`, cursor:'pointer', transition:'box-shadow .15s' }}
+            onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'}
+            onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
+            <div style={{ fontSize:'24px', fontWeight:800, color:s.color }}>{s.value}</div>
+            <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1.2fr', gap:'20px', alignItems:'start' }}>
+
+        {/* 달력 */}
+        <div style={{ background:C.card, borderRadius:'16px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+          {/* 달력 헤더 */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 18px', borderBottom:`1px solid ${C.border}`, background:'#f8fafc' }}>
+            <button onClick={prevMonth} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'18px', color:C.muted }}>‹</button>
+            <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{calYear}년 {calMonth+1}월</span>
+            <button onClick={nextMonth} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'18px', color:C.muted }}>›</button>
+          </div>
+          {/* 요일 헤더 */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', padding:'8px 8px 4px' }}>
+            {DAYS_KO.map((d,i) => (
+              <div key={d} style={{ textAlign:'center', fontSize:'11px', fontWeight:700, color:i===0?'#ef4444':i===6?'#3b82f6':C.muted, padding:'4px 0' }}>{d}</div>
+            ))}
+          </div>
+          {/* 날짜 */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', padding:'0 8px 8px', gap:'2px' }}>
+            {calDays.map((d, i) => {
+              if (!d) return <div key={i} />
+              const ds     = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+              const evts   = getEventsForDate(ds)
+              const isToday = ds === today
+              const isSel   = d === selDate
+              const hasDue  = evts.some(e=>e.type==='due')
+              const hasPeriod = evts.some(e=>e.type==='period')
+              return (
+                <div key={d} onClick={()=>setSelDate(d===selDate?null:d)} style={{
+                  textAlign:'center', padding:'6px 2px', borderRadius:'8px', cursor:'pointer',
+                  background: isSel?'#1e3a5f':isToday?'#eff6ff':'transparent',
+                  color: isSel?'#fff':isToday?'#3b82f6':C.text,
+                  fontWeight: isToday||isSel?700:400, fontSize:'13px',
+                  position:'relative',
+                }}>
+                  {d}
+                  {(hasDue||hasPeriod) && (
+                    <div style={{ display:'flex', justifyContent:'center', gap:'2px', marginTop:'2px' }}>
+                      {hasDue    && <div style={{ width:'5px', height:'5px', borderRadius:'50%', background:'#ef4444' }} />}
+                      {hasPeriod && <div style={{ width:'5px', height:'5px', borderRadius:'50%', background:'#3b82f6' }} />}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {/* 달력 범례 */}
+          <div style={{ padding:'8px 16px 12px', display:'flex', gap:'12px', borderTop:`1px solid ${C.border}` }}>
+            <span style={{ fontSize:'11px', color:C.muted, display:'flex', alignItems:'center', gap:'4px' }}>
+              <div style={{ width:'6px', height:'6px', borderRadius:'50%', background:'#ef4444' }} />마감일
+            </span>
+            <span style={{ fontSize:'11px', color:C.muted, display:'flex', alignItems:'center', gap:'4px' }}>
+              <div style={{ width:'6px', height:'6px', borderRadius:'50%', background:'#3b82f6' }} />진행기간
+            </span>
+          </div>
+          {/* 선택 날짜 이벤트 */}
+          {selDateStr && selEvents.length > 0 && (
+            <div style={{ borderTop:`1px solid ${C.border}`, padding:'10px 14px', background:'#f8fafc' }}>
+              <div style={{ fontSize:'12px', fontWeight:700, color:C.text, marginBottom:'6px' }}>{selDateStr} 일정</div>
+              {selEvents.map((e,i) => (
+                <div key={i} onClick={()=>onNav('notices')} style={{ fontSize:'12px', color:e.color, padding:'3px 0', cursor:'pointer' }}>
+                  {e.type==='due'?'⏰ 마감':'📅 진행중'} — {e.notice.title}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 업무 현황 */}
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+
+          {/* 확인 필요 */}
+          <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+            <div style={{ padding:'12px 16px', background:'#fffbeb', borderBottom:`1px solid #fcd34d`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span style={{ fontSize:'13px', fontWeight:700, color:'#92400e' }}>⚠️ 확인이 필요한 업무</span>
+              <span style={{ fontSize:'11px', color:'#92400e' }}>{needActionNotices.length}건</span>
+            </div>
+            {needActionNotices.length === 0 ? (
+              <div style={{ padding:'16px', textAlign:'center', color:C.muted, fontSize:'13px' }}>모두 처리 완료 🎉</div>
+            ) : (
+              needActionNotices.slice(0,5).map(n => {
+                const st = getNoticeStatus(n)
+                const notReplied = st.pending
+                const subs = submits.filter(s=>s.noticeId===n.id&&s.status==='pending')
+                const pendingTeachers = subs.map(s=>{
+                  const t = teachers.find(x=>x.teacherId===s.teacherId||x.id===s.teacherId)
+                  return t?.teacherName || '?'
+                }).filter(Boolean)
+                return (
+                  <div key={n.id} onClick={()=>onNav('notices')} style={{ padding:'10px 16px', borderBottom:`1px solid ${C.border}`, cursor:'pointer' }}
+                    onMouseEnter={e=>e.currentTarget.style.background='#fffbeb'}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{n.title}</div>
+                    <div style={{ fontSize:'11px', color:'#d97706', marginTop:'3px' }}>
+                      미확인 {notReplied}명 {pendingTeachers.length>0?`— ${pendingTeachers.slice(0,3).join(', ')}${pendingTeachers.length>3?` 외 ${pendingTeachers.length-3}명`:''}`:''}</div>
+                    {n.dueDate && <div style={{ fontSize:'11px', color:n.dueDate<today?'#ef4444':C.muted, marginTop:'2px' }}>마감 {n.dueDate}{n.dueDate<today?' (초과)':''}</div>}
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {/* 마감 초과 */}
+          {overdueNotices.length > 0 && (
+            <div style={{ background:C.card, borderRadius:'14px', border:'1px solid #fca5a5', overflow:'hidden' }}>
+              <div style={{ padding:'12px 16px', background:'#fef2f2', borderBottom:'1px solid #fca5a5' }}>
+                <span style={{ fontSize:'13px', fontWeight:700, color:'#991b1b' }}>🚨 마감 초과 업무 — {overdueNotices.length}건</span>
+              </div>
+              {overdueNotices.map(n => (
+                <div key={n.id} onClick={()=>onNav('notices')} style={{ padding:'10px 16px', borderBottom:`1px solid ${C.border}`, cursor:'pointer', fontSize:'13px' }}
+                  onMouseEnter={e=>e.currentTarget.style.background='#fef2f2'}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <span style={{ fontWeight:600, color:C.text }}>{n.title}</span>
+                  <span style={{ fontSize:'11px', color:'#ef4444', marginLeft:'8px' }}>마감 {n.dueDate}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 전체 업무 현황 */}
+          <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+            <div style={{ padding:'12px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}` }}>
+              <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>📋 전체 업무 현황</span>
+            </div>
+            {activeNotices.length === 0 ? (
+              <div style={{ padding:'16px', textAlign:'center', color:C.muted, fontSize:'13px' }}>진행중인 업무가 없습니다</div>
+            ) : (
+              activeNotices.map(n => {
+                const st = getNoticeStatus(n)
+                const completeCount = n.completeOn==='submitted' ? st.submitted : (st.replied + st.submitted)
+                const rate = st.total > 0 ? Math.round(completeCount/st.total*100) : 0
+                const typeI = n.type==='invite_connect'?{icon:'🔗',color:'#3b82f6'}:n.type==='invite_signup'?{icon:'📧',color:'#f97316'}:n.type==='task'?{icon:'📎',color:'#d97706'}:{icon:'📋',color:'#6b7280'}
+                return (
+                  <div key={n.id} onClick={()=>onNav('notices')} style={{ padding:'10px 16px', borderBottom:`1px solid ${C.border}`, cursor:'pointer' }}
+                    onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5px' }}>
+                      <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                        <span style={{ fontSize:'11px', color:typeI.color }}>{typeI.icon}</span>
+                        <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{n.title}</span>
+                      </div>
+                      <span style={{ fontSize:'12px', fontWeight:700, color:rate===100?'#16a34a':C.primary }}>{rate}%</span>
+                    </div>
+                    <div style={{ height:'4px', background:'#e5e7eb', borderRadius:'999px', overflow:'hidden' }}>
+                      <div style={{ width:`${rate}%`, height:'100%', background:rate===100?'#16a34a':C.primary, borderRadius:'999px', transition:'width .4s' }} />
+                    </div>
+                    <div style={{ fontSize:'11px', color:C.muted, marginTop:'4px', display:'flex', gap:'10px' }}>
+                      <span>미확인 {st.pending}</span>
+                      <span>회신 {st.replied}</span>
+                      {n.type==='task'&&<span>제출 {st.submitted}</span>}
+                      {n.dueDate&&<span style={{color:n.dueDate<today?'#ef4444':C.muted}}>마감 {n.dueDate}</span>}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function SchoolAdminApp({ session, onLogout }) {
-  const [page, setPage] = useState('notices')
+  const [page, setPage] = useState('dashboard')
 
   return (
     <div style={{ display:'flex', minHeight:'100vh', background:'#f1f5f9', fontFamily:'Noto Sans KR, sans-serif' }}>
       <Sidebar session={session} page={page} onNav={setPage} onLogout={onLogout} />
       <main style={{ flex:1, overflowY:'auto' }}>
+        {page === 'dashboard' && <SchoolDashboard session={session} onNav={setPage} />}
         {page === 'notices'  && <NoticesTab session={session} />}
         {page === 'subjects' && <SubjectsTab session={session} />}
         {page === 'teachers' && <TeachersTab session={session} />}
