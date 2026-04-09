@@ -1152,7 +1152,7 @@ function SubjectsTab({ session }) {
               </div>
               {/* 버튼 */}
               <div style={{ padding:'8px 10px', display:'flex', alignItems:'center', gap:'4px', justifyContent:'center' }}>
-                <button onClick={() => openEdit(s)} style={{ padding:'5px 10px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', color:C.text, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>수정</button>
+                <button onClick={e => { e.stopPropagation(); openEdit(s) }} style={{ padding:'5px 10px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', color:C.text, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>수정</button>
                 {delId===s.id ? (
                   <div style={{ display:'flex', gap:'3px' }}>
                     <button onClick={() => setDelId(null)} style={{ padding:'5px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
