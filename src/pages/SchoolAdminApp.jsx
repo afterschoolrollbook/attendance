@@ -9,9 +9,12 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { dbCall, FUNCTIONS_BASE } from '../lib/supabase.js'
 import { db } from '../lib/db.js'
+import { calcSessionDates, sortClasses, today as getToday } from '../lib/utils.js'
+import { ClassCalendar } from '../pages/ClassCalendar.jsx'
+import { TERM_TYPES, REPEAT_TYPES } from '../constants/config.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
-import { ConfirmDialog } from '../components/Atoms.jsx'
+import { ConfirmDialog, Btn, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState } from '../components/Atoms.jsx'
 
 const C = {
   primary:'#3b82f6', text:'#111827', muted:'#6b7280',
@@ -70,6 +73,8 @@ function Sidebar({ session, page, onNav, onLogout }) {
     { id:'subjects',  icon:'📚', label:'과목 관리' },
     { id:'teachers',  icon:'👩‍🏫', label:'선생님 현황' },
     { id:'connect',   icon:'🔗', label:'선생님 연결 관리' },
+    { id:'schoolcal', icon:'📅', label:'연간 수업 달력' },
+    { id:'classes',   icon:'📚', label:'수업 관리' },
     { id:'students',  icon:'👥', label:'학생 현황' },
   ]
   return (
@@ -1523,6 +1528,747 @@ function TeachersTab({ session }) {
 }
 
 // ── 학생 현황 탭
+
+// ── 공휴일 목록
+const SCH_HOLIDAYS = {
+  2025:[
+    '2025-01-01','2025-01-28','2025-01-29','2025-01-30','2025-03-01',
+    '2025-05-05','2025-05-06','2025-05-13','2025-06-06','2025-08-15',
+    '2025-10-03','2025-10-05','2025-10-06','2025-10-07','2025-10-08','2025-10-09','2025-12-25',
+  ],
+  2026:[
+    '2026-01-01','2026-01-28','2026-01-29','2026-01-30','2026-03-01',
+    '2026-05-05','2026-05-24','2026-06-03','2026-06-06','2026-08-15',
+    '2026-09-24','2026-09-25','2026-09-26','2026-10-03','2026-10-09','2026-12-25',
+  ],
+  2027:[
+    '2027-01-01','2027-02-16','2027-02-17','2027-02-18','2027-03-01',
+    '2027-05-05','2027-05-13','2027-06-06','2027-08-15',
+    '2027-09-14','2027-09-15','2027-09-16','2027-10-03','2027-10-09','2027-12-25',
+  ],
+}
+const SCH_HOLIDAY_NAMES = {
+  '2025-01-01':'신정','2025-01-28':'설날','2025-01-29':'설날','2025-01-30':'설날',
+  '2025-03-01':'삼일절','2025-05-05':'어린이날','2025-05-06':'어린이날 대체',
+  '2025-05-13':'부처님오신날','2025-06-06':'현충일','2025-08-15':'광복절',
+  '2025-10-03':'개천절','2025-10-05':'추석','2025-10-06':'추석','2025-10-07':'추석',
+  '2025-10-08':'추석 대체','2025-10-09':'한글날','2025-12-25':'성탄절',
+  '2026-01-01':'신정','2026-01-28':'설날','2026-01-29':'설날','2026-01-30':'설날',
+  '2026-03-01':'삼일절','2026-05-05':'어린이날','2026-05-24':'부처님오신날',
+  '2026-06-03':'지방선거일','2026-06-06':'현충일','2026-08-15':'광복절',
+  '2026-09-24':'추석','2026-09-25':'추석','2026-09-26':'추석',
+  '2026-10-03':'개천절','2026-10-09':'한글날','2026-12-25':'성탄절',
+}
+
+function schEmptyForm() {
+  return {
+    organization:'', className:'', section:'',
+    termType:'semester', termCount:4, termSizes:[4,4,4,4],
+    days:[], repeatType:'every', time:'', timeEnd:'',
+    startDate:'', endDate:'', description:'',
+    cancelledDates:[], makeupDates:[],
+    alarm:{ enabled:false, minutesBefore:10 },
+    alarmEnd:{ enabled:false, minutesBefore:10 },
+    promotionImgs:[], noticeFiles:[], templateFile:null,
+  }
+}
+
+
+// ══════════════════════════════════════════════════════
+// 연간 수업 달력 탭 (학교 담당자 전용 — schoolCalendar 테이블)
+// ══════════════════════════════════════════════════════
+const DAY_ORDER_CAL = ['월','화','수','목','금','토','일']
+
+function schCalEmptyForm() {
+  return {
+    title: '',           // 일정명 (예: 2026 로봇과학 월요일)
+    days: [],            // 요일 배열
+    termType: 'semester',
+    termCount: 4,
+    termSizes: [4,4,4,4],
+    repeatType: 'every',
+    startDate: '', endDate: '',
+    cancelledDates: [],
+    makeupDates: [],
+    memo: '',
+  }
+}
+
+function SchoolCalendarTab({ session }) {
+  const { success, error } = useToast()
+  const [items,      setItems]      = useState([])   // schoolCalendar 레코드
+  const [loading,    setLoading]    = useState(true)
+  const [showModal,  setShowModal]  = useState(false)
+  const [editId,     setEditId]     = useState(null)
+  const [form,       setForm]       = useState(schCalEmptyForm())
+  const [tab,        setTab]        = useState('info')  // 'info' | 'calendar'
+  const [deleteId,   setDeleteId]   = useState(null)
+  const [selYear,    setSelYear]    = useState(String(CURRENT_YEAR))
+  const [selItem,    setSelItem]    = useState(null)   // 달력 미리보기용
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  const load = React.useCallback(async () => {
+    setLoading(true)
+    const data = await dbCall('getAll','schoolCalendar').catch(() => [])
+    const mine = (data||[]).filter(c => c.adminId === session.adminId)
+    setItems(mine)
+    setLoading(false)
+  }, [session.adminId])
+
+  useEffect(() => { load() }, [load])
+
+  const years = [...new Set(items.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
+  const filtered = items.filter(c => c.startDate?.slice(0,4) === selYear || (!selYear))
+
+  // 요일별 그룹
+  const grouped = {}
+  DAY_ORDER_CAL.forEach(d => { grouped[d] = [] })
+  filtered.forEach(c => {
+    (c.days||[]).forEach(d => {
+      if (!grouped[d]) grouped[d] = []
+      grouped[d].push(c)
+    })
+  })
+  const activeDays = DAY_ORDER_CAL.filter(d => grouped[d].length > 0)
+
+  const openAdd = () => {
+    setForm(schCalEmptyForm())
+    setEditId(null); setTab('info'); setShowModal(true)
+  }
+
+  const openEdit = (item) => {
+    setForm({
+      ...schCalEmptyForm(), ...item,
+      termCount:  item.termCount  || 4,
+      termSizes:  item.termSizes?.length > 0 ? item.termSizes : [4,4,4,4],
+      cancelledDates: item.cancelledDates || [],
+      makeupDates:    item.makeupDates    || [],
+    })
+    setEditId(item.id); setTab('info'); setShowModal(true)
+  }
+
+  const save = async () => {
+    if (!form.title.trim() || !form.days.length || !form.startDate || !form.endDate) {
+      error('필수 항목을 입력하세요 (일정명, 요일, 기간)'); return
+    }
+    try {
+      if (editId) {
+        await dbCall('update','schoolCalendar',{ id:editId, patch:{ ...form } })
+        success('수정되었습니다.')
+      } else {
+        await dbCall('upsert','schoolCalendar',{ data:{
+          ...form, id:uid(), adminId:session.adminId,
+          schoolName: session.admin?.schoolName||'',
+          createdAt: now(),
+        }})
+        success('등록되었습니다.')
+      }
+      setShowModal(false); load()
+    } catch { error('저장 중 오류가 발생했습니다.') }
+  }
+
+  const del = async () => {
+    try {
+      await dbCall('delete','schoolCalendar',{ id:deleteId })
+      success('삭제되었습니다.')
+      setDeleteId(null)
+      if (selItem?.id === deleteId) setSelItem(null)
+      load()
+    } catch { error('삭제 중 오류가 발생했습니다.') }
+  }
+
+  return (
+    <div style={{ padding:'24px', maxWidth:'1100px' }}>
+      {/* 헤더 */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+        <div>
+          <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>📅 연간 수업 달력</div>
+          <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>학교 공식 수업 일정을 등록하고 관리합니다</div>
+        </div>
+        <Btn onClick={openAdd}>+ 일정 등록</Btn>
+      </div>
+
+      {/* 연도 탭 */}
+      <div style={{ display:'flex', gap:'6px', marginBottom:'18px' }}>
+        {(years.length > 0 ? years : [String(CURRENT_YEAR)]).map(y => (
+          <button key={y} onClick={() => setSelYear(y)} style={{
+            padding:'6px 16px', borderRadius:'8px', border:'none', cursor:'pointer',
+            background: selYear===y ? '#1e3a5f' : '#f3f4f6',
+            color: selYear===y ? '#fff' : C.text,
+            fontWeight: selYear===y ? 700 : 400,
+            fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif',
+          }}>{y}년</button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'40px', color:C.muted }}>불러오는 중...</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'60px', color:C.muted, background:C.bg, borderRadius:'14px', border:`1px dashed ${C.border}` }}>
+          <div style={{ fontSize:'32px', marginBottom:'12px' }}>📅</div>
+          <div style={{ fontSize:'14px', fontWeight:600, marginBottom:'6px' }}>등록된 학교 일정이 없습니다</div>
+          <div style={{ fontSize:'13px' }}>+ 일정 등록 버튼을 눌러 요일별 수업 일정을 추가하세요</div>
+        </div>
+      ) : (
+        <div style={{ display:'flex', gap:'16px' }}>
+          {/* 요일별 목록 */}
+          <div style={{ flex:1 }}>
+            {activeDays.map(day => (
+              <div key={day} style={{ marginBottom:'20px' }}>
+                <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'8px', letterSpacing:'0.06em' }}>
+                  {day}요일 수업
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                  {grouped[day].map(item => {
+                    const sessions = calcSessionDates(item)
+                    const isSel = selItem?.id === item.id
+                    return (
+                      <div key={item.id}
+                        onClick={() => setSelItem(isSel ? null : item)}
+                        style={{
+                          background: isSel ? '#eff6ff' : C.card,
+                          borderRadius:'12px',
+                          border: `1.5px solid ${isSel ? C.primary : C.border}`,
+                          padding:'14px 16px', cursor:'pointer',
+                        }}
+                        onMouseEnter={e => { if(!isSel) e.currentTarget.style.background='#f8fafc' }}
+                        onMouseLeave={e => { if(!isSel) e.currentTarget.style.background=C.card }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                          <div>
+                            <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{item.title}</div>
+                            <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>
+                              {item.days?.join('·')}요일 · {item.startDate?.slice(5)} ~ {item.endDate?.slice(5)}
+                            </div>
+                          </div>
+                          <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                            <span style={{ fontSize:'11px', fontWeight:700, background:'#f0fdf4', color:'#16a34a', padding:'2px 8px', borderRadius:'999px' }}>
+                              총 {sessions.length}차시
+                            </span>
+                            <span style={{ fontSize:'11px', fontWeight:700, background:'#eff6ff', color:C.primary, padding:'2px 8px', borderRadius:'999px' }}>
+                              {item.termCount}텀
+                            </span>
+                          </div>
+                        </div>
+                        {/* 텀 구성 */}
+                        <div style={{ display:'flex', gap:'5px', marginTop:'8px', flexWrap:'wrap' }}>
+                          {Array.from({length:item.termCount||4},(_,i) => (
+                            <span key={i} style={{ fontSize:'11px', background:'#fff7ed', color:'#ea580c', padding:'1px 7px', borderRadius:'6px', fontWeight:600 }}>
+                              {i+1}텀 {(item.termSizes||[])[i]||4}차시
+                            </span>
+                          ))}
+                          {(item.cancelledDates||[]).length > 0 && (
+                            <span style={{ fontSize:'11px', background:'#fef2f2', color:'#ef4444', padding:'1px 7px', borderRadius:'6px' }}>
+                              휴일 {item.cancelledDates.length}일
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display:'flex', gap:'6px', justifyContent:'flex-end', marginTop:'10px' }} onClick={e => e.stopPropagation()}>
+                          <button onClick={() => openEdit(item)} style={{ padding:'5px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>편집</button>
+                          <button onClick={() => setDeleteId(item.id)} style={{ padding:'5px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 달력 미리보기 */}
+          {selItem && (
+            <div style={{ width:'420px', flexShrink:0 }}>
+              <div style={{ position:'sticky', top:'24px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px' }}>
+                <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'14px' }}>
+                  📅 {selItem.title} — 달력 미리보기
+                </div>
+                <ClassCalendar
+                  cls={selItem}
+                  onUpdate={async (updated) => {
+                    try {
+                      await dbCall('update','schoolCalendar',{ id:selItem.id, patch:{ cancelledDates:updated.cancelledDates, makeupDates:updated.makeupDates } })
+                      setSelItem(updated)
+                      load()
+                    } catch { error('저장 중 오류가 발생했습니다.') }
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 일정 등록/편집 모달 */}
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={editId ? '학교 일정 편집' : '학교 일정 등록'} width={640}>
+        {/* 서브탭 */}
+        <div style={{ display:'flex', marginBottom:'20px', borderBottom:`1px solid ${C.border}` }}>
+          {[{ key:'info', label:'기본 정보' },{ key:'calendar', label:'수업 달력' }].map(s => (
+            <button key={s.key} onClick={() => setTab(s.key)} style={{
+              padding:'10px 18px', border:'none', cursor:'pointer', background:'none',
+              color: tab===s.key ? '#1e3a5f' : '#9ca3af',
+              fontWeight: tab===s.key ? 700 : 400, fontSize:'14px',
+              borderBottom: tab===s.key ? '2px solid #1e3a5f' : '2px solid transparent',
+              fontFamily:'Noto Sans KR, sans-serif', marginBottom:'-1px',
+            }}>{s.label}</button>
+          ))}
+        </div>
+
+        {tab === 'info' && (
+          <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+            <Input label="일정명" value={form.title} onChange={v => set('title',v)} placeholder="예: 2026 로봇과학 월요일 수업" required />
+            <div>
+              <div style={{ fontSize:'13px', fontWeight:500, color:C.text, marginBottom:'8px' }}>수업 요일 <span style={{ color:'#ef4444' }}>*</span></div>
+              <DayPicker value={form.days} onChange={v => set('days',v)} />
+            </div>
+            <Select label="운영 방식" value={form.termType} onChange={v => set('termType',v)} options={TERM_TYPES} required />
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+              <Input label="시작일" value={form.startDate} onChange={v => set('startDate',v)} type="date" required />
+              <Input label="종료일" value={form.endDate} onChange={v => set('endDate',v)} type="date" required />
+            </div>
+
+            {/* 텀 구성 */}
+            <div style={{ background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:'12px', padding:'14px 16px' }}>
+              <div style={{ fontSize:'12px', fontWeight:700, color:'#ea580c', marginBottom:'10px' }}>📅 텀 구성</div>
+              <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px', flexWrap:'wrap' }}>
+                <span style={{ fontSize:'12px', fontWeight:600, color:C.text }}>총 텀 수</span>
+                {[1,2,3,4,5,6].map(n => (
+                  <button key={n} type="button" onClick={() => {
+                    const prev = form.termSizes||[4]
+                    const next = Array.from({length:n},(_,i) => prev[i]||4)
+                    set('termCount',n); set('termSizes',next)
+                  }} style={{ width:'32px', height:'32px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:'13px', fontWeight:700, background:(form.termCount||4)===n?'#f97316':'#f3f4f6', color:(form.termCount||4)===n?'#fff':'#374151', fontFamily:'Noto Sans KR, sans-serif' }}>{n}</button>
+                ))}
+              </div>
+              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                {Array.from({length:form.termCount||4},(_,i) => {
+                  const sizes = form.termSizes||[4,4,4,4]
+                  const start = sizes.slice(0,i).reduce((a,b)=>a+b,0)+1
+                  const end   = sizes.slice(0,i+1).reduce((a,b)=>a+b,0)
+                  return (
+                    <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'3px' }}>
+                      <label style={{ fontSize:'11px', color:'#ea580c', fontWeight:700 }}>{i+1}텀</label>
+                      <input type="number" min="1" max="99" value={sizes[i]||4}
+                        onChange={e => { const next=[...sizes]; next[i]=parseInt(e.target.value)||1; set('termSizes',next) }}
+                        style={{ width:'48px', padding:'6px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'13px', textAlign:'center', outline:'none' }} />
+                      <span style={{ fontSize:'10px', color:'#9ca3af' }}>{start}~{end}차시</span>
+                    </div>
+                  )
+                })}
+                <div style={{ fontSize:'12px', color:'#9ca3af', alignSelf:'flex-end', marginBottom:'18px' }}>
+                  = 총 {(form.termSizes||[4,4,4,4]).slice(0,form.termCount||4).reduce((a,b)=>a+b,0)}차시
+                </div>
+              </div>
+            </div>
+
+            {/* 공휴일 추가 */}
+            <div style={{ background:'#fafafa', borderRadius:'12px', border:`1px solid ${C.border}`, padding:'14px' }}>
+              <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'10px' }}>📌 휴일 추가</div>
+              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'8px' }}>
+                <input type="date" min={form.startDate} max={form.endDate}
+                  style={{ padding:'7px 10px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', outline:'none' }}
+                  onChange={e => {
+                    const date=e.target.value; if(!date) return
+                    if((form.cancelledDates||[]).some(c=>c.date===date)){ error('이미 추가된 날짜입니다.'); return }
+                    setForm(f=>({...f,cancelledDates:[...(f.cancelledDates||[]),{date,reason:'school_holiday',memo:''}]}))
+                    e.target.value=''
+                  }} />
+                <select style={{ padding:'7px 10px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', background:'#fff', outline:'none' }}
+                  onChange={e => {
+                    const date=e.target.value; if(!date) return
+                    if(!(form.cancelledDates||[]).some(c=>c.date===date))
+                      setForm(f=>({...f,cancelledDates:[...(f.cancelledDates||[]),{date,reason:'public_holiday',memo:SCH_HOLIDAY_NAMES[date]||'공휴일'}]}))
+                    e.target.value=''
+                  }} defaultValue="">
+                  <option value="">공휴일 빠른 추가</option>
+                  {(SCH_HOLIDAYS[parseInt(form.startDate?.slice(0,4))]||SCH_HOLIDAYS[2026]||[]).map(d => (
+                    <option key={d} value={d}>{d.slice(5)} {SCH_HOLIDAY_NAMES[d]||''}</option>
+                  ))}
+                </select>
+              </div>
+              {(form.cancelledDates||[]).length > 0 && (
+                <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                  {[...(form.cancelledDates||[])].sort((a,b)=>a.date.localeCompare(b.date)).map((c,i)=>(
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'5px 10px', background:'#fff', borderRadius:'7px', border:`1px solid ${C.border}` }}>
+                      <span style={{ fontSize:'12px', fontWeight:600, color:C.text, minWidth:'70px' }}>{c.date.slice(5)}</span>
+                      <span style={{ fontSize:'11px', color:C.muted, flex:1 }}>{c.memo||c.reason}</span>
+                      <button onClick={()=>setForm(f=>({...f,cancelledDates:(f.cancelledDates||[]).filter((_,j)=>j!==i)}))}
+                        style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'16px', padding:'0 4px' }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>메모 (선택)</label>
+              <textarea value={form.memo} onChange={e=>set('memo',e.target.value)} rows={2}
+                style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', resize:'vertical' }} />
+            </div>
+          </div>
+        )}
+
+        {tab === 'calendar' && (
+          <ClassCalendar cls={form} onUpdate={updated => setForm(updated)} />
+        )}
+
+        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', marginTop:'20px', paddingTop:'16px', borderTop:`1px solid ${C.border}` }}>
+          <Btn variant="ghost" onClick={() => setShowModal(false)}>취소</Btn>
+          <Btn onClick={save}>{editId ? '저장' : '등록'}</Btn>
+        </div>
+      </Modal>
+
+      {/* 삭제 확인 */}
+      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="일정 삭제" width={360}>
+        <p style={{ fontSize:'14px', color:C.text, marginBottom:'20px' }}>정말 삭제하시겠습니까?<br/>선생님들이 참조하는 학교 일정이 사라집니다.</p>
+        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+          <Btn variant="ghost" onClick={() => setDeleteId(null)}>취소</Btn>
+          <Btn variant="danger" onClick={del}>삭제</Btn>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
+
+// ── 수업 관리 탭
+function SchoolClassesTab({ session }) {
+  const { success, error } = useToast()
+  const [teachers,    setTeachers]    = useState([])
+  const [selTeacher,  setSelTeacher]  = useState(null)
+  const [classes,     setClasses]     = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [showModal,   setShowModal]   = useState(false)
+  const [editId,      setEditId]      = useState(null)
+  const [form,        setForm]        = useState(schEmptyForm())
+  const [tab,         setTab]         = useState('info')
+  const [deleteId,    setDeleteId]    = useState(null)
+  const [selYear,     setSelYear]     = useState('')
+  const [view,        setView]        = useState('요일별')
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  // 선생님 목록 로드
+  useEffect(() => {
+    DB.teachers(session.adminId).then(t => {
+      setTeachers(t)
+      if (t.length > 0) setSelTeacher(t[0])
+      setLoading(false)
+    })
+  }, [session.adminId])
+
+  // 선택된 선생님 수업 로드
+  const loadClasses = React.useCallback(async () => {
+    if (!selTeacher?.teacherId) { setClasses([]); return }
+    const data = await dbCall('getAll','classes').catch(() => [])
+    setClasses((data||[]).filter(c => c.teacherId === selTeacher.teacherId))
+  }, [selTeacher?.teacherId])
+
+  useEffect(() => { loadClasses() }, [loadClasses])
+
+  const t = getToday()
+  const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
+  const filtered = selYear ? classes.filter(c => c.startDate?.startsWith(selYear)) : classes
+
+  // 그룹핑
+  const DAY_ORDER_SCH = ['월','화','수','목','금','토','일']
+  const grouped = {}
+  filtered.forEach(cls => {
+    const key = view==='요일별' ? (cls.days?.join(', ')||'미설정')
+              : view==='학교별' ? (cls.organization||'미설정')
+              : (cls.className||'미설정')
+    if (!grouped[key]) grouped[key] = []
+    grouped[key].push(cls)
+  })
+  const sortedKeys = Object.keys(grouped).sort((a,b) => {
+    if (view==='요일별') return (DAY_ORDER_SCH.indexOf(a.split(', ')[0])??99) - (DAY_ORDER_SCH.indexOf(b.split(', ')[0])??99)
+    return a.localeCompare(b)
+  })
+
+  const openAdd = () => {
+    setForm({ ...schEmptyForm(), organization: selTeacher?.schoolName||session.admin?.schoolName||'' })
+    setEditId(null); setTab('info'); setShowModal(true)
+  }
+  const openEdit = (cls) => {
+    setForm({ ...schEmptyForm(), ...cls,
+      termCount: cls.termCount||4, termSizes: cls.termSizes?.length>0?cls.termSizes:[4,4,4,4],
+      cancelledDates: cls.cancelledDates||[], makeupDates: cls.makeupDates||[],
+      alarm: cls.alarm||{enabled:false,minutesBefore:10},
+      alarmEnd: cls.alarmEnd||{enabled:false,minutesBefore:10},
+    })
+    setEditId(cls.id); setTab('info'); setShowModal(true)
+  }
+
+  const save = async () => {
+    if (!form.organization.trim()||!form.className.trim()||!form.days.length||!form.startDate||!form.endDate) {
+      error('필수 항목을 입력하세요 (단체명, 수업명, 요일, 기간)'); return
+    }
+    try {
+      if (editId) {
+        await dbCall('update','classes',{ id:editId, patch:{ ...form } })
+        success('수정되었습니다.')
+      } else {
+        const newId = uid()
+        await dbCall('upsert','classes',{ data:{ ...form, id:newId, teacherId:selTeacher.teacherId, createdAt:now() } })
+        success('등록되었습니다.')
+      }
+      setShowModal(false); loadClasses()
+    } catch { error('저장 중 오류가 발생했습니다.') }
+  }
+
+  const del = async () => {
+    try {
+      await dbCall('delete','classes',{ id:deleteId })
+      success('삭제되었습니다.')
+      setDeleteId(null); loadClasses()
+    } catch { error('삭제 중 오류가 발생했습니다.') }
+  }
+
+  if (loading) return <div style={{ padding:'40px', textAlign:'center', color:C.muted }}>불러오는 중...</div>
+
+  return (
+    <div style={{ display:'flex', minHeight:'100%' }}>
+      {/* 선생님 선택 사이드 */}
+      <div style={{ width:'160px', flexShrink:0, borderRight:`1px solid ${C.border}`, padding:'16px 10px', background:'#f8fafc' }}>
+        <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>선생님 선택</div>
+        {teachers.map(t => (
+          <button key={t.id} onClick={() => setSelTeacher(t)} style={{
+            width:'100%', padding:'8px 10px', borderRadius:'10px', marginBottom:'4px',
+            border:`1.5px solid ${selTeacher?.id===t.id?C.primary:C.border}`,
+            background: selTeacher?.id===t.id?'#eff6ff':'#fff',
+            color: selTeacher?.id===t.id?C.primary:C.text,
+            fontSize:'12px', fontWeight: selTeacher?.id===t.id?700:400,
+            cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif',
+          }}>
+            <div>{t.teacherName}</div>
+            <div style={{ fontSize:'10px', color:C.muted }}>{t.subject||''}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* 메인 */}
+      <div style={{ flex:1, padding:'24px', overflowY:'auto' }}>
+        {!selTeacher ? (
+          <div style={{ textAlign:'center', padding:'40px', color:C.muted }}>선생님을 선택하세요</div>
+        ) : (
+          <>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
+              <div>
+                <div style={{ fontSize:'18px', fontWeight:800, color:C.text }}>📚 수업 관리</div>
+                <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>{selTeacher.teacherName} 선생님</div>
+              </div>
+              <Btn onClick={openAdd}>+ 수업 등록</Btn>
+            </div>
+
+            {/* 연도 필터 */}
+            {years.length > 0 && (
+              <div style={{ display:'flex', gap:'6px', marginBottom:'10px', flexWrap:'wrap' }}>
+                <button onClick={() => setSelYear('')} style={{ padding:'5px 12px', borderRadius:'8px', border:'none', cursor:'pointer', background:selYear===''?'#18181b':'#f3f4f6', color:selYear===''?'#fff':'#374151', fontWeight:selYear===''?700:400, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>전체</button>
+                {years.map(y => (
+                  <button key={y} onClick={() => setSelYear(y)} style={{ padding:'5px 12px', borderRadius:'8px', border:'none', cursor:'pointer', background:selYear===y?'#18181b':'#f3f4f6', color:selYear===y?'#fff':'#374151', fontWeight:selYear===y?700:400, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>{y}년</button>
+                ))}
+              </div>
+            )}
+
+            {/* 뷰 탭 */}
+            <div style={{ display:'flex', gap:'6px', marginBottom:'16px' }}>
+              {['요일별','학교별','과목별'].map(v => (
+                <button key={v} onClick={() => setView(v)} style={{ padding:'6px 14px', borderRadius:'8px', border:'none', cursor:'pointer', background:view===v?'#f97316':'#f3f4f6', color:view===v?'#fff':'#374151', fontWeight:view===v?600:400, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif' }}>{v}</button>
+              ))}
+            </div>
+
+            {filtered.length === 0 ? (
+              <div style={{ textAlign:'center', padding:'40px', color:C.muted, background:C.bg, borderRadius:'12px', border:`1px dashed ${C.border}` }}>
+                등록된 수업이 없습니다. + 수업 등록 버튼을 눌러 추가하세요.
+              </div>
+            ) : (
+              sortedKeys.map(group => (
+                <div key={group} style={{ marginBottom:'24px' }}>
+                  <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'8px' }}>
+                    {view==='요일별' ? `${group} 수업` : group}
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px,1fr))', gap:'12px' }}>
+                    {grouped[group].map(cls => {
+                      const sessions = calcSessionDates(cls)
+                      const upcoming = sessions.find(d => d >= t)
+                      return (
+                        <div key={cls.id} onClick={() => openEdit(cls)} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px', cursor:'pointer' }}
+                          onMouseEnter={e => e.currentTarget.style.background='#f8fafc'}
+                          onMouseLeave={e => e.currentTarget.style.background=C.card}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}>
+                            <div>
+                              <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{cls.className}</div>
+                              {cls.section && <div style={{ fontSize:'11px', color:C.muted }}>{cls.section}반</div>}
+                            </div>
+                            <span style={{ fontSize:'11px', fontWeight:700, background:'#fff7ed', color:'#f97316', padding:'2px 8px', borderRadius:'999px' }}>{cls.days?.join(', ')}</span>
+                          </div>
+                          <div style={{ fontSize:'12px', color:C.muted, marginBottom:'6px' }}>{cls.organization}</div>
+                          <div style={{ fontSize:'11px', color:'#9ca3af', marginBottom:'10px' }}>
+                            📅 {cls.startDate?.slice(5)} ~ {cls.endDate?.slice(5)}
+                            {cls.time && ` · 🕐 ${cls.time}`}
+                          </div>
+                          <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', marginBottom:'10px' }}>
+                            <span style={{ fontSize:'11px', background:'#eff6ff', color:C.primary, padding:'2px 7px', borderRadius:'999px', fontWeight:600 }}>총 {sessions.length}차시</span>
+                            {upcoming && <span style={{ fontSize:'11px', background:'#fffbeb', color:'#d97706', padding:'2px 7px', borderRadius:'999px', fontWeight:600 }}>다음 {upcoming.slice(5)}</span>}
+                          </div>
+                          <div style={{ display:'flex', justifyContent:'flex-end', gap:'6px' }} onClick={e => e.stopPropagation()}>
+                            <button onClick={() => openEdit(cls)} style={{ padding:'5px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>편집</button>
+                            <button onClick={() => setDeleteId(cls.id)} style={{ padding:'5px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </>
+        )}
+      </div>
+
+      {/* 수업 등록/편집 모달 */}
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={editId ? '수업 편집' : '수업 등록'} width={660}>
+        {/* 서브탭 */}
+        <div style={{ display:'flex', gap:'0', marginBottom:'20px', borderBottom:`1px solid ${C.border}`, overflowX:'auto' }}>
+          {[
+            { key:'info',     label:'기본 정보' },
+            { key:'calendar', label:'수업 달력' },
+          ].map(s => (
+            <button key={s.key} onClick={() => setTab(s.key)} style={{
+              padding:'10px 16px', border:'none', cursor:'pointer', background:'none', whiteSpace:'nowrap',
+              color: tab===s.key?'#f97316':'#9ca3af',
+              fontWeight: tab===s.key?700:400, fontSize:'14px',
+              borderBottom: tab===s.key?'2px solid #f97316':'2px solid transparent',
+              fontFamily:'Noto Sans KR, sans-serif', marginBottom:'-1px',
+            }}>{s.label}</button>
+          ))}
+        </div>
+
+        {/* 기본 정보 */}
+        {tab === 'info' && (
+          <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+              <Input label="단체명(학교명)" value={form.organization} onChange={v => set('organization',v)} required />
+              <Input label="수업명(과목)" value={form.className} onChange={v => set('className',v)} required />
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'12px' }}>
+              <Input label="반 (선택)" value={form.section} onChange={v => set('section',v)} />
+              <Input label="시작시간" value={form.time} onChange={v => set('time',v)} placeholder="09:00" />
+              <Input label="종료시간" value={form.timeEnd} onChange={v => set('timeEnd',v)} placeholder="10:00" />
+            </div>
+            <Select label="수업 운영 방식" value={form.termType} onChange={v => set('termType',v)} options={TERM_TYPES} required />
+            <div>
+              <div style={{ fontSize:'13px', fontWeight:500, color:C.text, marginBottom:'8px' }}>수업 요일 <span style={{ color:'#ef4444' }}>*</span></div>
+              <DayPicker value={form.days} onChange={v => set('days',v)} />
+            </div>
+            <div>
+              <div style={{ fontSize:'13px', fontWeight:500, color:C.text, marginBottom:'8px' }}>반복 패턴</div>
+              <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                {[{ value:'every', label:'매주' }, ...REPEAT_TYPES.filter(r => r.value !== 'every')].map(rt => (
+                  <button key={rt.value} type="button" onClick={() => set('repeatType', rt.value)} style={{
+                    padding:'7px 14px', borderRadius:'8px',
+                    border:`1.5px solid ${form.repeatType===rt.value?'#f97316':'#e5e7eb'}`,
+                    background: form.repeatType===rt.value?'#f97316':'#fff',
+                    color: form.repeatType===rt.value?'#fff':'#374151',
+                    fontSize:'13px', fontWeight: form.repeatType===rt.value?700:400,
+                    cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                  }}>{rt.label}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+              <Input label="수업 시작일" value={form.startDate} onChange={v => set('startDate',v)} type="date" required />
+              <Input label="수업 종료일" value={form.endDate} onChange={v => set('endDate',v)} type="date" required />
+            </div>
+            {/* 텀 설정 */}
+            <div style={{ background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:'12px', padding:'14px 16px' }}>
+              <div style={{ fontSize:'12px', fontWeight:700, color:'#ea580c', marginBottom:'10px' }}>📅 텀 구성</div>
+              <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
+                <span style={{ fontSize:'12px', fontWeight:600, color:C.text }}>총 텀 수</span>
+                {[1,2,3,4,5,6].map(n => (
+                  <button key={n} type="button" onClick={() => {
+                    const prev = form.termSizes||[4]
+                    const next = Array.from({length:n},(_,i) => prev[i]||4)
+                    set('termCount',n); set('termSizes',next)
+                  }} style={{ width:'32px', height:'32px', borderRadius:'8px', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:700, background:(form.termCount||4)===n?'#f97316':'#f3f4f6', color:(form.termCount||4)===n?'#fff':'#374151' }}>{n}</button>
+                ))}
+              </div>
+              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                {Array.from({length:form.termCount||4},(_,i) => {
+                  const sizes = form.termSizes||[4,4,4,4]
+                  return (
+                    <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'3px' }}>
+                      <label style={{ fontSize:'11px', color:'#ea580c', fontWeight:700 }}>{i+1}텀</label>
+                      <input type="number" min="1" max="99" value={sizes[i]||4}
+                        onChange={e => { const next=[...sizes]; next[i]=parseInt(e.target.value)||1; set('termSizes',next) }}
+                        style={{ width:'48px', padding:'6px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'13px', textAlign:'center', outline:'none' }} />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            {/* 공휴일 추가 */}
+            <div style={{ background:'#fafafa', borderRadius:'12px', border:`1px solid ${C.border}`, padding:'14px' }}>
+              <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'10px' }}>📌 휴일 추가</div>
+              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'8px' }}>
+                <input type="date" min={form.startDate} max={form.endDate}
+                  style={{ padding:'7px 10px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', outline:'none' }}
+                  onChange={e => {
+                    const date=e.target.value; if(!date) return
+                    if((form.cancelledDates||[]).some(c=>c.date===date)) { error('이미 추가된 날짜입니다.'); return }
+                    setForm(f=>({...f, cancelledDates:[...(f.cancelledDates||[]),{date,reason:'school_holiday',memo:''}]}))
+                    e.target.value=''
+                  }} />
+                <select style={{ padding:'7px 10px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', background:'#fff', outline:'none' }}
+                  onChange={e => {
+                    const date=e.target.value; if(!date) return
+                    if(!(form.cancelledDates||[]).some(c=>c.date===date))
+                      setForm(f=>({...f, cancelledDates:[...(f.cancelledDates||[]),{date,reason:'public_holiday',memo:SCH_HOLIDAY_NAMES[date]||'공휴일'}]}))
+                    e.target.value=''
+                  }} defaultValue="">
+                  <option value="">공휴일 빠른 추가</option>
+                  {(SCH_HOLIDAYS[parseInt(form.startDate?.slice(0,4))]||SCH_HOLIDAYS[2026]||[]).map(d => (
+                    <option key={d} value={d}>{d.slice(5)} {SCH_HOLIDAY_NAMES[d]||''}</option>
+                  ))}
+                </select>
+              </div>
+              {(form.cancelledDates||[]).length > 0 && (
+                <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                  {[...(form.cancelledDates||[])].sort((a,b)=>a.date.localeCompare(b.date)).map((c,i) => (
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'5px 10px', background:'#fff', borderRadius:'7px', border:`1px solid ${C.border}` }}>
+                      <span style={{ fontSize:'12px', fontWeight:600, color:C.text, minWidth:'70px' }}>{c.date.slice(5)}</span>
+                      <span style={{ fontSize:'11px', color:C.muted, flex:1 }}>{c.memo||c.reason}</span>
+                      <button onClick={() => setForm(f=>({...f, cancelledDates:(f.cancelledDates||[]).filter((_,j)=>j!==i)}))}
+                        style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'16px', padding:'0 4px' }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Textarea label="메모 (선택)" value={form.description} onChange={v => set('description',v)} rows={2} />
+          </div>
+        )}
+
+        {/* 수업 달력 */}
+        {tab === 'calendar' && (
+          <ClassCalendar cls={form} onUpdate={updated => setForm(updated)} />
+        )}
+
+        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', marginTop:'20px', paddingTop:'16px', borderTop:`1px solid ${C.border}` }}>
+          <Btn variant="ghost" onClick={() => setShowModal(false)}>취소</Btn>
+          <Btn onClick={save}>{editId ? '저장' : '등록'}</Btn>
+        </div>
+      </Modal>
+
+      {/* 삭제 확인 모달 */}
+      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="수업 삭제" width={360}>
+        <p style={{ fontSize:'14px', color:C.text, marginBottom:'20px' }}>정말 삭제하시겠습니까?</p>
+        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+          <Btn variant="ghost" onClick={() => setDeleteId(null)}>취소</Btn>
+          <Btn variant="danger" onClick={del}>삭제</Btn>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
 function StudentsTab({ session }) {
   const [teachers,   setTeachers]   = useState([])
   const [classMap,   setClassMap]   = useState({}) // teacherId → classes[]
@@ -2686,6 +3432,8 @@ export function SchoolAdminApp({ session, onLogout }) {
           {page === 'subjects' && <SubjectsTab session={session} />}
           {page === 'teachers' && <TeachersTab session={session} />}
           {page === 'connect'  && <ConnectTab session={session} />}
+          {page === 'schoolcal' && <SchoolCalendarTab session={session} />}
+        {page === 'classes'  && <SchoolClassesTab session={session} />}
           {page === 'students' && <StudentsTab session={session} />}
         </main>
       </div>
