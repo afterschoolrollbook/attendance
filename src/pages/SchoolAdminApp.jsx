@@ -2257,229 +2257,201 @@ function SchoolClassesTab({ session }) {
 
 function StudentsTab({ session }) {
   const [teachers,   setTeachers]   = useState([])
-  const [classMap,   setClassMap]   = useState({}) // teacherId → classes[]
-  const [studentMap, setStudentMap] = useState({}) // teacherId → students[]
+  const [classMap,   setClassMap]   = useState({})
+  const [studentMap, setStudentMap] = useState({})
+  const [subjects,   setSubjects]   = useState([])
   const [loading,    setLoading]    = useState(true)
-  const [selTeacher, setSelTeacher] = useState(null)
+
+  // 필터
   const [selYear,    setSelYear]    = useState(String(CURRENT_YEAR))
-  const [selSection, setSelSection] = useState('A')  // 'A' | 'B' | 'all'
+  const [selDay,     setSelDay]     = useState('all')
+  const [selSubject, setSelSubject] = useState('all')
+  const [selTerm,    setSelTerm]    = useState('all')
+  const [selOps,     setSelOps]     = useState('all') // semester|quarter|all
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       const t = await DB.teachers(session.adminId)
       setTeachers(t)
+      const subj = await dbCall('getAll','schoolSubjects').catch(()=>[])
+      setSubjects((subj||[]).filter(s=>s.adminId===session.adminId&&s.active!==false))
       const cMap = {}, sMap = {}
       await Promise.all(t.map(async teacher => {
         if (!teacher.teacherId) return
         const [classes, students] = await Promise.all([
-          dbCall('where', 'classes', { where: { teacherId: teacher.teacherId } }).catch(() => []),
-          dbCall('where', 'students', { where: { teacherId: teacher.teacherId } }).catch(() => []),
+          dbCall('where','classes',{where:{teacherId:teacher.teacherId}}).catch(()=>[]),
+          dbCall('where','students',{where:{teacherId:teacher.teacherId}}).catch(()=>[]),
         ])
-        cMap[teacher.teacherId] = classes || []
-        sMap[teacher.teacherId] = students || []
+        cMap[teacher.teacherId] = classes||[]
+        sMap[teacher.teacherId] = students||[]
       }))
       setClassMap(cMap)
       setStudentMap(sMap)
-      if (t.length > 0) setSelTeacher(t[0])
       setLoading(false)
     }
     load()
   }, [session.adminId])
 
-  const TERM_LABEL = { semester: '학기제', quarter: '분기제', monthly: '월정액', custom: '자유' }
+  const TERM_LABEL = { semester:'학기제', quarter:'분기제', monthly:'월정액', custom:'자유' }
 
-  // 선택된 선생님의 수업 목록
-  const allClasses = selTeacher ? (classMap[selTeacher.teacherId] || []) : []
+  // 전체 수업 목록
+  const allClasses = teachers.flatMap(t => classMap[t.teacherId]||[])
 
   // 연도 목록
-  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
-  if (years.length > 0 && !years.includes(selYear)) { /* no-op, selYear유지 */ }
+  const years = [...new Set(allClasses.map(c=>c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
 
-  // 선택 연도의 수업만
-  const yearClasses = allClasses.filter(c => c.startDate?.slice(0,4) === selYear)
+  // 연도 필터
+  const yearClasses = allClasses.filter(c=>c.startDate?.slice(0,4)===selYear)
 
-  // termType / termCount 요약 (해당 연도 수업들 중 첫번째 기준)
-  const refClass = yearClasses[0]
-  const termLabel = refClass ? (TERM_LABEL[refClass.termType] || refClass.termType || '-') : '-'
-  const termCount = refClass ? (refClass.termCount || '-') : '-'
+  // 요일 목록
+  const allDays = [...new Set(yearClasses.flatMap(c=>c.days||[]))].filter(Boolean)
 
-  // 반(section) 목록
-  const sections = [...new Set(yearClasses.map(c => c.section || 'A').filter(Boolean))].sort()
+  // 과목 목록 (schoolSubjects 기준)
+  const yearSubjects = subjects.filter(s=>s.year==selYear)
 
-  // 선택된 반의 수업
-  const filteredClasses = selSection === 'all'
-    ? yearClasses
-    : yearClasses.filter(c => (c.section || 'A') === selSection)
+  // 텀 목록
+  const allTerms = [...new Set(yearClasses.map(c=>c.termCount).filter(Boolean))].sort((a,b)=>a-b)
 
-  // 해당 수업들의 classId 셋
-  const classIdSet = new Set(filteredClasses.map(c => c.id))
-
-  // 학생 리스트 — 해당 수업 중 하나라도 포함된 학생
-  const allStudents = selTeacher ? (studentMap[selTeacher.teacherId] || []) : []
-  const filteredStudents = allStudents.filter(s =>
-    (s.classIds || []).some(cid => classIdSet.has(cid))
-  )
-
-  // 학생별 수강 과목 (중복 표시)
-  const getSubjects = (s) => {
-    const cids = (s.classIds || []).filter(cid => classIdSet.has(cid))
-    return [...new Set(cids.map(cid => {
-      const cls = filteredClasses.find(c => c.id === cid)
-      return cls ? cls.className : null
-    }).filter(Boolean))]
+  // 필터 적용
+  let filtered = yearClasses
+  if (selDay !== 'all')     filtered = filtered.filter(c=>(c.days||[]).includes(selDay))
+  if (selOps !== 'all')     filtered = filtered.filter(c=>c.termType===selOps)
+  if (selTerm !== 'all')    filtered = filtered.filter(c=>String(c.termCount)===selTerm)
+  if (selSubject !== 'all') {
+    const subj = yearSubjects.find(s=>s.id===selSubject)
+    if (subj) {
+      const tids = new Set(subj.teacherIds||[])
+      filtered = filtered.filter(c=>tids.has(c.teacherId))
+    }
   }
+
+  const classIdSet = new Set(filtered.map(c=>c.id))
+
+  // 학생 목록 — 필터된 수업에 속한 학생
+  const allStudents = teachers.flatMap(t => studentMap[t.teacherId]||[])
+  const filteredStudents = allStudents.filter(s=>(s.classIds||[]).some(cid=>classIdSet.has(cid)))
+
+  // 학생별 선생님 + 과목
+  const getInfo = (s) => {
+    const cids = (s.classIds||[]).filter(cid=>classIdSet.has(cid))
+    const classes = cids.map(cid=>filtered.find(c=>c.id===cid)).filter(Boolean)
+    const teacher = teachers.find(t=>t.teacherId===s.teacherId)
+    const subjectNames = [...new Set(classes.map(c=>c.className).filter(Boolean))]
+    return { teacher, subjectNames }
+  }
+
+  const BtnFilter = ({val,cur,set,label}) => (
+    <button onClick={()=>set(val)} style={{
+      padding:'5px 12px', borderRadius:'20px', fontSize:'12px', fontWeight:cur===val?700:400,
+      border:`1.5px solid ${cur===val?C.primary:C.border}`,
+      background:cur===val?C.primary:'#fff',
+      color:cur===val?'#fff':C.text,
+      cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
+    }}>{label}</button>
+  )
 
   return (
     <div style={{ padding:'24px' }}>
-      <div style={{ marginBottom:'20px' }}>
+      <div style={{ marginBottom:'16px' }}>
         <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>👥 학생 현황</div>
         <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>담당 선생님별 학생 현황을 확인하세요</div>
       </div>
 
       {loading ? <div style={{ textAlign:'center', padding:'40px', color:C.muted }}>불러오는 중...</div> : (
-        <div style={{ display:'flex', gap:'16px' }}>
+        <>
+          {/* 필터 바 */}
+          <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'14px 18px', marginBottom:'16px', display:'flex', flexDirection:'column', gap:'10px' }}>
 
-          {/* 선생님 목록 */}
-          <div style={{ width:'180px', flexShrink:0 }}>
-            <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>선생님 선택</div>
-            {teachers.map(t => (
-              <button key={t.id} onClick={() => { setSelTeacher(t); setSelYear(String(CURRENT_YEAR)); setSelSection('A') }} style={{
-                width:'100%', padding:'10px 14px', borderRadius:'10px',
-                border:`1.5px solid ${selTeacher?.id===t.id ? C.primary : C.border}`,
-                background: selTeacher?.id===t.id ? '#eff6ff' : C.card,
-                color: selTeacher?.id===t.id ? C.primary : C.text,
-                fontSize:'13px', fontWeight: selTeacher?.id===t.id ? 700 : 400,
-                cursor:'pointer', textAlign:'left', marginBottom:'6px',
-                fontFamily:'Noto Sans KR, sans-serif',
-              }}>
-                <div>{t.teacherName}</div>
-                <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>{t.subject||''} {t.days ? t.days+'요일' : ''}</div>
-              </button>
-            ))}
-          </div>
+            {/* 연도 */}
+            <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+              <span style={{ fontSize:'12px', fontWeight:700, color:C.muted, width:'60px', flexShrink:0 }}>연도</span>
+              {(years.length>0?years:[String(CURRENT_YEAR)]).map(y=>(
+                <BtnFilter key={y} val={y} cur={selYear} set={setSelYear} label={`${y}년`}/>
+              ))}
+            </div>
 
-          {/* 오른쪽 */}
-          <div style={{ flex:1, minWidth:0 }}>
-            {!selTeacher ? (
-              <div style={{ textAlign:'center', padding:'40px', color:C.muted }}>선생님을 선택하세요</div>
-            ) : (
-              <>
-                {/* 상단 정보 바 */}
-                <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'14px 18px', marginBottom:'14px', display:'flex', flexWrap:'wrap', gap:'16px', alignItems:'center' }}>
-                  {/* 연도 */}
-                  <div>
-                    <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px', fontWeight:600 }}>연도</div>
-                    <div style={{ display:'flex', gap:'4px' }}>
-                      {(years.length > 0 ? years : [String(CURRENT_YEAR)]).map(y => (
-                        <button key={y} onClick={() => setSelYear(y)} style={{
-                          padding:'4px 12px', borderRadius:'8px', fontSize:'13px', fontWeight:700,
-                          border:`1.5px solid ${selYear===y ? C.primary : C.border}`,
-                          background: selYear===y ? C.primary : '#fff',
-                          color: selYear===y ? '#fff' : C.text,
-                          cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                        }}>{y}</button>
-                      ))}
-                    </div>
-                  </div>
+            {/* 운영방식 */}
+            <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+              <span style={{ fontSize:'12px', fontWeight:700, color:C.muted, width:'60px', flexShrink:0 }}>운영방식</span>
+              <BtnFilter val="all" cur={selOps} set={setSelOps} label="전체"/>
+              <BtnFilter val="semester" cur={selOps} set={setSelOps} label="학기제"/>
+              <BtnFilter val="quarter" cur={selOps} set={setSelOps} label="분기제"/>
+            </div>
 
-                  {/* 학기/분기제 */}
-                  <div>
-                    <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px', fontWeight:600 }}>운영방식</div>
-                    <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{termLabel}</div>
-                  </div>
+            {/* 요일 */}
+            {allDays.length>0&&(
+              <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                <span style={{ fontSize:'12px', fontWeight:700, color:C.muted, width:'60px', flexShrink:0 }}>요일</span>
+                <BtnFilter val="all" cur={selDay} set={setSelDay} label="전체"/>
+                {['월','화','수','목','금','토','일'].filter(d=>allDays.includes(d)).map(d=>(
+                  <BtnFilter key={d} val={d} cur={selDay} set={setSelDay} label={`${d}요일`}/>
+                ))}
+              </div>
+            )}
 
-                  {/* 텀수 */}
-                  <div>
-                    <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px', fontWeight:600 }}>텀 수</div>
-                    <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{termCount}텀</div>
-                  </div>
+            {/* 과목 */}
+            {yearSubjects.length>0&&(
+              <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                <span style={{ fontSize:'12px', fontWeight:700, color:C.muted, width:'60px', flexShrink:0 }}>과목</span>
+                <BtnFilter val="all" cur={selSubject} set={setSelSubject} label="전체"/>
+                {yearSubjects.map(s=>(
+                  <BtnFilter key={s.id} val={s.id} cur={selSubject} set={setSelSubject} label={s.name}/>
+                ))}
+              </div>
+            )}
 
-                  {/* 요일 */}
-                  <div>
-                    <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px', fontWeight:600 }}>요일</div>
-                    <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
-                      {[...new Set(yearClasses.flatMap(c => c.days || []))].join('·') || '-'}요일
-                    </div>
-                  </div>
-
-                  {/* 과목 */}
-                  <div>
-                    <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px', fontWeight:600 }}>과목</div>
-                    <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
-                      {[...new Set(yearClasses.map(c => c.className).filter(Boolean))].join(', ') || '-'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 반 탭 */}
-                {sections.length > 0 && (
-                  <div style={{ display:'flex', gap:'6px', marginBottom:'12px' }}>
-                    {sections.length > 1 && (
-                      <button onClick={() => setSelSection('all')} style={{
-                        padding:'6px 14px', borderRadius:'8px', fontSize:'13px', fontWeight:700,
-                        border:`1.5px solid ${selSection==='all' ? C.primary : C.border}`,
-                        background: selSection==='all' ? C.primary : '#fff',
-                        color: selSection==='all' ? '#fff' : C.text,
-                        cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                      }}>전체</button>
-                    )}
-                    {sections.map(sec => (
-                      <button key={sec} onClick={() => setSelSection(sec)} style={{
-                        padding:'6px 14px', borderRadius:'8px', fontSize:'13px', fontWeight:700,
-                        border:`1.5px solid ${selSection===sec ? C.primary : C.border}`,
-                        background: selSection===sec ? C.primary : '#fff',
-                        color: selSection===sec ? '#fff' : C.text,
-                        cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                      }}>{sec}반</button>
-                    ))}
-                  </div>
-                )}
-
-                {/* 학생 수 요약 */}
-                <div style={{ fontSize:'13px', color:C.muted, marginBottom:'8px' }}>
-                  확정 <strong style={{ color:C.success }}>{filteredStudents.filter(s=>s.status==='confirmed').length}명</strong> / 전체 <strong>{filteredStudents.length}명</strong>
-                </div>
-
-                {/* 학생 테이블 */}
-                {filteredStudents.length === 0
-                  ? <div style={{ textAlign:'center', padding:'40px', color:C.muted, background:C.bg, borderRadius:'12px', border:`1px dashed ${C.border}` }}>학생 데이터가 없습니다.</div>
-                  : (
-                    <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflowX:'auto' }}>
-                      <div style={{ display:'grid', gridTemplateColumns:'40px 100px 1fr 120px 1fr', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted, textAlign:'center' }}>
-                        <span>#</span>
-                        <span>학년·반</span>
-                        <span>이름</span>
-                        <span>전화번호</span>
-                        <span>수강 과목</span>
-                      </div>
-                      {filteredStudents.map((s, i) => {
-                        const subjects = getSubjects(s)
-                        return (
-                          <div key={s.id} style={{ display:'grid', gridTemplateColumns:'40px 100px 1fr 120px 1fr', padding:'10px 16px', borderBottom: i < filteredStudents.length-1 ? `1px solid ${C.border}` : 'none', alignItems:'center', fontSize:'13px', textAlign:'center' }}>
-                            <span style={{ color:C.muted }}>{i+1}</span>
-                            <span style={{ color:C.muted }}>{s.grade ? `${s.grade}학년` : '-'}{s.classNum ? ` ${s.classNum}반` : ''}</span>
-                            <span style={{ fontWeight:600, color:C.text }}>{s.name}</span>
-                            <span style={{ color:C.muted, fontSize:'12px' }}>{s.parentPhone || '-'}</span>
-                            <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', justifyContent:'center' }}>
-                              {subjects.length > 0 ? subjects.map((sub, si) => (
-                                <span key={si} style={{ fontSize:'11px', fontWeight:600, background:'#eff6ff', color:C.primary, padding:'2px 8px', borderRadius:'999px' }}>{sub}</span>
-                              )) : <span style={{ color:C.muted }}>-</span>}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                }
-              </>
+            {/* 텀 */}
+            {allTerms.length>0&&(
+              <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                <span style={{ fontSize:'12px', fontWeight:700, color:C.muted, width:'60px', flexShrink:0 }}>텀</span>
+                <BtnFilter val="all" cur={selTerm} set={setSelTerm} label="전체"/>
+                {allTerms.map(t=>(
+                  <BtnFilter key={t} val={String(t)} cur={selTerm} set={setSelTerm} label={`${t}텀`}/>
+                ))}
+              </div>
             )}
           </div>
-        </div>
+
+          {/* 학생 수 요약 */}
+          <div style={{ fontSize:'13px', color:C.muted, marginBottom:'8px' }}>
+            확정 <strong style={{ color:C.success }}>{filteredStudents.filter(s=>s.status==='confirmed').length}명</strong> / 전체 <strong>{filteredStudents.length}명</strong>
+          </div>
+
+          {/* 학생 테이블 */}
+          {filteredStudents.length===0
+            ? <div style={{ textAlign:'center', padding:'40px', color:C.muted, background:C.bg, borderRadius:'12px', border:`1px dashed ${C.border}` }}>조건에 맞는 학생이 없습니다.</div>
+            : (
+              <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflowX:'auto' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'40px 80px 1fr 130px 130px 1fr', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted, textAlign:'center', minWidth:'600px' }}>
+                  <span>#</span><span>학년·반</span><span>이름</span><span>연락처</span><span>선생님</span><span>과목</span>
+                </div>
+                {filteredStudents.map((s,i)=>{
+                  const {teacher, subjectNames} = getInfo(s)
+                  return (
+                    <div key={s.id} style={{ display:'grid', gridTemplateColumns:'40px 80px 1fr 130px 130px 1fr', padding:'10px 16px', borderBottom:i<filteredStudents.length-1?`1px solid ${C.border}`:'none', alignItems:'center', fontSize:'13px', textAlign:'center', minWidth:'600px' }}>
+                      <span style={{ color:C.muted }}>{i+1}</span>
+                      <span style={{ color:C.muted }}>{s.grade?`${s.grade}학년`:'-'}{s.classNum?` ${s.classNum}반`:''}</span>
+                      <span style={{ fontWeight:600, color:C.text }}>{s.name}</span>
+                      <span style={{ color:C.muted, fontSize:'12px' }}>{s.parentPhone||'-'}</span>
+                      <span style={{ fontSize:'12px', color:C.muted }}>{teacher?.teacherName||'-'}</span>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', justifyContent:'center' }}>
+                        {subjectNames.length>0 ? subjectNames.map((sub,si)=>(
+                          <span key={si} style={{ fontSize:'11px', fontWeight:600, background:'#eff6ff', color:C.primary, padding:'2px 8px', borderRadius:'999px' }}>{sub}</span>
+                        )) : <span style={{ color:C.muted }}>-</span>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          }
+        </>
       )}
     </div>
   )
 }
+
 
 // ── 연결 초대 이메일 (이미 가입된 선생님 → 연결 수락 요청)
 async function sendTeacherInviteEmail({ teacherName, email, schoolName, adminName }) {
