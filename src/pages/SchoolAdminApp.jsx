@@ -654,8 +654,6 @@ function NoticesTab({ session }) {
   )
 }
 
-}
-
 const CURRENT_YEAR = new Date().getFullYear()
 const DAYS_LIST = ['월', '화', '수', '목', '금', '토']
 
