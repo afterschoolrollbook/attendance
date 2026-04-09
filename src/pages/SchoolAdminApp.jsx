@@ -3406,9 +3406,24 @@ function SchoolDashboard({ session, onNav }) {
 const SchoolConfirmContext = React.createContext(null)
 function useSchoolConfirm() { return React.useContext(SchoolConfirmContext) }
 
-export function SchoolAdminApp({ session, onLogout }) {
+export function SchoolAdminApp({ session: initialSession, onLogout }) {
   const [page, setPage] = useState('dashboard')
+  const [session, setSession] = useState(initialSession)
   const [confirmState, setConfirmState] = useState({ open: false, message: '', onOk: null })
+
+  // 마운트 시 최신 schoolAdmins 데이터로 세션 갱신 (본사에서 학교명 변경 반영)
+  useEffect(() => {
+    async function refreshSession() {
+      try {
+        const admin = await dbCall('getOne', 'schoolAdmins', { id: initialSession.adminId })
+        if (!admin) return
+        const updated = { ...initialSession, admin }
+        localStorage.setItem('asa_school_session', JSON.stringify(updated))
+        setSession(updated)
+      } catch {}
+    }
+    refreshSession()
+  }, [initialSession.adminId])
 
   const schoolConfirm = React.useCallback((message, onOk) => {
     setConfirmState({ open: true, message, onOk })
