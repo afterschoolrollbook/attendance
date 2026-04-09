@@ -261,27 +261,26 @@ function SchoolConnectionPanel({ user }) {
   if (connections.length === 0) return null
 
   const handleDisconnect = (conn) => {
-    confirm(
-      `⚠️ "${conn.schoolName}" 학교와의 연결을 끊으시겠습니까? 담당자의 공지·업무를 더 이상 받을 수 없고 진행 중인 업무는 미완료 처리됩니다.`,
-      async () => {
-        try {
-          await dbCall('update', 'schoolAdminTeachers', {
-            id: conn.id, patch: { active: false }
-          })
-          const allInvites = await dbCall('getAll', 'schoolTeacherInvites')
-          const myInvite = (allInvites||[]).find(i =>
-            i.teacherId === user.id && i.adminId === conn.adminId && i.status === 'accepted'
-          )
-          if (myInvite) {
-            await dbCall('update', 'schoolTeacherInvites', {
-              id: myInvite.id, patch: { status: 'declined' }
-            })
-          }
-          success(`${conn.schoolName} 학교와의 연결을 끊었습니다.`)
-          load()
-        } catch { error('처리 중 오류가 발생했습니다.') }
+    confirm(`⚠️ "${conn.schoolName}" 학교와의 연결을 끊으시겠습니까?\n\n• 담당자의 공지·업무를 더 이상 받을 수 없습니다.\n• 진행 중인 업무가 있다면 미완료로 처리됩니다.`, async () => {
+    try {
+      // schoolAdminTeachers 비활성화
+      await dbCall('update', 'schoolAdminTeachers', {
+        id: conn.id, patch: { active: false }
+      })
+      // schoolTeacherInvites declined 처리
+      const allInvites = await dbCall('getAll', 'schoolTeacherInvites')
+      const myInvite = (allInvites||[]).find(i =>
+        i.teacherId === user.id && i.adminId === conn.adminId && i.status === 'accepted'
+      )
+      if (myInvite) {
+        await dbCall('update', 'schoolTeacherInvites', {
+          id: myInvite.id, patch: { status: 'declined' }
+        })
       }
-    )
+      success(`${conn.schoolName} 학교와의 연결을 끊었습니다.`)
+      load()
+    } catch { error('처리 중 오류가 발생했습니다.') }
+    })
   }
 
   return (
