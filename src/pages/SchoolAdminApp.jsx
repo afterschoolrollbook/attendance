@@ -988,7 +988,7 @@ const CURRENT_YEAR = new Date().getFullYear()
 const DAYS_LIST = ['월', '화', '수', '목', '금', '토', '일']
 
 // ── 과목 관리 탭 (학교별 연도 과목 등록)
-const EMPTY_FORM = { name:'', days:[], className:'', startTime:'', endTime:'', capacity:'' }
+const EMPTY_FORM = { name:'', days:[], className:'', times:{}, capacity:'' }
 
 function SubjectsTab({ session }) {
   const { success, error } = useToast()
@@ -1014,7 +1014,7 @@ function SubjectsTab({ session }) {
   const filtered = subjects.filter(s => s.year == selYear)
 
   const openAdd  = () => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true) }
-  const openEdit = (s) => { setEditId(s.id); setForm({ name:s.name||'', days:s.days||[], className:s.className||'', startTime:s.startTime||'', endTime:s.endTime||'', capacity:s.capacity||'' }); setShowModal(true) }
+  const openEdit = (s) => { setEditId(s.id); setForm({ name:s.name||'', days:s.days||[], className:s.className||'', times:s.times||{}, capacity:s.capacity||'' }); setShowModal(true) }
 
   const handleSave = async () => {
     if (!form.name.trim()) { error('과목명을 입력해주세요.'); return }
@@ -1023,8 +1023,7 @@ function SubjectsTab({ session }) {
       name: form.name.trim(),
       days: form.days,
       className: form.className.trim(),
-      startTime: form.startTime,
-      endTime: form.endTime,
+      times: form.times,
       capacity: form.capacity ? parseInt(form.capacity) : null,
     }
     if (editId) {
@@ -1095,7 +1094,11 @@ function SubjectsTab({ session }) {
               <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>📌 {s.name}</span>
               <span style={{ fontSize:'12px', color:C.muted }}>{s.className||'-'}</span>
               <span style={{ fontSize:'12px', color:C.muted }}>{(s.days||[]).join('·')||'-'}</span>
-              <span style={{ fontSize:'12px', color:C.muted }}>{s.startTime&&s.endTime?`${s.startTime}~${s.endTime}`:'-'}</span>
+              <span style={{ fontSize:'12px', color:C.muted }}>
+                {s.times&&Object.keys(s.times).length>0
+                  ? Object.entries(s.times).map(([cls,t])=>`${cls} ${t.start||''}~${t.end||''}`).join(', ')
+                  : '-'}
+              </span>
               <span style={{ fontSize:'12px', color:C.muted }}>{s.capacity||'-'}</span>
               <div style={{ display:'flex', gap:'4px' }}>
                 <button onClick={() => openEdit(s)} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', color:C.text, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
@@ -1146,17 +1149,52 @@ function SubjectsTab({ session }) {
                   ))}
                 </div>
               </div>
-              {/* 시작/종료 시간 */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-                <div>
-                  <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>시작 시간</label>
-                  <input type="time" style={iSt3} value={form.startTime} onChange={e => setForm(f=>({...f,startTime:e.target.value}))} />
-                </div>
-                <div>
-                  <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>종료 시간</label>
-                  <input type="time" style={iSt3} value={form.endTime} onChange={e => setForm(f=>({...f,endTime:e.target.value}))} />
-                </div>
-              </div>
+              {/* 반별 시작/종료 시간 */}
+              {form.className.trim() && (()=>{
+                const classes = form.className.split(',').map(s=>s.trim()).filter(Boolean)
+                return (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                    <label style={{ fontSize:'12px', color:C.muted }}>반별 시간</label>
+                    {classes.map(cls => (
+                      <div key={cls} style={{ background:'#f8fafc', borderRadius:'8px', padding:'10px 12px' }}>
+                        <div style={{ fontSize:'12px', fontWeight:700, color:C.text, marginBottom:'8px' }}>{cls}</div>
+                        {/* 정규 시간 */}
+                        <div style={{ fontSize:'11px', fontWeight:600, color:'#1d4ed8', marginBottom:'4px' }}>📅 정규 시간</div>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'10px' }}>
+                          <div>
+                            <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>시작</label>
+                            <input type="time" style={iSt3}
+                              value={form.times[cls]?.start||''}
+                              onChange={e => setForm(f=>({...f, times:{...f.times, [cls]:{...f.times[cls], start:e.target.value}}}))} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>종료</label>
+                            <input type="time" style={iSt3}
+                              value={form.times[cls]?.end||''}
+                              onChange={e => setForm(f=>({...f, times:{...f.times, [cls]:{...f.times[cls], end:e.target.value}}}))} />
+                          </div>
+                        </div>
+                        {/* 방학 시간 */}
+                        <div style={{ fontSize:'11px', fontWeight:600, color:'#ea580c', marginBottom:'4px' }}>☀️ 방학 시간</div>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+                          <div>
+                            <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>시작</label>
+                            <input type="time" style={iSt3}
+                              value={form.times[cls]?.vacStart||''}
+                              onChange={e => setForm(f=>({...f, times:{...f.times, [cls]:{...f.times[cls], vacStart:e.target.value}}}))} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>종료</label>
+                            <input type="time" style={iSt3}
+                              value={form.times[cls]?.vacEnd||''}
+                              onChange={e => setForm(f=>({...f, times:{...f.times, [cls]:{...f.times[cls], vacEnd:e.target.value}}}))} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
               {/* 정원 */}
               <div>
                 <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>정원</label>
