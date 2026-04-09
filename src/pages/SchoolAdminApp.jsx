@@ -10,7 +10,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { dbCall, FUNCTIONS_BASE } from '../lib/supabase.js'
 import { db } from '../lib/db.js'
 import { calcSessionDates, sortClasses, today as getToday } from '../lib/utils.js'
-import { ClassCalendar } from '../pages/ClassCalendar.jsx'
+import { SchoolCalendar } from '../pages/SchoolCalendar.jsx'
 import { TERM_TYPES, REPEAT_TYPES } from '../constants/config.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
@@ -1598,33 +1598,30 @@ function SchoolCalendarTab({ session }) {
   const { success, error } = useToast()
   const [items,    setItems]    = useState([])
   const [loading,  setLoading]  = useState(true)
-  const [view,     setView]     = useState('list')   // 'list' | 'form' | 'calendar'
-  const [editId,   setEditId]   = useState(null)
-  const [delId,    setDelId]    = useState(null)     // 인라인 삭제 확인 대상
+  const [selItem,  setSelItem]  = useState(null)  // 선택된 일정
+  const [mode,     setMode]     = useState(null)  // null(달력) | 'add' | 'edit'
+  const [delId,    setDelId]    = useState(null)
   const [form,     setForm]     = useState(schCalEmptyForm())
   const [selYear,  setSelYear]  = useState(String(CURRENT_YEAR))
-  const [calItem,  setCalItem]  = useState(null)     // 달력 보기 대상
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
   const load = React.useCallback(async () => {
     setLoading(true)
     const data = await dbCall('getAll','schoolCalendar').catch(() => [])
-    setItems((data||[]).filter(c => c.adminId === session.adminId))
+    const mine = (data||[]).filter(c => c.adminId === session.adminId)
+    setItems(mine)
+    // 첫 번째 일정 자동 선택
+    if (mine.length > 0 && !selItem) setSelItem(mine[0])
     setLoading(false)
   }, [session.adminId])
 
   useEffect(() => { load() }, [load])
 
+  const yearItems = items.filter(c => c.startDate?.slice(0,4) === selYear)
   const years = [...new Set(items.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
-  const filtered = items.filter(c => !selYear || c.startDate?.slice(0,4) === selYear)
-  const grouped = {}
-  DAY_ORDER_CAL.forEach(d => { grouped[d] = [] })
-  filtered.forEach(c => (c.days||[]).forEach(d => { if(grouped[d]) grouped[d].push(c) }))
-  const activeDays = DAY_ORDER_CAL.filter(d => grouped[d].length > 0)
 
   const openAdd = () => {
-    setForm(schCalEmptyForm())
-    setEditId(null); setDelId(null); setView('form')
+    setForm(schCalEmptyForm()); setMode('add')
   }
   const openEdit = (item) => {
     setForm({ ...schCalEmptyForm(), ...item,
@@ -1633,23 +1630,26 @@ function SchoolCalendarTab({ session }) {
       cancelledDates: item.cancelledDates||[],
       makeupDates: item.makeupDates||[],
     })
-    setEditId(item.id); setDelId(null); setView('form')
+    setMode('edit')
   }
-  const openCalendar = (item) => { setCalItem(item); setView('calendar') }
 
   const save = async () => {
     if (!form.title.trim()||!form.days.length||!form.startDate||!form.endDate) {
       error('필수 항목을 입력하세요 (일정명, 요일, 기간)'); return
     }
     try {
-      if (editId) {
-        await dbCall('update','schoolCalendar',{ id:editId, patch:{ ...form } })
+      if (mode === 'edit' && selItem) {
+        await dbCall('update','schoolCalendar',{ id:selItem.id, patch:{ ...form } })
+        const updated = { ...selItem, ...form }
+        setSelItem(updated)
         success('수정되었습니다.')
       } else {
-        await dbCall('upsert','schoolCalendar',{ data:{ ...form, id:uid(), adminId:session.adminId, schoolName:session.admin?.schoolName||'', createdAt:now() }})
+        const newItem = { ...form, id:uid(), adminId:session.adminId, schoolName:session.admin?.schoolName||'', createdAt:now() }
+        await dbCall('upsert','schoolCalendar',{ data: newItem })
+        setSelItem(newItem)
         success('등록되었습니다.')
       }
-      setView('list'); load()
+      setMode(null); load()
     } catch { error('저장 중 오류가 발생했습니다.') }
   }
 
@@ -1657,49 +1657,24 @@ function SchoolCalendarTab({ session }) {
     try {
       await dbCall('delete','schoolCalendar',{ id })
       success('삭제되었습니다.')
-      setDelId(null); load()
+      setDelId(null)
+      if (selItem?.id === id) setSelItem(yearItems.find(i => i.id !== id) || null)
+      load()
     } catch { error('삭제 중 오류가 발생했습니다.') }
   }
 
-  // ── 달력 뷰
-  if (view === 'calendar' && calItem) return (
-    <div style={{ padding:'24px', maxWidth:'900px' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'20px' }}>
-        <button onClick={() => setView('list')} style={{ padding:'7px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>← 목록으로</button>
-        <div style={{ fontSize:'18px', fontWeight:800, color:C.text }}>📅 {calItem.title}</div>
-      </div>
-      <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px' }}>
-        <ClassCalendar
-          cls={calItem}
-          onUpdate={async (updated) => {
-            try {
-              await dbCall('update','schoolCalendar',{ id:calItem.id, patch:{ cancelledDates:updated.cancelledDates, makeupDates:updated.makeupDates }})
-              setCalItem(updated)
-              load()
-            } catch { error('저장 중 오류가 발생했습니다.') }
-          }}
-        />
-      </div>
-    </div>
-  )
+  if (loading) return <div style={{ padding:'40px', textAlign:'center', color:C.muted }}>불러오는 중...</div>
 
-  // ── 등록/편집 뷰
-  if (view === 'form') return (
+  // ── 등록/편집 폼
+  if (mode === 'add' || mode === 'edit') return (
     <div style={{ padding:'24px', maxWidth:'760px' }}>
-      {/* 헤더 */}
       <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'24px' }}>
-        <button onClick={() => setView('list')} style={{ padding:'7px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>← 목록으로</button>
-        <div style={{ fontSize:'18px', fontWeight:800, color:C.text }}>{editId ? '학교 일정 편집' : '학교 일정 등록'}</div>
+        <button onClick={() => setMode(null)} style={{ padding:'7px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>← 돌아가기</button>
+        <div style={{ fontSize:'18px', fontWeight:800, color:C.text }}>{mode==='edit' ? '일정 편집' : '일정 등록'}</div>
       </div>
-
       <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-        {/* 일정명 */}
-        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px' }}>
-          <Input label="일정명" value={form.title} onChange={v => set('title',v)} placeholder="예: 2026 로봇과학 월요일 수업" required />
-        </div>
-
-        {/* 요일 + 운영방식 */}
         <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+          <Input label="일정명" value={form.title} onChange={v => set('title',v)} placeholder="예: 2026 로봇과학 월요일 수업" required />
           <div>
             <div style={{ fontSize:'13px', fontWeight:600, color:C.text, marginBottom:'8px' }}>수업 요일 <span style={{ color:'#ef4444' }}>*</span></div>
             <DayPicker value={form.days} onChange={v => set('days',v)} />
@@ -1710,60 +1685,39 @@ function SchoolCalendarTab({ session }) {
             <Input label="종료일" value={form.endDate} onChange={v => set('endDate',v)} type="date" required />
           </div>
         </div>
-
-        {/* 텀 구성 */}
         <div style={{ background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:'14px', padding:'20px' }}>
           <div style={{ fontSize:'13px', fontWeight:700, color:'#ea580c', marginBottom:'14px' }}>📅 텀 구성</div>
           <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'12px', flexWrap:'wrap' }}>
             <span style={{ fontSize:'12px', fontWeight:600, color:C.text }}>총 텀 수</span>
             {[1,2,3,4,5,6].map(n => (
-              <button key={n} type="button" onClick={() => {
-                const prev=form.termSizes||[4]
-                const next=Array.from({length:n},(_,i)=>prev[i]||4)
-                set('termCount',n); set('termSizes',next)
-              }} style={{ width:'36px', height:'36px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:'14px', fontWeight:700, background:(form.termCount||4)===n?'#f97316':'#f3f4f6', color:(form.termCount||4)===n?'#fff':'#374151', fontFamily:'Noto Sans KR, sans-serif' }}>{n}</button>
+              <button key={n} type="button" onClick={() => { const prev=form.termSizes||[4]; set('termCount',n); set('termSizes',Array.from({length:n},(_,i)=>prev[i]||4)) }}
+                style={{ width:'36px', height:'36px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:'14px', fontWeight:700, background:(form.termCount||4)===n?'#f97316':'#f3f4f6', color:(form.termCount||4)===n?'#fff':'#374151', fontFamily:'Noto Sans KR, sans-serif' }}>{n}</button>
             ))}
           </div>
           <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'flex-end' }}>
             {Array.from({length:form.termCount||4},(_,i) => {
               const sizes=form.termSizes||[4,4,4,4]
-              const start=sizes.slice(0,i).reduce((a,b)=>a+b,0)+1
-              const end=sizes.slice(0,i+1).reduce((a,b)=>a+b,0)
               return (
                 <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'4px' }}>
                   <label style={{ fontSize:'11px', color:'#ea580c', fontWeight:700 }}>{i+1}텀</label>
                   <input type="number" min="1" max="99" value={sizes[i]||4}
                     onChange={e => { const next=[...sizes]; next[i]=parseInt(e.target.value)||1; set('termSizes',next) }}
                     style={{ width:'52px', padding:'8px 6px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'14px', textAlign:'center', outline:'none' }} />
-                  <span style={{ fontSize:'10px', color:'#9ca3af' }}>{start}~{end}차시</span>
+                  <span style={{ fontSize:'10px', color:'#9ca3af' }}>{sizes.slice(0,i).reduce((a,b)=>a+b,0)+1}~{sizes.slice(0,i+1).reduce((a,b)=>a+b,0)}차시</span>
                 </div>
               )
             })}
-            <div style={{ fontSize:'13px', color:'#9ca3af', marginBottom:'18px' }}>
-              = 총 {(form.termSizes||[4,4,4,4]).slice(0,form.termCount||4).reduce((a,b)=>a+b,0)}차시
-            </div>
+            <div style={{ fontSize:'13px', color:'#9ca3af', marginBottom:'18px' }}>= 총 {(form.termSizes||[4,4,4,4]).slice(0,form.termCount||4).reduce((a,b)=>a+b,0)}차시</div>
           </div>
         </div>
-
-        {/* 공휴일 추가 */}
         <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px' }}>
           <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'12px' }}>📌 휴일 추가</div>
           <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'10px' }}>
             <input type="date" min={form.startDate} max={form.endDate}
               style={{ padding:'8px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', outline:'none' }}
-              onChange={e => {
-                const date=e.target.value; if(!date) return
-                if((form.cancelledDates||[]).some(c=>c.date===date)){ error('이미 추가된 날짜입니다.'); return }
-                setForm(f=>({...f,cancelledDates:[...(f.cancelledDates||[]),{date,reason:'school_holiday',memo:''}]}))
-                e.target.value=''
-              }} />
+              onChange={e => { const date=e.target.value; if(!date) return; if((form.cancelledDates||[]).some(c=>c.date===date)){error('이미 추가된 날짜입니다.');return} setForm(f=>({...f,cancelledDates:[...(f.cancelledDates||[]),{date,reason:'school_holiday',memo:''}]})); e.target.value='' }} />
             <select style={{ padding:'8px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', background:'#fff', outline:'none' }}
-              onChange={e => {
-                const date=e.target.value; if(!date) return
-                if(!(form.cancelledDates||[]).some(c=>c.date===date))
-                  setForm(f=>({...f,cancelledDates:[...(f.cancelledDates||[]),{date,reason:'public_holiday',memo:SCH_HOLIDAY_NAMES[date]||'공휴일'}]}))
-                e.target.value=''
-              }} defaultValue="">
+              onChange={e => { const date=e.target.value; if(!date) return; if(!(form.cancelledDates||[]).some(c=>c.date===date)) setForm(f=>({...f,cancelledDates:[...(f.cancelledDates||[]),{date,reason:'public_holiday',memo:SCH_HOLIDAY_NAMES[date]||'공휴일'}]})); e.target.value='' }} defaultValue="">
               <option value="">공휴일 빠른 추가</option>
               {(SCH_HOLIDAYS[parseInt(form.startDate?.slice(0,4))]||SCH_HOLIDAYS[2026]||[]).map(d => (
                 <option key={d} value={d}>{d.slice(5)} {SCH_HOLIDAY_NAMES[d]||''}</option>
@@ -1776,111 +1730,106 @@ function SchoolCalendarTab({ session }) {
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 12px', background:'#fef2f2', borderRadius:'8px', border:'1px solid #fca5a5' }}>
                   <span style={{ fontSize:'12px', fontWeight:700, color:C.text, minWidth:'70px' }}>{c.date.slice(5)}</span>
                   <span style={{ fontSize:'12px', color:C.muted, flex:1 }}>{c.memo||c.reason}</span>
-                  <button onClick={() => setForm(f=>({...f,cancelledDates:(f.cancelledDates||[]).filter((_,j)=>j!==i)}))}
-                    style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'18px', lineHeight:1 }}>×</button>
+                  <button onClick={() => setForm(f=>({...f,cancelledDates:(f.cancelledDates||[]).filter((_,j)=>j!==i)}))} style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'18px', lineHeight:1 }}>×</button>
                 </div>
               ))}
             </div>
           )}
         </div>
-
-        {/* 메모 */}
-        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px' }}>
-          <label style={{ fontSize:'13px', fontWeight:600, color:C.text, display:'block', marginBottom:'8px' }}>메모 (선택)</label>
-          <textarea value={form.memo} onChange={e=>set('memo',e.target.value)} rows={3}
-            style={{ width:'100%', padding:'10px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', resize:'vertical' }} />
-        </div>
-
-        {/* 저장 버튼 */}
         <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end', paddingBottom:'40px' }}>
-          <Btn color="secondary" onClick={() => setView('list')}>취소</Btn>
-          <Btn onClick={save}>{editId ? '저장' : '등록'}</Btn>
+          <Btn color="secondary" onClick={() => setMode(null)}>취소</Btn>
+          <Btn onClick={save}>{mode==='edit' ? '저장' : '등록'}</Btn>
         </div>
       </div>
     </div>
   )
 
-  // ── 목록 뷰 (기본)
+  // ── 메인 뷰: 왼쪽 일정 목록 + 오른쪽 달력 전체 표시
   return (
-    <div style={{ padding:'24px', maxWidth:'1000px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
-        <div>
-          <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>📅 연간 수업 달력</div>
-          <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>학교 공식 수업 일정을 등록하고 관리합니다</div>
-        </div>
-        <Btn onClick={openAdd}>+ 일정 등록</Btn>
-      </div>
+    <div style={{ display:'flex', height:'100%', minHeight:'100vh' }}>
 
-      {/* 연도 탭 */}
-      <div style={{ display:'flex', gap:'6px', marginBottom:'18px' }}>
-        {(years.length>0 ? years : [String(CURRENT_YEAR)]).map(y => (
-          <button key={y} onClick={() => setSelYear(y)} style={{ padding:'6px 16px', borderRadius:'8px', border:'none', cursor:'pointer', background:selYear===y?'#1e3a5f':'#f3f4f6', color:selYear===y?'#fff':C.text, fontWeight:selYear===y?700:400, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif' }}>{y}년</button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign:'center', padding:'60px', color:C.muted }}>불러오는 중...</div>
-      ) : filtered.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'60px', color:C.muted, background:C.bg, borderRadius:'14px', border:`1px dashed ${C.border}` }}>
-          <div style={{ fontSize:'32px', marginBottom:'12px' }}>📅</div>
-          <div style={{ fontSize:'14px', fontWeight:600, marginBottom:'6px' }}>등록된 학교 일정이 없습니다</div>
-          <div style={{ fontSize:'13px' }}>+ 일정 등록 버튼을 눌러 요일별 수업 일정을 추가하세요</div>
-        </div>
-      ) : (
-        activeDays.map(day => (
-          <div key={day} style={{ marginBottom:'24px' }}>
-            <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'10px', letterSpacing:'0.06em' }}>{day}요일 수업</div>
-            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-              {grouped[day].map(item => {
-                const sessions = calcSessionDates(item)
-                const isDelConfirm = delId === item.id
-                return (
-                  <div key={item.id} style={{ background:C.card, borderRadius:'12px', border:`1.5px solid ${isDelConfirm?'#ef4444':C.border}`, padding:'16px 18px' }}>
-                    {isDelConfirm ? (
-                      // 인라인 삭제 확인
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px' }}>
-                        <div style={{ fontSize:'13px', color:'#ef4444', fontWeight:600 }}>🗑️ 정말 삭제하시겠습니까? 선생님들이 참조하는 일정이 사라집니다.</div>
-                        <div style={{ display:'flex', gap:'8px' }}>
-                          <button onClick={() => setDelId(null)} style={{ padding:'7px 16px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
-                          <button onClick={() => del(item.id)} style={{ padding:'7px 16px', borderRadius:'8px', border:'none', background:'#ef4444', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'8px' }}>
-                          <div>
-                            <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{item.title}</div>
-                            <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>
-                              {item.days?.join('·')}요일 · {item.startDate?.slice(5)} ~ {item.endDate?.slice(5)}
-                            </div>
-                          </div>
-                          <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
-                            <span style={{ fontSize:'11px', fontWeight:700, background:'#f0fdf4', color:'#16a34a', padding:'3px 9px', borderRadius:'999px' }}>총 {sessions.length}차시</span>
-                            <span style={{ fontSize:'11px', fontWeight:700, background:'#eff6ff', color:C.primary, padding:'3px 9px', borderRadius:'999px' }}>{item.termCount}텀</span>
-                          </div>
-                        </div>
-                        <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', marginBottom:'12px' }}>
-                          {Array.from({length:item.termCount||4},(_,i) => (
-                            <span key={i} style={{ fontSize:'11px', background:'#fff7ed', color:'#ea580c', padding:'2px 8px', borderRadius:'6px', fontWeight:600 }}>{i+1}텀 {(item.termSizes||[])[i]||4}차시</span>
-                          ))}
-                          {(item.cancelledDates||[]).length > 0 && (
-                            <span style={{ fontSize:'11px', background:'#fef2f2', color:'#ef4444', padding:'2px 8px', borderRadius:'6px' }}>휴일 {item.cancelledDates.length}일</span>
-                          )}
-                        </div>
-                        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-                          <button onClick={() => openCalendar(item)} style={{ padding:'6px 14px', borderRadius:'8px', border:`1px solid ${C.primary}`, background:'#eff6ff', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📅 달력 보기</button>
-                          <button onClick={() => openEdit(item)} style={{ padding:'6px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>편집</button>
-                          <button onClick={() => setDelId(item.id)} style={{ padding:'6px 14px', borderRadius:'8px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+      {/* 왼쪽: 일정 목록 */}
+      <div style={{ width:'220px', flexShrink:0, borderRight:`1px solid ${C.border}`, background:'#f8fafc', display:'flex', flexDirection:'column' }}>
+        <div style={{ padding:'16px 14px 10px', borderBottom:`1px solid ${C.border}` }}>
+          <div style={{ fontSize:'13px', fontWeight:800, color:C.text, marginBottom:'10px' }}>📅 연간 수업 달력</div>
+          {/* 연도 선택 */}
+          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap', marginBottom:'10px' }}>
+            {(years.length>0 ? years : [String(CURRENT_YEAR)]).map(y => (
+              <button key={y} onClick={() => { setSelYear(y); setSelItem(items.find(c=>c.startDate?.slice(0,4)===y)||null) }}
+                style={{ padding:'4px 10px', borderRadius:'6px', border:'none', cursor:'pointer', background:selYear===y?'#1e3a5f':'#e5e7eb', color:selYear===y?'#fff':C.text, fontWeight:selYear===y?700:400, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>{y}년</button>
+            ))}
           </div>
-        ))
-      )}
+          <button onClick={openAdd} style={{ width:'100%', padding:'8px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 일정 등록</button>
+        </div>
+
+        {/* 일정 목록 */}
+        <div style={{ flex:1, overflowY:'auto', padding:'10px 10px' }}>
+          {yearItems.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'20px 10px', color:C.muted, fontSize:'12px' }}>등록된 일정이 없습니다</div>
+          ) : (
+            yearItems.map(item => {
+              const isSel = selItem?.id === item.id
+              const isDelConfirm = delId === item.id
+              return (
+                <div key={item.id} style={{ marginBottom:'6px' }}>
+                  {isDelConfirm ? (
+                    <div style={{ background:'#fef2f2', borderRadius:'9px', border:'1px solid #fca5a5', padding:'10px' }}>
+                      <div style={{ fontSize:'11px', color:'#ef4444', fontWeight:600, marginBottom:'8px' }}>정말 삭제하시겠습니까?</div>
+                      <div style={{ display:'flex', gap:'5px' }}>
+                        <button onClick={() => setDelId(null)} style={{ flex:1, padding:'5px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
+                        <button onClick={() => del(item.id)} style={{ flex:1, padding:'5px', borderRadius:'6px', border:'none', background:'#ef4444', color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div onClick={() => setSelItem(item)} style={{ padding:'10px 12px', borderRadius:'9px', border:`1.5px solid ${isSel?C.primary:C.border}`, background:isSel?'#eff6ff':'#fff', cursor:'pointer' }}
+                      onMouseEnter={e => { if(!isSel) e.currentTarget.style.background='#f1f5f9' }}
+                      onMouseLeave={e => { if(!isSel) e.currentTarget.style.background='#fff' }}>
+                      <div style={{ fontSize:'12px', fontWeight:700, color:isSel?C.primary:C.text, marginBottom:'3px' }}>{item.title}</div>
+                      <div style={{ fontSize:'11px', color:C.muted }}>{item.days?.join('·')}요일</div>
+                      <div style={{ fontSize:'11px', color:C.muted }}>{item.startDate?.slice(5)} ~ {item.endDate?.slice(5)}</div>
+                      <div style={{ display:'flex', gap:'5px', marginTop:'6px', justifyContent:'flex-end' }} onClick={e=>e.stopPropagation()}>
+                        <button onClick={() => openEdit(item)} style={{ padding:'3px 8px', borderRadius:'5px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'10px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>편집</button>
+                        <button onClick={() => setDelId(item.id)} style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'10px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
+      {/* 오른쪽: 달력 전체 */}
+      <div style={{ flex:1, overflowY:'auto', padding:'24px' }}>
+        {!selItem ? (
+          <div style={{ textAlign:'center', padding:'80px 40px', color:C.muted }}>
+            <div style={{ fontSize:'40px', marginBottom:'14px' }}>📅</div>
+            <div style={{ fontSize:'15px', fontWeight:600, marginBottom:'8px' }}>일정을 선택하거나 등록하세요</div>
+            <div style={{ fontSize:'13px' }}>왼쪽에서 일정을 선택하면 달력이 표시됩니다</div>
+          </div>
+        ) : (
+          <>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
+              <div>
+                <div style={{ fontSize:'16px', fontWeight:800, color:C.text }}>{selItem.title}</div>
+                <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>{selItem.days?.join('·')}요일 · {selItem.startDate?.slice(5)} ~ {selItem.endDate?.slice(5)} · {selItem.termCount}텀</div>
+              </div>
+              <button onClick={() => openEdit(selItem)} style={{ padding:'7px 14px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>✏️ 편집</button>
+            </div>
+            <SchoolCalendar
+              cls={selItem}
+              onUpdate={async (updated) => {
+                try {
+                  await dbCall('update','schoolCalendar',{ id:selItem.id, patch:{ cancelledDates:updated.cancelledDates, makeupDates:updated.makeupDates, termCount:updated.termCount, termSizes:updated.termSizes, totalSessions:updated.totalSessions, applyStartAt:updated.applyStartAt, applyEndAt:updated.applyEndAt }})
+                  setSelItem(updated)
+                  setItems(prev => prev.map(it => it.id===selItem.id ? {...it,...updated} : it))
+                } catch { error('저장 중 오류가 발생했습니다.') }
+              }}
+            />
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -2205,7 +2154,7 @@ function SchoolClassesTab({ session }) {
 
         {/* 수업 달력 */}
         {tab === 'calendar' && (
-          <ClassCalendar cls={form} onUpdate={updated => setForm(updated)} />
+          <SchoolCalendar cls={form} onUpdate={updated => setForm(updated)} />
         )}
 
         <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', marginTop:'20px', paddingTop:'16px', borderTop:`1px solid ${C.border}` }}>
