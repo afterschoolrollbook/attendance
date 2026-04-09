@@ -117,8 +117,10 @@ function buildSessionMap({ allSessionDates, termBoundaries, quarterTermCounts, f
 
       if (dc.inTermSess >= spt) {
         dc.inTermSess = 0
-        dc.localTermIdx++
-        dc.globalTermIdx++
+        if (dc.localTermIdx < numTerms - 1) {
+          dc.localTermIdx++
+          dc.globalTermIdx++
+        }
       }
     })
 
