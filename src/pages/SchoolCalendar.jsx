@@ -315,7 +315,8 @@ export function SchoolCalendar({ cls, onUpdate }) {
 
   // 분기별 텀 수 변경 (1~12)
   const handleQTermCount = (qIdx, val) => {
-    setQuarterTermCounts(prev => { const n=[...prev]; n[qIdx]=Math.max(1,Math.min(12,parseInt(val)||1)); return n })
+    const maxT = termType==='semester' ? 24 : 12
+    setQuarterTermCounts(prev => { const n=[...prev]; n[qIdx]=Math.max(1,Math.min(maxT,parseInt(val)||1)); return n })
   }
 
   // 날짜 계산
@@ -597,18 +598,21 @@ export function SchoolCalendar({ cls, onUpdate }) {
             <div style={{marginBottom:'16px'}}>
               <label style={{fontSize:'12px',color:'#6b7280',display:'block',marginBottom:'8px'}}>
                 {termType==='semester'?'학기':'분기'}별 텀 수 설정
-                <span style={{fontSize:'11px',color:'#9ca3af',marginLeft:'8px'}}>(각 {termType==='semester'?'학기':'분기'} 안에 몇 텀? 최대 12텀)</span>
+                <span style={{fontSize:'11px',color:'#9ca3af',marginLeft:'8px'}}>
+                  ({termType==='semester'?'학기당 최대 24텀':'분기당 최대 12텀'})
+                </span>
               </label>
               <div style={{display:'flex',gap:'12px',flexWrap:'wrap'}}>
                 {termBoundaries.map((b,i)=>{
                   const qc = getQuarterColor(i+1)
                   const tCount = activeTermCounts[i]||3
+                  const maxTerms = termType==='semester' ? 24 : 12
+                  const termNums = Array.from({length:maxTerms},(_,j)=>j+1)
                   return (
-                    <div key={i} style={{background:qc.bg,border:`1.5px solid ${qc.border}`,borderRadius:'12px',padding:'14px',minWidth:'140px'}}>
+                    <div key={i} style={{background:qc.bg,border:`1.5px solid ${qc.border}`,borderRadius:'12px',padding:'14px',minWidth:'200px'}}>
                       <div style={{fontSize:'13px',fontWeight:700,color:qc.text,marginBottom:'10px'}}>{b.label}</div>
-                      {/* 텀 수 선택 1~12 */}
                       <div style={{display:'flex',gap:'4px',flexWrap:'wrap',marginBottom:'8px'}}>
-                        {[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>(
+                        {termNums.map(n=>(
                           <button key={n} onClick={()=>handleQTermCount(i,n)}
                             style={{width:'28px',height:'28px',borderRadius:'6px',
                               border:`1.5px solid ${tCount===n?qc.border:'#e5e7eb'}`,
