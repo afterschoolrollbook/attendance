@@ -298,8 +298,9 @@ export function SchoolCalendar({ cls, onUpdate }) {
   const [makeupDates,    setMakeupDates]    = useState(cls?.makeupDates||[])
 
   // UI
-  const [settingOpen, setSettingOpen] = useState(true)
-  const [termOpen,    setTermOpen]    = useState(true)
+  const isNew = !cls?.id
+  const [settingOpen, setSettingOpen] = useState(isNew)
+  const [termOpen,    setTermOpen]    = useState(isNew)
   const [holidayOpen, setHolidayOpen] = useState(false)
   const [selectedDate,   setSelectedDate]   = useState(null)
   const [clickType,      setClickType]      = useState(null)
