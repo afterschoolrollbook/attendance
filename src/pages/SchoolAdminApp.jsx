@@ -481,18 +481,26 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
 // ── 공지·업무 관리 탭
 function NoticesTab({ session }) {
   const { success, error } = useToast()
-  const [notices, setNotices]   = useState([])
+  const [notices,  setNotices]  = useState([])
+  const [invites,  setInvites]  = useState([])
   const [teachers, setTeachers] = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [showCreate, setShowCreate]   = useState(false)
+  const [loading,  setLoading]  = useState(true)
+  const [showCreate,   setShowCreate]   = useState(false)
   const [detailNotice, setDetailNotice] = useState(null)
-  const [filterStatus, setFilterStatus] = useState('all') // all | active | working | done
+  const [filterStatus, setFilterStatus] = useState('all')
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [n, t] = await Promise.all([DB.notices(session.adminId), DB.teachers(session.adminId)])
+    const [n, t, inv] = await Promise.all([
+      DB.notices(session.adminId),
+      DB.teachers(session.adminId),
+      dbCall('getAll', 'schoolTeacherInvites').then(d =>
+        (d||[]).filter(i => i.adminId === session.adminId)
+      ),
+    ])
     setNotices(n.sort((a,b)=>b.createdAt?.localeCompare(a.createdAt)))
     setTeachers(t)
+    setInvites(inv)
     setLoading(false)
   }, [session.adminId])
 
@@ -505,6 +513,18 @@ function NoticesTab({ session }) {
     load()
   }
 
+  // 공지에 연결된 초대 현황
+  const getInviteSummary = (noticeId) => {
+    const linked = invites.filter(i => i.noticeId === noticeId)
+    if (!linked.length) return null
+    return {
+      total:    linked.length,
+      accepted: linked.filter(i => i.status === 'accepted').length,
+      pending:  linked.filter(i => i.status === 'pending').length,
+      emailed:  linked.filter(i => i.status === 'emailed').length,
+    }
+  }
+
   const filtered = notices.filter(n => filterStatus==='all' || n.status===filterStatus)
 
   const typeInfo = (type) =>
@@ -514,9 +534,10 @@ function NoticesTab({ session }) {
     type==='task'           ? { icon:'📎', text:'업무 요청',  color:'#d97706', bg:'#fffbeb' } :
                               { icon:'📋', text:'공지 전달',  color:'#6b7280', bg:'#f3f4f6' }
 
+  const isInviteType = (type) => ['invite_connect','invite_signup','invite'].includes(type)
+
   return (
     <div style={{ padding:'24px', maxWidth:'900px' }}>
-      {/* 헤더 */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px' }}>
         <div>
           <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>📋 공지·업무 관리</div>
@@ -525,65 +546,75 @@ function NoticesTab({ session }) {
         <Btn onClick={()=>setShowCreate(true)}>+ 등록</Btn>
       </div>
 
-      {/* 상태 필터 */}
       <div style={{ display:'flex', gap:'6px', marginBottom:'16px' }}>
         {[['all','전체'],['active','진행중'],['working','업무중'],['done','업무완료']].map(([v,l]) => (
           <button key={v} onClick={()=>setFilterStatus(v)} style={{
             padding:'6px 14px', borderRadius:'999px', border:'none', cursor:'pointer',
             fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', fontWeight:filterStatus===v?700:400,
             background:filterStatus===v?'#1e3a5f':'#e5e7eb', color:filterStatus===v?'#fff':C.muted,
-          }}>{l} {filterStatus===v&&`(${filtered.length})`}</button>
+          }}>{l}{filterStatus===v?` (${filtered.length})`:''}</button>
         ))}
       </div>
 
-      {loading ? <div style={{ textAlign:'center', padding:'40px', color:C.muted }}>불러오는 중...</div>
-      : filtered.length===0
-        ? <div style={{ textAlign:'center', padding:'60px', color:C.muted, background:'#f8fafc', borderRadius:'14px', border:`1px dashed ${C.border}` }}>
-            <div style={{ fontSize:'40px', marginBottom:'10px' }}>📋</div>
-            <div>등록된 항목이 없습니다.</div>
-          </div>
-        : <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-            {filtered.map(notice => {
-              const ti  = typeInfo(notice.type)
-              const ns  = NOTICE_STATUS[notice.status] || NOTICE_STATUS.active
-              const cnt = (notice.targetTeacherIds||[]).length
-              return (
-                <div key={notice.id} style={{
-                  background:C.card, borderRadius:'14px',
-                  border:`2px solid ${notice.status==='done'?'#86efac':notice.status==='working'?'#fcd34d':C.border}`,
-                  padding:'16px 20px',
-                }}>
-                  <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'12px' }}>
-                    <div style={{ flex:1 }}>
-                      {/* 뱃지 행 */}
-                      <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'6px', alignItems:'center' }}>
-                        <span style={{ fontSize:'11px', fontWeight:700, color:ti.color, background:ti.bg, padding:'2px 8px', borderRadius:'999px' }}>{ti.icon} {ti.text}</span>
-                        <span style={{ fontSize:'11px', fontWeight:700, color:ns.color, background:ns.bg, padding:'2px 8px', borderRadius:'999px' }}>{ns.label}</span>
-                        <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{notice.title}</span>
-                      </div>
-                      {/* 기간/마감 */}
-                      <div style={{ fontSize:'12px', color:C.muted, display:'flex', gap:'12px', flexWrap:'wrap' }}>
-                        {notice.startDate && <span>📅 {notice.startDate}{notice.endDate?` ~ ${notice.endDate}`:''}</span>}
-                        {notice.dueDate   && <span>⏰ 마감 {notice.dueDate}</span>}
-                        <span>👥 {cnt}명</span>
-                      </div>
-                      {/* 메모 */}
-                      {notice.memo && (
-                        <div style={{ fontSize:'12px', color:'#92400e', background:'#fffbeb', borderRadius:'6px', padding:'4px 10px', marginTop:'6px', display:'inline-block' }}>
-                          📝 {notice.memo}
-                        </div>
-                      )}
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'40px', color:C.muted }}>불러오는 중...</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'60px', color:C.muted, background:'#f8fafc', borderRadius:'14px', border:`1px dashed ${C.border}` }}>
+          <div style={{ fontSize:'40px', marginBottom:'10px' }}>📋</div>
+          <div>등록된 항목이 없습니다.</div>
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+          {filtered.map(notice => {
+            const ti  = typeInfo(notice.type)
+            const ns  = NOTICE_STATUS[notice.status] || NOTICE_STATUS.active
+            const cnt = (notice.targetTeacherIds||[]).length
+            const inv = getInviteSummary(notice.id)
+            return (
+              <div key={notice.id} style={{
+                background:C.card, borderRadius:'14px',
+                border:`2px solid ${notice.status==='done'?'#86efac':notice.status==='working'?'#fcd34d':C.border}`,
+                padding:'16px 20px',
+              }}>
+                <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'12px' }}>
+                  <div style={{ flex:1 }}>
+                    {/* 뱃지 + 제목 */}
+                    <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'6px', alignItems:'center' }}>
+                      <span style={{ fontSize:'11px', fontWeight:700, color:ti.color, background:ti.bg, padding:'2px 8px', borderRadius:'999px' }}>{ti.icon} {ti.text}</span>
+                      <span style={{ fontSize:'11px', fontWeight:700, color:ns.color, background:ns.bg, padding:'2px 8px', borderRadius:'999px' }}>{ns.label}</span>
+                      <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{notice.title}</span>
                     </div>
-                    <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
-                      <Btn onClick={()=>setDetailNotice(notice)}>현황</Btn>
-                      <Btn color="danger" onClick={()=>deleteNotice(notice.id)}>삭제</Btn>
+                    {/* 기간/마감/대상 */}
+                    <div style={{ fontSize:'12px', color:C.muted, display:'flex', gap:'12px', flexWrap:'wrap' }}>
+                      {notice.startDate && <span>📅 {notice.startDate}{notice.endDate?` ~ ${notice.endDate}`:''}</span>}
+                      {notice.dueDate   && <span>⏰ 마감 {notice.dueDate}</span>}
+                      <span>👥 대상 {cnt}명</span>
                     </div>
+                    {/* 메모 */}
+                    {notice.memo && (
+                      <div style={{ fontSize:'12px', color:'#92400e', background:'#fffbeb', borderRadius:'6px', padding:'4px 10px', marginTop:'6px', display:'inline-block' }}>
+                        📝 {notice.memo}
+                      </div>
+                    )}
+                    {/* 초대 현황 — 초대 유형일 때 표시 */}
+                    {isInviteType(notice.type) && inv && (
+                      <div style={{ display:'flex', gap:'6px', marginTop:'8px', flexWrap:'wrap' }}>
+                        <span style={{ fontSize:'11px', fontWeight:600, color:'#16a34a', background:'#f0fdf4', padding:'2px 8px', borderRadius:'999px' }}>✅ 연결완료 {inv.accepted}</span>
+                        <span style={{ fontSize:'11px', fontWeight:600, color:'#d97706', background:'#fffbeb', padding:'2px 8px', borderRadius:'999px' }}>📨 수락대기 {inv.pending}</span>
+                        {inv.emailed > 0 && <span style={{ fontSize:'11px', fontWeight:600, color:'#f97316', background:'#fff7ed', padding:'2px 8px', borderRadius:'999px' }}>📧 이메일발송 {inv.emailed}</span>}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+                    <Btn onClick={()=>setDetailNotice(notice)}>현황</Btn>
+                    <Btn color="danger" onClick={()=>deleteNotice(notice.id)}>삭제</Btn>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-      }
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {showCreate && <NoticeCreateModal session={session} teachers={teachers} onSave={load} onClose={()=>setShowCreate(false)} />}
       {detailNotice && (
@@ -595,6 +626,8 @@ function NoticesTab({ session }) {
       )}
     </div>
   )
+}
+
 }
 
 const CURRENT_YEAR = new Date().getFullYear()
@@ -1318,14 +1351,59 @@ async function sendSignupInviteEmail({ teacherName, email, schoolName, adminName
 // ── 선생님 연결 관리 탭
 // ● 이메일 일치(앱 가입) → 이메일 발송 + DB 초대(대시보드 팝업)
 // ● 이메일 불일치(미가입) → 이메일만 발송 (대시보드 팝업 없음)
+// ── 기간 설정 모달
+function PeriodModal({ teacher, onClose, onSave }) {
+  const [startDate, setStartDate] = useState(teacher.startDate || '')
+  const [endDate,   setEndDate]   = useState(teacher.endDate   || '')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    await onSave(startDate, endDate)
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
+      onClick={e => e.target===e.currentTarget && onClose()}>
+      <div style={{ background:'#fff', borderRadius:'16px', width:'380px', maxWidth:'92vw', padding:'24px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'18px' }}>
+          <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>📅 계약 기간 설정</div>
+          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>✕</button>
+        </div>
+        <div style={{ fontSize:'13px', fontWeight:600, color:C.muted, marginBottom:'14px' }}>
+          {teacher.teacherName} 선생님 · {teacher.subject||''}
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'20px' }}>
+          <div>
+            <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>시작일</label>
+            <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}
+              style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+          </div>
+          <div>
+            <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>종료일</label>
+            <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}
+              style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+          <Btn color="secondary" onClick={onClose}>취소</Btn>
+          <Btn onClick={handleSave} disabled={saving}>{saving ? '저장 중...' : '저장'}</Btn>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ConnectTab({ session }) {
   const { success, error } = useToast()
-  const [roster,   setRoster]   = useState([])
-  const [appUsers, setAppUsers] = useState([])
-  const [invites,  setInvites]  = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [sending,  setSending]  = useState({})
-  const [selYear,  setSelYear]  = useState(CURRENT_YEAR)
+  const [roster,      setRoster]      = useState([])
+  const [appUsers,    setAppUsers]    = useState([])
+  const [invites,     setInvites]     = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [sending,     setSending]     = useState({})
+  const [selYear,     setSelYear]     = useState(CURRENT_YEAR)
+  const [periodModal, setPeriodModal] = useState(null) // { teacher } 기간 설정 모달
 
   const fetchData = async () => {
     const [r, u, inv] = await Promise.all([
@@ -1570,8 +1648,8 @@ function ConnectTab({ session }) {
                   <span style={{ fontSize:'12px', color:'#6b7280' }}>이 이메일로 서비스에 가입되어 있습니다</span>
                 </div>
                 {/* 테이블 헤더 */}
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 130px 120px', padding:'9px 18px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
-                  <span>이름</span><span>과목·요일</span><span>이메일</span>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 110px 130px 100px', padding:'9px 18px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
+                  <span>이름</span><span>과목·요일</span><span>이메일</span><span style={{ textAlign:'center' }}>기간</span>
                   <span style={{ textAlign:'center' }}>상태</span>
                   <span style={{ textAlign:'center' }}>초대</span>
                 </div>
@@ -1585,7 +1663,7 @@ function ConnectTab({ session }) {
                   const inv = inviteByEmail[t.email?.toLowerCase()]
                   return (
                     <div key={t.id} style={{
-                      display:'grid', gridTemplateColumns:'1fr 1fr 1fr 130px 120px',
+                      display:'grid', gridTemplateColumns:'1fr 1fr 1fr 110px 130px 100px',
                       padding:'13px 18px', borderBottom:i<group.length-1?`1px solid ${C.border}`:'none',
                       alignItems:'center', background: st==='accepted'?'#f0fdf4':'#fff',
                     }}>
@@ -1598,6 +1676,18 @@ function ConnectTab({ session }) {
                         <div style={{ fontSize:'11px', color:C.muted }}>{t.days||'-'}</div>
                       </div>
                       <span style={{ fontSize:'12px', color:C.muted }}>{t.email||'-'}</span>
+                      <div style={{ textAlign:'center' }}>
+                        {t.startDate ? (
+                          <div>
+                            <div style={{ fontSize:'11px', color:C.text }}>{t.startDate}</div>
+                            <div style={{ fontSize:'10px', color:C.muted }}>~{t.endDate||'미정'}</div>
+                          </div>
+                        ) : (
+                          <button onClick={()=>setPeriodModal(t)} style={{ fontSize:'11px', color:C.muted, background:'none', border:`1px dashed ${C.border}`, borderRadius:'6px', padding:'3px 8px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                            기간설정
+                          </button>
+                        )}
+                      </div>
                       <div style={{ textAlign:'center' }}>
                         <span style={{ fontSize:'11px', fontWeight:700, color:si.color, background:si.badge, padding:'3px 10px', borderRadius:'999px', whiteSpace:'nowrap' }}>
                           {si.label}
@@ -1640,8 +1730,8 @@ function ConnectTab({ session }) {
                   <span style={{ fontSize:'12px', color:'#6b7280' }}>가입 초대 이메일을 발송할 수 있습니다</span>
                 </div>
                 {/* 테이블 헤더 */}
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 130px 120px', padding:'9px 18px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
-                  <span>이름</span><span>과목·요일</span><span>이메일</span>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 110px 130px 100px', padding:'9px 18px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
+                  <span>이름</span><span>과목·요일</span><span>이메일</span><span style={{ textAlign:'center' }}>기간</span>
                   <span style={{ textAlign:'center' }}>상태</span>
                   <span style={{ textAlign:'center' }}>초대</span>
                 </div>
@@ -1655,7 +1745,7 @@ function ConnectTab({ session }) {
                   const inv = inviteByEmail[t.email?.toLowerCase()]
                   return (
                     <div key={t.id} style={{
-                      display:'grid', gridTemplateColumns:'1fr 1fr 1fr 130px 120px',
+                      display:'grid', gridTemplateColumns:'1fr 1fr 1fr 110px 130px 100px',
                       padding:'13px 18px', borderBottom:i<group.length-1?`1px solid ${C.border}`:'none',
                       alignItems:'center', background:'#fff',
                       opacity: st==='notjoined' ? 0.75 : 1,
@@ -1669,6 +1759,18 @@ function ConnectTab({ session }) {
                         <div style={{ fontSize:'11px', color:C.muted }}>{t.days||'-'}</div>
                       </div>
                       <span style={{ fontSize:'12px', color:C.muted }}>{t.email||'-'}</span>
+                      <div style={{ textAlign:'center' }}>
+                        {t.startDate ? (
+                          <div>
+                            <div style={{ fontSize:'11px', color:C.text }}>{t.startDate}</div>
+                            <div style={{ fontSize:'10px', color:C.muted }}>~{t.endDate||'미정'}</div>
+                          </div>
+                        ) : (
+                          <button onClick={()=>setPeriodModal(t)} style={{ fontSize:'11px', color:C.muted, background:'none', border:`1px dashed ${C.border}`, borderRadius:'6px', padding:'3px 8px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                            기간설정
+                          </button>
+                        )}
+                      </div>
                       <div style={{ textAlign:'center' }}>
                         <span style={{ fontSize:'11px', fontWeight:700, color:si.color, background:si.badge, padding:'3px 10px', borderRadius:'999px', whiteSpace:'nowrap' }}>
                           {si.label}
@@ -1693,6 +1795,23 @@ function ConnectTab({ session }) {
           })()}
 
         </div>
+      )}
+
+      {/* 기간 설정 모달 */}
+      {periodModal && (
+        <PeriodModal
+          teacher={periodModal}
+          onClose={() => setPeriodModal(null)}
+          onSave={async (startDate, endDate) => {
+            await dbCall('update', 'schoolAdminTeachers', {
+              id: periodModal.id,
+              patch: { startDate: startDate||null, endDate: endDate||null },
+            })
+            success('기간이 설정되었습니다.')
+            setPeriodModal(null)
+            silentRefresh()
+          }}
+        />
       )}
     </div>
   )
