@@ -446,10 +446,18 @@ export function SchoolCalendar({ cls, onUpdate }) {
     setMakeupDates(updated);setShowAction(false);setShowMakeupForm(false);saveAll({makeupDates:updated})
   }
   const handleRestore = () => {
-    const updC=cancelledDates.filter(c=>c.date!==selectedDate)
-    const updM=makeupDates.filter(m=>m.date!==selectedDate)
-    setCancelledDates(updC);setMakeupDates(updM);setShowAction(false)
-    saveAll({cancelledDates:updC,makeupDates:updM})
+    const updC = cancelledDates.filter(c => c.date !== selectedDate)
+    const updM = makeupDates.filter(m => m.date !== selectedDate)
+    // 수업일을 복원할 경우 cancelledDates에 없으므로 아무 변화 없음
+    // → 수업일 클릭 시 복원 = cancelledDates에 추가해서 수업 제외
+    if (clickType === 'session') {
+      const updC2 = [...cancelledDates, {date:selectedDate, reason:'etc', memo:'수동제외'}]
+      setCancelledDates(updC2); setShowAction(false)
+      saveAll({cancelledDates:updC2})
+    } else {
+      setCancelledDates(updC); setMakeupDates(updM); setShowAction(false)
+      saveAll({cancelledDates:updC, makeupDates:updM})
+    }
   }
 
   const sectionStyle = {background:'#f8fafc',border:'1.5px solid #e2e8f0',borderRadius:'14px',marginBottom:'14px',overflow:'hidden'}
