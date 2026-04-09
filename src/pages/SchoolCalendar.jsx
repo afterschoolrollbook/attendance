@@ -86,9 +86,10 @@ function buildSessionMap({ allSessionDates, termBoundaries, quarterTermCounts, f
   let globalTermIdx = 0
 
   termBoundaries.forEach((boundary, qIdx) => {
-    const quarterNum  = qIdx + 1
-    const numTerms    = quarterTermCounts[qIdx] || 1
-    const termDates   = allSessionDates.filter(d => d >= boundary.start && d <= boundary.end)
+    const quarterNum   = qIdx + 1
+    const quarterLabel = boundary.label
+    const numTerms     = quarterTermCounts[qIdx] || 1
+    const termDates    = allSessionDates.filter(d => d >= boundary.start && d <= boundary.end)
 
     const dayCounters = {}
 
@@ -105,6 +106,7 @@ function buildSessionMap({ allSessionDates, termBoundaries, quarterTermCounts, f
 
       sessionMap[d] = {
         quarterNum,
+        quarterLabel,
         dayTotal:      dc.total,
         localTermIdx:  dc.localTermIdx,
         globalTermIdx: dc.globalTermIdx,
@@ -115,10 +117,8 @@ function buildSessionMap({ allSessionDates, termBoundaries, quarterTermCounts, f
 
       if (dc.inTermSess >= spt) {
         dc.inTermSess = 0
-        if (dc.localTermIdx < numTerms - 1) {
-          dc.localTermIdx++
-          dc.globalTermIdx++
-        }
+        dc.localTermIdx++
+        dc.globalTermIdx++
       }
     })
 
@@ -196,7 +196,7 @@ function MonthCalendar({ year, month, sessionMap, cancelledDates, makeupDates, t
                 <div style={{fontSize:'12px',fontWeight:700,color:isSun?'#ef4444':isSat?'#3b82f6':'#111827'}}>{day}</div>
                 {/* 분기N / 분기내 M차 — 요일별 텍스트 색 */}
                 <div style={{fontSize:'10px',color:theme.text,fontWeight:700,lineHeight:1.3}}>
-                  {sessInfo.quarterNum}분기 {sessInfo.dayTotal}차
+                  {sessInfo.quarterLabel} {sessInfo.dayTotal}차
                 </div>
                 {/* P텀 Q회차 — 요일별 뱃지 색 (텀 교대: 짝수=진한색배경, 홀수=흰배경+진한글씨) */}
                 {sessInfo.globalTermIdx % 2 === 0 ? (
@@ -359,20 +359,28 @@ export function SchoolCalendar({ cls, onUpdate }) {
     ? getDatesInRange(marchStart,nextFebEnd,dayNums).filter(d=>!cancelledSet.has(d)&&!vacationDates.has(d))
     : []
 
-  // 텀 경계 (분기/학기)
+  // 텀 경계 (분기/학기) — 날짜 미입력 시 기본값 적용
   let termBoundaries = []
   const numPeriods = termType==='semester' ? 2 : quarters
   if(termType==='semester'){
-    const sem2Start = sumEnd?addDays(sumEnd,1):fmt(year,9,1)
+    // 1학기: 3월~8월말 (sem1End 입력 시 우선)
+    const sem1EndDefault = fmt(year,8,31)
+    const sem1EndFinal   = sem1End || sem1EndDefault
+    // 여름방학 있으면 그 다음날, 없으면 9월1일
+    const sem2Start = sumEnd ? addDays(sumEnd,1) : fmt(year,9,1)
+    // 2학기: sem2Start~다음해2월말 (sem2End 입력 시 우선)
+    const sem2EndFinal = sem2End || fmt(year+1,2,28)
     termBoundaries = [
-      {start:marchStart, end:sem1End||fmt(year,7,15), label:'1학기'},
-      {start:sem2Start,  end:sem2End||fmt(year+1,2,28), label:'2학기'},
+      {start:marchStart,  end:sem1EndFinal,  label:'1학기'},
+      {start:sem2Start,   end:sem2EndFinal,  label:'2학기'},
     ]
   } else {
+    // 4분기 기본: 3~5월 / 6~8월 / 9~11월 / 12~2월
+    const defEnds = [fmt(year,5,31), fmt(year,8,31), fmt(year,11,30), fmt(year+1,2,28)]
     let prevEnd = fmt(year,2,28)
     for(let i=0;i<quarters;i++){
-      const qEnd = qEnds[i]||fmt(year,3+Math.floor(12/quarters*(i+1))-1,28)
-      termBoundaries.push({start:addDays(prevEnd,1),end:qEnd,label:`${i+1}분기`})
+      const qEnd = qEnds[i] || defEnds[i] || fmt(year+1,2,28)
+      termBoundaries.push({start:addDays(prevEnd,1), end:qEnd, label:`${i+1}분기`})
       prevEnd = qEnd
     }
   }
@@ -900,7 +908,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
             </span>
           )
         })}
-        <span style={{marginLeft:'6px',fontWeight:600,color:'#374151'}}>분기 테두리:</span>
+        <span style={{marginLeft:'6px',fontWeight:600,color:'#374151'}}>{termType==='semester'?'학기':'분기'} 테두리:</span>
         {termBoundaries.map((b,i)=>(
           <span key={i} style={{display:'flex',alignItems:'center',gap:'3px'}}>
             <span style={{width:'14px',height:'14px',borderRadius:'4px',background:'#fff',border:`2px solid ${getQuarterColor(i+1).border}`,display:'inline-block'}}/>
