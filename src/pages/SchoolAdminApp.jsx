@@ -1069,7 +1069,7 @@ function SubjectsTab({ session }) {
   const iSt3 = { width:'100%', padding:'8px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
 
   return (
-    <div style={{ padding:'28px', maxWidth:'700px' }}>
+    <div style={{ padding:'28px' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'20px' }}>
         <div>
           <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>📚 과목 관리</div>
@@ -1099,23 +1099,23 @@ function SubjectsTab({ session }) {
           <div style={{ fontWeight:600 }}>{selYear}년 등록된 과목이 없습니다.</div>
         </div>
       ) : (
-        <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+        <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflowX:'auto' }}>
           {/* 헤더 */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 90px 160px 50px 130px 90px', gap:'0', background:'#f8fafc', borderBottom:`1px solid ${C.border}` }}>
+          <div style={{ display:'grid', gridTemplateColumns:'180px 80px 100px 200px 60px 160px 100px', gap:'0', background:'#f8fafc', borderBottom:`1px solid ${C.border}` }}>
             {['과목명','반','요일','시간 (정규/방학)','정원','담당 선생님',''].map((h,i) => (
-              <div key={i} style={{ padding:'10px 14px', fontSize:'12px', fontWeight:700, color:C.muted, borderRight: i<6?`1px solid ${C.border}`:'none' }}>{h}</div>
+              <div key={i} style={{ padding:'10px 14px', fontSize:'12px', fontWeight:700, color:C.muted, borderRight: i<6?`1px solid ${C.border}`:'none', whiteSpace:'nowrap' }}>{h}</div>
             ))}
           </div>
           {filtered.map((s, i) => (
             <div key={s.id} style={{
-              display:'grid', gridTemplateColumns:'1fr 70px 90px 160px 50px 130px 90px', gap:'0',
+              display:'grid', gridTemplateColumns:'180px 80px 100px 200px 60px 160px 100px', gap:'0',
               alignItems:'stretch',
               borderBottom: i < filtered.length-1 ? `1px solid ${C.border}` : 'none',
             }}>
               {/* 과목명 */}
-              <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:'6px', borderRight:`1px solid ${C.border}` }}>
-                <span style={{ fontSize:'16px' }}>📌</span>
-                <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{s.name}</span>
+              <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:'6px', borderRight:`1px solid ${C.border}`, overflow:'hidden' }}>
+                <span style={{ fontSize:'16px', flexShrink:0 }}>📌</span>
+                <span style={{ fontSize:'13px', fontWeight:700, color:C.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{s.name}</span>
               </div>
               {/* 반 */}
               <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', borderRight:`1px solid ${C.border}` }}>
@@ -2445,7 +2445,7 @@ function StudentsTab({ session }) {
                 {filteredStudents.length === 0
                   ? <div style={{ textAlign:'center', padding:'40px', color:C.muted, background:C.bg, borderRadius:'12px', border:`1px dashed ${C.border}` }}>학생 데이터가 없습니다.</div>
                   : (
-                    <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                    <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflowX:'auto' }}>
                       <div style={{ display:'grid', gridTemplateColumns:'40px 100px 1fr 120px 1fr', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted, textAlign:'center' }}>
                         <span>#</span>
                         <span>학년·반</span>
