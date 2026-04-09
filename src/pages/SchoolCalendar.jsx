@@ -792,32 +792,43 @@ export function SchoolCalendar({ cls, onUpdate }) {
             {/* 전체 요약 */}
             <div style={{background:'#fff',borderRadius:'12px',border:'1px solid #e5e7eb',padding:'14px'}}>
               <div style={{fontSize:'12px',color:'#6b7280',marginBottom:'10px',fontWeight:600}}>전체 구성 요약</div>
-              <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'10px'}}>
-                {termBoundaries.map((b,qIdx)=>{
-                  const tCount = activeTermCounts[qIdx]||1
-                  const qc = getQuarterColor(qIdx+1)
-                  const prevTerms = activeTermCounts.slice(0,qIdx).reduce((a,b)=>a+b,0)
-                  return Array.from({length:tCount},(_,tIdx)=>{
-                    const globalTIdx = prevTerms+tIdx
-                    const badge = getTermBadge(globalTIdx)
-                    const sess = getTermSessions(qIdx,tIdx)
-                    // 누적 차시 시작
-                    let cumStart=1
-                    for(let qi=0;qi<qIdx;qi++) for(let ti=0;ti<(activeTermCounts[qi]||1);ti++) cumStart+=getTermSessions(qi,ti)
-                    for(let ti=0;ti<tIdx;ti++) cumStart+=getTermSessions(qIdx,ti)
-                    const cumEnd=cumStart+sess-1
-                    return (
-                      <div key={`${qIdx}-${tIdx}`} style={{display:'flex',alignItems:'center',gap:'3px',
-                        padding:'3px 8px',background:'#fff',border:`1.5px solid ${badge}`,borderRadius:'16px'}}>
-                        <span style={{fontSize:'10px',fontWeight:700,color:qc.text}}>{b.label}</span>
-                        <span style={{fontSize:'10px',fontWeight:700,color:badge}}>{tIdx+1}텀 {sess}회</span>
-                        <span style={{fontSize:'9px',color:'#9ca3af'}}>{cumStart}~{cumEnd}차</span>
+              {termBoundaries.map((b,qIdx)=>{
+                const tCount = activeTermCounts[qIdx]||1
+                const qc = getQuarterColor(qIdx+1)
+                const prevTerms = activeTermCounts.slice(0,qIdx).reduce((a,b)=>a+b,0)
+                const periodSessions = Array.from({length:tCount},(_,ti)=>getTermSessions(qIdx,ti)).reduce((a,b)=>a+b,0)
+                return (
+                  <div key={qIdx} style={{marginBottom:'10px'}}>
+                    {/* 학기/분기 헤더 */}
+                    <div style={{display:'flex',alignItems:'center',gap:'6px',marginBottom:'6px'}}>
+                      <div style={{padding:'3px 10px',borderRadius:'20px',background:qc.bg,border:`1.5px solid ${qc.border}`}}>
+                        <span style={{fontSize:'12px',fontWeight:800,color:qc.text}}>{b.label}</span>
                       </div>
-                    )
-                  })
-                })}
-              </div>
-              <div style={{fontSize:'13px',color:'#374151',fontWeight:700}}>
+                      <span style={{fontSize:'11px',color:'#9ca3af'}}>{tCount}텀 · {periodSessions}회차</span>
+                    </div>
+                    {/* 텀 뱃지 목록 */}
+                    <div style={{display:'flex',gap:'5px',flexWrap:'wrap',paddingLeft:'4px'}}>
+                      {Array.from({length:tCount},(_,tIdx)=>{
+                        const globalTIdx = prevTerms+tIdx
+                        const badge = getTermBadge(globalTIdx)
+                        const sess = getTermSessions(qIdx,tIdx)
+                        let cumStart=1
+                        for(let qi=0;qi<qIdx;qi++) for(let ti=0;ti<(activeTermCounts[qi]||1);ti++) cumStart+=getTermSessions(qi,ti)
+                        for(let ti=0;ti<tIdx;ti++) cumStart+=getTermSessions(qIdx,ti)
+                        const cumEnd=cumStart+sess-1
+                        return (
+                          <div key={`${qIdx}-${tIdx}`} style={{display:'flex',alignItems:'center',gap:'3px',
+                            padding:'3px 8px',background:qc.bg,border:`1.5px solid ${badge}`,borderRadius:'16px'}}>
+                            <span style={{fontSize:'10px',fontWeight:700,color:badge}}>{tIdx+1}텀 {sess}회</span>
+                            <span style={{fontSize:'9px',color:qc.text}}>{cumStart}~{cumEnd}차</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+              <div style={{fontSize:'13px',color:'#374151',fontWeight:700,marginTop:'4px',paddingTop:'10px',borderTop:'1px solid #f3f4f6'}}>
                 총 <span style={{color:'#f97316'}}>{totalTerms}텀</span>
                 {' · '}총 <span style={{color:'#16a34a'}}>{totalSessions}회차</span>
               </div>
