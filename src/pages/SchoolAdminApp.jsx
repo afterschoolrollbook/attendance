@@ -8,6 +8,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react'
 import { dbCall, FUNCTIONS_BASE } from '../lib/supabase.js'
+import { db } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
 import { ConfirmDialog } from '../components/Atoms.jsx'
@@ -58,7 +59,7 @@ const DB = {
   saveNotice:  async (n) => dbCall('upsert','schoolNotices',{data:n}),
   saveSubmit:  async (s) => dbCall('upsert','schoolNoticeSubmits',{data:s}),
   saveTeacher: async (t) => dbCall('upsert','schoolAdminTeachers',{data:t}),
-  deleteNotice: async (id) => dbCall('delete','schoolNotices',{id}),
+  deleteNotice: (id) => db.delete('schoolNotices', id),
 }
 
 // ── 사이드바
@@ -1422,7 +1423,7 @@ function TeachersTab({ session }) {
     setModalMode('edit')
   }
 
-  const removeTeacher = async (id) => {
+  const removeTeacher = (id) => {
     confirm('선생님을 목록에서 제외하시겠습니까?', async () => {
       await dbCall('update', 'schoolAdminTeachers', { id, patch: { active: false } })
       success('제외되었습니다.'); load()
@@ -1788,24 +1789,23 @@ function ConnectTab({ session }) {
   // 연결 끊기 — accepted 상태 해제 + schoolAdminTeachers 비활성화
   const disconnectTeacher = (t) => {
     confirm(`⚠️ ${t.teacherName} 선생님과의 연결을 끊으시겠습니까?\n\n• 선생님이 공지·업무를 더 이상 받을 수 없습니다.\n• 진행 중인 업무가 있다면 미완료로 처리됩니다.\n• 선생님도 대시보드에서 연결이 해제됩니다.`, async () => {
-    try {
-      const inv = inviteByEmail[t.email?.toLowerCase()]
-      if (inv) {
-        await dbCall('update', 'schoolTeacherInvites', {
-          id: inv.id,
-          patch: { status: 'declined', noticeId: null },
-        })
-      }
-      // schoolAdminTeachers에서 비활성화
-      if (t.id && !t._virtual) {
-        await dbCall('update', 'schoolAdminTeachers', {
-          id: t.id,
-          patch: { active: false },
-        })
-      }
-      success(`${t.teacherName} 선생님과의 연결을 끊었습니다.`)
-      load()
-    } catch { error('처리 중 오류가 발생했습니다.') }
+      try {
+        const inv = inviteByEmail[t.email?.toLowerCase()]
+        if (inv) {
+          await dbCall('update', 'schoolTeacherInvites', {
+            id: inv.id,
+            patch: { status: 'declined', noticeId: null },
+          })
+        }
+        if (t.id && !t._virtual) {
+          await dbCall('update', 'schoolAdminTeachers', {
+            id: t.id,
+            patch: { active: false },
+          })
+        }
+        success(`${t.teacherName} 선생님과의 연결을 끊었습니다.`)
+        load()
+      } catch { error('처리 중 오류가 발생했습니다.') }
     })
   }
 
@@ -2520,9 +2520,8 @@ function SchoolDashboard({ session, onNav }) {
   )
 }
 
-// SchoolAdminApp 전용 confirm 컨텍스트 (App.jsx _openConfirm 싱글톤 충돌 방지)
 const SchoolConfirmContext = React.createContext(null)
-export function useSchoolConfirm() { return React.useContext(SchoolConfirmContext) }
+function useSchoolConfirm() { return React.useContext(SchoolConfirmContext) }
 
 export function SchoolAdminApp({ session, onLogout }) {
   const [page, setPage] = useState('dashboard')
@@ -2533,24 +2532,26 @@ export function SchoolAdminApp({ session, onLogout }) {
   }, [])
 
   const handleOk = () => {
-    setConfirmState(s => { s.onOk?.(); return { ...s, open: false } })
+    const cb = confirmState.onOk
+    setConfirmState(s => ({ ...s, open: false }))
+    cb?.()
   }
   const handleCancel = () => setConfirmState(s => ({ ...s, open: false }))
 
   return (
     <SchoolConfirmContext.Provider value={schoolConfirm}>
-    <div style={{ display:'flex', minHeight:'100vh', background:'#f1f5f9', fontFamily:'Noto Sans KR, sans-serif' }}>
-      <ConfirmDialog open={confirmState.open} message={confirmState.message} onOk={handleOk} onCancel={handleCancel} />
-      <Sidebar session={session} page={page} onNav={setPage} onLogout={onLogout} />
-      <main style={{ flex:1, overflowY:'auto' }}>
-        {page === 'dashboard' && <SchoolDashboard session={session} onNav={setPage} />}
-        {page === 'notices'  && <NoticesTab session={session} />}
-        {page === 'subjects' && <SubjectsTab session={session} />}
-        {page === 'teachers' && <TeachersTab session={session} />}
-        {page === 'connect'  && <ConnectTab session={session} />}
-        {page === 'students' && <StudentsTab session={session} />}
-      </main>
-    </div>
+      <div style={{ display:'flex', minHeight:'100vh', background:'#f1f5f9', fontFamily:'Noto Sans KR, sans-serif' }}>
+        <ConfirmDialog open={confirmState.open} message={confirmState.message} onOk={handleOk} onCancel={handleCancel} />
+        <Sidebar session={session} page={page} onNav={setPage} onLogout={onLogout} />
+        <main style={{ flex:1, overflowY:'auto' }}>
+          {page === 'dashboard' && <SchoolDashboard session={session} onNav={setPage} />}
+          {page === 'notices'  && <NoticesTab session={session} />}
+          {page === 'subjects' && <SubjectsTab session={session} />}
+          {page === 'teachers' && <TeachersTab session={session} />}
+          {page === 'connect'  && <ConnectTab session={session} />}
+          {page === 'students' && <StudentsTab session={session} />}
+        </main>
+      </div>
     </SchoolConfirmContext.Provider>
   )
 }
