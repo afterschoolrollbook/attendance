@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef } from 'react'
 const DAY_LABELS = ['일','월','화','수','목','금','토']
 const dayNameToNum = {'일':0,'월':1,'화':2,'수':3,'목':4,'금':5,'토':6}
 
-// 분기 색상 (테두리)
+// 분기 색상 (테두리만 — 셀 외곽)
 const QUARTER_COLORS = [
   {border:'#f97316',text:'#ea580c',bg:'#fff7ed'},
   {border:'#16a34a',text:'#15803d',bg:'#f0fdf4'},
@@ -17,13 +17,23 @@ const QUARTER_COLORS = [
 ]
 const getQuarterColor = (n) => QUARTER_COLORS[(n-1)%QUARTER_COLORS.length]||QUARTER_COLORS[0]
 
-// 텀 뱃지: 앞 텀과만 다르면 됨 → 2색 교대
-const TERM_BADGES = ['#f97316','#0ea5e9']
-const getTermBadge = (termIdx) => TERM_BADGES[termIdx%2]
+// 요일별 완전한 색상 테마 — 배경/텍스트/뱃지 모두 명확하게 구분
+const DAY_THEME = {
+  0: { bg:'#f3f4f6', text:'#6b7280', badge1:'#9ca3af', badge2:'#6b7280' }, // 일 — 회색
+  1: { bg:'#fff7ed', text:'#c2410c', badge1:'#f97316', badge2:'#c2410c' }, // 월 — 주황
+  2: { bg:'#fefce8', text:'#a16207', badge1:'#eab308', badge2:'#a16207' }, // 화 — 노랑
+  3: { bg:'#f0fdf4', text:'#15803d', badge1:'#22c55e', badge2:'#15803d' }, // 수 — 초록
+  4: { bg:'#eff6ff', text:'#1d4ed8', badge1:'#3b82f6', badge2:'#1d4ed8' }, // 목 — 파랑
+  5: { bg:'#fdf4ff', text:'#7e22ce', badge1:'#a855f7', badge2:'#7e22ce' }, // 금 — 보라
+  6: { bg:'#fff1f2', text:'#be123c', badge1:'#f43f5e', badge2:'#be123c' }, // 토 — 분홍
+}
+const getDayTheme = (dow) => DAY_THEME[dow] || DAY_THEME[1]
 
-// 요일 배경색
-const DAY_BG = {0:'#f9fafb',1:'#fff7ed',2:'#fef9c3',3:'#f0fdf4',4:'#eff6ff',5:'#fdf4ff',6:'#fff1f2'}
-const getDayBg = (dow) => DAY_BG[dow]||'#fff7ed'
+// 텀 뱃지: 요일 테마 기반으로 교대 (밝은색/어두운색)
+const getTermBadge = (termIdx, dow) => {
+  const theme = getDayTheme(dow)
+  return termIdx % 2 === 0 ? theme.badge1 : theme.badge2
+}
 
 // 공휴일
 const HOLIDAYS = {
@@ -174,24 +184,33 @@ function MonthCalendar({ year, month, sessionMap, cancelledDates, makeupDates, t
           )
 
           if(sessInfo) {
-            const localTermNum = sessInfo.localTermIdx + 1  // 분기 내 1-based 텀 번호
-            const badgeColor   = getTermBadge(sessInfo.globalTermIdx)
+            const localTermNum = sessInfo.localTermIdx + 1
+            const theme      = getDayTheme(dow)
+            const badgeColor = getTermBadge(sessInfo.globalTermIdx, dow)
             return (
               <button key={day} onClick={()=>onDateClick(dateStr,'session')}
                 style={{padding:'3px 2px',borderRadius:'7px',border:'none',cursor:'pointer',
-                  background:getDayBg(dow),
+                  background: theme.bg,
                   outline:`1.5px solid ${qc?.border||'#f97316'}`,
                   outlineOffset:'-1px',textAlign:'center',fontFamily:'Noto Sans KR, sans-serif'}}>
                 <div style={{fontSize:'12px',fontWeight:700,color:isSun?'#ef4444':isSat?'#3b82f6':'#111827'}}>{day}</div>
-                {/* 분기N / 분기내 M차시 */}
-                <div style={{fontSize:'10px',color:qc?.text||'#ea580c',fontWeight:700,lineHeight:1.3}}>
+                {/* 분기N / 분기내 M차 — 요일별 텍스트 색 */}
+                <div style={{fontSize:'10px',color:theme.text,fontWeight:700,lineHeight:1.3}}>
                   {sessInfo.quarterNum}분기 {sessInfo.dayTotal}차
                 </div>
-                {/* P텀 Q회차 */}
-                <div style={{fontSize:'9px',color:'#fff',background:badgeColor,
-                  borderRadius:'3px',padding:'0 2px',marginTop:'1px',lineHeight:'14px',whiteSpace:'nowrap'}}>
-                  {localTermNum}텀{sessInfo.inTermSess}차
-                </div>
+                {/* P텀 Q회차 — 요일별 뱃지 색 (텀 교대: 짝수=진한색배경, 홀수=흰배경+진한글씨) */}
+                {sessInfo.globalTermIdx % 2 === 0 ? (
+                  <div style={{fontSize:'9px',color:'#fff',background:badgeColor,
+                    borderRadius:'3px',padding:'0 2px',marginTop:'1px',lineHeight:'14px',whiteSpace:'nowrap'}}>
+                    {localTermNum}텀{sessInfo.inTermSess}차
+                  </div>
+                ) : (
+                  <div style={{fontSize:'9px',color:badgeColor,background:'#fff',
+                    border:`1px solid ${badgeColor}`,
+                    borderRadius:'3px',padding:'0 2px',marginTop:'1px',lineHeight:'14px',whiteSpace:'nowrap'}}>
+                    {localTermNum}텀{sessInfo.inTermSess}차
+                  </div>
+                )}
               </button>
             )
           }
@@ -833,17 +852,29 @@ export function SchoolCalendar({ cls, onUpdate }) {
       </div>
 
       {/* 범례 */}
-      <div style={{display:'flex',gap:'10px',marginTop:'12px',fontSize:'11px',color:'#9ca3af',flexWrap:'wrap'}}>
+      <div style={{display:'flex',gap:'10px',marginTop:'12px',fontSize:'11px',color:'#9ca3af',flexWrap:'wrap',alignItems:'center'}}>
+        <span style={{fontSize:'11px',fontWeight:600,color:'#374151'}}>요일:</span>
+        {[1,2,3,4,5].map(dow=>{
+          const theme = getDayTheme(dow)
+          const label = ['','월','화','수','목','금'][dow]
+          return (
+            <span key={dow} style={{display:'flex',alignItems:'center',gap:'3px'}}>
+              <span style={{width:'14px',height:'14px',borderRadius:'4px',background:theme.bg,border:`1.5px solid ${theme.badge1}`,display:'inline-block'}}/>
+              <span style={{color:theme.text,fontWeight:600}}>{label}</span>
+            </span>
+          )
+        })}
+        <span style={{marginLeft:'6px',fontWeight:600,color:'#374151'}}>분기 테두리:</span>
         {termBoundaries.map((b,i)=>(
-          <span key={i} style={{display:'flex',alignItems:'center',gap:'4px'}}>
-            <span style={{width:'14px',height:'14px',borderRadius:'4px',background:getQuarterColor(i+1).bg,border:`1.5px solid ${getQuarterColor(i+1).border}`,display:'inline-block'}}/>
-            {b.label}
+          <span key={i} style={{display:'flex',alignItems:'center',gap:'3px'}}>
+            <span style={{width:'14px',height:'14px',borderRadius:'4px',background:'#fff',border:`2px solid ${getQuarterColor(i+1).border}`,display:'inline-block'}}/>
+            <span style={{color:getQuarterColor(i+1).text,fontWeight:600}}>{b.label}</span>
           </span>
         ))}
-        <span style={{display:'flex',alignItems:'center',gap:'4px'}}>
+        <span style={{display:'flex',alignItems:'center',gap:'3px'}}>
           <span style={{width:'14px',height:'14px',borderRadius:'4px',background:'#fef2f2',border:'1.5px solid #fca5a5',display:'inline-block'}}/>휴일
         </span>
-        <span style={{display:'flex',alignItems:'center',gap:'4px'}}>
+        <span style={{display:'flex',alignItems:'center',gap:'3px'}}>
           <span style={{width:'14px',height:'14px',borderRadius:'4px',background:'#eff6ff',border:'1.5px solid #3b82f6',display:'inline-block'}}/>보강
         </span>
       </div>
