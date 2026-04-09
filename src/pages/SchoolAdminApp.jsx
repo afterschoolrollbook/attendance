@@ -140,7 +140,17 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
   const [form, setForm]       = useState({ title:'', content:'', type:'notice', startDate:'', endDate:'', dueDate:'', attachName:'', attachUrl:'' })
   const [targets, setTargets] = useState([])
   const [saving, setSaving]   = useState(false)
+  const [appUsers, setAppUsers] = useState([])
   const fileRef = React.useRef()
+
+  // 앱 가입 선생님 로드 (이메일 매칭용)
+  React.useEffect(() => {
+    dbCall('getAll', 'users').then(d =>
+      setAppUsers((d||[]).filter(u => u.role === 'teacher'))
+    ).catch(() => {})
+  }, [])
+
+  const appByEmail = Object.fromEntries(appUsers.map(u => [u.email?.toLowerCase(), u]))
 
   const TYPE_INFO = {
     notice:        { icon:'📋', label:'공지 전달',    desc:'선생님이 확인하면 회신완료 처리됩니다.',                      color:'#6b7280', bg:'#f3f4f6' },
@@ -188,9 +198,6 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
 
       // 초대 유형이면 실제 초대 이메일 + schoolTeacherInvites 발송
       if (isInvite) {
-        // 앱 가입 선생님 조회 (이메일 기준)
-        const appUsers = await dbCall('getAll','users').then(d=>(d||[]).filter(u=>u.role==='teacher'))
-        const appByEmail = Object.fromEntries(appUsers.map(u=>[u.email?.toLowerCase(), u]))
         const existingInvites = await dbCall('getAll','schoolTeacherInvites').then(d=>
           (d||[]).filter(i=>i.adminId===session.adminId)
         )
@@ -302,18 +309,37 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
               {allSelected?'전체 해제':'전체 선택'}
             </button>
           </div>
-          <div style={{ maxHeight:'180px', overflowY:'auto', border:`1px solid ${C.border}`, borderRadius:'9px', padding:'8px' }}>
+          <div style={{ maxHeight:'220px', overflowY:'auto', border:`1px solid ${C.border}`, borderRadius:'9px', padding:'8px' }}>
             {teachers.length===0
               ? <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', padding:'12px' }}>등록된 선생님이 없습니다.</div>
               : teachers.map(t => {
-                  const hasEmail = !!t.email
-                  const needEmail = form.type === 'invite_signup' || form.type === 'invite_connect'
+                  const hasEmail   = !!t.email
+                  const needEmail  = form.type === 'invite_signup' || form.type === 'invite_connect'
+                  const isJoined   = hasEmail && !!appByEmail[t.email?.toLowerCase()]
+                  const disabled   = needEmail && !hasEmail
                   return (
-                    <label key={t.teacherId} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 8px', borderRadius:'6px', cursor: needEmail&&!hasEmail?'not-allowed':'pointer', background:targets.includes(t.teacherId)?'#eff6ff':'transparent', opacity: needEmail&&!hasEmail?0.4:1 }}>
-                      <input type="checkbox" checked={targets.includes(t.teacherId)} onChange={()=>{ if(needEmail&&!hasEmail) return; toggleTeacher(t.teacherId) }} style={{ accentColor:C.primary }} disabled={needEmail&&!hasEmail} />
-                      <span style={{ fontSize:'13px', color:C.text }}>{t.teacherName}</span>
-                      <span style={{ fontSize:'11px', color:C.muted }}>{t.subject||''}</span>
-                      {needEmail && !hasEmail && <span style={{ fontSize:'10px', color:C.danger }}>(이메일 없음)</span>}
+                    <label key={t.teacherId} style={{
+                      display:'flex', alignItems:'center', gap:'8px', padding:'7px 10px',
+                      borderRadius:'8px', cursor:disabled?'not-allowed':'pointer',
+                      background:targets.includes(t.teacherId)?'#eff6ff':'transparent',
+                      opacity:disabled?0.4:1,
+                      borderBottom:`1px solid ${C.border}`,
+                    }}>
+                      <input type="checkbox" checked={targets.includes(t.teacherId)}
+                        onChange={()=>{ if(disabled) return; toggleTeacher(t.teacherId) }}
+                        style={{ accentColor:C.primary }} disabled={disabled} />
+                      <span style={{ fontSize:'13px', fontWeight:600, color:C.text, flex:1 }}>{t.teacherName}</span>
+                      {t.subject && <span style={{ fontSize:'11px', color:C.muted }}>{t.subject}</span>}
+                      {/* 가입 상태 뱃지 */}
+                      {hasEmail ? (
+                        isJoined ? (
+                          <span style={{ fontSize:'10px', fontWeight:700, color:'#16a34a', background:'#f0fdf4', padding:'2px 7px', borderRadius:'999px', whiteSpace:'nowrap' }}>🔗 연결 가능</span>
+                        ) : (
+                          <span style={{ fontSize:'10px', fontWeight:700, color:'#f97316', background:'#fff7ed', padding:'2px 7px', borderRadius:'999px', whiteSpace:'nowrap' }}>📧 서비스 미가입</span>
+                        )
+                      ) : (
+                        <span style={{ fontSize:'10px', color:C.danger }}>(이메일 없음)</span>
+                      )}
                     </label>
                   )
                 })
