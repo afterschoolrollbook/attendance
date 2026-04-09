@@ -345,10 +345,10 @@ export function SchoolCalendar({ cls, onUpdate }) {
     setQuarterTermCounts(prev => { const n=[...prev]; n[qIdx]=Math.max(1,Math.min(maxT,parseInt(val)||1)); return n })
   }
 
-  // 날짜 계산
+  // 날짜 계산 — 3월 시작 ~ 다음해 2월 말
   const dayNums    = days.map(d=>dayNameToNum[d]).filter(n=>n!==undefined)
   const marchStart = fmt(year,3,1)
-  const yearEnd    = fmt(year,12,31)
+  const nextFebEnd = fmt(year+1,2,28)  // 다음해 2월 말
 
   const vacationDates = new Set()
   if(sumStart&&sumEnd){let d=new Date(sumStart+'T00:00:00'),e=new Date(sumEnd+'T00:00:00');while(d<=e){vacationDates.add(fmt(d.getFullYear(),d.getMonth()+1,d.getDate()));d.setDate(d.getDate()+1)}}
@@ -356,7 +356,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
 
   const cancelledSet    = new Set(cancelledDates.map(c=>c.date))
   const allSessionDates = dayNums.length>0
-    ? getDatesInRange(marchStart,yearEnd,dayNums).filter(d=>!cancelledSet.has(d)&&!vacationDates.has(d))
+    ? getDatesInRange(marchStart,nextFebEnd,dayNums).filter(d=>!cancelledSet.has(d)&&!vacationDates.has(d))
     : []
 
   // 텀 경계 (분기/학기)
@@ -366,7 +366,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
     const sem2Start = sumEnd?addDays(sumEnd,1):fmt(year,9,1)
     termBoundaries = [
       {start:marchStart, end:sem1End||fmt(year,7,15), label:'1학기'},
-      {start:sem2Start,  end:sem2End||fmt(year,12,20), label:'2학기'},
+      {start:sem2Start,  end:sem2End||fmt(year+1,2,28), label:'2학기'},
     ]
   } else {
     let prevEnd = fmt(year,2,28)
@@ -381,18 +381,16 @@ export function SchoolCalendar({ cls, onUpdate }) {
   const activeTermCounts = Array.from({length:numPeriods},(_,i)=>quarterTermCounts[i]||3)
   const totalTerms = activeTermCounts.reduce((a,b)=>a+b,0)
 
-  // 전체 회차 합계 (텀별 개별 회차 수 합산)
+  // 전체 회차 합계
   const totalSessions = activeTermCounts.reduce((sum, tCount, qIdx) => {
     for(let tIdx=0; tIdx<tCount; tIdx++) sum += getTermSessions(qIdx, tIdx)
     return sum
   }, 0)
 
-  // buildSessionMap에 넘길 텀별 회차 수 배열 (전체 순서대로)
+  // buildSessionMap에 넘길 텀별 회차 수 배열
   const flatTermSessions = []
   activeTermCounts.forEach((tCount, qIdx) => {
-    for(let tIdx=0; tIdx<tCount; tIdx++) {
-      flatTermSessions.push(getTermSessions(qIdx, tIdx))
-    }
+    for(let tIdx=0; tIdx<tCount; tIdx++) flatTermSessions.push(getTermSessions(qIdx, tIdx))
   })
 
   const {sessionMap, termMap} = buildSessionMap({
@@ -401,7 +399,11 @@ export function SchoolCalendar({ cls, onUpdate }) {
     flatTermSessions,
   })
 
-  const months      = Array.from({length:12},(_,i)=>({year,month:i}))
+  // 달력: 3월~다음해 2월 (12개월)
+  const months = [
+    ...Array.from({length:10},(_,i)=>({year,     month:i+2})),  // 3~12월 (month: 2~11)
+    ...Array.from({length:2}, (_,i)=>({year:year+1, month:i})), // 다음해 1~2월 (month: 0~1)
+  ]
   const makeupCount = makeupDates.length
 
   const saveAll = (patch={}) => {
@@ -414,7 +416,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
       termSessionMap, defaultSessions,
       regPeriods,
       cancelledDates,makeupDates,
-      startDate:marchStart,endDate:yearEnd,
+      startDate:marchStart, endDate:nextFebEnd,
       ...patch,
     })
   }
@@ -449,6 +451,40 @@ export function SchoolCalendar({ cls, onUpdate }) {
 
   return (
     <div style={{fontFamily:'Noto Sans KR, sans-serif'}}>
+
+      {/* ════ 상단 고정 저장/수정 바 ════ */}
+      <div style={{
+        position:'sticky', top:0, zIndex:100,
+        background:'#1e3a5f', borderRadius:'12px',
+        padding:'10px 16px', marginBottom:'14px',
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        boxShadow:'0 2px 8px rgba(0,0,0,0.15)'
+      }}>
+        <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+          <span style={{fontSize:'13px',fontWeight:700,color:'#fff'}}>
+            {title || '일정명을 입력하세요'}
+          </span>
+          {totalSessions>0&&(
+            <span style={{fontSize:'12px',color:'#93c5fd'}}>
+              총 {totalTerms}텀 · {totalSessions}회차
+            </span>
+          )}
+        </div>
+        <div style={{display:'flex',gap:'8px'}}>
+          <button onClick={()=>{setSettingOpen(true);setTermOpen(true)}}
+            style={{padding:'7px 16px',borderRadius:'8px',border:'1.5px solid #93c5fd',
+              background:'transparent',color:'#93c5fd',fontSize:'13px',fontWeight:700,
+              cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>
+            ✏️ 설정 수정
+          </button>
+          <button onClick={()=>saveAll()}
+            style={{padding:'7px 20px',borderRadius:'8px',border:'none',
+              background:'#3b82f6',color:'#fff',fontSize:'13px',fontWeight:700,
+              cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>
+            💾 저장
+          </button>
+        </div>
+      </div>
 
       {/* ════ 기본 설정 ════ */}
       <div style={sectionStyle}>
@@ -613,9 +649,9 @@ export function SchoolCalendar({ cls, onUpdate }) {
               </div>
             </div>
 
-            <button onClick={()=>{saveAll();setSettingOpen(false)}}
-              style={{padding:'8px 20px',borderRadius:'9px',border:'none',background:'#1e3a5f',color:'#fff',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>
-              💾 저장 후 접기
+            <button onClick={()=>setSettingOpen(false)}
+              style={{padding:'8px 20px',borderRadius:'9px',border:'1.5px solid #e5e7eb',background:'#fff',color:'#374151',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>
+              ▲ 접기
             </button>
           </div>
         )}
