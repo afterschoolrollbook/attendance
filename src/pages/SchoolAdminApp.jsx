@@ -1424,7 +1424,6 @@ function ConnectTab({ session }) {
     setLoading(false)
   }
 
-  // 백그라운드 갱신 — 로딩 스피너 없이 조용히 데이터만 업데이트
   const silentRefresh = () => { fetchData().catch(() => {}) }
   useEffect(() => { load() }, [])
 
@@ -1432,8 +1431,55 @@ function ConnectTab({ session }) {
   const appByEmail    = Object.fromEntries(appUsers.map(u => [u.email?.toLowerCase(), u]))
   const inviteByEmail = Object.fromEntries(invites.map(i => [i.teacherEmail?.toLowerCase(), i]))
 
-  const years    = [...new Set([CURRENT_YEAR, ...roster.map(t => t.year).filter(Boolean)])].sort((a,b)=>b-a)
-  const filtered = roster.filter(t => t.year == selYear || (!t.year && selYear === CURRENT_YEAR))
+  // ── roster(선생님 현황 등록)가 없으면 users + invites 기반으로 목록 구성
+  // roster에 없는 앱 가입 선생님 → 가상 row로 추가
+  // roster에 없는 초대 발송 선생님 → 가상 row로 추가
+  const buildDisplayList = () => {
+    const rosterEmails = new Set(roster.map(t => t.email?.toLowerCase()).filter(Boolean))
+
+    // users 중 roster에 없는 선생님 → 가상 row
+    const fromUsers = appUsers
+      .filter(u => u.email && !rosterEmails.has(u.email.toLowerCase()))
+      .map(u => ({
+        id:           u.id,
+        teacherId:    u.id,
+        teacherName:  u.name || u.email,
+        email:        u.email,
+        subject:      '',
+        days:         '',
+        year:         null,
+        startDate:    null,
+        endDate:      null,
+        _virtual:     true, // roster에 없는 가상 row
+      }))
+
+    // invites 중 roster에도 users에도 없는 선생님 (서비스 미가입)
+    const inviteEmails = new Set([
+      ...roster.map(t => t.email?.toLowerCase()).filter(Boolean),
+      ...appUsers.map(u => u.email?.toLowerCase()).filter(Boolean),
+    ])
+    const fromInvites = invites
+      .filter(i => i.teacherEmail && !inviteEmails.has(i.teacherEmail.toLowerCase()))
+      .map(i => ({
+        id:           i.id + '_inv',
+        teacherId:    null,
+        teacherName:  i.teacherName || i.teacherEmail,
+        email:        i.teacherEmail,
+        subject:      '',
+        days:         '',
+        year:         null,
+        startDate:    null,
+        endDate:      null,
+        _virtual:     true,
+      }))
+
+    return [...roster, ...fromUsers, ...fromInvites]
+  }
+
+  const allTeachers = buildDisplayList()
+  const years    = [...new Set([CURRENT_YEAR, ...allTeachers.map(t => t.year).filter(Boolean)])].sort((a,b)=>b-a)
+  // year가 없는(가상 row 포함) 선생님은 현재 연도 탭에 표시
+  const filtered = allTeachers.filter(t => t.year == selYear || !t.year)
 
   // 상태 계산
   // accepted  → 연결 완료 (수락됨)
