@@ -761,29 +761,23 @@ function NoticesTab({ session }) {
 
   useEffect(() => { load() }, [load])
 
-  const deleteNotice = async (id) => {
+  const deleteNotice = (id) => {
     confirm('삭제하시겠습니까?', async () => {
-    try {
-      // 연결된 schoolTeacherInvites 초기화
-      // accepted(이미 수락)는 그대로 두고, pending/emailed(대기중)만 초기화
-      const linkedInvites = invites.filter(i => i.noticeId === id)
-      await Promise.all(linkedInvites.map(i => {
-        if (i.status === 'accepted') {
-          // 수락 완료된 건 noticeId만 제거
-          return dbCall('update', 'schoolTeacherInvites', { id: i.id, patch: { noticeId: null } })
-        } else {
-          // 대기중인 건 완전 초기화
-          return dbCall('update', 'schoolTeacherInvites', { id: i.id, patch: { noticeId: null, status: 'declined', sentAt: null } })
-        }
-      }))
-      // 연결된 schoolNoticeSubmits 삭제
-      const allSubs = await dbCall('getAll','schoolNoticeSubmits').then(d=>(d||[]).filter(s=>s.noticeId===id))
-      await Promise.all(allSubs.map(s => dbCall('delete','schoolNoticeSubmits',{ id:s.id })))
-
-      await DB.deleteNotice(id)
-      success('삭제되었습니다.')
-    } catch { }
-    load()
+      try {
+        const linkedInvites = invites.filter(i => i.noticeId === id)
+        await Promise.all(linkedInvites.map(i => {
+          if (i.status === 'accepted') {
+            return dbCall('update', 'schoolTeacherInvites', { id: i.id, patch: { noticeId: null } })
+          } else {
+            return dbCall('update', 'schoolTeacherInvites', { id: i.id, patch: { noticeId: null, status: 'declined', sentAt: null } })
+          }
+        }))
+        const allSubs = await dbCall('getAll','schoolNoticeSubmits').then(d=>(d||[]).filter(s=>s.noticeId===id))
+        await Promise.all(allSubs.map(s => dbCall('delete','schoolNoticeSubmits',{ id:s.id })))
+        await DB.deleteNotice(id)
+        success('삭제되었습니다.')
+        load()
+      } catch { error('삭제 중 오류가 발생했습니다.') }
     })
   }
 
