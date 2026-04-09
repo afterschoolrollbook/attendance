@@ -250,9 +250,11 @@ export function SchoolCalendar({ cls, onUpdate }) {
   // 텀당 회차 수 (전체 공통)
   const [sessionsPerTerm,   setSessionsPerTerm]   = useState(cls?.sessionsPerTerm||4)
 
-  // 신청기간
-  const [regStart, setRegStart] = useState(cls?.regStart||'')
-  const [regEnd,   setRegEnd]   = useState(cls?.regEnd||'')
+  // 신청기간 — 분기/학기 수만큼 동적으로
+  // regPeriods: [{start:'', end:''}, ...]
+  const [regPeriods, setRegPeriods] = useState(
+    cls?.regPeriods || Array.from({length: cls?.quarters||4}, ()=>({start:'',end:''}))
+  )
 
   // 휴일/보강
   const [cancelledDates, setCancelledDates] = useState(cls?.cancelledDates||[])
@@ -282,7 +284,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
     setSem2End(cls.sem2End||''); setWinStart(cls.winStart||''); setWinEnd(cls.winEnd||'')
     setQuarterTermCounts(cls.quarterTermCounts||[3,3,3,3])
     setSessionsPerTerm(cls.sessionsPerTerm||4)
-    setRegStart(cls.regStart||''); setRegEnd(cls.regEnd||'')
+    setRegPeriods(cls.regPeriods || Array.from({length: cls.quarters||4}, ()=>({start:'',end:''})))
     setCancelledDates(cls.cancelledDates||[]); setMakeupDates(cls.makeupDates||[])
     holidayInitialized.current = false
   }, [cls?.id])
@@ -311,6 +313,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
     setQuarters(n)
     setQuarterTermCounts(prev => Array.from({length:n},(_,i)=>prev[i]||3))
     setQEnds(prev => Array.from({length:n},(_,i)=>prev[i]||''))
+    setRegPeriods(prev => Array.from({length:n},(_,i)=>prev[i]||{start:'',end:''}))
   }
 
   // 분기별 텀 수 변경 (1~12)
@@ -373,7 +376,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
       quarters,qEnds,
       quarterTermCounts:activeTermCounts,
       sessionsPerTerm,
-      regStart,regEnd,
+      regPeriods,
       cancelledDates,makeupDates,
       startDate:marchStart,endDate:yearEnd,
       ...patch,
@@ -532,20 +535,45 @@ export function SchoolCalendar({ cls, onUpdate }) {
               </div>
             )}
 
-            {/* 신청기간 */}
+            {/* 신청기간 — 분기/학기별 동적 생성 */}
             <div style={{marginBottom:'14px',background:'#f0f9ff',borderRadius:'10px',padding:'14px'}}>
-              <div style={{fontSize:'13px',fontWeight:700,color:'#0369a1',marginBottom:'10px'}}>📅 신청기간 설정</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
-                <div>
-                  <label style={{fontSize:'12px',color:'#6b7280',display:'block',marginBottom:'4px'}}>신청 시작일</label>
-                  <input type="date" value={regStart} onChange={e=>setRegStart(e.target.value)} onBlur={()=>saveAll()}
-                    style={{...iSt,border:'1.5px solid #bae6fd'}}/>
-                </div>
-                <div>
-                  <label style={{fontSize:'12px',color:'#6b7280',display:'block',marginBottom:'4px'}}>신청 종료일</label>
-                  <input type="date" value={regEnd} onChange={e=>setRegEnd(e.target.value)} onBlur={()=>saveAll()}
-                    style={{...iSt,border:'1.5px solid #bae6fd'}}/>
-                </div>
+              <div style={{fontSize:'13px',fontWeight:700,color:'#0369a1',marginBottom:'12px'}}>📅 신청기간 설정</div>
+              <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                {termBoundaries.map((b,i)=>{
+                  const qc = getQuarterColor(i+1)
+                  const rp = regPeriods[i]||{start:'',end:''}
+                  return (
+                    <div key={i} style={{display:'grid',gridTemplateColumns:'80px 1fr 1fr',gap:'8px',alignItems:'center'}}>
+                      <div style={{fontSize:'12px',fontWeight:700,color:qc.text,
+                        background:qc.bg,border:`1px solid ${qc.border}`,
+                        borderRadius:'6px',padding:'4px 8px',textAlign:'center'}}>
+                        {b.label}
+                      </div>
+                      <div>
+                        <label style={{fontSize:'11px',color:'#6b7280',display:'block',marginBottom:'3px'}}>신청 시작일</label>
+                        <input type="date" value={rp.start}
+                          onChange={e=>{
+                            const updated=[...regPeriods]
+                            updated[i]={...rp,start:e.target.value}
+                            setRegPeriods(updated)
+                          }}
+                          onBlur={()=>saveAll()}
+                          style={{...iSt,border:'1.5px solid #bae6fd',padding:'6px 8px'}}/>
+                      </div>
+                      <div>
+                        <label style={{fontSize:'11px',color:'#6b7280',display:'block',marginBottom:'3px'}}>신청 종료일</label>
+                        <input type="date" value={rp.end}
+                          onChange={e=>{
+                            const updated=[...regPeriods]
+                            updated[i]={...rp,end:e.target.value}
+                            setRegPeriods(updated)
+                          }}
+                          onBlur={()=>saveAll()}
+                          style={{...iSt,border:'1.5px solid #bae6fd',padding:'6px 8px'}}/>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
@@ -661,9 +689,9 @@ export function SchoolCalendar({ cls, onUpdate }) {
                 총 <span style={{color:'#f97316'}}>{totalTerms}텀</span>
                 {' · '}텀당 <span style={{color:'#1e3a5f'}}>{sessionsPerTerm}회차</span>
                 {' · '}총 <span style={{color:'#16a34a'}}>{totalSessions}회</span>
-                {regStart&&regEnd&&(
+                {regPeriods.some(r=>r.start&&r.end)&&(
                   <span style={{fontSize:'12px',color:'#3b82f6',marginLeft:'12px',fontWeight:400}}>
-                    📅 신청기간 {regStart.slice(5)} ~ {regEnd.slice(5)}
+                    📅 {regPeriods.filter(r=>r.start&&r.end).map((r,i)=>`${termBoundaries[i]?.label||''} ${r.start.slice(5)}~${r.end.slice(5)}`).join(' / ')}
                   </span>
                 )}
               </div>
