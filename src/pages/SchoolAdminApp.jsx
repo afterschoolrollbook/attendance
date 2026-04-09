@@ -1084,22 +1084,27 @@ function ConnectTab({ session }) {
   const [sending,  setSending]  = useState({})
   const [selYear,  setSelYear]  = useState(CURRENT_YEAR)
 
+  const fetchData = async () => {
+    const [r, u, inv] = await Promise.all([
+      dbCall('getAll', 'schoolAdminTeachers').then(d =>
+        (d||[]).filter(t => t.adminId === session.adminId && t.active !== false)
+      ),
+      dbCall('getAll', 'users').then(d => (d||[]).filter(u => u.role === 'teacher')),
+      dbCall('getAll', 'schoolTeacherInvites').then(d =>
+        (d||[]).filter(i => i.adminId === session.adminId)
+      ),
+    ])
+    setRoster(r); setAppUsers(u); setInvites(inv)
+  }
+
   const load = async () => {
     setLoading(true)
-    try {
-      const [r, u, inv] = await Promise.all([
-        dbCall('getAll', 'schoolAdminTeachers').then(d =>
-          (d||[]).filter(t => t.adminId === session.adminId && t.active !== false)
-        ),
-        dbCall('getAll', 'users').then(d => (d||[]).filter(u => u.role === 'teacher')),
-        dbCall('getAll', 'schoolTeacherInvites').then(d =>
-          (d||[]).filter(i => i.adminId === session.adminId)
-        ),
-      ])
-      setRoster(r); setAppUsers(u); setInvites(inv)
-    } catch {}
+    try { await fetchData() } catch {}
     setLoading(false)
   }
+
+  // 백그라운드 갱신 — 로딩 스피너 없이 조용히 데이터만 업데이트
+  const silentRefresh = () => { fetchData().catch(() => {}) }
   useEffect(() => { load() }, [])
 
   // 이메일 기준 룩업
@@ -1142,47 +1147,55 @@ function ConnectTab({ session }) {
     if (!email) { error('이메일이 등록되지 않은 선생님입니다.'); return }
     setSending(prev => ({ ...prev, [t.id]: true }))
     try {
-      const appUser       = appByEmail[email]
-      const existingInv   = inviteByEmail[email]
-      // 앱 가입 여부에 따라 status 결정
-      // 가입됨 → pending (대시보드 팝업 발송)
-      // 미가입  → emailed (이메일만, 팝업 없음)
-      const newStatus = appUser ? 'pending' : 'emailed'
+      const appUser     = appByEmail[email]
+      const existingInv = inviteByEmail[email]
+      const newStatus   = appUser ? 'pending' : 'emailed'
+      const inviteData  = {
+        id:           existingInv?.id || uid(),
+        adminId:      session.adminId,
+        schoolName:   session.admin?.schoolName || '',
+        adminName:    session.admin?.adminName  || '',
+        teacherEmail: email,
+        teacherName:  t.teacherName,
+        teacherId:    appUser?.id || null,
+        status:       newStatus,
+        sentAt:       now(),
+        createdAt:    existingInv?.createdAt || now(),
+      }
 
-      // DB 저장 (가입된 선생님만 대시보드 팝업 트리거)
-      await dbCall('upsert', 'schoolTeacherInvites', {
-        data: {
-          id:           existingInv?.id || uid(),
-          adminId:      session.adminId,
-          schoolName:   session.admin?.schoolName || '',
-          adminName:    session.admin?.adminName  || '',
-          teacherEmail: email,
-          teacherName:  t.teacherName,
-          teacherId:    appUser?.id || null,
-          status:       newStatus,
-          sentAt:       now(),
-          createdAt:    existingInv?.createdAt || now(),
-        }
-      })
-      // 가입 여부에 따라 다른 이메일 발송
+      // DB 저장
+      await dbCall('upsert', 'schoolTeacherInvites', { data: inviteData })
+
+      // 이메일 발송
       if (appUser) {
-        // 연결 가능 → 연결 수락 요청 이메일
         await sendTeacherInviteEmail({
           teacherName: t.teacherName, email,
           schoolName:  session.admin?.schoolName || '',
           adminName:   session.admin?.adminName  || '',
         })
-        success(`${t.teacherName} 선생님에게 연결 초대를 발송했습니다. (이메일 + 대시보드 팝업)`)
       } else {
-        // 서비스 미가입 → 가입 안내 이메일
         await sendSignupInviteEmail({
           teacherName: t.teacherName, email,
           schoolName:  session.admin?.schoolName || '',
           adminName:   session.admin?.adminName  || '',
         })
-        success(`${t.teacherName} 선생님에게 서비스 가입 초대를 발송했습니다.`)
       }
-      await load()
+
+      // 낙관적 업데이트 — 로컬 state 즉시 반영 (다른 페이지와 동일한 패턴)
+      setInvites(prev => {
+        const without = prev.filter(i => i.teacherEmail?.toLowerCase() !== email)
+        return [...without, inviteData]
+      })
+
+      // 토스트
+      success(appUser
+        ? `✅ ${t.teacherName} 선생님께 연결 초대장을 발송했습니다!`
+        : `✅ ${t.teacherName} 선생님께 서비스 가입 초대를 발송했습니다!`
+      )
+
+      // 백그라운드에서 서버 데이터 동기화 (토스트 방해 없음)
+      silentRefresh()
+
     } catch { error('초대 발송 중 오류가 발생했습니다.') }
     setSending(prev => ({ ...prev, [t.id]: false }))
   }
