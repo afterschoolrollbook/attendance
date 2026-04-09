@@ -1000,9 +1000,10 @@ const CURRENT_YEAR = new Date().getFullYear()
 const DAYS_LIST = ['월', '화', '수', '목', '금', '토', '일']
 
 // ── 과목 관리 탭 (학교별 연도 과목 등록)
-const EMPTY_FORM = { name:'', days:[], className:'', times:{}, capacity:'', duration:'' }
+const EMPTY_FORM = { name:'', days:[], className:'', times:{}, capacity:'', duration:'', teacherIds:[] }
 
 function SubjectsTab({ session }) {
+  const [allTeachers, setAllTeachers] = useState([])
   const { success, error } = useToast()
   const [subjects, setSubjects] = useState([])
   const [loading,  setLoading]  = useState(true)
@@ -1015,8 +1016,12 @@ function SubjectsTab({ session }) {
   const load = async () => {
     setLoading(true)
     try {
-      const all = await dbCall('getAll', 'schoolSubjects')
+      const [all, t] = await Promise.all([
+        dbCall('getAll', 'schoolSubjects'),
+        dbCall('getAll', 'schoolAdminTeachers'),
+      ])
       setSubjects((all||[]).filter(s => s.adminId === session.adminId && s.active !== false))
+      setAllTeachers((t||[]).filter(x => x.adminId === session.adminId && x.active !== false))
     } catch {}
     setLoading(false)
   }
@@ -1026,7 +1031,7 @@ function SubjectsTab({ session }) {
   const filtered = subjects.filter(s => s.year == selYear)
 
   const openAdd  = () => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true) }
-  const openEdit = (s) => { setEditId(s.id); setForm({ name:s.name||'', days:s.days||[], className:s.className||'', times:s.times||{}, capacity:s.capacity||'', duration:s.duration||'' }); setShowModal(true) }
+  const openEdit = (s) => { setEditId(s.id); setForm({ name:s.name||'', days:s.days||[], className:s.className||'', times:s.times||{}, capacity:s.capacity||'', duration:s.duration||'', teacherIds:s.teacherIds||[] }); setShowModal(true) }
 
   const handleSave = async () => {
     if (!form.name.trim()) { error('과목명을 입력해주세요.'); return }
@@ -1037,6 +1042,7 @@ function SubjectsTab({ session }) {
       className: form.className.trim(),
       times: form.times,
       duration: form.duration ? parseInt(form.duration) : null,
+      teacherIds: form.teacherIds,
       capacity: form.capacity ? parseInt(form.capacity) : null,
     }
     if (editId) {
@@ -1095,14 +1101,14 @@ function SubjectsTab({ session }) {
       ) : (
         <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
           {/* 헤더 */}
-          <div style={{ display:'grid', gridTemplateColumns:'140px 80px 80px 1fr 50px 100px', gap:'0', background:'#f8fafc', borderBottom:`1px solid ${C.border}` }}>
-            {['과목명','반','요일','시간 (정규/방학)','정원',''].map((h,i) => (
-              <div key={i} style={{ padding:'10px 14px', fontSize:'12px', fontWeight:700, color:C.muted, borderRight: i<5?`1px solid ${C.border}`:'none' }}>{h}</div>
+          <div style={{ display:'grid', gridTemplateColumns:'140px 80px 80px 1fr 50px 120px 100px', gap:'0', background:'#f8fafc', borderBottom:`1px solid ${C.border}` }}>
+            {['과목명','반','요일','시간 (정규/방학)','정원','담당 선생님',''].map((h,i) => (
+              <div key={i} style={{ padding:'10px 14px', fontSize:'12px', fontWeight:700, color:C.muted, borderRight: i<6?`1px solid ${C.border}`:'none' }}>{h}</div>
             ))}
           </div>
           {filtered.map((s, i) => (
             <div key={s.id} style={{
-              display:'grid', gridTemplateColumns:'140px 80px 80px 1fr 50px 100px', gap:'0',
+              display:'grid', gridTemplateColumns:'140px 80px 80px 1fr 50px 120px 100px', gap:'0',
               alignItems:'stretch',
               borderBottom: i < filtered.length-1 ? `1px solid ${C.border}` : 'none',
             }}>
@@ -1134,6 +1140,15 @@ function SubjectsTab({ session }) {
               {/* 정원 */}
               <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', justifyContent:'center', borderRight:`1px solid ${C.border}` }}>
                 <span style={{ fontSize:'13px', color:C.text, fontWeight:500 }}>{s.capacity||'-'}</span>
+              </div>
+              {/* 담당 선생님 */}
+              <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'3px', justifyContent:'center', borderRight:`1px solid ${C.border}` }}>
+                {(s.teacherIds||[]).length > 0
+                  ? (s.teacherIds||[]).map(tid => {
+                      const t = allTeachers.find(x => x.teacherId === tid || x.id === tid)
+                      return t ? <span key={tid} style={{ fontSize:'12px', color:C.text, fontWeight:500 }}>👩‍🏫 {t.teacherName}</span> : null
+                    })
+                  : <span style={{ fontSize:'12px', color:C.muted }}>-</span>}
               </div>
               {/* 버튼 */}
               <div style={{ padding:'8px 10px', display:'flex', alignItems:'center', gap:'4px', justifyContent:'center' }}>
@@ -1261,6 +1276,28 @@ function SubjectsTab({ session }) {
               <div>
                 <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>정원</label>
                 <input type="number" style={iSt3} value={form.capacity} onChange={e => setForm(f=>({...f,capacity:e.target.value}))} placeholder="예: 20" min={1} />
+              </div>
+              {/* 담당 선생님 */}
+              <div>
+                <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'6px' }}>담당 선생님</label>
+                <div style={{ maxHeight:'160px', overflowY:'auto', border:`1px solid ${C.border}`, borderRadius:'8px', padding:'6px' }}>
+                  {allTeachers.length === 0
+                    ? <div style={{ fontSize:'12px', color:C.muted, padding:'8px', textAlign:'center' }}>등록된 선생님이 없습니다.</div>
+                    : allTeachers.map(t => {
+                        const tid = t.teacherId || t.id
+                        const checked = (form.teacherIds||[]).includes(tid)
+                        return (
+                          <label key={tid} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 8px', borderRadius:'6px', cursor:'pointer', background:checked?'#eff6ff':'transparent' }}>
+                            <input type="checkbox" checked={checked}
+                              onChange={() => setForm(f => ({ ...f, teacherIds: checked ? f.teacherIds.filter(x=>x!==tid) : [...(f.teacherIds||[]), tid] }))}
+                              style={{ accentColor:C.primary }} />
+                            <span style={{ fontSize:'13px', fontWeight:checked?700:400, color:C.text }}>{t.teacherName}</span>
+                            {t.subject && <span style={{ fontSize:'11px', color:C.muted }}>{t.subject}</span>}
+                          </label>
+                        )
+                      })
+                  }
+                </div>
               </div>
             </div>
             </div>
