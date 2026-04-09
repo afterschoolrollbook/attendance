@@ -147,6 +147,7 @@ const NOTICE_STATUS = {
 const TYPE_INFO = {
   notice:        { icon:'📋', label:'공지 전달',  desc:'선생님이 확인하면 회신완료 처리됩니다.',                       color:'#6b7280', bg:'#f3f4f6' },
   task:          { icon:'📎', label:'업무 요청',  desc:'선생님이 파일을 제출하면 제출완료 처리됩니다.',                color:'#d97706', bg:'#fffbeb' },
+  admin_task:    { icon:'🗂️', label:'담당자 업무', desc:'수강료 확인, 재료비 취합 등 담당자 자체 일정입니다.',          color:'#7c3aed', bg:'#f5f3ff' },
   invite_signup: { icon:'📧', label:'서비스 초대', desc:'앱 미가입 선생님에게 가입 안내 이메일을 발송합니다.',         color:'#f97316', bg:'#fff7ed' },
   invite_connect:{ icon:'🔗', label:'연결 초대',  desc:'앱 가입 선생님에게 이메일 + 대시보드 연결 초대를 발송합니다.', color:'#3b82f6', bg:'#eff6ff' },
 }
@@ -166,6 +167,8 @@ function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
     startDate:  editNotice?.startDate  ?? '',
     endDate:    editNotice?.endDate    ?? '',
     dueDate:    editNotice?.dueDate    ?? '',
+    taskStart:  editNotice?.taskStart  ?? '',
+    taskEnd:    editNotice?.taskEnd    ?? '',
     attachName: editNotice?.attachName ?? '',
     attachUrl:  editNotice?.attachUrl  ?? '',
   })
@@ -195,7 +198,7 @@ function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
 
   const handleSave = async () => {
     if (!form.title.trim()) { error('제목을 입력해주세요.'); return }
-    if (targets.length === 0) { error('대상 선생님을 선택해주세요.'); return }
+    if (form.type !== 'admin_task' && targets.length === 0) { error('대상 선생님을 선택해주세요.'); return }
     setSaving(true)
     try {
       const isInvite = form.type === 'invite_signup' || form.type === 'invite_connect'
@@ -369,11 +372,18 @@ function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
         <div><LBL>내용</LBL><textarea style={{...iSt,resize:'vertical'}} rows={3} value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))} placeholder="상세 안내..." /></div>
 
         {/* 기간 */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
-          <div><LBL>시작일</LBL><input style={iSt} type="date" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value}))} /></div>
-          <div><LBL>종료일</LBL><input style={iSt} type="date" value={form.endDate} onChange={e=>setForm(f=>({...f,endDate:e.target.value}))} /></div>
-          <div><LBL>마감일</LBL><input style={iSt} type="date" value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value}))} /></div>
-        </div>
+        {form.type === 'admin_task' ? (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+            <div><LBL>업무 시작일</LBL><input style={iSt} type="date" value={form.taskStart} onChange={e=>setForm(f=>({...f,taskStart:e.target.value}))} /></div>
+            <div><LBL>업무 종료일</LBL><input style={iSt} type="date" value={form.taskEnd} onChange={e=>setForm(f=>({...f,taskEnd:e.target.value}))} /></div>
+          </div>
+        ) : (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
+            <div><LBL>시작일</LBL><input style={iSt} type="date" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value}))} /></div>
+            <div><LBL>종료일</LBL><input style={iSt} type="date" value={form.endDate} onChange={e=>setForm(f=>({...f,endDate:e.target.value}))} /></div>
+            <div><LBL>마감일</LBL><input style={iSt} type="date" value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value}))} /></div>
+          </div>
+        )}
 
         {/* 첨부 — 공지/업무만 */}
         {(form.type === 'notice' || form.type === 'task') && (
@@ -387,8 +397,8 @@ function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
           </div>
         )}
 
-        {/* 대상 선생님 */}
-        <div>
+        {/* 대상 선생님 — 담당자 업무는 불필요 */}
+        {form.type !== 'admin_task' && <div>
           <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'6px' }}>
             <LBL>대상 선생님 * ({targets.length}명)</LBL>
             <button type="button" onClick={()=>setTargets(allSelected?[]:[...teachers.map(t=>t.teacherId)])} style={{ fontSize:'12px', color:C.primary, background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
@@ -434,7 +444,7 @@ function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
           {(form.type === 'invite_signup' || form.type === 'invite_connect') && (
             <div style={{ fontSize:'11px', color:C.muted, marginTop:'4px' }}>* 이메일이 등록된 선생님만 초대할 수 있습니다.</div>
           )}
-        </div>
+        </div>}
 
         <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
           <Btn color="secondary" onClick={onClose}>취소</Btn>
@@ -599,6 +609,7 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
                  : notice.type==='invite_signup'  ? { icon:'📧', text:'서비스 초대' }
                  : notice.type==='invite'         ? { icon:'🔗', text:'연결 초대'  }
                  : notice.type==='task'           ? { icon:'📎', text:'업무 요청'  }
+                 : notice.type==='admin_task'     ? { icon:'🗂️', text:'담당자 업무' }
                  :                                  { icon:'📋', text:'공지 전달'  }
 
   const ns = NOTICE_STATUS[notice.status] || NOTICE_STATUS.active
@@ -829,6 +840,7 @@ function NoticesTab({ session }) {
     type==='invite_signup'  ? { icon:'📧', text:'서비스 초대', color:'#f97316', bg:'#fff7ed' } :
     type==='invite'         ? { icon:'🔗', text:'연결 초대',  color:'#3b82f6', bg:'#eff6ff' } :
     type==='task'           ? { icon:'📎', text:'업무 요청',  color:'#d97706', bg:'#fffbeb' } :
+    type==='admin_task'     ? { icon:'🗂️', text:'담당자 업무', color:'#7c3aed', bg:'#f5f3ff' } :
                               { icon:'📋', text:'공지 전달',  color:'#6b7280', bg:'#f3f4f6' }
 
   const isInviteType = (type) => ['invite_connect','invite_signup','invite'].includes(type)
@@ -1083,33 +1095,56 @@ function SubjectsTab({ session }) {
       ) : (
         <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
           {/* 헤더 */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 60px 80px 80px 60px 80px', gap:'8px', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
-            <span>과목명</span><span>반</span><span>요일</span><span>시간</span><span>정원</span><span></span>
+          <div style={{ display:'grid', gridTemplateColumns:'140px 80px 80px 1fr 50px 100px', gap:'0', background:'#f8fafc', borderBottom:`1px solid ${C.border}` }}>
+            {['과목명','반','요일','시간 (정규/방학)','정원',''].map((h,i) => (
+              <div key={i} style={{ padding:'10px 14px', fontSize:'12px', fontWeight:700, color:C.muted, borderRight: i<5?`1px solid ${C.border}`:'none' }}>{h}</div>
+            ))}
           </div>
           {filtered.map((s, i) => (
             <div key={s.id} style={{
-              display:'grid', gridTemplateColumns:'1fr 60px 80px 80px 60px 80px', gap:'8px',
-              alignItems:'center', padding:'12px 16px',
+              display:'grid', gridTemplateColumns:'140px 80px 80px 1fr 50px 100px', gap:'0',
+              alignItems:'stretch',
               borderBottom: i < filtered.length-1 ? `1px solid ${C.border}` : 'none',
             }}>
-              <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>📌 {s.name}</span>
-              <span style={{ fontSize:'12px', color:C.muted }}>{s.className||'-'}</span>
-              <span style={{ fontSize:'12px', color:C.muted }}>{(s.days||[]).join('·')||'-'}</span>
-              <span style={{ fontSize:'12px', color:C.muted }}>
-                {s.times&&Object.keys(s.times).length>0
-                  ? Object.entries(s.times).map(([cls,t])=>`${cls} ${t.start||''}~${t.end||''}`).join(', ')
-                  : '-'}
-              </span>
-              <span style={{ fontSize:'12px', color:C.muted }}>{s.capacity||'-'}</span>
-              <div style={{ display:'flex', gap:'4px' }}>
-                <button onClick={() => openEdit(s)} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', color:C.text, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+              {/* 과목명 */}
+              <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:'6px', borderRight:`1px solid ${C.border}` }}>
+                <span style={{ fontSize:'16px' }}>📌</span>
+                <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{s.name}</span>
+              </div>
+              {/* 반 */}
+              <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', borderRight:`1px solid ${C.border}` }}>
+                <span style={{ fontSize:'13px', color:C.text, fontWeight:500 }}>{s.className||'-'}</span>
+              </div>
+              {/* 요일 */}
+              <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:'3px', flexWrap:'wrap', borderRight:`1px solid ${C.border}` }}>
+                {(s.days||[]).length>0 ? (s.days||[]).map(d=>(
+                  <span key={d} style={{ fontSize:'11px', fontWeight:700, color:'#1d4ed8', background:'#eff6ff', borderRadius:'4px', padding:'1px 5px' }}>{d}</span>
+                )) : <span style={{ fontSize:'12px', color:C.muted }}>-</span>}
+              </div>
+              {/* 시간 */}
+              <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px', justifyContent:'center', borderRight:`1px solid ${C.border}` }}>
+                {s.times&&Object.keys(s.times).length>0 ? Object.entries(s.times).map(([cls,t])=>(
+                  <div key={cls} style={{ display:'flex', flexDirection:'column', gap:'1px' }}>
+                    <span style={{ fontSize:'11px', fontWeight:700, color:C.text }}>{cls}</span>
+                    {(t.start||t.end) && <span style={{ fontSize:'11px', color:'#1d4ed8' }}>📅 {t.start||'?'}~{t.end||'?'}</span>}
+                    {(t.vacStart||t.vacEnd) && <span style={{ fontSize:'11px', color:'#ea580c' }}>☀️ {t.vacStart||'?'}~{t.vacEnd||'?'}</span>}
+                  </div>
+                )) : <span style={{ fontSize:'12px', color:C.muted }}>-</span>}
+              </div>
+              {/* 정원 */}
+              <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', justifyContent:'center', borderRight:`1px solid ${C.border}` }}>
+                <span style={{ fontSize:'13px', color:C.text, fontWeight:500 }}>{s.capacity||'-'}</span>
+              </div>
+              {/* 버튼 */}
+              <div style={{ padding:'8px 10px', display:'flex', alignItems:'center', gap:'4px', justifyContent:'center' }}>
+                <button onClick={() => openEdit(s)} style={{ padding:'5px 10px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', color:C.text, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>수정</button>
                 {delId===s.id ? (
                   <div style={{ display:'flex', gap:'3px' }}>
-                    <button onClick={() => setDelId(null)} style={{ padding:'4px 6px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
-                    <button onClick={() => handleDelete(s.id)} style={{ padding:'4px 6px', borderRadius:'6px', border:'none', background:C.danger, color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                    <button onClick={() => setDelId(null)} style={{ padding:'5px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
+                    <button onClick={() => handleDelete(s.id)} style={{ padding:'5px 8px', borderRadius:'6px', border:'none', background:C.danger, color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                   </div>
                 ) : (
-                  <button onClick={() => setDelId(s.id)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                  <button onClick={() => setDelId(s.id)} style={{ padding:'5px 10px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                 )}
               </div>
             </div>
@@ -3056,6 +3091,8 @@ function SchoolDashboard({ session, onNav }) {
   const [submits,  setSubmits]  = useState([])
   const [teachers, setTeachers] = useState([])
   const [loading,  setLoading]  = useState(true)
+  const [subjects, setSubjects] = useState([])
+  const [calendars,setCalendars]= useState([])
   const [calYear,  setCalYear]  = useState(new Date().getFullYear())
   const [calMonth, setCalMonth] = useState(new Date().getMonth())
   const [selDate,  setSelDate]  = useState(null)
@@ -3066,12 +3103,14 @@ function SchoolDashboard({ session, onNav }) {
     async function load() {
       setLoading(true)
       try {
-        const [n, t, s] = await Promise.all([
+        const [n, t, s, subj, cal] = await Promise.all([
           dbCall('getAll','schoolNotices').then(d=>(d||[]).filter(x=>x.adminId===session.adminId)),
           dbCall('getAll','schoolAdminTeachers').then(d=>(d||[]).filter(x=>x.adminId===session.adminId&&x.active!==false)),
           dbCall('getAll','schoolNoticeSubmits').then(d=>(d||[]).filter(x=>x.adminId===session.adminId)),
+          dbCall('getAll','schoolSubjects').then(d=>(d||[]).filter(x=>x.adminId===session.adminId&&x.active!==false)),
+          dbCall('getAll','schoolCalendar').then(d=>(d||[]).filter(x=>x.adminId===session.adminId)),
         ])
-        setNotices(n); setTeachers(t); setSubmits(s)
+        setNotices(n); setTeachers(t); setSubmits(s); setSubjects(subj); setCalendars(cal)
       } catch {}
       setLoading(false)
     }
@@ -3091,6 +3130,20 @@ function SchoolDashboard({ session, onNav }) {
     }
   }
 
+  // 오늘 방학 여부 확인
+  const isVacationDay = (dateStr) => {
+    return calendars.some(cal => {
+      if (cal.sumStart && cal.sumEnd && dateStr >= cal.sumStart && dateStr <= cal.sumEnd) return true
+      if (cal.winStart && cal.winEnd && dateStr >= cal.winStart && dateStr <= cal.winEnd) return true
+      return false
+    })
+  }
+
+  // 오늘의 수업 계산
+  const todayDow = ['일','월','화','수','목','금','토'][new Date(today+'T00:00:00').getDay()]
+  const isVacToday = isVacationDay(today)
+  const todayClasses = subjects.filter(s => (s.days||[]).includes(todayDow))
+
   // 달력에 표시할 이벤트 수집
   const getEventsForDate = (dateStr) => {
     const events = []
@@ -3099,6 +3152,11 @@ function SchoolDashboard({ session, onNav }) {
         events.push({ type:'period', notice:n, color:'#3b82f6' })
       if (n.dueDate === dateStr)
         events.push({ type:'due', notice:n, color:'#ef4444' })
+    })
+    // 담당자 업무 기간
+    notices.filter(n=>n.type==='admin_task').forEach(n => {
+      if (n.taskStart && n.taskEnd && dateStr >= n.taskStart && dateStr <= n.taskEnd)
+        events.push({ type:'admin_task', notice:n, color:'#7c3aed' })
     })
     return events
   }
@@ -3136,12 +3194,48 @@ function SchoolDashboard({ session, onNav }) {
         <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>{session.admin?.schoolName} — {today}</div>
       </div>
 
+      {/* 오늘의 수업 */}
+      <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, marginBottom:'16px', overflow:'hidden' }}>
+        <div style={{ padding:'12px 18px', background:'#f0fdf4', borderBottom:`1px solid #86efac`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:'13px', fontWeight:700, color:'#15803d' }}>📅 오늘의 수업 — {today} ({todayDow}요일){isVacToday?' ☀️ 방학중':''}</span>
+          <span style={{ fontSize:'11px', color:'#15803d' }}>{todayClasses.length}개 과목</span>
+        </div>
+        {todayClasses.length === 0 ? (
+          <div style={{ padding:'14px 18px', fontSize:'13px', color:C.muted }}>오늘 수업이 없습니다.</div>
+        ) : (
+          <div style={{ display:'flex', flexWrap:'wrap', gap:'10px', padding:'12px 18px' }}>
+            {todayClasses.map(s => {
+              const classes = (s.className||'').split(',').map(x=>x.trim()).filter(Boolean)
+              return (
+                <div key={s.id} style={{ background:'#f8fafc', borderRadius:'10px', border:`1px solid ${C.border}`, padding:'10px 14px', minWidth:'160px' }}>
+                  <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'6px' }}>📌 {s.name}</div>
+                  {classes.length > 0 ? classes.map(cls => {
+                    const t = (s.times||{})[cls]
+                    const start = isVacToday ? (t?.vacStart||t?.start||'-') : (t?.start||'-')
+                    const end   = isVacToday ? (t?.vacEnd  ||t?.end  ||'-') : (t?.end  ||'-')
+                    return (
+                      <div key={cls} style={{ fontSize:'12px', color:C.muted, marginBottom:'2px' }}>
+                        <span style={{ fontWeight:600, color:C.text }}>{cls}</span>
+                        <span style={{ marginLeft:'6px' }}>{start}~{end}</span>
+                        {s.duration ? <span style={{ marginLeft:'4px', fontSize:'11px', color:'#6b7280' }}>({s.duration}분)</span> : null}
+                      </div>
+                    )
+                  }) : (
+                    <div style={{ fontSize:'12px', color:C.muted }}>시간 미설정</div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {/* 요약 카드 */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'12px', marginBottom:'24px' }}>
         {[
-          { label:'전체 업무',     value:notices.length,         color:'#6b7280', bg:'#f9fafb', icon:'📋', nav:'notices' },
-          { label:'진행중',        value:activeNotices.length,   color:'#3b82f6', bg:'#eff6ff', icon:'🔄', nav:'notices' },
-          { label:'⚠️ 확인 필요', value:needActionNotices.length,color:'#d97706', bg:'#fffbeb', icon:'⚠️', nav:'notices' },
+          { label:'전체 업무',     value:notices.filter(n=>n.type!=='admin_task').length, color:'#6b7280', bg:'#f9fafb', icon:'📋', nav:'notices' },
+          { label:'진행중',        value:activeNotices.filter(n=>n.type!=='admin_task').length, color:'#3b82f6', bg:'#eff6ff', icon:'🔄', nav:'notices' },
+          { label:'⚠️ 확인 필요', value:needActionNotices.length, color:'#d97706', bg:'#fffbeb', icon:'⚠️', nav:'notices' },
           { label:'등록 선생님',   value:teachers.length,        color:'#16a34a', bg:'#f0fdf4', icon:'👩‍🏫', nav:'teachers' },
         ].map(s => (
           <div key={s.label} onClick={()=>onNav(s.nav)}
@@ -3180,6 +3274,7 @@ function SchoolDashboard({ session, onNav }) {
               const isSel   = d === selDate
               const hasDue  = evts.some(e=>e.type==='due')
               const hasPeriod = evts.some(e=>e.type==='period')
+              const hasAdminTask = evts.some(e=>e.type==='admin_task')
               return (
                 <div key={d} onClick={()=>setSelDate(d===selDate?null:d)} style={{
                   textAlign:'center', padding:'6px 2px', borderRadius:'8px', cursor:'pointer',
@@ -3193,6 +3288,7 @@ function SchoolDashboard({ session, onNav }) {
                     <div style={{ display:'flex', justifyContent:'center', gap:'2px', marginTop:'2px' }}>
                       {hasDue    && <div style={{ width:'5px', height:'5px', borderRadius:'50%', background:'#ef4444' }} />}
                       {hasPeriod && <div style={{ width:'5px', height:'5px', borderRadius:'50%', background:'#3b82f6' }} />}
+                      {hasAdminTask && <div style={{ width:'5px', height:'5px', borderRadius:'50%', background:'#7c3aed' }} />}
                     </div>
                   )}
                 </div>
@@ -3206,6 +3302,9 @@ function SchoolDashboard({ session, onNav }) {
             </span>
             <span style={{ fontSize:'11px', color:C.muted, display:'flex', alignItems:'center', gap:'4px' }}>
               <div style={{ width:'6px', height:'6px', borderRadius:'50%', background:'#3b82f6' }} />진행기간
+            </span>
+            <span style={{ fontSize:'11px', color:C.muted, display:'flex', alignItems:'center', gap:'4px' }}>
+              <div style={{ width:'6px', height:'6px', borderRadius:'50%', background:'#7c3aed' }} />담당자업무
             </span>
           </div>
           {/* 선택 날짜 이벤트 */}
@@ -3271,6 +3370,36 @@ function SchoolDashboard({ session, onNav }) {
               ))}
             </div>
           )}
+
+          {/* 담당자 업무 */}
+          {(()=>{
+            const adminTasks = notices.filter(n => n.type==='admin_task' && n.status!=='done')
+            const todayAdminTasks = adminTasks.filter(n => n.taskStart && n.taskEnd && today >= n.taskStart && today <= n.taskEnd)
+            if (adminTasks.length === 0) return null
+            return (
+              <div style={{ background:C.card, borderRadius:'14px', border:'1px solid #c4b5fd', overflow:'hidden' }}>
+                <div style={{ padding:'12px 16px', background:'#f5f3ff', borderBottom:'1px solid #c4b5fd', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontSize:'13px', fontWeight:700, color:'#7c3aed' }}>🗂️ 담당자 업무</span>
+                  {todayAdminTasks.length > 0 && <span style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', background:'#ede9fe', padding:'2px 8px', borderRadius:'999px' }}>오늘 {todayAdminTasks.length}건 진행중</span>}
+                </div>
+                {adminTasks.map(n => {
+                  const isActive = n.taskStart && n.taskEnd && today >= n.taskStart && today <= n.taskEnd
+                  return (
+                    <div key={n.id} onClick={()=>onNav('notices')} style={{ padding:'10px 16px', borderBottom:`1px solid ${C.border}`, cursor:'pointer' }}
+                      onMouseEnter={e=>e.currentTarget.style.background='#f5f3ff'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                        {isActive && <span style={{ fontSize:'10px', fontWeight:700, color:'#fff', background:'#7c3aed', padding:'1px 6px', borderRadius:'999px' }}>진행중</span>}
+                        <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{n.title}</span>
+                      </div>
+                      {n.taskStart && n.taskEnd && <div style={{ fontSize:'11px', color:'#7c3aed', marginTop:'2px' }}>📅 {n.taskStart} ~ {n.taskEnd}</div>}
+                      {n.content && <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>{n.content}</div>}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
 
           {/* 전체 업무 현황 */}
           <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
