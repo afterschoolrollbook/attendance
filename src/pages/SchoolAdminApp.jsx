@@ -1256,61 +1256,145 @@ function ConnectTab({ session }) {
           <div style={{ fontSize:'12px', marginTop:'6px' }}>선생님 현황 탭에서 먼저 등록해주세요.</div>
         </div>
       ) : (
-        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 130px 120px', padding:'10px 18px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
-            <span>이름</span><span>과목·요일</span><span>이메일</span>
-            <span style={{ textAlign:'center' }}>상태</span>
-            <span style={{ textAlign:'center' }}>초대</span>
-          </div>
-          {filtered.map((t, i) => {
-            const st  = getStatus(t)
-            const si  = SI[st]
-            const inv = inviteByEmail[t.email?.toLowerCase()]
+        <div style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
+
+          {/* ── 섹션 1: 연결 가능 (앱 가입됨) */}
+          {(() => {
+            const group = filtered.filter(t => ['ready','pending','accepted'].includes(getStatus(t)))
             return (
-              <div key={t.id} style={{
-                display:'grid', gridTemplateColumns:'1fr 1fr 1fr 130px 120px',
-                padding:'13px 18px', borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',
-                alignItems:'center', background:si.bg,
-              }}>
-                <div>
-                  <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{t.teacherName}</div>
-                  {inv?.sentAt && <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>발송: {inv.sentAt.slice(0,10)}</div>}
+              <div style={{ borderRadius:'14px', border:`2px solid #bfdbfe`, overflow:'hidden' }}>
+                {/* 섹션 헤더 */}
+                <div style={{ background:'#eff6ff', padding:'12px 18px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                    <span style={{ fontSize:'16px' }}>🔗</span>
+                    <span style={{ fontSize:'14px', fontWeight:700, color:'#1e40af' }}>연결 가능</span>
+                    <span style={{ fontSize:'12px', color:'#3b82f6', background:'#dbeafe', padding:'2px 8px', borderRadius:'999px', fontWeight:600 }}>{group.length}명</span>
+                  </div>
+                  <span style={{ fontSize:'12px', color:'#6b7280' }}>이 이메일로 서비스에 가입되어 있습니다</span>
                 </div>
-                <div>
-                  <div style={{ fontSize:'13px', color:C.text }}>{t.subject||'-'}</div>
-                  <div style={{ fontSize:'11px', color:C.muted }}>{t.days||'-'}</div>
+                {/* 테이블 헤더 */}
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 130px 120px', padding:'9px 18px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
+                  <span>이름</span><span>과목·요일</span><span>이메일</span>
+                  <span style={{ textAlign:'center' }}>상태</span>
+                  <span style={{ textAlign:'center' }}>초대</span>
                 </div>
-                <span style={{ fontSize:'12px', color:C.muted }}>{t.email||'-'}</span>
-                <div style={{ textAlign:'center' }}>
-                  <span style={{ fontSize:'11px', fontWeight:700, color:si.color, background:si.badge, padding:'3px 10px', borderRadius:'999px', whiteSpace:'nowrap' }}>
-                    {si.label}
-                  </span>
-                </div>
-                <div style={{ textAlign:'center' }}>
-                  {st === 'accepted' ? (
-                    <span style={{ fontSize:'12px', color:'#16a34a' }}>—</span>
-                  ) : (
-                    <button onClick={() => sendInvite(t)} disabled={!!sending[t.id]} style={{
-                      padding:'5px 12px', borderRadius:'7px', border:'none',
-                      cursor:sending[t.id]?'not-allowed':'pointer',
-                      background: st==='pending'||st==='emailed' ? '#f1f5f9' : C.primary,
-                      color:      st==='pending'||st==='emailed' ? C.muted   : '#fff',
-                      fontSize:'12px', fontWeight:700,
-                      fontFamily:'Noto Sans KR, sans-serif',
-                      opacity: sending[t.id] ? .6 : 1,
+                {group.length === 0 ? (
+                  <div style={{ padding:'24px', textAlign:'center', color:C.muted, fontSize:'13px' }}>
+                    해당 선생님이 없습니다
+                  </div>
+                ) : group.map((t, i) => {
+                  const st  = getStatus(t)
+                  const si  = SI[st]
+                  const inv = inviteByEmail[t.email?.toLowerCase()]
+                  return (
+                    <div key={t.id} style={{
+                      display:'grid', gridTemplateColumns:'1fr 1fr 1fr 130px 120px',
+                      padding:'13px 18px', borderBottom:i<group.length-1?`1px solid ${C.border}`:'none',
+                      alignItems:'center', background: st==='accepted'?'#f0fdf4':'#fff',
                     }}>
-                      {sending[t.id] ? '발송 중...'
-                        : st==='pending'  ? '연결 재발송'
-                        : st==='emailed'  ? '가입 재발송'
-                        : st==='ready'    ? '연결 초대'
-                        : '가입 초대'
-                      }
-                    </button>
-                  )}
-                </div>
+                      <div>
+                        <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{t.teacherName}</div>
+                        {inv?.sentAt && <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>발송: {inv.sentAt.slice(0,10)}</div>}
+                      </div>
+                      <div>
+                        <div style={{ fontSize:'13px', color:C.text }}>{t.subject||'-'}</div>
+                        <div style={{ fontSize:'11px', color:C.muted }}>{t.days||'-'}</div>
+                      </div>
+                      <span style={{ fontSize:'12px', color:C.muted }}>{t.email||'-'}</span>
+                      <div style={{ textAlign:'center' }}>
+                        <span style={{ fontSize:'11px', fontWeight:700, color:si.color, background:si.badge, padding:'3px 10px', borderRadius:'999px', whiteSpace:'nowrap' }}>
+                          {si.label}
+                        </span>
+                      </div>
+                      <div style={{ textAlign:'center' }}>
+                        {st === 'accepted' ? (
+                          <span style={{ fontSize:'13px', color:'#16a34a' }}>—</span>
+                        ) : (
+                          <button onClick={() => sendInvite(t)} disabled={!!sending[t.id]} style={{
+                            padding:'6px 14px', borderRadius:'7px', border:'none', cursor:sending[t.id]?'not-allowed':'pointer',
+                            background: st==='pending' ? '#f1f5f9' : '#3b82f6',
+                            color:      st==='pending' ? C.muted   : '#fff',
+                            fontSize:'12px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif',
+                            opacity: sending[t.id] ? .6 : 1,
+                          }}>
+                            {sending[t.id] ? '발송 중...' : st==='pending' ? '연결 재발송' : '연결 초대'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )
-          })}
+          })()}
+
+          {/* ── 섹션 2: 서비스 미가입 */}
+          {(() => {
+            const group = filtered.filter(t => ['notjoined','emailed'].includes(getStatus(t)))
+            return (
+              <div style={{ borderRadius:'14px', border:`2px solid #e5e7eb`, overflow:'hidden' }}>
+                {/* 섹션 헤더 */}
+                <div style={{ background:'#f9fafb', padding:'12px 18px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                    <span style={{ fontSize:'16px' }}>📧</span>
+                    <span style={{ fontSize:'14px', fontWeight:700, color:'#374151' }}>서비스 미가입</span>
+                    <span style={{ fontSize:'12px', color:'#9ca3af', background:'#f3f4f6', padding:'2px 8px', borderRadius:'999px', fontWeight:600 }}>{group.length}명</span>
+                  </div>
+                  <span style={{ fontSize:'12px', color:'#6b7280' }}>가입 초대 이메일을 발송할 수 있습니다</span>
+                </div>
+                {/* 테이블 헤더 */}
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 130px 120px', padding:'9px 18px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
+                  <span>이름</span><span>과목·요일</span><span>이메일</span>
+                  <span style={{ textAlign:'center' }}>상태</span>
+                  <span style={{ textAlign:'center' }}>초대</span>
+                </div>
+                {group.length === 0 ? (
+                  <div style={{ padding:'24px', textAlign:'center', color:C.muted, fontSize:'13px' }}>
+                    모든 선생님이 서비스에 가입되어 있습니다 🎉
+                  </div>
+                ) : group.map((t, i) => {
+                  const st  = getStatus(t)
+                  const si  = SI[st]
+                  const inv = inviteByEmail[t.email?.toLowerCase()]
+                  return (
+                    <div key={t.id} style={{
+                      display:'grid', gridTemplateColumns:'1fr 1fr 1fr 130px 120px',
+                      padding:'13px 18px', borderBottom:i<group.length-1?`1px solid ${C.border}`:'none',
+                      alignItems:'center', background:'#fff',
+                      opacity: st==='notjoined' ? 0.75 : 1,
+                    }}>
+                      <div>
+                        <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{t.teacherName}</div>
+                        {inv?.sentAt && <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>발송: {inv.sentAt.slice(0,10)}</div>}
+                      </div>
+                      <div>
+                        <div style={{ fontSize:'13px', color:C.text }}>{t.subject||'-'}</div>
+                        <div style={{ fontSize:'11px', color:C.muted }}>{t.days||'-'}</div>
+                      </div>
+                      <span style={{ fontSize:'12px', color:C.muted }}>{t.email||'-'}</span>
+                      <div style={{ textAlign:'center' }}>
+                        <span style={{ fontSize:'11px', fontWeight:700, color:si.color, background:si.badge, padding:'3px 10px', borderRadius:'999px', whiteSpace:'nowrap' }}>
+                          {si.label}
+                        </span>
+                      </div>
+                      <div style={{ textAlign:'center' }}>
+                        <button onClick={() => sendInvite(t)} disabled={!!sending[t.id]} style={{
+                          padding:'6px 14px', borderRadius:'7px', border:'none', cursor:sending[t.id]?'not-allowed':'pointer',
+                          background: st==='emailed' ? '#f1f5f9' : '#f97316',
+                          color:      st==='emailed' ? C.muted   : '#fff',
+                          fontSize:'12px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif',
+                          opacity: sending[t.id] ? .6 : 1,
+                        }}>
+                          {sending[t.id] ? '발송 중...' : st==='emailed' ? '가입 재발송' : '가입 초대'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
+
         </div>
       )}
     </div>
