@@ -985,10 +985,9 @@ function NoticesTab({ session }) {
 }
 
 const CURRENT_YEAR = new Date().getFullYear()
-const DAYS_LIST = ['월', '화', '수', '목', '금', '토']
+const DAYS_LIST = ['월', '화', '수', '목', '금', '토', '일']
 
 // ── 과목 관리 탭 (학교별 연도 과목 등록)
-const DAYS_LIST = ['월','화','수','목','금','토','일']
 const EMPTY_FORM = { name:'', days:[], className:'', startTime:'', endTime:'', capacity:'' }
 
 function SubjectsTab({ session }) {
