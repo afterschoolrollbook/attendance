@@ -1455,55 +1455,8 @@ function ConnectTab({ session }) {
   const appByEmail    = Object.fromEntries(appUsers.map(u => [u.email?.toLowerCase(), u]))
   const inviteByEmail = Object.fromEntries(invites.map(i => [i.teacherEmail?.toLowerCase(), i]))
 
-  // ── roster(선생님 현황 등록)가 없으면 users + invites 기반으로 목록 구성
-  // roster에 없는 앱 가입 선생님 → 가상 row로 추가
-  // roster에 없는 초대 발송 선생님 → 가상 row로 추가
-  const buildDisplayList = () => {
-    const rosterEmails = new Set(roster.map(t => t.email?.toLowerCase()).filter(Boolean))
-
-    // users 중 roster에 없는 선생님 → 가상 row
-    const fromUsers = appUsers
-      .filter(u => u.email && !rosterEmails.has(u.email.toLowerCase()))
-      .map(u => ({
-        id:           u.id,
-        teacherId:    u.id,
-        teacherName:  u.name || u.email,
-        email:        u.email,
-        subject:      '',
-        days:         '',
-        year:         null,
-        startDate:    null,
-        endDate:      null,
-        _virtual:     true, // roster에 없는 가상 row
-      }))
-
-    // invites 중 roster에도 users에도 없는 선생님 (서비스 미가입)
-    const inviteEmails = new Set([
-      ...roster.map(t => t.email?.toLowerCase()).filter(Boolean),
-      ...appUsers.map(u => u.email?.toLowerCase()).filter(Boolean),
-    ])
-    const fromInvites = invites
-      .filter(i => i.teacherEmail && !inviteEmails.has(i.teacherEmail.toLowerCase()))
-      .map(i => ({
-        id:           i.id + '_inv',
-        teacherId:    null,
-        teacherName:  i.teacherName || i.teacherEmail,
-        email:        i.teacherEmail,
-        subject:      '',
-        days:         '',
-        year:         null,
-        startDate:    null,
-        endDate:      null,
-        _virtual:     true,
-      }))
-
-    return [...roster, ...fromUsers, ...fromInvites]
-  }
-
-  const allTeachers = buildDisplayList()
-  const years    = [...new Set([CURRENT_YEAR, ...allTeachers.map(t => t.year).filter(Boolean)])].sort((a,b)=>b-a)
-  // year가 없는(가상 row 포함) 선생님은 현재 연도 탭에 표시
-  const filtered = allTeachers.filter(t => t.year == selYear || !t.year)
+  const years    = [...new Set([CURRENT_YEAR, ...roster.map(t => t.year).filter(Boolean)])].sort((a,b)=>b-a)
+  const filtered = roster.filter(t => t.year == selYear || (!t.year && selYear === CURRENT_YEAR))
 
   // 상태 계산
   // accepted  → 연결 완료 (수락됨)
@@ -1542,7 +1495,43 @@ function ConnectTab({ session }) {
       const appUser     = appByEmail[email]
       const existingInv = inviteByEmail[email]
       const newStatus   = appUser ? 'pending' : 'emailed'
-      const inviteData  = {
+
+      // 개별 발송 시 — noticeId 없으면 schoolNotices에 공지 자동 생성
+      let useNoticeId = noticeId || existingInv?.noticeId || null
+      if (!useNoticeId) {
+        const newNoticeId = uid()
+        const inviteType  = appUser ? 'invite_connect' : 'invite_signup'
+        await dbCall('upsert', 'schoolNotices', {
+          data: {
+            id:               newNoticeId,
+            adminId:          session.adminId,
+            schoolName:       session.admin?.schoolName || '',
+            type:             inviteType,
+            title:            `${appUser ? '연결' : '서비스'} 초대 — ${t.teacherName} 선생님`,
+            content:          '',
+            startDate:        t.startDate || null,
+            endDate:          t.endDate   || null,
+            dueDate:          null,
+            targetTeacherIds: [t.teacherId || t.id],
+            status:           'active',
+            createdAt:        now(),
+          }
+        })
+        // schoolNoticeSubmits 생성
+        await dbCall('upsert', 'schoolNoticeSubmits', {
+          data: {
+            id:        uid(),
+            noticeId:  newNoticeId,
+            teacherId: t.teacherId || t.id,
+            adminId:   session.adminId,
+            status:    'pending',
+            createdAt: now(),
+          }
+        })
+        useNoticeId = newNoticeId
+      }
+
+      const inviteData = {
         id:           existingInv?.id || uid(),
         adminId:      session.adminId,
         schoolName:   session.admin?.schoolName || '',
@@ -1550,16 +1539,14 @@ function ConnectTab({ session }) {
         teacherEmail: email,
         teacherName:  t.teacherName,
         teacherId:    appUser?.id || null,
-        noticeId:     noticeId || existingInv?.noticeId || null,
+        noticeId:     useNoticeId,
         status:       newStatus,
         sentAt:       now(),
         createdAt:    existingInv?.createdAt || now(),
       }
 
-      // DB 저장
       await dbCall('upsert', 'schoolTeacherInvites', { data: inviteData })
 
-      // 이메일 발송
       if (appUser) {
         await sendTeacherInviteEmail({
           teacherName: t.teacherName, email,
@@ -1574,14 +1561,12 @@ function ConnectTab({ session }) {
         })
       }
 
-      // 낙관적 업데이트
       setInvites(prev => {
         const without = prev.filter(i => i.teacherEmail?.toLowerCase() !== email)
         return [...without, inviteData]
       })
 
       if (!noticeId) {
-        // 개별 발송 시에만 토스트 (일괄은 sendBulk에서 표시)
         success(appUser
           ? `✅ ${t.teacherName} 선생님께 연결 초대장을 발송했습니다!`
           : `✅ ${t.teacherName} 선생님께 서비스 가입 초대를 발송했습니다!`
