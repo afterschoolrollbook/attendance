@@ -2386,16 +2386,15 @@ function StudentsTab({ session }) {
   // 전체 수업 목록
   const allClasses = teachers.flatMap(t => classMap[t.teacherId]||[])
 
-  // 연도 목록
-  const years = [...new Set(allClasses.map(c=>c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
+  // 연도 목록 — 수업 데이터 + 연간 달력 연도 합집합
+  const calYears = calendars.map(c => c.startDate?.slice(0,4)).filter(Boolean)
+  const years = [...new Set([...allClasses.map(c=>c.startDate?.slice(0,4)).filter(Boolean), ...calYears])].sort().reverse()
 
   // 연도 필터
   const yearClasses = allClasses.filter(c=>c.startDate?.slice(0,4)===selYear)
 
-  // 요일 목록 (존재하는 요일만, 순서 고정)
-  const allDays = ['월','화','수','목','금','토','일'].filter(d =>
-    yearClasses.some(c=>(c.days||[]).includes(d))
-  )
+  // 요일 목록 — 항상 월~일 전체 표시, 클릭 가능
+  const ALL_DAYS = ['월','화','수','목','금','토','일']
 
   // 과목 목록 (schoolSubjects 기준)
   const yearSubjects = subjects.filter(s=>s.year==selYear)
@@ -2463,14 +2462,13 @@ function StudentsTab({ session }) {
     return `${dayStr}${cls.className||''}`
   }
 
-  const BtnFilter = ({val,cur,set,label,disabled}) => (
-    <button onClick={()=>!disabled&&set(val)} style={{
+  const BtnFilter = ({val,cur,set,label}) => (
+    <button onClick={()=>set(val)} style={{
       padding:'5px 12px', borderRadius:'20px', fontSize:'12px', fontWeight:cur===val?700:400,
       border:`1.5px solid ${cur===val?C.primary:C.border}`,
       background:cur===val?C.primary:'#fff',
-      color:cur===val?'#fff': disabled?'#d1d5db':C.text,
-      cursor:disabled?'default':'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
-      opacity: disabled?0.45:1,
+      color:cur===val?'#fff':C.text,
+      cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
     }}>{label}</button>
   )
 
@@ -2585,12 +2583,12 @@ function StudentsTab({ session }) {
               )}
             </div>
 
-            {/* 요일 — 항상 표시, 해당 요일 없으면 흐리게 */}
+            {/* 요일 — 항상 전체 표시, 항상 클릭 가능 */}
             <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
               <span style={{ fontSize:'12px', fontWeight:700, color:C.muted, width:'60px', flexShrink:0 }}>요일</span>
               <BtnFilter val="all" cur={selDay} set={setSelDay} label="전체"/>
-              {['월','화','수','목','금','토','일'].map(d=>(
-                <BtnFilter key={d} val={d} cur={selDay} set={setSelDay} label={`${d}요일`} disabled={!allDays.includes(d)}/>
+              {ALL_DAYS.map(d=>(
+                <BtnFilter key={d} val={d} cur={selDay} set={setSelDay} label={`${d}요일`}/>
               ))}
             </div>
 
