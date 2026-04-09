@@ -14,7 +14,7 @@ import { ClassCalendar } from '../pages/ClassCalendar.jsx'
 import { TERM_TYPES, REPEAT_TYPES } from '../constants/config.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
-import { ConfirmDialog, Btn, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState } from '../components/Atoms.jsx'
+import { ConfirmDialog, Input, Select, Textarea, DayPicker, Tag, EmptyState } from '../components/Atoms.jsx'
 
 const C = {
   primary:'#3b82f6', text:'#111827', muted:'#6b7280',
@@ -1911,7 +1911,7 @@ function SchoolCalendarTab({ session }) {
         )}
 
         <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', marginTop:'20px', paddingTop:'16px', borderTop:`1px solid ${C.border}` }}>
-          <Btn variant="ghost" onClick={() => setShowModal(false)}>취소</Btn>
+          <Btn color="secondary" onClick={() => setShowModal(false)}>취소</Btn>
           <Btn onClick={save}>{editId ? '저장' : '등록'}</Btn>
         </div>
       </Modal>
@@ -1920,8 +1920,8 @@ function SchoolCalendarTab({ session }) {
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="일정 삭제" width={360}>
         <p style={{ fontSize:'14px', color:C.text, marginBottom:'20px' }}>정말 삭제하시겠습니까?<br/>선생님들이 참조하는 학교 일정이 사라집니다.</p>
         <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-          <Btn variant="ghost" onClick={() => setDeleteId(null)}>취소</Btn>
-          <Btn variant="danger" onClick={del}>삭제</Btn>
+          <Btn color="secondary" onClick={() => setDeleteId(null)}>취소</Btn>
+          <Btn color="danger" onClick={del}>삭제</Btn>
         </div>
       </Modal>
     </div>
@@ -2252,7 +2252,7 @@ function SchoolClassesTab({ session }) {
         )}
 
         <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', marginTop:'20px', paddingTop:'16px', borderTop:`1px solid ${C.border}` }}>
-          <Btn variant="ghost" onClick={() => setShowModal(false)}>취소</Btn>
+          <Btn color="secondary" onClick={() => setShowModal(false)}>취소</Btn>
           <Btn onClick={save}>{editId ? '저장' : '등록'}</Btn>
         </div>
       </Modal>
@@ -2261,8 +2261,8 @@ function SchoolClassesTab({ session }) {
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="수업 삭제" width={360}>
         <p style={{ fontSize:'14px', color:C.text, marginBottom:'20px' }}>정말 삭제하시겠습니까?</p>
         <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-          <Btn variant="ghost" onClick={() => setDeleteId(null)}>취소</Btn>
-          <Btn variant="danger" onClick={del}>삭제</Btn>
+          <Btn color="secondary" onClick={() => setDeleteId(null)}>취소</Btn>
+          <Btn color="danger" onClick={del}>삭제</Btn>
         </div>
       </Modal>
     </div>
