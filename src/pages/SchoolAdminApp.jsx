@@ -136,6 +136,17 @@ const NOTICE_STATUS = {
   done:    { label:'업무완료', color:'#16a34a', bg:'#f0fdf4'  },
 }
 
+// ── 공지 유형 정보 (모달 밖에 정의 — 리렌더 시 재생성 방지)
+const TYPE_INFO = {
+  notice:        { icon:'📋', label:'공지 전달',  desc:'선생님이 확인하면 회신완료 처리됩니다.',                       color:'#6b7280', bg:'#f3f4f6' },
+  task:          { icon:'📎', label:'업무 요청',  desc:'선생님이 파일을 제출하면 제출완료 처리됩니다.',                color:'#d97706', bg:'#fffbeb' },
+  invite_signup: { icon:'📧', label:'서비스 초대', desc:'앱 미가입 선생님에게 가입 안내 이메일을 발송합니다.',         color:'#f97316', bg:'#fff7ed' },
+  invite_connect:{ icon:'🔗', label:'연결 초대',  desc:'앱 가입 선생님에게 이메일 + 대시보드 연결 초대를 발송합니다.', color:'#3b82f6', bg:'#eff6ff' },
+}
+
+// LBL도 모달 밖에 정의
+const LBL = ({ children }) => <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>{children}</label>
+
 // ── 공지 등록/수정 모달 (editNotice가 있으면 수정 모드)
 function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
   const isEdit = !!editNotice
@@ -164,13 +175,6 @@ function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
   }, [])
 
   const appByEmail = Object.fromEntries(appUsers.map(u => [u.email?.toLowerCase(), u]))
-
-  const TYPE_INFO = {
-    notice:        { icon:'📋', label:'공지 전달',    desc:'선생님이 확인하면 회신완료 처리됩니다.',                      color:'#6b7280', bg:'#f3f4f6' },
-    task:          { icon:'📎', label:'업무 요청',    desc:'선생님이 파일을 제출하면 제출완료 처리됩니다.',               color:'#d97706', bg:'#fffbeb' },
-    invite_signup: { icon:'📧', label:'서비스 초대',  desc:'앱 미가입 선생님에게 가입 안내 이메일을 발송합니다.',        color:'#f97316', bg:'#fff7ed' },
-    invite_connect:{ icon:'🔗', label:'연결 초대',    desc:'앱 가입 선생님에게 이메일 + 대시보드 연결 초대를 발송합니다.', color:'#3b82f6', bg:'#eff6ff' },
-  }
 
   const toggleTeacher = (tid) => setTargets(prev => prev.includes(tid) ? prev.filter(t=>t!==tid) : [...prev, tid])
   const allSelected = targets.length === teachers.length && teachers.length > 0
