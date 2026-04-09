@@ -2635,6 +2635,565 @@ function StudentsTab({ session }) {
             ))}
           </div>
 
+          {/* ══ 학교 통계 대시보드 ══ */}
+          {expandedRows.length > 0 && (()=>{
+            const GRADE_COLORS = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#6b7280']
+            // 고유 학생
+            const uniqueStudentMap = new Map(expandedRows.map(r=>[r.student.id, r.student]))
+            const uniqueStudents   = [...uniqueStudentMap.values()]
+            const totalUnique      = uniqueStudents.length
+
+            // ── 1. 과목별 정원 충족률
+            const subjectCapData = yearSubjects.map(subj => {
+              const subClasses = filtered.filter(c => c.className === subj.name)
+              const enrolled   = new Set(
+                allStudents.flatMap(s => (s.classIds||[]).filter(cid => subClasses.some(c=>c.id===cid)).map(()=>s.id))
+              ).size
+              const cap = parseInt(subj.capacity)||0
+              const pct = cap > 0 ? Math.round(enrolled/cap*100) : null
+              return { name: subj.name, enrolled, cap, pct }
+            }).filter(d => d.cap > 0 || d.enrolled > 0)
+
+            // ── 2. 요일별 수강 분포 (수업 중복 포함 행 기준)
+            const dayDist = {}
+            expandedRows.forEach(r => {
+              (r.cls.days||[]).forEach(d => { dayDist[d] = (dayDist[d]||0) + 1 })
+            })
+            const dayEntries   = ['월','화','수','목','금','토','일'].map(d=>({ d, cnt: dayDist[d]||0 })).filter(x=>x.cnt>0)
+            const dayMax       = Math.max(...dayEntries.map(x=>x.cnt), 1)
+
+            // ── 3. 다과목 수강 현황 (고유 학생 기준 — 이 학생이 몇 개 수업 듣나)
+            const multiSubjDist = {}
+            uniqueStudents.forEach(s => {
+              const cnt = (s.classIds||[]).filter(cid => classIdSet.has(cid)).length
+              const key = cnt >= 3 ? '3과목+' : cnt === 2 ? '2과목' : '1과목'
+              multiSubjDist[key] = (multiSubjDist[key]||0) + 1
+            })
+            const multiEntries = ['1과목','2과목','3과목+'].filter(k=>multiSubjDist[k])
+
+            // ── 4. 반(classNum)별 수강 분포
+            const classDist = {}
+            uniqueStudents.forEach(s => {
+              const key = s.classNum ? `${s.classNum}반` : '미설정'
+              classDist[key] = (classDist[key]||0) + 1
+            })
+            const classEntries = Object.entries(classDist).sort((a,b)=>{
+              if(a[0]==='미설정') return 1; if(b[0]==='미설정') return -1
+              return parseInt(a[0])-parseInt(b[0])
+            })
+            const classMax = Math.max(...classEntries.map(x=>x[1]), 1)
+
+            const StatCard = ({title, children, span=1}) => (
+              <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px 18px', gridColumn:`span ${span}` }}>
+                <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'12px' }}>{title}</div>
+                {children}
+              </div>
+            )
+            const MiniBar = ({pct, color='#3b82f6', h=7}) => (
+              <div style={{ height:`${h}px`, background:'#f1f5f9', borderRadius:'999px', overflow:'hidden' }}>
+                <div style={{ width:`${Math.min(pct,100)}%`, height:'100%', background:color, borderRadius:'999px' }}/>
+              </div>
+            )
+
+            return (
+              <div style={{ marginBottom:'16px' }}>
+                <div style={{ fontSize:'14px', fontWeight:800, color:C.text, marginBottom:'10px' }}>📈 학교 통계</div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px' }}>
+
+                  {/* 1. 과목별 정원 충족률 */}
+                  {subjectCapData.length > 0 && (
+                    <StatCard title="📋 과목별 정원 충족률">
+                      {subjectCapData.map((d,i)=>{
+                        const pct   = d.pct ?? null
+                        const color = pct==null?'#9ca3af':pct>=100?C.danger:pct>=80?'#f59e0b':C.primary
+                        return (
+                          <div key={d.name} style={{ marginBottom:'10px' }}>
+                            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'3px' }}>
+                              <span style={{ fontSize:'12px', fontWeight:600, color:C.text }}>{d.name}</span>
+                              <span style={{ fontSize:'12px', color }}>
+                                <strong>{d.enrolled}</strong>/{d.cap>0?d.cap:'?'}명
+                                {pct!=null && <span style={{ fontWeight:700 }}> {pct}%</span>}
+                              </span>
+                            </div>
+                            <MiniBar pct={pct??0} color={color}/>
+                          </div>
+                        )
+                      })}
+                    </StatCard>
+                  )}
+
+                  {/* 2. 요일별 수강 분포 */}
+                  {dayEntries.length > 0 && (
+                    <StatCard title="📅 요일별 수강 분포">
+                      {dayEntries.map(({d,cnt})=>(
+                        <div key={d} style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px' }}>
+                          <span style={{ fontSize:'12px', fontWeight:700, color:C.text, width:'24px', flexShrink:0 }}>{d}</span>
+                          <div style={{ flex:1, height:'20px', background:'#f1f5f9', borderRadius:'6px', overflow:'hidden' }}>
+                            <div style={{ width:`${Math.round(cnt/dayMax*100)}%`, height:'100%', background:'#6366f1', borderRadius:'6px', display:'flex', alignItems:'center', paddingLeft:'6px', minWidth:'28px' }}>
+                              <span style={{ fontSize:'10px', fontWeight:700, color:'#fff' }}>{cnt}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      <div style={{ fontSize:'11px', color:C.muted, marginTop:'4px' }}>단위: 수업-학생 행 수</div>
+                    </StatCard>
+                  )}
+
+                  {/* 3. 다과목 수강 현황 */}
+                  <StatCard title="🎒 다과목 수강 현황">
+                    <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'10px' }}>
+                      {multiEntries.map((key,i)=>{
+                        const cnt  = multiSubjDist[key]
+                        const pct  = Math.round(cnt/totalUnique*100)
+                        const cols = ['#10b981','#3b82f6','#8b5cf6']
+                        const col  = cols[i]||'#6b7280'
+                        return (
+                          <div key={key}>
+                            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'3px' }}>
+                              <span style={{ fontSize:'12px', fontWeight:600, color:C.text }}>{key} 수강</span>
+                              <span style={{ fontSize:'12px', color:col, fontWeight:700 }}>{cnt}명 ({pct}%)</span>
+                            </div>
+                            <MiniBar pct={pct} color={col}/>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div style={{ background:'#f8fafc', borderRadius:'8px', padding:'8px 12px', fontSize:'12px', color:C.muted }}>
+                      고유 학생 <strong style={{ color:C.text }}>{totalUnique}명</strong> 기준
+                      {multiSubjDist['2과목']||multiSubjDist['3과목+'] ? (
+                        <span style={{ color:'#8b5cf6', fontWeight:600, marginLeft:'6px' }}>
+                          다과목 {((( (multiSubjDist['2과목']||0)+(multiSubjDist['3과목+']||0) ) /totalUnique)*100).toFixed(0)}%
+                        </span>
+                      ) : null}
+                    </div>
+                  </StatCard>
+
+                  {/* 4. 반별 수강 분포 */}
+                  {classEntries.length > 1 && (
+                    <StatCard title="🏫 반별 수강 분포">
+                      {classEntries.map(([cls,cnt])=>{
+                        const pct = Math.round(cnt/classMax*100)
+                        return (
+                          <div key={cls} style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px' }}>
+                            <span style={{ fontSize:'12px', fontWeight:600, color:C.text, width:'44px', flexShrink:0 }}>{cls}</span>
+                            <div style={{ flex:1, height:'20px', background:'#f1f5f9', borderRadius:'6px', overflow:'hidden' }}>
+                              <div style={{ width:`${pct}%`, height:'100%', background:'#f59e0b', borderRadius:'6px', display:'flex', alignItems:'center', paddingLeft:'6px', minWidth:'28px' }}>
+                                <span style={{ fontSize:'10px', fontWeight:700, color:'#fff' }}>{cnt}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <div style={{ fontSize:'11px', color:C.muted, marginTop:'4px' }}>고유 학생 {totalUnique}명 기준</div>
+                    </StatCard>
+                  )}
+
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* ── 과목×학기 단위 분석: 학년별 현황 + 재등록 비율 */}
+          {expandedRows.length > 0 && (()=>{
+            const GRADE_COLORS = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#6b7280']
+
+            // 공통 HTML 생성
+            const buildWindowHtml = (withPrintScript) => {
+              const src = document.getElementById('__stats_content__')
+              if (!src) return ''
+              const CSS = `
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body { font-family: 'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif; padding: 24px; color: #111827; font-size: 13px; }
+                h1 { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
+                .sub { font-size: 12px; color: #6b7280; margin-bottom: 20px; }
+                .subject-card { border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 20px; overflow: hidden; page-break-inside: avoid; }
+                .subject-header { background: #f8fafc; padding: 10px 16px; border-bottom: 1px solid #e5e7eb; font-size: 14px; font-weight: 800; }
+                .subject-body { padding: 14px 16px; }
+                .term-label { display: inline-block; font-size: 12px; font-weight: 700; color: #7c3aed; background: #f5f3ff; padding: 2px 10px; border-radius: 999px; margin-bottom: 8px; }
+                .term-date { font-size: 11px; color: #6b7280; margin-left: 8px; }
+                .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+                .box { background: #fafafa; border-radius: 8px; padding: 12px 14px; border: 1px solid #e5e7eb; }
+                .box-title { font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 8px; }
+                .bar-row { margin-bottom: 6px; }
+                .bar-row-top { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; }
+                .bar-bg { height: 7px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+                .bar-fill { height: 100%; border-radius: 999px; }
+                .donut-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+                .donut-label { font-size: 11px; line-height: 1.7; }
+                .re-bar { height: 8px; border-radius: 999px; overflow: hidden; display: flex; margin-bottom: 4px; }
+                .legend { font-size: 10px; display: flex; gap: 10px; }
+                @page { margin: 15mm 12mm; size: A4; }
+                @media print { body { padding: 0; } .no-print { display:none !important; } }
+              `
+              const body = src.getAttribute('data-print-html') || ''
+              const header = `<h1>📊 학생 현황 분석 리포트</h1>
+                <div class="sub">${selYear}년 · 출력일: ${new Date().toLocaleDateString('ko-KR')} · ${session?.admin?.schoolName||''}</div>`
+              const printBtn = withPrintScript ? '' : `
+                <div class="no-print" style="position:sticky;top:0;z-index:99;background:#fff;padding:10px 0 12px;display:flex;gap:8px;justify-content:flex-end;border-bottom:1px solid #e5e7eb;margin-bottom:16px">
+                  <button onclick="window.print()" style="padding:8px 20px;border-radius:8px;border:none;background:#1e3a5f;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">🖨 PDF 저장</button>
+                </div>`
+              const script = withPrintScript ? `<script>window.onload=()=>{ window.print(); setTimeout(()=>window.close(),800); }<\/script>` : ''
+              return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${selYear}년 학생현황 분석</title><style>${CSS}</style></head><body>${printBtn}${header}${body}${script}</body></html>`
+            }
+
+            // 미리보기 모달
+            const handlePreview = () => {
+              const html = buildWindowHtml(false)
+              if (!html) return
+              // 모달 오버레이 생성
+              const overlay = document.createElement('div')
+              overlay.id = '__preview_overlay__'
+              overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px'
+              overlay.innerHTML = `
+                <div style="background:#fff;border-radius:16px;width:100%;max-width:860px;height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.3)">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #e5e7eb;flex-shrink:0">
+                    <div style="font-size:15px;font-weight:700;color:#111827">📄 분석 리포트 미리보기</div>
+                    <div style="display:flex;gap:8px">
+                      <button id="__preview_print__" style="padding:7px 18px;border-radius:8px;border:none;background:#1e3a5f;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">🖨 PDF 저장</button>
+                      <button id="__preview_close__" style="padding:7px 14px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;color:#374151;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">✕ 닫기</button>
+                    </div>
+                  </div>
+                  <iframe id="__preview_iframe__" style="flex:1;border:none;background:#fff"></iframe>
+                </div>`
+              document.body.appendChild(overlay)
+              const iframe = document.getElementById('__preview_iframe__')
+              iframe.srcdoc = html
+              document.getElementById('__preview_close__').onclick = () => overlay.remove()
+              overlay.onclick = (e) => { if (e.target === overlay) overlay.remove() }
+              document.getElementById('__preview_print__').onclick = () => {
+                iframe.contentWindow?.print()
+              }
+            }
+
+            // PDF 바로 저장
+            const handlePrint = () => {
+              const html = buildWindowHtml(true)
+              if (!html) return
+              const win = window.open('', '_blank', 'width=900,height=700')
+              win.document.write(html)
+              win.document.close()
+            }
+
+            // 과목별 그룹 (className 기준)
+            const subjectNames = [...new Set(filtered.map(c => c.className).filter(Boolean))].sort()
+
+            // 수업을 학기/텀 순서로 정렬하는 헬퍼 (startDate 기준)
+            const sortedClasses = (classes) => [...classes].sort((a,b) => (a.startDate||'').localeCompare(b.startDate||''))
+
+            // 과목명별로 수업 묶기
+            const classesBySubject = {}
+            subjectNames.forEach(name => {
+              classesBySubject[name] = sortedClasses(filtered.filter(c => c.className === name))
+            })
+
+            // 전체 학생 목록 (중복 없이)
+            const allStudentMap = Object.fromEntries(
+              teachers.flatMap(t => (studentMap[t.teacherId]||[]).map(s => [s.id, s]))
+            )
+
+            // ── 인쇄용 HTML 생성
+            const buildPrintHtml = () => {
+              return subjectNames.map(subjectName => {
+                const subClasses = classesBySubject[subjectName]
+                const subjectDef = yearSubjects.find(s => s.name === subjectName)
+                const capacity   = parseInt(subjectDef?.capacity)||0
+                const classStudentSets = subClasses.map(cls => {
+                  const sids = new Set()
+                  Object.values(allStudentMap).forEach(s => {
+                    if ((s.classIds||[]).includes(cls.id)) sids.add(s.id)
+                  })
+                  return sids
+                })
+
+                const termRows = subClasses.map((cls, ci) => {
+                  const termLabel  = calTermType==='semester' ? `${ci+1}학기` : calTermType==='quarter' ? `${ci+1}텀` : `${ci+1}회차`
+                  const studentSet = classStudentSets[ci]
+                  const students   = [...studentSet].map(id => allStudentMap[id]).filter(Boolean)
+                  const enrolled   = students.length
+                  const gradeMap   = {}
+                  students.forEach(s => { const g = s.grade ? `${s.grade}학년` : '미설정'; gradeMap[g] = (gradeMap[g]||0)+1 })
+                  const gradeEntries = Object.entries(gradeMap).sort((a,b) => a[0]==='미설정'?1:b[0]==='미설정'?-1:parseInt(a[0])-parseInt(b[0]))
+                  const capPct     = capacity>0 ? Math.min(Math.round(enrolled/capacity*100),100) : null
+                  const prevSet    = ci>0 ? classStudentSets[ci-1] : null
+                  const reCount    = prevSet ? [...studentSet].filter(id=>prevSet.has(id)).length : null
+                  const newCnt     = prevSet ? enrolled - reCount : null
+                  const dropCnt    = prevSet ? [...prevSet].filter(id=>!studentSet.has(id)).length : null
+                  const reRate     = (prevSet&&prevSet.size>0) ? Math.round(reCount/prevSet.size*100) : null
+                  const r          = 20; const circ = 2*Math.PI*r; const dash = reRate!=null ? (reRate/100*circ).toFixed(1) : 0
+
+                  const gradeHtml = gradeEntries.map(([g,cnt],gi) => {
+                    const pct = Math.round(cnt/enrolled*100)
+                    const col = GRADE_COLORS[gi%GRADE_COLORS.length]
+                    return `<div class="bar-row">
+                      <div class="bar-row-top"><span style="font-weight:600">${g}</span><span style="color:#6b7280">${cnt}명 <span style="font-weight:700;color:${col}">${pct}%</span></span></div>
+                      <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div>
+                    </div>`
+                  }).join('')
+
+                  const reHtml = ci===0
+                    ? `<div style="font-size:12px;color:#6b7280;padding-top:8px">첫 번째 ${calTermType==='semester'?'학기':'텀'}이므로<br>이전 데이터 없음</div>`
+                    : prevSet.size===0
+                      ? `<div style="font-size:12px;color:#6b7280">이전 수강생 없음</div>`
+                      : `<div style="font-size:11px;color:#6b7280;margin-bottom:8px">이전 ${calTermType==='semester'?`${ci}학기`:`${ci}텀`} ${prevSet.size}명 중</div>
+                         <div class="donut-row">
+                           <svg width="52" height="52" style="transform:rotate(-90deg);flex-shrink:0">
+                             <circle cx="26" cy="26" r="${r}" fill="none" stroke="#f1f5f9" stroke-width="8"/>
+                             <circle cx="26" cy="26" r="${r}" fill="none" stroke="#3b82f6" stroke-width="8"
+                               stroke-dasharray="${dash} ${circ.toFixed(1)}" stroke-linecap="round"/>
+                           </svg>
+                           <div class="donut-label">
+                             재등록 <strong style="color:#3b82f6">${reCount}명</strong> (${reRate}%)<br>
+                             신규 <strong style="color:#10b981">${newCnt}명</strong><br>
+                             이탈 <strong style="color:#ef4444">${dropCnt}명</strong>
+                           </div>
+                         </div>
+                         <div class="re-bar">
+                           <div style="width:${reRate}%;background:#3b82f6"></div>
+                           <div style="flex:1;background:#10b981"></div>
+                         </div>
+                         <div class="legend">
+                           <span style="color:#3b82f6">■ 재등록</span>
+                           <span style="color:#10b981">■ 신규</span>
+                           <span style="color:#ef4444">■ 이탈 ${dropCnt}명</span>
+                         </div>`
+
+                  return `
+                    <div style="margin-bottom:14px">
+                      <span class="term-label">${termLabel}</span>
+                      <span class="term-date">${cls.startDate?.slice(5)||''} ~ ${cls.endDate?.slice(5)||''}</span>
+                      <div class="grid2">
+                        <div class="box">
+                          <div class="box-title">🎓 학년별 현황</div>
+                          ${capacity>0?`<div class="bar-row">
+                            <div class="bar-row-top"><span>수강 <strong>${enrolled}명</strong> / 정원 ${capacity}명</span><span style="font-weight:700;color:${capPct>=100?'#ef4444':capPct>=80?'#d97706':'#3b82f6'}">${capPct}%</span></div>
+                            <div class="bar-bg"><div class="bar-fill" style="width:${capPct}%;background:${capPct>=100?'#ef4444':capPct>=80?'#f59e0b':'#3b82f6'}"></div></div>
+                          </div>`:`<div style="font-size:12px;font-weight:700;color:#3b82f6;margin-bottom:8px">수강 ${enrolled}명</div>`}
+                          ${enrolled===0?'<div style="font-size:12px;color:#6b7280">수강생 없음</div>':gradeHtml}
+                        </div>
+                        <div class="box">
+                          <div class="box-title">🔄 재등록 현황</div>
+                          ${reHtml}
+                        </div>
+                      </div>
+                    </div>`
+                }).join('')
+
+                return `
+                  <div class="subject-card">
+                    <div class="subject-header">📚 ${subjectName}${capacity>0?` <span style="font-size:11px;color:#6b7280;font-weight:400"> 정원 ${capacity}명</span>`:''}</div>
+                    <div class="subject-body">${termRows}</div>
+                  </div>`
+              }).join('')
+            }
+
+            // ── 과목×수업 단위 분석 블록
+            return (
+              <div style={{ display:'flex', flexDirection:'column', gap:'16px', marginBottom:'16px' }}>
+                {/* 버튼 영역 */}
+                <div style={{ display:'flex', justifyContent:'flex-end', gap:'8px' }}>
+                  <button onClick={handlePreview} style={{
+                    display:'flex', alignItems:'center', gap:'6px',
+                    padding:'8px 18px', borderRadius:'10px', border:'1.5px solid #1e3a5f',
+                    background:'#fff', color:'#1e3a5f', fontWeight:700, fontSize:'13px',
+                    cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                  }}>
+                    👁 미리보기
+                  </button>
+                  <button onClick={handlePrint} style={{
+                    display:'flex', alignItems:'center', gap:'6px',
+                    padding:'8px 18px', borderRadius:'10px', border:'none',
+                    background:'#1e3a5f', color:'#fff', fontWeight:700, fontSize:'13px',
+                    cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                    boxShadow:'0 2px 8px rgba(30,58,95,0.25)',
+                  }}>
+                    📄 PDF 저장
+                  </button>
+                </div>
+                {/* 인쇄 데이터 저장용 숨김 div */}
+                <div id="__stats_content__" data-print-html={buildPrintHtml()} style={{ display:'none' }}/>
+                {subjectNames.map(subjectName => {
+                  const subClasses = classesBySubject[subjectName]
+
+                  // 수업별(학기/텀별) 학생 집합 — 학생 id Set
+                  const classStudentSets = subClasses.map(cls => {
+                    const sids = new Set()
+                    Object.values(allStudentMap).forEach(s => {
+                      if ((s.classIds||[]).includes(cls.id)) sids.add(s.id)
+                    })
+                    return sids
+                  })
+
+                  // 수업에 학기/텀 레이블 붙이기
+                  // termType이 semester면 "1학기/2학기", quarter면 "1텀/2텀/..."
+                  // 수업 자체 termCount 또는 달력 기준으로 판단
+                  // — 가장 단순하게: 같은 과목 내 startDate 순서로 "1학기", "2학기" 레이블
+                  const getTermLabel = (idx) => {
+                    if (calTermType === 'semester') return `${idx+1}학기`
+                    if (calTermType === 'quarter')  return `${idx+1}텀`
+                    return `${idx+1}회차`
+                  }
+
+                  // 과목의 학교 등록 정원
+                  const subjectDef = yearSubjects.find(s => s.name === subjectName)
+                  const capacity   = parseInt(subjectDef?.capacity)||0
+
+                  return (
+                    <div key={subjectName} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                      {/* 과목 헤더 */}
+                      <div style={{ padding:'12px 18px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', gap:'10px' }}>
+                        <span style={{ fontSize:'15px', fontWeight:800, color:C.text }}>📚 {subjectName}</span>
+                        {capacity > 0 && <span style={{ fontSize:'11px', color:C.muted, background:'#e5e7eb', padding:'2px 8px', borderRadius:'999px' }}>정원 {capacity}명</span>}
+                        <span style={{ fontSize:'11px', color:C.muted }}>{subClasses.length}개 수업</span>
+                      </div>
+
+                      <div style={{ padding:'14px 18px', display:'flex', flexDirection:'column', gap:'20px' }}>
+                        {subClasses.map((cls, ci) => {
+                          const termLabel    = getTermLabel(ci)
+                          const studentSet   = classStudentSets[ci]
+                          const students     = [...studentSet].map(id => allStudentMap[id]).filter(Boolean)
+                          const enrolled     = students.length
+
+                          // 학년별 집계
+                          const gradeMap = {}
+                          students.forEach(s => {
+                            const g = s.grade ? `${s.grade}학년` : '미설정'
+                            gradeMap[g] = (gradeMap[g]||0) + 1
+                          })
+                          const gradeEntries = Object.entries(gradeMap).sort((a,b)=>{
+                            if(a[0]==='미설정') return 1; if(b[0]==='미설정') return -1
+                            return parseInt(a[0])-parseInt(b[0])
+                          })
+
+                          // 재등록: 이전 학기/텀 수업이 있으면 그 학생과 교집합
+                          const prevSet         = ci > 0 ? classStudentSets[ci-1] : null
+                          const reenrolledCount = prevSet ? [...studentSet].filter(id => prevSet.has(id)).length : null
+                          const newCount        = prevSet ? enrolled - reenrolledCount : null
+                          const reenrollRate    = (prevSet && prevSet.size > 0) ? Math.round(reenrolledCount/prevSet.size*100) : null
+                          // 이탈: 이전 학기에 있었으나 이번엔 없는 학생
+                          const droppedCount    = prevSet ? [...prevSet].filter(id => !studentSet.has(id)).length : null
+
+                          const capPct = capacity > 0 ? Math.min(Math.round(enrolled/capacity*100), 100) : null
+
+                          return (
+                            <div key={cls.id}>
+                              {/* 학기/텀 레이블 */}
+                              <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
+                                <span style={{ fontSize:'13px', fontWeight:700, color:'#7c3aed', background:'#f5f3ff', padding:'3px 10px', borderRadius:'999px' }}>{termLabel}</span>
+                                <span style={{ fontSize:'12px', color:C.muted }}>{cls.startDate?.slice(5)} ~ {cls.endDate?.slice(5)}</span>
+                                {(cls.days||[]).length>0 && <span style={{ fontSize:'11px', color:C.muted }}>({(cls.days||[]).join('·')}요일)</span>}
+                              </div>
+
+                              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+
+                                {/* 왼쪽: 정원 대비 수강 현황 + 학년별 비율 */}
+                                <div style={{ background:'#fafafa', borderRadius:'10px', padding:'12px 14px' }}>
+                                  <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🎓 학년별 현황</div>
+
+                                  {/* 정원 vs 수강 */}
+                                  {capacity > 0 && (
+                                    <div style={{ marginBottom:'10px' }}>
+                                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'3px' }}>
+                                        <span style={{ fontSize:'12px', color:C.text }}>수강 <strong style={{ color:C.primary }}>{enrolled}명</strong> / 정원 {capacity}명</span>
+                                        <span style={{ fontSize:'12px', fontWeight:700, color: capPct>=100?C.danger:capPct>=80?'#d97706':C.primary }}>{capPct}%</span>
+                                      </div>
+                                      <div style={{ height:'6px', background:'#e5e7eb', borderRadius:'999px', overflow:'hidden' }}>
+                                        <div style={{ width:`${capPct}%`, height:'100%', background: capPct>=100?C.danger:capPct>=80?'#f59e0b':C.primary, borderRadius:'999px' }}/>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {capacity === 0 && (
+                                    <div style={{ fontSize:'12px', color:C.primary, fontWeight:700, marginBottom:'8px' }}>수강 {enrolled}명 <span style={{ fontSize:'11px', color:C.muted, fontWeight:400}}>(정원 미설정)</span></div>
+                                  )}
+
+                                  {/* 학년별 막대 */}
+                                  {enrolled === 0
+                                    ? <div style={{ fontSize:'12px', color:C.muted }}>수강생 없음</div>
+                                    : gradeEntries.map(([grade, cnt], gi) => {
+                                        const pct = Math.round(cnt/enrolled*100)
+                                        const col = GRADE_COLORS[gi % GRADE_COLORS.length]
+                                        return (
+                                          <div key={grade} style={{ marginBottom:'6px' }}>
+                                            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'2px' }}>
+                                              <span style={{ fontSize:'11px', fontWeight:600, color:C.text }}>{grade}</span>
+                                              <span style={{ fontSize:'11px', color:C.muted }}>{cnt}명 <span style={{ fontWeight:700, color:col }}>{pct}%</span></span>
+                                            </div>
+                                            <div style={{ height:'6px', background:'#e5e7eb', borderRadius:'999px', overflow:'hidden' }}>
+                                              <div style={{ width:`${pct}%`, height:'100%', background:col, borderRadius:'999px' }}/>
+                                            </div>
+                                          </div>
+                                        )
+                                      })
+                                  }
+                                </div>
+
+                                {/* 오른쪽: 재등록 비율 (2번째 학기/텀부터) */}
+                                <div style={{ background:'#fafafa', borderRadius:'10px', padding:'12px 14px' }}>
+                                  <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🔄 재등록 현황</div>
+
+                                  {ci === 0 ? (
+                                    <div style={{ fontSize:'12px', color:C.muted, paddingTop:'8px' }}>
+                                      첫 번째 {calTermType==='semester'?'학기':'텀'}이므로<br/>이전 데이터 없음
+                                    </div>
+                                  ) : prevSet.size === 0 ? (
+                                    <div style={{ fontSize:'12px', color:C.muted }}>이전 {getTermLabel(ci-1)} 수강생 없음</div>
+                                  ) : (
+                                    <>
+                                      <div style={{ fontSize:'11px', color:C.muted, marginBottom:'8px' }}>
+                                        {getTermLabel(ci-1)} 수강 {prevSet.size}명 중
+                                      </div>
+                                      {/* 원형 */}
+                                      <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'10px' }}>
+                                        <div style={{ position:'relative', width:'60px', height:'60px', flexShrink:0 }}>
+                                          <svg width="60" height="60" style={{ transform:'rotate(-90deg)' }}>
+                                            <circle cx="30" cy="30" r="22" fill="none" stroke="#f1f5f9" strokeWidth="9"/>
+                                            <circle cx="30" cy="30" r="22" fill="none" stroke="#3b82f6" strokeWidth="9"
+                                              strokeDasharray={`${reenrollRate * 1.382} 138.2`}
+                                              strokeLinecap="round"/>
+                                          </svg>
+                                          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'12px', fontWeight:800, color:C.primary }}>
+                                            {reenrollRate}%
+                                          </div>
+                                        </div>
+                                        <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'4px' }}>
+                                          <div style={{ fontSize:'11px', color:C.text }}>
+                                            재등록 <strong style={{ color:'#3b82f6' }}>{reenrolledCount}명</strong>
+                                            <span style={{ color:C.muted }}> ({reenrollRate}%)</span>
+                                          </div>
+                                          <div style={{ fontSize:'11px', color:C.text }}>
+                                            신규 <strong style={{ color:'#10b981' }}>{newCount}명</strong>
+                                          </div>
+                                          <div style={{ fontSize:'11px', color:C.text }}>
+                                            이탈 <strong style={{ color:'#ef4444' }}>{droppedCount}명</strong>
+                                            <span style={{ color:C.muted }}> (전기 대비)</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      {/* 재등록/신규 바 */}
+                                      <div style={{ height:'8px', borderRadius:'999px', overflow:'hidden', display:'flex' }}>
+                                        <div style={{ width:`${reenrollRate}%`, background:'#3b82f6' }}/>
+                                        <div style={{ flex:1, background:'#10b981' }}/>
+                                      </div>
+                                      <div style={{ display:'flex', gap:'10px', marginTop:'4px' }}>
+                                        <span style={{ fontSize:'10px', color:'#3b82f6' }}>■ 재등록</span>
+                                        <span style={{ fontSize:'10px', color:'#10b981' }}>■ 신규</span>
+                                        <span style={{ fontSize:'10px', color:'#ef4444' }}>■ 이탈 {droppedCount}명</span>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
+
           {/* 학생 테이블 */}
           {expandedRows.length===0
             ? <div style={{ textAlign:'center', padding:'40px', color:C.muted, background:C.bg, borderRadius:'12px', border:`1px dashed ${C.border}` }}>조건에 맞는 학생이 없습니다.</div>
