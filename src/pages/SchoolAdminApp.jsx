@@ -136,11 +136,22 @@ const NOTICE_STATUS = {
   done:    { label:'업무완료', color:'#16a34a', bg:'#f0fdf4'  },
 }
 
-// ── 공지 등록 모달
-function NoticeCreateModal({ session, teachers, onSave, onClose }) {
+// ── 공지 등록/수정 모달 (editNotice가 있으면 수정 모드)
+function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
+  const isEdit = !!editNotice
   const { success, error } = useToast()
-  const [form, setForm]       = useState({ title:'', content:'', type:'notice', completeOn:'replied', startDate:'', endDate:'', dueDate:'', attachName:'', attachUrl:'' })
-  const [targets, setTargets] = useState([])
+  const [form, setForm]       = useState({
+    title:      editNotice?.title      ?? '',
+    content:    editNotice?.content    ?? '',
+    type:       editNotice?.type       ?? 'notice',
+    completeOn: editNotice?.completeOn ?? 'replied',
+    startDate:  editNotice?.startDate  ?? '',
+    endDate:    editNotice?.endDate    ?? '',
+    dueDate:    editNotice?.dueDate    ?? '',
+    attachName: editNotice?.attachName ?? '',
+    attachUrl:  editNotice?.attachUrl  ?? '',
+  })
+  const [targets, setTargets] = useState(editNotice?.targetTeacherIds || [])
   const [saving, setSaving]   = useState(false)
   const [appUsers, setAppUsers] = useState([])
   const fileRef = React.useRef()
@@ -178,7 +189,29 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
     try {
       const isInvite = form.type === 'invite_signup' || form.type === 'invite_connect'
 
-      // schoolNotices 저장
+      // ── 수정 모드
+      if (isEdit) {
+        await dbCall('update', 'schoolNotices', {
+          id: editNotice.id,
+          patch: {
+            type:       form.type,
+            title:      form.title.trim(),
+            content:    form.content,
+            completeOn: form.completeOn || 'replied',
+            startDate:  form.startDate || null,
+            endDate:    form.endDate   || null,
+            dueDate:    form.dueDate   || null,
+            attachName: form.attachName,
+            attachUrl:  form.attachUrl,
+            targetTeacherIds: targets,
+            status: 'draft',
+          }
+        })
+        success('수정되었습니다. 재배포 버튼을 눌러 선생님들에게 전달하세요.')
+        onSave(); onClose(); return
+      }
+
+      // ── 신규 등록 모드
       const notice = {
         id: uid(), adminId: session.adminId,
         schoolName: session.admin?.schoolName || '',
@@ -250,11 +283,10 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
     finally { setSaving(false) }
   }
 
-  const LBL = ({ children }) => <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>{children}</label>
   const ti = TYPE_INFO[form.type]
 
   return (
-    <Modal title="📋 공지·업무 등록" onClose={onClose} width={580}>
+    <Modal title={isEdit ? '✏️ 공지·업무 수정' : '📋 공지·업무 등록'} onClose={onClose} width={580}>
       <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
 
         {/* 유형 선택 — 2×2 그리드 */}
@@ -379,79 +411,7 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
 
         <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
           <Btn color="secondary" onClick={onClose}>취소</Btn>
-          <Btn onClick={handleSave} disabled={saving}>{saving?'저장 중...':'등록'}</Btn>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
-// ── 업무 수정 모달
-function NoticeEditModal({ notice, session, teachers, onSave, onClose }) {
-  const { success, error } = useToast()
-  const [form, setForm] = useState({
-    title:      notice.title      || '',
-    content:    notice.content    || '',
-    startDate:  notice.startDate  || '',
-    endDate:    notice.endDate    || '',
-    dueDate:    notice.dueDate    || '',
-    completeOn: notice.completeOn || 'replied',
-  })
-  const [saving, setSaving] = useState(false)
-  const LBL = ({ children }) => <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>{children}</label>
-
-  const handleSave = async () => {
-    if (!form.title.trim()) { error('제목을 입력해주세요.'); return }
-    setSaving(true)
-    try {
-      await dbCall('update', 'schoolNotices', {
-        id: notice.id,
-        patch: {
-          title:      form.title.trim(),
-          content:    form.content,
-          startDate:  form.startDate || null,
-          endDate:    form.endDate   || null,
-          dueDate:    form.dueDate   || null,
-          completeOn: form.completeOn,
-          status:     'draft', // 수정 후 다시 초안 상태 → 재배포 필요
-        }
-      })
-      success('수정되었습니다. 재배포 버튼을 눌러 선생님들에게 전달하세요.')
-      onSave()
-    } catch { error('저장 중 오류가 발생했습니다.') }
-    setSaving(false)
-  }
-
-  return (
-    <Modal title="✏️ 공지·업무 수정" onClose={onClose} width={540}>
-      <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'8px', padding:'10px 14px', marginBottom:'14px', fontSize:'12px', color:'#92400e' }}>
-        ⚠️ 수정 후 저장하면 <strong>초안 상태</strong>로 변경됩니다. <strong>재배포</strong> 버튼을 눌러야 선생님들에게 전달됩니다.
-      </div>
-      <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-        <div><LBL>제목 *</LBL><input style={iSt} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} /></div>
-        <div><LBL>내용</LBL><textarea style={{...iSt,resize:'vertical'}} rows={3} value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))} /></div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
-          <div><LBL>시작일</LBL><input style={iSt} type="date" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value}))} /></div>
-          <div><LBL>종료일</LBL><input style={iSt} type="date" value={form.endDate}   onChange={e=>setForm(f=>({...f,endDate:e.target.value}))} /></div>
-          <div><LBL>마감일</LBL><input style={iSt} type="date" value={form.dueDate}   onChange={e=>setForm(f=>({...f,dueDate:e.target.value}))} /></div>
-        </div>
-        {(notice.type==='notice'||notice.type==='task') && (
-          <div>
-            <LBL>완료 조건</LBL>
-            <div style={{ display:'flex', gap:'8px' }}>
-              {[['replied','✉️ 회신 완료로 끝'],['submitted','📎 제출 완료로 끝']].map(([v,l]) => (
-                <button key={v} type="button" onClick={()=>setForm(f=>({...f,completeOn:v}))} style={{
-                  flex:1, padding:'8px', borderRadius:'8px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', fontWeight:form.completeOn===v?700:400,
-                  border:form.completeOn===v?'2px solid #3b82f6':'2px solid #e5e7eb',
-                  background:form.completeOn===v?'#eff6ff':'#fff', color:form.completeOn===v?'#3b82f6':C.muted,
-                }}>{l}</button>
-              ))}
-            </div>
-          </div>
-        )}
-        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-          <Btn color="secondary" onClick={onClose}>취소</Btn>
-          <Btn onClick={handleSave} disabled={saving}>{saving?'저장 중...':'저장 (초안)'}</Btn>
+          <Btn onClick={handleSave} disabled={saving}>{saving ? '저장 중...' : isEdit ? '수정 저장' : '등록'}</Btn>
         </div>
       </div>
     </Modal>
@@ -905,8 +865,8 @@ function NoticesTab({ session }) {
         </div>
       )}
 
-      {showCreate && <NoticeCreateModal session={session} teachers={teachers} onSave={load} onClose={()=>setShowCreate(false)} />}
-      {editNotice  && <NoticeEditModal  session={session} teachers={teachers} notice={editNotice} onSave={()=>{load();setEditNotice(null)}} onClose={()=>setEditNotice(null)} />}
+      {showCreate  && <NoticeCreateModal session={session} teachers={teachers} onSave={load} onClose={()=>setShowCreate(false)} />}
+      {editNotice  && <NoticeCreateModal session={session} teachers={teachers} onSave={()=>{load();setEditNotice(null)}} onClose={()=>setEditNotice(null)} editNotice={editNotice} />}
       {detailNotice && (
         <NoticeDetailModal
           notice={detailNotice} session={session} teachers={teachers}
