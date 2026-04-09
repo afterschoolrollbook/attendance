@@ -98,7 +98,11 @@ function buildSessionMap({ allSessionDates, termBoundaries, quarterTermCounts, f
       if (!dayCounters[dow]) dayCounters[dow] = {
         total:0, localTermIdx:0, inTermSess:0, globalTermIdx
       }
-      const dc  = dayCounters[dow]
+      const dc = dayCounters[dow]
+
+      // 텀 수 초과면 기록 없이 스킵
+      if (dc.localTermIdx >= numTerms) return
+
       const spt = flatTermSessions[dc.globalTermIdx] || 4
 
       dc.total++
