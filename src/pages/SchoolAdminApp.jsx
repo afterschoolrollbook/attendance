@@ -10,6 +10,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { dbCall, isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
+import { useConfirm } from '../components/Atoms.jsx'
 
 const C = {
   primary:'#3b82f6', text:'#111827', muted:'#6b7280',
@@ -733,6 +734,7 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
 // ── 공지·업무 관리 탭
 function NoticesTab({ session }) {
   const { success, error } = useToast()
+  const confirm = useConfirm()
   const [notices,     setNotices]     = useState([])
   const [invites,     setInvites]     = useState([])
   const [teachers,    setTeachers]    = useState([])
@@ -759,8 +761,8 @@ function NoticesTab({ session }) {
 
   useEffect(() => { load() }, [load])
 
-  const deleteNotice = async (id) => {
-    if (!window.confirm('삭제하시겠습니까?')) return
+  const deleteNotice = (id) => {
+    confirm('이 공지·업무를 삭제하시겠습니까?', async () => {
     try {
       // 연결된 schoolTeacherInvites 초기화
       // accepted(이미 수락)는 그대로 두고, pending/emailed(대기중)만 초기화
@@ -782,6 +784,7 @@ function NoticesTab({ session }) {
       success('삭제되었습니다.')
     } catch { }
     load()
+    })
   }
 
   // 배포 — draft → active + 선생님들에게 submit 레코드 생성
@@ -1333,6 +1336,7 @@ function TeacherDetailModal({ t, onClose }) {
 // ── 선생님 현황 탭
 function TeachersTab({ session }) {
   const { success, error } = useToast()
+  const confirm = useConfirm()
   const [teachers,   setTeachers]   = useState([])
   const [subjects,   setSubjects]   = useState([]) // 이 학교·연도 과목 목록
   const [loading,    setLoading]    = useState(true)
@@ -1424,10 +1428,11 @@ function TeachersTab({ session }) {
     setModalMode('edit')
   }
 
-  const removeTeacher = async (id) => {
-    if (!window.confirm('선생님을 목록에서 제외하시겠습니까?')) return
-    await dbCall('update', 'schoolAdminTeachers', { id, patch: { active: false } })
-    success('제외되었습니다.'); load()
+  const removeTeacher = (id) => {
+    confirm('선생님을 목록에서 제외하시겠습니까?', async () => {
+      await dbCall('update', 'schoolAdminTeachers', { id, patch: { active: false } })
+      success('제외되었습니다.'); load()
+    })
   }
 
   const years = [...new Set([CURRENT_YEAR, ...teachers.map(t => t.year).filter(Boolean)])].sort((a,b)=>b-a)
@@ -1653,9 +1658,7 @@ async function sendTeacherInviteEmail({ teacherName, email, schoolName, adminNam
     })
     return res.ok
   } catch { return false }
-}
-
-// ── 서비스 가입 초대 이메일 (미가입 선생님 → 가입 안내)
+} (미가입 선생님 → 가입 안내)
 async function sendSignupInviteEmail({ teacherName, email, schoolName, adminName }) {
   const html = `
     <div style="font-family:'Noto Sans KR',sans-serif;max-width:520px;margin:0 auto;padding:40px 20px;">
@@ -1698,8 +1701,6 @@ async function sendSignupInviteEmail({ teacherName, email, schoolName, adminName
     return res.ok
   } catch { return false }
 }
-
-// ── 선생님 연결 관리 탭
 // ● 이메일 일치(앱 가입) → 이메일 발송 + DB 초대(대시보드 팝업)
 // ● 이메일 불일치(미가입) → 이메일만 발송 (대시보드 팝업 없음)
 // ── 기간 설정 모달
@@ -1748,6 +1749,7 @@ function PeriodModal({ teacher, onClose, onSave }) {
 
 function ConnectTab({ session }) {
   const { success, error } = useToast()
+  const confirm = useConfirm()
   const [roster,      setRoster]      = useState([])
   const [appUsers,    setAppUsers]    = useState([])
   const [invites,     setInvites]     = useState([])
@@ -1778,47 +1780,45 @@ function ConnectTab({ session }) {
   const silentRefresh = () => { fetchData().catch(() => {}) }
 
   // 초대 취소 — pending/emailed 상태 초대 취소
-  const cancelInvite = async (t) => {
-    if (!window.confirm(`${t.teacherName} 선생님의 초대를 취소하시겠습니까?`)) return
-    const inv = inviteByEmail[t.email?.toLowerCase()]
-    if (!inv) return
-    try {
-      await dbCall('update', 'schoolTeacherInvites', {
-        id: inv.id,
-        patch: { status: 'declined', noticeId: null, sentAt: null },
-      })
-      success(`${t.teacherName} 선생님 초대를 취소했습니다.`)
-      silentRefresh()
-    } catch { error('취소 중 오류가 발생했습니다.') }
+  const cancelInvite = (t) => {
+    confirm(`${t.teacherName} 선생님의 초대를 취소하시겠습니까?`, async () => {
+      const inv = inviteByEmail[t.email?.toLowerCase()]
+      if (!inv) return
+      try {
+        await dbCall('update', 'schoolTeacherInvites', {
+          id: inv.id,
+          patch: { status: 'declined', noticeId: null, sentAt: null },
+        })
+        success(`${t.teacherName} 선생님 초대를 취소했습니다.`)
+        silentRefresh()
+      } catch { error('취소 중 오류가 발생했습니다.') }
+    })
   }
 
   // 연결 끊기 — accepted 상태 해제 + schoolAdminTeachers 비활성화
-  const disconnectTeacher = async (t) => {
-    if (!window.confirm(
-      `⚠️ ${t.teacherName} 선생님과의 연결을 끊으시겠습니까?\n\n` +
-      `• 선생님이 공지·업무를 더 이상 받을 수 없습니다.\n` +
-      `• 진행 중인 업무가 있다면 미완료로 처리됩니다.\n` +
-      `• 선생님도 대시보드에서 연결이 해제됩니다.\n\n` +
-      `정말 연결을 끊으시겠습니까?`
-    )) return
-    try {
-      const inv = inviteByEmail[t.email?.toLowerCase()]
-      if (inv) {
-        await dbCall('update', 'schoolTeacherInvites', {
-          id: inv.id,
-          patch: { status: 'declined', noticeId: null },
-        })
+  const disconnectTeacher = (t) => {
+    confirm(
+      `⚠️ ${t.teacherName} 선생님과의 연결을 끊으시겠습니까? 공지·업무 수신이 중단되고 진행 중인 업무는 미완료 처리됩니다.`,
+      async () => {
+        try {
+          const inv = inviteByEmail[t.email?.toLowerCase()]
+          if (inv) {
+            await dbCall('update', 'schoolTeacherInvites', {
+              id: inv.id,
+              patch: { status: 'declined', noticeId: null },
+            })
+          }
+          if (t.id && !t._virtual) {
+            await dbCall('update', 'schoolAdminTeachers', {
+              id: t.id,
+              patch: { active: false },
+            })
+          }
+          success(`${t.teacherName} 선생님과의 연결을 끊었습니다.`)
+          load()
+        } catch { error('처리 중 오류가 발생했습니다.') }
       }
-      // schoolAdminTeachers에서 비활성화
-      if (t.id && !t._virtual) {
-        await dbCall('update', 'schoolAdminTeachers', {
-          id: t.id,
-          patch: { active: false },
-        })
-      }
-      success(`${t.teacherName} 선생님과의 연결을 끊었습니다.`)
-      load()
-    } catch { error('처리 중 오류가 발생했습니다.') }
+    )
   }
 
 
