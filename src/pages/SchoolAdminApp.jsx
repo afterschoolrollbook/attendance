@@ -985,34 +985,33 @@ function StudentsTab({ session }) {
   )
 }
 
-// ── 선생님 초대 이메일 발송
+// ── 연결 초대 이메일 (이미 가입된 선생님 → 연결 수락 요청)
 async function sendTeacherInviteEmail({ teacherName, email, schoolName, adminName }) {
   const html = `
     <div style="font-family:'Noto Sans KR',sans-serif;max-width:520px;margin:0 auto;padding:40px 20px;">
       <h1 style="color:#3b82f6;font-size:22px;margin-bottom:6px">📋 방과후 출석부</h1>
       <p style="color:#374151;font-size:15px;margin-bottom:24px">
         안녕하세요, <strong>${teacherName}</strong> 선생님!<br/>
-        <strong>${schoolName}</strong>${adminName ? ` 담당자 <strong>${adminName}</strong>님이` : '에서'} 연결을 초대했습니다.
+        <strong>${schoolName}</strong>${adminName ? ` 담당자 <strong>${adminName}</strong>님이` : '에서'} 연결을 요청했습니다.
       </p>
       <div style="background:#eff6ff;border:2px solid #93c5fd;border-radius:12px;padding:20px 24px;margin-bottom:24px;">
         <div style="font-size:14px;color:#1e3a5f;margin-bottom:6px">🏫 학교: <strong>${schoolName}</strong></div>
         ${adminName ? `<div style="font-size:14px;color:#1e3a5f;margin-bottom:16px">👤 담당자: <strong>${adminName}</strong></div>` : ''}
         <p style="font-size:13px;color:#374151;margin-bottom:16px;">
-          방과후 출석부 앱에 <strong>이 이메일(${email})로 가입</strong>하신 후,<br/>
-          대시보드에서 초대장을 확인하고 수락해주세요.
+          방과후 출석부 앱 대시보드에 연결 초대장이 도착했습니다.<br/>
+          앱에 접속하여 수락해주세요.
         </p>
         <a href="${window.location.origin}" style="display:inline-block;background:#3b82f6;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:700;">
-          앱 접속하기 →
+          앱 접속 후 수락하기 →
         </a>
       </div>
       <p style="color:#6b7280;font-size:12px;line-height:1.7;">
-        ※ 앱 가입 시 이 이메일 주소(${email})를 사용하셔야 대시보드에 초대장이 표시됩니다.<br/>
         본인이 요청하지 않은 경우 이 메일을 무시하셔도 됩니다.
       </p>
     </div>
   `
   if (!isConfigured) {
-    alert(`[개발모드] ${teacherName}(${email}) 초대 이메일\n앱: ${window.location.origin}`)
+    alert(`[개발모드] ${teacherName}(${email}) 연결 초대 이메일\n앱: ${window.location.origin}`)
     return true
   }
   try {
@@ -1021,7 +1020,51 @@ async function sendTeacherInviteEmail({ teacherName, email, schoolName, adminNam
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         to: email,
-        subject: `[방과후 출석부] ${schoolName} 담당자가 초대했습니다`,
+        subject: `[방과후 출석부] ${schoolName} 담당자가 연결을 요청했습니다`,
+        html,
+      }),
+    })
+    return res.ok
+  } catch { return false }
+}
+
+// ── 서비스 가입 초대 이메일 (미가입 선생님 → 가입 안내)
+async function sendSignupInviteEmail({ teacherName, email, schoolName, adminName }) {
+  const html = `
+    <div style="font-family:'Noto Sans KR',sans-serif;max-width:520px;margin:0 auto;padding:40px 20px;">
+      <h1 style="color:#f97316;font-size:22px;margin-bottom:6px">📋 방과후 출석부</h1>
+      <p style="color:#374151;font-size:15px;margin-bottom:24px">
+        안녕하세요, <strong>${teacherName}</strong> 선생님!<br/>
+        <strong>${schoolName}</strong>${adminName ? ` 담당자 <strong>${adminName}</strong>님이` : '에서'} 방과후 출석부 서비스에 초대했습니다.
+      </p>
+      <div style="background:#fff7ed;border:2px solid #fdba74;border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+        <div style="font-size:14px;color:#9a3412;margin-bottom:6px">🏫 학교: <strong>${schoolName}</strong></div>
+        ${adminName ? `<div style="font-size:14px;color:#9a3412;margin-bottom:12px">👤 담당자: <strong>${adminName}</strong></div>` : ''}
+        <p style="font-size:13px;color:#374151;margin-bottom:16px;">
+          아래 버튼을 눌러 <strong>이 이메일 주소(${email})로 가입</strong>해주세요.<br/>
+          가입 후 대시보드에서 연결 초대장을 확인하실 수 있습니다.
+        </p>
+        <a href="${window.location.origin}" style="display:inline-block;background:#f97316;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:700;">
+          서비스 가입하기 →
+        </a>
+      </div>
+      <p style="color:#6b7280;font-size:12px;line-height:1.7;">
+        ※ 반드시 이 이메일(${email})로 가입하셔야 학교 담당자와 연결됩니다.<br/>
+        본인이 요청하지 않은 경우 이 메일을 무시하셔도 됩니다.
+      </p>
+    </div>
+  `
+  if (!isConfigured) {
+    alert(`[개발모드] ${teacherName}(${email}) 가입 초대 이메일\n앱: ${window.location.origin}`)
+    return true
+  }
+  try {
+    const res = await fetch(`${FUNCTIONS_BASE}/send-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: email,
+        subject: `[방과후 출석부] ${schoolName} 담당자가 서비스에 초대했습니다`,
         html,
       }),
     })
@@ -1085,9 +1128,9 @@ function ConnectTab({ session }) {
   const SI = {
     accepted:  { label:'✅ 연결 완료',    bg:'#f0fdf4', badge:'#dcfce7', color:'#16a34a' },
     pending:   { label:'📨 수락 대기 중', bg:'#fffbeb', badge:'#fef9c3', color:'#d97706' },
-    emailed:   { label:'📧 이메일 발송됨',bg:'#f0f9ff', badge:'#e0f2fe', color:'#0369a1' },
-    ready:     { label:'앱 가입됨',       bg:'#f8fafc', badge:'#eff6ff', color:'#3b82f6' },
-    notjoined: { label:'앱 미가입',       bg:'transparent', badge:'#f3f4f6', color:'#9ca3af' },
+    emailed:   { label:'📧 초대 발송됨',  bg:'#fff7ed', badge:'#fed7aa', color:'#c2410c' },
+    ready:     { label:'🔗 연결 가능',    bg:'#f8fafc', badge:'#eff6ff', color:'#3b82f6' },
+    notjoined: { label:'서비스 미가입',   bg:'transparent', badge:'#f3f4f6', color:'#9ca3af' },
   }
 
   const counts = filtered.reduce((acc, t) => {
@@ -1121,25 +1164,30 @@ function ConnectTab({ session }) {
           createdAt:    existingInv?.createdAt || now(),
         }
       })
-      // 이메일 항상 발송
-      await sendTeacherInviteEmail({
-        teacherName: t.teacherName,
-        email,
-        schoolName:  session.admin?.schoolName || '',
-        adminName:   session.admin?.adminName  || '',
-      })
-
+      // 가입 여부에 따라 다른 이메일 발송
       if (appUser) {
-        success(`${t.teacherName} 선생님에게 초대를 발송했습니다. (이메일 + 대시보드 알림)`)
+        // 연결 가능 → 연결 수락 요청 이메일
+        await sendTeacherInviteEmail({
+          teacherName: t.teacherName, email,
+          schoolName:  session.admin?.schoolName || '',
+          adminName:   session.admin?.adminName  || '',
+        })
+        success(`${t.teacherName} 선생님에게 연결 초대를 발송했습니다. (이메일 + 대시보드 팝업)`)
       } else {
-        success(`${t.teacherName} 선생님에게 이메일을 발송했습니다. (앱 미가입 — 대시보드 알림 없음)`)
+        // 서비스 미가입 → 가입 안내 이메일
+        await sendSignupInviteEmail({
+          teacherName: t.teacherName, email,
+          schoolName:  session.admin?.schoolName || '',
+          adminName:   session.admin?.adminName  || '',
+        })
+        success(`${t.teacherName} 선생님에게 서비스 가입 초대를 발송했습니다.`)
       }
       await load()
     } catch { error('초대 발송 중 오류가 발생했습니다.') }
     setSending(prev => ({ ...prev, [t.id]: false }))
   }
 
-  // 일괄 초대: ready + notjoined 모두 (ready는 팝업, notjoined는 이메일만)
+  // 일괄 초대: ready + notjoined 모두 (ready는 팝업, notjoined는 가입 안내)
   const sendBulk = async () => {
     const targets = filtered.filter(t => ['ready','notjoined'].includes(getStatus(t)))
     if (!targets.length) { error('발송할 선생님이 없습니다.'); return }
@@ -1165,23 +1213,19 @@ function ConnectTab({ session }) {
       </div>
 
       {/* 안내 박스 */}
-      <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'12px 16px', marginBottom:'20px', fontSize:'13px', color:'#1e40af', lineHeight:1.9 }}>
-        <strong>초대 흐름</strong><br/>
-        ① 선생님 현황 탭에서 등록 &nbsp;→&nbsp;
-        ② <strong>초대 발송</strong><br/>
-        &nbsp;&nbsp;&nbsp;• 앱 가입 선생님 → <strong>이메일 + 대시보드 팝업</strong> 동시 발송<br/>
-        &nbsp;&nbsp;&nbsp;• 앱 미가입 선생님 → <strong>이메일만</strong> 발송 (가입 후 대시보드에 팝업)<br/>
-        ③ 선생님이 대시보드에서 <strong>수락</strong> → ✅ 연결 완료
+      <div style={{ background:'#f8fafc', border:'1px solid #e5e7eb', borderRadius:'10px', padding:'12px 16px', marginBottom:'20px', fontSize:'13px', color:'#374151', lineHeight:1.9 }}>
+        <strong style={{ color:C.text }}>상태 구분</strong><br/>
+        • <strong style={{ color:'#3b82f6' }}>🔗 연결 가능</strong> — 이 이메일로 서비스에 가입되어 있음. 초대 시 이메일 + 대시보드 팝업 동시 전달<br/>
+        • <strong style={{ color:'#9ca3af' }}>서비스 미가입</strong> — 아직 미가입. 가입 초대 이메일 발송 가능. 가입 후 대시보드에 연결 팝업 자동 표시
       </div>
 
       {/* 통계 */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'8px', marginBottom:'20px' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px', marginBottom:'20px' }}>
         {[
-          { label:'전체',       value:filtered.length,      ...SI.notjoined },
-          { label:'✅ 연결 완료', value:counts.accepted||0,  ...SI.accepted  },
-          { label:'수락 대기',   value:counts.pending||0,   ...SI.pending   },
-          { label:'이메일 발송', value:counts.emailed||0,   ...SI.emailed   },
-          { label:'앱 미가입',   value:counts.notjoined||0, color:'#9ca3af', bg:'#f3f4f6' },
+          { label:'전체 등록',    value:filtered.length,      color:'#6b7280', bg:'#f9fafb' },
+          { label:'✅ 연결 완료', value:counts.accepted||0,   ...SI.accepted  },
+          { label:'📨 초대 발송됨', value:(counts.pending||0)+(counts.emailed||0), ...SI.pending },
+          { label:'미초대',       value:(counts.ready||0)+(counts.notjoined||0), color:'#9ca3af', bg:'#f3f4f6' },
         ].map(s => (
           <div key={s.label} style={{ background:s.bg, borderRadius:'12px', padding:'12px 14px', border:`1px solid ${s.color}22` }}>
             <div style={{ fontSize:'20px', fontWeight:800, color:s.color }}>{s.value}</div>
@@ -1255,7 +1299,12 @@ function ConnectTab({ session }) {
                       fontFamily:'Noto Sans KR, sans-serif',
                       opacity: sending[t.id] ? .6 : 1,
                     }}>
-                      {sending[t.id] ? '발송 중...' : (st==='pending'||st==='emailed') ? '재발송' : '초대 발송'}
+                      {sending[t.id] ? '발송 중...'
+                        : st==='pending'  ? '연결 재발송'
+                        : st==='emailed'  ? '가입 재발송'
+                        : st==='ready'    ? '연결 초대'
+                        : '가입 초대'
+                      }
                     </button>
                   )}
                 </div>

@@ -74,71 +74,101 @@ function smBtn(bg, color) {
 //  학교 담당자 연결 요청 팝업
 // ═══════════════════════════════════════════════════════════════════
 
-function useSchoolConnectRequests(user) {
-  const [requests, setRequests] = useState([])
+// ═══════════════════════════════════════════════════════════════════
+//  학교 담당자 초대 팝업 — 두 종류
+//
+//  1) 서비스 가입 초대 (status: emailed)
+//     미가입 선생님에게 발송. 앱 접속/가입 안내.
+//     → "지금 가입하기" 버튼 (주황색)
+//
+//  2) 연결 초대 (status: pending)
+//     이미 가입된 선생님에게 발송. 연결 수락 요청.
+//     → "수락하기" / "거절" 버튼 (파란색)
+// ═══════════════════════════════════════════════════════════════════
+
+function useSchoolInvites(user) {
+  const [pending, setPending] = useState([]) // 연결 초대 (이미 가입)
+  const [emailed, setEmailed] = useState([]) // 가입 초대 (미가입이었다가 이제 가입됨)
 
   const load = async () => {
-    if (!user?.id) return
+    if (!user?.email) return
     try {
-      const all = await dbCall('getAll', 'schoolTeacherConnectRequests')
-      const pending = (all || []).filter(r => r.teacherId === user.id && r.status === 'pending')
-      setRequests(pending)
-    } catch { /* 조용히 처리 */ }
+      const all = await dbCall('getAll', 'schoolTeacherInvites')
+      const mine = (all || []).filter(
+        r => r.teacherEmail?.toLowerCase() === user.email?.toLowerCase()
+      )
+      // pending: 연결 수락 대기
+      setPending(mine.filter(r => r.status === 'pending'))
+      // emailed: 미가입으로 발송됐다가 이제 가입한 경우 → 연결 팝업으로 승격
+      // (이메일로 가입 완료된 선생님이 대시보드 들어오면 emailed → pending으로 자동 업그레이드)
+      const emailedList = mine.filter(r => r.status === 'emailed')
+      if (emailedList.length > 0) {
+        // 가입됐으니 pending으로 업그레이드
+        await Promise.all(emailedList.map(r =>
+          dbCall('update', 'schoolTeacherInvites', {
+            id: r.id,
+            patch: { status: 'pending', teacherId: user.id },
+          })
+        ))
+        // 다시 로드
+        const all2 = await dbCall('getAll', 'schoolTeacherInvites')
+        const mine2 = (all2 || []).filter(
+          r => r.teacherEmail?.toLowerCase() === user.email?.toLowerCase()
+        )
+        setPending(mine2.filter(r => r.status === 'pending'))
+        setEmailed([])
+      } else {
+        setEmailed([])
+      }
+    } catch {}
   }
 
   useEffect(() => {
     load()
-    // 30초마다 폴링
     const timer = setInterval(load, 30000)
     return () => clearInterval(timer)
-  }, [user?.id])
+  }, [user?.email])
 
-  return { requests, reload: load }
+  return { pending, emailed, reload: load }
 }
 
-function SchoolConnectPopup({ user }) {
-  const { requests, reload } = useSchoolConnectRequests(user)
+// ── 연결 초대 팝업 (파란색 — 수락/거절)
+function ConnectInvitePopup({ invites, user, reload }) {
   const [current, setCurrent] = useState(0)
   const { success } = useToast()
 
-  if (requests.length === 0) return null
-
-  const req = requests[current]
-  if (!req) return null
+  if (invites.length === 0) return null
+  const inv = invites[current]
+  if (!inv) return null
 
   const handleAccept = async () => {
     try {
-      // 1) 요청 상태를 accepted로 변경
-      await dbCall('update', 'schoolTeacherConnectRequests', {
-        id: req.id,
-        patch: { status: 'accepted', acceptedAt: now() },
+      await dbCall('update', 'schoolTeacherInvites', {
+        id: inv.id,
+        patch: { status: 'accepted', acceptedAt: now(), teacherId: user.id },
       })
-      // 2) schoolAdminTeachers에 등록
       await dbCall('upsert', 'schoolAdminTeachers', {
         data: {
           id:          uid(),
-          adminId:     req.adminId,
+          adminId:     inv.adminId,
           teacherId:   user.id,
           teacherName: user.name,
-          schoolName:  req.schoolName,
+          schoolName:  inv.schoolName,
           active:      true,
           linkedAt:    now(),
           createdAt:   now(),
         }
       })
-      success(`${req.schoolName} 담당자와 연동되었습니다! 🎉`)
+      success(`${inv.schoolName} 담당자와 연동되었습니다! 🎉`)
       await reload()
-      // 다음 요청으로 이동
       setCurrent(c => Math.max(0, c - 1))
-    } catch {
-      // 에러 조용히 처리 (팝업 유지)
-    }
+    } catch {}
   }
 
   const handleDecline = async () => {
     try {
-      await dbCall('update', 'schoolTeacherConnectRequests', {
-        id: req.id,
+      await dbCall('update', 'schoolTeacherInvites', {
+        id: inv.id,
         patch: { status: 'declined', declinedAt: now() },
       })
       await reload()
@@ -147,104 +177,115 @@ function SchoolConnectPopup({ user }) {
   }
 
   return (
-    <div style={{
-      position:'fixed', inset:0, zIndex:3000,
-      background:'rgba(0,0,0,0.5)',
-      display:'flex', alignItems:'center', justifyContent:'center',
-    }}>
-      <div style={{
-        background:'#fff', borderRadius:'20px',
-        width:'400px', maxWidth:'92vw',
-        boxShadow:'0 20px 60px rgba(0,0,0,0.25)',
-        overflow:'hidden',
-        animation:'slideUp .25s ease',
-      }}>
-        {/* 헤더 */}
-        <div style={{
-          background:'linear-gradient(135deg,#1e3a5f,#2d5a8e)',
-          padding:'22px 24px 18px',
-        }}>
-          <div style={{ fontSize:'13px', color:'#93c5fd', marginBottom:'6px', fontWeight:600 }}>
-            🔗 연결 요청
+    <div style={{ position:'fixed', inset:0, zIndex:3000, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ background:'#fff', borderRadius:'20px', width:'400px', maxWidth:'92vw', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', overflow:'hidden', animation:'slideUp .25s ease' }}>
+
+        {/* 헤더 — 파란색 */}
+        <div style={{ background:'linear-gradient(135deg,#1e3a5f,#2d5a8e)', padding:'22px 24px 18px' }}>
+          <div style={{ fontSize:'11px', color:'#93c5fd', marginBottom:'6px', fontWeight:700, letterSpacing:'1px', textTransform:'uppercase' }}>
+            🔗 연결 초대
           </div>
-          <div style={{ fontSize:'18px', fontWeight:800, color:'#fff', lineHeight:1.3 }}>
-            {req.schoolName} 담당자로부터<br/>연결 요청이 왔습니다
+          <div style={{ fontSize:'18px', fontWeight:800, color:'#fff', lineHeight:1.35 }}>
+            {inv.schoolName}<br/>담당자가 연결을 요청했습니다
           </div>
-          {requests.length > 1 && (
-            <div style={{ fontSize:'11px', color:'#7ba7d4', marginTop:'8px' }}>
-              {current + 1} / {requests.length}개 요청
-            </div>
+          {invites.length > 1 && (
+            <div style={{ fontSize:'11px', color:'#7ba7d4', marginTop:'8px' }}>{current+1} / {invites.length}개</div>
           )}
         </div>
 
         {/* 내용 */}
         <div style={{ padding:'20px 24px' }}>
-          <div style={{
-            background:'#f8fafc', borderRadius:'12px',
-            padding:'14px 16px', marginBottom:'18px',
-            border:'1px solid #e5e7eb',
-          }}>
-            <div style={{ fontSize:'13px', color:'#374151', lineHeight:1.7 }}>
-              <div>🏫 <strong>{req.schoolName}</strong> 담당자가</div>
-              <div style={{ marginTop:'4px' }}>
-                선생님을 담당 선생님으로 등록하고<br/>
-                연동을 요청했습니다.
-              </div>
+          <div style={{ background:'#f0f9ff', borderRadius:'12px', padding:'14px 16px', marginBottom:'20px', border:'1px solid #bae6fd' }}>
+            <div style={{ fontSize:'13px', color:'#374151', lineHeight:1.8 }}>
+              <div>🏫 <strong>{inv.schoolName}</strong></div>
+              {inv.adminName && <div>👤 담당자: <strong>{inv.adminName}</strong></div>}
               <div style={{ marginTop:'8px', fontSize:'12px', color:'#6b7280' }}>
-                수락 시 해당 담당자의 공지·업무 요청을<br/>
-                받아볼 수 있습니다.
+                수락하면 해당 담당자의 공지·업무 요청을 받아볼 수 있습니다.
               </div>
             </div>
           </div>
-
           <div style={{ display:'flex', gap:'10px' }}>
-            <button
-              onClick={handleDecline}
-              style={{
-                flex:1, padding:'12px', borderRadius:'10px',
-                border:'1px solid #e5e7eb', background:'#fff',
-                color:'#6b7280', fontWeight:600, fontSize:'14px',
-                cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-              }}
-            >
+            <button onClick={handleDecline} style={{ flex:1, padding:'12px', borderRadius:'10px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontWeight:600, fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
               거절
             </button>
-            <button
-              onClick={handleAccept}
-              style={{
-                flex:2, padding:'12px', borderRadius:'10px',
-                border:'none', background:'linear-gradient(135deg,#1e3a5f,#3b82f6)',
-                color:'#fff', fontWeight:700, fontSize:'14px',
-                cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                boxShadow:'0 4px 14px rgba(59,130,246,0.4)',
-              }}
-            >
-              ✅ 확인, 연동하기
+            <button onClick={handleAccept} style={{ flex:2, padding:'12px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#1e3a5f,#3b82f6)', color:'#fff', fontWeight:700, fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', boxShadow:'0 4px 14px rgba(59,130,246,0.35)' }}>
+              ✅ 수락하기
             </button>
           </div>
-
-          {requests.length > 1 && (
-            <div style={{ display:'flex', justifyContent:'center', gap:'6px', marginTop:'12px' }}>
-              {requests.map((_, i) => (
-                <div key={i} onClick={() => setCurrent(i)} style={{
-                  width:'8px', height:'8px', borderRadius:'50%',
-                  background: i===current?'#3b82f6':'#d1d5db',
-                  cursor:'pointer', transition:'background .15s',
-                }} />
+          {invites.length > 1 && (
+            <div style={{ display:'flex', justifyContent:'center', gap:'6px', marginTop:'14px' }}>
+              {invites.map((_, i) => (
+                <div key={i} onClick={() => setCurrent(i)} style={{ width:'8px', height:'8px', borderRadius:'50%', background:i===current?'#3b82f6':'#d1d5db', cursor:'pointer' }} />
               ))}
             </div>
           )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes slideUp {
-          from { opacity:0; transform:translateY(20px) }
-          to   { opacity:1; transform:translateY(0)    }
-        }
-      `}</style>
+      <style>{`@keyframes slideUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }`}</style>
     </div>
   )
+}
+
+// ── 서비스 가입 초대 팝업 (주황색 — 가입 안내, 닫기만 가능)
+function SignupInvitePopup({ invites, reload }) {
+  const [dismissed, setDismissed] = useState(false)
+
+  // 이미 가입해서 들어온 거라면 이 팝업은 안 뜸 (useSchoolInvites에서 자동 pending 승격)
+  // 혹시 남아있는 경우를 위한 안내용 팝업
+  if (invites.length === 0 || dismissed) return null
+  const inv = invites[0]
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:3000, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ background:'#fff', borderRadius:'20px', width:'400px', maxWidth:'92vw', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', overflow:'hidden', animation:'slideUp .25s ease' }}>
+
+        {/* 헤더 — 주황색 */}
+        <div style={{ background:'linear-gradient(135deg,#c2410c,#f97316)', padding:'22px 24px 18px' }}>
+          <div style={{ fontSize:'11px', color:'#fed7aa', marginBottom:'6px', fontWeight:700, letterSpacing:'1px', textTransform:'uppercase' }}>
+            📋 서비스 가입 초대
+          </div>
+          <div style={{ fontSize:'18px', fontWeight:800, color:'#fff', lineHeight:1.35 }}>
+            {inv.schoolName}<br/>담당자가 초대했습니다
+          </div>
+        </div>
+
+        {/* 내용 */}
+        <div style={{ padding:'20px 24px' }}>
+          <div style={{ background:'#fff7ed', borderRadius:'12px', padding:'14px 16px', marginBottom:'20px', border:'1px solid #fed7aa' }}>
+            <div style={{ fontSize:'13px', color:'#374151', lineHeight:1.8 }}>
+              <div>🏫 <strong>{inv.schoolName}</strong></div>
+              {inv.adminName && <div>👤 담당자: <strong>{inv.adminName}</strong></div>}
+              <div style={{ marginTop:'8px', fontSize:'12px', color:'#9a3412', fontWeight:600 }}>
+                ✅ 가입이 완료되었습니다!<br/>
+                <span style={{ color:'#6b7280', fontWeight:400 }}>
+                  잠시 후 연결 초대장이 자동으로 표시됩니다.
+                </span>
+              </div>
+            </div>
+          </div>
+          <button onClick={() => { setDismissed(true); reload() }} style={{ width:'100%', padding:'12px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#c2410c,#f97316)', color:'#fff', fontWeight:700, fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            확인
+          </button>
+        </div>
+      </div>
+      <style>{`@keyframes slideUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }`}</style>
+    </div>
+  )
+}
+
+// ── 통합 래퍼 — 연결 초대 우선, 없으면 가입 초대 표시
+function SchoolConnectPopup({ user }) {
+  const { pending, emailed, reload } = useSchoolInvites(user)
+
+  // 연결 초대가 있으면 먼저 표시
+  if (pending.length > 0) {
+    return <ConnectInvitePopup invites={pending} user={user} reload={reload} />
+  }
+  // 가입 초대만 있으면 (이미 가입 완료 상태)
+  if (emailed.length > 0) {
+    return <SignupInvitePopup invites={emailed} reload={reload} />
+  }
+  return null
 }
 
 export const DASHBOARD_CARDS = [
