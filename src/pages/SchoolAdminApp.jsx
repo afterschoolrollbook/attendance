@@ -4280,14 +4280,14 @@ export function SchoolAdminApp({ session: initialSession, onLogout }) {
         <ConfirmDialog open={confirmState.open} message={confirmState.message} onOk={handleOk} onCancel={handleCancel} />
         <Sidebar session={session} page={page} onNav={setPage} onLogout={onLogout} />
         <main style={{ flex:1, overflowY:'auto' }}>
-          {page === 'dashboard' && <SchoolDashboard session={session} onNav={setPage} />}
-          {page === 'notices'  && <NoticesTab session={session} />}
-          {page === 'subjects' && <SubjectsTab session={session} />}
-          {page === 'teachers' && <TeachersTab session={session} />}
-          {page === 'connect'  && <ConnectTab session={session} />}
-          {page === 'schoolcal' && <SchoolCalendarTab key="schoolcal" session={session} />}
-        {page === 'classes'  && <SchoolClassesTab key="classes" session={session} />}
-          {page === 'students' && <StudentsTab session={session} />}
+          {page === 'dashboard' && <SchoolDashboard key="dashboard" session={session} onNav={setPage} />}
+          {page === 'notices'  && <NoticesTab      key="notices"   session={session} />}
+          {page === 'subjects' && <SubjectsTab     key="subjects"  session={session} />}
+          {page === 'teachers' && <TeachersTab     key="teachers"  session={session} />}
+          {page === 'connect'  && <ConnectTab      key="connect"   session={session} />}
+          {page === 'schoolcal'&& <SchoolCalendarTab key="schoolcal" session={session} />}
+          {page === 'classes'  && <SchoolClassesTab  key="classes"   session={session} />}
+          {page === 'students' && <StudentsTab     key="students"  session={session} />}
         </main>
       </div>
     </SchoolConfirmContext.Provider>
