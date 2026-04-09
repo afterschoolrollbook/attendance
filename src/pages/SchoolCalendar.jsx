@@ -1011,7 +1011,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
 
             {!showCancelForm&&!showMakeupForm&&(
               <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
-                {(clickType==='session'||clickType==='cancelled'||clickType==='makeup')&&(
+                {(clickType==='cancelled'||clickType==='makeup')&&(
                   <button onClick={handleRestore}
                     style={{padding:'12px 14px',borderRadius:'10px',border:'1.5px solid #86efac',background:'#f0fdf4',cursor:'pointer',textAlign:'left',fontFamily:'Noto Sans KR, sans-serif'}}>
                     <div style={{fontSize:'13px',fontWeight:700,color:'#16a34a'}}>✅ 원래 상태로 복원</div>
