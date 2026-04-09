@@ -117,10 +117,8 @@ function buildSessionMap({ allSessionDates, termBoundaries, quarterTermCounts, f
 
       if (dc.inTermSess >= spt) {
         dc.inTermSess = 0
-        if (dc.localTermIdx < numTerms - 1) {
-          dc.localTermIdx++
-          dc.globalTermIdx++
-        }
+        dc.localTermIdx++
+        dc.globalTermIdx++
       }
     })
 
@@ -784,6 +782,61 @@ export function SchoolCalendar({ cls, onUpdate }) {
                         <div style={{marginTop:'10px',fontSize:'11px',fontWeight:700,color:qc.text}}>
                           {tCount}텀 · 소계 {Array.from({length:tCount},(_,ti)=>getTermSessions(qIdx,ti)).reduce((a,b)=>a+b,0)}회차
                         </div>
+                        {/* 요일별 예상 종료 차시 */}
+                        {days.length>0&&(()=>{
+                          const boundary = termBoundaries[qIdx]
+                          if(!boundary) return null
+                          const cancelledSetLocal = new Set(cancelledDates.map(c=>c.date))
+                          const vacSetLocal = new Set()
+                          if(sumStart&&sumEnd){let d=new Date(sumStart+'T00:00:00'),e=new Date(sumEnd+'T00:00:00');while(d<=e){vacSetLocal.add(fmt(d.getFullYear(),d.getMonth()+1,d.getDate()));d.setDate(d.getDate()+1)}}
+                          if(winStart&&winEnd){let d=new Date(winStart+'T00:00:00'),e=new Date(winEnd+'T00:00:00');while(d<=e){vacSetLocal.add(fmt(d.getFullYear(),d.getMonth()+1,d.getDate()));d.setDate(d.getDate()+1)}}
+                          const periodSessions = allSessionDates.filter(d=>d>=boundary.start&&d<=boundary.end)
+                          // 요일별 날짜 분류
+                          const byDow = {}
+                          days.forEach(day=>{const n=dayNameToNum[day];if(n!==undefined)byDow[n]=[]})
+                          periodSessions.forEach(d=>{const dow=getDow(d);if(byDow[dow])byDow[dow].push(d)})
+                          const totalPeriodSess = Array.from({length:tCount},(_,ti)=>getTermSessions(qIdx,ti)).reduce((a,b)=>a+b,0)
+                          const rows = Object.entries(byDow).map(([dow,dates])=>{
+                            const cnt = dates.length
+                            // 몇 텀 몇 차에서 끝나는지 계산
+                            let rem = cnt, tIdx2=0, inT=0
+                            while(rem>0&&tIdx2<tCount){
+                              const s=getTermSessions(qIdx,tIdx2)
+                              const avail=s-inT
+                              if(rem>=avail){rem-=avail;tIdx2++;inT=0}
+                              else{inT+=rem;rem=0}
+                            }
+                            const finalTerm = Math.min(tIdx2+1, tCount)
+                            const finalSess = tIdx2>=tCount ? getTermSessions(qIdx,tCount-1) : (inT===0&&tIdx2>0?getTermSessions(qIdx,tIdx2-1):inT)
+                            const ok = cnt>=totalPeriodSess
+                            return {dow:parseInt(dow),cnt,finalTerm,finalSess,ok}
+                          })
+                          if(rows.length===0) return null
+                          return (
+                            <div style={{marginTop:'10px',background:'#f8fafc',borderRadius:'8px',padding:'10px',border:'1px solid #e2e8f0'}}>
+                              <div style={{fontSize:'11px',fontWeight:700,color:'#374151',marginBottom:'6px'}}>📊 요일별 예상 종료</div>
+                              <div style={{display:'flex',flexWrap:'wrap',gap:'6px'}}>
+                                {rows.map(({dow,cnt,finalTerm,finalSess,ok})=>{
+                                  const theme=getDayTheme(dow)
+                                  const label=['일','월','화','수','목','금','토'][dow]
+                                  return (
+                                    <div key={dow} style={{display:'flex',alignItems:'center',gap:'4px',
+                                      padding:'4px 10px',borderRadius:'8px',
+                                      background:ok?theme.bg:'#fef2f2',
+                                      border:`1.5px solid ${ok?theme.badge1:'#fca5a5'}`}}>
+                                      <span style={{fontSize:'12px',fontWeight:700,color:theme.text}}>{label}</span>
+                                      <span style={{fontSize:'11px',color:'#374151'}}>{cnt}회</span>
+                                      <span style={{fontSize:'11px',fontWeight:700,color:ok?'#16a34a':'#ef4444'}}>
+                                        → {finalTerm}텀{finalSess}차
+                                      </span>
+                                      {!ok&&<span style={{fontSize:'10px',color:'#ef4444'}}>⚠️ 부족</span>}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </div>
                     </div>
                   )
