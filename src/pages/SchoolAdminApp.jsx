@@ -142,6 +142,13 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
   const [saving, setSaving]   = useState(false)
   const fileRef = React.useRef()
 
+  const TYPE_INFO = {
+    notice:        { icon:'📋', label:'공지 전달',    desc:'선생님이 확인하면 회신완료 처리됩니다.',                      color:'#6b7280', bg:'#f3f4f6' },
+    task:          { icon:'📎', label:'업무 요청',    desc:'선생님이 파일을 제출하면 제출완료 처리됩니다.',               color:'#d97706', bg:'#fffbeb' },
+    invite_signup: { icon:'📧', label:'서비스 초대',  desc:'앱 미가입 선생님에게 가입 안내 이메일을 발송합니다.',        color:'#f97316', bg:'#fff7ed' },
+    invite_connect:{ icon:'🔗', label:'연결 초대',    desc:'앱 가입 선생님에게 이메일 + 대시보드 연결 초대를 발송합니다.', color:'#3b82f6', bg:'#eff6ff' },
+  }
+
   const toggleTeacher = (tid) => setTargets(prev => prev.includes(tid) ? prev.filter(t=>t!==tid) : [...prev, tid])
   const allSelected = targets.length === teachers.length && teachers.length > 0
 
@@ -157,6 +164,9 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
     if (targets.length === 0) { error('대상 선생님을 선택해주세요.'); return }
     setSaving(true)
     try {
+      const isInvite = form.type === 'invite_signup' || form.type === 'invite_connect'
+
+      // schoolNotices 저장
       const notice = {
         id: uid(), adminId: session.adminId,
         schoolName: session.admin?.schoolName || '',
@@ -169,36 +179,96 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
         status: 'active', createdAt: now(),
       }
       await DB.saveNotice(notice)
+
+      // schoolNoticeSubmits 생성
       await Promise.all(targets.map(tid => DB.saveSubmit({
         id: uid(), noticeId: notice.id, teacherId: tid,
         adminId: session.adminId, status: 'pending', createdAt: now(),
       })))
-      success('등록되었습니다.')
+
+      // 초대 유형이면 실제 초대 이메일 + schoolTeacherInvites 발송
+      if (isInvite) {
+        // 앱 가입 선생님 조회 (이메일 기준)
+        const appUsers = await dbCall('getAll','users').then(d=>(d||[]).filter(u=>u.role==='teacher'))
+        const appByEmail = Object.fromEntries(appUsers.map(u=>[u.email?.toLowerCase(), u]))
+        const existingInvites = await dbCall('getAll','schoolTeacherInvites').then(d=>
+          (d||[]).filter(i=>i.adminId===session.adminId)
+        )
+        const invByEmail = Object.fromEntries(existingInvites.map(i=>[i.teacherEmail?.toLowerCase(), i]))
+
+        // 대상 선생님 중 이메일 있는 선생님만
+        const targetTeachers = teachers.filter(t => targets.includes(t.teacherId) && t.email)
+
+        await Promise.all(targetTeachers.map(async t => {
+          const email    = t.email.toLowerCase()
+          const appUser  = appByEmail[email]
+          const existing = invByEmail[email]
+          // 유형에 따라 초대 상태 결정
+          // invite_connect: 가입된 선생님에게만 pending, 미가입은 emailed
+          // invite_signup: 미가입 선생님에게 emailed
+          const newStatus = appUser ? 'pending' : 'emailed'
+
+          if (form.type === 'invite_connect' || (form.type === 'invite_signup' && !appUser)) {
+            await dbCall('upsert', 'schoolTeacherInvites', {
+              data: {
+                id:           existing?.id || uid(),
+                adminId:      session.adminId,
+                schoolName:   session.admin?.schoolName || '',
+                adminName:    session.admin?.adminName  || '',
+                teacherEmail: email,
+                teacherName:  t.teacherName,
+                teacherId:    appUser?.id || null,
+                noticeId:     notice.id,
+                status:       newStatus,
+                sentAt:       now(),
+                createdAt:    existing?.createdAt || now(),
+              }
+            })
+            // 이메일 발송
+            if (form.type === 'invite_connect' && appUser) {
+              await sendTeacherInviteEmail({ teacherName:t.teacherName, email, schoolName:session.admin?.schoolName||'', adminName:session.admin?.adminName||'' })
+            } else {
+              await sendSignupInviteEmail({ teacherName:t.teacherName, email, schoolName:session.admin?.schoolName||'', adminName:session.admin?.adminName||'' })
+            }
+          }
+        }))
+      }
+
+      success(`${targets.length}명에게 ${TYPE_INFO[form.type].label}을(를) 등록했습니다!`)
       onSave(); onClose()
     } catch { error('저장 중 오류가 발생했습니다.') }
     finally { setSaving(false) }
   }
 
   const LBL = ({ children }) => <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>{children}</label>
+  const ti = TYPE_INFO[form.type]
 
   return (
-    <Modal title="📋 공지·업무 등록" onClose={onClose} width={560}>
+    <Modal title="📋 공지·업무 등록" onClose={onClose} width={580}>
       <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
 
-        {/* 유형 선택 */}
+        {/* 유형 선택 — 2×2 그리드 */}
         <div>
           <LBL>유형</LBL>
-          <div style={{ display:'flex', gap:'8px' }}>
-            {[['notice','📋 공지 전달'],['task','📎 업무 요청']].map(([v,l]) => (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+            {Object.entries(TYPE_INFO).map(([v, info]) => (
               <button key={v} type="button" onClick={() => setForm(f=>({...f,type:v}))} style={{
-                padding:'7px 16px', borderRadius:'8px', border:'none', cursor:'pointer',
+                padding:'10px 14px', borderRadius:'10px', cursor:'pointer',
                 fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:form.type===v?700:400,
-                background:form.type===v?'#1e3a5f':'#e5e7eb', color:form.type===v?'#fff':C.muted,
-              }}>{l}</button>
+                border: form.type===v ? `2px solid ${info.color}` : `2px solid #e5e7eb`,
+                background: form.type===v ? info.bg : '#fff',
+                color: form.type===v ? info.color : C.muted,
+                textAlign:'left', transition:'all .15s',
+                display:'flex', alignItems:'center', gap:'8px',
+              }}>
+                <span style={{ fontSize:'16px' }}>{info.icon}</span>
+                <span>{info.label}</span>
+              </button>
             ))}
           </div>
-          <div style={{ fontSize:'11px', color:C.muted, marginTop:'4px' }}>
-            {form.type==='notice' ? '선생님이 확인하면 회신완료 처리됩니다.' : '선생님이 파일을 제출하면 제출완료 처리됩니다.'}
+          {/* 유형 설명 */}
+          <div style={{ fontSize:'11px', color:ti.color, background:ti.bg, padding:'6px 10px', borderRadius:'6px', marginTop:'6px', fontWeight:500 }}>
+            {ti.icon} {ti.desc}
           </div>
         </div>
 
@@ -212,15 +282,17 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
           <div><LBL>마감일</LBL><input style={iSt} type="date" value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value}))} /></div>
         </div>
 
-        {/* 첨부 */}
-        <div>
-          <LBL>첨부 양식 (선택)</LBL>
-          <input ref={fileRef} type="file" style={{ display:'none' }} onChange={handleFile} />
-          <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-            <button type="button" onClick={()=>fileRef.current?.click()} style={{ padding:'7px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📎 파일 선택</button>
-            {form.attachName && <span style={{ fontSize:'12px', color:C.primary }}>{form.attachName}</span>}
+        {/* 첨부 — 공지/업무만 */}
+        {(form.type === 'notice' || form.type === 'task') && (
+          <div>
+            <LBL>첨부 양식 (선택)</LBL>
+            <input ref={fileRef} type="file" style={{ display:'none' }} onChange={handleFile} />
+            <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+              <button type="button" onClick={()=>fileRef.current?.click()} style={{ padding:'7px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📎 파일 선택</button>
+              {form.attachName && <span style={{ fontSize:'12px', color:C.primary }}>{form.attachName}</span>}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* 대상 선생님 */}
         <div>
@@ -233,15 +305,23 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
           <div style={{ maxHeight:'180px', overflowY:'auto', border:`1px solid ${C.border}`, borderRadius:'9px', padding:'8px' }}>
             {teachers.length===0
               ? <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', padding:'12px' }}>등록된 선생님이 없습니다.</div>
-              : teachers.map(t => (
-                <label key={t.teacherId} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 8px', borderRadius:'6px', cursor:'pointer', background:targets.includes(t.teacherId)?'#eff6ff':'transparent' }}>
-                  <input type="checkbox" checked={targets.includes(t.teacherId)} onChange={()=>toggleTeacher(t.teacherId)} style={{ accentColor:C.primary }} />
-                  <span style={{ fontSize:'13px', color:C.text }}>{t.teacherName}</span>
-                  <span style={{ fontSize:'11px', color:C.muted }}>{t.subject||''}</span>
-                </label>
-              ))
+              : teachers.map(t => {
+                  const hasEmail = !!t.email
+                  const needEmail = form.type === 'invite_signup' || form.type === 'invite_connect'
+                  return (
+                    <label key={t.teacherId} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 8px', borderRadius:'6px', cursor: needEmail&&!hasEmail?'not-allowed':'pointer', background:targets.includes(t.teacherId)?'#eff6ff':'transparent', opacity: needEmail&&!hasEmail?0.4:1 }}>
+                      <input type="checkbox" checked={targets.includes(t.teacherId)} onChange={()=>{ if(needEmail&&!hasEmail) return; toggleTeacher(t.teacherId) }} style={{ accentColor:C.primary }} disabled={needEmail&&!hasEmail} />
+                      <span style={{ fontSize:'13px', color:C.text }}>{t.teacherName}</span>
+                      <span style={{ fontSize:'11px', color:C.muted }}>{t.subject||''}</span>
+                      {needEmail && !hasEmail && <span style={{ fontSize:'10px', color:C.danger }}>(이메일 없음)</span>}
+                    </label>
+                  )
+                })
             }
           </div>
+          {(form.type === 'invite_signup' || form.type === 'invite_connect') && (
+            <div style={{ fontSize:'11px', color:C.muted, marginTop:'4px' }}>* 이메일이 등록된 선생님만 초대할 수 있습니다.</div>
+          )}
         </div>
 
         <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
@@ -287,9 +367,11 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
     onClose()
   }
 
-  const typeInfo = notice.type==='invite' ? { icon:'🔗', text:'연결 초대' }
-                 : notice.type==='task'   ? { icon:'📎', text:'업무 요청' }
-                 :                          { icon:'📋', text:'공지 전달' }
+  const typeInfo = notice.type==='invite_connect' ? { icon:'🔗', text:'연결 초대'  }
+                 : notice.type==='invite_signup'  ? { icon:'📧', text:'서비스 초대' }
+                 : notice.type==='invite'         ? { icon:'🔗', text:'연결 초대'  }
+                 : notice.type==='task'           ? { icon:'📎', text:'업무 요청'  }
+                 :                                  { icon:'📋', text:'공지 전달'  }
 
   const ns = NOTICE_STATUS[notice.status] || NOTICE_STATUS.active
 
@@ -426,9 +508,11 @@ function NoticesTab({ session }) {
   const filtered = notices.filter(n => filterStatus==='all' || n.status===filterStatus)
 
   const typeInfo = (type) =>
-    type==='invite' ? { icon:'🔗', text:'연결 초대', color:'#3b82f6', bg:'#eff6ff' } :
-    type==='task'   ? { icon:'📎', text:'업무 요청', color:'#d97706', bg:'#fffbeb' } :
-                      { icon:'📋', text:'공지 전달', color:'#6b7280', bg:'#f3f4f6' }
+    type==='invite_connect' ? { icon:'🔗', text:'연결 초대',  color:'#3b82f6', bg:'#eff6ff' } :
+    type==='invite_signup'  ? { icon:'📧', text:'서비스 초대', color:'#f97316', bg:'#fff7ed' } :
+    type==='invite'         ? { icon:'🔗', text:'연결 초대',  color:'#3b82f6', bg:'#eff6ff' } :
+    type==='task'           ? { icon:'📎', text:'업무 요청',  color:'#d97706', bg:'#fffbeb' } :
+                              { icon:'📋', text:'공지 전달',  color:'#6b7280', bg:'#f3f4f6' }
 
   return (
     <div style={{ padding:'24px', maxWidth:'900px' }}>
