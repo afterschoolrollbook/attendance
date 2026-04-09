@@ -1598,7 +1598,7 @@ function SchoolCalendarTab({ session }) {
   const { success, error } = useToast()
   const [items,    setItems]    = useState([])
   const [loading,  setLoading]  = useState(true)
-  const [selItem,  setSelItem]  = useState(null)  // 선택된 일정
+  const [selItem,  setSelItem]  = useState(null)
   const [delId,    setDelId]    = useState(null)
   const [selYear,  setSelYear]  = useState(String(CURRENT_YEAR))
 
@@ -1607,7 +1607,6 @@ function SchoolCalendarTab({ session }) {
     const data = await dbCall('getAll','schoolCalendar').catch(() => [])
     const mine = (data||[]).filter(c => c.adminId === session.adminId)
     setItems(mine)
-    // 첫 번째 일정 자동 선택
     if (mine.length > 0 && !selItem) setSelItem(mine[0])
     setLoading(false)
   }, [session.adminId])
@@ -1616,20 +1615,6 @@ function SchoolCalendarTab({ session }) {
 
   const yearItems = items.filter(c => c.startDate?.slice(0,4) === selYear)
   const years = [...new Set(items.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
-
-  const openAdd = () => {
-    setForm(schCalEmptyForm()); setMode('add')
-  }
-  const openEdit = (item) => {
-    setForm({ ...schCalEmptyForm(), ...item,
-      termCount: item.termCount||4,
-      termSizes: item.termSizes?.length>0 ? item.termSizes : [4,4,4,4],
-      cancelledDates: item.cancelledDates||[],
-      makeupDates: item.makeupDates||[],
-    })
-    setMode('edit')
-  }
-
 
   const del = async (id) => {
     try {
@@ -1643,8 +1628,6 @@ function SchoolCalendarTab({ session }) {
 
   if (loading) return <div style={{ padding:'40px', textAlign:'center', color:C.muted }}>불러오는 중...</div>
 
-  // ── 등록/편집 폼
-  // ── 메인 뷰: 왼쪽 일정 목록 + 오른쪽 달력 전체 표시
   return (
     <div style={{ display:'flex', height:'100%', minHeight:'100vh' }}>
 
@@ -1652,20 +1635,19 @@ function SchoolCalendarTab({ session }) {
       <div style={{ width:'220px', flexShrink:0, borderRight:`1px solid ${C.border}`, background:'#f8fafc', display:'flex', flexDirection:'column' }}>
         <div style={{ padding:'16px 14px 10px', borderBottom:`1px solid ${C.border}` }}>
           <div style={{ fontSize:'13px', fontWeight:800, color:C.text, marginBottom:'10px' }}>📅 연간 수업 달력</div>
-          {/* 연도 선택 */}
           <div style={{ display:'flex', gap:'4px', flexWrap:'wrap', marginBottom:'10px' }}>
             {(years.length>0 ? years : [String(CURRENT_YEAR)]).map(y => (
               <button key={y} onClick={() => { setSelYear(y); setSelItem(items.find(c=>c.startDate?.slice(0,4)===y)||null) }}
                 style={{ padding:'4px 10px', borderRadius:'6px', border:'none', cursor:'pointer', background:selYear===y?'#1e3a5f':'#e5e7eb', color:selYear===y?'#fff':C.text, fontWeight:selYear===y?700:400, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>{y}년</button>
             ))}
           </div>
-          <button onClick={openAdd} style={{ width:'100%', padding:'8px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 일정 등록</button>
         </div>
 
-        {/* 일정 목록 */}
-        <div style={{ flex:1, overflowY:'auto', padding:'10px 10px' }}>
+        <div style={{ flex:1, overflowY:'auto', padding:'10px' }}>
           {yearItems.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'20px 10px', color:C.muted, fontSize:'12px' }}>등록된 일정이 없습니다</div>
+            <div style={{ textAlign:'center', padding:'20px 10px', color:C.muted, fontSize:'12px' }}>
+              오른쪽에서 일정명을 입력하고 저장하세요
+            </div>
           ) : (
             yearItems.map(item => {
               const isSel = selItem?.id === item.id
@@ -1688,7 +1670,6 @@ function SchoolCalendarTab({ session }) {
                       <div style={{ fontSize:'11px', color:C.muted }}>{item.days?.join('·')}요일</div>
                       <div style={{ fontSize:'11px', color:C.muted }}>{item.startDate?.slice(5)} ~ {item.endDate?.slice(5)}</div>
                       <div style={{ display:'flex', gap:'5px', marginTop:'6px', justifyContent:'flex-end' }} onClick={e=>e.stopPropagation()}>
-                        <button onClick={() => openEdit(item)} style={{ padding:'3px 8px', borderRadius:'5px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'10px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>편집</button>
                         <button onClick={() => setDelId(item.id)} style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'10px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                       </div>
                     </div>
@@ -1700,27 +1681,24 @@ function SchoolCalendarTab({ session }) {
         </div>
       </div>
 
-      {/* 오른쪽: 달력 전체 */}
+      {/* 오른쪽: 달력 */}
       <div style={{ flex:1, overflowY:'auto', padding:'24px' }}>
         <SchoolCalendar
           session={session}
-          cls={selItem ? selItem : { year: parseInt(selYear), cancelledDates:[], makeupDates:[], days:[], termType:'semester', termCount:4, termSizes:[4,4,4,4] }}
+          cls={selItem || { year: parseInt(selYear), cancelledDates:[], makeupDates:[], days:[], termType:'quarter', quarters:4, quarterTermCounts:[3,3,3,3], sessionsPerTerm:4 }}
           onUpdate={async (updated) => {
             try {
               if (selItem) {
-                // 기존 일정 업데이트
                 await dbCall('update','schoolCalendar',{ id:selItem.id, patch:{ ...updated } })
                 const merged = {...selItem, ...updated}
                 setSelItem(merged)
                 setItems(prev => prev.map(it => it.id===selItem.id ? merged : it))
               } else {
-                // 신규 일정: title 또는 days가 있을 때만 생성
-                if (!updated.title?.trim() && !updated.days?.length) return
                 const newItem = { ...updated, id:uid(), adminId:session.adminId, schoolName:session.admin?.schoolName||'', createdAt:now() }
                 await dbCall('upsert','schoolCalendar',{ data: newItem })
                 setSelItem(newItem)
                 setItems(prev => [...prev, newItem])
-                success('일정이 등록되었습니다.')
+                success('일정이 저장되었습니다.')
               }
             } catch { error('저장 중 오류가 발생했습니다.') }
           }}
