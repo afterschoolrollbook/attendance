@@ -130,6 +130,7 @@ const SUBMIT_STATUS = {
 }
 
 const NOTICE_STATUS = {
+  draft:   { label:'초안',     color:'#9ca3af', bg:'#f3f4f6'  },
   active:  { label:'진행중',   color:'#3b82f6', bg:'#eff6ff'  },
   working: { label:'업무중',   color:'#d97706', bg:'#fffbeb'  },
   done:    { label:'업무완료', color:'#16a34a', bg:'#f0fdf4'  },
@@ -188,7 +189,7 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
         dueDate: form.dueDate||null,
         attachName: form.attachName, attachUrl: form.attachUrl,
         targetTeacherIds: targets,
-        status: 'active', createdAt: now(),
+        status: 'draft', createdAt: now(),
       }
       await DB.saveNotice(notice)
 
@@ -379,6 +380,78 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
         <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
           <Btn color="secondary" onClick={onClose}>취소</Btn>
           <Btn onClick={handleSave} disabled={saving}>{saving?'저장 중...':'등록'}</Btn>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── 업무 수정 모달
+function NoticeEditModal({ notice, session, teachers, onSave, onClose }) {
+  const { success, error } = useToast()
+  const [form, setForm] = useState({
+    title:      notice.title      || '',
+    content:    notice.content    || '',
+    startDate:  notice.startDate  || '',
+    endDate:    notice.endDate    || '',
+    dueDate:    notice.dueDate    || '',
+    completeOn: notice.completeOn || 'replied',
+  })
+  const [saving, setSaving] = useState(false)
+  const LBL = ({ children }) => <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>{children}</label>
+
+  const handleSave = async () => {
+    if (!form.title.trim()) { error('제목을 입력해주세요.'); return }
+    setSaving(true)
+    try {
+      await dbCall('update', 'schoolNotices', {
+        id: notice.id,
+        patch: {
+          title:      form.title.trim(),
+          content:    form.content,
+          startDate:  form.startDate || null,
+          endDate:    form.endDate   || null,
+          dueDate:    form.dueDate   || null,
+          completeOn: form.completeOn,
+          status:     'draft', // 수정 후 다시 초안 상태 → 재배포 필요
+        }
+      })
+      success('수정되었습니다. 재배포 버튼을 눌러 선생님들에게 전달하세요.')
+      onSave()
+    } catch { error('저장 중 오류가 발생했습니다.') }
+    setSaving(false)
+  }
+
+  return (
+    <Modal title="✏️ 공지·업무 수정" onClose={onClose} width={540}>
+      <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:'8px', padding:'10px 14px', marginBottom:'14px', fontSize:'12px', color:'#92400e' }}>
+        ⚠️ 수정 후 저장하면 <strong>초안 상태</strong>로 변경됩니다. <strong>재배포</strong> 버튼을 눌러야 선생님들에게 전달됩니다.
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+        <div><LBL>제목 *</LBL><input style={iSt} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} /></div>
+        <div><LBL>내용</LBL><textarea style={{...iSt,resize:'vertical'}} rows={3} value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))} /></div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
+          <div><LBL>시작일</LBL><input style={iSt} type="date" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value}))} /></div>
+          <div><LBL>종료일</LBL><input style={iSt} type="date" value={form.endDate}   onChange={e=>setForm(f=>({...f,endDate:e.target.value}))} /></div>
+          <div><LBL>마감일</LBL><input style={iSt} type="date" value={form.dueDate}   onChange={e=>setForm(f=>({...f,dueDate:e.target.value}))} /></div>
+        </div>
+        {(notice.type==='notice'||notice.type==='task') && (
+          <div>
+            <LBL>완료 조건</LBL>
+            <div style={{ display:'flex', gap:'8px' }}>
+              {[['replied','✉️ 회신 완료로 끝'],['submitted','📎 제출 완료로 끝']].map(([v,l]) => (
+                <button key={v} type="button" onClick={()=>setForm(f=>({...f,completeOn:v}))} style={{
+                  flex:1, padding:'8px', borderRadius:'8px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', fontWeight:form.completeOn===v?700:400,
+                  border:form.completeOn===v?'2px solid #3b82f6':'2px solid #e5e7eb',
+                  background:form.completeOn===v?'#eff6ff':'#fff', color:form.completeOn===v?'#3b82f6':C.muted,
+                }}>{l}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+          <Btn color="secondary" onClick={onClose}>취소</Btn>
+          <Btn onClick={handleSave} disabled={saving}>{saving?'저장 중...':'저장 (초안)'}</Btn>
         </div>
       </div>
     </Modal>
@@ -616,13 +689,15 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
 // ── 공지·업무 관리 탭
 function NoticesTab({ session }) {
   const { success, error } = useToast()
-  const [notices,  setNotices]  = useState([])
-  const [invites,  setInvites]  = useState([])
-  const [teachers, setTeachers] = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [showCreate,   setShowCreate]   = useState(false)
-  const [detailNotice, setDetailNotice] = useState(null)
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [notices,     setNotices]     = useState([])
+  const [invites,     setInvites]     = useState([])
+  const [teachers,    setTeachers]    = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [showCreate,  setShowCreate]  = useState(false)
+  const [editNotice,  setEditNotice]  = useState(null)  // 수정 대상
+  const [detailNotice,setDetailNotice]= useState(null)
+  const [filterStatus,setFilterStatus]= useState('all')
+  const [deploying,   setDeploying]   = useState({})    // { noticeId: true }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -634,8 +709,7 @@ function NoticesTab({ session }) {
       ),
     ])
     setNotices(n.sort((a,b)=>b.createdAt?.localeCompare(a.createdAt)))
-    setTeachers(t)
-    setInvites(inv)
+    setTeachers(t); setInvites(inv)
     setLoading(false)
   }, [session.adminId])
 
@@ -643,20 +717,41 @@ function NoticesTab({ session }) {
 
   const deleteNotice = async (id) => {
     if (!window.confirm('삭제하시겠습니까?')) return
-    await DB.deleteNotice(id)
-    success('삭제되었습니다.')
-    load()
+    await DB.deleteNotice(id); success('삭제되었습니다.'); load()
   }
 
-  // 공지에 연결된 초대 현황
+  // 배포 — draft → active + 선생님들에게 submit 레코드 생성
+  const deployNotice = async (notice) => {
+    setDeploying(prev => ({ ...prev, [notice.id]: true }))
+    try {
+      // 기존 submit 레코드 조회 (재배포 시 중복 방지)
+      const existingSubs = await dbCall('getAll','schoolNoticeSubmits')
+        .then(d=>(d||[]).filter(s=>s.noticeId===notice.id))
+      const existingTeacherIds = new Set(existingSubs.map(s=>s.teacherId))
+
+      const targets = notice.targetTeacherIds || []
+      // 신규 대상만 submit 생성
+      const newTargets = targets.filter(tid => !existingTeacherIds.has(tid))
+      await Promise.all(newTargets.map(tid => DB.saveSubmit({
+        id: uid(), noticeId: notice.id, teacherId: tid,
+        adminId: session.adminId, status: 'pending', createdAt: now(),
+      })))
+      // active 상태로 변경
+      await dbCall('update', 'schoolNotices', { id: notice.id, patch: { status: 'active' } })
+      success(`✅ 배포 완료! ${targets.length}명에게 전달되었습니다.`)
+      load()
+    } catch { error('배포 중 오류가 발생했습니다.') }
+    setDeploying(prev => ({ ...prev, [notice.id]: false }))
+  }
+
   const getInviteSummary = (noticeId) => {
     const linked = invites.filter(i => i.noticeId === noticeId)
     if (!linked.length) return null
     return {
       total:    linked.length,
-      accepted: linked.filter(i => i.status === 'accepted').length,
-      pending:  linked.filter(i => i.status === 'pending').length,
-      emailed:  linked.filter(i => i.status === 'emailed').length,
+      accepted: linked.filter(i=>i.status==='accepted').length,
+      pending:  linked.filter(i=>i.status==='pending').length,
+      emailed:  linked.filter(i=>i.status==='emailed').length,
     }
   }
 
@@ -672,23 +767,27 @@ function NoticesTab({ session }) {
   const isInviteType = (type) => ['invite_connect','invite_signup','invite'].includes(type)
 
   return (
-    <div style={{ padding:'24px', maxWidth:'900px' }}>
+    <div style={{ padding:'24px', maxWidth:'960px' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px' }}>
         <div>
           <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>📋 공지·업무 관리</div>
-          <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>선생님들에게 공지하고 업무를 요청·관리하세요</div>
+          <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>등록 후 배포 버튼을 누르면 선생님들에게 전달됩니다</div>
         </div>
         <Btn onClick={()=>setShowCreate(true)}>+ 등록</Btn>
       </div>
 
-      <div style={{ display:'flex', gap:'6px', marginBottom:'16px' }}>
-        {[['all','전체'],['active','진행중'],['working','업무중'],['done','업무완료']].map(([v,l]) => (
-          <button key={v} onClick={()=>setFilterStatus(v)} style={{
-            padding:'6px 14px', borderRadius:'999px', border:'none', cursor:'pointer',
-            fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', fontWeight:filterStatus===v?700:400,
-            background:filterStatus===v?'#1e3a5f':'#e5e7eb', color:filterStatus===v?'#fff':C.muted,
-          }}>{l}{filterStatus===v?` (${filtered.length})`:''}</button>
-        ))}
+      {/* 상태 필터 */}
+      <div style={{ display:'flex', gap:'6px', marginBottom:'16px', flexWrap:'wrap' }}>
+        {[['all','전체'],['draft','초안'],['active','진행중'],['working','업무중'],['done','업무완료']].map(([v,l]) => {
+          const cnt = v==='all' ? notices.length : notices.filter(n=>n.status===v).length
+          return (
+            <button key={v} onClick={()=>setFilterStatus(v)} style={{
+              padding:'6px 14px', borderRadius:'999px', border:'none', cursor:'pointer',
+              fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', fontWeight:filterStatus===v?700:400,
+              background:filterStatus===v?'#1e3a5f':'#e5e7eb', color:filterStatus===v?'#fff':C.muted,
+            }}>{l} {cnt>0?`(${cnt})`:''}</button>
+          )
+        })}
       </div>
 
       {loading ? (
@@ -699,49 +798,104 @@ function NoticesTab({ session }) {
           <div>등록된 항목이 없습니다.</div>
         </div>
       ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
           {filtered.map(notice => {
-            const ti  = typeInfo(notice.type)
-            const ns  = NOTICE_STATUS[notice.status] || NOTICE_STATUS.active
-            const cnt = (notice.targetTeacherIds||[]).length
-            const inv = getInviteSummary(notice.id)
+            const ti    = typeInfo(notice.type)
+            const ns    = NOTICE_STATUS[notice.status] || NOTICE_STATUS.active
+            const cnt   = (notice.targetTeacherIds||[]).length
+            const inv   = getInviteSummary(notice.id)
+            const isDraft = notice.status === 'draft'
+            const isDeploying = deploying[notice.id]
+
             return (
               <div key={notice.id} style={{
-                background:C.card, borderRadius:'14px',
-                border:`2px solid ${notice.status==='done'?'#86efac':notice.status==='working'?'#fcd34d':C.border}`,
-                padding:'16px 20px',
+                background: isDraft ? '#fafafa' : C.card,
+                borderRadius:'14px',
+                border:`2px solid ${
+                  notice.status==='done'   ? '#86efac' :
+                  notice.status==='working'? '#fcd34d' :
+                  isDraft                  ? '#d1d5db' : C.border
+                }`,
+                padding:'18px 20px',
+                opacity: isDraft ? 0.9 : 1,
               }}>
                 <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'12px' }}>
                   <div style={{ flex:1 }}>
                     {/* 뱃지 + 제목 */}
-                    <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'6px', alignItems:'center' }}>
+                    <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'8px', alignItems:'center' }}>
                       <span style={{ fontSize:'11px', fontWeight:700, color:ti.color, background:ti.bg, padding:'2px 8px', borderRadius:'999px' }}>{ti.icon} {ti.text}</span>
                       <span style={{ fontSize:'11px', fontWeight:700, color:ns.color, background:ns.bg, padding:'2px 8px', borderRadius:'999px' }}>{ns.label}</span>
-                      <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{notice.title}</span>
+                      {isDraft && <span style={{ fontSize:'11px', color:'#9ca3af' }}>— 배포 전 초안</span>}
                     </div>
-                    {/* 기간/마감/대상 */}
-                    <div style={{ fontSize:'12px', color:C.muted, display:'flex', gap:'12px', flexWrap:'wrap' }}>
-                      {notice.startDate && <span>📅 {notice.startDate}{notice.endDate?` ~ ${notice.endDate}`:''}</span>}
-                      {notice.dueDate   && <span>⏰ 마감 {notice.dueDate}</span>}
-                      <span>👥 대상 {cnt}명</span>
+                    <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'8px' }}>{notice.title}</div>
+
+                    {/* 날짜 크게 */}
+                    <div style={{ display:'flex', gap:'16px', flexWrap:'wrap', marginBottom:'6px' }}>
+                      {notice.startDate && (
+                        <div style={{ background:'#f0f9ff', borderRadius:'8px', padding:'6px 12px', display:'inline-flex', alignItems:'center', gap:'6px' }}>
+                          <span style={{ fontSize:'13px' }}>📅</span>
+                          <div>
+                            <div style={{ fontSize:'11px', color:'#0369a1', fontWeight:600 }}>기간</div>
+                            <div style={{ fontSize:'13px', fontWeight:700, color:'#0c4a6e' }}>
+                              {notice.startDate}{notice.endDate ? ` ~ ${notice.endDate}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {notice.dueDate && (
+                        <div style={{ background:'#fef2f2', borderRadius:'8px', padding:'6px 12px', display:'inline-flex', alignItems:'center', gap:'6px' }}>
+                          <span style={{ fontSize:'13px' }}>⏰</span>
+                          <div>
+                            <div style={{ fontSize:'11px', color:'#991b1b', fontWeight:600 }}>마감</div>
+                            <div style={{ fontSize:'14px', fontWeight:800, color:'#7f1d1d' }}>{notice.dueDate}</div>
+                          </div>
+                        </div>
+                      )}
+                      <div style={{ background:'#f8fafc', borderRadius:'8px', padding:'6px 12px', display:'inline-flex', alignItems:'center', gap:'6px' }}>
+                        <span style={{ fontSize:'13px' }}>👥</span>
+                        <div>
+                          <div style={{ fontSize:'11px', color:C.muted, fontWeight:600 }}>대상</div>
+                          <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{cnt}명</div>
+                        </div>
+                      </div>
                     </div>
+
                     {/* 메모 */}
                     {notice.memo && (
-                      <div style={{ fontSize:'12px', color:'#92400e', background:'#fffbeb', borderRadius:'6px', padding:'4px 10px', marginTop:'6px', display:'inline-block' }}>
+                      <div style={{ fontSize:'12px', color:'#92400e', background:'#fffbeb', borderRadius:'6px', padding:'4px 10px', marginTop:'4px', display:'inline-block' }}>
                         📝 {notice.memo}
                       </div>
                     )}
-                    {/* 초대 현황 — 초대 유형일 때 표시 */}
+                    {/* 초대 현황 */}
                     {isInviteType(notice.type) && inv && (
                       <div style={{ display:'flex', gap:'6px', marginTop:'8px', flexWrap:'wrap' }}>
                         <span style={{ fontSize:'11px', fontWeight:600, color:'#16a34a', background:'#f0fdf4', padding:'2px 8px', borderRadius:'999px' }}>✅ 연결완료 {inv.accepted}</span>
                         <span style={{ fontSize:'11px', fontWeight:600, color:'#d97706', background:'#fffbeb', padding:'2px 8px', borderRadius:'999px' }}>📨 수락대기 {inv.pending}</span>
-                        {inv.emailed > 0 && <span style={{ fontSize:'11px', fontWeight:600, color:'#f97316', background:'#fff7ed', padding:'2px 8px', borderRadius:'999px' }}>📧 이메일발송 {inv.emailed}</span>}
+                        {inv.emailed>0 && <span style={{ fontSize:'11px', fontWeight:600, color:'#f97316', background:'#fff7ed', padding:'2px 8px', borderRadius:'999px' }}>📧 이메일발송 {inv.emailed}</span>}
                       </div>
                     )}
                   </div>
-                  <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+
+                  {/* 버튼 영역 */}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px', flexShrink:0 }}>
+                    {/* 배포 버튼 — draft이거나 수정 후 재배포 */}
+                    {(isDraft || notice.status === 'active') && (
+                      <button onClick={() => deployNotice(notice)} disabled={isDeploying} style={{
+                        padding:'8px 16px', borderRadius:'9px', border:'none', cursor:isDeploying?'not-allowed':'pointer',
+                        background: isDraft ? '#7c3aed' : '#0369a1',
+                        color:'#fff', fontWeight:700, fontSize:'13px',
+                        fontFamily:'Noto Sans KR, sans-serif',
+                        opacity: isDeploying ? .6 : 1,
+                      }}>
+                        {isDeploying ? '배포 중...' : isDraft ? '🚀 배포' : '🔄 재배포'}
+                      </button>
+                    )}
                     <Btn onClick={()=>setDetailNotice(notice)}>현황</Btn>
+                    <button onClick={()=>setEditNotice(notice)} style={{
+                      padding:'8px 16px', borderRadius:'9px', border:`1px solid ${C.border}`,
+                      background:'#fff', color:C.text, fontWeight:600, fontSize:'13px',
+                      cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                    }}>수정</button>
                     <Btn color="danger" onClick={()=>deleteNotice(notice.id)}>삭제</Btn>
                   </div>
                 </div>
@@ -752,11 +906,11 @@ function NoticesTab({ session }) {
       )}
 
       {showCreate && <NoticeCreateModal session={session} teachers={teachers} onSave={load} onClose={()=>setShowCreate(false)} />}
+      {editNotice  && <NoticeEditModal  session={session} teachers={teachers} notice={editNotice} onSave={()=>{load();setEditNotice(null)}} onClose={()=>setEditNotice(null)} />}
       {detailNotice && (
         <NoticeDetailModal
           notice={detailNotice} session={session} teachers={teachers}
-          onClose={()=>setDetailNotice(null)}
-          onReload={load}
+          onClose={()=>setDetailNotice(null)} onReload={load}
         />
       )}
     </div>
