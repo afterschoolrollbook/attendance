@@ -289,25 +289,33 @@ function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
     <Modal title={isEdit ? '✏️ 공지·업무 수정' : '📋 공지·업무 등록'} onClose={onClose} width={580}>
       <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
 
-        {/* 유형 선택 — 2×2 그리드 */}
+        {/* 유형 선택 — 수정 모드에서는 변경 불가 */}
         <div>
           <LBL>유형</LBL>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-            {Object.entries(TYPE_INFO).map(([v, info]) => (
-              <button key={v} type="button" onClick={() => setForm(f=>({...f,type:v}))} style={{
-                padding:'10px 14px', borderRadius:'10px', cursor:'pointer',
-                fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:form.type===v?700:400,
-                border: form.type===v ? `2px solid ${info.color}` : `2px solid #e5e7eb`,
-                background: form.type===v ? info.bg : '#fff',
-                color: form.type===v ? info.color : C.muted,
-                textAlign:'left', transition:'all .15s',
-                display:'flex', alignItems:'center', gap:'8px',
-              }}>
-                <span style={{ fontSize:'16px' }}>{info.icon}</span>
-                <span>{info.label}</span>
-              </button>
-            ))}
-          </div>
+          {isEdit ? (
+            <div style={{ display:'inline-flex', alignItems:'center', gap:'6px', padding:'8px 14px', borderRadius:'10px', border:`2px solid ${TYPE_INFO[form.type]?.color||'#e5e7eb'}`, background:TYPE_INFO[form.type]?.bg||'#f3f4f6' }}>
+              <span style={{ fontSize:'16px' }}>{TYPE_INFO[form.type]?.icon}</span>
+              <span style={{ fontSize:'13px', fontWeight:700, color:TYPE_INFO[form.type]?.color }}>{TYPE_INFO[form.type]?.label}</span>
+              <span style={{ fontSize:'11px', color:'#9ca3af', marginLeft:'4px' }}>(수정 시 유형 변경 불가)</span>
+            </div>
+          ) : (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+              {Object.entries(TYPE_INFO).map(([v, info]) => (
+                <button key={v} type="button" onClick={() => setForm(f=>({...f,type:v}))} style={{
+                  padding:'10px 14px', borderRadius:'10px', cursor:'pointer',
+                  fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:form.type===v?700:400,
+                  border: form.type===v ? `2px solid ${info.color}` : `2px solid #e5e7eb`,
+                  background: form.type===v ? info.bg : '#fff',
+                  color: form.type===v ? info.color : C.muted,
+                  textAlign:'left', transition:'all .15s',
+                  display:'flex', alignItems:'center', gap:'8px',
+                }}>
+                  <span style={{ fontSize:'16px' }}>{info.icon}</span>
+                  <span>{info.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {/* 유형 설명 */}
           <div style={{ fontSize:'11px', color:ti.color, background:ti.bg, padding:'6px 10px', borderRadius:'6px', marginTop:'6px', fontWeight:500 }}>
             {ti.icon} {ti.desc}
@@ -420,11 +428,12 @@ function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
 
 // ── 업무 현황 상세 모달
 function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
-  const [submits, setSubmits]   = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [memo, setMemo]         = useState(notice.memo||'')
-  const [showMemo, setShowMemo] = useState(false)
-  const { success } = useToast()
+  const [submits,   setSubmits]   = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [reminding, setReminding] = useState(false)
+  const [memo,      setMemo]      = useState(notice.memo||'')
+  const [showMemo,  setShowMemo]  = useState(false)
+  const { success, error } = useToast()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -434,6 +443,58 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
   }, [notice.id])
 
   useEffect(() => { load() }, [load])
+
+  // 미완료 선생님에게 이메일 + 대시보드 알림 재발송
+  const sendReminder = async () => {
+    const pendingSubs = submits.filter(s => s.status === 'pending')
+    if (!pendingSubs.length) { success('모든 선생님이 완료했습니다!'); return }
+    setReminding(true)
+    try {
+      // 앱 가입 선생님 조회
+      const appUsers = await dbCall('getAll','users').then(d=>(d||[]).filter(u=>u.role==='teacher'))
+      const appById  = Object.fromEntries(appUsers.map(u=>[u.id, u]))
+
+      // 초대 레코드 조회
+      const allInvites = await dbCall('getAll','schoolTeacherInvites').then(d=>
+        (d||[]).filter(i=>i.adminId===session.adminId&&i.noticeId===notice.id)
+      )
+      const invByTeacherId = Object.fromEntries(allInvites.map(i=>[i.teacherId, i]))
+
+      let sent = 0
+      for (const sub of pendingSubs) {
+        const teacher  = teachers.find(t=>t.teacherId===sub.teacherId||t.id===sub.teacherId)
+        const appUser  = appById[sub.teacherId]
+        const inv      = invByTeacherId[sub.teacherId]
+        const email    = teacher?.email || appUser?.email || inv?.teacherEmail
+        const tName    = teacher?.teacherName || appUser?.name || inv?.teacherName || '선생님'
+
+        if (!email) continue
+
+        if (appUser) {
+          // 앱 가입 → 이메일 + 대시보드 팝업 (invite status를 pending으로 재설정)
+          await sendTeacherInviteEmail({
+            teacherName: tName, email,
+            schoolName:  session.admin?.schoolName || '',
+            adminName:   session.admin?.adminName  || '',
+          })
+          // 기존 초대 레코드 sentAt 갱신 (대시보드 팝업 재표시)
+          if (inv) {
+            await dbCall('update','schoolTeacherInvites',{ id:inv.id, patch:{ sentAt:now(), status:'pending' } })
+          }
+        } else {
+          // 미가입 → 가입 초대 이메일 재발송
+          await sendSignupInviteEmail({
+            teacherName: tName, email,
+            schoolName:  session.admin?.schoolName || '',
+            adminName:   session.admin?.adminName  || '',
+          })
+        }
+        sent++
+      }
+      success(`✅ ${sent}명에게 독촉 알림을 재발송했습니다!`)
+    } catch { error('발송 중 오류가 발생했습니다.') }
+    setReminding(false)
+  }
 
   const targets = notice.targetTeacherIds || []
   const counts  = Object.fromEntries(
@@ -595,6 +656,17 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
 
         {/* 담당자 액션 버튼 */}
         <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:'14px', display:'flex', gap:'8px', justifyContent:'flex-end', flexWrap:'wrap' }}>
+          {/* 독촉 버튼 — 미완료 선생님이 있을 때 */}
+          {notice.status !== 'done' && counts.pending > 0 && (
+            <button onClick={sendReminder} disabled={reminding} style={{
+              padding:'9px 18px', borderRadius:'9px', border:`2px solid #7c3aed`,
+              background:'#f5f3ff', color:'#7c3aed', fontWeight:700, fontSize:'13px',
+              cursor: reminding ? 'not-allowed' : 'pointer',
+              fontFamily:'Noto Sans KR, sans-serif', opacity: reminding ? .6 : 1,
+            }}>
+              {reminding ? '발송 중...' : `📨 독촉 재발송 (${counts.pending}명)`}
+            </button>
+          )}
           {notice.status !== 'done' && (
             <>
               {!showMemo ? (
