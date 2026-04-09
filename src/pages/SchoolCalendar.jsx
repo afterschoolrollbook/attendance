@@ -318,7 +318,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
 
   // 분기별 텀 수 변경 (1~12)
   const handleQTermCount = (qIdx, val) => {
-    const maxT = termType==='semester' ? 24 : 12
+    const maxT = termType==='semester' ? 7 : 4
     setQuarterTermCounts(prev => { const n=[...prev]; n[qIdx]=Math.max(1,Math.min(maxT,parseInt(val)||1)); return n })
   }
 
@@ -605,7 +605,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
                 텀당 회차 수 (모든 텀 공통)
               </label>
               <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
-                {[2,3,4,5,6,8,10,12].map(n=>(
+                {(termType==='semester' ? [2,3,4,5,6,8,10,12,16,20,24] : [2,3,4,6,8,10,12]).map(n=>(
                   <button key={n} onClick={()=>{setSessionsPerTerm(n);saveAll({sessionsPerTerm:n})}}
                     style={{padding:'6px 14px',borderRadius:'8px',
                       border:`1.5px solid ${sessionsPerTerm===n?'#1e3a5f':'#e5e7eb'}`,
@@ -614,7 +614,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
                       fontSize:'13px',fontWeight:sessionsPerTerm===n?700:400,
                       cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>{n}회</button>
                 ))}
-                <input type="number" min={1} max={50} value={sessionsPerTerm}
+                <input type="number" min={1} max={termType==='semester'?24:12} value={sessionsPerTerm}
                   onChange={e=>setSessionsPerTerm(parseInt(e.target.value)||1)}
                   onBlur={()=>saveAll()}
                   style={{width:'65px',padding:'6px 8px',borderRadius:'8px',border:'1.5px solid #e5e7eb',fontSize:'14px',fontWeight:700,outline:'none',textAlign:'center'}}/>
@@ -627,14 +627,14 @@ export function SchoolCalendar({ cls, onUpdate }) {
               <label style={{fontSize:'12px',color:'#6b7280',display:'block',marginBottom:'8px'}}>
                 {termType==='semester'?'학기':'분기'}별 텀 수 설정
                 <span style={{fontSize:'11px',color:'#9ca3af',marginLeft:'8px'}}>
-                  ({termType==='semester'?'학기당 최대 24텀':'분기당 최대 12텀'})
+                  ({termType==='semester'?'학기당 최대 7텀':'분기당 최대 4텀'})
                 </span>
               </label>
               <div style={{display:'flex',gap:'12px',flexWrap:'wrap'}}>
                 {termBoundaries.map((b,i)=>{
                   const qc = getQuarterColor(i+1)
                   const tCount = activeTermCounts[i]||3
-                  const maxTerms = termType==='semester' ? 24 : 12
+                  const maxTerms = termType==='semester' ? 7 : 4
                   const termNums = Array.from({length:maxTerms},(_,j)=>j+1)
                   return (
                     <div key={i} style={{background:qc.bg,border:`1.5px solid ${qc.border}`,borderRadius:'12px',padding:'14px',minWidth:'200px'}}>
