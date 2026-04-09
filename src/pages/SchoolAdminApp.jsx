@@ -1629,59 +1629,50 @@ function SchoolCalendarTab({ session }) {
   if (loading) return <div style={{ padding:'40px', textAlign:'center', color:C.muted }}>불러오는 중...</div>
 
   return (
-    <div style={{ display:'flex', height:'100%', minHeight:'100vh' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:'100vh' }}>
 
-      {/* 왼쪽: 일정 목록 */}
-      <div style={{ width:'220px', flexShrink:0, borderRight:`1px solid ${C.border}`, background:'#f8fafc', display:'flex', flexDirection:'column' }}>
-        <div style={{ padding:'16px 14px 10px', borderBottom:`1px solid ${C.border}` }}>
-          <div style={{ fontSize:'13px', fontWeight:800, color:C.text, marginBottom:'10px' }}>📅 연간 수업 달력</div>
-          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap', marginBottom:'10px' }}>
-            {(years.length>0 ? years : [String(CURRENT_YEAR)]).map(y => (
-              <button key={y} onClick={() => { setSelYear(y); setSelItem(items.find(c=>c.startDate?.slice(0,4)===y)||null) }}
-                style={{ padding:'4px 10px', borderRadius:'6px', border:'none', cursor:'pointer', background:selYear===y?'#1e3a5f':'#e5e7eb', color:selYear===y?'#fff':C.text, fontWeight:selYear===y?700:400, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>{y}년</button>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ flex:1, overflowY:'auto', padding:'10px' }}>
-          {yearItems.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'20px 10px', color:C.muted, fontSize:'12px' }}>
-              오른쪽에서 일정명을 입력하고 저장하세요
-            </div>
-          ) : (
-            yearItems.map(item => {
-              const isSel = selItem?.id === item.id
-              const isDelConfirm = delId === item.id
-              return (
-                <div key={item.id} style={{ marginBottom:'6px' }}>
-                  {isDelConfirm ? (
-                    <div style={{ background:'#fef2f2', borderRadius:'9px', border:'1px solid #fca5a5', padding:'10px' }}>
-                      <div style={{ fontSize:'11px', color:'#ef4444', fontWeight:600, marginBottom:'8px' }}>정말 삭제하시겠습니까?</div>
-                      <div style={{ display:'flex', gap:'5px' }}>
-                        <button onClick={() => setDelId(null)} style={{ flex:1, padding:'5px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
-                        <button onClick={() => del(item.id)} style={{ flex:1, padding:'5px', borderRadius:'6px', border:'none', background:'#ef4444', color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div onClick={() => setSelItem(item)} style={{ padding:'10px 12px', borderRadius:'9px', border:`1.5px solid ${isSel?C.primary:C.border}`, background:isSel?'#eff6ff':'#fff', cursor:'pointer' }}
-                      onMouseEnter={e => { if(!isSel) e.currentTarget.style.background='#f1f5f9' }}
-                      onMouseLeave={e => { if(!isSel) e.currentTarget.style.background='#fff' }}>
-                      <div style={{ fontSize:'12px', fontWeight:700, color:isSel?C.primary:C.text, marginBottom:'3px' }}>{item.title}</div>
-                      <div style={{ fontSize:'11px', color:C.muted }}>{item.days?.join('·')}요일</div>
-                      <div style={{ fontSize:'11px', color:C.muted }}>{item.startDate?.slice(5)} ~ {item.endDate?.slice(5)}</div>
-                      <div style={{ display:'flex', gap:'5px', marginTop:'6px', justifyContent:'flex-end' }} onClick={e=>e.stopPropagation()}>
-                        <button onClick={() => setDelId(item.id)} style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'10px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                      </div>
-                    </div>
-                  )}
+      {/* 상단: 연도 탭 */}
+      <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'12px 24px', borderBottom:`1px solid ${C.border}`, background:'#fff', flexShrink:0 }}>
+        <span style={{ fontSize:'13px', fontWeight:700, color:C.text, marginRight:'4px' }}>📅 연간 수업 달력</span>
+        {(years.length>0 ? years : [String(CURRENT_YEAR)]).map(y => (
+          <button key={y} onClick={() => { setSelYear(y); setSelItem(items.find(c=>c.startDate?.slice(0,4)===y)||null) }}
+            style={{ padding:'6px 16px', borderRadius:'20px', border:'none', cursor:'pointer',
+              background:selYear===y?'#1e3a5f':'#e5e7eb',
+              color:selYear===y?'#fff':C.text,
+              fontWeight:selYear===y?700:400,
+              fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif' }}>{y}년</button>
+        ))}
+        {/* 저장된 일정 목록 */}
+        {yearItems.map(item => {
+          const isSel = selItem?.id === item.id
+          const isDelConfirm = delId === item.id
+          return (
+            <div key={item.id} style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+              {isDelConfirm ? (
+                <div style={{ display:'flex', alignItems:'center', gap:'4px', padding:'4px 10px', background:'#fef2f2', borderRadius:'8px', border:'1px solid #fca5a5' }}>
+                  <span style={{ fontSize:'12px', color:'#ef4444' }}>삭제?</span>
+                  <button onClick={() => setDelId(null)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
+                  <button onClick={() => del(item.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:'none', background:'#ef4444', color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                 </div>
-              )
-            })
-          )}
-        </div>
+              ) : (
+                <div style={{ display:'flex', alignItems:'center', gap:'4px', padding:'5px 12px',
+                  borderRadius:'20px', border:`1.5px solid ${isSel?C.primary:C.border}`,
+                  background:isSel?'#eff6ff':'#fff', cursor:'pointer' }}
+                  onClick={() => setSelItem(item)}>
+                  <span style={{ fontSize:'12px', fontWeight:isSel?700:400, color:isSel?C.primary:C.text }}>{item.title||'(제목없음)'}</span>
+                  <button onClick={e=>{e.stopPropagation();setDelId(item.id)}}
+                    style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'14px', padding:'0', lineHeight:1, marginLeft:'2px' }}>×</button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+        {yearItems.length===0 && (
+          <span style={{ fontSize:'12px', color:C.muted }}>아래에서 일정명 입력 후 저장하세요</span>
+        )}
       </div>
 
-      {/* 오른쪽: 달력 */}
+      {/* 본문: 달력 */}
       <div style={{ flex:1, overflowY:'auto', padding:'24px' }}>
         <SchoolCalendar
           session={session}
