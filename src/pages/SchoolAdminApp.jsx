@@ -108,23 +108,48 @@ function Sidebar({ session, page, onNav, onLogout }) {
 }
 
 // ── 공지 생성 모달
+// ─────────────────────────────────────────────────────────────
+//  공지·업무 관련 컴포넌트
+//
+//  [개별 선생님 상태] — 목록에만 표시, 담당자 알림 없음
+//    pending   : 확인 안함
+//    replied   : 회신 완료 (수락/확인)
+//    submitted : 제출 완료 (파일)
+//
+//  [업무 전체 상태] — 담당자가 직접 설정
+//    active    : 진행중
+//    working   : 업무중 (메모 포함)
+//    done      : 업무완료
+// ─────────────────────────────────────────────────────────────
+
+const SUBMIT_STATUS = {
+  pending:   { label:'확인 안함', color:'#9ca3af', bg:'#f3f4f6', icon:'⏳' },
+  replied:   { label:'회신 완료', color:'#d97706', bg:'#fffbeb', icon:'✉️' },
+  submitted: { label:'제출 완료', color:'#2563eb', bg:'#eff6ff', icon:'📎' },
+}
+
+const NOTICE_STATUS = {
+  active:  { label:'진행중',   color:'#3b82f6', bg:'#eff6ff'  },
+  working: { label:'업무중',   color:'#d97706', bg:'#fffbeb'  },
+  done:    { label:'업무완료', color:'#16a34a', bg:'#f0fdf4'  },
+}
+
+// ── 공지 등록 모달
 function NoticeCreateModal({ session, teachers, onSave, onClose }) {
   const { success, error } = useToast()
-  const [form, setForm] = useState({ title:'', content:'', dueDate:'', attachName:'', attachUrl:'' })
-  const [targets, setTargets] = useState([]) // 선택된 teacherId[]
-  const [saving, setSaving] = useState(false)
+  const [form, setForm]       = useState({ title:'', content:'', type:'notice', startDate:'', endDate:'', dueDate:'', attachName:'', attachUrl:'' })
+  const [targets, setTargets] = useState([])
+  const [saving, setSaving]   = useState(false)
   const fileRef = React.useRef()
 
   const toggleTeacher = (tid) => setTargets(prev => prev.includes(tid) ? prev.filter(t=>t!==tid) : [...prev, tid])
   const allSelected = targets.length === teachers.length && teachers.length > 0
 
   const handleFile = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const file = e.target.files?.[0]; if (!file) return
     const reader = new FileReader()
     reader.onload = ev => setForm(f => ({ ...f, attachUrl: ev.target.result, attachName: file.name }))
-    reader.readAsDataURL(file)
-    e.target.value = ''
+    reader.readAsDataURL(file); e.target.value = ''
   }
 
   const handleSave = async () => {
@@ -135,79 +160,105 @@ function NoticeCreateModal({ session, teachers, onSave, onClose }) {
       const notice = {
         id: uid(), adminId: session.adminId,
         schoolName: session.admin?.schoolName || '',
+        type: form.type,
         title: form.title, content: form.content,
-        dueDate: form.dueDate, attachName: form.attachName, attachUrl: form.attachUrl,
-        targetTeacherIds: targets, status: 'active', createdAt: now(),
+        startDate: form.startDate||null, endDate: form.endDate||null,
+        dueDate: form.dueDate||null,
+        attachName: form.attachName, attachUrl: form.attachUrl,
+        targetTeacherIds: targets,
+        status: 'active', createdAt: now(),
       }
       await DB.saveNotice(notice)
-      // 각 선생님별 submit 레코드 생성 (pending)
       await Promise.all(targets.map(tid => DB.saveSubmit({
         id: uid(), noticeId: notice.id, teacherId: tid,
         adminId: session.adminId, status: 'pending', createdAt: now(),
       })))
-      success('공지가 등록되었습니다.')
-      onSave()
-      onClose()
+      success('등록되었습니다.')
+      onSave(); onClose()
     } catch { error('저장 중 오류가 발생했습니다.') }
     finally { setSaving(false) }
   }
 
+  const LBL = ({ children }) => <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>{children}</label>
+
   return (
-    <Modal title="📋 공지·업무 요청 등록" onClose={onClose} width={540}>
-      <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+    <Modal title="📋 공지·업무 등록" onClose={onClose} width={560}>
+      <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+
+        {/* 유형 선택 */}
         <div>
-          <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>제목 *</label>
-          <input style={iSt} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="예: 1분기 출석부 제출" />
+          <LBL>유형</LBL>
+          <div style={{ display:'flex', gap:'8px' }}>
+            {[['notice','📋 공지 전달'],['task','📎 업무 요청']].map(([v,l]) => (
+              <button key={v} type="button" onClick={() => setForm(f=>({...f,type:v}))} style={{
+                padding:'7px 16px', borderRadius:'8px', border:'none', cursor:'pointer',
+                fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:form.type===v?700:400,
+                background:form.type===v?'#1e3a5f':'#e5e7eb', color:form.type===v?'#fff':C.muted,
+              }}>{l}</button>
+            ))}
+          </div>
+          <div style={{ fontSize:'11px', color:C.muted, marginTop:'4px' }}>
+            {form.type==='notice' ? '선생님이 확인하면 회신완료 처리됩니다.' : '선생님이 파일을 제출하면 제출완료 처리됩니다.'}
+          </div>
         </div>
-        <div>
-          <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>내용</label>
-          <textarea style={{ ...iSt, resize:'vertical' }} rows={3} value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))} placeholder="상세 안내 내용..." />
+
+        <div><LBL>제목 *</LBL><input style={iSt} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="예: 2026년 1분기 서류 제출" /></div>
+        <div><LBL>내용</LBL><textarea style={{...iSt,resize:'vertical'}} rows={3} value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))} placeholder="상세 안내..." /></div>
+
+        {/* 기간 */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
+          <div><LBL>시작일</LBL><input style={iSt} type="date" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value}))} /></div>
+          <div><LBL>종료일</LBL><input style={iSt} type="date" value={form.endDate} onChange={e=>setForm(f=>({...f,endDate:e.target.value}))} /></div>
+          <div><LBL>마감일</LBL><input style={iSt} type="date" value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value}))} /></div>
         </div>
+
+        {/* 첨부 */}
         <div>
-          <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>마감일</label>
-          <input style={iSt} type="date" value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value}))} />
-        </div>
-        <div>
-          <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>첨부 양식 (선택)</label>
+          <LBL>첨부 양식 (선택)</LBL>
           <input ref={fileRef} type="file" style={{ display:'none' }} onChange={handleFile} />
           <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-            <button type="button" onClick={()=>fileRef.current?.click()} style={{ padding:'8px 14px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📎 파일 선택</button>
+            <button type="button" onClick={()=>fileRef.current?.click()} style={{ padding:'7px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📎 파일 선택</button>
             {form.attachName && <span style={{ fontSize:'12px', color:C.primary }}>{form.attachName}</span>}
           </div>
         </div>
+
+        {/* 대상 선생님 */}
         <div>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px' }}>
-            <label style={{ fontSize:'12px', color:C.muted }}>대상 선생님 * ({targets.length}명 선택)</label>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'6px' }}>
+            <LBL>대상 선생님 * ({targets.length}명)</LBL>
             <button type="button" onClick={()=>setTargets(allSelected?[]:[...teachers.map(t=>t.teacherId)])} style={{ fontSize:'12px', color:C.primary, background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-              {allSelected ? '전체 해제' : '전체 선택'}
+              {allSelected?'전체 해제':'전체 선택'}
             </button>
           </div>
           <div style={{ maxHeight:'180px', overflowY:'auto', border:`1px solid ${C.border}`, borderRadius:'9px', padding:'8px' }}>
-            {teachers.length === 0
+            {teachers.length===0
               ? <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', padding:'12px' }}>등록된 선생님이 없습니다.</div>
               : teachers.map(t => (
-                <label key={t.teacherId} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 8px', borderRadius:'6px', cursor:'pointer', background: targets.includes(t.teacherId)?'#eff6ff':'transparent' }}>
+                <label key={t.teacherId} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 8px', borderRadius:'6px', cursor:'pointer', background:targets.includes(t.teacherId)?'#eff6ff':'transparent' }}>
                   <input type="checkbox" checked={targets.includes(t.teacherId)} onChange={()=>toggleTeacher(t.teacherId)} style={{ accentColor:C.primary }} />
                   <span style={{ fontSize:'13px', color:C.text }}>{t.teacherName}</span>
-                  <span style={{ fontSize:'11px', color:C.muted }}>{t.schoolName}</span>
+                  <span style={{ fontSize:'11px', color:C.muted }}>{t.subject||''}</span>
                 </label>
               ))
             }
           </div>
         </div>
-        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', paddingTop:'4px' }}>
+
+        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
           <Btn color="secondary" onClick={onClose}>취소</Btn>
-          <Btn onClick={handleSave} disabled={saving}>{saving?'저장 중...':'📋 공지 등록'}</Btn>
+          <Btn onClick={handleSave} disabled={saving}>{saving?'저장 중...':'등록'}</Btn>
         </div>
       </div>
     </Modal>
   )
 }
 
-// ── 제출 현황 모달
-function SubmitDetailModal({ notice, session, teachers, onClose }) {
-  const [submits, setSubmits] = useState([])
-  const [loading, setLoading] = useState(true)
+// ── 업무 현황 상세 모달
+function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
+  const [submits, setSubmits]   = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [memo, setMemo]         = useState(notice.memo||'')
+  const [showMemo, setShowMemo] = useState(false)
   const { success } = useToast()
 
   const load = useCallback(async () => {
@@ -220,53 +271,69 @@ function SubmitDetailModal({ notice, session, teachers, onClose }) {
   useEffect(() => { load() }, [load])
 
   const targets = notice.targetTeacherIds || []
-  const submitted = submits.filter(s => s.status === 'submitted')
-  const rate = targets.length > 0 ? Math.round(submitted.length / targets.length * 100) : 0
+  const counts  = Object.fromEntries(
+    Object.keys(SUBMIT_STATUS).map(k => [k, submits.filter(s=>s.status===k).length])
+  )
+  const allReplied = (counts.replied + counts.submitted) >= targets.length && targets.length > 0
 
-  const sendRemind = () => {
-    const pending = targets.filter(tid => !submitted.find(s => s.teacherId === tid))
-    const names = pending.map(tid => teachers.find(t=>t.teacherId===tid)?.teacherName||'').filter(Boolean)
-    if (!names.length) { success('모두 제출 완료!'); return }
-    const msg = `[방과후 출석부] 📋 ${notice.title}\n미제출 선생님: ${names.join(', ')}\n마감일: ${notice.dueDate||'미정'}\n빠른 제출 부탁드립니다.`
-    navigator.clipboard?.writeText(msg).then(() => success('독촉 문자 문구가 복사됐습니다.'))
+  // 업무 전체 상태 변경
+  const setNoticeStatus = async (status) => {
+    const patch = { status }
+    if (status === 'working') patch.memo = memo
+    await dbCall('update', 'schoolNotices', { id: notice.id, patch })
+    success(status==='done' ? '✅ 업무완료 처리했습니다!' : '📝 업무중으로 저장했습니다.')
+    setShowMemo(false)
+    onReload()
+    onClose()
   }
 
+  const typeInfo = notice.type==='invite' ? { icon:'🔗', text:'연결 초대' }
+                 : notice.type==='task'   ? { icon:'📎', text:'업무 요청' }
+                 :                          { icon:'📋', text:'공지 전달' }
+
+  const ns = NOTICE_STATUS[notice.status] || NOTICE_STATUS.active
+
   return (
-    <Modal title={`📋 ${notice.title} — 제출 현황`} onClose={onClose} width={560}>
+    <Modal title={`${typeInfo.icon} ${notice.title}`} onClose={onClose} width={620}>
       <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
-        {/* 진행률 */}
-        <div style={{ background:'#f8fafc', borderRadius:'12px', padding:'16px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'8px' }}>
-            <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{submitted.length} / {targets.length}명 제출</span>
-            <span style={{ fontSize:'14px', fontWeight:700, color: rate===100?C.success:C.primary }}>{rate}%</span>
-          </div>
-          <div style={{ height:'8px', background:'#e5e7eb', borderRadius:'999px', overflow:'hidden' }}>
-            <div style={{ width:`${rate}%`, height:'100%', background: rate===100?C.success:C.primary, borderRadius:'999px', transition:'width .4s' }}/>
-          </div>
-          {notice.dueDate && <div style={{ fontSize:'12px', color:C.muted, marginTop:'6px' }}>마감일: {notice.dueDate}</div>}
+
+        {/* 업무 정보 */}
+        <div style={{ background:'#f8fafc', borderRadius:'10px', padding:'12px 16px', display:'flex', gap:'16px', flexWrap:'wrap', alignItems:'center' }}>
+          <span style={{ fontSize:'12px', fontWeight:700, color:ns.color, background:ns.bg, padding:'3px 10px', borderRadius:'999px' }}>{ns.label}</span>
+          <span style={{ fontSize:'13px', color:C.muted }}>대상 <strong style={{ color:C.text }}>{targets.length}명</strong></span>
+          {notice.startDate && <span style={{ fontSize:'12px', color:C.muted }}>📅 {notice.startDate}{notice.endDate?` ~ ${notice.endDate}`:''}</span>}
+          {notice.dueDate   && <span style={{ fontSize:'12px', color:C.muted }}>⏰ 마감 {notice.dueDate}</span>}
         </div>
 
-        {/* 제출 목록 */}
+        {/* 개별 선생님 상태 요약 */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
+          {Object.entries(SUBMIT_STATUS).map(([k,s]) => (
+            <div key={k} style={{ background:s.bg, borderRadius:'10px', padding:'10px 14px', textAlign:'center' }}>
+              <div style={{ fontSize:'20px', fontWeight:800, color:s.color }}>{counts[k]||0}</div>
+              <div style={{ fontSize:'11px', color:C.muted }}>{s.icon} {s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* 선생님별 목록 */}
         {loading ? <div style={{ textAlign:'center', padding:'20px', color:C.muted }}>불러오는 중...</div> : (
-          <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'300px', overflowY:'auto' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'280px', overflowY:'auto' }}>
             {targets.map(tid => {
               const teacher = teachers.find(t=>t.teacherId===tid)
-              const submit = submits.find(s=>s.teacherId===tid)
-              const done = submit?.status === 'submitted'
+              const sub     = submits.find(s=>s.teacherId===tid)
+              const st      = sub?.status || 'pending'
+              const si      = SUBMIT_STATUS[st] || SUBMIT_STATUS.pending
               return (
-                <div key={tid} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:'10px', background: done?'#f0fdf4':'#fef2f2', border:`1px solid ${done?'#86efac':'#fca5a5'}` }}>
+                <div key={tid} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:'10px', background:si.bg, border:`1px solid ${si.color}33` }}>
                   <div>
                     <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{teacher?.teacherName||'알 수 없음'}</span>
-                    {done && submit?.submittedAt && (
-                      <span style={{ fontSize:'11px', color:C.muted, marginLeft:'8px' }}>{submit.submittedAt.slice(0,10)}</span>
-                    )}
+                    {sub?.repliedAt   && <span style={{ fontSize:'11px', color:C.muted, marginLeft:'8px' }}>회신: {sub.repliedAt.slice(0,10)}</span>}
+                    {sub?.submittedAt && <span style={{ fontSize:'11px', color:C.muted, marginLeft:'8px' }}>제출: {sub.submittedAt.slice(0,10)}</span>}
                   </div>
                   <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                    {done && submit?.fileUrl && (
-                      <a href={submit.fileUrl} download={submit.fileName} style={{ fontSize:'12px', color:C.primary, textDecoration:'none', fontWeight:600 }}>⬇ 파일</a>
-                    )}
-                    <span style={{ fontSize:'12px', fontWeight:700, color: done?C.success:C.danger }}>
-                      {done ? '✅ 제출완료' : '⏳ 미제출'}
+                    {sub?.fileUrl && <a href={sub.fileUrl} download={sub.fileName} style={{ fontSize:'12px', color:C.primary, textDecoration:'none', fontWeight:600 }}>⬇ 파일</a>}
+                    <span style={{ fontSize:'11px', fontWeight:700, color:si.color, padding:'3px 10px', borderRadius:'999px', background:'#fff', border:`1px solid ${si.color}44`, whiteSpace:'nowrap' }}>
+                      {si.icon} {si.label}
                     </span>
                   </div>
                 </div>
@@ -275,8 +342,53 @@ function SubmitDetailModal({ notice, session, teachers, onClose }) {
           </div>
         )}
 
-        <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-          {rate < 100 && <Btn color="secondary" onClick={sendRemind}>📨 미제출자 독촉 문구 복사</Btn>}
+        {/* 업무중 메모 입력 */}
+        {showMemo && (
+          <div>
+            <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>메모 (업무중 사유/내용)</label>
+            <textarea value={memo} onChange={e=>setMemo(e.target.value)}
+              style={{ ...iSt, resize:'vertical', width:'100%', boxSizing:'border-box' }} rows={3}
+              placeholder="예: 3명 서류 미비, 다음 주 재수령 예정" />
+          </div>
+        )}
+        {notice.memo && !showMemo && (
+          <div style={{ background:'#fffbeb', borderRadius:'8px', padding:'10px 14px', fontSize:'13px', color:'#92400e' }}>
+            📝 메모: {notice.memo}
+          </div>
+        )}
+
+        {/* 담당자 액션 버튼 */}
+        <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:'14px', display:'flex', gap:'8px', justifyContent:'flex-end', flexWrap:'wrap' }}>
+          {notice.status !== 'done' && (
+            <>
+              {!showMemo ? (
+                <button onClick={()=>setShowMemo(true)} style={{
+                  padding:'9px 18px', borderRadius:'9px', border:`2px solid #d97706`,
+                  background:'#fffbeb', color:'#92400e', fontWeight:700, fontSize:'13px',
+                  cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                }}>📝 업무중</button>
+              ) : (
+                <button onClick={()=>setNoticeStatus('working')} style={{
+                  padding:'9px 18px', borderRadius:'9px', border:'none',
+                  background:'#d97706', color:'#fff', fontWeight:700, fontSize:'13px',
+                  cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                }}>💾 업무중 저장</button>
+              )}
+              <button onClick={()=>setNoticeStatus('done')} style={{
+                padding:'9px 18px', borderRadius:'9px', border:'none',
+                background:'#16a34a', color:'#fff', fontWeight:700, fontSize:'13px',
+                cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                boxShadow:'0 2px 8px rgba(22,163,74,0.3)',
+              }}>✅ 업무완료</button>
+            </>
+          )}
+          {notice.status === 'done' && (
+            <button onClick={()=>setNoticeStatus('active')} style={{
+              padding:'9px 18px', borderRadius:'9px', border:`1px solid ${C.border}`,
+              background:'#fff', color:C.muted, fontWeight:600, fontSize:'13px',
+              cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+            }}>↩ 진행중으로 되돌리기</button>
+          )}
           <Btn color="secondary" onClick={onClose}>닫기</Btn>
         </div>
       </div>
@@ -284,103 +396,123 @@ function SubmitDetailModal({ notice, session, teachers, onClose }) {
   )
 }
 
-// ── 공지 관리 탭
+// ── 공지·업무 관리 탭
 function NoticesTab({ session }) {
   const { success, error } = useToast()
   const [notices, setNotices]   = useState([])
   const [teachers, setTeachers] = useState([])
   const [loading, setLoading]   = useState(true)
-  const [showCreate, setShowCreate] = useState(false)
+  const [showCreate, setShowCreate]   = useState(false)
   const [detailNotice, setDetailNotice] = useState(null)
-  const [submitCounts, setSubmitCounts] = useState({}) // noticeId → {total, done}
+  const [filterStatus, setFilterStatus] = useState('all') // all | active | working | done
 
   const load = useCallback(async () => {
     setLoading(true)
     const [n, t] = await Promise.all([DB.notices(session.adminId), DB.teachers(session.adminId)])
     setNotices(n.sort((a,b)=>b.createdAt?.localeCompare(a.createdAt)))
     setTeachers(t)
-    // 각 공지별 제출 현황 카운트
-    const counts = {}
-    await Promise.all(n.map(async notice => {
-      const s = await DB.submits(notice.id)
-      counts[notice.id] = {
-        total: (notice.targetTeacherIds||[]).length,
-        done: s.filter(x=>x.status==='submitted').length,
-      }
-    }))
-    setSubmitCounts(counts)
     setLoading(false)
   }, [session.adminId])
 
   useEffect(() => { load() }, [load])
 
   const deleteNotice = async (id) => {
-    if (!window.confirm('공지를 삭제하시겠습니까?')) return
+    if (!window.confirm('삭제하시겠습니까?')) return
     await DB.deleteNotice(id)
     success('삭제되었습니다.')
     load()
   }
 
+  const filtered = notices.filter(n => filterStatus==='all' || n.status===filterStatus)
+
+  const typeInfo = (type) =>
+    type==='invite' ? { icon:'🔗', text:'연결 초대', color:'#3b82f6', bg:'#eff6ff' } :
+    type==='task'   ? { icon:'📎', text:'업무 요청', color:'#d97706', bg:'#fffbeb' } :
+                      { icon:'📋', text:'공지 전달', color:'#6b7280', bg:'#f3f4f6' }
+
   return (
-    <div style={{ padding:'24px' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'20px' }}>
+    <div style={{ padding:'24px', maxWidth:'900px' }}>
+      {/* 헤더 */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px' }}>
         <div>
           <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>📋 공지·업무 관리</div>
-          <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>선생님들에게 업무를 요청하고 제출 현황을 확인하세요</div>
+          <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>선생님들에게 공지하고 업무를 요청·관리하세요</div>
         </div>
-        <Btn onClick={()=>setShowCreate(true)}>+ 공지 등록</Btn>
+        <Btn onClick={()=>setShowCreate(true)}>+ 등록</Btn>
       </div>
 
-      {loading ? <div style={{ textAlign:'center', padding:'40px', color:C.muted }}>불러오는 중...</div> : (
-        notices.length === 0
-          ? <div style={{ textAlign:'center', padding:'60px', color:C.muted, background:C.bg, borderRadius:'14px', border:`1px dashed ${C.border}` }}>
-              <div style={{ fontSize:'40px', marginBottom:'10px' }}>📋</div>
-              <div>등록된 공지가 없습니다.</div>
-            </div>
-          : <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-              {notices.map(notice => {
-                const cnt = submitCounts[notice.id] || { total:0, done:0 }
-                const rate = cnt.total > 0 ? Math.round(cnt.done/cnt.total*100) : 0
-                const done = rate === 100 && cnt.total > 0
-                return (
-                  <div key={notice.id} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${done?'#86efac':C.border}`, padding:'16px 20px' }}>
-                    <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'12px' }}>
-                      <div style={{ flex:1 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px' }}>
-                          <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{notice.title}</span>
-                          {done && <span style={{ fontSize:'11px', fontWeight:700, background:'#dcfce7', color:'#15803d', padding:'2px 8px', borderRadius:'999px' }}>✅ 전원 제출</span>}
-                        </div>
-                        {notice.dueDate && <div style={{ fontSize:'12px', color:C.muted }}>마감일: {notice.dueDate}</div>}
-                        {notice.content && <div style={{ fontSize:'12px', color:C.muted, marginTop:'4px', lineHeight:1.6 }}>{notice.content}</div>}
-                        {/* 진행바 */}
-                        <div style={{ marginTop:'10px' }}>
-                          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'4px' }}>
-                            <span style={{ fontSize:'12px', color:C.muted }}>{cnt.done}/{cnt.total}명 제출</span>
-                            <span style={{ fontSize:'12px', fontWeight:700, color:done?C.success:C.primary }}>{rate}%</span>
-                          </div>
-                          <div style={{ height:'6px', background:'#e5e7eb', borderRadius:'999px', overflow:'hidden' }}>
-                            <div style={{ width:`${rate}%`, height:'100%', background:done?C.success:C.primary, borderRadius:'999px', transition:'width .4s' }}/>
-                          </div>
-                        </div>
+      {/* 상태 필터 */}
+      <div style={{ display:'flex', gap:'6px', marginBottom:'16px' }}>
+        {[['all','전체'],['active','진행중'],['working','업무중'],['done','업무완료']].map(([v,l]) => (
+          <button key={v} onClick={()=>setFilterStatus(v)} style={{
+            padding:'6px 14px', borderRadius:'999px', border:'none', cursor:'pointer',
+            fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', fontWeight:filterStatus===v?700:400,
+            background:filterStatus===v?'#1e3a5f':'#e5e7eb', color:filterStatus===v?'#fff':C.muted,
+          }}>{l} {filterStatus===v&&`(${filtered.length})`}</button>
+        ))}
+      </div>
+
+      {loading ? <div style={{ textAlign:'center', padding:'40px', color:C.muted }}>불러오는 중...</div>
+      : filtered.length===0
+        ? <div style={{ textAlign:'center', padding:'60px', color:C.muted, background:'#f8fafc', borderRadius:'14px', border:`1px dashed ${C.border}` }}>
+            <div style={{ fontSize:'40px', marginBottom:'10px' }}>📋</div>
+            <div>등록된 항목이 없습니다.</div>
+          </div>
+        : <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+            {filtered.map(notice => {
+              const ti  = typeInfo(notice.type)
+              const ns  = NOTICE_STATUS[notice.status] || NOTICE_STATUS.active
+              const cnt = (notice.targetTeacherIds||[]).length
+              return (
+                <div key={notice.id} style={{
+                  background:C.card, borderRadius:'14px',
+                  border:`2px solid ${notice.status==='done'?'#86efac':notice.status==='working'?'#fcd34d':C.border}`,
+                  padding:'16px 20px',
+                }}>
+                  <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'12px' }}>
+                    <div style={{ flex:1 }}>
+                      {/* 뱃지 행 */}
+                      <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'6px', alignItems:'center' }}>
+                        <span style={{ fontSize:'11px', fontWeight:700, color:ti.color, background:ti.bg, padding:'2px 8px', borderRadius:'999px' }}>{ti.icon} {ti.text}</span>
+                        <span style={{ fontSize:'11px', fontWeight:700, color:ns.color, background:ns.bg, padding:'2px 8px', borderRadius:'999px' }}>{ns.label}</span>
+                        <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{notice.title}</span>
                       </div>
-                      <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
-                        <Btn onClick={()=>setDetailNotice(notice)}>현황 보기</Btn>
-                        <Btn color="danger" onClick={()=>deleteNotice(notice.id)}>삭제</Btn>
+                      {/* 기간/마감 */}
+                      <div style={{ fontSize:'12px', color:C.muted, display:'flex', gap:'12px', flexWrap:'wrap' }}>
+                        {notice.startDate && <span>📅 {notice.startDate}{notice.endDate?` ~ ${notice.endDate}`:''}</span>}
+                        {notice.dueDate   && <span>⏰ 마감 {notice.dueDate}</span>}
+                        <span>👥 {cnt}명</span>
                       </div>
+                      {/* 메모 */}
+                      {notice.memo && (
+                        <div style={{ fontSize:'12px', color:'#92400e', background:'#fffbeb', borderRadius:'6px', padding:'4px 10px', marginTop:'6px', display:'inline-block' }}>
+                          📝 {notice.memo}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+                      <Btn onClick={()=>setDetailNotice(notice)}>현황</Btn>
+                      <Btn color="danger" onClick={()=>deleteNotice(notice.id)}>삭제</Btn>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-      )}
+                </div>
+              )
+            })}
+          </div>
+      }
 
       {showCreate && <NoticeCreateModal session={session} teachers={teachers} onSave={load} onClose={()=>setShowCreate(false)} />}
-      {detailNotice && <SubmitDetailModal notice={detailNotice} session={session} teachers={teachers} onClose={()=>{ setDetailNotice(null); load() }} />}
+      {detailNotice && (
+        <NoticeDetailModal
+          notice={detailNotice} session={session} teachers={teachers}
+          onClose={()=>setDetailNotice(null)}
+          onReload={load}
+        />
+      )}
     </div>
   )
 }
 
-// ── 상수
 const CURRENT_YEAR = new Date().getFullYear()
 const DAYS_LIST = ['월', '화', '수', '목', '금', '토']
 
@@ -657,6 +789,21 @@ function TeacherFormModal({ mode, form, setForm, session, subjects, onSave, onCl
           </div>
         </div>
 
+        {/* 계약 기간 */}
+        <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, margin:'14px 0 10px', letterSpacing:'.8px' }}>계약 기간</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
+          <div>
+            <LBL>시작 날짜</LBL>
+            <input style={iSt2} type="date" value={form.startDate||''}
+              onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
+          </div>
+          <div>
+            <LBL>마감 날짜</LBL>
+            <input style={iSt2} type="date" value={form.endDate||''}
+              onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
+          </div>
+        </div>
+
         {/* 첨부 서류 */}
         <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, margin:'16px 0 10px', letterSpacing:'.8px' }}>첨부 서류</div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'12px', marginBottom:'24px' }}>
@@ -698,6 +845,7 @@ function TeacherDetailModal({ t, onClose }) {
         {[
           ['연도', t.year], ['학교명', t.schoolName], ['과목', t.subject],
           ['요일', t.days ? t.days+'요일' : '-'], ['전화번호', t.teacherPhone], ['이메일', t.email],
+          ['시작 날짜', t.startDate || '-'], ['마감 날짜', t.endDate || '-'],
         ].map(([k,v]) => (
           <div key={k} style={{ display:'flex', gap:'12px', padding:'9px 0', borderBottom:`1px solid ${C.border}`, fontSize:'13px' }}>
             <span style={{ color:C.muted, width:'110px', flexShrink:0 }}>{k}</span>
@@ -728,6 +876,7 @@ function TeachersTab({ session }) {
   const EMPTY = {
     year: CURRENT_YEAR, schoolName: session.admin?.schoolName || '',
     teacherName: '', subject: '', days: '', teacherPhone: '', email: '',
+    startDate: '', endDate: '',
     feeAccount: null, vendorBiz: null, vendorAccount: null,
   }
   const [form, setForm] = useState(EMPTY)
@@ -773,6 +922,8 @@ function TeachersTab({ session }) {
     days: f.days.trim(),
     teacherPhone: f.teacherPhone.trim(),
     email: f.email.trim().toLowerCase(),
+    startDate: f.startDate || null,
+    endDate: f.endDate || null,
     feeAccount: f.feeAccount || null,
     vendorBiz: f.vendorBiz || null,
     vendorAccount: f.vendorAccount || null,
@@ -799,6 +950,7 @@ function TeachersTab({ session }) {
       year: t.year || CURRENT_YEAR, schoolName: t.schoolName || '',
       teacherName: t.teacherName || '', subject: t.subject || '',
       days: t.days || '', teacherPhone: t.teacherPhone || '', email: t.email || '',
+      startDate: t.startDate || '', endDate: t.endDate || '',
       feeAccount: t.feeAccount || null, vendorBiz: t.vendorBiz || null, vendorAccount: t.vendorAccount || null,
     })
     setModalMode('edit')
@@ -848,18 +1000,25 @@ function TeachersTab({ session }) {
         </div>
       ) : (
         <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr 110px', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
-            <span>이름</span><span>과목·요일</span><span>전화번호</span><span>이메일</span><span>서류</span><span></span>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr 1fr 110px', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
+            <span>이름</span><span>과목·요일</span><span>계약 기간</span><span>전화번호</span><span>이메일</span><span>서류</span><span></span>
           </div>
           {filtered.map((t, i) => (
             <div key={t.id} style={{
-              display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr 110px',
+              display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr 1fr 110px',
               padding:'12px 16px', borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none', alignItems:'center',
             }}>
               <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{t.teacherName}</span>
               <div>
                 <div style={{ fontSize:'13px', color:C.text }}>{t.subject||'-'}</div>
                 <div style={{ fontSize:'11px', color:C.muted }}>{t.days ? t.days+'요일' : '-'}</div>
+              </div>
+              <div>
+                {t.startDate
+                  ? <><div style={{ fontSize:'12px', color:C.text }}>{t.startDate}</div>
+                      <div style={{ fontSize:'11px', color:C.muted }}>~ {t.endDate||'미정'}</div></>
+                  : <span style={{ fontSize:'12px', color:'#d1d5db' }}>미설정</span>
+                }
               </div>
               <span style={{ fontSize:'13px', color:C.muted }}>{t.teacherPhone||'-'}</span>
               <span style={{ fontSize:'12px', color:C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.email||'-'}</span>
@@ -1142,7 +1301,8 @@ function ConnectTab({ session }) {
     const s = getStatus(t); acc[s] = (acc[s]||0)+1; return acc
   }, {})
 
-  const sendInvite = async (t) => {
+  // 단일 선생님에게 초대 발송 (noticeId 지정 가능)
+  const sendInvite = async (t, noticeId = null) => {
     const email = t.email?.toLowerCase()
     if (!email) { error('이메일이 등록되지 않은 선생님입니다.'); return }
     setSending(prev => ({ ...prev, [t.id]: true }))
@@ -1158,6 +1318,7 @@ function ConnectTab({ session }) {
         teacherEmail: email,
         teacherName:  t.teacherName,
         teacherId:    appUser?.id || null,
+        noticeId:     noticeId || existingInv?.noticeId || null,
         status:       newStatus,
         sentAt:       now(),
         createdAt:    existingInv?.createdAt || now(),
@@ -1181,32 +1342,71 @@ function ConnectTab({ session }) {
         })
       }
 
-      // 낙관적 업데이트 — 로컬 state 즉시 반영 (다른 페이지와 동일한 패턴)
+      // 낙관적 업데이트
       setInvites(prev => {
         const without = prev.filter(i => i.teacherEmail?.toLowerCase() !== email)
         return [...without, inviteData]
       })
 
-      // 토스트
-      success(appUser
-        ? `✅ ${t.teacherName} 선생님께 연결 초대장을 발송했습니다!`
-        : `✅ ${t.teacherName} 선생님께 서비스 가입 초대를 발송했습니다!`
-      )
-
-      // 백그라운드에서 서버 데이터 동기화 (토스트 방해 없음)
-      silentRefresh()
-
+      if (!noticeId) {
+        // 개별 발송 시에만 토스트 (일괄은 sendBulk에서 표시)
+        success(appUser
+          ? `✅ ${t.teacherName} 선생님께 연결 초대장을 발송했습니다!`
+          : `✅ ${t.teacherName} 선생님께 서비스 가입 초대를 발송했습니다!`
+        )
+        silentRefresh()
+      }
     } catch { error('초대 발송 중 오류가 발생했습니다.') }
     setSending(prev => ({ ...prev, [t.id]: false }))
   }
 
-  // 일괄 초대: ready + notjoined 모두 (ready는 팝업, notjoined는 가입 안내)
+  // 일괄 초대 — schoolNotices에 업무 자동 생성 후 각 선생님 발송
   const sendBulk = async () => {
     const targets = filtered.filter(t => ['ready','notjoined'].includes(getStatus(t)))
     if (!targets.length) { error('발송할 선생님이 없습니다.'); return }
-    for (const t of targets) await sendInvite(t)
+
+    // 1) schoolNotices에 업무 1건 자동 생성
+    const noticeId = uid()
+    const notice = {
+      id:               noticeId,
+      adminId:          session.adminId,
+      schoolName:       session.admin?.schoolName || '',
+      type:             'invite',
+      title:            `연결 초대 — ${selYear}년 ${session.admin?.schoolName||''}`,
+      content:          `${targets.length}명 선생님에게 연결 초대를 발송했습니다.`,
+      startDate:        null,
+      endDate:          null,
+      dueDate:          null,
+      targetTeacherIds: targets.map(t => t.teacherId || t.id),
+      status:           'active',
+      createdAt:        now(),
+    }
+    await dbCall('upsert', 'schoolNotices', { data: notice })
+
+    // 2) 각 선생님별 submit 레코드 생성 (pending)
+    await Promise.all(targets.map(t =>
+      dbCall('upsert', 'schoolNoticeSubmits', {
+        data: {
+          id:        uid(),
+          noticeId,
+          teacherId: t.teacherId || t.id,
+          adminId:   session.adminId,
+          status:    'pending',
+          createdAt: now(),
+        }
+      })
+    ))
+
+    // 3) 각 선생님에게 초대 발송
+    for (const t of targets) {
+      await sendInvite(t, noticeId)
+    }
+
+    success(`✅ ${targets.length}명에게 초대를 발송했습니다! 공지·업무 탭에서 현황을 확인하세요.`)
+    silentRefresh()
   }
   const bulkCount = filtered.filter(t => ['ready','notjoined'].includes(getStatus(t))).length
+
 
   return (
     <div style={{ padding:'28px', maxWidth:'960px' }}>
