@@ -154,7 +154,52 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
   )
 }
 
-export function SchoolCalendar({ cls, onUpdate }) {
+export function SchoolCalendar({ cls, onUpdate, onSave, session }) {
+  const [localCls, setLocalCls] = React.useState(() => ({
+    title: '', days: [], termType: 'semester', termCount: 4, termSizes: [4,4,4,4],
+    repeatType: 'every', startDate: '', endDate: '',
+    cancelledDates: [], makeupDates: [], totalSessions: null,
+    applyStartAt: null, applyEndAt: null,
+    ...cls,
+  }))
+  const updateLocal = (patch) => {
+    const updated = { ...localCls, ...patch }
+    setLocalCls(updated)
+    onUpdate(updated)
+  }
+
+  // cls 외부 변경 시 동기화 (다른 일정 선택)
+  React.useEffect(() => {
+    setLocalCls({
+      title: '', days: [], termType: 'semester', termCount: 4, termSizes: [4,4,4,4],
+      repeatType: 'every', startDate: '', endDate: '',
+      cancelledDates: [], makeupDates: [], totalSessions: null,
+      applyStartAt: null, applyEndAt: null,
+      ...cls,
+    })
+  }, [cls?.id])
+
+  const set = (k, v) => updateLocal({ [k]: v })
+
+  const HOLIDAYS_DATA = {
+    2025:[ {date:'2025-01-01',name:'신정'},{date:'2025-01-28',name:'설날'},{date:'2025-01-29',name:'설날'},{date:'2025-01-30',name:'설날'},
+      {date:'2025-03-01',name:'삼일절'},{date:'2025-05-05',name:'어린이날'},{date:'2025-05-06',name:'어린이날 대체'},
+      {date:'2025-05-13',name:'부처님오신날'},{date:'2025-06-06',name:'현충일'},{date:'2025-08-15',name:'광복절'},
+      {date:'2025-10-03',name:'개천절'},{date:'2025-10-05',name:'추석'},{date:'2025-10-06',name:'추석'},{date:'2025-10-07',name:'추석'},
+      {date:'2025-10-08',name:'추석 대체'},{date:'2025-10-09',name:'한글날'},{date:'2025-12-25',name:'성탄절'} ],
+    2026:[ {date:'2026-01-01',name:'신정'},{date:'2026-01-28',name:'설날'},{date:'2026-01-29',name:'설날'},{date:'2026-01-30',name:'설날'},
+      {date:'2026-03-01',name:'삼일절'},{date:'2026-05-05',name:'어린이날'},{date:'2026-05-24',name:'부처님오신날'},
+      {date:'2026-06-03',name:'지방선거일'},{date:'2026-06-06',name:'현충일'},{date:'2026-08-15',name:'광복절'},
+      {date:'2026-09-24',name:'추석'},{date:'2026-09-25',name:'추석'},{date:'2026-09-26',name:'추석'},
+      {date:'2026-10-03',name:'개천절'},{date:'2026-10-09',name:'한글날'},{date:'2026-12-25',name:'성탄절'} ],
+    2027:[ {date:'2027-01-01',name:'신정'},{date:'2027-02-16',name:'설날'},{date:'2027-02-17',name:'설날'},{date:'2027-02-18',name:'설날'},
+      {date:'2027-03-01',name:'삼일절'},{date:'2027-05-05',name:'어린이날'},{date:'2027-05-13',name:'부처님오신날'},
+      {date:'2027-06-06',name:'현충일'},{date:'2027-08-15',name:'광복절'},
+      {date:'2027-09-14',name:'추석'},{date:'2027-09-15',name:'추석'},{date:'2027-09-16',name:'추석'},
+      {date:'2027-10-03',name:'개천절'},{date:'2027-10-09',name:'한글날'},{date:'2027-12-25',name:'성탄절'} ],
+  }
+
+  const hasConfig = localCls.startDate && localCls.endDate && localCls.days?.length
   const [selectedDate,  setSelectedDate]  = useState(null)
   const [clickType,     setClickType]     = useState(null)  // 'normal' | 'session' | 'cancelled' | 'makeup'
   const [showNormalAction,     setShowNormalAction]     = useState(false)  // 빈 날짜 클릭
@@ -177,78 +222,79 @@ export function SchoolCalendar({ cls, onUpdate }) {
     { value: 'etc',            label: '기타' },
   ]
 
-  if (!cls?.startDate || !cls?.endDate || !cls?.days?.length) {
-    return <div style={{ color:'#9ca3af', fontSize:'14px', padding:'20px', textAlign:'center' }}>수업 기간과 요일을 먼저 설정하세요.</div>
-  }
+  const defaultYear = localCls?.year || new Date().getFullYear()
 
-  const allSessions   = calcSessionDates(cls)
-  // totalSessions 설정 시 해당 수만큼만 차시 번호 표시, 초과 날짜는 빈 날짜로 표시
-  const sessions      = cls.totalSessions ? allSessions.slice(0, cls.totalSessions) : allSessions
-  const cancelled     = new Set((cls.cancelledDates || []).map(c => c.date))
-  const cancelledDates = cls.cancelledDates || []
-  const makeupDates   = cls.makeupDates || []
+  const allSessions   = hasConfig ? calcSessionDates(localCls) : []
+  const sessions      = hasConfig && localCls.totalSessions ? allSessions.slice(0, localCls.totalSessions) : allSessions
+  const cancelled     = new Set((localCls.cancelledDates || []).map(c => c.date))
+  const cancelledDates = localCls.cancelledDates || []
+  const makeupDates   = localCls.makeupDates || []
 
-  // 보강 차시는 취소된 차시 이후 번호 부여
-  const termSizes = (cls.termSizes?.length > 0)
-    ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length).map(n => Number(n) || 4)
-    : [cls.termSize ? Number(cls.termSize) : 4]
+  const termSizes = (localCls.termSizes?.length > 0)
+    ? localCls.termSizes.slice(0, localCls.termCount || localCls.termSizes.length).map(n => Number(n) || 4)
+    : [localCls.termSize ? Number(localCls.termSize) : 4]
 
-  // sessionMap: 날짜 → { total: 전체차시, termNum: 텀번호, termSess: 텀내차시 }
   const sessionMap = {}
   const termMap    = {}
   let totalIdx = 1
   let cursor   = 0
-  termSizes.forEach((size, ti) => {
-    let termIdx = 1
-    sessions.slice(cursor, cursor + size).forEach(d => {
-      if (!cancelled.has(d)) {
-        sessionMap[d] = { total: totalIdx++, termNum: ti+1, termSess: termIdx++ }
-        termMap[d] = ti + 1
-      } else {
-        termMap[d] = ti + 1
-      }
+  if (hasConfig) {
+    termSizes.forEach((size, ti) => {
+      let termIdx = 1
+      sessions.slice(cursor, cursor + size).forEach(d => {
+        if (!cancelled.has(d)) {
+          sessionMap[d] = { total: totalIdx++, termNum: ti+1, termSess: termIdx++ }
+          termMap[d] = ti + 1
+        } else {
+          termMap[d] = ti + 1
+        }
+      })
+      cursor += size
     })
-    cursor += size
-  })
-  // 남은 차시 — totalSessions 미설정 시에만 처리
-  if (!cls.totalSessions && cursor < sessions.length) {
-    let termIdx = 1
-    sessions.slice(cursor).forEach(d => {
-      if (!cancelled.has(d)) {
-        sessionMap[d] = { total: totalIdx++, termNum: termSizes.length, termSess: termIdx++ }
-      }
-      termMap[d] = termSizes.length
-    })
+    if (!localCls.totalSessions && cursor < sessions.length) {
+      let termIdx = 1
+      sessions.slice(cursor).forEach(d => {
+        if (!cancelled.has(d)) {
+          sessionMap[d] = { total: totalIdx++, termNum: termSizes.length, termSess: termIdx++ }
+        }
+        termMap[d] = termSizes.length
+      })
+    }
   }
-  // 보강일
   makeupDates.forEach(m => {
     sessionMap[m.date] = { total: totalIdx++, termNum: 0, termSess: 0, isMakeup: true }
   })
 
-  const startD = new Date(cls.startDate + 'T00:00:00')
-  const endD   = new Date(cls.endDate   + 'T00:00:00')
   const months = []
-  let cur = new Date(startD.getFullYear(), startD.getMonth(), 1)
-  while (cur <= endD) {
-    months.push({ year: cur.getFullYear(), month: cur.getMonth() })
-    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1)
+  if (hasConfig) {
+    const startD = new Date(localCls.startDate + 'T00:00:00')
+    const endD   = new Date(localCls.endDate   + 'T00:00:00')
+    let cur = new Date(startD.getFullYear(), startD.getMonth(), 1)
+    while (cur <= endD) {
+      months.push({ year: cur.getFullYear(), month: cur.getMonth() })
+      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1)
+    }
+  } else {
+    for (let m = 0; m < 12; m++) {
+      months.push({ year: defaultYear, month: m })
+    }
   }
 
   // 신청기간 모달 열 때 기존 값 로드
   const openApplyPeriod = () => {
-    setApplyStart(cls.applyStartAt ? cls.applyStartAt.slice(0,16) : '')
-    setApplyEnd(  cls.applyEndAt   ? cls.applyEndAt.slice(0,16)   : '')
+    setApplyStart(localCls.applyStartAt ? localCls.applyStartAt.slice(0,16) : '')
+    setApplyEnd(  localCls.applyEndAt   ? localCls.applyEndAt.slice(0,16)   : '')
     setShowApplyPeriod(true)
   }
   const saveApplyPeriod = () => {
-    onUpdate({ ...cls, applyStartAt: applyStart || null, applyEndAt: applyEnd || null })
+    onUpdate({ ...localCls, applyStartAt: applyStart || null, applyEndAt: applyEnd || null })
     setShowApplyPeriod(false)
   }
 
   // 신청기간 상태 계산
   const now = new Date()
-  const applyStartD = cls.applyStartAt ? new Date(cls.applyStartAt) : null
-  const applyEndD   = cls.applyEndAt   ? new Date(cls.applyEndAt)   : null
+  const applyStartD = localCls.applyStartAt ? new Date(localCls.applyStartAt) : null
+  const applyEndD   = localCls.applyEndAt   ? new Date(localCls.applyEndAt)   : null
   const isApplyOpen = applyStartD && applyEndD && now >= applyStartD && now <= applyEndD
   const isApplyPast = applyEndD && now > applyEndD
   const fmtDT = (iso) => {
@@ -269,12 +315,12 @@ export function SchoolCalendar({ cls, onUpdate }) {
   }
 
   const handleCancelSave = () => {
-    onUpdate({ ...cls, cancelledDates: [...cancelledDates, { date: selectedDate, reason, memo }] })
+    onUpdate({ ...localCls, cancelledDates: [...cancelledDates, { date: selectedDate, reason, memo }] })
     setShowCancel(false)
   }
 
   const handleMakeupSave = () => {
-    onUpdate({ ...cls, makeupDates: [...makeupDates, { date: selectedDate, memo }] })
+    onUpdate({ ...localCls, makeupDates: [...makeupDates, { date: selectedDate, memo }] })
     setShowMakeup(false)
   }
 
@@ -292,11 +338,11 @@ export function SchoolCalendar({ cls, onUpdate }) {
   })
 
   // ── 유효성 검사 ────────────────────────────────────────────
-  const totalConfigured = cls.totalSessions ? Number(cls.totalSessions) : sessions.length
+  const totalConfigured = localCls.totalSessions ? Number(localCls.totalSessions) : sessions.length
   const termSum         = termSizes.reduce((a, b) => a + b, 0)
   const warnings = []
-  if (cls.totalSessions && allSessions.length < Number(cls.totalSessions)) {
-    warnings.push(`달력 날짜(${allSessions.length}회)가 설정한 전체 수업일수(${cls.totalSessions}회)보다 부족합니다. 날짜 범위를 늘리거나 수업일수를 줄이세요.`)
+  if (localCls.totalSessions && allSessions.length < Number(localCls.totalSessions)) {
+    warnings.push(`달력 날짜(${allSessions.length}회)가 설정한 전체 수업일수(${localCls.totalSessions}회)보다 부족합니다. 날짜 범위를 늘리거나 수업일수를 줄이세요.`)
   }
   if (activeCount + makeupCount > totalConfigured) {
     warnings.push(`실제 수업 횟수(${activeCount + makeupCount}회)가 전체 수업일수(${totalConfigured}회)를 초과했습니다.`)
@@ -307,8 +353,106 @@ export function SchoolCalendar({ cls, onUpdate }) {
 
   return (
     <div>
+      {/* ── 기본 정보 설정 패널 */}
+      <div style={{ background:'#f8fafc', border:'1.5px solid #e5e7eb', borderRadius:'12px', padding:'16px', marginBottom:'14px' }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'12px' }}>📋 기본 정보</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+            <div>
+              <label style={{ fontSize:'12px', color:'#6b7280', display:'block', marginBottom:'4px' }}>일정명 *</label>
+              <input value={localCls.title||''} onChange={e=>set('title',e.target.value)} placeholder="예: 2026 월요일 수업"
+                style={{ width:'100%', padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize:'12px', color:'#6b7280', display:'block', marginBottom:'4px' }}>운영 방식</label>
+              <select value={localCls.termType||'semester'} onChange={e=>set('termType',e.target.value)}
+                style={{ width:'100%', padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
+                <option value="semester">학기제</option>
+                <option value="quarter">분기제</option>
+                <option value="monthly">월정액</option>
+                <option value="custom">자유</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize:'12px', color:'#6b7280', display:'block', marginBottom:'6px' }}>수업 요일 *</label>
+            <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+              {['월','화','수','목','금','토','일'].map(d => {
+                const sel = (localCls.days||[]).includes(d)
+                return (
+                  <button key={d} type="button" onClick={() => {
+                    const cur = localCls.days||[]
+                    set('days', sel ? cur.filter(x=>x!==d) : [...cur,d])
+                  }} style={{ width:'36px', height:'36px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:'13px', fontWeight:700,
+                    background:sel?'#1e3a5f':'#f3f4f6', color:sel?'#fff':'#374151', fontFamily:'Noto Sans KR, sans-serif' }}>{d}</button>
+                )
+              })}
+            </div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+            <div>
+              <label style={{ fontSize:'12px', color:'#6b7280', display:'block', marginBottom:'4px' }}>시작일 *</label>
+              <input type="date" value={localCls.startDate||''} onChange={e=>set('startDate',e.target.value)}
+                style={{ width:'100%', padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize:'12px', color:'#6b7280', display:'block', marginBottom:'4px' }}>종료일 *</label>
+              <input type="date" value={localCls.endDate||''} onChange={e=>set('endDate',e.target.value)}
+                style={{ width:'100%', padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 텀 구성 설정 */}
+      <div style={{ background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:'12px', padding:'14px 16px', marginBottom:'14px' }}>
+        <div style={{ fontSize:'12px', fontWeight:700, color:'#ea580c', marginBottom:'12px' }}>📅 텀 구성 설정</div>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
+          <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>총 수업횟수</label>
+          <input type="number" min="1" max="200" value={localCls.totalSessions||''} placeholder="예: 20"
+            onChange={e => set('totalSessions', parseInt(e.target.value)||null)}
+            style={{ width:'72px', padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center', background:'#fff' }} />
+          {localCls.totalSessions > 0 && localCls.totalSessions !== (localCls.termSizes||[4,4,4,4]).slice(0,localCls.termCount||4).reduce((a,b)=>a+b,0) && (
+            <span style={{ fontSize:'12px', color:'#ef4444', fontWeight:600 }}>
+              ⚠️ 텀 합산({(localCls.termSizes||[4,4,4,4]).slice(0,localCls.termCount||4).reduce((a,b)=>a+b,0)}차시)과 다릅니다.
+            </span>
+          )}
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
+          <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>총 텀 수</label>
+          <div style={{ display:'flex', gap:'6px' }}>
+            {[1,2,3,4,5,6].map(n => (
+              <button key={n} type="button" onClick={() => {
+                const prev = localCls.termSizes||[4]
+                const next = Array.from({length:n},(_,i)=>prev[i]||4)
+                updateLocal({ termCount:n, termSizes:next })
+              }} style={{ width:'32px', height:'32px', borderRadius:'8px', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:700, background:(localCls.termCount||4)===n?'#f97316':'#f3f4f6', color:(localCls.termCount||4)===n?'#fff':'#374151', transition:'all .15s' }}>{n}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'flex-end' }}>
+          {Array.from({length:localCls.termCount||4},(_,i) => {
+            const sizes = localCls.termSizes||[4,4,4,4]
+            const startSession = sizes.slice(0,i).reduce((a,b)=>a+b,0)+1
+            const endSession   = sizes.slice(0,i+1).reduce((a,b)=>a+b,0)
+            return (
+              <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'4px' }}>
+                <label style={{ fontSize:'11px', color:'#ea580c', fontWeight:700 }}>{i+1}텀</label>
+                <input type="number" min="1" max="99" value={sizes[i]||4}
+                  onChange={e => { const next=[...sizes]; next[i]=parseInt(e.target.value)||1; set('termSizes',next) }}
+                  style={{ width:'52px', padding:'7px 6px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center', background:'#fff' }} />
+                <span style={{ fontSize:'10px', color:'#9ca3af' }}>{startSession}~{endSession}차시</span>
+              </div>
+            )
+          })}
+          <div style={{ fontSize:'12px', color:'#9ca3af', marginLeft:'4px', marginBottom:'18px' }}>
+            = 총 {(localCls.termSizes||[4,4,4,4]).slice(0,localCls.termCount||4).reduce((a,b)=>a+b,0)}차시
+          </div>
+        </div>
+      </div>
+
       {/* 신청기간 배너 */}
-      {(cls.applyStartAt || cls.applyEndAt) && (
+      {(localCls.applyStartAt || localCls.applyEndAt) && (
         <div style={{
           display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px',
           borderRadius:'10px', marginBottom:'12px',
@@ -319,7 +463,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
           <div style={{ flex:1, fontSize:'13px', color: isApplyOpen ? '#15803d' : isApplyPast ? '#9ca3af' : '#1d4ed8', fontWeight:600 }}>
             {isApplyOpen ? '신청 접수 중' : isApplyPast ? '신청 종료됨' : '신청 예정'}
             <span style={{ fontWeight:400, marginLeft:'8px', fontSize:'12px' }}>
-              {fmtDT(cls.applyStartAt)} ~ {fmtDT(cls.applyEndAt)}
+              {fmtDT(localCls.applyStartAt)} ~ {fmtDT(localCls.applyEndAt)}
             </span>
           </div>
           <button onClick={openApplyPeriod}
@@ -327,7 +471,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
               fontSize:'12px', color:'#6b7280', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             수정
           </button>
-          <button onClick={() => onUpdate({ ...cls, applyStartAt: null, applyEndAt: null })}
+          <button onClick={() => onUpdate({ ...localCls, applyStartAt: null, applyEndAt: null })}
             style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background:'none',
               fontSize:'12px', color:'#d1d5db', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             ✕
@@ -354,7 +498,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
           {cancelCount > 0 && <span style={{ color:'#ef4444' }}>휴일 {cancelCount}회</span>}
           {makeupCount > 0 && <span style={{ color:'#3b82f6' }}>보강 {makeupCount}회</span>}
         </div>
-        {!cls.applyStartAt && (
+        {!localCls.applyStartAt && (
           <button onClick={openApplyPeriod}
             style={{ marginLeft:'auto', padding:'5px 12px', borderRadius:'7px', border:'1.5px dashed #93c5fd',
               background:'#eff6ff', color:'#3b82f6', fontSize:'12px', fontWeight:600,
@@ -391,7 +535,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
               sessionMap={sessionMap} cancelled={cancelled}
               cancelledDates={cancelledDates} makeupDates={makeupDates}
               termMap={termMap} onDateClick={handleDateClick}
-              applyStartAt={cls.applyStartAt} applyEndAt={cls.applyEndAt}
+              applyStartAt={localCls.applyStartAt} applyEndAt={localCls.applyEndAt}
             />
           </div>
         ))}
@@ -414,7 +558,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
           <span style={{ width:'14px', height:'14px', borderRadius:'4px', background:'#eff6ff',
             border:'1.5px solid #3b82f6', display:'inline-block', flexShrink:0 }} />보강
         </span>
-        {(cls.applyStartAt || cls.applyEndAt) && (
+        {(localCls.applyStartAt || localCls.applyEndAt) && (
           <span style={{ display:'flex', alignItems:'center', gap:'4px' }}>
             <span style={{ width:'14px', height:'14px', borderRadius:'4px', background:'#eff6ff',
               border:'1px solid #bfdbfe', display:'inline-block', flexShrink:0, position:'relative' }}>
@@ -457,8 +601,8 @@ export function SchoolCalendar({ cls, onUpdate }) {
             )}
             <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
               <Btn variant="ghost" onClick={() => setShowApplyPeriod(false)}>닫기</Btn>
-              {(cls.applyStartAt || cls.applyEndAt) && (
-                <Btn variant="danger" onClick={() => { onUpdate({ ...cls, applyStartAt: null, applyEndAt: null }); setShowApplyPeriod(false) }}>삭제</Btn>
+              {(localCls.applyStartAt || localCls.applyEndAt) && (
+                <Btn variant="danger" onClick={() => { onUpdate({ ...localCls, applyStartAt: null, applyEndAt: null }); setShowApplyPeriod(false) }}>삭제</Btn>
               )}
               <Btn onClick={saveApplyPeriod}>저장</Btn>
             </div>
@@ -519,21 +663,21 @@ export function SchoolCalendar({ cls, onUpdate }) {
               {[
                 { label:'✅ 정상일', desc:'등록을 취소하고 원래 상태로 되돌리기', border:'#86efac', bg:'#f0fdf4', hover:'#dcfce7', color:'#16a34a',
                   action: () => {
-                    let updated = { ...cls }
+                    let updated = { ...localCls }
                     if (clickType === 'cancelled') updated.cancelledDates = cancelledDates.filter(c => c.date !== selectedDate)
                     else if (clickType === 'makeup') updated.makeupDates = makeupDates.filter(m => m.date !== selectedDate)
-                    onUpdate(updated); setShowRegisteredAction(false)
+                    updateLocal(updated); setShowRegisteredAction(false)
                   } },
                 { label:'🚫 공휴일', desc:'공휴일, 선거일, 재량휴일, 강사사정 등', border:'#fca5a5', bg:'#fef2f2', hover:'#fee2e2', color:'#ef4444',
                   action: () => {
-                    let updated = { ...cls }
+                    let updated = { ...localCls }
                     if (clickType === 'makeup') updated.makeupDates = makeupDates.filter(m => m.date !== selectedDate)
                     onUpdate(updated)
                     setShowRegisteredAction(false); setReason('public_holiday'); setMemo(''); setShowCancel(true)
                   } },
                 { label:'🔄 보강', desc:'이 날을 보강일로 변경', border:'#93c5fd', bg:'#eff6ff', hover:'#dbeafe', color:'#3b82f6',
                   action: () => {
-                    let updated = { ...cls }
+                    let updated = { ...localCls }
                     if (clickType === 'cancelled') updated.cancelledDates = cancelledDates.filter(c => c.date !== selectedDate)
                     if (!makeupDates.some(m => m.date === selectedDate))
                       updated.makeupDates = [...(updated.makeupDates || makeupDates), { date: selectedDate, memo: '보강' }]
@@ -541,7 +685,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
                   } },
                 { label:'📚 수업일', desc:'이 날을 수업일로 변경', border:'#fed7aa', bg:'#fff7ed', hover:'#ffedd5', color:'#ea580c',
                   action: () => {
-                    let updated = { ...cls }
+                    let updated = { ...localCls }
                     if (clickType === 'cancelled') {
                       updated.cancelledDates = cancelledDates.filter(c => c.date !== selectedDate)
                     } else if (clickType === 'makeup') {
