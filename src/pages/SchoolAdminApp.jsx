@@ -74,8 +74,9 @@ function Sidebar({ session, page, onNav, onLogout }) {
     { id:'teachers',  icon:'👩‍🏫', label:'선생님 현황' },
     { id:'connect',   icon:'🔗', label:'선생님 연결 관리' },
     { id:'schoolcal', icon:'📅', label:'연간 수업 달력' },
-
     { id:'students',  icon:'👥', label:'학생 현황' },
+    { _group: true, label: '기본 정보' },
+    { id:'schoolinfo', icon:'🏫', label:'학교 정보 · 서류' },
   ]
   return (
     <aside style={{ width:'220px', minWidth:'220px', background:'#1e3a5f', display:'flex', flexDirection:'column', height:'100vh', position:'sticky', top:0 }}>
@@ -92,19 +93,25 @@ function Sidebar({ session, page, onNav, onLogout }) {
         <div style={{ fontSize:'13px', fontWeight:600, color:'#fff' }}>{session?.name || session?.admin?.adminName}</div>
         <div style={{ fontSize:'11px', color:'#7ba7d4', marginTop:'2px' }}>🏫 {session?.admin?.schoolName}</div>
       </div>
-      <nav style={{ flex:1, padding:'10px 0' }}>
-        {nav.map(item => (
-          <button key={item.id} onClick={()=>onNav(item.id)} style={{
-            width:'100%', display:'flex', alignItems:'center', gap:'10px',
-            padding:'10px 20px', background: page===item.id?'rgba(59,130,246,0.2)':'none',
-            border:'none', borderLeft: page===item.id?'3px solid #3b82f6':'3px solid transparent',
-            color: page===item.id?'#93c5fd':'#94a3b8',
-            fontSize:'14px', fontWeight: page===item.id?600:400,
-            cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif',
-          }}>
-            <span>{item.icon}</span>{item.label}
-          </button>
-        ))}
+      <nav style={{ flex:1, padding:'10px 0', overflowY:'auto' }}>
+        {nav.map((item, idx) =>
+          item._group ? (
+            <div key={idx} style={{ padding:'14px 20px 4px', fontSize:'10px', fontWeight:700, color:'#4a7aab', letterSpacing:'1px', textTransform:'uppercase' }}>
+              {item.label}
+            </div>
+          ) : (
+            <button key={item.id} onClick={()=>onNav(item.id)} style={{
+              width:'100%', display:'flex', alignItems:'center', gap:'10px',
+              padding:'10px 20px', background: page===item.id?'rgba(59,130,246,0.2)':'none',
+              border:'none', borderLeft: page===item.id?'3px solid #3b82f6':'3px solid transparent',
+              color: page===item.id?'#93c5fd':'#94a3b8',
+              fontSize:'14px', fontWeight: page===item.id?600:400,
+              cursor:'pointer', textAlign:'left', fontFamily:'Noto Sans KR, sans-serif',
+            }}>
+              <span>{item.icon}</span>{item.label}
+            </button>
+          )
+        )}
       </nav>
       <div style={{ padding:'12px 20px', borderTop:'1px solid #2d5a8e' }}>
         <button onClick={onLogout} style={{ background:'none', border:'none', cursor:'pointer', color:'#64748b', fontSize:'13px', display:'flex', alignItems:'center', gap:'8px', fontFamily:'Noto Sans KR, sans-serif' }}>
@@ -112,6 +119,191 @@ function Sidebar({ session, page, onNav, onLogout }) {
         </button>
       </div>
     </aside>
+  )
+}
+
+// ══════════════════════════════════════════════════
+// 학교 정보 · 서류 양식 탭
+// ══════════════════════════════════════════════════
+const SCHOOL_INFO_DOC_TYPES = [
+  { key:'guide',    label:'📄 안내장',            desc:'학부모 배포용 안내장' },
+  { key:'attend',   label:'📋 출석부 양식',        desc:'수업 출석 체크용' },
+  { key:'yearPlan', label:'📅 연간 지도안 양식',   desc:'연간 수업 계획서' },
+  { key:'lessonPlan',label:'📝 차시별 지도안 양식', desc:'회차별 수업 지도안' },
+  { key:'etc',      label:'📎 기타 서류',           desc:'기타 양식 파일' },
+]
+
+function SchoolInfoTab({ session }) {
+  const { success, error } = useToast()
+  const [info,    setInfo]    = useState(null)   // schoolInfo 레코드
+  const [loading, setLoading] = useState(true)
+  const [saving,  setSaving]  = useState(false)
+
+  // 편집 폼
+  const [form, setForm] = useState({
+    officePhone:   '',
+    afterPhone:    '',
+    address:       '',
+    addressDetail: '',
+    docs: {}  // { guide: [{name, data}], attend: [...], ... }
+  })
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const all = await dbCall('getAll', 'schoolInfo').catch(()=>[])
+      const mine = (all||[]).find(r => r.adminId === session.adminId)
+      if (mine) {
+        setInfo(mine)
+        setForm({
+          officePhone:   mine.officePhone   || '',
+          afterPhone:    mine.afterPhone    || '',
+          address:       mine.address       || '',
+          addressDetail: mine.addressDetail || '',
+          docs:          mine.docs          || {},
+        })
+      }
+    } catch {}
+    setLoading(false)
+  }
+  useEffect(() => { load() }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const data = {
+        adminId:       session.adminId,
+        schoolName:    session.admin?.schoolName || '',
+        officePhone:   form.officePhone.trim(),
+        afterPhone:    form.afterPhone.trim(),
+        address:       form.address.trim(),
+        addressDetail: form.addressDetail.trim(),
+        docs:          form.docs,
+        updatedAt:     now(),
+      }
+      if (info) {
+        await dbCall('update', 'schoolInfo', { id: info.id, patch: data })
+      } else {
+        await dbCall('upsert', 'schoolInfo', { data: { id: uid(), createdAt: now(), ...data } })
+      }
+      success('저장되었습니다.')
+      load()
+    } catch { error('저장 중 오류가 발생했습니다.') }
+    setSaving(false)
+  }
+
+  const addDoc = (key, file) => {
+    const reader = new FileReader()
+    reader.onload = ev => {
+      setForm(f => ({
+        ...f,
+        docs: {
+          ...f.docs,
+          [key]: [...(f.docs[key]||[]), { name: file.name, data: ev.target.result, size: file.size }]
+        }
+      }))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const removeDoc = (key, idx) => {
+    setForm(f => ({ ...f, docs: { ...f.docs, [key]: (f.docs[key]||[]).filter((_,i)=>i!==idx) } }))
+  }
+
+  const iSt = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
+  const LB  = ({ children }) => <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px', fontWeight:600 }}>{children}</label>
+
+  if (loading) return <div style={{ padding:'40px', textAlign:'center', color:C.muted }}>불러오는 중...</div>
+
+  return (
+    <div style={{ padding:'28px', maxWidth:'860px' }}>
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'24px' }}>
+        <div>
+          <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>🏫 학교 정보 · 서류 양식</div>
+          <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>학교 기본 정보 및 공통 서류 양식을 등록하세요</div>
+        </div>
+        <button onClick={handleSave} disabled={saving} style={{
+          padding:'9px 22px', borderRadius:'10px', border:'none',
+          background: saving ? '#e5e7eb' : '#1e3a5f', color: saving ? C.muted : '#fff',
+          fontWeight:700, fontSize:'13px', cursor: saving ? 'not-allowed' : 'pointer',
+          fontFamily:'Noto Sans KR, sans-serif',
+        }}>{saving ? '저장 중...' : '💾 저장'}</button>
+      </div>
+
+      {/* ── 학교 정보 */}
+      <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px 24px', marginBottom:'20px' }}>
+        <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'16px', display:'flex', alignItems:'center', gap:'8px' }}>
+          📞 학교 연락처 정보
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px', marginBottom:'14px' }}>
+          <div>
+            <LB>교무실 전화번호</LB>
+            <input style={iSt} value={form.officePhone} onChange={e=>setForm(f=>({...f,officePhone:e.target.value}))} placeholder="예: 02-1234-5678" />
+          </div>
+          <div>
+            <LB>방과후 담당 연락처</LB>
+            <input style={iSt} value={form.afterPhone} onChange={e=>setForm(f=>({...f,afterPhone:e.target.value}))} placeholder="예: 010-0000-0000" />
+          </div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:'14px' }}>
+          <div>
+            <LB>학교 주소</LB>
+            <input style={iSt} value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} placeholder="예: 서울특별시 강남구 테헤란로 123" />
+          </div>
+          <div>
+            <LB>상세 주소</LB>
+            <input style={iSt} value={form.addressDetail} onChange={e=>setForm(f=>({...f,addressDetail:e.target.value}))} placeholder="예: 본관 3층" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── 서류 양식 */}
+      <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'20px 24px' }}>
+        <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'4px', display:'flex', alignItems:'center', gap:'8px' }}>
+          📁 서류 양식 파일
+        </div>
+        <div style={{ fontSize:'12px', color:C.muted, marginBottom:'16px' }}>선생님에게 배포할 공통 양식 파일을 등록하세요. 등록된 파일은 선생님 앱에서 확인할 수 있습니다.</div>
+
+        <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+          {SCHOOL_INFO_DOC_TYPES.map(({ key, label, desc }) => {
+            const files = form.docs[key] || []
+            return (
+              <div key={key} style={{ borderRadius:'10px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                <div style={{ padding:'10px 16px', background:'#f8fafc', borderBottom: files.length > 0 ? `1px solid ${C.border}` : 'none', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div>
+                    <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{label}</span>
+                    <span style={{ fontSize:'11px', color:C.muted, marginLeft:'8px' }}>{desc}</span>
+                  </div>
+                  <label style={{ display:'flex', alignItems:'center', gap:'4px', padding:'5px 12px', borderRadius:'7px', border:`1px solid ${C.primary}`, color:C.primary, fontSize:'12px', fontWeight:600, cursor:'pointer', background:'#fff' }}>
+                    + 파일 추가
+                    <input type="file" accept=".pdf,.doc,.docx,.hwp,.ppt,.pptx,image/*" multiple style={{ display:'none' }}
+                      onChange={e => { Array.from(e.target.files||[]).forEach(f => addDoc(key, f)); e.target.value='' }} />
+                  </label>
+                </div>
+                {files.length > 0 && (
+                  <div style={{ padding:'8px 16px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                    {files.map((f, fi) => (
+                      <div key={fi} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:'#fafafa', borderRadius:'7px' }}>
+                        <span style={{ fontSize:'16px' }}>{f.data?.startsWith('data:image') ? '🖼' : f.name?.endsWith('.pdf') ? '📕' : '📄'}</span>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:'12px', fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{f.name}</div>
+                          {f.size && <div style={{ fontSize:'10px', color:C.muted }}>{(f.size/1024).toFixed(0)} KB</div>}
+                        </div>
+                        <a href={f.data} download={f.name} style={{ fontSize:'11px', color:C.primary, textDecoration:'none', fontWeight:600, padding:'3px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#eff6ff', whiteSpace:'nowrap' }}>⬇ 다운로드</a>
+                        <button onClick={() => removeDoc(key, fi)} style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', padding:'0 2px', lineHeight:1 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {files.length === 0 && (
+                  <div style={{ padding:'12px 16px', fontSize:'12px', color:'#d1d5db', display:'none' }} />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1000,7 +1192,7 @@ const CURRENT_YEAR = new Date().getFullYear()
 const DAYS_LIST = ['월', '화', '수', '목', '금', '토', '일']
 
 // ── 과목 관리 탭 (학교별 연도 과목 등록)
-const EMPTY_FORM = { name:'', days:[], className:'', times:{}, capacity:'', duration:'', teacherIds:[] }
+const EMPTY_FORM = { name:'', days:[], className:'', times:{}, capacity:'', duration:'', teacherIds:[], location:'', promoFiles:[] }
 
 function SubjectsTab({ session }) {
   const [allTeachers, setAllTeachers] = useState([])
@@ -1031,7 +1223,7 @@ function SubjectsTab({ session }) {
   const filtered = subjects.filter(s => s.year == selYear)
 
   const openAdd  = () => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true) }
-  const openEdit = (s) => { setEditId(s.id); setForm({ name:s.name||'', days:s.days||[], className:s.className||'', times:s.times||{}, capacity:s.capacity||'', duration:s.duration||'', teacherIds:s.teacherIds||[] }); setShowModal(true) }
+  const openEdit = (s) => { setEditId(s.id); setForm({ name:s.name||'', days:s.days||[], className:s.className||'', times:s.times||{}, capacity:s.capacity||'', duration:s.duration||'', teacherIds:s.teacherIds||[], location:s.location||'', promoFiles:s.promoFiles||[] }); setShowModal(true) }
 
   const handleSave = async () => {
     if (!form.name.trim()) { error('과목명을 입력해주세요.'); return }
@@ -1044,6 +1236,8 @@ function SubjectsTab({ session }) {
       duration: form.duration ? parseInt(form.duration) : null,
       teacherIds: form.teacherIds,
       capacity: form.capacity ? parseInt(form.capacity) : null,
+      location: form.location?.trim() || '',
+      promoFiles: form.promoFiles || [],
     }
     if (editId) {
       await dbCall('update', 'schoolSubjects', { id: editId, patch: data })
@@ -1101,14 +1295,14 @@ function SubjectsTab({ session }) {
       ) : (
         <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflowX:'auto' }}>
           {/* 헤더 */}
-          <div style={{ display:'grid', gridTemplateColumns:'180px 80px 100px 200px 60px 160px 100px', gap:'0', background:'#f8fafc', borderBottom:`1px solid ${C.border}` }}>
-            {['과목명','반','요일','시간 (정규/방학)','정원','담당 선생님',''].map((h,i) => (
-              <div key={i} style={{ padding:'10px 14px', fontSize:'12px', fontWeight:700, color:C.muted, borderRight: i<6?`1px solid ${C.border}`:'none', whiteSpace:'nowrap' }}>{h}</div>
+          <div style={{ display:'grid', gridTemplateColumns:'160px 70px 90px 180px 50px 130px 100px 90px 100px', gap:'0', background:'#f8fafc', borderBottom:`1px solid ${C.border}` }}>
+            {['과목명','반','요일','시간 (정규/방학)','정원','담당 선생님','수업 장소','홍보물',''].map((h,i) => (
+              <div key={i} style={{ padding:'10px 14px', fontSize:'12px', fontWeight:700, color:C.muted, borderRight: i<8?`1px solid ${C.border}`:'none', whiteSpace:'nowrap' }}>{h}</div>
             ))}
           </div>
           {filtered.map((s, i) => (
             <div key={s.id} style={{
-              display:'grid', gridTemplateColumns:'180px 80px 100px 200px 60px 160px 100px', gap:'0',
+              display:'grid', gridTemplateColumns:'160px 70px 90px 180px 50px 130px 100px 90px 100px', gap:'0',
               alignItems:'stretch',
               borderBottom: i < filtered.length-1 ? `1px solid ${C.border}` : 'none',
             }}>
@@ -1148,6 +1342,20 @@ function SubjectsTab({ session }) {
                       const t = allTeachers.find(x => x.teacherId === tid || x.id === tid)
                       return t ? <span key={tid} style={{ fontSize:'12px', color:C.text, fontWeight:500 }}>👩‍🏫 {t.teacherName}</span> : null
                     })
+                  : <span style={{ fontSize:'12px', color:C.muted }}>-</span>}
+              </div>
+              {/* 수업 장소 */}
+              <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', borderRight:`1px solid ${C.border}` }}>
+                <span style={{ fontSize:'12px', color: s.location ? C.text : C.muted }}>{s.location || '-'}</span>
+              </div>
+              {/* 홍보물 */}
+              <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'3px', justifyContent:'center', borderRight:`1px solid ${C.border}` }}>
+                {(s.promoFiles||[]).length > 0
+                  ? (s.promoFiles||[]).map((f,fi) => (
+                      <a key={fi} href={f.data} download={f.name} style={{ fontSize:'11px', color:C.primary, textDecoration:'none', fontWeight:600, display:'flex', alignItems:'center', gap:'3px' }}>
+                        🖼 <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'70px' }}>{f.name}</span>
+                      </a>
+                    ))
                   : <span style={{ fontSize:'12px', color:C.muted }}>-</span>}
               </div>
               {/* 버튼 */}
@@ -1272,6 +1480,41 @@ function SubjectsTab({ session }) {
                   </div>
                 )
               })()}
+              {/* 수업 장소 */}
+              <div>
+                <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>📍 수업 장소</label>
+                <input style={iSt3} value={form.location||''} onChange={e => setForm(f=>({...f,location:e.target.value}))} placeholder="예: 3층 컴퓨터실, 과학실 2호" />
+              </div>
+              {/* 홍보물 */}
+              <div>
+                <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'6px' }}>🖼 홍보물 (이미지/PDF)</label>
+                <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                  {(form.promoFiles||[]).map((pf,fi) => (
+                    <div key={fi} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#f8fafc', borderRadius:'8px', border:`1px solid ${C.border}` }}>
+                      <span style={{ fontSize:'11px', color:C.text, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {pf.data?.startsWith('data:image') ? '🖼' : '📄'} {pf.name}
+                      </span>
+                      {pf.data?.startsWith('data:image') && (
+                        <img src={pf.data} alt={pf.name} style={{ width:'36px', height:'36px', objectFit:'cover', borderRadius:'4px', border:`1px solid ${C.border}` }} />
+                      )}
+                      <button onClick={() => setForm(prev => ({ ...prev, promoFiles: (prev.promoFiles||[]).filter((_,i)=>i!==fi) }))}
+                        style={{ background:'none', border:'none', color:C.danger, cursor:'pointer', fontSize:'16px', padding:'0', lineHeight:1 }}>×</button>
+                    </div>
+                  ))}
+                  <label style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', borderRadius:'8px', border:`1.5px dashed ${C.border}`, cursor:'pointer', fontSize:'12px', color:C.muted }}>
+                    <span>+ 파일 추가 (이미지·PDF)</span>
+                    <input type="file" accept="image/*,application/pdf" multiple style={{ display:'none' }}
+                      onChange={e => {
+                        Array.from(e.target.files||[]).forEach(file => {
+                          const reader = new FileReader()
+                          reader.onload = ev => setForm(f => ({ ...f, promoFiles: [...(f.promoFiles||[]), { name:file.name, data:ev.target.result }] }))
+                          reader.readAsDataURL(file)
+                        })
+                        e.target.value = ''
+                      }} />
+                  </label>
+                </div>
+              </div>
               {/* 정원 */}
               <div>
                 <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>정원</label>
@@ -4288,6 +4531,7 @@ export function SchoolAdminApp({ session: initialSession, onLogout }) {
           {page === 'schoolcal'&& <SchoolCalendarTab key="schoolcal" session={session} />}
           {page === 'classes'  && <SchoolClassesTab  key="classes"   session={session} />}
           {page === 'students' && <StudentsTab     key="students"  session={session} />}
+          {page === 'schoolinfo' && <SchoolInfoTab key="schoolinfo" session={session} />}
         </main>
       </div>
     </SchoolConfirmContext.Provider>
