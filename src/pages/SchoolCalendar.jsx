@@ -69,14 +69,10 @@ function getDatesInRange(startStr, endStr, dayNums) {
 
 // ══ 차시 계산
 // 구조: 분기/학기 → 텀 → 회차 (요일별 독립)
-// quarterTermCounts: 각 분기별 텀 수 배열 [3,3,3,3]
-// termSessionCounts: 각 텀별 회차 수 (전체 텀 인덱스 기준) [4,4,4, 4,4,4, ...]
-//   또는 단일 숫자로 모든 텀에 동일 적용
-function buildSessionMap({ allSessionDates, termBoundaries, quarterTermCounts, sessionsPerTerm }) {
+// flatTermSessions: 전체 텀 순서대로 각 텀의 회차 수 [4,4,3,4,4,4,...]
+function buildSessionMap({ allSessionDates, termBoundaries, quarterTermCounts, flatTermSessions }) {
   const sessionMap = {}
   const termMap    = {}
-
-  // 전체 텀 인덱스 누적 (분기 경계 넘어도 연속)
   let globalTermIdx = 0
 
   termBoundaries.forEach((boundary, qIdx) => {
@@ -84,31 +80,29 @@ function buildSessionMap({ allSessionDates, termBoundaries, quarterTermCounts, s
     const numTerms    = quarterTermCounts[qIdx] || 1
     const termDates   = allSessionDates.filter(d => d >= boundary.start && d <= boundary.end)
 
-    // 이 분기의 날짜들을 numTerms개의 텀으로 균등 분배
-    // 요일별 독립 카운터
-    const dayCounters = {} // dow -> { total, termIdx(분기내), inTermSess }
+    const dayCounters = {}
 
     termDates.forEach(d => {
       const dow = getDow(d)
-      if (!dayCounters[dow]) dayCounters[dow] = { total:0, localTermIdx:0, inTermSess:0, globalTermIdx: globalTermIdx }
-
+      if (!dayCounters[dow]) dayCounters[dow] = {
+        total:0, localTermIdx:0, inTermSess:0, globalTermIdx
+      }
       const dc  = dayCounters[dow]
-      const spt = sessionsPerTerm // 텀당 회차 수
+      const spt = flatTermSessions[dc.globalTermIdx] || 4
 
       dc.total++
       dc.inTermSess++
 
       sessionMap[d] = {
         quarterNum,
-        dayTotal:      dc.total,          // 분기 내 해당 요일 누적 차시
-        localTermIdx:  dc.localTermIdx,   // 분기 내 텀 번호 (0-based)
-        globalTermIdx: dc.globalTermIdx,  // 전체 텀 번호 (색상용)
-        inTermSess:    dc.inTermSess,     // 텀 내 회차
+        dayTotal:      dc.total,
+        localTermIdx:  dc.localTermIdx,
+        globalTermIdx: dc.globalTermIdx,
+        inTermSess:    dc.inTermSess,
         sessionsPerTerm: spt,
       }
       termMap[d] = quarterNum
 
-      // 텀 회차 가득 찼으면 다음 텀으로
       if (dc.inTermSess >= spt) {
         dc.inTermSess = 0
         if (dc.localTermIdx < numTerms - 1) {
@@ -244,11 +238,20 @@ export function SchoolCalendar({ cls, onUpdate }) {
   const [winStart, setWinStart] = useState(cls?.winStart||'')
   const [winEnd,   setWinEnd]   = useState(cls?.winEnd||'')
 
-  // 텀 설정: 각 분기/학기별 텀 수 [3,3,3,3]
-  // 최대 분기4 × 텀12 = 48텀
+  // 텀 설정: 각 분기/학기별 텀 수 [3,3] 또는 [3,3,3,3]
   const [quarterTermCounts, setQuarterTermCounts] = useState(cls?.quarterTermCounts||[3,3,3,3])
-  // 텀당 회차 수 (전체 공통)
-  const [sessionsPerTerm,   setSessionsPerTerm]   = useState(cls?.sessionsPerTerm||4)
+  // 텀별 회차 수: { "q0t0": 4, "q0t1": 4, "q1t0": 4, ... }
+  // 기본값은 공통 sessionsPerTerm 으로 채워짐
+  const [termSessionMap, setTermSessionMap] = useState(cls?.termSessionMap||{})
+  // 공통 기본 회차 수 (빠른 설정용)
+  const [defaultSessions, setDefaultSessions] = useState(cls?.defaultSessions||4)
+
+  // 특정 텀의 회차 수 가져오기 (없으면 defaultSessions)
+  const getTermSessions = (qIdx, tIdx) => termSessionMap[`q${qIdx}t${tIdx}`] ?? defaultSessions
+  // 특정 텀의 회차 수 설정
+  const setTermSessions = (qIdx, tIdx, val) => {
+    setTermSessionMap(prev => ({...prev, [`q${qIdx}t${tIdx}`]: Math.max(1, parseInt(val)||1)}))
+  }
 
   // 신청기간 — 분기/학기 수만큼 동적으로
   // regPeriods: [{start:'', end:''}, ...]
@@ -283,7 +286,8 @@ export function SchoolCalendar({ cls, onUpdate }) {
     setSem1End(cls.sem1End||''); setSumStart(cls.sumStart||''); setSumEnd(cls.sumEnd||'')
     setSem2End(cls.sem2End||''); setWinStart(cls.winStart||''); setWinEnd(cls.winEnd||'')
     setQuarterTermCounts(cls.quarterTermCounts||[3,3,3,3])
-    setSessionsPerTerm(cls.sessionsPerTerm||4)
+    setTermSessionMap(cls.termSessionMap||{})
+    setDefaultSessions(cls.defaultSessions||4)
     setRegPeriods(cls.regPeriods || Array.from({length: cls.quarters||4}, ()=>({start:'',end:''})))
     setCancelledDates(cls.cancelledDates||[]); setMakeupDates(cls.makeupDates||[])
     holidayInitialized.current = false
@@ -357,12 +361,25 @@ export function SchoolCalendar({ cls, onUpdate }) {
   // quarterTermCounts를 학기/분기 수에 맞게 슬라이스
   const activeTermCounts = Array.from({length:numPeriods},(_,i)=>quarterTermCounts[i]||3)
   const totalTerms = activeTermCounts.reduce((a,b)=>a+b,0)
-  const totalSessions = totalTerms * sessionsPerTerm
+
+  // 전체 회차 합계 (텀별 개별 회차 수 합산)
+  const totalSessions = activeTermCounts.reduce((sum, tCount, qIdx) => {
+    for(let tIdx=0; tIdx<tCount; tIdx++) sum += getTermSessions(qIdx, tIdx)
+    return sum
+  }, 0)
+
+  // buildSessionMap에 넘길 텀별 회차 수 배열 (전체 순서대로)
+  const flatTermSessions = []
+  activeTermCounts.forEach((tCount, qIdx) => {
+    for(let tIdx=0; tIdx<tCount; tIdx++) {
+      flatTermSessions.push(getTermSessions(qIdx, tIdx))
+    }
+  })
 
   const {sessionMap, termMap} = buildSessionMap({
     allSessionDates, termBoundaries,
     quarterTermCounts: activeTermCounts,
-    sessionsPerTerm,
+    flatTermSessions,
   })
 
   const months      = Array.from({length:12},(_,i)=>({year,month:i}))
@@ -375,7 +392,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
       sem1End,sumStart,sumEnd,sem2End,winStart,winEnd,
       quarters,qEnds,
       quarterTermCounts:activeTermCounts,
-      sessionsPerTerm,
+      termSessionMap, defaultSessions,
       regPeriods,
       cancelledDates,makeupDates,
       startDate:marchStart,endDate:yearEnd,
@@ -591,7 +608,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
           <div style={{fontSize:'14px',fontWeight:800,color:'#1e3a5f'}}>
             🗂️ 텀 구성 설정
             {!termOpen&&<span style={{fontSize:'12px',fontWeight:400,color:'#6b7280',marginLeft:'8px'}}>
-              총 {totalTerms}텀 · 텀당 {sessionsPerTerm}회차 · 총 {totalSessions}회
+              총 {totalTerms}텀 · 총 {totalSessions}회차
             </span>}
           </div>
           <span style={{fontSize:'18px',color:'#9ca3af'}}>{termOpen?'▲':'▼'}</span>
@@ -599,59 +616,109 @@ export function SchoolCalendar({ cls, onUpdate }) {
         {termOpen&&(
           <div style={{padding:'18px'}}>
 
-            {/* 텀당 회차 수 */}
-            <div style={{marginBottom:'18px'}}>
+            {/* STEP1: 기본 회차 수 빠른 설정 */}
+            <div style={{marginBottom:'20px'}}>
               <label style={{fontSize:'12px',color:'#6b7280',display:'block',marginBottom:'8px'}}>
-                텀당 회차 수 (모든 텀 공통)
+                기본 회차 수 <span style={{color:'#9ca3af'}}>(모든 텀에 일괄 적용)</span>
               </label>
               <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
                 {(termType==='semester' ? [2,3,4,5,6,8,10,12,16,20,24] : [2,3,4,6,8,10,12]).map(n=>(
-                  <button key={n} onClick={()=>{setSessionsPerTerm(n);saveAll({sessionsPerTerm:n})}}
+                  <button key={n} onClick={()=>{
+                    setDefaultSessions(n)
+                    // 모든 텀을 이 값으로 초기화
+                    const newMap = {}
+                    activeTermCounts.forEach((tCount,qIdx)=>{
+                      for(let tIdx=0;tIdx<tCount;tIdx++) newMap[`q${qIdx}t${tIdx}`]=n
+                    })
+                    setTermSessionMap(newMap)
+                  }}
                     style={{padding:'6px 14px',borderRadius:'8px',
-                      border:`1.5px solid ${sessionsPerTerm===n?'#1e3a5f':'#e5e7eb'}`,
-                      background:sessionsPerTerm===n?'#1e3a5f':'#fff',
-                      color:sessionsPerTerm===n?'#fff':'#374151',
-                      fontSize:'13px',fontWeight:sessionsPerTerm===n?700:400,
+                      border:`1.5px solid ${defaultSessions===n?'#1e3a5f':'#e5e7eb'}`,
+                      background:defaultSessions===n?'#1e3a5f':'#fff',
+                      color:defaultSessions===n?'#fff':'#374151',
+                      fontSize:'13px',fontWeight:defaultSessions===n?700:400,
                       cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>{n}회</button>
                 ))}
-                <input type="number" min={1} max={termType==='semester'?24:12} value={sessionsPerTerm}
-                  onChange={e=>setSessionsPerTerm(parseInt(e.target.value)||1)}
-                  onBlur={()=>saveAll()}
-                  style={{width:'65px',padding:'6px 8px',borderRadius:'8px',border:'1.5px solid #e5e7eb',fontSize:'14px',fontWeight:700,outline:'none',textAlign:'center'}}/>
-                <span style={{fontSize:'13px',color:'#6b7280'}}>회차</span>
               </div>
             </div>
 
-            {/* 분기/학기별 텀 수 설정 */}
+            {/* STEP2: 학기/분기별 텀 수 + 텀별 회차 수 개별 설정 */}
             <div style={{marginBottom:'16px'}}>
-              <label style={{fontSize:'12px',color:'#6b7280',display:'block',marginBottom:'8px'}}>
-                {termType==='semester'?'학기':'분기'}별 텀 수 설정
+              <label style={{fontSize:'12px',color:'#6b7280',display:'block',marginBottom:'10px'}}>
+                {termType==='semester'?'학기':'분기'}별 텀 수 및 텀별 회차 수 설정
                 <span style={{fontSize:'11px',color:'#9ca3af',marginLeft:'8px'}}>
-                  ({termType==='semester'?'학기당 최대 7텀':'분기당 최대 4텀'})
+                  ({termType==='semester'?'학기당 최대 7텀 / 텀당 최대 24회':'분기당 최대 4텀 / 텀당 최대 12회'})
                 </span>
               </label>
-              <div style={{display:'flex',gap:'12px',flexWrap:'wrap'}}>
-                {termBoundaries.map((b,i)=>{
-                  const qc = getQuarterColor(i+1)
-                  const tCount = activeTermCounts[i]||3
+              <div style={{display:'flex',gap:'16px',flexWrap:'wrap'}}>
+                {termBoundaries.map((b,qIdx)=>{
+                  const qc = getQuarterColor(qIdx+1)
+                  const tCount = activeTermCounts[qIdx]||1
                   const maxTerms = termType==='semester' ? 7 : 4
-                  const termNums = Array.from({length:maxTerms},(_,j)=>j+1)
+                  const maxSess  = termType==='semester' ? 24 : 12
+
                   return (
-                    <div key={i} style={{background:qc.bg,border:`1.5px solid ${qc.border}`,borderRadius:'12px',padding:'14px',minWidth:'200px'}}>
-                      <div style={{fontSize:'13px',fontWeight:700,color:qc.text,marginBottom:'10px'}}>{b.label}</div>
-                      <div style={{display:'flex',gap:'4px',flexWrap:'wrap',marginBottom:'8px'}}>
-                        {termNums.map(n=>(
-                          <button key={n} onClick={()=>handleQTermCount(i,n)}
-                            style={{width:'28px',height:'28px',borderRadius:'6px',
-                              border:`1.5px solid ${tCount===n?qc.border:'#e5e7eb'}`,
-                              background:tCount===n?qc.border:'#fff',
-                              color:tCount===n?'#fff':'#374151',
-                              fontSize:'12px',fontWeight:tCount===n?700:400,
-                              cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>{n}</button>
-                        ))}
+                    <div key={qIdx} style={{background:qc.bg,border:`1.5px solid ${qc.border}`,borderRadius:'14px',padding:'16px',minWidth:'220px',flex:'1'}}>
+                      {/* 학기/분기 타이틀 */}
+                      <div style={{fontSize:'14px',fontWeight:700,color:qc.text,marginBottom:'12px'}}>{b.label}</div>
+
+                      {/* 텀 수 선택 */}
+                      <div style={{marginBottom:'14px'}}>
+                        <div style={{fontSize:'11px',color:'#6b7280',marginBottom:'6px'}}>텀 수</div>
+                        <div style={{display:'flex',gap:'4px',flexWrap:'wrap'}}>
+                          {Array.from({length:maxTerms},(_,j)=>j+1).map(n=>(
+                            <button key={n} onClick={()=>handleQTermCount(qIdx,n)}
+                              style={{width:'30px',height:'30px',borderRadius:'7px',
+                                border:`1.5px solid ${tCount===n?qc.border:'#e5e7eb'}`,
+                                background:tCount===n?qc.border:'#fff',
+                                color:tCount===n?'#fff':'#374151',
+                                fontSize:'13px',fontWeight:tCount===n?700:400,
+                                cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>{n}</button>
+                          ))}
+                        </div>
                       </div>
-                      <div style={{fontSize:'11px',color:qc.text,fontWeight:600}}>
-                        {tCount}텀 × {sessionsPerTerm}회 = {tCount*sessionsPerTerm}회
+
+                      {/* 텀별 회차 수 개별 설정 */}
+                      <div>
+                        <div style={{fontSize:'11px',color:'#6b7280',marginBottom:'8px'}}>텀별 회차 수</div>
+                        <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+                          {Array.from({length:tCount},(_,tIdx)=>{
+                            const sess = getTermSessions(qIdx, tIdx)
+                            const badge = getTermBadge(activeTermCounts.slice(0,qIdx).reduce((a,b)=>a+b,0)+tIdx)
+                            // 누적 차시 계산
+                            let cumStart = 1
+                            for(let qi=0;qi<qIdx;qi++) for(let ti=0;ti<(activeTermCounts[qi]||1);ti++) cumStart+=getTermSessions(qi,ti)
+                            for(let ti=0;ti<tIdx;ti++) cumStart+=getTermSessions(qIdx,ti)
+                            const cumEnd = cumStart+sess-1
+
+                            return (
+                              <div key={tIdx} style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                                {/* 텀 뱃지 */}
+                                <div style={{fontSize:'11px',fontWeight:700,color:'#fff',background:badge,
+                                  borderRadius:'5px',padding:'2px 8px',minWidth:'36px',textAlign:'center',flexShrink:0}}>
+                                  {tIdx+1}텀
+                                </div>
+                                {/* 회차 수 조절 */}
+                                <div style={{display:'flex',alignItems:'center',gap:'4px'}}>
+                                  <button onClick={()=>setTermSessions(qIdx,tIdx,Math.max(1,sess-1))}
+                                    style={{width:'24px',height:'24px',borderRadius:'5px',border:'1px solid #e5e7eb',background:'#fff',cursor:'pointer',fontSize:'14px',lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center'}}>−</button>
+                                  <input type="number" min={1} max={maxSess} value={sess}
+                                    onChange={e=>setTermSessions(qIdx,tIdx,e.target.value)}
+                                    onBlur={()=>saveAll()}
+                                    style={{width:'44px',padding:'3px 4px',borderRadius:'6px',border:`1.5px solid ${badge}`,fontSize:'14px',fontWeight:700,outline:'none',textAlign:'center'}}/>
+                                  <button onClick={()=>setTermSessions(qIdx,tIdx,Math.min(maxSess,sess+1))}
+                                    style={{width:'24px',height:'24px',borderRadius:'5px',border:'1px solid #e5e7eb',background:'#fff',cursor:'pointer',fontSize:'14px',lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center'}}>+</button>
+                                </div>
+                                {/* 차시 범위 */}
+                                <span style={{fontSize:'10px',color:'#9ca3af'}}>{cumStart}~{cumEnd}차</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                        {/* 소계 */}
+                        <div style={{marginTop:'10px',fontSize:'11px',fontWeight:700,color:qc.text}}>
+                          {tCount}텀 · 소계 {Array.from({length:tCount},(_,ti)=>getTermSessions(qIdx,ti)).reduce((a,b)=>a+b,0)}회차
+                        </div>
                       </div>
                     </div>
                   )
@@ -664,22 +731,24 @@ export function SchoolCalendar({ cls, onUpdate }) {
               <div style={{fontSize:'12px',color:'#6b7280',marginBottom:'10px',fontWeight:600}}>전체 구성 요약</div>
               <div style={{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'10px'}}>
                 {termBoundaries.map((b,qIdx)=>{
-                  const tCount = activeTermCounts[qIdx]||3
+                  const tCount = activeTermCounts[qIdx]||1
                   const qc = getQuarterColor(qIdx+1)
-                  // 이 분기의 전체 텀 인덱스 시작
                   const prevTerms = activeTermCounts.slice(0,qIdx).reduce((a,b)=>a+b,0)
                   return Array.from({length:tCount},(_,tIdx)=>{
                     const globalTIdx = prevTerms+tIdx
                     const badge = getTermBadge(globalTIdx)
-                    const sessStart = globalTIdx*sessionsPerTerm+1
-                    const sessEnd   = sessStart+sessionsPerTerm-1
+                    const sess = getTermSessions(qIdx,tIdx)
+                    // 누적 차시 시작
+                    let cumStart=1
+                    for(let qi=0;qi<qIdx;qi++) for(let ti=0;ti<(activeTermCounts[qi]||1);ti++) cumStart+=getTermSessions(qi,ti)
+                    for(let ti=0;ti<tIdx;ti++) cumStart+=getTermSessions(qIdx,ti)
+                    const cumEnd=cumStart+sess-1
                     return (
                       <div key={`${qIdx}-${tIdx}`} style={{display:'flex',alignItems:'center',gap:'3px',
-                        padding:'3px 8px',background:'#fff',
-                        border:`1.5px solid ${badge}`,borderRadius:'16px'}}>
+                        padding:'3px 8px',background:'#fff',border:`1.5px solid ${badge}`,borderRadius:'16px'}}>
                         <span style={{fontSize:'10px',fontWeight:700,color:qc.text}}>{b.label}</span>
-                        <span style={{fontSize:'10px',fontWeight:700,color:badge}}>{tIdx+1}텀</span>
-                        <span style={{fontSize:'9px',color:'#9ca3af'}}>{sessStart}~{sessEnd}차</span>
+                        <span style={{fontSize:'10px',fontWeight:700,color:badge}}>{tIdx+1}텀 {sess}회</span>
+                        <span style={{fontSize:'9px',color:'#9ca3af'}}>{cumStart}~{cumEnd}차</span>
                       </div>
                     )
                   })
@@ -687,13 +756,7 @@ export function SchoolCalendar({ cls, onUpdate }) {
               </div>
               <div style={{fontSize:'13px',color:'#374151',fontWeight:700}}>
                 총 <span style={{color:'#f97316'}}>{totalTerms}텀</span>
-                {' · '}텀당 <span style={{color:'#1e3a5f'}}>{sessionsPerTerm}회차</span>
-                {' · '}총 <span style={{color:'#16a34a'}}>{totalSessions}회</span>
-                {regPeriods.some(r=>r.start&&r.end)&&(
-                  <span style={{fontSize:'12px',color:'#3b82f6',marginLeft:'12px',fontWeight:400}}>
-                    📅 {regPeriods.filter(r=>r.start&&r.end).map((r,i)=>`${termBoundaries[i]?.label||''} ${r.start.slice(5)}~${r.end.slice(5)}`).join(' / ')}
-                  </span>
-                )}
+                {' · '}총 <span style={{color:'#16a34a'}}>{totalSessions}회차</span>
               </div>
             </div>
           </div>
