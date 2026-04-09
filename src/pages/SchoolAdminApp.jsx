@@ -1703,15 +1703,17 @@ function SchoolCalendarTab({ session }) {
       {/* 오른쪽: 달력 전체 */}
       <div style={{ flex:1, overflowY:'auto', padding:'24px' }}>
         <SchoolCalendar
+          session={session}
           cls={selItem ? selItem : { year: parseInt(selYear), cancelledDates:[], makeupDates:[], days:[], termType:'semester', termCount:4, termSizes:[4,4,4,4] }}
           onUpdate={async (updated) => {
             if (!updated.title?.trim() || !updated.days?.length || !updated.startDate || !updated.endDate) return
             try {
               if (selItem) {
-                await dbCall('update','schoolCalendar',{ id:selItem.id, patch:{ title:updated.title, days:updated.days, termType:updated.termType, termCount:updated.termCount, termSizes:updated.termSizes, totalSessions:updated.totalSessions, startDate:updated.startDate, endDate:updated.endDate, cancelledDates:updated.cancelledDates, makeupDates:updated.makeupDates, applyStartAt:updated.applyStartAt, applyEndAt:updated.applyEndAt }})
-                setSelItem(updated)
-                setItems(prev => prev.map(it => it.id===selItem.id ? {...it,...updated} : it))
-              } else {
+                await dbCall('update','schoolCalendar',{ id:selItem.id, patch:{ ...updated } })
+                const merged = {...selItem, ...updated}
+                setSelItem(merged)
+                setItems(prev => prev.map(it => it.id===selItem.id ? merged : it))
+              } else if (updated.title?.trim() && updated.days?.length) {
                 const newItem = { ...updated, id:uid(), adminId:session.adminId, schoolName:session.admin?.schoolName||'', createdAt:now() }
                 await dbCall('upsert','schoolCalendar',{ data: newItem })
                 setSelItem(newItem)
