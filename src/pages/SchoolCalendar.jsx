@@ -174,18 +174,29 @@ function MonthCalendar({ year, month, sessionMap, cancelledDates, makeupDates, t
             </button>
           )
 
-          if(isCancelled) return (
-            <button key={day} onClick={()=>onDateClick(dateStr,'cancelled')}
-              style={{padding:'3px 2px',borderRadius:'7px',border:'none',cursor:'pointer',
-                background:isVacation?'#f0f9ff':'#fef2f2',
-                outline:`1.5px solid ${isVacation?'#7dd3fc':'#fca5a5'}`,outlineOffset:'-1px',
-                textAlign:'center',fontFamily:'Noto Sans KR, sans-serif'}}>
-              <div style={{fontSize:'12px',fontWeight:700,color:'#d1d5db'}}>{day}</div>
-              <div style={{fontSize:'9px',color:isVacation?'#0284c7':'#ef4444',lineHeight:1.2}}>
-                {cancelInfo?.memo?cancelInfo.memo.slice(0,4):(isVacation?'방학':'휴일')}
-              </div>
-            </button>
-          )
+          if(isCancelled) {
+            if(cancelInfo?.reason==='manual_exclude') return (
+              <button key={day} onClick={()=>onDateClick(dateStr,'cancelled')}
+                style={{padding:'5px 2px',borderRadius:'7px',border:'none',cursor:'pointer',
+                  background:'transparent',textAlign:'center',fontFamily:'Noto Sans KR, sans-serif'}}
+                onMouseEnter={e=>e.currentTarget.style.background='#f3f4f6'}
+                onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                <div style={{fontSize:'12px',color:isSun?'#ef4444':isSat?'#3b82f6':'#374151'}}>{day}</div>
+              </button>
+            )
+            return (
+              <button key={day} onClick={()=>onDateClick(dateStr,'cancelled')}
+                style={{padding:'3px 2px',borderRadius:'7px',border:'none',cursor:'pointer',
+                  background:isVacation?'#f0f9ff':'#fef2f2',
+                  outline:`1.5px solid ${isVacation?'#7dd3fc':'#fca5a5'}`,outlineOffset:'-1px',
+                  textAlign:'center',fontFamily:'Noto Sans KR, sans-serif'}}>
+                <div style={{fontSize:'12px',fontWeight:700,color:'#d1d5db'}}>{day}</div>
+                <div style={{fontSize:'9px',color:isVacation?'#0284c7':'#ef4444',lineHeight:1.2}}>
+                  {cancelInfo?.memo?cancelInfo.memo.slice(0,4):(isVacation?'방학':'휴일')}
+                </div>
+              </button>
+            )
+          }
 
           if(sessInfo) {
             const localTermNum = sessInfo.localTermIdx + 1
@@ -446,17 +457,15 @@ export function SchoolCalendar({ cls, onUpdate }) {
     setMakeupDates(updated);setShowAction(false);setShowMakeupForm(false);saveAll({makeupDates:updated})
   }
   const handleRestore = () => {
-    const updC = cancelledDates.filter(c => c.date !== selectedDate)
-    const updM = makeupDates.filter(m => m.date !== selectedDate)
-    // 수업일을 복원할 경우 cancelledDates에 없으므로 아무 변화 없음
-    // → 수업일 클릭 시 복원 = cancelledDates에 추가해서 수업 제외
-    if (clickType === 'session') {
-      const updC2 = [...cancelledDates, {date:selectedDate, reason:'etc', memo:'수동제외'}]
-      setCancelledDates(updC2); setShowAction(false)
+    const updC=cancelledDates.filter(c=>c.date!==selectedDate)
+    const updM=makeupDates.filter(m=>m.date!==selectedDate)
+    if(clickType==='session'){
+      const updC2=[...updC,{date:selectedDate,reason:'manual_exclude',memo:'사용자 지정 수업일 제외'}]
+      setCancelledDates(updC2);setShowAction(false)
       saveAll({cancelledDates:updC2})
     } else {
-      setCancelledDates(updC); setMakeupDates(updM); setShowAction(false)
-      saveAll({cancelledDates:updC, makeupDates:updM})
+      setCancelledDates(updC);setMakeupDates(updM);setShowAction(false)
+      saveAll({cancelledDates:updC,makeupDates:updM})
     }
   }
 
