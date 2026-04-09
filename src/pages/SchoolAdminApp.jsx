@@ -1101,14 +1101,14 @@ function SubjectsTab({ session }) {
       ) : (
         <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
           {/* 헤더 */}
-          <div style={{ display:'grid', gridTemplateColumns:'140px 80px 80px 1fr 50px 120px 100px', gap:'0', background:'#f8fafc', borderBottom:`1px solid ${C.border}` }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 90px 160px 50px 130px 90px', gap:'0', background:'#f8fafc', borderBottom:`1px solid ${C.border}` }}>
             {['과목명','반','요일','시간 (정규/방학)','정원','담당 선생님',''].map((h,i) => (
               <div key={i} style={{ padding:'10px 14px', fontSize:'12px', fontWeight:700, color:C.muted, borderRight: i<6?`1px solid ${C.border}`:'none' }}>{h}</div>
             ))}
           </div>
           {filtered.map((s, i) => (
             <div key={s.id} style={{
-              display:'grid', gridTemplateColumns:'140px 80px 80px 1fr 50px 120px 100px', gap:'0',
+              display:'grid', gridTemplateColumns:'1fr 70px 90px 160px 50px 130px 90px', gap:'0',
               alignItems:'stretch',
               borderBottom: i < filtered.length-1 ? `1px solid ${C.border}` : 'none',
             }}>
@@ -1301,7 +1301,7 @@ function SubjectsTab({ session }) {
               </div>
             </div>
             </div>
-            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', padding:'16px 24px', borderTop:`1px solid ${C.border}`, flexShrink:0 }}>
+            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', padding:'16px 24px', borderTop:`1px solid ${C.border}`, background:'#fff', borderRadius:'0 0 16px 16px', flexShrink:0, position:'relative', zIndex:1 }}>
               <button onClick={() => setShowModal(false)} style={{ padding:'8px 20px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
               <Btn onClick={handleSave}>{editId ? '수정' : '추가'}</Btn>
             </div>
