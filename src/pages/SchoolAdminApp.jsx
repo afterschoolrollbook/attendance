@@ -988,7 +988,7 @@ const CURRENT_YEAR = new Date().getFullYear()
 const DAYS_LIST = ['월', '화', '수', '목', '금', '토', '일']
 
 // ── 과목 관리 탭 (학교별 연도 과목 등록)
-const EMPTY_FORM = { name:'', days:[], className:'', times:{}, capacity:'' }
+const EMPTY_FORM = { name:'', days:[], className:'', times:{}, capacity:'', duration:'' }
 
 function SubjectsTab({ session }) {
   const { success, error } = useToast()
@@ -1014,7 +1014,7 @@ function SubjectsTab({ session }) {
   const filtered = subjects.filter(s => s.year == selYear)
 
   const openAdd  = () => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true) }
-  const openEdit = (s) => { setEditId(s.id); setForm({ name:s.name||'', days:s.days||[], className:s.className||'', times:s.times||{}, capacity:s.capacity||'' }); setShowModal(true) }
+  const openEdit = (s) => { setEditId(s.id); setForm({ name:s.name||'', days:s.days||[], className:s.className||'', times:s.times||{}, capacity:s.capacity||'', duration:s.duration||'' }); setShowModal(true) }
 
   const handleSave = async () => {
     if (!form.name.trim()) { error('과목명을 입력해주세요.'); return }
@@ -1024,6 +1024,7 @@ function SubjectsTab({ session }) {
       days: form.days,
       className: form.className.trim(),
       times: form.times,
+      duration: form.duration ? parseInt(form.duration) : null,
       capacity: form.capacity ? parseInt(form.capacity) : null,
     }
     if (editId) {
@@ -1120,11 +1121,12 @@ function SubjectsTab({ session }) {
       {showModal && (
         <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center' }}
           onClick={e => { if(e.target===e.currentTarget) setShowModal(false) }}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'420px', maxWidth:'95vw', padding:'28px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+          <div style={{ background:'#fff', borderRadius:'16px', width:'460px', maxWidth:'95vw', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'20px 24px 16px', borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
               <div style={{ fontSize:'16px', fontWeight:800, color:C.text }}>{editId ? '과목 수정' : '과목 추가'}</div>
               <button onClick={() => setShowModal(false)} style={{ background:'none', border:'none', fontSize:'20px', color:C.muted, cursor:'pointer', lineHeight:1 }}>✕</button>
             </div>
+            <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
             <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
               {/* 과목명 */}
               <div>
@@ -1149,6 +1151,13 @@ function SubjectsTab({ session }) {
                   ))}
                 </div>
               </div>
+              {/* 수업 시간(분) */}
+              <div>
+                <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>수업 시간 (분)</label>
+                <input type="number" style={iSt3} value={form.duration}
+                  onChange={e => setForm(f=>({...f, duration:e.target.value}))}
+                  placeholder="예: 80" min={1} />
+              </div>
               {/* 반별 시작/종료 시간 */}
               {form.className.trim() && (()=>{
                 const classes = form.className.split(',').map(s=>s.trim()).filter(Boolean)
@@ -1165,7 +1174,16 @@ function SubjectsTab({ session }) {
                             <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>시작</label>
                             <input type="time" style={iSt3}
                               value={form.times[cls]?.start||''}
-                              onChange={e => setForm(f=>({...f, times:{...f.times, [cls]:{...f.times[cls], start:e.target.value}}}))} />
+                              onChange={e => {
+                                const start = e.target.value
+                                let end = form.times[cls]?.end||''
+                                if(start && form.duration) {
+                                  const [h,m] = start.split(':').map(Number)
+                                  const total = h*60+m+parseInt(form.duration)
+                                  end = `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`
+                                }
+                                setForm(f=>({...f, times:{...f.times, [cls]:{...f.times[cls], start, end}}}))
+                              }} />
                           </div>
                           <div>
                             <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>종료</label>
@@ -1181,7 +1199,16 @@ function SubjectsTab({ session }) {
                             <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>시작</label>
                             <input type="time" style={iSt3}
                               value={form.times[cls]?.vacStart||''}
-                              onChange={e => setForm(f=>({...f, times:{...f.times, [cls]:{...f.times[cls], vacStart:e.target.value}}}))} />
+                              onChange={e => {
+                                const vacStart = e.target.value
+                                let vacEnd = form.times[cls]?.vacEnd||''
+                                if(vacStart && form.duration) {
+                                  const [h,m] = vacStart.split(':').map(Number)
+                                  const total = h*60+m+parseInt(form.duration)
+                                  vacEnd = `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`
+                                }
+                                setForm(f=>({...f, times:{...f.times, [cls]:{...f.times[cls], vacStart, vacEnd}}}))
+                              }} />
                           </div>
                           <div>
                             <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>종료</label>
@@ -1201,7 +1228,8 @@ function SubjectsTab({ session }) {
                 <input type="number" style={iSt3} value={form.capacity} onChange={e => setForm(f=>({...f,capacity:e.target.value}))} placeholder="예: 20" min={1} />
               </div>
             </div>
-            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', marginTop:'20px' }}>
+            </div>
+            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', padding:'16px 24px', borderTop:`1px solid ${C.border}`, flexShrink:0 }}>
               <button onClick={() => setShowModal(false)} style={{ padding:'8px 20px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
               <Btn onClick={handleSave}>{editId ? '수정' : '추가'}</Btn>
             </div>
