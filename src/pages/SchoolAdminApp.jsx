@@ -10,7 +10,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { dbCall, FUNCTIONS_BASE } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../components/Atoms.jsx'
+import { ConfirmDialog } from '../components/Atoms.jsx'
 
 const C = {
   primary:'#3b82f6', text:'#111827', muted:'#6b7280',
@@ -734,7 +734,7 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
 // ── 공지·업무 관리 탭
 function NoticesTab({ session }) {
   const { success, error } = useToast()
-  const confirm = useConfirm()
+  const confirm = useSchoolConfirm()
   const [notices,     setNotices]     = useState([])
   const [invites,     setInvites]     = useState([])
   const [teachers,    setTeachers]    = useState([])
@@ -1330,7 +1330,7 @@ function TeacherDetailModal({ t, onClose }) {
 // ── 선생님 현황 탭
 function TeachersTab({ session }) {
   const { success, error } = useToast()
-  const confirm = useConfirm()
+  const confirm = useSchoolConfirm()
   const [teachers,   setTeachers]   = useState([])
   const [subjects,   setSubjects]   = useState([]) // 이 학교·연도 과목 목록
   const [loading,    setLoading]    = useState(true)
@@ -1739,7 +1739,7 @@ function PeriodModal({ teacher, onClose, onSave }) {
 
 function ConnectTab({ session }) {
   const { success, error } = useToast()
-  const confirm = useConfirm()
+  const confirm = useSchoolConfirm()
   const [roster,      setRoster]      = useState([])
   const [appUsers,    setAppUsers]    = useState([])
   const [invites,     setInvites]     = useState([])
@@ -2520,11 +2520,27 @@ function SchoolDashboard({ session, onNav }) {
   )
 }
 
+// SchoolAdminApp 전용 confirm 컨텍스트 (App.jsx _openConfirm 싱글톤 충돌 방지)
+const SchoolConfirmContext = React.createContext(null)
+export function useSchoolConfirm() { return React.useContext(SchoolConfirmContext) }
+
 export function SchoolAdminApp({ session, onLogout }) {
   const [page, setPage] = useState('dashboard')
+  const [confirmState, setConfirmState] = useState({ open: false, message: '', onOk: null })
+
+  const schoolConfirm = React.useCallback((message, onOk) => {
+    setConfirmState({ open: true, message, onOk })
+  }, [])
+
+  const handleOk = () => {
+    setConfirmState(s => { s.onOk?.(); return { ...s, open: false } })
+  }
+  const handleCancel = () => setConfirmState(s => ({ ...s, open: false }))
 
   return (
+    <SchoolConfirmContext.Provider value={schoolConfirm}>
     <div style={{ display:'flex', minHeight:'100vh', background:'#f1f5f9', fontFamily:'Noto Sans KR, sans-serif' }}>
+      <ConfirmDialog open={confirmState.open} message={confirmState.message} onOk={handleOk} onCancel={handleCancel} />
       <Sidebar session={session} page={page} onNav={setPage} onLogout={onLogout} />
       <main style={{ flex:1, overflowY:'auto' }}>
         {page === 'dashboard' && <SchoolDashboard session={session} onNav={setPage} />}
@@ -2535,5 +2551,6 @@ export function SchoolAdminApp({ session, onLogout }) {
         {page === 'students' && <StudentsTab session={session} />}
       </main>
     </div>
+    </SchoolConfirmContext.Provider>
   )
 }
