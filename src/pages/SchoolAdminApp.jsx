@@ -329,36 +329,32 @@ function NoticeCreateModal({ session, teachers, onSave, onClose, editNotice }) {
             {ti.icon} {ti.desc}
           </div>
 
-          {/* 완료 조건 — 모든 유형에 표시 */}
+          {/* 완료 조건 */}
           <div style={{ marginTop:'10px' }}>
             <LBL>완료 조건</LBL>
-            {/* 초대 유형은 회신완료 고정 안내 */}
-            {(form.type === 'invite_connect' || form.type === 'invite_signup') ? (
-              <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'9px', padding:'10px 14px', fontSize:'12px', color:'#1e40af' }}>
-                🔗 초대 방식은 <strong>회신 완료</strong>로 처리됩니다.
-                <div style={{ fontSize:'11px', color:'#3b82f6', marginTop:'4px', opacity:.85 }}>
-                  선생님이 초대를 수락하면 자동으로 회신완료 처리됩니다.
-                </div>
-              </div>
-            ) : (
-              <div style={{ display:'flex', gap:'8px' }}>
-                {[
-                  { v:'replied',   icon:'✉️', label:'회신 완료로 끝',  desc:'읽고 확인하면 완료' },
-                  { v:'submitted', icon:'📎', label:'제출 완료로 끝',  desc:'파일·서류 제출해야 완료' },
-                ].map(opt => (
-                  <button key={opt.v} type="button" onClick={() => setForm(f=>({...f, completeOn:opt.v}))} style={{
-                    flex:1, padding:'8px 12px', borderRadius:'9px', cursor:'pointer',
-                    fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', textAlign:'left',
-                    border: form.completeOn===opt.v ? `2px solid ${ti.color}` : `2px solid #e5e7eb`,
-                    background: form.completeOn===opt.v ? ti.bg : '#fff',
-                    color: form.completeOn===opt.v ? ti.color : C.muted,
-                  }}>
-                    <div style={{ fontWeight:700 }}>{opt.icon} {opt.label}</div>
-                    <div style={{ fontSize:'10px', marginTop:'2px', opacity:.8 }}>{opt.desc}</div>
-                  </button>
-                ))}
+            {/* 등록 모드 + 초대 유형일 때만 안내 문구 */}
+            {!isEdit && (form.type === 'invite_connect' || form.type === 'invite_signup') && (
+              <div style={{ fontSize:'11px', color:'#3b82f6', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'7px', padding:'6px 10px', marginBottom:'8px' }}>
+                🔗 초대 방식은 선생님이 수락하면 자동으로 <strong>회신완료</strong> 처리됩니다.
               </div>
             )}
+            <div style={{ display:'flex', gap:'8px' }}>
+              {[
+                { v:'replied',   icon:'✉️', label:'회신 완료로 끝',  desc:'읽고 확인·수락하면 완료' },
+                { v:'submitted', icon:'📎', label:'제출 완료로 끝',  desc:'파일·서류 제출해야 완료' },
+              ].map(opt => (
+                <button key={opt.v} type="button" onClick={() => setForm(f=>({...f, completeOn:opt.v}))} style={{
+                  flex:1, padding:'8px 12px', borderRadius:'9px', cursor:'pointer',
+                  fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', textAlign:'left',
+                  border: form.completeOn===opt.v ? `2px solid ${ti.color}` : `2px solid #e5e7eb`,
+                  background: form.completeOn===opt.v ? ti.bg : '#fff',
+                  color: form.completeOn===opt.v ? ti.color : C.muted,
+                }}>
+                  <div style={{ fontWeight:700 }}>{opt.icon} {opt.label}</div>
+                  <div style={{ fontSize:'10px', marginTop:'2px', opacity:.8 }}>{opt.desc}</div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
