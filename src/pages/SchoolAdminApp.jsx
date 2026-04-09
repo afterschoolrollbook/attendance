@@ -74,7 +74,7 @@ function Sidebar({ session, page, onNav, onLogout }) {
     { id:'teachers',  icon:'👩‍🏫', label:'선생님 현황' },
     { id:'connect',   icon:'🔗', label:'선생님 연결 관리' },
     { id:'schoolcal', icon:'📅', label:'연간 수업 달력' },
-    { id:'classes',   icon:'📚', label:'수업 관리' },
+
     { id:'students',  icon:'👥', label:'학생 현황' },
   ]
   return (
@@ -988,12 +988,18 @@ const CURRENT_YEAR = new Date().getFullYear()
 const DAYS_LIST = ['월', '화', '수', '목', '금', '토']
 
 // ── 과목 관리 탭 (학교별 연도 과목 등록)
+const DAYS_LIST = ['월','화','수','목','금','토','일']
+const EMPTY_FORM = { name:'', days:[], className:'', startTime:'', endTime:'', capacity:'' }
+
 function SubjectsTab({ session }) {
   const { success, error } = useToast()
   const [subjects, setSubjects] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [selYear,  setSelYear]  = useState(CURRENT_YEAR)
-  const [input,    setInput]    = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editId,    setEditId]    = useState(null)
+  const [form,      setForm]      = useState(EMPTY_FORM)
+  const [delId,     setDelId]     = useState(null)
 
   const load = async () => {
     setLoading(true)
@@ -1008,35 +1014,51 @@ function SubjectsTab({ session }) {
   const years = [...new Set([CURRENT_YEAR, ...subjects.map(s => s.year).filter(Boolean)])].sort((a,b)=>b-a)
   const filtered = subjects.filter(s => s.year == selYear)
 
-  const handleAdd = async () => {
-    const name = input.trim()
-    if (!name) { error('과목명을 입력해주세요.'); return }
-    if (filtered.find(s => s.name === name)) { error('이미 등록된 과목입니다.'); return }
-    await dbCall('upsert', 'schoolSubjects', {
-      data: {
-        id: uid(), adminId: session.adminId,
-        schoolName: session.admin?.schoolName || '',
-        year: selYear, name, active: true, createdAt: now(),
-      }
-    })
-    setInput('')
-    success('과목이 등록되었습니다.')
+  const openAdd  = () => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true) }
+  const openEdit = (s) => { setEditId(s.id); setForm({ name:s.name||'', days:s.days||[], className:s.className||'', startTime:s.startTime||'', endTime:s.endTime||'', capacity:s.capacity||'' }); setShowModal(true) }
+
+  const handleSave = async () => {
+    if (!form.name.trim()) { error('과목명을 입력해주세요.'); return }
+    if (form.days.length === 0) { error('요일을 선택해주세요.'); return }
+    const data = {
+      name: form.name.trim(),
+      days: form.days,
+      className: form.className.trim(),
+      startTime: form.startTime,
+      endTime: form.endTime,
+      capacity: form.capacity ? parseInt(form.capacity) : null,
+    }
+    if (editId) {
+      await dbCall('update', 'schoolSubjects', { id: editId, patch: data })
+      success('수정되었습니다.')
+    } else {
+      if (filtered.find(s => s.name === data.name && s.className === data.className)) { error('이미 등록된 과목입니다.'); return }
+      await dbCall('upsert', 'schoolSubjects', {
+        data: { id: uid(), adminId: session.adminId, schoolName: session.admin?.schoolName||'', year: selYear, active: true, createdAt: now(), ...data }
+      })
+      success('과목이 등록되었습니다.')
+    }
+    setShowModal(false)
     load()
   }
 
   const handleDelete = async (id) => {
     await dbCall('update', 'schoolSubjects', { id, patch: { active: false } })
     success('삭제되었습니다.')
+    setDelId(null)
     load()
   }
 
+  const iSt3 = { width:'100%', padding:'8px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
+
   return (
-    <div style={{ padding:'28px', maxWidth:'600px' }}>
-      <div style={{ marginBottom:'20px' }}>
-        <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>📚 과목 관리</div>
-        <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>
-          연도별 진행 과목을 등록하세요. 선생님 등록 시 목록에서 선택할 수 있습니다.
+    <div style={{ padding:'28px', maxWidth:'700px' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'20px' }}>
+        <div>
+          <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>📚 과목 관리</div>
+          <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>연도별 진행 과목을 등록하세요.</div>
         </div>
+        <Btn onClick={openAdd}>+ 과목 추가</Btn>
       </div>
 
       {/* 연도 탭 */}
@@ -1050,19 +1072,6 @@ function SubjectsTab({ session }) {
             {y}년{y===CURRENT_YEAR&&<span style={{ fontSize:'10px', opacity:.8 }}> 올해</span>}
           </button>
         ))}
-        <button onClick={() => { if(!years.includes(selYear-0||CURRENT_YEAR)) setSelYear(CURRENT_YEAR) }} style={{ display:'none' }} />
-      </div>
-
-      {/* 추가 입력 */}
-      <div style={{ display:'flex', gap:'8px', marginBottom:'20px' }}>
-        <input
-          style={{ ...iSt, flex:1 }}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key==='Enter' && handleAdd()}
-          placeholder={`${selYear}년 과목명 입력 (예: 로봇, 코딩, 미술)`}
-        />
-        <Btn onClick={handleAdd}>+ 추가</Btn>
       </div>
 
       {loading ? (
@@ -1074,23 +1083,92 @@ function SubjectsTab({ session }) {
         </div>
       ) : (
         <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+          {/* 헤더 */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 60px 80px 80px 60px 80px', gap:'8px', padding:'10px 16px', background:'#f8fafc', borderBottom:`1px solid ${C.border}`, fontSize:'12px', fontWeight:700, color:C.muted }}>
+            <span>과목명</span><span>반</span><span>요일</span><span>시간</span><span>정원</span><span></span>
+          </div>
           {filtered.map((s, i) => (
             <div key={s.id} style={{
-              display:'flex', alignItems:'center', justifyContent:'space-between',
-              padding:'12px 16px',
+              display:'grid', gridTemplateColumns:'1fr 60px 80px 80px 60px 80px', gap:'8px',
+              alignItems:'center', padding:'12px 16px',
               borderBottom: i < filtered.length-1 ? `1px solid ${C.border}` : 'none',
             }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-                <span style={{ fontSize:'18px' }}>📌</span>
-                <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{s.name}</span>
+              <span style={{ fontSize:'14px', fontWeight:600, color:C.text }}>📌 {s.name}</span>
+              <span style={{ fontSize:'12px', color:C.muted }}>{s.className||'-'}</span>
+              <span style={{ fontSize:'12px', color:C.muted }}>{(s.days||[]).join('·')||'-'}</span>
+              <span style={{ fontSize:'12px', color:C.muted }}>{s.startTime&&s.endTime?`${s.startTime}~${s.endTime}`:'-'}</span>
+              <span style={{ fontSize:'12px', color:C.muted }}>{s.capacity||'-'}</span>
+              <div style={{ display:'flex', gap:'4px' }}>
+                <button onClick={() => openEdit(s)} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', color:C.text, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                {delId===s.id ? (
+                  <div style={{ display:'flex', gap:'3px' }}>
+                    <button onClick={() => setDelId(null)} style={{ padding:'4px 6px', borderRadius:'6px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
+                    <button onClick={() => handleDelete(s.id)} style={{ padding:'4px 6px', borderRadius:'6px', border:'none', background:C.danger, color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setDelId(s.id)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                )}
               </div>
-              <button onClick={() => handleDelete(s.id)} style={{
-                padding:'4px 10px', borderRadius:'6px', border:'1px solid #fca5a5',
-                background:'#fef2f2', color:C.danger, fontSize:'12px',
-                cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-              }}>삭제</button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 등록/수정 모달 */}
+      {showModal && (
+        <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={e => { if(e.target===e.currentTarget) setShowModal(false) }}>
+          <div style={{ background:'#fff', borderRadius:'16px', width:'420px', maxWidth:'95vw', padding:'28px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+              <div style={{ fontSize:'16px', fontWeight:800, color:C.text }}>{editId ? '과목 수정' : '과목 추가'}</div>
+              <button onClick={() => setShowModal(false)} style={{ background:'none', border:'none', fontSize:'20px', color:C.muted, cursor:'pointer', lineHeight:1 }}>✕</button>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+              {/* 과목명 */}
+              <div>
+                <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>과목명 *</label>
+                <input style={iSt3} value={form.name} onChange={e => setForm(f=>({...f,name:e.target.value}))} placeholder="예: 로봇, 코딩, 미술" />
+              </div>
+              {/* 반 */}
+              <div>
+                <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>반</label>
+                <input style={iSt3} value={form.className} onChange={e => setForm(f=>({...f,className:e.target.value}))} placeholder="예: A반, 1반" />
+              </div>
+              {/* 요일 */}
+              <div>
+                <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'6px' }}>요일 *</label>
+                <div style={{ display:'flex', gap:'6px' }}>
+                  {DAYS_LIST.map(d => (
+                    <button key={d} onClick={() => setForm(f => ({ ...f, days: f.days.includes(d) ? f.days.filter(x=>x!==d) : [...f.days,d] }))}
+                      style={{ width:'36px', height:'36px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:'13px', fontWeight:700,
+                        background: form.days.includes(d) ? '#1e3a5f' : '#f3f4f6',
+                        color: form.days.includes(d) ? '#fff' : C.text,
+                        fontFamily:'Noto Sans KR, sans-serif' }}>{d}</button>
+                  ))}
+                </div>
+              </div>
+              {/* 시작/종료 시간 */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                <div>
+                  <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>시작 시간</label>
+                  <input type="time" style={iSt3} value={form.startTime} onChange={e => setForm(f=>({...f,startTime:e.target.value}))} />
+                </div>
+                <div>
+                  <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>종료 시간</label>
+                  <input type="time" style={iSt3} value={form.endTime} onChange={e => setForm(f=>({...f,endTime:e.target.value}))} />
+                </div>
+              </div>
+              {/* 정원 */}
+              <div>
+                <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px' }}>정원</label>
+                <input type="number" style={iSt3} value={form.capacity} onChange={e => setForm(f=>({...f,capacity:e.target.value}))} placeholder="예: 20" min={1} />
+              </div>
+            </div>
+            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', marginTop:'20px' }}>
+              <button onClick={() => setShowModal(false)} style={{ padding:'8px 20px', borderRadius:'8px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
+              <Btn onClick={handleSave}>{editId ? '수정' : '추가'}</Btn>
+            </div>
+          </div>
         </div>
       )}
     </div>
