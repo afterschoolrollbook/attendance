@@ -502,14 +502,22 @@ function SchoolConnectionPanel({ user, onNav }) {
                           <div style={{ flex:1 }}>
                             <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px' }}>
                               <span style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>{cal.title || '(제목 없음)'}</span>
-                              {isMyDay && !myClass && <span style={{ fontSize:'10px', fontWeight:700, color:'#d97706', background:'#fef9c3', padding:'1px 6px', borderRadius:'4px' }}>내 요일</span>}
                               {myClass && <span style={{ fontSize:'10px', fontWeight:700, color:'#16a34a', background:'#dcfce7', padding:'1px 6px', borderRadius:'4px' }}>✅ 내 수업에 있음</span>}
                             </div>
                             <div style={{ fontSize:'11px', color:'#6b7280', display:'flex', gap:'8px', flexWrap:'wrap' }}>
-                              {calDays.length > 0 && <span>📆 {calDays.join('·')}요일</span>}
                               {cal.startDate && <span>📅 {cal.startDate.slice(5)} ~ {cal.endDate?.slice(5)||'?'}</span>}
                               {cal.termType  && <span style={{ color:'#6366f1', fontWeight:600 }}>{cal.termType==='semester'?'학기제':cal.termType==='quarter'?'분기제':cal.termType}</span>}
-                              {cal.termCount && <span>{cal.termCount}텀</span>}
+                              {(()=>{
+                                const qtc = cal.quarterTermCounts
+                                if (!qtc || !qtc.length) return null
+                                if (cal.termType==='semester') {
+                                  const s1 = qtc[0], s2 = qtc[1]
+                                  if (!s1 && !s2) return null
+                                  return <span>{s1 ? `1학기 ${s1}텀` : ''}{s1&&s2 ? ' / ' : ''}{s2 ? `2학기 ${s2}텀` : ''}</span>
+                                }
+                                const total = qtc.slice(0, cal.quarters||4).reduce((a,b)=>a+b, 0)
+                                return total ? <span>총 {total}텀</span> : null
+                              })()}
                               {(cal.cancelledDates||[]).length > 0 && <span>🚫 휴일 {cal.cancelledDates.length}일</span>}
                             </div>
                           </div>
