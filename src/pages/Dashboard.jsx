@@ -2063,6 +2063,8 @@ export function Dashboard({ user, onNav }) {
       {/* ── 학교 업무 알림 (미완료 상시 표시) ── */}
       <SchoolConnectionPanel user={user} onNav={onNav} />
       <SchoolTaskPanel user={user} />
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 700, color: C.text }}>
             안녕하세요, {(user.displayNameMode === 'nickname' && user.nickname) ? user.nickname : user.name} 선생님 👋
