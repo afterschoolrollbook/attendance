@@ -756,7 +756,6 @@ function ComparePanel({ cal, myClass, myDay }) {
   }
 
   const schoolAllDates = getRangeDates(marchStart3,nextFebEnd3,dayNums3).filter(d=>!schoolCancelledSet.has(d)&&!vacSet.has(d))
-  const schoolDates    = myDayNum!=null ? schoolAllDates.filter(d=>getDow3(d)===myDayNum) : schoolAllDates
 
   // ── 내 수업 sessionMap + myDates — ClassCalendar.jsx와 완전 동일한 로직
   const myAllDates     = calcSessionDates(myClass)
@@ -838,6 +837,9 @@ function ComparePanel({ cal, myClass, myDay }) {
     quarterTermCounts: quarterTermCounts3,
     flatTermSessions: flatTermSessions3,
   })
+  // schoolDates = schoolSessionMap에 있는 날짜만 (텀/차시 제한 반영 완료)
+  const schoolAllSessionDates = Object.keys(schoolSessionMap)
+  const schoolDates = myDayNum!=null ? schoolAllSessionDates.filter(d=>getDow3(d)===myDayNum) : schoolAllSessionDates
 
   // 비교 상태
   const missing         = schoolDates.filter(d=>!mySet.has(d))         // 학교O 내X
