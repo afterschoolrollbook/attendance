@@ -894,7 +894,6 @@ function ComparePanel({ cal, myClass, myDay }) {
             <div key={d} style={{ padding:'2px',borderRadius:'5px',textAlign:'center',background: isMissing?'#fef2f2':'#fff7ed',border:`1px solid ${isMissing?'#fca5a5':'#f97316'}` }}>
               <div style={{ fontSize:'10px',fontWeight:700,color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div>
               {sessInfo && <div style={{ fontSize:'7px',color:'#c2410c',fontWeight:700,lineHeight:1.3 }}>{sessInfo.quarterLabel} {localTermNum}텀 {sessInfo.inTermSess}차</div>}
-              {isMissing && <div style={{ fontSize:'7px',color:'#ef4444',fontWeight:700 }}>내수업없음</div>}
             </div>
           )
         }
