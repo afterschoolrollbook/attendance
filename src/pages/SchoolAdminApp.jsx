@@ -171,6 +171,22 @@ function SchoolInfoTab({ session }) {
   const handleSave = async () => {
     setSaving(true)
     try {
+      // docs에서 대용량 base64 data 제거 — URL만 저장 (base64는 로컬 state 유지)
+      // Supabase에는 name/size/url만 저장, data(base64)는 제외
+      const safeDocs = {}
+      Object.entries(form.docs || {}).forEach(([key, files]) => {
+        if (Array.isArray(files)) {
+          safeDocs[key] = files.map(f => ({
+            name: f.name,
+            size: f.size,
+            // base64 data는 저장하지 않음 (크기 제한) — url이 있으면 url만
+            ...(f.url ? { url: f.url } : {}),
+            // 기존 데이터 중 url이 없고 data만 있으면 data 유지 (기존 호환)
+            ...(f.data && !f.url ? { data: f.data } : {}),
+          }))
+        }
+      })
+
       const data = {
         adminId:       session.adminId,
         schoolName:    session.admin?.schoolName || '',
@@ -178,7 +194,7 @@ function SchoolInfoTab({ session }) {
         afterPhone:    form.afterPhone.trim(),
         address:       form.address.trim(),
         addressDetail: form.addressDetail.trim(),
-        docs:          form.docs,
+        docs:          safeDocs,
         updatedAt:     now(),
       }
       if (info) {
@@ -188,7 +204,10 @@ function SchoolInfoTab({ session }) {
       }
       success('저장되었습니다.')
       load()
-    } catch { error('저장 중 오류가 발생했습니다.') }
+    } catch (e) {
+      console.error('schoolInfo 저장 오류:', e)
+      error(`저장 중 오류가 발생했습니다. (${e?.message || 'Supabase 오류'})`)
+    }
     setSaving(false)
   }
 
@@ -222,12 +241,14 @@ function SchoolInfoTab({ session }) {
           <div style={{ fontSize:'20px', fontWeight:800, color:C.text }}>🏫 학교 정보 · 서류 양식</div>
           <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>학교 기본 정보 및 공통 서류 양식을 등록하세요</div>
         </div>
-        <button onClick={handleSave} disabled={saving} style={{
-          padding:'9px 22px', borderRadius:'10px', border:'none',
-          background: saving ? '#e5e7eb' : '#1e3a5f', color: saving ? C.muted : '#fff',
-          fontWeight:700, fontSize:'13px', cursor: saving ? 'not-allowed' : 'pointer',
-          fontFamily:'Noto Sans KR, sans-serif',
-        }}>{saving ? '저장 중...' : '💾 저장'}</button>
+        <div style={{ display:'flex', gap:'8px' }}>
+          <button onClick={handleSave} disabled={saving} style={{
+            padding:'9px 22px', borderRadius:'10px', border:'none',
+            background: saving ? '#e5e7eb' : '#1e3a5f', color: saving ? C.muted : '#fff',
+            fontWeight:700, fontSize:'13px', cursor: saving ? 'not-allowed' : 'pointer',
+            fontFamily:'Noto Sans KR, sans-serif',
+          }}>{saving ? '저장 중...' : '💾 저장'}</button>
+        </div>
       </div>
 
       {/* ── 학교 정보 */}
