@@ -980,8 +980,6 @@ function ComparePanel({ cal, myClass, myDay }) {
       if(!d) return <div key={'e'+idx}/>
       const ds   = `${year}-${pad3(month+1)}-${pad3(d)}`
       const dow  = getDow3(ds)
-      // 내 요일 아닌 날은 표시 안 함
-      if(myDayNum!=null && dow!==myDayNum) return <div key={d}/>
 
       const isSession   = dateSet.has(ds)
       const isCancelled = cancelSet.has(ds)
@@ -989,10 +987,11 @@ function ComparePanel({ cal, myClass, myDay }) {
       const isExtra     = !isSchool && extra.includes(ds)
       const isHolMissed = !isSchool && myHolidayMissed.some(c=>c.date===ds)
       const isSun=dow===0, isSat=dow===6
+      const isMyDay     = myDayNum==null || dow===myDayNum
 
       // 학교 달력 셀
       if(isSchool) {
-        if(isCancelled) return (
+        if(isCancelled && isMyDay) return (
           <div key={d} style={{ padding:'2px',borderRadius:'5px',textAlign:'center',background:'#fef2f2',border:'1px solid #fca5a5' }}>
             <div style={{ fontSize:'10px',color:'#d1d5db',fontWeight:500 }}>{d}</div>
             <div style={{ fontSize:'8px',color:'#ef4444' }}>휴일</div>
@@ -1009,11 +1008,11 @@ function ComparePanel({ cal, myClass, myDay }) {
             </div>
           )
         }
-        return <div key={d} style={{ padding:'3px',textAlign:'center' }}><div style={{ fontSize:'10px',color:'#e5e7eb' }}>{d}</div></div>
+        return <div key={d} style={{ padding:'3px',textAlign:'center' }}><div style={{ fontSize:'10px',color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div></div>
       }
 
       // 내 수업 셀
-      if(isCancelled) return (
+      if(isCancelled && isMyDay) return (
         <div key={d} style={{ padding:'2px',borderRadius:'5px',textAlign:'center',background:'#fef2f2',border:'1px solid #fca5a5' }}>
           <div style={{ fontSize:'10px',color:'#d1d5db',fontWeight:500 }}>{d}</div>
           <div style={{ fontSize:'8px',color:'#ef4444' }}>휴일</div>
@@ -1026,18 +1025,17 @@ function ComparePanel({ cal, myClass, myDay }) {
         </div>
       )
       if(isSession) {
-          const mySess = mySessionMap[ds]
-          // 학교 달력의 학기 경계로 학기명 결정
-          const semLabel = termBoundaries3.find(b => ds >= b.start && ds <= b.end)?.label || ''
-          return (
-            <div key={d} style={{ padding:'2px',borderRadius:'5px',textAlign:'center',background: isExtra?'#fffbeb':'#eff6ff',border:`1px solid ${isExtra?'#fde68a':'#3b82f6'}` }}>
-              <div style={{ fontSize:'10px',fontWeight:700,color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div>
-              {mySess && <div style={{ fontSize:'7px',color:'#1d4ed8',fontWeight:700,lineHeight:1.3 }}>{semLabel}{semLabel?' ':''}{mySess.termNum}텀 {mySess.termSess}차</div>}
-              {isExtra && <div style={{ fontSize:'7px',color:'#d97706',fontWeight:700 }}>학교없음</div>}
-            </div>
-          )
-        }
-      return <div key={d} style={{ padding:'3px',textAlign:'center' }}><div style={{ fontSize:'10px',color:'#e5e7eb' }}>{d}</div></div>
+        const mySess = mySessionMap[ds]
+        const semLabel = termBoundaries3.find(b => ds >= b.start && ds <= b.end)?.label || ''
+        return (
+          <div key={d} style={{ padding:'2px',borderRadius:'5px',textAlign:'center',background: isExtra?'#fffbeb':'#eff6ff',border:`1px solid ${isExtra?'#fde68a':'#3b82f6'}` }}>
+            <div style={{ fontSize:'10px',fontWeight:700,color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div>
+            {mySess && <div style={{ fontSize:'7px',color:'#1d4ed8',fontWeight:700,lineHeight:1.3 }}>{semLabel}{semLabel?' ':''}{mySess.termNum}텀 {mySess.termSess}차</div>}
+            {isExtra && <div style={{ fontSize:'7px',color:'#d97706',fontWeight:700 }}>학교없음</div>}
+          </div>
+        )
+      }
+      return <div key={d} style={{ padding:'3px',textAlign:'center' }}><div style={{ fontSize:'10px',color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div></div>
     })
   }
 
@@ -1075,10 +1073,9 @@ function ComparePanel({ cal, myClass, myDay }) {
           {/* 좌우 달력 비교 */}
           {months.map(({year:y,month:m})=>{
             const monthStr = `${y}-${pad3(m+1)}`
-            // 이 달에 내 요일 날짜가 있는지
+            // 이 달에 수업/휴일 날짜가 하나라도 있으면 표시
             const hasDates = [...Array(new Date(y,m+1,0).getDate())].some((_,i)=>{
               const ds = `${monthStr}-${pad3(i+1)}`
-              if(myDayNum!=null && getDow3(ds)!==myDayNum) return false
               return schoolSet.has(ds)||mySet.has(ds)||schoolCancelledSet.has(ds)||myCancelledSet.has(ds)
             })
             if(!hasDates) return null
