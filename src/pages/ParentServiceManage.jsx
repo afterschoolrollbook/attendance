@@ -282,7 +282,12 @@ function ParentListTab({ user, config }) {
       if (!inYear) return false
     }
     if (ctxClass  && !s.classIds?.includes(ctxClass))    return false
-    if (ctxSchool && s.school !== ctxSchool)              return false
+    if (ctxSchool) {
+      const actualSchool = (s.classIds || [])
+        .map(cid => classes.find(c => c.id === cid)?.organization)
+        .filter(Boolean)[0] || s.school || ''
+      if (actualSchool !== ctxSchool) return false
+    }
     return true
   })
 
@@ -575,11 +580,14 @@ function ParentListTab({ user, config }) {
                   if (!cls) return null
                   return cls.className + (cls.section ? ' ' + cls.section + '반' : '')
                 }).filter(Boolean)
+                const displaySchool = (s.classIds || [])
+                  .map(cid => classes.find(c => c.id === cid)?.organization)
+                  .filter(Boolean)[0] || s.school || ''
 
                 return (
                   <tr key={s.id} style={{ borderBottom:`1px solid #f3f4f6`, background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                     <td style={{ padding:'11px 14px', fontSize:'13px', color:'#9ca3af', textAlign:'center' }}>{i+1}</td>
-                    <td style={{ padding:'11px 14px', fontSize:'13px', color:'#6b7280', whiteSpace:'nowrap' }}>{s.school}</td>
+                    <td style={{ padding:'11px 14px', fontSize:'13px', color:'#6b7280', whiteSpace:'nowrap' }}>{displaySchool}</td>
                     <td style={{ padding:'11px 14px' }}>
                       <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
                         {sClasses.map(c => <Tag key={c} color="#6b7280" bg="#f3f4f6">{c}</Tag>)}

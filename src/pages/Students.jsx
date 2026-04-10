@@ -328,7 +328,10 @@ export function Students({ user, onNav }) {
       if (!inYear) return false
     }
     if (ctxClass && !s.classIds?.includes(ctxClass)) return false
-    if (ctxSchool && s.school !== ctxSchool) return false
+    if (ctxSchool) {
+      const actualSchool = (s.classIds || []).map(cid => classes.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || ''
+      if (actualSchool !== ctxSchool) return false
+    }
     if (ctxSection && s.classNum !== ctxSection) return false
     if (statusFilter !== 'all' && s.status !== statusFilter && !(statusFilter === 'cancelled' && (s.status === 'cancel_before' || s.status === 'cancel_after'))) return false
     return true
@@ -337,7 +340,9 @@ export function Students({ user, onNav }) {
     if (sortOrder === 'name') {
       const DAY_ORDER = ['월','화','수','목','금','토','일']
       // 학교
-      const schoolCmp = (a.school || '').localeCompare(b.school || '', 'ko')
+      const aOrg = (classes.find(c => c.id === a.classIds?.[0])?.organization) || a.school || ''
+      const bOrg = (classes.find(c => c.id === b.classIds?.[0])?.organization) || b.school || ''
+      const schoolCmp = aOrg.localeCompare(bOrg, 'ko')
       if (schoolCmp !== 0) return schoolCmp
       // 요일
       const aClass = classes.find(c => c.id === a.classIds?.[0])
@@ -374,7 +379,9 @@ export function Students({ user, onNav }) {
       const dayCmp = (aDay === -1 ? 99 : aDay) - (bDay === -1 ? 99 : bDay)
       if (dayCmp !== 0) return dayCmp
       // 같은 요일이면 학교 → 수업명 순
-      const schoolCmp = (a.school || '').localeCompare(b.school || '', 'ko')
+      const aOrg2 = classes.find(c => c.id === a.classIds?.[0])?.organization || a.school || ''
+      const bOrg2 = classes.find(c => c.id === b.classIds?.[0])?.organization || b.school || ''
+      const schoolCmp = aOrg2.localeCompare(bOrg2, 'ko')
       if (schoolCmp !== 0) return schoolCmp
       return (aClass?.className || '').localeCompare(bClass?.className || '', 'ko')
     }
@@ -390,12 +397,14 @@ export function Students({ user, onNav }) {
       if (!inYear) return false
     }
     if (ctxClass && !s.classIds?.includes(ctxClass)) return false
-    if (ctxSchool && s.school !== ctxSchool) return false
+    if (ctxSchool) {
+      const actualSchool = (s.classIds || []).map(cid => classes.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || ''
+      if (actualSchool !== ctxSchool) return false
+    }
     if (ctxSection && s.classNum !== ctxSection) return false
     return true
   })
   const statusCounts = {
-    all:       ctxBase.length,
     applied:   ctxBase.filter(s => s.status === 'applied').length,
     selected:  ctxBase.filter(s => s.status === 'selected').length,
     confirmed: ctxBase.filter(s => s.status === 'confirmed').length,

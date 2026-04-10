@@ -2137,7 +2137,9 @@ export function Attendance({ user, pageParams = {} }) {
     const DAY_ORDER = ['월','화','수','목','금','토','일']
     const aClass = allClasses.find(c => c.id === a.classIds?.[0])
     const bClass = allClasses.find(c => c.id === b.classIds?.[0])
-    const schoolCmp = (a.school||'').localeCompare(b.school||'','ko')
+    const aOrg = (a.classIds?.length ? allClasses.find(c => c.id === a.classIds[0])?.organization : null) || a.school || ''
+    const bOrg = (b.classIds?.length ? allClasses.find(c => c.id === b.classIds[0])?.organization : null) || b.school || ''
+    const schoolCmp = aOrg.localeCompare(bOrg,'ko')
     if (schoolCmp !== 0) return schoolCmp
     const aDay = DAY_ORDER.indexOf(aClass?.days?.[0] ?? '')
     const bDay = DAY_ORDER.indexOf(bClass?.days?.[0] ?? '')
@@ -2176,7 +2178,12 @@ export function Attendance({ user, pageParams = {} }) {
       if (!inTerm) return false
     }
     // 학교 필터
-    if (selSchool && s.school !== selSchool) return false
+    if (selSchool) {
+      const actualSchool = hasClassIds
+        ? (s.classIds.map(cid => allClasses.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || '')
+        : s.school || ''
+      if (actualSchool !== selSchool) return false
+    }
     // 수업 필터
     if (selClassId) {
       const inClass = hasClassIds
