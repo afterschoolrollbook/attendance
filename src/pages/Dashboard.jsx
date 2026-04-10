@@ -758,11 +758,43 @@ function ComparePanel({ cal, myClass, myDay }) {
   const schoolAllDates = getRangeDates(marchStart3,nextFebEnd3,dayNums3).filter(d=>!schoolCancelledSet.has(d)&&!vacSet.has(d))
   const schoolDates    = myDayNum!=null ? schoolAllDates.filter(d=>getDow3(d)===myDayNum) : schoolAllDates
 
-  // ── 내 수업 수업일 (내 요일만)
+  // ── 내 수업 sessionMap + myDates — ClassCalendar.jsx와 완전 동일한 로직
   const myAllDates     = calcSessionDates(myClass)
+  const mySessionsRaw  = myClass.totalSessions ? myAllDates.slice(0, myClass.totalSessions) : myAllDates
   const myCancelledSet = new Set((myClass.cancelledDates||[]).map(c=>c.date))
-  const mySessionDates = myAllDates.filter(d=>!myCancelledSet.has(d))
-  const myDates        = myDayNum!=null ? mySessionDates.filter(d=>getDow3(d)===myDayNum) : mySessionDates
+  const myTermSizes = (myClass.termSizes?.length > 0)
+    ? myClass.termSizes.slice(0, myClass.termCount || myClass.termSizes.length).map(n => Number(n) || 4)
+    : [myClass.termSize ? Number(myClass.termSize) : 4]
+  const mySessionMap = {}
+  const myTermMap    = {}
+  let totalIdx = 1, cursor = 0
+  myTermSizes.forEach((size, ti) => {
+    let termIdx = 1
+    mySessionsRaw.slice(cursor, cursor + size).forEach(d => {
+      if (!myCancelledSet.has(d)) {
+        mySessionMap[d] = { total: totalIdx++, termNum: ti+1, termSess: termIdx++ }
+        myTermMap[d] = ti + 1
+      } else {
+        myTermMap[d] = ti + 1
+      }
+    })
+    cursor += size
+  })
+  if (!myClass.totalSessions && cursor < mySessionsRaw.length) {
+    let termIdx = 1
+    mySessionsRaw.slice(cursor).forEach(d => {
+      if (!myCancelledSet.has(d)) {
+        mySessionMap[d] = { total: totalIdx++, termNum: myTermSizes.length, termSess: termIdx++ }
+      }
+      myTermMap[d] = myTermSizes.length
+    })
+  }
+  ;(myClass.makeupDates||[]).forEach(m => {
+    mySessionMap[m.date] = { total: totalIdx++, termNum: 0, termSess: 0, isMakeup: true }
+  })
+  // myDates = sessionMap에 있는 날짜 (취소일 제외, totalSessions/termSizes 반영 완료)
+  const myAllSessionDates = Object.keys(mySessionMap).filter(d => !mySessionMap[d].isMakeup)
+  const myDates = myDayNum!=null ? myAllSessionDates.filter(d=>getDow3(d)===myDayNum) : myAllSessionDates
 
   const schoolSet = new Set(schoolDates)
   const mySet     = new Set(myDates)
@@ -805,43 +837,6 @@ function ComparePanel({ cal, myClass, myDay }) {
     termBoundaries: termBoundaries3,
     quarterTermCounts: quarterTermCounts3,
     flatTermSessions: flatTermSessions3,
-  })
-
-  // ── 내 수업 sessionMap — ClassCalendar.jsx와 동일한 로직
-  const myTermSizes = (myClass.termSizes?.length > 0)
-    ? myClass.termSizes.slice(0, myClass.termCount || myClass.termSizes.length).map(n => Number(n) || 4)
-    : [myClass.termSize ? Number(myClass.termSize) : 4]
-  const mySessionMap = {}
-  const myTermMap    = {}
-  let totalIdx = 1
-  let cursor   = 0
-  const myAllSessionsForMap = calcSessionDates(myClass)
-  const mySessionsForMap    = myClass.totalSessions
-    ? myAllSessionsForMap.slice(0, myClass.totalSessions)
-    : myAllSessionsForMap
-  myTermSizes.forEach((size, ti) => {
-    let termIdx = 1
-    mySessionsForMap.slice(cursor, cursor + size).forEach(d => {
-      if (!myCancelledSet.has(d)) {
-        mySessionMap[d] = { total: totalIdx++, termNum: ti+1, termSess: termIdx++ }
-        myTermMap[d] = ti + 1
-      } else {
-        myTermMap[d] = ti + 1
-      }
-    })
-    cursor += size
-  })
-  if (!myClass.totalSessions && cursor < mySessionsForMap.length) {
-    let termIdx = 1
-    mySessionsForMap.slice(cursor).forEach(d => {
-      if (!myCancelledSet.has(d)) {
-        mySessionMap[d] = { total: totalIdx++, termNum: myTermSizes.length, termSess: termIdx++ }
-      }
-      myTermMap[d] = myTermSizes.length
-    })
-  }
-  ;(myClass.makeupDates||[]).forEach(m => {
-    mySessionMap[m.date] = { total: totalIdx++, termNum: 0, termSess: 0, isMakeup: true }
   })
 
   // 비교 상태
@@ -937,10 +932,10 @@ function ComparePanel({ cal, myClass, myDay }) {
   return (
     <div style={{ borderTop:'1px solid #f3f4f6', padding:'10px 16px', background:'#fafafa' }}>
       {/* 상태 요약 헤더 */}
-      <div style={{ fontSize:'12px', fontWeight:700, color:isOk?'#16a34a':'#ef4444', marginBottom:'12px', display:'flex', alignItems:'center', gap:'6px' }}>
+      <div style={{ fontSize:'12px', fontWeight:700, color:isOk?'#16a34a':'#f97316', marginBottom:'12px', display:'flex', alignItems:'center', gap:'6px' }}>
         {isOk
           ? `✅ 내 ${myDayChar||''}요일 수업 일정 일치`
-          : `⚠️ 차이 발견 (누락 ${missing.length}일 / 초과 ${extra.length}일${myHolidayMissed.length?` / 휴일미반영 ${myHolidayMissed.length}일`:''})`}
+          : `⚠️ 학교 달력과 내 수업 일정을 확인하세요`}
       </div>
 
       <div style={{ marginTop:'0' }}>
@@ -953,17 +948,59 @@ function ComparePanel({ cal, myClass, myDay }) {
             <span style={{ display:'flex',alignItems:'center',gap:'3px' }}><span style={{ width:'10px',height:'10px',background:'#fffbeb',border:'1px solid #fde68a',borderRadius:'2px',display:'inline-block' }}/>초과/휴일미반영</span>
           </div>
 
-          {/* 차시 요약 */}
-          <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'12px' }}>
-            <div style={{ padding:'8px 12px',borderRadius:'8px',background:'#fff7ed',border:'1px solid #f97316',textAlign:'center' }}>
-              <div style={{ fontSize:'11px',color:'#ea580c',fontWeight:700,marginBottom:'2px' }}>🏫 학교 달력</div>
-              <div style={{ fontSize:'16px',fontWeight:800,color:'#ea580c' }}>{schoolDates.length}차시</div>
-            </div>
-            <div style={{ padding:'8px 12px',borderRadius:'8px',background: isOk?'#eff6ff':'#fef2f2',border:`1px solid ${isOk?'#3b82f6':'#fca5a5'}`,textAlign:'center' }}>
-              <div style={{ fontSize:'11px',color: isOk?'#1d4ed8':'#ef4444',fontWeight:700,marginBottom:'2px' }}>👩‍🏫 내 수업</div>
-              <div style={{ fontSize:'16px',fontWeight:800,color: isOk?'#1d4ed8':'#ef4444' }}>{myDates.length}차시 {!isOk && myDates.length!==schoolDates.length && <span style={{ fontSize:'12px' }}>({myDates.length-schoolDates.length>0?'+':''}{myDates.length-schoolDates.length})</span>}</div>
-            </div>
-          </div>
+          {/* 차시 요약 — 학기별 분리 */}
+          {(() => {
+            // 학교: 학기별 차시 수 + 텀 수
+            const schoolBySem = termBoundaries3.map(b => {
+              const dates = schoolDates.filter(d => d >= b.start && d <= b.end)
+              // 해당 학기의 텀 수 = schoolSessionMap에서 최대 localTermIdx+1
+              const termNums = dates.map(d => schoolSessionMap[d]?.localTermIdx ?? 0)
+              const termCount = termNums.length > 0 ? Math.max(...termNums) + 1 : 0
+              return { label: b.label, count: dates.length, termCount }
+            })
+            // 내 수업: 학기별 차시 수 + 텀 수
+            const myBySem = termBoundaries3.map(b => {
+              const dates = myDates.filter(d => d >= b.start && d <= b.end)
+              const termNums = dates.map(d => mySessionMap[d]?.termNum ?? 0)
+              const termCount = termNums.length > 0 ? Math.max(...termNums) : 0
+              return { label: b.label, count: dates.length, termCount }
+            })
+            const schoolTotal = schoolDates.length
+            const myTotal = myDates.length
+            const mySems = myBySem.filter(s => s.count > 0).map(s => s.label).join(', ')
+
+            return (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'12px' }}>
+                {/* 학교 달력 */}
+                <div style={{ padding:'10px 14px', borderRadius:'8px', background:'#fff7ed', border:'1px solid #f97316' }}>
+                  <div style={{ fontSize:'11px', color:'#ea580c', fontWeight:700, marginBottom:'6px' }}>🏫 학교 달력</div>
+                  {schoolBySem.map(s => (
+                    <div key={s.label} style={{ fontSize:'12px', color:'#92400e', marginBottom:'2px' }}>
+                      {s.label}: {s.termCount}텀 / {s.count}차시
+                    </div>
+                  ))}
+                  <div style={{ fontSize:'15px', fontWeight:800, color:'#ea580c', marginTop:'6px', borderTop:'1px solid #fed7aa', paddingTop:'4px' }}>
+                    {schoolTotal}차시 ({schoolBySem.map(s=>s.label).join(', ')})
+                  </div>
+                </div>
+                {/* 내 수업 */}
+                <div style={{ padding:'10px 14px', borderRadius:'8px', background:'#eff6ff', border:'1px solid #3b82f6' }}>
+                  <div style={{ fontSize:'11px', color:'#1d4ed8', fontWeight:700, marginBottom:'6px' }}>👩‍🏫 내 수업</div>
+                  {myBySem.filter(s => s.count > 0).map(s => (
+                    <div key={s.label} style={{ fontSize:'12px', color:'#1e40af', marginBottom:'2px' }}>
+                      {s.label}: {s.termCount}텀 / {s.count}차시
+                    </div>
+                  ))}
+                  {myBySem.every(s => s.count === 0) && (
+                    <div style={{ fontSize:'12px', color:'#9ca3af' }}>등록된 수업 없음</div>
+                  )}
+                  <div style={{ fontSize:'15px', fontWeight:800, color:'#1d4ed8', marginTop:'6px', borderTop:'1px solid #bfdbfe', paddingTop:'4px' }}>
+                    {myTotal}차시 {mySems ? `(${mySems})` : ''}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* 좌우 달력 비교 */}
           {months.map(({year:y,month:m})=>{
