@@ -848,6 +848,8 @@ export function Students({ user, onNav }) {
                   if (!cls) return null
                   return cls.className + (cls.section ? ' ' + cls.section + '반' : '')
                 }).filter(Boolean)
+                // 학교명은 실제 수업 레코드에서 가져옴 (s.school은 캐시라 변경 반영 안 됨)
+                const displaySchool = (s.classIds || []).map(cid => classes.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || ''
 
                 return (
                   <tr key={s.id} style={{ borderBottom: '1px solid #f3f4f6', background: s.id === lastAddedId ? '#fff7ed' : i % 2 === 0 ? '#fff' : '#fafafa', outline: s.id === lastAddedId ? '2px solid #f97316' : 'none', transition: 'background 1s, outline 1s' }}>
@@ -857,7 +859,7 @@ export function Students({ user, onNav }) {
                         : <span style={{ color: '#d1d5db' }}>-</span>
                       }
                     </td>
-                    <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{s.school}</td>
+                    <td style={{ padding: '11px 14px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{displaySchool}</td>
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                         {sClasses.map(c => <Tag key={c} color="#6b7280" bg="#f3f4f6">{c}</Tag>)}
