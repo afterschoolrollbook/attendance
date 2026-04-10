@@ -691,139 +691,34 @@ function CalendarMiniPreview({ cal, myDay }) {
   const pad = n => String(n).padStart(2,'0')
 
   return (
-    <div style={{ padding:'10px 16px' }}>
-      <button onClick={() => setOpen(o=>!o)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'12px', color:'#6366f1', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif', padding:'0', display:'flex', alignItems:'center', gap:'4px' }}>
-        {open ? '▲ 달력 접기' : `▼ 달력 보기${myDayChar ? ` (${myDayChar}요일 ${myCount}차시)` : ` (총 ${myCount}차시)`}`}
-      </button>
-
-      {open && (
-        <div style={{ marginTop:'12px', display:'flex', flexDirection:'column', gap:'20px' }}>
-          {/* 범례 */}
-          <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', fontSize:'11px', alignItems:'center' }}>
-            {termBoundaries.map((b,i)=>{
-              const qc=getQC(i+1)
-              return <span key={i} style={{ display:'flex',alignItems:'center',gap:'3px' }}>
-                <span style={{ width:'10px',height:'10px',background:'#fff',border:`2px solid ${qc.border}`,borderRadius:'2px',display:'inline-block' }}/>
-                <span style={{ color:qc.text,fontWeight:600 }}>{b.label}</span>
-              </span>
-            })}
-            {(sumStart||winStart)&&<span style={{ display:'flex',alignItems:'center',gap:'3px' }}><span style={{ width:'10px',height:'10px',background:'#fef9c3',border:'1px solid #fde68a',borderRadius:'2px',display:'inline-block' }}/>방학</span>}
-          </div>
-
-          {months.map(({ year:y, month:m }) => {
-            const monthStr  = `${y}-${pad(m+1)}`
-            const firstDay  = new Date(y,m,1).getDay()
-            const lastDate  = new Date(y,m+1,0).getDate()
-            const cells     = []
-            for(let i=0;i<firstDay;i++) cells.push(null)
-            for(let d=1;d<=lastDate;d++) cells.push(d)
-
-            // 내 요일 관련 날짜가 없으면 월 숨김
-            const hasContent = cells.some(d => {
-              if(!d) return false
-              const ds = `${monthStr}-${pad(d)}`
-              const dow = getDow2(ds)
-              if(myDayNum!=null && dow!==myDayNum) return false
-              return !!sessionMap[ds] || vacationSet.has(ds)
-            })
-            if(!hasContent) return null
-
-            return (
-              <div key={`${y}-${m}`}>
-                <div style={{ fontSize:'13px',fontWeight:700,color:'#374151',marginBottom:'6px',textAlign:'center' }}>{y}년 {m+1}월</div>
-                <div style={{ display:'grid',gridTemplateColumns:'repeat(7,1fr)',marginBottom:'3px' }}>
-                  {DAY_KO.map((d,i)=>(
-                    <div key={d} style={{ textAlign:'center',fontSize:'10px',fontWeight:700,color:i===0?'#ef4444':i===6?'#3b82f6':'#9ca3af',padding:'2px 0' }}>{d}</div>
-                  ))}
-                </div>
-                <div style={{ display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:'2px' }}>
-                  {cells.map((d,idx)=>{
-                    if(!d) return <div key={'e'+idx}/>
-                    const ds   = `${monthStr}-${pad(d)}`
-                    const dow  = getDow2(ds)
-                    const isMyDay   = myDayNum==null || dow===myDayNum
-                    const dimmed    = !isMyDay
-                    const sessInfo  = sessionMap[ds]
-                    const isCancelled = cancelledSet.has(ds)
-                    const isVac     = vacationSet.has(ds)
-                    const isSun=dow===0,isSat=dow===6
-
-                    // 방학
-                    if(isVac) return (
-                      <div key={d} style={{ padding:'3px 1px',borderRadius:'6px',textAlign:'center',background:isMyDay?'#fef9c3':'transparent',border:isMyDay?'1px solid #fde68a':'none',opacity:dimmed?0.2:1 }}>
-                        <div style={{ fontSize:'11px',color:isSun?'#ef4444':isSat?'#3b82f6':'#9ca3af' }}>{d}</div>
-                        {isMyDay&&<div style={{ fontSize:'8px',color:'#d97706',fontWeight:700 }}>방학</div>}
-                      </div>
-                    )
-
-                    // 취소일
-                    if(isCancelled) return (
-                      <div key={d} style={{ padding:'3px 1px',borderRadius:'6px',textAlign:'center',background:isMyDay?'#fef2f2':'transparent',border:isMyDay?'1px solid #fca5a5':'none',opacity:dimmed?0.2:1 }}>
-                        <div style={{ fontSize:'11px',color:'#d1d5db' }}>{d}</div>
-                        {isMyDay&&<div style={{ fontSize:'8px',color:'#ef4444' }}>휴일</div>}
-                      </div>
-                    )
-
-                    // 수업일
-                    if(sessInfo) {
-                      const qc    = getQC(sessInfo.quarterNum)
-                      const theme = getDT(dow)
-                      const badge = getBadge(sessInfo.globalTermIdx, dow)
-                      const localTermNum = sessInfo.localTermIdx + 1
-                      return (
-                        <div key={d} style={{ padding:'3px 1px',borderRadius:'6px',textAlign:'center',background:isMyDay?theme.bg:'transparent',outline:isMyDay?`1.5px solid ${qc.border}`:'none',outlineOffset:'-1px',opacity:dimmed?0.2:1 }}>
-                          <div style={{ fontSize:'11px',fontWeight:700,color:isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div>
-                          {isMyDay&&<>
-                            <div style={{ fontSize:'9px',color:theme.text,fontWeight:700,lineHeight:1.2 }}>{sessInfo.quarterLabel} {sessInfo.dayTotal}차</div>
-                            <div style={{ fontSize:'8px',color:sessInfo.globalTermIdx%2===0?'#fff':badge,background:sessInfo.globalTermIdx%2===0?badge:'#fff',border:sessInfo.globalTermIdx%2===0?'none':`1px solid ${badge}`,borderRadius:'3px',padding:'0 2px',lineHeight:'13px',whiteSpace:'nowrap' }}>
-                              {localTermNum}텀{sessInfo.inTermSess}차
-                            </div>
-                          </>}
-                        </div>
-                      )
-                    }
-
-                    // 일반
-                    return (
-                      <div key={d} style={{ padding:'4px 1px',borderRadius:'6px',textAlign:'center',opacity:dimmed?0.2:1 }}>
-                        <div style={{ fontSize:'11px',color:isSun?'#fca5a5':isSat?'#93c5fd':'#e5e7eb' }}>{d}</div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
-
-          {/* 방학 기간 */}
-          <div style={{ padding:'8px 12px',background:'#fef9c3',borderRadius:'8px',border:'1px solid #fde68a',fontSize:'12px',color:'#92400e',display:'flex',flexDirection:'column',gap:'3px' }}>
-            <span style={{ fontWeight:700 }}>☀️ 방학 기간</span>
-            {sumStart
-              ? <span>여름방학: {sumStart} ~ {sumEnd||'?'}</span>
-              : <span style={{ color:'#b45309' }}>여름방학: 학교 문의</span>
-            }
-            {winStart
-              ? <span>겨울방학: {winStart} ~ {winEnd||'?'}</span>
-              : <span style={{ color:'#b45309' }}>겨울방학: 학교 문의</span>
-            }
-          </div>
-          {/* 신청기간 */}
-          <div style={{ display:'flex',flexDirection:'column',gap:'4px' }}>
-            {termBoundaries.map((b,i)=>{
-              const r = regPeriods[i]
-              return (
-                <div key={i} style={{ padding:'8px 12px',background:'#eff6ff',borderRadius:'8px',border:'1px solid #bfdbfe',fontSize:'12px',color:'#1d4ed8' }}>
-                  📝 <strong>{b.label}</strong> 신청기간:{' '}
-                  {r?.start
-                    ? <span>{r.start} ~ {r.end||'?'}</span>
-                    : <span style={{ color:'#6b7280' }}>학교 문의</span>
-                  }
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+    <div style={{ padding:'10px 16px', display:'flex', flexDirection:'column', gap:'6px' }}>
+      {/* 방학 기간 */}
+      <div style={{ padding:'8px 12px',background:'#fef9c3',borderRadius:'8px',border:'1px solid #fde68a',fontSize:'12px',color:'#92400e',display:'flex',flexDirection:'column',gap:'3px' }}>
+        <span style={{ fontWeight:700 }}>☀️ 방학 기간</span>
+        {sumStart
+          ? <span>여름방학: {sumStart} ~ {sumEnd||'?'}</span>
+          : <span style={{ color:'#b45309' }}>여름방학: 학교 문의</span>
+        }
+        {winStart
+          ? <span>겨울방학: {winStart} ~ {winEnd||'?'}</span>
+          : <span style={{ color:'#b45309' }}>겨울방학: 학교 문의</span>
+        }
+      </div>
+      {/* 신청기간 */}
+      <div style={{ display:'flex',flexDirection:'column',gap:'4px' }}>
+        {termBoundaries.map((b,i)=>{
+          const r = regPeriods[i]
+          return (
+            <div key={i} style={{ padding:'8px 12px',background:'#eff6ff',borderRadius:'8px',border:'1px solid #bfdbfe',fontSize:'12px',color:'#1d4ed8' }}>
+              📝 <strong>{b.label}</strong> 신청기간:{' '}
+              {r?.start
+                ? <span>{r.start} ~ {r.end||'?'}</span>
+                : <span style={{ color:'#6b7280' }}>학교 문의</span>
+              }
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -956,13 +851,13 @@ function ComparePanel({ cal, myClass, myDay }) {
   const myHolidayMissed = schoolHolidays.filter(c=>!myCancelledSet.has(c.date)&&mySet.has(c.date))
   const isOk = missing.length===0 && extra.length===0 && myHolidayMissed.length===0
 
-  // 월 목록 (내 수업 기간 기준)
-  const startD = myClass.startDate || cal.startDate
-  const endD   = myClass.endDate   || cal.endDate
-  if (!startD || !endD) return null
+  // 월 목록 — 학교 달력 전체 기간 기준 (1,2학기 모두 표시)
+  const rangeStart = cal.startDate || myClass.startDate
+  const rangeEnd   = cal.endDate   || myClass.endDate
+  if (!rangeStart || !rangeEnd) return null
   const months = []
-  let cur = new Date(parseInt(startD.slice(0,4)), parseInt(startD.slice(5,7))-1, 1)
-  const endM = new Date(parseInt(endD.slice(0,4)), parseInt(endD.slice(5,7))-1, 1)
+  let cur = new Date(parseInt(rangeStart.slice(0,4)), parseInt(rangeStart.slice(5,7))-1, 1)
+  const endM = new Date(parseInt(rangeEnd.slice(0,4)), parseInt(rangeEnd.slice(5,7))-1, 1)
   while(cur <= endM) {
     months.push({ year:cur.getFullYear(), month:cur.getMonth() })
     cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1)
