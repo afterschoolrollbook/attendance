@@ -2379,51 +2379,47 @@ export function Attendance({ user, pageParams = {} }) {
 
         {/* 오른쪽 패널 */}
         <div style={{ minWidth:0, overflowX:'auto' }}>
-          {/* 요일 선택 + 날짜 미클릭 → 해당 요일 수업 + 학생 목록 */}
+          {/* 요일 선택 + 날짜 미클릭 → 해당 요일 수업 요약 + 학생 목록 */}
           {selDay && !dateClicked ? (
             <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-              <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>
-                {selDay}요일 수업 {schoolClasses.length}개
+              {/* 수업 요약 카드 */}
+              <div style={{ padding:'16px 20px', background:'linear-gradient(135deg,#fff7ed 0%,#fff 100%)', borderRadius:'14px', border:'1.5px solid #fed7aa' }}>
+                <div style={{ fontSize:'18px', fontWeight:700, color:C.text, marginBottom:'12px' }}>{selDay}요일 수업 {schoolClasses.length}개</div>
+                <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
+                  {schoolClasses.map(cls => {
+                    const cnt = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status)).length
+                    return (
+                      <div key={cls.id} style={{ padding:'10px 16px', borderRadius:'10px', background:'#fff', border:`1.5px solid ${C.border}`, minWidth:'160px' }}>
+                        <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{cls.className}{cls.section ? ` ${cls.section}반` : ''}</div>
+                        <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>🏫 {cls.organization}</div>
+                        <div style={{ fontSize:'13px', fontWeight:700, color:C.primary, marginTop:'4px' }}>👥 {cnt}명</div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
+
+              {/* 수업별 학생 목록 — ClassAttendanceSection 재활용 */}
               {schoolClasses.length === 0 ? (
                 <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
                   <div style={{ fontSize:'36px', marginBottom:'10px' }}>📭</div>
                   <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>{selDay}요일 수업이 없습니다</div>
                 </div>
-              ) : schoolClasses.map(cls => {
-                const clsStudents = allStudents.filter(s =>
-                  s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status)
-                )
-                return (
-                  <div key={cls.id} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-                    <div style={{ padding:'14px 18px', background:'#fff7ed', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                      <div>
-                        <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>
-                          {cls.className}{cls.section ? ` ${cls.section}반` : ''}
-                          <span style={{ marginLeft:'8px', fontSize:'12px', fontWeight:600, color:C.primary, background:'#fff', padding:'1px 8px', borderRadius:'10px', border:`1px solid ${C.primary}` }}>{cls.days?.join('')}</span>
-                        </div>
-                        <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>
-                          🏫 {cls.organization} · ⏰ {cls.time}{cls.timeEnd ? ` ~ ${cls.timeEnd}` : ''}
-                        </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                  {schoolClasses.map(cls => (
+                    <div key={cls.id} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                      <div style={{ padding:'12px 18px', background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
+                        <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>🏫 {cls.organization} · {cls.className}{cls.section ? ` ${cls.section}반` : ''}</span>
                       </div>
-                      <div style={{ fontSize:'13px', fontWeight:700, color:C.primary }}>👥 {clsStudents.length}명</div>
+                      <div style={{ padding:'8px 16px' }}>
+                        <ClassAttendanceSection cls={cls} date={today} allStudents={allStudents} user={user} />
+                      </div>
                     </div>
-                    {clsStudents.length === 0 ? (
-                      <div style={{ padding:'14px 18px', fontSize:'13px', color:C.muted }}>등록된 학생이 없습니다</div>
-                    ) : (
-                      <div style={{ padding:'10px 18px', display:'flex', flexDirection:'column', gap:'6px' }}>
-                        {clsStudents.map(s => (
-                          <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', borderRadius:'8px', background:'#f9fafb', border:`1px solid ${C.border}` }}>
-                            <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{s.name}</span>
-                            <span style={{ fontSize:'12px', color:C.muted }}>{s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}</span>
-                            {s.parentPhone && <span style={{ fontSize:'11px', color:C.muted, marginLeft:'auto' }}>📱 {s.parentPhone}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                  ))}
+                </div>
+              )}
+            </div>
             </div>
           ) : selClassId ? (
             (!isSessionDate && dateClicked) ? (
