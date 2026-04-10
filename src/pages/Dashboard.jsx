@@ -525,8 +525,8 @@ function SchoolConnectionPanel({ user, onNav }) {
                             </button>
                           )}
                         </div>
-                        {/* 미니 달력 — 해당 월 차시 요약 */}
-                        <CalendarMiniPreview cal={cal} />
+                        {/* 미니 달력 — 내 요일 차시만 */}
+                        <CalendarMiniPreview cal={cal} myDay={modal.conn.days} />
                       </div>
                     )
                   })}
@@ -540,57 +540,241 @@ function SchoolConnectionPanel({ user, onNav }) {
   )
 }
 
-// 연간 일정 미니 미리보기 (월별 차시 요약 텍스트)
-function CalendarMiniPreview({ cal }) {
+// 연간 일정 미니 미리보기 — 실제 달력 그리드, 내 요일 필터, 학기제/분기제 레이블
+function CalendarMiniPreview({ cal, myDay }) {
   const [open, setOpen] = useState(false)
+
   if (!cal.startDate || !cal.endDate || !(cal.days||[]).length) return null
 
+  // 내 요일 문자 추출 ('목요일' → '목')
+  const myDayChar = myDay ? myDay.replace('요일','').trim() : null
+  const DAY_KO    = ['일','월','화','수','목','금','토']
+  const termType  = cal.termType || 'semester'
+
+  // 텀 레이블: 학기제 → "1학기", 분기제 → "1텀"
+  const termLabel = (n) => termType === 'semester' ? `${n}학기` : `${n}텀`
+
+  // 텀별 색상 (ClassCalendar와 동일)
+  const TERM_COLORS = [
+    { bg:'#fff7ed', border:'#f97316', badge:'#f97316', text:'#ea580c' },
+    { bg:'#f0fdf4', border:'#16a34a', badge:'#16a34a', text:'#15803d' },
+    { bg:'#eff6ff', border:'#3b82f6', badge:'#3b82f6', text:'#1d4ed8' },
+    { bg:'#fdf4ff', border:'#a855f7', badge:'#a855f7', text:'#7e22ce' },
+    { bg:'#fff1f2', border:'#f43f5e', badge:'#f43f5e', text:'#be123c' },
+    { bg:'#fefce8', border:'#eab308', badge:'#eab308', text:'#a16207' },
+  ]
+  const getTC = (n) => TERM_COLORS[(n-1) % TERM_COLORS.length] || TERM_COLORS[0]
+
+  // sessionMap 계산 (ClassCalendar와 동일 로직)
   const allSessions  = calcSessionDates(cal)
   const cancelled    = new Set((cal.cancelledDates||[]).map(c=>c.date))
-  const termSizes    = (cal.termSizes?.length>0) ? cal.termSizes.slice(0,cal.termCount||cal.termSizes.length).map(n=>Number(n)||4) : [4]
+  const makeupDates  = cal.makeupDates || []
+  const termSizes    = (cal.termSizes?.length>0)
+    ? cal.termSizes.slice(0, cal.termCount||cal.termSizes.length).map(n=>Number(n)||4)
+    : [4]
 
-  // 월별 차시 집계
-  const monthMap = {}
+  const sessionMap = {}, termMap = {}
   let totalIdx=1, cursor=0
   termSizes.forEach((size,ti) => {
     let termIdx=1
     allSessions.slice(cursor, cursor+size).forEach(d => {
       if (!cancelled.has(d)) {
-        const ym = d.slice(0,7)
-        if (!monthMap[ym]) monthMap[ym] = []
-        monthMap[ym].push({ total:totalIdx, termNum:ti+1, termSess:termIdx, date:d })
-        totalIdx++; termIdx++
-      }
+        sessionMap[d] = { total:totalIdx++, termNum:ti+1, termSess:termIdx++ }
+        termMap[d] = ti+1
+      } else { termMap[d] = ti+1 }
     })
     cursor += size
   })
+  if (cursor < allSessions.length) {
+    let termIdx=1
+    allSessions.slice(cursor).forEach(d => {
+      if (!cancelled.has(d)) sessionMap[d] = { total:totalIdx++, termNum:termSizes.length, termSess:termIdx++ }
+      termMap[d] = termSizes.length
+    })
+  }
+  makeupDates.forEach(m => { sessionMap[m.date] = { total:totalIdx++, termNum:0, termSess:0, isMakeup:true } })
 
-  const months = Object.keys(monthMap).sort()
-  const totalCount = Object.values(monthMap).reduce((a,b)=>a+b.length, 0)
+  // 방학 기간
+  const sumStart = cal.sumStart || null, sumEnd = cal.sumEnd || null
+  const winStart = cal.winStart || null, winEnd = cal.winEnd || null
+  const isVacation = (d) =>
+    (sumStart && sumEnd && d >= sumStart && d <= sumEnd) ||
+    (winStart && winEnd && d >= winStart && d <= winEnd)
+
+  // 신청기간
+  const applyS = cal.applyStartAt ? cal.applyStartAt.slice(0,10) : null
+  const applyE = cal.applyEndAt   ? cal.applyEndAt.slice(0,10)   : null
+  const inApply = (d) => applyS && applyE && d >= applyS && d <= applyE
+
+  // 월 목록
+  const startD = new Date(cal.startDate+'T00:00:00')
+  const endD   = new Date(cal.endDate+'T00:00:00')
+  const months = []
+  let cur = new Date(startD.getFullYear(), startD.getMonth(), 1)
+  while (cur <= endD) {
+    months.push({ year:cur.getFullYear(), month:cur.getMonth() })
+    cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1)
+  }
+
+  // 내 요일 차시 수 계산 (버튼 레이블용)
+  const myCount = Object.entries(sessionMap).filter(([d, s]) => {
+    if (!myDayChar || s.termNum===0) return false
+    return DAY_KO[new Date(d+'T00:00:00').getDay()] === myDayChar
+  }).length
+
+  const pad = n => String(n).padStart(2,'0')
 
   return (
     <div style={{ padding:'10px 16px' }}>
       <button onClick={() => setOpen(o=>!o)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'12px', color:'#6366f1', fontWeight:600, fontFamily:'Noto Sans KR, sans-serif', padding:'0', display:'flex', alignItems:'center', gap:'4px' }}>
-        {open ? '▲ 접기' : `▼ 일정 보기 (총 ${totalCount}차시)`}
+        {open ? '▲ 달력 접기' : `▼ 달력 보기${myDayChar ? ` (${myDayChar}요일 ${myCount}차시)` : ''}`}
       </button>
+
       {open && (
-        <div style={{ marginTop:'10px', display:'flex', flexDirection:'column', gap:'6px' }}>
-          {months.map(ym => {
-            const sessions = monthMap[ym]
-            const [y,m] = ym.split('-')
+        <div style={{ marginTop:'12px', display:'flex', flexDirection:'column', gap:'20px' }}>
+          {/* 방학/신청기간 범례 */}
+          <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', fontSize:'11px' }}>
+            {(sumStart||winStart) && <span style={{ display:'flex', alignItems:'center', gap:'4px' }}><span style={{ width:'10px', height:'10px', background:'#fef9c3', border:'1px solid #fde68a', borderRadius:'2px', display:'inline-block' }}/>방학</span>}
+            {applyS && <span style={{ display:'flex', alignItems:'center', gap:'4px' }}><span style={{ width:'10px', height:'10px', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'2px', display:'inline-block' }}/>신청기간</span>}
+            {termSizes.map((_,i) => {
+              const tc = getTC(i+1)
+              return <span key={i} style={{ display:'flex', alignItems:'center', gap:'4px' }}><span style={{ width:'10px', height:'10px', background:tc.bg, border:`1px solid ${tc.border}`, borderRadius:'2px', display:'inline-block' }}/>{termLabel(i+1)}</span>
+            })}
+          </div>
+
+          {months.map(({ year, month }) => {
+            const firstDay = new Date(year, month, 1).getDay()
+            const lastDate = new Date(year, month+1, 0).getDate()
+            const cells = []
+            for (let i=0;i<firstDay;i++) cells.push(null)
+            for (let d=1;d<=lastDate;d++) cells.push(d)
+
+            // 이 달에 내 요일 차시가 있는지 확인
+            const monthStr = `${year}-${pad(month+1)}`
+            const hasMyDay = cells.some(d => {
+              if (!d) return false
+              const dateStr = `${monthStr}-${pad(d)}`
+              if (myDayChar && DAY_KO[new Date(dateStr+'T00:00:00').getDay()] !== myDayChar) return false
+              return !!sessionMap[dateStr]
+            })
+            if (myDayChar && !hasMyDay && !cells.some(d => {
+              if (!d) return false
+              const dateStr = `${monthStr}-${pad(d)}`
+              return isVacation(dateStr) && DAY_KO[new Date(dateStr+'T00:00:00').getDay()] === myDayChar
+            })) return null  // 내 요일 관련 내용 없으면 월 자체 숨김
+
             return (
-              <div key={ym} style={{ display:'flex', alignItems:'flex-start', gap:'10px', padding:'8px 12px', background:'#f8fafc', borderRadius:'8px' }}>
-                <span style={{ fontSize:'12px', fontWeight:700, color:'#374151', width:'50px', flexShrink:0 }}>{parseInt(m)}월</span>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', flex:1 }}>
-                  {sessions.map((s,i) => (
-                    <span key={i} style={{ fontSize:'10px', fontWeight:700, color:'#f97316', background:'#fff7ed', border:'1px solid #fed7aa', padding:'1px 6px', borderRadius:'4px' }}>
-                      {s.termNum}학기{s.termSess}차 ({s.date.slice(5)})
-                    </span>
+              <div key={`${year}-${month}`}>
+                <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'6px', textAlign:'center' }}>
+                  {year}년 {month+1}월
+                </div>
+                {/* 요일 헤더 */}
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', marginBottom:'3px' }}>
+                  {DAY_KO.map((d,i) => (
+                    <div key={d} style={{ textAlign:'center', fontSize:'10px', fontWeight:700,
+                      color: i===0?'#ef4444':i===6?'#3b82f6':'#9ca3af', padding:'2px 0' }}>{d}</div>
                   ))}
+                </div>
+                {/* 날짜 셀 */}
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'2px' }}>
+                  {cells.map((d, idx) => {
+                    if (!d) return <div key={'e'+idx} />
+                    const dateStr  = `${monthStr}-${pad(d)}`
+                    const dow      = new Date(dateStr+'T00:00:00').getDay()
+                    const isMyDay  = !myDayChar || DAY_KO[dow] === myDayChar
+                    const sessInfo = sessionMap[dateStr]
+                    const isCancelled = cancelled.has(dateStr)
+                    const isMakeup    = makeupDates.some(m=>m.date===dateStr)
+                    const isVac       = isVacation(dateStr)
+                    const isApply     = inApply(dateStr)
+                    const isSun = dow===0, isSat = dow===6
+                    const today = new Date().toISOString().slice(0,10)
+                    const isToday = dateStr === today
+
+                    // 내 요일 아닌 날은 흐리게
+                    const dimmed = myDayChar && !isMyDay
+
+                    // 방학
+                    if (isVac) {
+                      return (
+                        <div key={d} style={{ padding:'3px 1px', borderRadius:'6px', textAlign:'center',
+                          background: isMyDay ? '#fef9c3' : 'transparent',
+                          border: isMyDay ? '1px solid #fde68a' : 'none',
+                          opacity: dimmed ? 0.3 : 1 }}>
+                          <div style={{ fontSize:'11px', fontWeight:500, color: isSun?'#ef4444':isSat?'#3b82f6':'#9ca3af' }}>{d}</div>
+                          {isMyDay && <div style={{ fontSize:'8px', color:'#d97706', fontWeight:700 }}>방학</div>}
+                        </div>
+                      )
+                    }
+
+                    // 취소일
+                    if (isCancelled && sessInfo === undefined) {
+                      const cancelInfo = (cal.cancelledDates||[]).find(c=>c.date===dateStr)
+                      return (
+                        <div key={d} style={{ padding:'3px 1px', borderRadius:'6px', textAlign:'center',
+                          background: isMyDay ? '#fef2f2' : 'transparent',
+                          border: isMyDay ? '1px solid #fca5a5' : 'none',
+                          opacity: dimmed ? 0.3 : 1 }}>
+                          <div style={{ fontSize:'11px', fontWeight:500, color:'#d1d5db' }}>{d}</div>
+                          {isMyDay && <div style={{ fontSize:'8px', color:'#ef4444' }}>휴일</div>}
+                        </div>
+                      )
+                    }
+
+                    // 정규 수업일
+                    if (sessInfo && !isCancelled && sessInfo.termNum > 0) {
+                      const tc = getTC(sessInfo.termNum)
+                      return (
+                        <div key={d} style={{ padding:'3px 1px', borderRadius:'6px', textAlign:'center',
+                          background: isMyDay ? tc.bg : 'transparent',
+                          border: isMyDay ? `1.5px solid ${tc.border}` : 'none',
+                          boxShadow: isToday && isMyDay ? `0 0 0 2px ${tc.border}` : 'none',
+                          opacity: dimmed ? 0.25 : 1 }}>
+                          <div style={{ fontSize:'11px', fontWeight:700, color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div>
+                          {isMyDay && (
+                            <>
+                              <div style={{ fontSize:'9px', color:tc.text, fontWeight:700, lineHeight:1.2 }}>{sessInfo.total}차시</div>
+                              <div style={{ fontSize:'8px', color:'#fff', background:tc.badge, borderRadius:'3px', padding:'0 2px', lineHeight:'13px', whiteSpace:'nowrap' }}>
+                                {termLabel(sessInfo.termNum)}{sessInfo.termSess}차
+                              </div>
+                            </>
+                          )}
+                          {isApply && isMyDay && <div style={{ width:'4px', height:'4px', borderRadius:'50%', background:'#3b82f6', margin:'1px auto 0' }}/>}
+                        </div>
+                      )
+                    }
+
+                    // 일반 날짜
+                    return (
+                      <div key={d} style={{ padding:'4px 1px', borderRadius:'6px', textAlign:'center',
+                        background: isApply && isMyDay ? '#eff6ff' : 'transparent',
+                        border: isApply && isMyDay ? '1px solid #bfdbfe' : 'none',
+                        opacity: dimmed ? 0.25 : 1 }}>
+                        <div style={{ fontSize:'11px', color: isSun?'#fca5a5':isSat?'#93c5fd':'#d1d5db' }}>{d}</div>
+                        {isApply && isMyDay && <div style={{ width:'3px', height:'3px', borderRadius:'50%', background:'#3b82f6', margin:'0 auto' }}/>}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
           })}
+
+          {/* 신청기간 표시 */}
+          {applyS && (
+            <div style={{ padding:'8px 12px', background:'#eff6ff', borderRadius:'8px', border:'1px solid #bfdbfe', fontSize:'12px', color:'#1d4ed8' }}>
+              📝 신청기간: {applyS} ~ {applyE||'?'}
+              {cal.applyStartAt && <span style={{ fontSize:'11px', color:'#6b7280', marginLeft:'6px' }}>({cal.applyStartAt.slice(0,16).replace('T',' ')} ~ {cal.applyEndAt?.slice(0,16).replace('T',' ')})</span>}
+            </div>
+          )}
+          {/* 방학 기간 표시 */}
+          {(sumStart||winStart) && (
+            <div style={{ padding:'8px 12px', background:'#fef9c3', borderRadius:'8px', border:'1px solid #fde68a', fontSize:'12px', color:'#92400e', display:'flex', flexDirection:'column', gap:'3px' }}>
+              ☀️ 방학 기간
+              {sumStart && <span>여름방학: {sumStart} ~ {sumEnd||'?'}</span>}
+              {winStart && <span>겨울방학: {winStart} ~ {winEnd||'?'}</span>}
+            </div>
+          )}
         </div>
       )}
     </div>
