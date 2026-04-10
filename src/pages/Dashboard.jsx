@@ -308,6 +308,402 @@ function SchoolConnectionPanel({ user }) {
   )
 }
 
+// ── 학교 연간 달력 조회 & 내 수업으로 가져오기
+function SchoolCalendarPanel({ user, onNav }) {
+  const [connections, setConnections] = useState([])
+  const [calendars,   setCalendars]   = useState([])
+  const [myClasses,   setMyClasses]   = useState([])
+  const [preview,     setPreview]     = useState(null)   // 미리보기 중인 달력 레코드
+  const [importing,   setImporting]   = useState(false)
+  const { success, error } = useToast()
+
+  const load = async () => {
+    if (!user?.id) return
+    try {
+      const [conns, allCals] = await Promise.all([
+        dbCall('getAll', 'schoolAdminTeachers').then(d =>
+          (d||[]).filter(t => t.teacherId === user.id && t.active !== false)
+        ),
+        dbCall('getAll', 'schoolCalendar'),
+      ])
+      setConnections(conns)
+      const adminIds = new Set(conns.map(c => c.adminId))
+      setCalendars((allCals||[]).filter(c => adminIds.has(c.adminId)))
+      setMyClasses(ClassesDB.byTeacher(user.id))
+    } catch {}
+  }
+
+  useEffect(() => { load() }, [user?.id])
+
+  if (connections.length === 0 || calendars.length === 0) return null
+
+  // 내 수업 요일 목록
+  const myDays = new Set(myClasses.flatMap(c => c.days || []))
+
+  // 학교별 달력 그룹
+  const calBySchool = {}
+  calendars.forEach(cal => {
+    const conn = connections.find(c => c.adminId === cal.adminId)
+    const name = conn?.schoolName || cal.schoolName || '학교'
+    if (!calBySchool[name]) calBySchool[name] = []
+    calBySchool[name].push(cal)
+  })
+
+  // 이 달력과 매칭되는 내 수업 찾기
+  const findMyClass = (cal) =>
+    myClasses.find(c =>
+      c.sourceCalendarId === cal.id ||
+      (c.organization === cal.schoolName &&
+       (cal.days||[]).some(d => (c.days||[]).includes(d)) &&
+       c.startDate === cal.startDate)
+    ) || null
+
+  // 달력 → 수업 형태로 변환 (미리보기용)
+  const calToCls = (cal) => ({
+    className:      cal.title || cal.schoolName || '수업',
+    organization:   cal.schoolName || '',
+    days:           cal.days || [],
+    termType:       cal.termType || 'semester',
+    termCount:      cal.termCount || 4,
+    termSizes:      cal.termSizes?.length > 0 ? cal.termSizes : [4,4,4,4],
+    repeatType:     cal.repeatType || 'every',
+    startDate:      cal.startDate || '',
+    endDate:        cal.endDate   || '',
+    cancelledDates: cal.cancelledDates || [],
+    makeupDates:    cal.makeupDates    || [],
+  })
+
+  const handleImport = async (cal) => {
+    setImporting(true)
+    try {
+      const newClass = {
+        id:               uid(),
+        teacherId:        user.id,
+        organization:     cal.schoolName   || '',
+        className:        cal.title        || cal.schoolName || '수업',
+        section:          '',
+        days:             cal.days         || [],
+        termType:         cal.termType     || 'semester',
+        termCount:        cal.termCount    || 4,
+        termSizes:        cal.termSizes?.length > 0 ? cal.termSizes : [4,4,4,4],
+        repeatType:       cal.repeatType   || 'every',
+        startDate:        cal.startDate    || '',
+        endDate:          cal.endDate      || '',
+        time:             '',
+        timeEnd:          '',
+        description:      cal.memo         || '',
+        officePhone:      '',
+        schoolAddress:    '',
+        classLocation:    '',
+        promotionImgs:    [],
+        noticeFiles:      [],
+        templateFile:     null,
+        cancelledDates:   cal.cancelledDates || [],
+        makeupDates:      cal.makeupDates    || [],
+        alarm:            { enabled: false, minutesBefore: 10 },
+        alarmEnd:         { enabled: false, minutesBefore: 10 },
+        sourceCalendarId: cal.id,
+        sourceSchoolName: cal.schoolName   || '',
+        createdAt:        now(),
+      }
+      ClassesDB.insert(newClass)
+      await load()
+      setPreview(null)
+      success(`✅ "${newClass.className}" 일정을 가져왔습니다. 수업 관리에서 편집하세요.`)
+      // 수업 관리 탭으로 이동
+      if (onNav) onNav('classes')
+    } catch { error('가져오기 중 오류가 발생했습니다.') }
+    setImporting(false)
+  }
+
+  const TERM_LABEL = { semester: '학기제', quarter: '분기제' }
+  const DAY_COLOR  = { 월:'#3b82f6', 화:'#8b5cf6', 수:'#10b981', 목:'#f59e0b', 금:'#ef4444', 토:'#06b6d4', 일:'#ec4899' }
+
+  return (
+    <>
+      {/* ── 학교별 달력 목록 */}
+      {Object.entries(calBySchool).map(([schoolName, cals]) => (
+        <div key={schoolName} style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', marginBottom:'10px', overflow:'hidden' }}>
+          <div style={{ padding:'10px 16px', background:'linear-gradient(90deg,#1e3a5f,#2d5a8e)', display:'flex', alignItems:'center', gap:'8px' }}>
+            <span style={{ fontSize:'14px' }}>🏫</span>
+            <span style={{ fontSize:'13px', fontWeight:700, color:'#fff' }}>{schoolName}</span>
+            <span style={{ fontSize:'11px', color:'#93c5fd', marginLeft:'4px' }}>연간 수업 달력</span>
+          </div>
+
+          <div style={{ padding:'10px 12px', display:'flex', flexDirection:'column', gap:'6px' }}>
+            {cals.map(cal => {
+              const myClass  = findMyClass(cal)
+              const calDays  = cal.days || []
+              const isMine   = myDays.size > 0 && calDays.some(d => myDays.has(d))
+
+              return (
+                <div key={cal.id} style={{
+                  display:'flex', alignItems:'center', gap:'12px',
+                  padding:'10px 14px', borderRadius:'10px',
+                  background: myClass ? '#f0fdf4' : isMine ? '#fffbeb' : '#fafafa',
+                  border:`1px solid ${myClass ? '#86efac' : isMine ? '#fde68a' : '#e5e7eb'}`,
+                }}>
+                  {/* 요일 배지들 */}
+                  <div style={{ display:'flex', gap:'3px', flexShrink:0 }}>
+                    {calDays.map(d => (
+                      <span key={d} style={{
+                        fontSize:'11px', fontWeight:800,
+                        color: myDays.has(d) ? '#fff' : DAY_COLOR[d]||'#6b7280',
+                        background: myDays.has(d) ? DAY_COLOR[d]||'#6b7280' : `${DAY_COLOR[d]||'#6b7280'}18`,
+                        padding:'2px 7px', borderRadius:'6px',
+                      }}>{d}</span>
+                    ))}
+                  </div>
+
+                  {/* 일정 정보 */}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:'13px', fontWeight:700, color:'#111827' }}>
+                      {cal.title || '(제목 없음)'}
+                      {isMine && !myClass && <span style={{ fontSize:'10px', color:'#d97706', fontWeight:600, marginLeft:'6px', background:'#fef9c3', padding:'1px 6px', borderRadius:'4px' }}>내 요일</span>}
+                    </div>
+                    <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'2px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                      {cal.startDate && <span>📅 {cal.startDate.slice(5)} ~ {cal.endDate?.slice(5)||'?'}</span>}
+                      {cal.termType  && <span style={{ color:'#6366f1', fontWeight:600 }}>{TERM_LABEL[cal.termType]||cal.termType}</span>}
+                      {cal.termCount && <span>{cal.termCount}텀</span>}
+                      {(cal.cancelledDates||[]).length>0 && <span>🚫 휴일 {cal.cancelledDates.length}일 반영</span>}
+                    </div>
+                  </div>
+
+                  {/* 액션 */}
+                  <div style={{ flexShrink:0, display:'flex', gap:'6px', alignItems:'center' }}>
+                    {/* 달력 미리보기 버튼 */}
+                    <button
+                      onClick={() => setPreview(preview?.id === cal.id ? null : cal)}
+                      style={{
+                        padding:'5px 12px', borderRadius:'7px',
+                        border:'1px solid #e5e7eb', background:'#fff',
+                        color:'#374151', fontSize:'12px', fontWeight:600,
+                        cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
+                      }}
+                    >
+                      {preview?.id === cal.id ? '▲ 닫기' : '📆 일정 보기'}
+                    </button>
+
+                    {myClass ? (
+                      /* 이미 내 수업에 있음 → 편집 이동 안내 */
+                      <span style={{ fontSize:'11px', fontWeight:700, color:'#16a34a', background:'#dcfce7', padding:'5px 10px', borderRadius:'7px', whiteSpace:'nowrap' }}>
+                        ✅ 내 수업에 있음
+                      </span>
+                    ) : (
+                      /* 내 수업에 없음 → 가져오기 */
+                      <button
+                        onClick={() => handleImport(cal)}
+                        disabled={importing}
+                        style={{
+                          padding:'5px 14px', borderRadius:'7px', border:'none',
+                          background: importing ? '#e5e7eb' : '#1e3a5f',
+                          color: importing ? '#9ca3af' : '#fff',
+                          fontSize:'12px', fontWeight:700,
+                          cursor: importing ? 'not-allowed' : 'pointer',
+                          fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
+                        }}
+                      >
+                        {importing ? '...' : '📥 가져오기'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+
+      {/* ── 달력 미리보기 모달 */}
+      {preview && (
+        <div
+          style={{ position:'fixed', inset:0, zIndex:4000, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}
+          onClick={e => e.target===e.currentTarget && setPreview(null)}
+        >
+          <div style={{ background:'#fff', borderRadius:'20px', width:'100%', maxWidth:'720px', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
+            {/* 모달 헤더 */}
+            <div style={{ padding:'18px 22px', background:'linear-gradient(135deg,#1e3a5f,#2d5a8e)', borderRadius:'20px 20px 0 0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div>
+                <div style={{ fontSize:'16px', fontWeight:800, color:'#fff' }}>
+                  📅 {preview.title || preview.schoolName}
+                </div>
+                <div style={{ fontSize:'12px', color:'#93c5fd', marginTop:'3px' }}>
+                  {preview.schoolName} · {(preview.days||[]).join('·')}요일
+                  {preview.startDate && ` · ${preview.startDate.slice(5)} ~ ${preview.endDate?.slice(5)||'?'}`}
+                </div>
+              </div>
+              <button onClick={() => setPreview(null)}
+                style={{ background:'rgba(255,255,255,0.15)', border:'none', color:'#fff', width:'32px', height:'32px', borderRadius:'50%', fontSize:'16px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                ✕
+              </button>
+            </div>
+
+            {/* 달력 본문 */}
+            <div style={{ flex:1, overflowY:'auto', padding:'20px' }}>
+              {/* 휴일 요약 */}
+              {(preview.cancelledDates||[]).length > 0 && (
+                <div style={{ background:'#fef2f2', borderRadius:'10px', padding:'10px 14px', marginBottom:'16px', border:'1px solid #fca5a5' }}>
+                  <div style={{ fontSize:'12px', fontWeight:700, color:'#991b1b', marginBottom:'6px' }}>🚫 반영된 휴일 ({preview.cancelledDates.length}일)</div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
+                    {[...(preview.cancelledDates||[])].sort((a,b)=>a.date.localeCompare(b.date)).map((c,i) => (
+                      <span key={i} style={{ fontSize:'11px', background:'#fff', border:'1px solid #fca5a5', borderRadius:'5px', padding:'2px 7px', color:'#991b1b' }}>
+                        {c.date.slice(5)} {c.memo||''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ClassCalendar 컴포넌트로 실제 일정 표시 */}
+              <ClassCalendarReadOnly cls={calToCls(preview)} />
+            </div>
+
+            {/* 모달 푸터 */}
+            <div style={{ padding:'14px 22px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'10px', justifyContent:'flex-end', background:'#f8fafc', borderRadius:'0 0 20px 20px' }}>
+              <button onClick={() => setPreview(null)}
+                style={{ padding:'9px 20px', borderRadius:'10px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                닫기
+              </button>
+              {!findMyClass(preview) ? (
+                <button
+                  onClick={() => handleImport(preview)}
+                  disabled={importing}
+                  style={{
+                    padding:'9px 22px', borderRadius:'10px', border:'none',
+                    background: importing ? '#e5e7eb' : '#1e3a5f',
+                    color: importing ? '#9ca3af' : '#fff',
+                    fontSize:'13px', fontWeight:700,
+                    cursor: importing ? 'not-allowed' : 'pointer',
+                    fontFamily:'Noto Sans KR, sans-serif',
+                  }}
+                >
+                  {importing ? '가져오는 중...' : '📥 내 수업으로 가져오기 → 수업 관리에서 편집'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setPreview(null); if (onNav) onNav('classes') }}
+                  style={{ padding:'9px 22px', borderRadius:'10px', border:'none', background:'#16a34a', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}
+                >
+                  ✅ 수업 관리에서 편집하기 →
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// 학교 달력 읽기 전용 미리보기 (월별 차시 표시)
+function ClassCalendarReadOnly({ cls }) {
+  const [calYear,  setCalYear]  = useState(() => cls.startDate ? parseInt(cls.startDate.slice(0,4)) : new Date().getFullYear())
+  const [calMonth, setCalMonth] = useState(() => cls.startDate ? parseInt(cls.startDate.slice(5,7))-1 : new Date().getMonth())
+
+  if (!cls?.startDate || !cls?.endDate || !cls?.days?.length) {
+    return <div style={{ color:'#9ca3af', fontSize:'13px', textAlign:'center', padding:'20px' }}>기간/요일 정보가 없습니다.</div>
+  }
+
+  // calcSessionDates는 최상단에서 import됨
+  const allSessions   = calcSessionDates(cls)
+  const cancelled     = new Set((cls.cancelledDates||[]).map(c=>c.date))
+  const termSizes     = (cls.termSizes?.length>0) ? cls.termSizes.slice(0, cls.termCount||cls.termSizes.length).map(n=>Number(n)||4) : [4]
+  const sessionMap    = {}
+  let totalIdx=1, cursor=0
+  termSizes.forEach((size,ti) => {
+    let termIdx=1
+    allSessions.slice(cursor, cursor+size).forEach(d => {
+      if (!cancelled.has(d)) sessionMap[d] = { total:totalIdx++, termNum:ti+1, termSess:termIdx++ }
+    })
+    cursor += size
+  })
+
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate()
+  const firstDay    = new Date(calYear, calMonth, 1).getDay()
+  const DAYS_KO2    = ['일','월','화','수','목','금','토']
+  const MONTHS2     = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
+
+  const pad = n => String(n).padStart(2,'0')
+  const monthStr = `${calYear}-${pad(calMonth+1)}`
+  const monthSessions = allSessions.filter(d => d.startsWith(monthStr))
+
+  const cells = []
+  for (let i=0;i<firstDay;i++) cells.push(null)
+  for (let d=1;d<=daysInMonth;d++) cells.push(d)
+
+  const startY = parseInt(cls.startDate.slice(0,4)), startM = parseInt(cls.startDate.slice(5,7))-1
+  const endY   = parseInt(cls.endDate.slice(0,4)),   endM   = parseInt(cls.endDate.slice(5,7))-1
+
+  const prevMonth = () => { if(calMonth===0){setCalYear(y=>y-1);setCalMonth(11)}else setCalMonth(m=>m-1) }
+  const nextMonth = () => { if(calMonth===11){setCalYear(y=>y+1);setCalMonth(0)}else setCalMonth(m=>m+1) }
+  const canPrev   = calYear > startY || (calYear===startY && calMonth > startM)
+  const canNext   = calYear < endY   || (calYear===endY   && calMonth < endM)
+
+  return (
+    <div>
+      {/* 달력 헤더 */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
+        <button onClick={prevMonth} disabled={!canPrev}
+          style={{ width:'32px', height:'32px', borderRadius:'8px', border:'1px solid #e5e7eb', background: canPrev?'#fff':'#f3f4f6', cursor:canPrev?'pointer':'default', fontSize:'16px', display:'flex', alignItems:'center', justifyContent:'center', color: canPrev?'#374151':'#d1d5db' }}>‹</button>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+          <span style={{ fontSize:'15px', fontWeight:700, color:'#111827' }}>{calYear}년 {MONTHS2[calMonth]}</span>
+          {monthSessions.length > 0 && (
+            <span style={{ fontSize:'11px', color:'#f97316', fontWeight:700, background:'#fff7ed', padding:'2px 8px', borderRadius:'6px' }}>
+              이달 {monthSessions.filter(d=>!cancelled.has(d)).length}차시
+            </span>
+          )}
+        </div>
+        <button onClick={nextMonth} disabled={!canNext}
+          style={{ width:'32px', height:'32px', borderRadius:'8px', border:'1px solid #e5e7eb', background:canNext?'#fff':'#f3f4f6', cursor:canNext?'pointer':'default', fontSize:'16px', display:'flex', alignItems:'center', justifyContent:'center', color:canNext?'#374151':'#d1d5db' }}>›</button>
+      </div>
+
+      {/* 요일 헤더 */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'3px', marginBottom:'4px' }}>
+        {DAYS_KO2.map((d,i) => (
+          <div key={d} style={{ textAlign:'center', fontSize:'11px', fontWeight:700, color:i===0?'#ef4444':i===6?'#3b82f6':'#6b7280', padding:'4px 0' }}>{d}</div>
+        ))}
+      </div>
+
+      {/* 날짜 셀 */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'3px' }}>
+        {cells.map((d, idx) => {
+          if (!d) return <div key={idx} />
+          const dateStr  = `${calYear}-${pad(calMonth+1)}-${pad(d)}`
+          const sessInfo = sessionMap[dateStr]
+          const isCancelled = cancelled.has(dateStr)
+          const isMakeup = (cls.makeupDates||[]).some(m=>m.date===dateStr)
+          const dow = new Date(dateStr+'T00:00:00').getDay()
+          const isSession = allSessions.includes(dateStr)
+          const today2 = new Date().toISOString().slice(0,10)
+          const isToday = dateStr === today2
+
+          return (
+            <div key={idx} style={{
+              minHeight:'44px', borderRadius:'8px', padding:'3px 4px',
+              background: isCancelled ? '#fef2f2' : sessInfo ? '#fff7ed' : isMakeup ? '#f0fdf4' : '#f9fafb',
+              border: `1px solid ${isCancelled?'#fca5a5':sessInfo?'#fed7aa':isMakeup?'#86efac':isToday?'#f97316':'#f3f4f6'}`,
+              display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start', gap:'1px',
+              boxShadow: isToday ? '0 0 0 2px #f97316' : 'none',
+            }}>
+              <span style={{ fontSize:'11px', fontWeight: isToday?800:500, color:dow===0?'#ef4444':dow===6?'#3b82f6':isCancelled?'#9ca3af':'#374151' }}>{d}</span>
+              {sessInfo && <span style={{ fontSize:'9px', fontWeight:700, color:'#f97316', background:'#fff7ed', padding:'1px 4px', borderRadius:'4px', lineHeight:1.4 }}>{sessInfo.termNum}-{sessInfo.termSess}</span>}
+              {isCancelled && <span style={{ fontSize:'9px', color:'#ef4444' }}>✕</span>}
+              {isMakeup && !sessInfo && <span style={{ fontSize:'9px', color:'#16a34a' }}>보강</span>}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* 범례 */}
+      <div style={{ display:'flex', gap:'12px', marginTop:'12px', fontSize:'11px', color:'#6b7280', flexWrap:'wrap' }}>
+        <span><span style={{ color:'#f97316', fontWeight:700 }}>●</span> 수업 (텀-차시)</span>
+        <span><span style={{ color:'#ef4444' }}>✕</span> 휴일/취소</span>
+        <span><span style={{ color:'#16a34a' }}>●</span> 보강</span>
+      </div>
+    </div>
+  )
+}
+
 function SchoolTaskPanel({ user }) {
   const [tasks,    setTasks]    = useState([])
   const [expanded, setExpanded] = useState(null)  // 파일 제출 열린 항목
@@ -1421,9 +1817,7 @@ function MobileDashboard({ user, onNav }) {
 
       {/* ── 학교 업무 알림 (미완료 상시 표시) ── */}
       <SchoolConnectionPanel user={user} />
-      <SchoolTaskPanel user={user} />
-
-      {/* 인사 */}
+      <SchoolCalendarPanel   user={user} onNav={onNav} />
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px' }}>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>안녕하세요, {name} 선생님 👋</div>
@@ -1787,9 +2181,8 @@ export function Dashboard({ user, onNav }) {
 
       {/* ── 학교 업무 알림 (미완료 상시 표시) ── */}
       <SchoolConnectionPanel user={user} />
+      <SchoolCalendarPanel   user={user} onNav={onNav} />
       <SchoolTaskPanel user={user} />
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 700, color: C.text }}>
             안녕하세요, {(user.displayNameMode === 'nickname' && user.nickname) ? user.nickname : user.name} 선생님 👋
