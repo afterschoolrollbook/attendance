@@ -2116,8 +2116,7 @@ export function Attendance({ user, pageParams = {} }) {
     ? calcSessionDates(selClass)
     : [...new Set(schoolClasses.flatMap(c => calcSessionDates(c)))].sort()
 
-  // 달력 점 전용: 학교·텀 필터 제외, 연도만 적용
-  // (날짜 클릭 시 selSchool·selTerm이 자동 변경되어도 점이 사라지지 않도록)
+  // 달력 점 전용: 연도만 적용 (요일 필터 무관 — 달력은 항상 전체 수업일 표시)
   const calendarDates = selClass
     ? calcSessionDates(selClass)
     : [...new Set(
@@ -2321,9 +2320,20 @@ export function Attendance({ user, pageParams = {} }) {
         <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
           <span style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>요일</span>
           {['월','화','수','목','금','토','일'].map(day => {
-            const count = schoolClasses.filter(c => (c.days||[]).includes(day)).length
+            const dayClasses = allClasses.filter(c =>
+              (c.days||[]).includes(day) &&
+              (!selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) &&
+              (!selSchool || c.organization === selSchool)
+            )
+            const count = dayClasses.length
             return (
-              <button key={day} onClick={() => { setSelDay(d => d===day ? '' : day); setSelClassId(''); setSelSection('') }}
+              <button key={day} onClick={() => {
+                const newDay = selDay === day ? '' : day
+                setSelDay(newDay)
+                setSelClassId('')
+                setSelSection('')
+                setDateClicked(false)  // 날짜 클릭 초기화 → 요일 뷰로 전환
+              }}
                 style={{ padding:'5px 12px', borderRadius:'20px', border:'none', cursor:'pointer',
                   background: selDay===day ? C.primary : count>0 ? '#f3f4f6' : '#fafafa',
                   color: selDay===day ? '#fff' : count>0 ? C.text : '#d1d5db',
@@ -2369,7 +2379,53 @@ export function Attendance({ user, pageParams = {} }) {
 
         {/* 오른쪽 패널 */}
         <div style={{ minWidth:0, overflowX:'auto' }}>
-          {selClassId ? (
+          {/* 요일 선택 + 날짜 미클릭 → 해당 요일 수업 + 학생 목록 */}
+          {selDay && !dateClicked ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+              <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>
+                {selDay}요일 수업 {schoolClasses.length}개
+              </div>
+              {schoolClasses.length === 0 ? (
+                <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
+                  <div style={{ fontSize:'36px', marginBottom:'10px' }}>📭</div>
+                  <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>{selDay}요일 수업이 없습니다</div>
+                </div>
+              ) : schoolClasses.map(cls => {
+                const clsStudents = allStudents.filter(s =>
+                  s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status)
+                )
+                return (
+                  <div key={cls.id} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                    <div style={{ padding:'14px 18px', background:'#fff7ed', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                      <div>
+                        <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>
+                          {cls.className}{cls.section ? ` ${cls.section}반` : ''}
+                          <span style={{ marginLeft:'8px', fontSize:'12px', fontWeight:600, color:C.primary, background:'#fff', padding:'1px 8px', borderRadius:'10px', border:`1px solid ${C.primary}` }}>{cls.days?.join('')}</span>
+                        </div>
+                        <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>
+                          🏫 {cls.organization} · ⏰ {cls.time}{cls.timeEnd ? ` ~ ${cls.timeEnd}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ fontSize:'13px', fontWeight:700, color:C.primary }}>👥 {clsStudents.length}명</div>
+                    </div>
+                    {clsStudents.length === 0 ? (
+                      <div style={{ padding:'14px 18px', fontSize:'13px', color:C.muted }}>등록된 학생이 없습니다</div>
+                    ) : (
+                      <div style={{ padding:'10px 18px', display:'flex', flexDirection:'column', gap:'6px' }}>
+                        {clsStudents.map(s => (
+                          <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', borderRadius:'8px', background:'#f9fafb', border:`1px solid ${C.border}` }}>
+                            <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{s.name}</span>
+                            <span style={{ fontSize:'12px', color:C.muted }}>{s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}</span>
+                            {s.parentPhone && <span style={{ fontSize:'11px', color:C.muted, marginLeft:'auto' }}>📱 {s.parentPhone}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ) : selClassId ? (
             (!isSessionDate && dateClicked) ? (
               <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
                 <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
