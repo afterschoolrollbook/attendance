@@ -2407,16 +2407,51 @@ export function Attendance({ user, pageParams = {} }) {
                 </div>
               ) : (
                 <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-                  {schoolClasses.map(cls => (
-                    <div key={cls.id} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-                      <div style={{ padding:'12px 18px', background:'#f9fafb', borderBottom:`1px solid ${C.border}` }}>
-                        <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>🏫 {cls.organization} · {cls.className}{cls.section ? ` ${cls.section}반` : ''}</span>
+                  {schoolClasses.map(cls => {
+                    const clsStudents = allStudents
+                      .filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status))
+                      .sort((a, b) => {
+                        const g = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (g) return g
+                        const c = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (c) return c
+                        const n = parseInt(a.number||'0') - parseInt(b.number||'0'); if (n) return n
+                        return (a.name||'').localeCompare(b.name||'','ko')
+                      })
+                    return (
+                      <div key={cls.id} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                        <div style={{ padding:'12px 18px', background:'#f9fafb', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                          <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>🏫 {cls.organization} · {cls.className}{cls.section ? ` ${cls.section}반` : ''}</span>
+                          <span style={{ fontSize:'13px', fontWeight:700, color:C.primary }}>👥 {clsStudents.length}명</span>
+                        </div>
+                        {clsStudents.length === 0 ? (
+                          <div style={{ padding:'14px 18px', fontSize:'13px', color:C.muted }}>등록된 학생이 없습니다</div>
+                        ) : (
+                          <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                            <thead>
+                              <tr style={{ background:'#f9fafb' }}>
+                                {['순번', '학년 / 반 / 번호', '이름', '학부모 전화'].map(h => (
+                                  <th key={h} style={{ padding:'11px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', whiteSpace:'nowrap', borderBottom:`1px solid ${C.border}` }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {clsStudents.map((s, i) => (
+                                <tr key={s.id} style={{ borderBottom:`1px solid #f3f4f6`, background: i%2===0?'#fff':'#fafafa' }}>
+                                  <td style={{ padding:'11px 14px', fontSize:'13px', color:'#9ca3af', textAlign:'center', whiteSpace:'nowrap' }}>{i+1}</td>
+                                  <td style={{ padding:'11px 14px', fontSize:'13px', color:'#374151', whiteSpace:'nowrap' }}>
+                                    <span>{s.grade ? s.grade+'학년' : '-'}</span>
+                                    {s.classNum && <span style={{ marginLeft:'4px', padding:'1px 7px', borderRadius:'5px', background:'#f0fdf4', color:'#16a34a', fontWeight:600, fontSize:'12px' }}>{s.classNum}반</span>}
+                                    {s.number && <span style={{ marginLeft:'4px', color:'#9ca3af', fontSize:'12px' }}>{s.number}번</span>}
+                                  </td>
+                                  <td style={{ padding:'11px 14px', fontSize:'14px', fontWeight:700, color:'#111827' }}>{s.name}</td>
+                                  <td style={{ padding:'11px 14px', fontSize:'13px', color:'#6b7280' }}>{s.parentPhone || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
                       </div>
-                      <div style={{ padding:'8px 16px' }}>
-                        <ClassAttendanceSection cls={cls} date={today} allStudents={allStudents} user={user} />
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
