@@ -804,19 +804,32 @@ function CalendarMiniPreview({ cal, myDay }) {
           })}
 
           {/* 방학 기간 */}
-          {(sumStart||winStart)&&(
-            <div style={{ padding:'8px 12px',background:'#fef9c3',borderRadius:'8px',border:'1px solid #fde68a',fontSize:'12px',color:'#92400e',display:'flex',flexDirection:'column',gap:'3px' }}>
-              ☀️ 방학 기간
-              {sumStart&&<span>여름방학: {sumStart} ~ {sumEnd||'?'}</span>}
-              {winStart&&<span>겨울방학: {winStart} ~ {winEnd||'?'}</span>}
-            </div>
-          )}
+          <div style={{ padding:'8px 12px',background:'#fef9c3',borderRadius:'8px',border:'1px solid #fde68a',fontSize:'12px',color:'#92400e',display:'flex',flexDirection:'column',gap:'3px' }}>
+            <span style={{ fontWeight:700 }}>☀️ 방학 기간</span>
+            {sumStart
+              ? <span>여름방학: {sumStart} ~ {sumEnd||'?'}</span>
+              : <span style={{ color:'#b45309' }}>여름방학: 학교 문의</span>
+            }
+            {winStart
+              ? <span>겨울방학: {winStart} ~ {winEnd||'?'}</span>
+              : <span style={{ color:'#b45309' }}>겨울방학: 학교 문의</span>
+            }
+          </div>
           {/* 신청기간 */}
-          {regPeriods.filter(r=>r.start).map((r,i)=>(
-            <div key={i} style={{ padding:'8px 12px',background:'#eff6ff',borderRadius:'8px',border:'1px solid #bfdbfe',fontSize:'12px',color:'#1d4ed8' }}>
-              📝 {termBoundaries[i]?.label||`${i+1}기`} 신청기간: {r.start} ~ {r.end||'?'}
-            </div>
-          ))}
+          <div style={{ display:'flex',flexDirection:'column',gap:'4px' }}>
+            {termBoundaries.map((b,i)=>{
+              const r = regPeriods[i]
+              return (
+                <div key={i} style={{ padding:'8px 12px',background:'#eff6ff',borderRadius:'8px',border:'1px solid #bfdbfe',fontSize:'12px',color:'#1d4ed8' }}>
+                  📝 <strong>{b.label}</strong> 신청기간:{' '}
+                  {r?.start
+                    ? <span>{r.start} ~ {r.end||'?'}</span>
+                    : <span style={{ color:'#6b7280' }}>학교 문의</span>
+                  }
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>
