@@ -260,7 +260,7 @@ function SchoolConnectionPanel({ user, onNav }) {
   const [connections, setConnections] = useState([])
   const [modal,       setModal]       = useState(null)  // { conn, info, calendars, subjects }
   const [modalTab,    setModalTab]    = useState('info')
-  const [importing,   setImporting]   = useState(false)
+
   const [myClasses,   setMyClasses]   = useState([])
   const { success, error } = useToast()
   const confirm = useConfirm()
@@ -315,67 +315,6 @@ function SchoolConnectionPanel({ user, onNav }) {
     })
   }
 
-  const [importModal, setImportModal] = useState(null) // { cal, form } 확인 모달
-
-  const handleImport = (cal) => {
-    // 확인 모달 열기 — 수업명 등 직접 입력 후 가져오기
-    setImportModal({
-      cal,
-      className:  '',          // 비워두고 선생님이 직접 입력
-      section:    '',
-      time:       '',
-      timeEnd:    '',
-    })
-  }
-
-  const confirmImport = async () => {
-    if (!importModal) return
-    const { cal, className, section, time, timeEnd } = importModal
-    if (!className.trim()) { alert('수업명을 입력해주세요.'); return }
-    setImporting(true)
-    try {
-      const newClass = {
-        id: uid(), teacherId: user.id,
-        organization:   modal?.conn?.schoolName || cal.schoolName || '',
-        className:      className.trim(),
-        section:        section.trim(),
-        days:           (cal.days||[]).filter(d => (modal?.conn?.days||'').includes(d)), // 내 요일만
-        termType:       cal.termType  || 'semester',
-        termCount:      cal.termCount || 4,
-        termSizes:      cal.termSizes?.length > 0 ? cal.termSizes : [4,4,4,4],
-        repeatType:     cal.repeatType || 'every',
-        startDate:      cal.startDate || '',
-        endDate:        cal.endDate   || '',
-        time:           time.trim(),
-        timeEnd:        timeEnd.trim(),
-        description:    '',
-        officePhone:    modal?.info?.officePhone || '',
-        schoolAddress:  modal?.info?.address     || '',
-        classLocation:  '',
-        promotionImgs:  [], noticeFiles: [], templateFile: null,
-        cancelledDates: (cal.cancelledDates||[]).filter(c => {
-          // 내 요일에 해당하는 휴일만
-          const dow = new Date(c.date+'T00:00:00').getDay()
-          const DAY_KO = ['일','월','화','수','목','금','토']
-          const myDayChar = (modal?.conn?.days||'').replace('요일','').trim()
-          return !myDayChar || DAY_KO[dow] === myDayChar
-        }),
-        makeupDates:    [],
-        alarm:          { enabled:false, minutesBefore:10 },
-        alarmEnd:       { enabled:false, minutesBefore:10 },
-        sourceCalendarId: cal.id,
-        sourceSchoolName: cal.schoolName || '',
-        createdAt:      now(),
-      }
-      ClassesDB.insert(newClass)
-      await load()
-      setImportModal(null)
-      setModal(null)
-      success(`✅ "${newClass.className}" 수업을 등록했습니다! 수업 관리에서 확인하세요.`)
-      if (onNav) onNav('classes')
-    } catch { error('가져오기 중 오류가 발생했습니다.') }
-    setImporting(false)
-  }
 
   // findMyClass — sourceCalendarId 우선, 없으면 매칭 안 함
   const findMyClass = (cal) =>
@@ -556,9 +495,9 @@ function SchoolConnectionPanel({ user, onNav }) {
                               📋 내 수업 보기 →
                             </button>
                           ) : (
-                            <button onClick={() => handleImport(cal)} disabled={importing}
-                              style={{ padding:'6px 14px', borderRadius:'8px', border:'none', background: importing?'#e5e7eb':'#1e3a5f', color: importing?'#9ca3af':'#fff', fontSize:'12px', fontWeight:700, cursor: importing?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                              {importing ? '...' : '📥 내 수업으로 가져오기'}
+                            <button onClick={() => { setModal(null); if(onNav) onNav('classes') }}
+                              style={{ padding:'6px 14px', borderRadius:'8px', border:'1px solid #bfdbfe', background:'#eff6ff', color:'#1d4ed8', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                              ✏️ 수업 관리에서 직접 등록 →
                             </button>
                           )}
                         </div>
@@ -576,67 +515,6 @@ function SchoolConnectionPanel({ user, onNav }) {
         </div>
       )}
 
-      {/* ── 가져오기 확인 모달 */}
-      {importModal && (
-        <div style={{ position:'fixed', inset:0, zIndex:5000, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}
-          onClick={e => e.target===e.currentTarget && setImportModal(null)}>
-          <div style={{ background:'#fff', borderRadius:'16px', width:'100%', maxWidth:'440px', padding:'24px', boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
-            <div style={{ fontSize:'16px', fontWeight:800, color:'#111827', marginBottom:'4px' }}>📥 내 수업으로 가져오기</div>
-            <div style={{ fontSize:'12px', color:'#6b7280', marginBottom:'20px' }}>
-              학교 달력의 일정을 내 수업으로 새로 등록합니다.<br/>
-              기존 수업은 변경되지 않습니다.
-            </div>
-
-            {/* 가져오는 정보 요약 */}
-            <div style={{ background:'#f8fafc', borderRadius:'10px', padding:'12px 14px', marginBottom:'16px', fontSize:'12px', color:'#374151', display:'flex', flexDirection:'column', gap:'4px' }}>
-              <div>📅 기간: {importModal.cal.startDate?.slice(5)} ~ {importModal.cal.endDate?.slice(5)}</div>
-              <div>📆 요일: {(importModal.cal.days||[]).filter(d=>(modal?.conn?.days||'').includes(d)).join('·')}요일 (내 요일만)</div>
-              <div>🏫 학교: {modal?.conn?.schoolName}</div>
-              <div>🚫 휴일: {(importModal.cal.cancelledDates||[]).length}일 반영</div>
-            </div>
-
-            {/* 수업명 입력 */}
-            <div style={{ marginBottom:'12px' }}>
-              <label style={{ fontSize:'12px', fontWeight:700, color:'#374151', display:'block', marginBottom:'4px' }}>수업명 (과목) *</label>
-              <input
-                value={importModal.className}
-                onChange={e => setImportModal(p=>({...p, className:e.target.value}))}
-                placeholder="예: 로봇과학A반"
-                style={{ width:'100%', padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }}
-                autoFocus
-              />
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginBottom:'20px' }}>
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:700, color:'#374151', display:'block', marginBottom:'4px' }}>반 (선택)</label>
-                <input value={importModal.section} onChange={e=>setImportModal(p=>({...p,section:e.target.value}))} placeholder="예: A반"
-                  style={{ width:'100%', padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }}/>
-              </div>
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:700, color:'#374151', display:'block', marginBottom:'4px' }}>시작 시간</label>
-                <input type="time" value={importModal.time} onChange={e=>setImportModal(p=>({...p,time:e.target.value}))}
-                  style={{ width:'100%', padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }}/>
-              </div>
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:700, color:'#374151', display:'block', marginBottom:'4px' }}>종료 시간</label>
-                <input type="time" value={importModal.timeEnd} onChange={e=>setImportModal(p=>({...p,timeEnd:e.target.value}))}
-                  style={{ width:'100%', padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }}/>
-              </div>
-            </div>
-
-            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-              <button onClick={() => setImportModal(null)}
-                style={{ padding:'9px 20px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'13px', color:'#6b7280', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                취소
-              </button>
-              <button onClick={confirmImport} disabled={importing || !importModal.className.trim()}
-                style={{ padding:'9px 22px', borderRadius:'9px', border:'none', background: (!importModal.className.trim()||importing)?'#e5e7eb':'#1e3a5f', color: (!importModal.className.trim()||importing)?'#9ca3af':'#fff', fontSize:'13px', fontWeight:700, cursor: (!importModal.className.trim()||importing)?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                {importing ? '등록 중...' : '✅ 내 수업으로 등록'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }
@@ -931,7 +809,6 @@ function CalendarMiniPreview({ cal, myDay }) {
 
 // ── 학교 달력 vs 내 수업 좌우 비교 패널
 function ComparePanel({ cal, myClass, myDay }) {
-  const [open, setOpen] = useState(false)
 
   const DAY_KO        = ['일','월','화','수','목','금','토']
   const dayNameToNum3 = {'일':0,'월':1,'화':2,'수':3,'목':4,'금':5,'토':6}
@@ -1057,14 +934,14 @@ function ComparePanel({ cal, myClass, myDay }) {
 
   return (
     <div style={{ borderTop:'1px solid #f3f4f6', padding:'10px 16px', background:'#fafafa' }}>
-      <button onClick={()=>setOpen(o=>!o)} style={{ background:'none',border:'none',cursor:'pointer',fontSize:'12px',fontWeight:700,fontFamily:'Noto Sans KR, sans-serif',padding:'0',display:'flex',alignItems:'center',gap:'6px',color:isOk?'#16a34a':'#ef4444' }}>
-        {open ? '▲ 비교 접기'
-          : isOk ? `✅ 내 ${myDayChar||''}요일 수업 일정 일치 — 달력 비교 보기`
-          : `⚠️ 차이 발견 — 달력 비교 보기 (누락 ${missing.length}일 / 초과 ${extra.length}일${myHolidayMissed.length?` / 휴일미반영 ${myHolidayMissed.length}일`:''})`}
-      </button>
+      {/* 상태 요약 헤더 */}
+      <div style={{ fontSize:'12px', fontWeight:700, color:isOk?'#16a34a':'#ef4444', marginBottom:'12px', display:'flex', alignItems:'center', gap:'6px' }}>
+        {isOk
+          ? `✅ 내 ${myDayChar||''}요일 수업 일정 일치`
+          : `⚠️ 차이 발견 (누락 ${missing.length}일 / 초과 ${extra.length}일${myHolidayMissed.length?` / 휴일미반영 ${myHolidayMissed.length}일`:''})`}
+      </div>
 
-      {open && (
-        <div style={{ marginTop:'12px' }}>
+      <div style={{ marginTop:'0' }}>
           {/* 범례 */}
           <div style={{ display:'flex',gap:'10px',flexWrap:'wrap',fontSize:'11px',marginBottom:'10px',padding:'6px 10px',background:'#fff',borderRadius:'8px',border:'1px solid #e5e7eb' }}>
             <span style={{ fontWeight:700,color:'#374151' }}>범례</span>
@@ -1135,12 +1012,11 @@ function ComparePanel({ cal, myClass, myDay }) {
             </div>
           )}
         </div>
-      )}
     </div>
   )
 }
 
-// ── 학교 연간 달력 조회 & 내 수업으로 가져오기
+// ── 학교 연간 달력 조회 & 내 수업과 비교
 
 function SchoolTaskPanel({ user }) {
   const [tasks,    setTasks]    = useState([])
