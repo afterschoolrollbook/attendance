@@ -851,6 +851,62 @@ function ComparePanel({ cal, myClass, myDay }) {
   const schoolSet = new Set(schoolDates)
   const mySet     = new Set(myDates)
 
+  // ── sessionMap 계산 (학교 달력 차시 라벨용)
+  const termType3   = cal.termType || 'semester'
+  const quarters3   = cal.quarters || 4
+  const addDays3    = (str,n) => { const d=new Date(str+'T00:00:00'); d.setDate(d.getDate()+n); return fmt3(d.getFullYear(),d.getMonth()+1,d.getDate()) }
+  const sumStart3   = cal.sumStart||null, sumEnd3 = cal.sumEnd||null
+  const winStart3   = cal.winStart||null, winEnd3 = cal.winEnd||null
+  const marchStart3b = fmt3(year3,3,1)
+  let termBoundaries3 = []
+  if (termType3==='semester') {
+    const sem1End3 = cal.sem1End || fmt3(year3,8,31)
+    const sem2Start3 = sumEnd3 ? addDays3(sumEnd3,1) : fmt3(year3,9,1)
+    const sem2End3 = cal.sem2End || fmt3(year3+1,2,28)
+    termBoundaries3 = [
+      { start:marchStart3b, end:sem1End3, label:'1학기' },
+      { start:sem2Start3,   end:sem2End3, label:'2학기' },
+    ]
+  } else {
+    const defEnds3 = [fmt3(year3,5,31),fmt3(year3,8,31),fmt3(year3,11,30),fmt3(year3+1,2,28)]
+    const qEnds3   = cal.qEnds || []
+    let prevEnd3   = fmt3(year3,2,28)
+    for(let i=0;i<quarters3;i++){
+      const qEnd3 = qEnds3[i] || defEnds3[i] || fmt3(year3+1,2,28)
+      termBoundaries3.push({ start:addDays3(prevEnd3,1), end:qEnd3, label:`${i+1}분기` })
+      prevEnd3 = qEnd3
+    }
+  }
+  const numPeriods3       = termType3==='semester' ? 2 : quarters3
+  const quarterTermCounts3 = Array.from({length:numPeriods3},(_,i)=>(cal.quarterTermCounts||[])[i]||3)
+  const defaultSessions3   = cal.defaultSessions || 4
+  const termSessionMap3    = cal.termSessionMap   || {}
+  const getTS3 = (qIdx,tIdx) => termSessionMap3[`q${qIdx}t${tIdx}`] ?? defaultSessions3
+  const flatTermSessions3  = []
+  quarterTermCounts3.forEach((tCount,qIdx)=>{ for(let t=0;t<tCount;t++) flatTermSessions3.push(getTS3(qIdx,t)) })
+  const { sessionMap: schoolSessionMap } = schoolBuildSessionMap({
+    allSessionDates: schoolAllDates,
+    termBoundaries: termBoundaries3,
+    quarterTermCounts: quarterTermCounts3,
+    flatTermSessions: flatTermSessions3,
+  })
+
+  // ── 내 수업 sessionMap 계산 (myClass 설정 기반)
+  const myTermSizes  = myClass.termSizes?.length > 0 ? myClass.termSizes : Array(myClass.termCount||4).fill(4)
+  const mySessionMap = {}
+  let termIdx = 0, inTermSess = 0, totalSess = 0
+  for (const d of myDates) {
+    totalSess++
+    inTermSess++
+    mySessionMap[d] = {
+      termNum:    termIdx + 1,
+      inTermSess,
+      totalSess,
+      sessionsPerTerm: myTermSizes[termIdx] || 4,
+    }
+    if (inTermSess >= (myTermSizes[termIdx] || 4)) { termIdx++; inTermSess = 0 }
+  }
+
   // 비교 상태
   const missing         = schoolDates.filter(d=>!mySet.has(d))         // 학교O 내X
   const extra           = myDates.filter(d=>!schoolSet.has(d))         // 학교X 내O
@@ -900,12 +956,18 @@ function ComparePanel({ cal, myClass, myDay }) {
             <div style={{ fontSize:'8px',color:'#ef4444' }}>휴일</div>
           </div>
         )
-        if(isSession) return (
-          <div key={d} style={{ padding:'2px',borderRadius:'5px',textAlign:'center',background: isMissing?'#fef2f2':'#fff7ed',border:`1px solid ${isMissing?'#fca5a5':'#f97316'}` }}>
-            <div style={{ fontSize:'10px',fontWeight:700,color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div>
-            {isMissing && <div style={{ fontSize:'7px',color:'#ef4444',fontWeight:700 }}>내수업없음</div>}
-          </div>
-        )
+        if(isSession) {
+          const sessInfo = schoolSessionMap[ds]
+          const localTermNum = sessInfo ? sessInfo.localTermIdx + 1 : null
+          return (
+            <div key={d} style={{ padding:'2px',borderRadius:'5px',textAlign:'center',background: isMissing?'#fef2f2':'#fff7ed',border:`1px solid ${isMissing?'#fca5a5':'#f97316'}` }}>
+              <div style={{ fontSize:'10px',fontWeight:700,color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div>
+              {sessInfo && <div style={{ fontSize:'7px',color:'#c2410c',fontWeight:700,lineHeight:1.2 }}>{sessInfo.quarterLabel} {sessInfo.dayTotal}차</div>}
+              {sessInfo && <div style={{ fontSize:'7px',color:'#9a3412',lineHeight:1.2 }}>{localTermNum}텀{sessInfo.inTermSess}차</div>}
+              {isMissing && <div style={{ fontSize:'7px',color:'#ef4444',fontWeight:700 }}>내수업없음</div>}
+            </div>
+          )
+        }
         return <div key={d} style={{ padding:'3px',textAlign:'center' }}><div style={{ fontSize:'10px',color:'#e5e7eb' }}>{d}</div></div>
       }
 
@@ -925,6 +987,8 @@ function ComparePanel({ cal, myClass, myDay }) {
       if(isSession) return (
         <div key={d} style={{ padding:'2px',borderRadius:'5px',textAlign:'center',background: isExtra?'#fffbeb':'#eff6ff',border:`1px solid ${isExtra?'#fde68a':'#3b82f6'}` }}>
           <div style={{ fontSize:'10px',fontWeight:700,color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div>
+          {mySessionMap[ds] && <div style={{ fontSize:'7px',color:'#1d4ed8',fontWeight:700,lineHeight:1.2 }}>{mySessionMap[ds].termNum}텀{mySessionMap[ds].inTermSess}차</div>}
+          {mySessionMap[ds] && <div style={{ fontSize:'7px',color:'#3b82f6',lineHeight:1.2 }}>전체 {mySessionMap[ds].totalSess}차</div>}
           {isExtra && <div style={{ fontSize:'7px',color:'#d97706',fontWeight:700 }}>학교없음</div>}
         </div>
       )
