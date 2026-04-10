@@ -535,6 +535,8 @@ function SchoolConnectionPanel({ user, onNav }) {
                         </div>
                         {/* 미니 달력 — 내 요일 차시만 */}
                         <CalendarMiniPreview cal={cal} myDay={modal.conn.days} />
+                        {/* 내 수업과 비교 */}
+                        {myClass && <ComparePanel cal={cal} myClass={myClass} myDay={modal.conn.days} />}
                       </div>
                     )
                   })}
@@ -830,6 +832,161 @@ function CalendarMiniPreview({ cal, myDay }) {
               )
             })}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── 학교 달력 vs 내 수업 비교 패널
+function ComparePanel({ cal, myClass, myDay }) {
+  const [open, setOpen] = useState(false)
+
+  const DAY_KO      = ['일','월','화','수','목','금','토']
+  const dayNameToNum3 = {'일':0,'월':1,'화':2,'수':3,'목':4,'금':5,'토':6}
+  const fmt3   = (y,m,d) => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+  const addDays3 = (str,n) => { const d=new Date(str+'T00:00:00'); d.setDate(d.getDate()+n); return fmt3(d.getFullYear(),d.getMonth()+1,d.getDate()) }
+  const getDow3  = (str) => new Date(str+'T00:00:00').getDay()
+
+  const myDayChar = myDay ? myDay.replace('요일','').trim() : null
+  // myDayNum 없으면 내 수업 요일에서 추출 (단일 요일 수업 기준)
+  const myDayNumRaw = myDayChar ? dayNameToNum3[myDayChar] : null
+  const myDayNum = myDayNumRaw != null ? myDayNumRaw
+    : (myClass.days?.length === 1 ? dayNameToNum3[myClass.days[0]] : null)
+
+  // ── 학교 달력 수업일 계산 (내 요일만)
+  const schoolCancelledSet = new Set((cal.cancelledDates||[]).map(c=>c.date))
+  const vacationSet3 = new Set()
+  const addVac = (s,e) => { if(!s||!e) return; let d=new Date(s+'T00:00:00'),en=new Date(e+'T00:00:00'); while(d<=en){ vacationSet3.add(fmt3(d.getFullYear(),d.getMonth()+1,d.getDate())); d.setDate(d.getDate()+1) } }
+  addVac(cal.sumStart, cal.sumEnd); addVac(cal.winStart, cal.winEnd)
+
+  const year3      = cal.year || parseInt(cal.startDate?.slice(0,4)) || new Date().getFullYear()
+  const marchStart3 = fmt3(year3,3,1)
+  const nextFebEnd3 = fmt3(year3+1,2,28)
+  const dayNums3    = (cal.days||[]).map(d=>dayNameToNum3[d]).filter(n=>n!==undefined)
+
+  const getDatesInRange3 = (s,e,nums) => {
+    const res=[]; if(!s||!e||!nums.length) return res
+    const cur=new Date(s+'T00:00:00'),end=new Date(e+'T00:00:00')
+    while(cur<=end){ if(nums.includes(cur.getDay())) res.push(fmt3(cur.getFullYear(),cur.getMonth()+1,cur.getDate())); cur.setDate(cur.getDate()+1) }
+    return res
+  }
+
+  // 학교 전체 수업일
+  const schoolAllDates = getDatesInRange3(marchStart3, nextFebEnd3, dayNums3)
+    .filter(d => !schoolCancelledSet.has(d) && !vacationSet3.has(d))
+  // 내 요일만 필터
+  const schoolMyDates  = myDayNum != null
+    ? schoolAllDates.filter(d => getDow3(d) === myDayNum)
+    : schoolAllDates
+
+  // ── 내 수업 수업일 계산 (calcSessionDates 사용)
+  const myAllDates    = calcSessionDates(myClass)
+  const myCancelledSet = new Set((myClass.cancelledDates||[]).map(c=>c.date))
+  const mySessionDates = myAllDates.filter(d => !myCancelledSet.has(d))
+  // 내 요일만
+  const myMyDates     = myDayNum != null
+    ? mySessionDates.filter(d => getDow3(d) === myDayNum)
+    : mySessionDates
+
+  const schoolSet = new Set(schoolMyDates)
+  const mySet     = new Set(myMyDates)
+
+  // ── 비교 결과
+  // 1. 학교엔 있는데 내 수업엔 없는 날 (누락)
+  const missing = schoolMyDates.filter(d => !mySet.has(d))
+  // 2. 내 수업엔 있는데 학교엔 없는 날 (추가됨 — 학교가 취소했거나 내가 잘못 추가)
+  const extra   = myMyDates.filter(d => !schoolSet.has(d))
+  // 3. 학교 휴일인데 내 수업에 반영 안 된 날
+  const schoolCancelledArr = (cal.cancelledDates||[]).filter(c => myDayNum==null || getDow3(c.date)===myDayNum)
+  const myHolidayMissed    = schoolCancelledArr.filter(c => !myCancelledSet.has(c.date) && mySet.has(c.date))
+  // 4. 차시 수 비교
+  const schoolCount = schoolMyDates.length
+  const myCount3    = myMyDates.length
+  const countDiff   = myCount3 - schoolCount
+
+  const isOk = missing.length===0 && extra.length===0 && myHolidayMissed.length===0 && countDiff===0
+
+  return (
+    <div style={{ borderTop:'1px solid #f3f4f6', padding:'10px 16px', background:'#fafafa' }}>
+      <button onClick={() => setOpen(o=>!o)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif', padding:'0', display:'flex', alignItems:'center', gap:'6px',
+        color: isOk ? '#16a34a' : '#ef4444' }}>
+        {open
+          ? `▲ 비교 접기`
+          : isOk
+            ? `✅ 내 ${myDayChar||''}요일 수업 일치 — 비교 보기`
+            : `⚠️ 차이 발견 (${missing.length+extra.length+myHolidayMissed.length}건) — 비교 보기`
+        }
+      </button>
+
+      {open && (
+        <div style={{ marginTop:'10px', display:'flex', flexDirection:'column', gap:'10px' }}>
+
+          {/* 차시 수 비교 */}
+          <div style={{ padding:'10px 14px', borderRadius:'10px', background: countDiff===0?'#f0fdf4':'#fef2f2', border:`1px solid ${countDiff===0?'#86efac':'#fca5a5'}` }}>
+            <div style={{ fontSize:'12px', fontWeight:700, color: countDiff===0?'#16a34a':'#ef4444', marginBottom:'4px' }}>
+              📊 차시 수 비교 {countDiff===0 ? '✅' : `⚠️ ${countDiff>0?'+':''}${countDiff}차`}
+            </div>
+            <div style={{ fontSize:'12px', color:'#374151', display:'flex', gap:'16px' }}>
+              <span>학교 달력: <strong>{schoolCount}차시</strong></span>
+              <span>내 수업: <strong>{myCount3}차시</strong></span>
+            </div>
+          </div>
+
+          {/* 누락된 날 (학교엔 있는데 내 수업엔 없음) */}
+          {missing.length > 0 && (
+            <div style={{ padding:'10px 14px', borderRadius:'10px', background:'#fef2f2', border:'1px solid #fca5a5' }}>
+              <div style={{ fontSize:'12px', fontWeight:700, color:'#ef4444', marginBottom:'6px' }}>
+                📌 학교 수업일인데 내 수업에 없는 날 ({missing.length}일)
+              </div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:'4px' }}>
+                {missing.map(d => (
+                  <span key={d} style={{ fontSize:'11px', background:'#fff', border:'1px solid #fca5a5', borderRadius:'5px', padding:'2px 7px', color:'#ef4444', fontWeight:600 }}>
+                    {d.slice(5)} ({DAY_KO[getDow3(d)]})
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 초과된 날 (내 수업엔 있는데 학교엔 없음) */}
+          {extra.length > 0 && (
+            <div style={{ padding:'10px 14px', borderRadius:'10px', background:'#fffbeb', border:'1px solid #fde68a' }}>
+              <div style={{ fontSize:'12px', fontWeight:700, color:'#d97706', marginBottom:'6px' }}>
+                ⚠️ 내 수업엔 있는데 학교 달력엔 없는 날 ({extra.length}일)
+              </div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:'4px' }}>
+                {extra.map(d => (
+                  <span key={d} style={{ fontSize:'11px', background:'#fff', border:'1px solid #fde68a', borderRadius:'5px', padding:'2px 7px', color:'#d97706', fontWeight:600 }}>
+                    {d.slice(5)} ({DAY_KO[getDow3(d)]})
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 휴일 미반영 */}
+          {myHolidayMissed.length > 0 && (
+            <div style={{ padding:'10px 14px', borderRadius:'10px', background:'#fef2f2', border:'1px solid #fca5a5' }}>
+              <div style={{ fontSize:'12px', fontWeight:700, color:'#ef4444', marginBottom:'6px' }}>
+                🚫 학교 휴일인데 내 수업에 반영 안 된 날 ({myHolidayMissed.length}일)
+              </div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:'4px' }}>
+                {myHolidayMissed.map(c => (
+                  <span key={c.date} style={{ fontSize:'11px', background:'#fff', border:'1px solid #fca5a5', borderRadius:'5px', padding:'2px 7px', color:'#ef4444', fontWeight:600 }}>
+                    {c.date.slice(5)} {c.memo ? `(${c.memo})` : ''}
+                  </span>
+                ))}
+              </div>
+              <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'6px' }}>수업 관리에서 해당 날짜를 휴일 처리하세요</div>
+            </div>
+          )}
+
+          {isOk && (
+            <div style={{ padding:'10px 14px', borderRadius:'10px', background:'#f0fdf4', border:'1px solid #86efac', fontSize:'12px', color:'#16a34a', fontWeight:600 }}>
+              ✅ 학교 달력과 내 수업 일정이 완전히 일치합니다!
+            </div>
+          )}
         </div>
       )}
     </div>
