@@ -313,10 +313,16 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
         )
         setAllStudents(allS)
 
-        // 2) 수업 + 선생님 매핑
+        // 2) 수업 + 선생님 매핑 — 요일 순 정렬
+        const DAY_ORDER = ['월','화','수','목','금','토','일']
         const allCls = ClassesDB.all()
         const clsIds = new Set(allS.flatMap(s => s.classIds || []))
         const myClasses = allCls.filter(c => clsIds.has(c.id))
+          .sort((a, b) => {
+            const ai = DAY_ORDER.indexOf(a.days?.[0] ?? '')
+            const bi = DAY_ORDER.indexOf(b.days?.[0] ?? '')
+            return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+          })
         setAllClasses(myClasses)
         if (myClasses.length > 0) setActiveTab(myClasses[0].id)
 
@@ -446,6 +452,35 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
           <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>📱 {fmtPhone(phone)}</div>
         </div>
 
+        {/* 연결된 선생님·과목 카드 */}
+        <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', padding:'14px 16px', marginBottom:'12px' }}>
+          <div style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', marginBottom:'10px' }}>🔗 연결된 수업</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+            {allClasses.map(cls => {
+              const t = allTeachers[cls.teacherId]
+              return (
+                <div key={cls.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', borderRadius:'10px', background: activeTab===cls.id ? '#fff7ed' : '#f9fafb', border:`1px solid ${activeTab===cls.id ? '#fed7aa' : '#e5e7eb'}`, cursor:'pointer' }}
+                  onClick={() => setActiveTab(cls.id)}>
+                  <div style={{ width:'36px', height:'36px', borderRadius:'10px', background: activeTab===cls.id ? '#f97316' : '#e5e7eb', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:800, color: activeTab===cls.id ? '#fff' : '#6b7280', flexShrink:0 }}>
+                    {cls.days?.[0] || '?'}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>
+                      {cls.className}{cls.section ? ` ${cls.section}반` : ''}
+                    </div>
+                    <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'1px' }}>
+                      {cls.organization && <span>🏫 {cls.organization} · </span>}
+                      {t && <span>👩‍🏫 {t.nickname || t.name} 선생님</span>}
+                      {cls.time && <span> · ⏰ {cls.time}</span>}
+                    </div>
+                  </div>
+                  {activeTab === cls.id && <span style={{ fontSize:'12px', color:'#f97316', fontWeight:700 }}>✓</span>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
         {/* 수업 탭 */}
         {allClasses.length > 1 && (
           <div style={{ display:'flex', gap:'6px', overflowX:'auto', paddingBottom:'4px', marginBottom:'12px' }}>
@@ -456,7 +491,7 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
                   color: activeTab===cls.id ? '#fff' : C.muted,
                   fontSize:'13px', fontWeight:700, cursor:'pointer',
                   fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
-                {cls.className}{cls.section ? ` ${cls.section}반` : ''}
+                {cls.days?.[0] ? `${cls.days[0]}(${cls.className}${cls.section?' '+cls.section+'반':''})` : cls.className}
               </button>
             ))}
           </div>
