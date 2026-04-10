@@ -580,7 +580,7 @@ function schoolBuildSessionMap({ allSessionDates, termBoundaries, quarterTermCou
 
 // 연간 일정 미니 미리보기 — SchoolCalendar와 동일 로직, 내 요일 필터
 function CalendarMiniPreview({ cal, myDay }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   if (!cal.startDate || !cal.endDate) return null
 
   const DAY_KO     = ['일','월','화','수','목','금','토']
@@ -1004,8 +1004,7 @@ function ComparePanel({ cal, myClass, myDay }) {
           return (
             <div key={d} style={{ padding:'2px',borderRadius:'5px',textAlign:'center',background: isMissing?'#fef2f2':'#fff7ed',border:`1px solid ${isMissing?'#fca5a5':'#f97316'}` }}>
               <div style={{ fontSize:'10px',fontWeight:700,color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div>
-              {sessInfo && <div style={{ fontSize:'7px',color:'#c2410c',fontWeight:700,lineHeight:1.2 }}>{sessInfo.quarterLabel} {sessInfo.dayTotal}차</div>}
-              {sessInfo && <div style={{ fontSize:'7px',color:'#9a3412',lineHeight:1.2 }}>{localTermNum}텀{sessInfo.inTermSess}차</div>}
+              {sessInfo && <div style={{ fontSize:'7px',color:'#c2410c',fontWeight:700,lineHeight:1.3 }}>{sessInfo.quarterLabel} {localTermNum}텀 {sessInfo.inTermSess}차</div>}
               {isMissing && <div style={{ fontSize:'7px',color:'#ef4444',fontWeight:700 }}>내수업없음</div>}
             </div>
           )
@@ -1026,14 +1025,18 @@ function ComparePanel({ cal, myClass, myDay }) {
           <div style={{ fontSize:'7px',color:'#d97706',fontWeight:700 }}>휴일미반영</div>
         </div>
       )
-      if(isSession) return (
-        <div key={d} style={{ padding:'2px',borderRadius:'5px',textAlign:'center',background: isExtra?'#fffbeb':'#eff6ff',border:`1px solid ${isExtra?'#fde68a':'#3b82f6'}` }}>
-          <div style={{ fontSize:'10px',fontWeight:700,color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div>
-          {mySessionMap[ds] && <div style={{ fontSize:'7px',color:'#1d4ed8',fontWeight:700,lineHeight:1.2 }}>{mySessionMap[ds].termNum}텀{mySessionMap[ds].termSess}차</div>}
-          {mySessionMap[ds] && <div style={{ fontSize:'7px',color:'#3b82f6',lineHeight:1.2 }}>전체 {mySessionMap[ds].total}차</div>}
-          {isExtra && <div style={{ fontSize:'7px',color:'#d97706',fontWeight:700 }}>학교없음</div>}
-        </div>
-      )
+      if(isSession) {
+          const mySess = mySessionMap[ds]
+          // 학교 달력의 학기 경계로 학기명 결정
+          const semLabel = termBoundaries3.find(b => ds >= b.start && ds <= b.end)?.label || ''
+          return (
+            <div key={d} style={{ padding:'2px',borderRadius:'5px',textAlign:'center',background: isExtra?'#fffbeb':'#eff6ff',border:`1px solid ${isExtra?'#fde68a':'#3b82f6'}` }}>
+              <div style={{ fontSize:'10px',fontWeight:700,color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div>
+              {mySess && <div style={{ fontSize:'7px',color:'#1d4ed8',fontWeight:700,lineHeight:1.3 }}>{semLabel}{semLabel?' ':''}{mySess.termNum}텀 {mySess.termSess}차</div>}
+              {isExtra && <div style={{ fontSize:'7px',color:'#d97706',fontWeight:700 }}>학교없음</div>}
+            </div>
+          )
+        }
       return <div key={d} style={{ padding:'3px',textAlign:'center' }}><div style={{ fontSize:'10px',color:'#e5e7eb' }}>{d}</div></div>
     })
   }
