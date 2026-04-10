@@ -290,17 +290,15 @@ function SchoolConnectionPanel({ user, onNav }) {
 
   const openModal = async (conn) => {
     setModalTab('info')
-    setModal({ conn, info: null, calendars: [], subjects: [] })
+    setModal({ conn, info: null, calendars: [] })
     try {
-      const [allInfo, allCals, allSubj] = await Promise.all([
+      const [allInfo, allCals] = await Promise.all([
         dbCall('getAll', 'schoolInfo').catch(()=>[]),
         dbCall('getAll', 'schoolCalendar').catch(()=>[]),
-        dbCall('getAll', 'schoolSubjects').catch(()=>[]),
       ])
       const info      = (allInfo||[]).find(r => r.adminId === conn.adminId) || null
       const calendars = (allCals||[]).filter(c => c.adminId === conn.adminId)
-      const subjects  = (allSubj||[]).filter(s => s.adminId === conn.adminId && s.active !== false)
-      setModal({ conn, info, calendars, subjects })
+      setModal({ conn, info, calendars })
     } catch {}
   }
 
@@ -435,26 +433,16 @@ function SchoolConnectionPanel({ user, onNav }) {
                         ['📞 교무실', modal.info.officePhone],
                         ['📱 방과후 담당', modal.info.afterPhone],
                         ['📍 주소', [modal.info.address, modal.info.addressDetail].filter(Boolean).join(' ')],
+                        ['🌐 홈페이지', modal.info.homepage],
                       ].map(([label, value]) => value ? (
                         <div key={label} style={{ display:'flex', gap:'12px', padding:'12px 14px', background:'#f8fafc', borderRadius:'10px', border:'1px solid #e5e7eb' }}>
                           <span style={{ fontSize:'13px', fontWeight:700, color:'#6b7280', width:'100px', flexShrink:0 }}>{label}</span>
-                          <span style={{ fontSize:'13px', color:'#111827', fontWeight:500 }}>{value}</span>
+                          {label === '🌐 홈페이지'
+                            ? <a href={value} target="_blank" rel="noopener noreferrer" style={{ fontSize:'13px', color:'#3b82f6', fontWeight:500 }}>{value}</a>
+                            : <span style={{ fontSize:'13px', color:'#111827', fontWeight:500 }}>{value}</span>
+                          }
                         </div>
                       ) : null)}
-                      {/* 과목 목록 */}
-                      {modal.subjects.length > 0 && (
-                        <div style={{ padding:'12px 14px', background:'#f8fafc', borderRadius:'10px', border:'1px solid #e5e7eb' }}>
-                          <div style={{ fontSize:'12px', fontWeight:700, color:'#6b7280', marginBottom:'8px' }}>📚 운영 과목</div>
-                          <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
-                            {modal.subjects.map(s => (
-                              <span key={s.id} style={{ fontSize:'12px', fontWeight:600, background:'#eff6ff', color:'#1d4ed8', padding:'3px 10px', borderRadius:'6px', border:'1px solid #bfdbfe' }}>
-                                {s.name}{s.days?.length ? ` (${s.days.join('·')})` : ''}
-                                {s.capacity ? ` · 정원 ${s.capacity}명` : ''}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </>
                   ) : (
                     <div style={{ textAlign:'center', padding:'30px', color:'#9ca3af', fontSize:'13px' }}>

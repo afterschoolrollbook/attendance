@@ -145,7 +145,8 @@ function SchoolInfoTab({ session }) {
     afterPhone:    '',
     address:       '',
     addressDetail: '',
-    docs: {}  // { guide: [{name, data}], attend: [...], ... }
+    homepage:      '',
+    docs: {}
   })
 
   const load = async () => {
@@ -160,6 +161,7 @@ function SchoolInfoTab({ session }) {
           afterPhone:    mine.afterPhone    || '',
           address:       mine.address       || '',
           addressDetail: mine.addressDetail || '',
+          homepage:      mine.homepage      || '',
           docs:          mine.docs          || {},
         })
       }
@@ -194,6 +196,7 @@ function SchoolInfoTab({ session }) {
         afterPhone:    form.afterPhone.trim(),
         address:       form.address.trim(),
         addressDetail: form.addressDetail.trim(),
+        homepage:      form.homepage.trim(),
         docs:          safeDocs,
         updatedAt:     now(),
       }
@@ -275,6 +278,10 @@ function SchoolInfoTab({ session }) {
             <LB>상세 주소</LB>
             <input style={iSt} value={form.addressDetail} onChange={e=>setForm(f=>({...f,addressDetail:e.target.value}))} placeholder="예: 본관 3층" />
           </div>
+        </div>
+        <div>
+          <LB>학교 홈페이지</LB>
+          <input style={iSt} value={form.homepage} onChange={e=>setForm(f=>({...f,homepage:e.target.value}))} placeholder="예: https://school.go.kr" />
         </div>
       </div>
 
