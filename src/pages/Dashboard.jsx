@@ -316,9 +316,35 @@ function SchoolConnectionPanel({ user, onNav }) {
   }
 
 
-  // findMyClass — sourceCalendarId 우선, 없으면 매칭 안 함
-  const findMyClass = (cal) =>
-    myClasses.find(c => c.sourceCalendarId === cal.id) || null
+  // findMyClass — 1순위: sourceCalendarId, 2순위: 학교명+요일, 3순위: 학교명만
+  const findMyClass = (cal) => {
+    // 1. sourceCalendarId 정확 매칭
+    const byId = myClasses.find(c => c.sourceCalendarId === cal.id)
+    if (byId) return byId
+
+    const schoolName = modal?.conn?.schoolName || cal.schoolName || ''
+    const connDay    = modal?.conn?.days || ''        // '목요일' or '목'
+    const dayChar    = connDay.replace('요일','').trim()  // → '목'
+
+    // 2. 학교명 + 요일 매칭 (myClass.days = ['목'] 형식)
+    if (schoolName && dayChar) {
+      const byNameDay = myClasses.find(c => {
+        const orgMatch = (c.organization||'').includes(schoolName) || schoolName.includes(c.organization||'__')
+        const dayMatch = (c.days||[]).map(d => d.replace('요일','').trim()).includes(dayChar)
+        return orgMatch && dayMatch
+      })
+      if (byNameDay) return byNameDay
+    }
+
+    // 3. 학교명만 매칭 (fallback)
+    if (schoolName) {
+      return myClasses.find(c =>
+        (c.organization||'').includes(schoolName) || schoolName.includes(c.organization||'__')
+      ) || null
+    }
+
+    return null
+  }
 
   const DOC_LABELS = { guide:'안내장', attend:'출석부 양식', yearPlan:'연간 지도안', lessonPlan:'차시별 지도안', etc:'기타 서류' }
   const DOC_ICONS  = { guide:'📄', attend:'📋', yearPlan:'📅', lessonPlan:'📝', etc:'📎' }
@@ -489,15 +515,10 @@ function SchoolConnectionPanel({ user, onNav }) {
                               {(cal.cancelledDates||[]).length > 0 && <span>🚫 휴일 {cal.cancelledDates.length}일</span>}
                             </div>
                           </div>
-                          {myClass ? (
+                          {myClass && (
                             <button onClick={() => { setModal(null); if(onNav) onNav('classes') }}
                               style={{ padding:'6px 14px', borderRadius:'8px', border:'1px solid #86efac', background:'#f0fdf4', color:'#16a34a', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
                               📋 내 수업 보기 →
-                            </button>
-                          ) : (
-                            <button onClick={() => { setModal(null); if(onNav) onNav('classes') }}
-                              style={{ padding:'6px 14px', borderRadius:'8px', border:'1px solid #bfdbfe', background:'#eff6ff', color:'#1d4ed8', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                              ✏️ 수업 관리에서 직접 등록 →
                             </button>
                           )}
                         </div>
@@ -891,21 +912,42 @@ function ComparePanel({ cal, myClass, myDay }) {
     flatTermSessions: flatTermSessions3,
   })
 
-  // ── 내 수업 sessionMap 계산 (myClass 설정 기반)
-  const myTermSizes  = myClass.termSizes?.length > 0 ? myClass.termSizes : Array(myClass.termCount||4).fill(4)
+  // ── 내 수업 sessionMap — ClassCalendar.jsx와 동일한 로직
+  const myTermSizes = (myClass.termSizes?.length > 0)
+    ? myClass.termSizes.slice(0, myClass.termCount || myClass.termSizes.length).map(n => Number(n) || 4)
+    : [myClass.termSize ? Number(myClass.termSize) : 4]
   const mySessionMap = {}
-  let termIdx = 0, inTermSess = 0, totalSess = 0
-  for (const d of myDates) {
-    totalSess++
-    inTermSess++
-    mySessionMap[d] = {
-      termNum:    termIdx + 1,
-      inTermSess,
-      totalSess,
-      sessionsPerTerm: myTermSizes[termIdx] || 4,
-    }
-    if (inTermSess >= (myTermSizes[termIdx] || 4)) { termIdx++; inTermSess = 0 }
+  const myTermMap    = {}
+  let totalIdx = 1
+  let cursor   = 0
+  const myAllSessionsForMap = calcSessionDates(myClass)
+  const mySessionsForMap    = myClass.totalSessions
+    ? myAllSessionsForMap.slice(0, myClass.totalSessions)
+    : myAllSessionsForMap
+  myTermSizes.forEach((size, ti) => {
+    let termIdx = 1
+    mySessionsForMap.slice(cursor, cursor + size).forEach(d => {
+      if (!myCancelledSet.has(d)) {
+        mySessionMap[d] = { total: totalIdx++, termNum: ti+1, termSess: termIdx++ }
+        myTermMap[d] = ti + 1
+      } else {
+        myTermMap[d] = ti + 1
+      }
+    })
+    cursor += size
+  })
+  if (!myClass.totalSessions && cursor < mySessionsForMap.length) {
+    let termIdx = 1
+    mySessionsForMap.slice(cursor).forEach(d => {
+      if (!myCancelledSet.has(d)) {
+        mySessionMap[d] = { total: totalIdx++, termNum: myTermSizes.length, termSess: termIdx++ }
+      }
+      myTermMap[d] = myTermSizes.length
+    })
   }
+  ;(myClass.makeupDates||[]).forEach(m => {
+    mySessionMap[m.date] = { total: totalIdx++, termNum: 0, termSess: 0, isMakeup: true }
+  })
 
   // 비교 상태
   const missing         = schoolDates.filter(d=>!mySet.has(d))         // 학교O 내X
@@ -987,8 +1029,8 @@ function ComparePanel({ cal, myClass, myDay }) {
       if(isSession) return (
         <div key={d} style={{ padding:'2px',borderRadius:'5px',textAlign:'center',background: isExtra?'#fffbeb':'#eff6ff',border:`1px solid ${isExtra?'#fde68a':'#3b82f6'}` }}>
           <div style={{ fontSize:'10px',fontWeight:700,color: isSun?'#ef4444':isSat?'#3b82f6':'#111827' }}>{d}</div>
-          {mySessionMap[ds] && <div style={{ fontSize:'7px',color:'#1d4ed8',fontWeight:700,lineHeight:1.2 }}>{mySessionMap[ds].termNum}텀{mySessionMap[ds].inTermSess}차</div>}
-          {mySessionMap[ds] && <div style={{ fontSize:'7px',color:'#3b82f6',lineHeight:1.2 }}>전체 {mySessionMap[ds].totalSess}차</div>}
+          {mySessionMap[ds] && <div style={{ fontSize:'7px',color:'#1d4ed8',fontWeight:700,lineHeight:1.2 }}>{mySessionMap[ds].termNum}텀{mySessionMap[ds].termSess}차</div>}
+          {mySessionMap[ds] && <div style={{ fontSize:'7px',color:'#3b82f6',lineHeight:1.2 }}>전체 {mySessionMap[ds].total}차</div>}
           {isExtra && <div style={{ fontSize:'7px',color:'#d97706',fontWeight:700 }}>학교없음</div>}
         </div>
       )
