@@ -2075,6 +2075,7 @@ export function Attendance({ user, pageParams = {} }) {
   const [selClassId, setSelClassId] = useState(() => pageParams.classId || '')
   const [selSection, setSelSection] = useState('')
   const [selTerm,    setSelTerm]    = useState('')
+  const [selDay,     setSelDay]     = useState('')  // 요일 필터 ('월','화','수','목','금','토','일')
   const [selDate,    setSelDate]    = useState(() => pageParams.date || today)
   const [dateClicked, setDateClicked] = useState(false)
   const [calYear,    setCalYear]    = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getFullYear() })
@@ -2106,6 +2107,7 @@ export function Attendance({ user, pageParams = {} }) {
   const schoolClasses = sortClasses(allClasses.filter(c =>
     (!selYear   || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) &&
     (!selSchool || c.organization === selSchool) &&
+    (!selDay    || (c.days || []).includes(selDay)) &&
     termInRange(c)
   ))
   const selClass = allClasses.find(c => c.id === selClassId)
@@ -2200,6 +2202,13 @@ export function Attendance({ user, pageParams = {} }) {
         if (!inSection) return false
       }
     }
+    // 요일 필터
+    if (selDay) {
+      const inDay = hasClassIds
+        ? s.classIds.some(cid => (allClasses.find(c => c.id === cid)?.days || []).includes(selDay))
+        : false
+      if (!inDay) return false
+    }
     return true
   }))
 
@@ -2251,7 +2260,8 @@ export function Attendance({ user, pageParams = {} }) {
       <div style={{ fontSize:'22px', fontWeight:700, color:C.text }}>출석부</div>
 
       {/* 필터 — 년도 / 학교 / 수업 / 반 / 기간 */}
-      <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px 20px', display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr 1fr auto', gap:'12px', alignItems:'end' }}>
+      <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px 20px', display:'flex', flexDirection:'column', gap:'12px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr 1fr auto', gap:'12px', alignItems:'end' }}>
         <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
           <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>년도</label>
           <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelClassId(''); setSelSection(''); setSelTerm('') }} style={{ ...selSt, width:'100%' }}>
@@ -2305,6 +2315,30 @@ export function Attendance({ user, pageParams = {} }) {
           <div style={{ fontSize:'14px', fontWeight:700, color:C.primary }}>
             👥 {students.filter(s => ['applied','selected','confirmed'].includes(s.status)).length}명
           </div>
+        </div>
+        </div>
+        {/* 요일 필터 */}
+        <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+          <span style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>요일</span>
+          {['월','화','수','목','금','토','일'].map(day => {
+            const count = schoolClasses.filter(c => (c.days||[]).includes(day)).length
+            return (
+              <button key={day} onClick={() => { setSelDay(d => d===day ? '' : day); setSelClassId(''); setSelSection('') }}
+                style={{ padding:'5px 12px', borderRadius:'20px', border:'none', cursor:'pointer',
+                  background: selDay===day ? C.primary : count>0 ? '#f3f4f6' : '#fafafa',
+                  color: selDay===day ? '#fff' : count>0 ? C.text : '#d1d5db',
+                  fontSize:'13px', fontWeight: selDay===day ? 700 : 500,
+                  fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s',
+                  opacity: count===0 ? 0.4 : 1,
+                }}>
+                {day}{count > 0 ? ` (${count})` : ''}
+              </button>
+            )
+          })}
+          {selDay && <button onClick={() => { setSelDay(''); setSelClassId(''); setSelSection('') }}
+            style={{ padding:'5px 10px', borderRadius:'20px', border:`1px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            ✕ 초기화
+          </button>}
         </div>
       </div>
 
