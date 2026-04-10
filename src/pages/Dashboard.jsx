@@ -158,9 +158,24 @@ function ConnectInvitePopup({ invites, user, reload }) {
       await dbCall('update', 'schoolTeacherInvites', {
         id: inv.id, patch: { status:'accepted', acceptedAt:now(), teacherId:user.id },
       })
-      await dbCall('upsert', 'schoolAdminTeachers', {
-        data: { id:uid(), adminId:inv.adminId, teacherId:user.id, teacherName:user.name, schoolName:inv.schoolName, active:true, linkedAt:now(), createdAt:now() }
-      })
+      // 학교 담당자가 등록한 기존 레코드 찾기 (subject, days 등 보존)
+      const allTeachers = await dbCall('getAll', 'schoolAdminTeachers')
+      const existing = (allTeachers||[]).find(t =>
+        t.adminId === inv.adminId &&
+        t.email?.toLowerCase() === user.email?.toLowerCase() &&
+        t.active !== false
+      )
+      if (existing) {
+        // 기존 레코드에 teacherId + linkedAt만 업데이트
+        await dbCall('update', 'schoolAdminTeachers', {
+          id: existing.id, patch: { teacherId: user.id, teacherName: user.name, linkedAt: now() }
+        })
+      } else {
+        // 없으면 새로 생성 (fallback)
+        await dbCall('upsert', 'schoolAdminTeachers', {
+          data: { id:uid(), adminId:inv.adminId, teacherId:user.id, teacherName:user.name, schoolName:inv.schoolName, active:true, linkedAt:now(), createdAt:now() }
+        })
+      }
       // 연결된 업무 있으면 replied 처리
       if (inv.noticeId) {
         try {
@@ -254,7 +269,17 @@ function SchoolConnectionPanel({ user, onNav }) {
     if (!user?.id) return
     try {
       const all = await dbCall('getAll', 'schoolAdminTeachers')
-      setConnections((all||[]).filter(t => t.teacherId === user.id && t.active !== false))
+      const mine = (all||[]).filter(t => t.teacherId === user.id && t.active !== false)
+      // subject/days 없는 레코드는 같은 adminId + email로 매칭해서 보완
+      const enriched = mine.map(conn => {
+        if (conn.subject || conn.days) return conn
+        const matched = (all||[]).find(t =>
+          t.adminId === conn.adminId &&
+          t.email?.toLowerCase() === user.email?.toLowerCase()
+        )
+        return matched ? { ...conn, subject: matched.subject, days: matched.days } : conn
+      })
+      setConnections(enriched)
       setMyClasses(ClassesDB.byTeacher(user.id))
     } catch {}
   }
