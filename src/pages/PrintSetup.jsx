@@ -12,8 +12,8 @@ export function PrintSetup({ user }) {
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState('')
   const [step, setStep] = useState(1)
-  const [downloading, setDownloading] = useState('')   // 'excel' | 'pdf' | ''
-  const [periodType, setPeriodType] = useState('all')  // 'all' | 'first10' | 'last10'
+  const [downloading, setDownloading] = useState('')
+  const [checkedDates, setCheckedDates] = useState(new Set())  // 선택한 출력 날짜
   const { error: toastError } = useToast()
 
   if (!can(user, FEATURES.PRINT_ATTENDANCE)) {
@@ -50,30 +50,157 @@ export function PrintSetup({ user }) {
 
   const allSessions = cls ? calcSessionDates(cls) : []
 
+  // ── 실제 수업일 계산 (ClassCalendar와 동일 로직)
+  // totalSessions 설정 시 그 수만큼만, 취소일 제외, 보강일 포함
+  const cancelled = new Set((cls?.cancelledDates || []).map(c => c.date))
+  const makeupDates = cls?.makeupDates || []
+  const totalCap = cls?.totalSessions ? Number(cls.totalSessions) : null
+  const regularDates = (totalCap ? allSessions.slice(0, totalCap) : allSessions)
+    .filter(d => !cancelled.has(d))
+  const makeupSessionDates = makeupDates.map(m => m.date)
+  // 전체 실제 수업일 (날짜순 정렬, 중복 제거)
+  const actualSessionDates = [...new Set([...regularDates, ...makeupSessionDates])].sort()
+
+  // 체크박스로 선택된 날짜만 출력 (아무것도 선택 안 하면 전체)
+  const sessions = checkedDates.size > 0
+    ? actualSessionDates.filter(d => checkedDates.has(d))
+    : actualSessionDates
+
   // 수업에 직접 등록한 templateFiles + Templates.bySchool 통합
   const dbTemplates = cls ? Templates.bySchool(cls.organization) : []
-  const clsTemplates = (cls?.templateFiles || []).map((f, i) => ({
-    id: 'cls_' + (f.docId || f.url || i),
-    templateName: f.name || f.fileName || '양식 ' + (i+1),
-    fileType: f.fileType || 'xlsx',
-    url: f.url || f.fileData || '',
-    fromClass: true,
-  }))
+  const clsTemplates = (cls?.templateFiles || []).map((f, i) => {
+    const url = f.url || f.fileData || ''
+    const ext = url.split('?')[0].split('.').pop().toLowerCase()
+    const fileType = f.fileType || (ext === 'pdf' ? 'pdf' : ext === 'hwp' || ext === 'hwpx' ? 'hwp' : 'xlsx')
+    return {
+      id: 'cls_' + (f.docId || url || i),
+      templateName: f.name || f.fileName || '양식 ' + (i+1),
+      fileType,
+      url,
+      fromClass: true,
+    }
+  })
   const templates = [
     ...clsTemplates,
     ...dbTemplates.filter(t => !clsTemplates.some(ct => ct.id === 'cls_' + t.id)),
   ]
 
-  // 기간 선택에 따른 실제 출력 차시
-  const sessions = (() => {
-    if (periodType === 'first10') return allSessions.slice(0, 10)
-    if (periodType === 'last10')  return allSessions.slice(-10)
-    return allSessions
-  })()
-
   const tmpl = templates.find(t => t.id === selectedTemplate) || templates[0]
 
-  // ─── 엑셀 출석부 실제 생성
+  // ─── PDF 양식 자동 채우기 (pdf.js 렌더 + 학생 데이터 오버레이)
+  const downloadFilledPdf = async () => {
+    const selTmpl = templates.find(t => t.id === selectedTemplate)
+    if (!selTmpl?.url || !cls || !students.length) return
+    setDownloading('pdf_fill')
+    try {
+      // pdf.js 동적 로드
+      const script = document.createElement('script')
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+      await new Promise((res, rej) => { script.onload = res; script.onerror = rej; document.head.appendChild(script) })
+      const pdfjsLib = window['pdfjs-dist/build/pdf']
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+
+      // PDF 로드
+      const pdfData = await fetch(selTmpl.url).then(r => r.arrayBuffer())
+      const pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise
+      const page = await pdfDoc.getPage(1)
+
+      // A4 가로 고해상도 렌더
+      const viewport = page.getViewport({ scale: 2.0 })
+      const canvas = document.createElement('canvas')
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+      const bgImage = canvas.toDataURL('image/png')
+      const pW = viewport.width, pH = viewport.height
+
+      // 텍스트 위치 분석 → 헤더행 Y 좌표 자동 탐지
+      const textContent = await page.getTextContent()
+      const items = textContent.items
+
+      // 키워드로 헤더 위치 탐색 (이름, 연번, 학년 등)
+      const keywords = ['이름', '연번', '학년', '번호', '성명']
+      let headerY = null
+      for (const kw of keywords) {
+        const found = items.find(it => it.str.trim() === kw || it.str.includes(kw))
+        if (found) {
+          // pdf.js 좌표는 하단 기준 → 상단 기준으로 변환
+          headerY = pH - found.transform[5] * 2  // scale 2 반영
+          break
+        }
+      }
+      if (!headerY) headerY = pH * 0.18  // 기본값: 상단 18% 지점
+
+      const rowH = Math.max(18, Math.min(28, (pH - headerY - 40) / Math.max(students.length, 1)))
+      const firstDataY = headerY + rowH + 4
+
+      // 학생 행 HTML
+      const studentRowsHtml = students.map((s, i) => `
+        <tr style="height:${rowH}px">
+          <td>${i+1}</td>
+          <td>${s.grade||''}</td>
+          <td>${s.classNum||''}</td>
+          <td>${s.number||''}</td>
+          <td style="font-weight:600;text-align:left;padding-left:3px">${s.name}</td>
+          <td style="font-size:8px">${s.parentPhone||''}</td>
+          <td>${cls.days?.join('·')||''}</td>
+          ${sessions.map(()=>'<td>□</td>').join('')}
+          <td></td>
+          <td></td>
+        </tr>`).join('')
+
+      const colWidths = [28, 36, 28, 28, 60, 80, 28, ...sessions.map(()=>24), 44, 60]
+      const totalW = colWidths.reduce((a,b)=>a+b,0)
+      const scaleX = pW / totalW
+
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>${cls.organization} ${cls.className} 출석부</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'맑은 고딕','Noto Sans KR',sans-serif; }
+  html,body { width:${pW}px; }
+  .page { position:relative; width:${pW}px; height:${pH}px; }
+  .bg { position:absolute; top:0; left:0; width:${pW}px; height:${pH}px; }
+  .data-overlay { position:absolute; top:${firstDataY}px; left:0; width:${pW}px; }
+  table { border-collapse:collapse; font-size:${Math.max(7, Math.min(10, rowH*0.55))}px;
+          table-layout:fixed; width:${pW}px; }
+  td { text-align:center; overflow:hidden; white-space:nowrap; padding:0 1px;
+       vertical-align:middle; }
+  ${colWidths.map((w,i)=>`td:nth-child(${i+1}){width:${Math.round(w*scaleX)}px}`).join('\n')}
+  @media print {
+    html,body{width:${pW}px;}
+    @page{size:A4 landscape;margin:0;}
+  }
+</style></head><body>
+<div class="page">
+  <img class="bg" src="${bgImage}"/>
+  <div class="data-overlay">
+    <table><tbody>${studentRowsHtml}</tbody></table>
+  </div>
+</div>
+<div style="margin-top:12px;padding:8px;background:#fffbeb;border:1px solid #f59e0b;font-size:11px;color:#92400e;font-family:sans-serif">
+  ⚠️ 데이터 위치가 맞지 않으면 위쪽 여백(현재: ${Math.round(firstDataY)}px)을 조정해주세요.
+  <button onclick="adj(-5)" style="margin-left:8px;padding:2px 8px;cursor:pointer">▲ 위로</button>
+  <button onclick="adj(5)" style="margin-left:4px;padding:2px 8px;cursor:pointer">▼ 아래로</button>
+  <button onclick="window.print()" style="margin-left:16px;padding:4px 12px;background:#f97316;color:#fff;border:none;cursor:pointer;border-radius:4px">🖨️ 인쇄/PDF저장</button>
+</div>
+<script>
+  let offset = 0;
+  function adj(d){ offset+=d; document.querySelector('.data-overlay').style.top=(${Math.round(firstDataY)}+offset)+'px'; }
+</script>
+</body></html>`
+
+      const win = window.open('', '_blank', 'width=1400,height=900')
+      win.document.write(html)
+      win.document.close()
+    } catch(e) {
+      toastError('PDF 처리 중 오류: ' + e.message)
+      console.error(e)
+    } finally {
+      setDownloading('')
+    }
+  }
+
+  // ─── 엑셀 출석부 생성 (HWP 양식 스타일 / 기본 스타일 분기)
   const downloadExcel = async () => {
     if (!cls || !students.length) return
     setDownloading('excel')
@@ -81,79 +208,107 @@ export function PrintSetup({ user }) {
       const XLSX = await import('xlsx')
       const wb = XLSX.utils.book_new()
 
+      const selTmpl = templates.find(t => t.id === selectedTemplate)
+      const isHwp = selTmpl?.fileType === 'hwp'
       const className = `${cls.organization} ${cls.className}${cls.section ? ' '+cls.section+'반' : ''}`
       const teacherName = user.name || '선생님'
+      const DAY_KR = ['일','월','화','수','목','금','토']
 
-      // ── 헤더 정보 행
-      const infoRows = [
-        [`${className} 출석부`],
-        [`강사명: ${teacherName}`, '', `수업기간: ${cls.startDate} ~ ${cls.endDate}`, '', `출력일: ${today()}`],
-        [],  // 빈 행 구분
-      ]
+      if (isHwp) {
+        // ── HWP 양식과 동일한 레이아웃
+        // 헤더: (부 반) 학생출석부  •  기간: ~ •  강사명: (인)
+        const title = `( ${cls.organization}  ${cls.section||''}반 )  학생출석부   •  기간: ${cls.startDate} ~ ${cls.endDate}   •  강사명: ${teacherName} (인)`
+        const colCount = 7 + sessions.length + 2  // 연번~요일 + 날짜들 + 총출석일수 + 비고
 
-      // ── 날짜 헤더 행 (차시 번호 + 날짜)
-      const sessionHeader1 = ['번호', '이름', '학년', '반', '학부모 전화', ...sessions.map((_, i) => `${i+1}차`), '출석', '결석', '비고']
-      const sessionHeader2 = ['', '', '', '', '', ...sessions.map(d => d.slice(5)), '', '', '']
+        // 날짜 헤더 행 (날짜)
+        const dateRow = ['날짜', '', '', '', '', '', '', ...sessions.map(d => d.slice(5)), '', '']
+        // 요일 헤더 행
+        const dowRow  = ['요일', '', '', '', '', '', '', ...sessions.map(d => DAY_KR[new Date(d+'T00:00:00').getDay()]), '', '']
+        // 컬럼 헤더
+        const colHeader = ['연번', '학년', '반', '번호', '이름', '전화번호', '요일', ...sessions.map((_,i)=>`${i+1}차`), '총출석일수', '비고 (지각·결석 사유)']
 
-      // ── 학생 데이터 행
-      const studentRows = students.map((s, i) => [
-        s.number || (i + 1),
-        s.name,
-        s.grade,
-        s.classNum ? s.classNum + '반' : '',
-        s.parentPhone || '',
-        ...sessions.map(() => BLANK),   // 출석 체크 칸 (□)
-        '',  // 출석 합계 (선생님이 직접 기재)
-        '',  // 결석 합계
-        '',  // 비고
-      ])
+        const studentRows = students.map((s, i) => {
+          const dayLabel = cls.days?.join('·') || ''
+          return [
+            i + 1,
+            s.grade || '',
+            s.classNum || '',
+            s.number || '',
+            s.name || '',
+            s.parentPhone || '',
+            dayLabel,
+            ...sessions.map(() => BLANK),
+            '',
+            '',
+          ]
+        })
 
-      const allRows = [...infoRows, sessionHeader1, sessionHeader2, ...studentRows]
-      const ws = XLSX.utils.aoa_to_sheet(allRows)
+        const allRows = [
+          [title],
+          colHeader,
+          ...studentRows,
+        ]
 
-      // ── 열 너비 설정
-      ws['!cols'] = [
-        { wch: 5 },   // 번호
-        { wch: 10 },  // 이름
-        { wch: 8 },   // 학년
-        { wch: 5 },   // 반
-        { wch: 14 },  // 학부모 전화
-        ...sessions.map(() => ({ wch: 5 })),  // 차시 칸
-        { wch: 5 },   // 출석
-        { wch: 5 },   // 결석
-        { wch: 12 },  // 비고
-      ]
+        const ws = XLSX.utils.aoa_to_sheet(allRows)
 
-      // ── 행 높이 (학생 행은 넉넉하게)
-      ws['!rows'] = [
-        { hpt: 24 },  // 제목
-        { hpt: 18 },  // 정보
-        { hpt: 6 },   // 빈행
-        { hpt: 20 },  // 헤더1
-        { hpt: 18 },  // 헤더2
-        ...studentRows.map(() => ({ hpt: 22 })),
-      ]
+        // 제목 행 병합
+        ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:colCount-1} }]
 
-      // ── 셀 스타일 (openpyxl 없이 기본 스타일만)
-      // 제목 셀 병합
-      const titleRange = { s: { r: 0, c: 0 }, e: { r: 0, c: 4 + sessions.length + 2 } }
-      ws['!merges'] = [titleRange]
+        // 열 너비
+        ws['!cols'] = [
+          {wch:5},   // 연번
+          {wch:7},   // 학년
+          {wch:5},   // 반
+          {wch:5},   // 번호
+          {wch:10},  // 이름
+          {wch:14},  // 전화번호
+          {wch:5},   // 요일
+          ...sessions.map(()=>({wch:5})),
+          {wch:10},  // 총출석일수
+          {wch:22},  // 비고
+        ]
+        ws['!rows'] = [
+          {hpt:28},  // 제목
+          {hpt:20},  // 헤더
+          ...studentRows.map(()=>({hpt:20})),
+        ]
 
-      XLSX.utils.book_append_sheet(wb, ws, '출석부')
+        XLSX.utils.book_append_sheet(wb, ws, '학생출석부')
+        const filename = `${cls.organization}_${cls.className}${cls.section?'_'+cls.section+'반':''}_출석부_${today()}.xlsx`
+        XLSX.writeFile(wb, filename)
 
-      // ── 시트2: 학생 명단 (참고용)
-      const rosterHeader = ['번호', '이름', '학년', '반', '학부모 전화', '학생 전화', '비고']
-      const rosterRows = students.map((s, i) => [
-        s.number || (i + 1), s.name, s.grade,
-        s.classNum ? s.classNum + '반' : '',
-        s.parentPhone || '', s.studentPhone || '', s.memo || '',
-      ])
-      const ws2 = XLSX.utils.aoa_to_sheet([rosterHeader, ...rosterRows])
-      ws2['!cols'] = [{wch:5},{wch:10},{wch:8},{wch:5},{wch:14},{wch:14},{wch:20}]
-      XLSX.utils.book_append_sheet(wb, ws2, '학생 명단')
+      } else {
+        // ── 기본 양식 레이아웃
+        const infoRows = [
+          [`${className} 출석부`],
+          [`강사명: ${teacherName}`, '', `수업기간: ${cls.startDate} ~ ${cls.endDate}`, '', `출력일: ${today()}`],
+          [],
+        ]
+        const sessionHeader1 = ['번호', '이름', '학년', '반', '학부모 전화', ...sessions.map((_,i)=>`${i+1}차`), '출석', '결석', '비고']
+        const sessionHeader2 = ['', '', '', '', '', ...sessions.map(d=>d.slice(5)), '', '', '']
+        const studentRows = students.map((s,i) => [
+          s.number||(i+1), s.name, s.grade,
+          s.classNum ? s.classNum+'반' : '',
+          s.parentPhone||'',
+          ...sessions.map(()=>BLANK),
+          '', '', '',
+        ])
+        const ws = XLSX.utils.aoa_to_sheet([...infoRows, sessionHeader1, sessionHeader2, ...studentRows])
+        ws['!cols'] = [{wch:5},{wch:10},{wch:8},{wch:5},{wch:14},...sessions.map(()=>({wch:5})),{wch:5},{wch:5},{wch:12}]
+        ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:4+sessions.length+2} }]
+        XLSX.utils.book_append_sheet(wb, ws, '출석부')
 
-      const filename = `${className}_출석부_${today()}.xlsx`
-      XLSX.writeFile(wb, filename)
+        const rosterRows = students.map((s,i) => [
+          s.number||(i+1), s.name, s.grade,
+          s.classNum ? s.classNum+'반' : '',
+          s.parentPhone||'', s.studentPhone||'', s.memo||'',
+        ])
+        const ws2 = XLSX.utils.aoa_to_sheet([['번호','이름','학년','반','학부모 전화','학생 전화','비고'],...rosterRows])
+        ws2['!cols'] = [{wch:5},{wch:10},{wch:8},{wch:5},{wch:14},{wch:14},{wch:20}]
+        XLSX.utils.book_append_sheet(wb, ws2, '학생 명단')
+
+        XLSX.writeFile(wb, `${className}_출석부_${today()}.xlsx`)
+      }
     } catch (e) {
       toastError('엑셀 생성 중 오류가 발생했습니다.')
       console.error(e)
@@ -167,95 +322,127 @@ export function PrintSetup({ user }) {
     if (!cls || !students.length) return
     setDownloading('pdf')
 
+    const selTmpl = templates.find(t => t.id === selectedTemplate)
+    const isHwp = selTmpl?.fileType === 'hwp'
     const className = `${cls.organization} ${cls.className}${cls.section ? ' '+cls.section+'반' : ''}`
     const teacherName = user.name || '선생님'
+    const DAY_KR = ['일','월','화','수','목','금','토']
 
-    // 차시 헤더 HTML
-    const sessionThs = sessions.map((d, i) =>
-      `<th class="sess">${i+1}차<br><span class="dt">${d.slice(5)}</span></th>`
-    ).join('')
+    let tableHtml = ''
 
-    // 학생 행 HTML
-    const studentTrs = students.map((s, idx) => `
-      <tr>
-        <td class="center">${s.number || idx+1}</td>
-        <td class="name">${s.name}</td>
-        <td class="center">${s.grade}</td>
-        <td class="center">${s.classNum ? s.classNum+'반' : ''}</td>
-        <td>${s.parentPhone || ''}</td>
-        ${sessions.map(() => `<td class="center chk">${BLANK}</td>`).join('')}
-        <td class="center"></td>
-        <td class="center"></td>
-        <td></td>
-      </tr>
-    `).join('')
+    if (isHwp) {
+      // HWP 양식 레이아웃
+      const sessionThs = sessions.map((d,i) =>
+        `<th class="sess">${i+1}차<br><span class="dt">${d.slice(5)}</span></th>`
+      ).join('')
+      const studentTrs = students.map((s,idx) => `
+        <tr>
+          <td class="center">${idx+1}</td>
+          <td class="center">${s.grade||''}</td>
+          <td class="center">${s.classNum||''}</td>
+          <td class="center">${s.number||''}</td>
+          <td class="name">${s.name}</td>
+          <td>${s.parentPhone||''}</td>
+          <td class="center">${cls.days?.join('·')||''}</td>
+          ${sessions.map(()=>`<td class="center chk">${BLANK}</td>`).join('')}
+          <td class="center"></td>
+          <td></td>
+        </tr>`).join('')
+
+      tableHtml = `
+        <h1>( ${cls.organization}  ${cls.section||''}반 )  학생출석부</h1>
+        <div class="info">
+          <span>기간: ${cls.startDate} ~ ${cls.endDate}</span>
+          <span>강사명: ${teacherName} (인)</span>
+          <span>출력일: ${today()}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:28px">연번</th>
+              <th style="width:40px">학년</th>
+              <th style="width:28px">반</th>
+              <th style="width:28px">번호</th>
+              <th class="wide">이름</th>
+              <th class="wide">전화번호</th>
+              <th style="width:32px">요일</th>
+              ${sessionThs}
+              <th style="width:50px">총출석일수</th>
+              <th class="wide">비고 (지각·결석 사유)</th>
+            </tr>
+          </thead>
+          <tbody>${studentTrs}</tbody>
+        </table>`
+    } else {
+      const sessionThs = sessions.map((d,i) =>
+        `<th class="sess">${i+1}차<br><span class="dt">${d.slice(5)}</span></th>`
+      ).join('')
+      const studentTrs = students.map((s,idx) => `
+        <tr>
+          <td class="center">${s.number||idx+1}</td>
+          <td class="name">${s.name}</td>
+          <td class="center">${s.grade}</td>
+          <td class="center">${s.classNum ? s.classNum+'반' : ''}</td>
+          <td>${s.parentPhone||''}</td>
+          ${sessions.map(()=>`<td class="center chk">${BLANK}</td>`).join('')}
+          <td class="center"></td>
+          <td class="center"></td>
+          <td></td>
+        </tr>`).join('')
+      tableHtml = `
+        <h1>${className} 출석부</h1>
+        <div class="info">
+          <span>강사: ${teacherName}</span>
+          <span>수업기간: ${cls.startDate} ~ ${cls.endDate}</span>
+          <span>총 ${sessions.length}차시 (선택)</span>
+          <span>학생 수: ${students.length}명</span>
+          <span>출력일: ${today()}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:30px">번호</th>
+              <th class="wide">이름</th>
+              <th style="width:50px">학년</th>
+              <th style="width:30px">반</th>
+              <th class="wide">학부모 전화</th>
+              ${sessionThs}
+              <th style="width:30px">출석</th>
+              <th style="width:30px">결석</th>
+              <th class="wide">비고</th>
+            </tr>
+          </thead>
+          <tbody>${studentTrs}</tbody>
+        </table>`
+    }
 
     const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>${className} 출석부</title>
+<html><head><meta charset="UTF-8"><title>${className} 출석부</title>
 <style>
-  * { font-family: 'Noto Sans KR', '맑은 고딕', Arial, sans-serif; box-sizing: border-box; margin:0; padding:0; }
-  body { padding: 16px; font-size: 12px; color: #111; }
-  h1 { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 8px; }
-  .info { display: flex; justify-content: space-between; font-size: 11px; color: #555; margin-bottom: 14px; padding: 6px 10px; background: #f9f9f9; border-radius: 4px; }
-  table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  th { background: #f3f4f6; padding: 5px 4px; border: 1px solid #ccc; font-weight: 600; text-align: center; font-size: 11px; }
-  td { border: 1px solid #ddd; padding: 5px 4px; }
-  td.center { text-align: center; }
-  td.name { font-weight: 600; }
-  td.chk { font-size: 13px; color: #aaa; }
-  th.sess { font-size: 10px; min-width: 30px; }
-  .dt { font-size: 9px; font-weight: 400; color: #777; }
-  th.wide { min-width: 55px; }
-  tr:nth-child(even) td { background: #fafafa; }
-  .footer { margin-top: 14px; font-size: 10px; color: #999; text-align: right; }
-  @media print {
-    body { padding: 8px; }
-    @page { margin: 10mm; size: A4 landscape; }
-  }
-</style>
-</head>
-<body>
-<h1>${className} 출석부</h1>
-<div class="info">
-  <span>강사: ${teacherName}</span>
-  <span>수업기간: ${cls.startDate} ~ ${cls.endDate}</span>
-  <span>총 ${allSessions.length}차시</span>
-  <span>학생 수: ${students.length}명</span>
-  <span>출력일: ${today()}</span>
-</div>
-<table>
-  <thead>
-    <tr>
-      <th style="width:30px">번호</th>
-      <th class="wide">이름</th>
-      <th style="width:50px">학년</th>
-      <th style="width:30px">반</th>
-      <th class="wide">학부모 전화</th>
-      ${sessionThs}
-      <th style="width:30px">출석</th>
-      <th style="width:30px">결석</th>
-      <th class="wide">비고</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${studentTrs}
-  </tbody>
-</table>
-<div class="footer">※ 이 출석부는 방과후 출석부 시스템에서 자동 생성되었습니다.</div>
-</body>
-</html>`
+  * { font-family: '맑은 고딕', 'Noto Sans KR', Arial, sans-serif; box-sizing:border-box; margin:0; padding:0; }
+  body { padding:12px; font-size:11px; color:#111; }
+  h1 { font-size:15px; font-weight:700; text-align:center; margin-bottom:6px; }
+  .info { display:flex; justify-content:space-between; font-size:10px; color:#555; margin-bottom:10px; padding:5px 8px; background:#f9f9f9; border:1px solid #ddd; }
+  table { width:100%; border-collapse:collapse; font-size:10px; }
+  th { background:#e8e8e8; padding:4px 3px; border:1px solid #999; font-weight:700; text-align:center; }
+  td { border:1px solid #ccc; padding:4px 3px; }
+  td.center { text-align:center; }
+  td.name { font-weight:600; }
+  td.chk { font-size:12px; color:#aaa; text-align:center; }
+  th.sess { font-size:9px; min-width:26px; }
+  th.wide { min-width:50px; }
+  .dt { font-size:8px; font-weight:400; color:#777; }
+  tr:nth-child(even) td { background:#f8f8f8; }
+  @media print { body{padding:5px;} @page{margin:8mm; size:A4 landscape;} }
+</style></head>
+<body>${tableHtml}
+<div style="margin-top:10px;font-size:9px;color:#aaa;text-align:right;">방과후 출석부 시스템</div>
+</body></html>`
 
-    const win = window.open('', '_blank', 'width=1100,height=750')
+    const win = window.open('', '_blank', 'width=1200,height=800')
     win.document.write(html)
     win.document.close()
-    win.onload = () => {
-      win.focus()
-      win.print()
-      setDownloading('')
-    }
+    win.onload = () => { win.focus(); win.print(); setDownloading('') }
   }
 
   return (
@@ -366,106 +553,163 @@ export function PrintSetup({ user }) {
         </Card>
       )}
 
-      {/* Step 3: 기간 선택 + 출력 */}
+      {/* Step 3: 날짜 선택 + 출력 */}
       {selectedClass && (selectedTemplate || templates.length === 0) && (
         <Card>
           <div style={{ fontSize: '14px', fontWeight: 700, color: '#111827', marginBottom: '12px' }}>③ 출력 기간 & 다운로드</div>
 
-          {/* 기간 선택 */}
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
-            {[
-              { key: 'all',     label: `전체 ${allSessions.length}차시` },
-              { key: 'first10', label: `앞 10차시 (${allSessions.slice(0,10)[0]?.slice(5)||'-'} ~)` },
-              { key: 'last10',  label: `최근 10차시 (~ ${allSessions.slice(-10).slice(-1)[0]?.slice(5)||'-'})` },
-            ].map(opt => (
-              <button key={opt.key} onClick={() => { setPeriodType(opt.key); setStep(3) }}
-                style={{
-                  padding: '8px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                  background: periodType === opt.key ? '#f97316' : '#f3f4f6',
-                  color: periodType === opt.key ? '#fff' : '#374151',
-                  fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif',
-                  fontWeight: periodType === opt.key ? 600 : 400,
-                }}>
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>
-            출력 범위: <strong style={{ color: '#f97316' }}>{sessions.length}차시</strong>
-            {sessions[0] && <span style={{ marginLeft: '8px' }}>({sessions[0]} ~ {sessions[sessions.length-1]})</span>}
-          </div>
-
-          {/* 미리보기 테이블 */}
-          {students.length > 0 && (
-            <>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>미리보기 (앞 5명 · 앞 5차시)</div>
-              <div style={{ overflow: 'auto', marginBottom: '20px', border: '1px solid #e5e7eb', borderRadius: '10px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                  <thead style={{ background: '#f9fafb' }}>
-                    <tr>
-                      {['번호', '이름', '학년', '반', '학부모전화', ...sessions.slice(0, 5).map((d, i) => `${i+1}차\n${d.slice(5)}`), '출석', '결석', '비고'].map(h => (
-                        <th key={h} style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'center', fontWeight: 600, color: '#6b7280', whiteSpace: 'pre', fontSize: '11px' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {students.slice(0, 5).map((s, i) => (
-                      <tr key={s.id} style={{ borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>{s.number || i+1}</td>
-                        <td style={{ padding: '8px 10px', fontWeight: 600 }}>{s.name}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>{s.grade}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>{s.classNum || '-'}</td>
-                        <td style={{ padding: '8px 10px' }}>{s.parentPhone || '-'}</td>
-                        {sessions.slice(0, 5).map(d => (
-                          <td key={d} style={{ padding: '8px 10px', textAlign: 'center', color: '#ccc', fontSize: '14px' }}>{BLANK}</td>
-                        ))}
-                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#ccc' }}>-</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#ccc' }}>-</td>
-                        <td style={{ padding: '8px 10px' }}></td>
-                      </tr>
-                    ))}
-                    {students.length > 5 && (
-                      <tr>
-                        <td colSpan={10 + Math.min(sessions.length, 5)} style={{ padding: '8px 12px', fontSize: '12px', color: '#9ca3af', textAlign: 'center' }}>
-                          ... 외 {students.length - 5}명 포함
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+          {/* 날짜 체크박스 선택 */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px' }}>
+              <span style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>
+                수업일 선택 — 출력할 차시를 선택하세요
+              </span>
+              <div style={{ display:'flex', gap:'8px' }}>
+                <button onClick={() => setCheckedDates(new Set(actualSessionDates))}
+                  style={{ padding:'4px 12px', borderRadius:'6px', border:'1.5px solid #e5e7eb', background:'#f9fafb', fontSize:'12px', color:'#374151', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  전체 선택
+                </button>
+                <button onClick={() => setCheckedDates(new Set())}
+                  style={{ padding:'4px 12px', borderRadius:'6px', border:'1.5px solid #e5e7eb', background:'#f9fafb', fontSize:'12px', color:'#374151', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  전체 해제
+                </button>
               </div>
-            </>
+            </div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', padding:'12px', background:'#f9fafb', borderRadius:'10px', border:'1px solid #e5e7eb' }}>
+              {actualSessionDates.map((d, i) => {
+                const checked = checkedDates.size === 0 || checkedDates.has(d)
+                const isMakeup = makeupSessionDates.includes(d)
+                return (
+                  <label key={d} style={{
+                    display:'flex', alignItems:'center', gap:'4px', padding:'5px 10px',
+                    borderRadius:'8px', cursor:'pointer',
+                    border:`1.5px solid ${checkedDates.size === 0 || checkedDates.has(d) ? '#f97316' : '#e5e7eb'}`,
+                    background: checkedDates.size === 0 || checkedDates.has(d) ? '#fff7ed' : '#fff',
+                    fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif',
+                    transition:'all .12s',
+                  }}>
+                    <input type="checkbox"
+                      checked={checkedDates.size === 0 || checkedDates.has(d)}
+                      onChange={e => {
+                        const next = new Set(checkedDates.size === 0 ? actualSessionDates : checkedDates)
+                        if (e.target.checked) next.add(d)
+                        else next.delete(d)
+                        setCheckedDates(next)
+                      }}
+                      style={{ accentColor:'#f97316', width:'14px', height:'14px' }} />
+                    <span style={{ fontWeight:600, color:'#f97316' }}>{i+1}차</span>
+                    <span style={{ color:'#6b7280' }}>{d.slice(5)}</span>
+                    {isMakeup && <span style={{ fontSize:'10px', color:'#3b82f6', fontWeight:700 }}>보강</span>}
+                  </label>
+                )
+              })}
+            </div>
+            <div style={{ marginTop:'8px', fontSize:'12px', color:'#9ca3af' }}>
+              선택: <strong style={{ color:'#f97316' }}>{sessions.length}차시</strong>
+              {sessions[0] && <span style={{ marginLeft:'8px' }}>({sessions[0].slice(5)} ~ {sessions[sessions.length-1].slice(5)})</span>}
+              {checkedDates.size === 0 && <span style={{ marginLeft:'8px', color:'#9ca3af' }}>(미선택 시 전체 출력)</span>}
+            </div>
+          </div>
+          {/* 미리보기 테이블 — 전체 학생 */}
+          {students.length > 0 && (
+            <div style={{ overflow:'auto', marginBottom:'20px', border:'1px solid #e5e7eb', borderRadius:'10px', maxHeight:'400px' }}>
+              <div style={{ fontSize:'13px', fontWeight:600, color:'#374151', padding:'10px 12px 0', position:'sticky', top:0, background:'#fff', zIndex:2 }}>
+                미리보기 — 전체 {students.length}명
+              </div>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px' }}>
+                <thead style={{ background:'#f9fafb', position:'sticky', top:'34px', zIndex:1 }}>
+                  <tr>
+                    {['번호','이름','학년','반','학부모전화',...sessions.slice(0,5).map((d,i)=>`${i+1}차\n${d.slice(5)}`),'출석','결석','비고'].map(h=>(
+                      <th key={h} style={{ padding:'8px 10px', borderBottom:'1px solid #e5e7eb', textAlign:'center', fontWeight:600, color:'#6b7280', whiteSpace:'pre', fontSize:'11px' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.map((s,i)=>(
+                    <tr key={s.id} style={{ borderBottom:'1px solid #f3f4f6', background:i%2===0?'#fff':'#fafafa' }}>
+                      <td style={{ padding:'8px 10px', textAlign:'center' }}>{s.number||i+1}</td>
+                      <td style={{ padding:'8px 10px', fontWeight:600 }}>{s.name}</td>
+                      <td style={{ padding:'8px 10px', textAlign:'center' }}>{s.grade}</td>
+                      <td style={{ padding:'8px 10px', textAlign:'center' }}>{s.classNum||'-'}</td>
+                      <td style={{ padding:'8px 10px' }}>{s.parentPhone||'-'}</td>
+                      {sessions.slice(0,5).map(d=>(
+                        <td key={d} style={{ padding:'8px 10px', textAlign:'center', color:'#ccc', fontSize:'14px' }}>{BLANK}</td>
+                      ))}
+                      <td style={{ padding:'8px 10px', textAlign:'center', color:'#ccc' }}>-</td>
+                      <td style={{ padding:'8px 10px', textAlign:'center', color:'#ccc' }}>-</td>
+                      <td style={{ padding:'8px 10px' }}></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
-          {/* 다운로드 버튼 */}
+          {/* 다운로드 버튼 — 양식 파일 형식에 따라 분기 */}
           {students.length === 0 ? (
-            <div style={{ padding: '12px 16px', background: '#fef2f2', borderRadius: '8px', fontSize: '13px', color: '#ef4444' }}>
+            <div style={{ padding:'12px 16px', background:'#fef2f2', borderRadius:'8px', fontSize:'13px', color:'#ef4444' }}>
               ⚠️ 확정된 학생이 없습니다. 학생 관리에서 최종 확정 처리를 먼저 하세요.
             </div>
-          ) : (
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <Btn
-                onClick={downloadExcel}
-                disabled={!!downloading}
-                style={{ background: downloading === 'excel' ? '#9ca3af' : '#16a34a' }}
-              >
-                {downloading === 'excel' ? '⏳ 생성 중...' : '📊 엑셀 다운로드 (.xlsx)'}
-              </Btn>
-              <Btn
-                variant="ghost"
-                onClick={downloadPDF}
-                disabled={!!downloading}
-                style={{ borderColor: '#3b82f6', color: '#3b82f6' }}
-              >
-                {downloading === 'pdf' ? '⏳ 준비 중...' : '🖨️ PDF 인쇄'}
-              </Btn>
-            </div>
-          )}
+          ) : (() => {
+            const selTmpl = templates.find(t => t.id === selectedTemplate)
+            const isHwp = selTmpl?.fileType === 'hwp'
+            const isPdf = selTmpl?.fileType === 'pdf'
 
-          <div style={{ marginTop: '12px', fontSize: '12px', color: '#9ca3af', lineHeight: 1.7 }}>
-            · 엑셀: 출석부 + 학생 명단 2개 시트로 구성된 .xlsx 파일<br />
-            · PDF 인쇄: A4 가로 형식으로 브라우저 인쇄 창 열림 (PDF로 저장 가능)
-          </div>
+            if (isPdf) {
+              return (
+                <div>
+                  <div style={{ padding:'12px 14px', background:'#f0fdf4', border:'1.5px solid #86efac', borderRadius:'10px', marginBottom:'12px', fontSize:'13px', color:'#15803d', lineHeight:1.7 }}>
+                    📄 PDF 양식을 배경으로 깔고 학생 데이터를 자동으로 위에 입력합니다.<br />
+                    위치가 안 맞으면 인쇄 화면에서 <strong>▲▼ 버튼으로 조정</strong> 후 인쇄하세요.
+                  </div>
+                  <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', marginBottom:'10px' }}>
+                    <Btn onClick={downloadFilledPdf} disabled={!!downloading}
+                      style={{ background:downloading==='pdf_fill'?'#9ca3af':'#16a34a' }}>
+                      {downloading==='pdf_fill'?'⏳ PDF 처리 중...':'📄 PDF 양식에 학생 데이터 채워서 출력'}
+                    </Btn>
+                  </div>
+                  <div style={{ fontSize:'12px', color:'#9ca3af' }}>· 인쇄 창에서 "PDF로 저장" 선택하면 파일로 저장됩니다.</div>
+                </div>
+              )
+            }
+            if (isHwp) {
+              return (
+                <div>
+                  <div style={{ padding:'12px 14px', background:'#fdf4ff', border:'1.5px solid #d8b4fe', borderRadius:'10px', marginBottom:'12px', fontSize:'13px', color:'#6d28d9', lineHeight:1.7 }}>
+                    📝 <strong>HWP 양식 레이아웃</strong>으로 학생 데이터를 자동 채워 Excel 다운로드 또는 PDF 인쇄합니다.<br />
+                    원본 HWP 파일도 함께 받을 수 있습니다.
+                  </div>
+                  <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', marginBottom:'10px' }}>
+                    <Btn onClick={downloadExcel} disabled={!!downloading} style={{ background:downloading==='excel'?'#9ca3af':'#7c3aed' }}>
+                      {downloading==='excel'?'⏳ 생성 중...':'📊 HWP 양식 스타일 Excel 다운로드'}
+                    </Btn>
+                    <Btn variant="ghost" onClick={downloadPDF} disabled={!!downloading} style={{ borderColor:'#7c3aed', color:'#7c3aed' }}>
+                      {downloading==='pdf'?'⏳ 준비 중...':'🖨️ HWP 양식 스타일 PDF 인쇄'}
+                    </Btn>
+                    <Btn variant="ghost" onClick={()=>{ if(selTmpl?.url){ const a=document.createElement('a'); a.href=selTmpl.url; a.download=selTmpl.templateName||'출석부양식.hwp'; a.click() }}} style={{ borderColor:'#9ca3af', color:'#6b7280', fontSize:'12px' }}>
+                      원본 HWP 받기
+                    </Btn>
+                  </div>
+                </div>
+              )
+            }
+            return (
+              <div>
+                <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', marginBottom:'10px' }}>
+                  <Btn onClick={downloadExcel} disabled={!!downloading} style={{ background:downloading==='excel'?'#9ca3af':'#16a34a' }}>
+                    {downloading==='excel'?'⏳ 생성 중...':'📊 엑셀 다운로드 (.xlsx)'}
+                  </Btn>
+                  <Btn variant="ghost" onClick={downloadPDF} disabled={!!downloading} style={{ borderColor:'#3b82f6', color:'#3b82f6' }}>
+                    {downloading==='pdf'?'⏳ 준비 중...':'🖨️ PDF 인쇄'}
+                  </Btn>
+                </div>
+                <div style={{ fontSize:'12px', color:'#9ca3af', lineHeight:1.7 }}>
+                  · 엑셀: 출석부 + 학생 명단 2개 시트 .xlsx<br />
+                  · PDF: A4 가로 형식으로 브라우저 인쇄 창 열림
+                </div>
+              </div>
+            )
+          })()}
         </Card>
       )}
     </div>
