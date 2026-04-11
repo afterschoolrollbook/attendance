@@ -215,62 +215,92 @@ export function PrintSetup({ user }) {
       const DAY_KR = ['일','월','화','수','목','금','토']
 
       if (isHwp) {
-        // ── HWP 양식과 동일한 레이아웃
-        // 헤더: (부 반) 학생출석부  •  기간: ~ •  강사명: (인)
-        const title = `( ${cls.organization}  ${cls.section||''}반 )  학생출석부   •  기간: ${cls.startDate} ~ ${cls.endDate}   •  강사명: ${teacherName} (인)`
-        const colCount = 7 + sessions.length + 2  // 연번~요일 + 날짜들 + 총출석일수 + 비고
+        // ── 판교초 HWP 분석 기반 완전 동일 구조
+        // 22 cols: 연번(0) 학년(1) 반(2) 번호(3) 이름(4) 전화번호(5) 요일(6) 날짜(7-19,13개) 총출석(20) 비고(21)
+        // 차시가 13개 초과/미만이면 열 수 자동 조정
+        const dateCols = sessions.length  // 실제 차시 수
+        const totalCols = 7 + dateCols + 2  // 고정7 + 날짜N + 총출석+비고
 
-        // 날짜 헤더 행 (날짜)
-        const dateRow = ['날짜', '', '', '', '', '', '', ...sessions.map(d => d.slice(5)), '', '']
-        // 요일 헤더 행
-        const dowRow  = ['요일', '', '', '', '', '', '', ...sessions.map(d => DAY_KR[new Date(d+'T00:00:00').getDay()]), '', '']
-        // 컬럼 헤더
-        const colHeader = ['연번', '학년', '반', '번호', '이름', '전화번호', '요일', ...sessions.map((_,i)=>`${i+1}차`), '총출석일수', '비고 (지각·결석 사유)']
+        // 행 데이터 구성
+        const r0 = Array(totalCols).fill('')  // 제목
+        r0[0] = `(      ${cls.organization}      ${cls.section||''}반 )  학 생 출 석 부`
 
-        const studentRows = students.map((s, i) => {
-          const dayLabel = cls.days?.join('·') || ''
-          return [
-            i + 1,
-            s.grade || '',
-            s.classNum || '',
-            s.number || '',
-            s.name || '',
-            s.parentPhone || '',
-            dayLabel,
-            ...sessions.map(() => BLANK),
-            '',
-            '',
-          ]
+        const r1 = Array(totalCols).fill('')  // 기간/강사
+        r1[0] = ` • 기간 :  ${cls.startDate} ~ ${cls.endDate}                    • 강사명 :    (인)`
+
+        const r2 = Array(totalCols).fill('')  // 헤더1 (RowSpan=2 항목)
+        r2[0]='연번'; r2[1]='학년'; r2[2]='반'; r2[3]='번호'; r2[4]='이름'; r2[5]='전화번호'
+        r2[6]='요일'  // row1에서 RowSpan=1 → 두 행 모두 컨텐츠
+        // cols 7~6+dateCols: 날짜 영역 — 헤더1행은 비워둠 (row2에서 채움)
+        r2[7 + dateCols] = '총출석일수'
+        r2[7 + dateCols + 1] = '비고\n(지각·결석 사유)'
+
+        const r3 = Array(totalCols).fill('')  // 헤더2 (날짜 서브헤더)
+        r3[6] = '날짜'  // 요일 컬럼 하단에 날짜 라벨
+        sessions.forEach((d, i) => {
+          const dow = DAY_KR[new Date(d+'T00:00:00').getDay()]
+          r3[7 + i] = `${d.slice(5)}(${dow})`
         })
 
-        const allRows = [
-          [title],
-          colHeader,
-          ...studentRows,
-        ]
+        const studentRows = students.map((s, i) => {
+          const row = Array(totalCols).fill('')
+          row[0] = i + 1
+          row[1] = s.grade || ''
+          row[2] = s.classNum || ''
+          row[3] = s.number || ''
+          row[4] = s.name || ''
+          row[5] = s.parentPhone || ''
+          row[6] = cls.days?.join('·') || ''
+          sessions.forEach((_, j) => { row[7 + j] = BLANK })
+          return row
+        })
 
+        const rTotal = Array(totalCols).fill('')  // 계 행
+        rTotal[0] = '계'
+        rTotal[5] = `${students.length}명`
+
+        const allRows = [r0, r1, r2, r3, ...studentRows, rTotal]
         const ws = XLSX.utils.aoa_to_sheet(allRows)
 
-        // 제목 행 병합
-        ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:colCount-1} }]
-
-        // 열 너비
-        ws['!cols'] = [
-          {wch:5},   // 연번
-          {wch:7},   // 학년
-          {wch:5},   // 반
-          {wch:5},   // 번호
-          {wch:10},  // 이름
-          {wch:14},  // 전화번호
-          {wch:5},   // 요일
-          ...sessions.map(()=>({wch:5})),
-          {wch:10},  // 총출석일수
-          {wch:22},  // 비고
+        // ── 셀 병합 (HWP 원본 구조 완전 재현)
+        const sn = 4 + students.length  // 계 행 인덱스
+        ws['!merges'] = [
+          {s:{r:0,c:0}, e:{r:0,c:totalCols-1}},          // 제목 전체
+          {s:{r:1,c:0}, e:{r:1,c:totalCols-1}},          // 기간 전체
+          {s:{r:2,c:0}, e:{r:3,c:0}},                    // 연번 (RowSpan=2)
+          {s:{r:2,c:1}, e:{r:3,c:1}},                    // 학년 (RowSpan=2)
+          {s:{r:2,c:2}, e:{r:3,c:2}},                    // 반 (RowSpan=2)
+          {s:{r:2,c:3}, e:{r:3,c:3}},                    // 번호 (RowSpan=2)
+          {s:{r:2,c:4}, e:{r:3,c:4}},                    // 이름 (RowSpan=2)
+          {s:{r:2,c:5}, e:{r:3,c:5}},                    // 전화번호 (RowSpan=2)
+          // col 6 요일/날짜: RowSpan=1 (두 행 모두 내용 있음 — 병합 없음)
+          {s:{r:2,c:7+dateCols}, e:{r:3,c:7+dateCols}},  // 총출석일수 (RowSpan=2)
+          {s:{r:2,c:8+dateCols}, e:{r:3,c:8+dateCols}},  // 비고 (RowSpan=2)
+          {s:{r:sn,c:0}, e:{r:sn,c:4}},                  // 계 (cols 0-4 merge)
         ]
+
+        // ── 열 너비 (HWP Width 기준 비례)
+        ws['!cols'] = [
+          {wch:6},   // 연번  (2092)
+          {wch:7},   // 학년  (2092)
+          {wch:5},   // 반    (2092)
+          {wch:6},   // 번호  (2092)
+          {wch:12},  // 이름  (5452)
+          {wch:15},  // 전화번호 (8140)
+          {wch:6},   // 요일  (1817)
+          ...sessions.map(()=>({wch:8})),  // 날짜 각 1817
+          {wch:8},   // 총출석일수 (1817)
+          {wch:18},  // 비고 (4570)
+        ]
+
+        // ── 행 높이
         ws['!rows'] = [
-          {hpt:28},  // 제목
-          {hpt:20},  // 헤더
-          ...studentRows.map(()=>({hpt:20})),
+          {hpt:30},  // 제목
+          {hpt:22},  // 기간
+          {hpt:30},  // 헤더1
+          {hpt:25},  // 헤더2(날짜)
+          ...studentRows.map(()=>({hpt:22})),
+          {hpt:22},  // 계
         ]
 
         XLSX.utils.book_append_sheet(wb, ws, '학생출석부')
