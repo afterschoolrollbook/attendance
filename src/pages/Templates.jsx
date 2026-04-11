@@ -5,18 +5,29 @@ import { Btn, PageHeader } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../components/Atoms.jsx'
 
+const DOC_TYPES = {
+  keep:         { label: '보관',          color: '#2563eb', bg: '#dbeafe' },
+  form:         { label: '양식',          color: '#7c3aed', bg: '#ede9fe' },
+  form_submit:  { label: '양식작성 후 제출', color: '#ea580c', bg: '#ffedd5' },
+  submit:       { label: '제출',          color: '#16a34a', bg: '#dcfce7' },
+  submit_mat:   { label: '재료비 관련 제출', color: '#0d9488', bg: '#ccfbf1' },
+}
+
 const CATEGORIES = [
-  { key: 'notice',        label: '안내장',              icon: '📢', color: '#f97316' },
-  { key: 'attendance',    label: '출석부',              icon: '✅', color: '#16a34a' },
-  { key: 'annual_plan',   label: '연간지도안',           icon: '📅', color: '#2563eb' },
-  { key: 'daily_plan',    label: '차시별(일일)지도안',   icon: '📝', color: '#7c3aed' },
-  { key: 'promo',         label: '홍보물',              icon: '🎨', color: '#db2777' },
-  { key: 'tuition_bank',  label: '수강료 통장사본',      icon: '🏦', color: '#0891b2' },
-  { key: 'material_bank', label: '재료비 통장사본',      icon: '💳', color: '#0d9488' },
-  { key: 'business_reg',  label: '재료비 사업자 사본',   icon: '📋', color: '#b45309' },
-  { key: 'medical',       label: '공무원 채용신체검사서', icon: '🏥', color: '#dc2626' },
-  { key: 'drug_test',     label: '마약검사서',           icon: '🔬', color: '#9333ea' },
-  { key: 'tb_test',       label: '결핵검사서',           icon: '💊', color: '#065f46' },
+  { key: 'notice',        label: '안내장',              icon: '📢', color: '#f97316', type: 'keep' },
+  { key: 'attendance',    label: '출석부',              icon: '✅', color: '#16a34a', type: 'form_submit' },
+  { key: 'annual_plan',   label: '연간지도안',           icon: '📅', color: '#2563eb', type: 'form_submit' },
+  { key: 'daily_plan',    label: '차시별(일일)지도안',   icon: '📝', color: '#7c3aed', type: 'form_submit' },
+  { key: 'collect',       label: '수납요구',             icon: '💰', color: '#0891b2', type: 'form_submit' },
+  { key: 'safety',        label: '안전관리대장',          icon: '🦺', color: '#059669', type: 'form_submit' },
+  { key: 'refund',        label: '환불자 명단',           icon: '📃', color: '#6366f1', type: 'form_submit' },
+  { key: 'promo',         label: '홍보물',              icon: '🎨', color: '#db2777', type: 'submit' },
+  { key: 'tuition_bank',  label: '수강료 통장사본',      icon: '🏦', color: '#0891b2', type: 'submit' },
+  { key: 'medical',       label: '공무원 채용신체검사서', icon: '🏥', color: '#dc2626', type: 'submit' },
+  { key: 'drug_test',     label: '마약검사서',           icon: '🔬', color: '#9333ea', type: 'submit' },
+  { key: 'tb_test',       label: '결핵검사서',           icon: '💊', color: '#065f46', type: 'submit' },
+  { key: 'material_bank', label: '재료비 통장사본',      icon: '💳', color: '#0d9488', type: 'submit_mat' },
+  { key: 'business_reg',  label: '재료비 사업자 사본',   icon: '📋', color: '#b45309', type: 'submit_mat' },
 ]
 
 const ACCEPT = '.hwp,.hwpx,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.pdf'
@@ -73,6 +84,7 @@ function AddModal({ cat, onClose, onSave }) {
   const [subject, setSubject] = useState('')
   const [period1, setPeriod1] = useState('해당없음')
   const [period2, setPeriod2] = useState('해당없음')
+  const [docType, setDocType] = useState('')
   const [file, setFile]       = useState(null)
   const [saving, setSaving]   = useState(false)
   const fileRef = useRef()
@@ -447,14 +459,174 @@ function DocChip({ doc, color, onDelete, onUpdate }) {
   )
 }
 
+const DAY_ORDER = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 7 }
+
+function getDayFromTitle(title) {
+  const first = title?.split(' ')[0]
+  return DAY_ORDER[first] ?? 99
+}
+
+// ─── 커스텀 카테고리 localStorage
+const CUSTOM_CAT_KEY = 'asa_custom_categories'
+function loadCustomCats() {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_CAT_KEY) || '[]') } catch { return [] }
+}
+function saveCustomCats(cats) {
+  localStorage.setItem(CUSTOM_CAT_KEY, JSON.stringify(cats))
+}
+
+// ─── 카테고리 추가 모달 ───
+const PRESET_COLORS = [
+  '#f97316','#16a34a','#2563eb','#7c3aed','#db2777',
+  '#0891b2','#0d9488','#b45309','#dc2626','#9333ea',
+  '#065f46','#1d4ed8','#be185d','#92400e','#1e3a5f',
+]
+const PRESET_ICONS = ['📁','📄','📝','📋','📊','📅','📢','🏫','✅','⭐','🔖','💼','🗂️','📌','🎯','🧾','💡','🔍']
+
+function AddCatModal({ onClose, onAdd }) {
+  const [label, setLabel] = useState('')
+  const [icon, setIcon]   = useState('📁')
+  const [color, setColor] = useState('#2563eb')
+  const [type, setType]   = useState('keep')
+
+  const handleAdd = () => {
+    if (!label.trim()) return
+    onAdd({ key: 'custom_' + Date.now(), label: label.trim(), icon, color, type, custom: true })
+    onClose()
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1200,
+      background: 'rgba(0,0,0,0.35)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{
+        background: '#fff', borderRadius: '16px', padding: '28px',
+        width: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+        fontFamily: 'Noto Sans KR, sans-serif', display: 'flex', flexDirection: 'column', gap: '18px',
+      }}>
+        {/* 헤더 */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>카테고리 추가</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '22px', lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+
+        {/* 미리보기 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: '#f9fafb', borderRadius: '10px' }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '5px',
+            padding: '6px 12px', borderRadius: '8px',
+            background: color + '12', border: '1px solid ' + color + '30',
+            fontSize: '12px', fontWeight: 700, color,
+          }}>
+            <span>{icon}</span><span>{label || '카테고리명'}</span>
+          </div>
+          {DOC_TYPES[type] && (
+            <span style={{
+              fontSize: '10px', fontWeight: 700, padding: '3px 7px', borderRadius: '5px',
+              background: DOC_TYPES[type].bg, color: DOC_TYPES[type].color,
+            }}>{DOC_TYPES[type].label}</span>
+          )}
+        </div>
+
+        {/* 카테고리명 */}
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
+            카테고리명 <span style={{ color: '#dc2626' }}>*</span>
+          </label>
+          <input
+            autoFocus value={label} onChange={e => setLabel(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            placeholder="예) 행정서류"
+            style={{
+              width: '100%', padding: '9px 12px', borderRadius: '8px',
+              border: '1.5px solid ' + (label ? color : '#e5e7eb'), fontSize: '13px',
+              color: '#111827', outline: 'none', fontFamily: 'Noto Sans KR, sans-serif', boxSizing: 'border-box',
+            }}
+            onFocus={e => e.target.style.borderColor = color}
+            onBlur={e => e.target.style.borderColor = label ? color : '#e5e7eb'}
+          />
+        </div>
+
+        {/* 아이콘 */}
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '8px' }}>아이콘</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {PRESET_ICONS.map(ic => (
+              <button key={ic} onClick={() => setIcon(ic)} style={{
+                width: '34px', height: '34px', borderRadius: '8px', fontSize: '18px',
+                border: ic === icon ? '2px solid ' + color : '1.5px solid #e5e7eb',
+                background: ic === icon ? color + '12' : '#fff', cursor: 'pointer',
+              }}>{ic}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* 색상 */}
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '8px' }}>색상</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {PRESET_COLORS.map(c => (
+              <button key={c} onClick={() => setColor(c)} style={{
+                width: '28px', height: '28px', borderRadius: '50%',
+                background: c, border: c === color ? '3px solid #111827' : '2px solid transparent',
+                cursor: 'pointer', boxSizing: 'border-box',
+              }} />
+            ))}
+          </div>
+        </div>
+
+        {/* 서류 유형 */}
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '8px' }}>서류 유형</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {Object.entries(DOC_TYPES).map(([k, dt]) => (
+              <button key={k} onClick={() => setType(k)} style={{
+                padding: '5px 12px', borderRadius: '6px', border: 'none',
+                background: type === k ? dt.bg : '#f3f4f6',
+                color: type === k ? dt.color : '#6b7280',
+                fontWeight: type === k ? 700 : 500,
+                fontSize: '12px', cursor: 'pointer',
+                fontFamily: 'Noto Sans KR, sans-serif',
+                outline: type === k ? '2px solid ' + dt.color : 'none',
+              }}>{dt.label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* 버튼 */}
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{
+            padding: '9px 18px', borderRadius: '8px', border: '1.5px solid #e5e7eb',
+            background: '#fff', fontSize: '13px', fontWeight: 600, color: '#6b7280',
+            cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+          }}>취소</button>
+          <button onClick={handleAdd} disabled={!label.trim()} style={{
+            padding: '9px 22px', borderRadius: '8px', border: 'none',
+            background: label.trim() ? color : '#d1d5db',
+            fontSize: '13px', fontWeight: 700, color: '#fff',
+            cursor: label.trim() ? 'pointer' : 'not-allowed',
+            fontFamily: 'Noto Sans KR, sans-serif',
+          }}>추가</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── 메인 컴포넌트 ───
 export function Templates({ user }) {
   const [docs, setDocs] = useState(() =>
     (DocumentsDB?.all?.() || []).filter(d => d.teacherId === user.id || user.role === 'admin')
   )
-  const [modalCat, setModalCat] = useState(null) // 현재 모달 열린 카테고리
+  const [modalCat, setModalCat]     = useState(null)
+  const [showAddCat, setShowAddCat] = useState(false)
+  const [customCats, setCustomCats] = useState(loadCustomCats)
   const { error: toastError, success } = useToast()
   const confirm = useConfirm()
+
+  const allCats = [...CATEGORIES, ...customCats]
 
   const reload = () =>
     setDocs((DocumentsDB?.all?.() || []).filter(d => d.teacherId === user.id || user.role === 'admin'))
@@ -466,36 +638,110 @@ export function Templates({ user }) {
       fileName, fileType, fileData, createdAt: now(),
     })
     reload()
-    success(`${modalCat.label}이(가) 등록 완료되었습니다.`)
+    success(modalCat.label + '이(가) 등록 완료되었습니다.')
     setModalCat(null)
   }
 
   const handleDelete = (id) =>
     confirm('이 서류를 삭제하시겠습니까?', () => { DocumentsDB.delete(id); reload() })
 
-  const handleUpdate = (id, patch) => {
-    DocumentsDB.update(id, patch)
-    reload()
+  const handleUpdate = (id, patch) => { DocumentsDB.update(id, patch); reload() }
+
+  const handleAddCat = (cat) => {
+    const updated = [...customCats, cat]
+    setCustomCats(updated)
+    saveCustomCats(updated)
+    success('"' + cat.label + '" 카테고리가 추가되었습니다.')
   }
 
-const DAY_ORDER = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 7 }
-
-function getDayFromTitle(title) {
-  const first = title?.split(' ')[0]
-  return DAY_ORDER[first] ?? 99
-}
+  const handleDeleteCat = (catKey) => {
+    confirm('이 카테고리를 삭제하시겠습니까?\n등록된 서류도 함께 삭제됩니다.', () => {
+      const updated = customCats.filter(c => c.key !== catKey)
+      setCustomCats(updated)
+      saveCustomCats(updated)
+      docs.filter(d => d.category === catKey).forEach(d => DocumentsDB.delete(d.id))
+      reload()
+    })
+  }
 
   const docsFor = (catKey) =>
     docs
       .filter(d => d.category === catKey)
       .sort((a, b) => getDayFromTitle(a.title) - getDayFromTitle(b.title))
 
+  const renderCatRow = (cat, isCustom, isLast) => {
+    const catDocs = docsFor(cat.key)
+    return (
+      <div key={cat.key} style={{
+        display: 'flex', alignItems: 'center', gap: '12px',
+        padding: '11px 20px',
+        borderBottom: isLast ? 'none' : '1px solid #f3f4f6',
+        minHeight: '52px',
+      }}>
+        {/* 카테고리 버튼 */}
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: '5px',
+          padding: '6px 12px', borderRadius: '8px',
+          background: cat.color + '12', border: '1px solid ' + cat.color + '30',
+          fontSize: '12px', fontWeight: 700, color: cat.color,
+          whiteSpace: 'nowrap', flexShrink: 0, width: '148px', justifyContent: 'center',
+        }}>
+          <span>{cat.icon}</span><span>{cat.label}</span>
+        </div>
+
+        {/* + 버튼 */}
+        <button onClick={() => setModalCat(cat)} style={{
+          width: '28px', height: '28px', borderRadius: '7px',
+          background: cat.color + '18', border: '1.5px solid ' + cat.color + '40',
+          color: cat.color, fontSize: '18px', fontWeight: 700,
+          cursor: 'pointer', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+          onMouseEnter={e => { e.currentTarget.style.background = cat.color + '30' }}
+          onMouseLeave={e => { e.currentTarget.style.background = cat.color + '18' }}
+        >+</button>
+
+        {/* 서류 칩들 */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', flex: 1, alignItems: 'center' }}>
+          {catDocs.length === 0
+            ? <span style={{ fontSize: '12px', color: '#d1d5db' }}>+ 버튼을 눌러 서류를 등록하세요</span>
+            : catDocs.map(doc => (
+                <DocChip key={doc.id} doc={doc} color={cat.color}
+                  onDelete={() => handleDelete(doc.id)} onUpdate={handleUpdate} />
+              ))
+          }
+        </div>
+
+        {/* 커스텀 카테고리 삭제 */}
+        {isCustom && (
+          <button onClick={() => handleDeleteCat(cat.key)} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: '#d1d5db', fontSize: '15px', flexShrink: 0, padding: '2px',
+          }}
+            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+            onMouseLeave={e => e.currentTarget.style.color = '#d1d5db'}
+          >🗑️</button>
+        )}
+      </div>
+    )
+  }
+
+  // 타입 순서 정의
+  const TYPE_ORDER = ['keep', 'form_submit', 'submit', 'submit_mat', 'form']
+
+  // 전체 카테고리를 타입별로 그룹핑
+  const allCatsByType = TYPE_ORDER.reduce((acc, typeKey) => {
+    const cats = [...CATEGORIES, ...customCats].filter(c => c.type === typeKey)
+    if (cats.length) acc.push({ typeKey, cats })
+    return acc
+  }, [])
+  // 타입 없는 커스텀 카테고리 (혹시 있을 경우)
+  const untyped = customCats.filter(c => !c.type || !DOC_TYPES[c.type])
+  if (untyped.length) allCatsByType.push({ typeKey: null, cats: untyped })
+
   return (
     <div style={{ padding: '28px', maxWidth: '1100px', fontFamily: 'Noto Sans KR, sans-serif' }}>
-      <PageHeader
-        title="방과후 서류"
-        sub="방과후 수업에 필요한 서류를 보관하고 관리합니다."
-      />
+      <PageHeader title="방과후 서류" sub="방과후 수업에 필요한 서류를 보관하고 관리합니다." />
 
       <div style={{
         marginBottom: '20px', padding: '12px 16px',
@@ -505,83 +751,55 @@ function getDayFromTitle(title) {
         📌 학교마다 다른 서류를 여러 개 등록할 수 있습니다. 요일을 입력하면 <strong>월·화·수·목·금·토·일 순</strong>으로 자동 정렬됩니다. 지원 형식: <strong>HWP · Excel · 이미지 · PDF</strong>
       </div>
 
-      {/* ─── 카테고리 목록 ─── */}
-      <div style={{
-        background: '#fff', border: '1px solid #e5e7eb',
-        borderRadius: '12px', overflow: 'hidden',
-      }}>
-        {CATEGORIES.map((cat, ci) => {
-          const catDocs = docsFor(cat.key)
+      {/* ─── 그룹별 카테고리 목록 ─── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {allCatsByType.map(({ typeKey, cats }) => {
+          const dt = typeKey ? DOC_TYPES[typeKey] : { label: '기타', color: '#6b7280', bg: '#f3f4f6' }
           return (
-            <div key={cat.key} style={{
-              display: 'flex', alignItems: 'center', gap: '12px',
-              padding: '12px 20px',
-              borderBottom: ci < CATEGORIES.length - 1 ? '1px solid #f3f4f6' : 'none',
-              minHeight: '56px',
+            <div key={typeKey || 'untyped'} style={{
+              background: '#fff', border: '1px solid #e5e7eb',
+              borderRadius: '12px', overflow: 'hidden',
             }}>
-              {/* 카테고리 버튼 */}
+              {/* 그룹 헤더 */}
               <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: '5px',
-                padding: '6px 12px', borderRadius: '8px',
-                background: `${cat.color}12`, border: `1px solid ${cat.color}30`,
-                fontSize: '12px', fontWeight: 700, color: cat.color,
-                whiteSpace: 'nowrap', flexShrink: 0, width: '148px',
-                justifyContent: 'center',
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '10px 20px',
+                background: dt.bg,
+                borderBottom: '1px solid ' + dt.color + '20',
               }}>
-                <span>{cat.icon}</span><span>{cat.label}</span>
+                <span style={{
+                  fontSize: '12px', fontWeight: 800, color: dt.color,
+                  letterSpacing: '0.3px',
+                }}>{dt.label}</span>
+                <span style={{ fontSize: '11px', color: dt.color + 'aa' }}>
+                  ({cats.length}개)
+                </span>
               </div>
 
-              {/* + 버튼 */}
-              <button
-                onClick={() => setModalCat(cat)}
-                title="서류 추가"
-                style={{
-                  width: '28px', height: '28px', borderRadius: '7px',
-                  background: `${cat.color}18`,
-                  border: `1.5px solid ${cat.color}40`,
-                  color: cat.color, fontSize: '18px', fontWeight: 700,
-                  cursor: 'pointer', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = `${cat.color}30` }}
-                onMouseLeave={e => { e.currentTarget.style.background = `${cat.color}18` }}
-              >+</button>
-
-              {/* 등록된 서류 칩들 */}
-              <div style={{
-                display: 'flex', flexWrap: 'wrap', gap: '6px', flex: 1,
-                alignItems: 'center',
-              }}>
-                {catDocs.length === 0 ? (
-                  <span style={{ fontSize: '12px', color: '#d1d5db' }}>
-                    + 버튼을 눌러 서류를 등록하세요
-                  </span>
-                ) : (
-                  catDocs.map(doc => (
-                    <DocChip
-                      key={doc.id}
-                      doc={doc}
-                      color={cat.color}
-                      onDelete={() => handleDelete(doc.id)}
-                      onUpdate={handleUpdate}
-                    />
-                  ))
-                )}
-              </div>
+              {/* 카테고리 행들 */}
+              {cats.map((cat, ci) =>
+                renderCatRow(cat, cat.custom === true, ci === cats.length - 1)
+              )}
             </div>
           )
         })}
+
+        {/* + 카테고리 추가 버튼 */}
+        <button onClick={() => setShowAddCat(true)} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+          padding: '11px', borderRadius: '12px',
+          border: '1.5px dashed #d1d5db', background: '#fafafa',
+          fontSize: '13px', fontWeight: 700, color: '#6b7280',
+          cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+          transition: 'all 0.15s',
+        }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.background = '#eff6ff' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = '#fafafa' }}
+        >＋ 카테고리 추가</button>
       </div>
 
-      {/* ─── 등록 모달 ─── */}
-      {modalCat && (
-        <AddModal
-          cat={modalCat}
-          onClose={() => setModalCat(null)}
-          onSave={handleSave}
-        />
-      )}
+      {modalCat && <AddModal cat={modalCat} onClose={() => setModalCat(null)} onSave={handleSave} />}
+      {showAddCat && <AddCatModal onClose={() => setShowAddCat(false)} onAdd={handleAddCat} />}
     </div>
   )
 }
