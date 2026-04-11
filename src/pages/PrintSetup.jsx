@@ -843,6 +843,7 @@ export function PrintSetup({ user }) {
                     <span style={{ fontSize:'13px', color:'#9ca3af', alignSelf:'center' }}>구현 예정</span>
                     <span style={{ fontSize:'13px', color:'#9ca3af', alignSelf:'center' }}>구현 예정</span>
                     <span style={{ fontSize:'13px', color:'#9ca3af', alignSelf:'center' }}>구현 예정</span>
+                  </div>
                 </div>
               )
             }
