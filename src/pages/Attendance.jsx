@@ -1240,6 +1240,11 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
           const secStudents = activeStudents.filter(s => {
             const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
             return (sc?.section || '') === sec
+          }).sort((a, b) => {
+            const g = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (g) return g
+            const c = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (c) return c
+            const n = parseInt(a.number||'0') - parseInt(b.number||'0'); if (n) return n
+            return (a.name||'').localeCompare(b.name||'','ko')
           })
           return (
             <div key={sec||'all'} style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden', marginBottom:'12px' }}>
@@ -2258,97 +2263,157 @@ export function Attendance({ user, pageParams = {} }) {
     <div style={{ padding:'24px', maxWidth:'1400px', width:'100%', display:'flex', flexDirection:'column', gap:'20px' }}>
       <div style={{ fontSize:'22px', fontWeight:700, color:C.text }}>출석부</div>
 
-      {/* 필터 — 년도 / 학교 / 수업 / 반 / 기간 */}
-      <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px 20px', display:'flex', flexDirection:'column', gap:'12px' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr 1fr auto', gap:'12px', alignItems:'end' }}>
-        <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-          <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>년도</label>
-          <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelClassId(''); setSelSection(''); setSelTerm('') }} style={{ ...selSt, width:'100%' }}>
-            {years.map(y => <option key={y} value={y}>{y}년</option>)}
-          </select>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-          <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>학교</label>
-          <select value={selSchool} onChange={e => handleSchoolChange(e.target.value)} style={{ ...selSt, width:'100%' }}>
-            <option value="">전체 학교</option>
-            {[...new Set(allClasses.filter(c => !selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)).map(c => c.organization).filter(Boolean))].map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-          <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>수업</label>
-          <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelSection(''); setSelTerm(''); setDateClicked(false) }} style={{ ...selSt, width:'100%' }}>
-            <option value="">전체 수업</option>
-            {schoolClasses.map(c => <option key={c.id} value={c.id}>{c.className}{c.section?' '+c.section+'반':''}</option>)}
-          </select>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-          <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>반</label>
-          <select value={selSection} onChange={e => setSelSection(e.target.value)} style={{ ...selSt, width:'100%' }} disabled={!selClassId || sections.length === 0}>
-            <option value="">전체 반</option>
-            {sections.map(s => <option key={s} value={s}>{s}반</option>)}
-          </select>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-          <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>기간</label>
-          <select value={selTerm} onChange={e => setSelTerm(e.target.value)} style={{ ...selSt, width:'100%' }}>
-            <option value="">전체 기간</option>
-            {/* 수업 선택 시 해당 termType만, 미선택 시 전체 표시 */}
-            {(!selClass || selClass.termType === 'quarter') && (
-              <optgroup label="── 분기제 ──">
-                <option value="q1">1분기 (1~3월)</option>
-                <option value="q2">2분기 (4~6월)</option>
-                <option value="q3">3분기 (7~9월)</option>
-                <option value="q4">4분기 (10~12월)</option>
-              </optgroup>
-            )}
-            {(!selClass || selClass.termType !== 'quarter') && (
-              <optgroup label="── 학기제 ──">
-                <option value="s1">1학기 (3~8월)</option>
-                <option value="s2">2학기 (9~2월)</option>
-              </optgroup>
-            )}
-          </select>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:'5px', alignSelf:'end' }}>
-          {selClass && <div style={{ fontSize:'12px', color:C.muted }}>📅 {selClass.startDate?.slice(5)} ~ {selClass.endDate?.slice(5)} · {sessionDates.length}차시</div>}
-          <div style={{ fontSize:'14px', fontWeight:700, color:C.primary }}>
-            👥 {students.filter(s => ['applied','selected','confirmed'].includes(s.status)).length}명
+      {/* 필터 카드 — 두 검색 모드 */}
+      <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+
+        {/* ── 모드 A: 수업 검색 (달력과 세트) ── */}
+        <div style={{
+          padding:'14px 20px',
+          borderLeft: !selDay ? `4px solid ${C.primary}` : '4px solid transparent',
+          background: !selDay ? 'linear-gradient(90deg,#fff7ed 0%,#fff 60%)' : '#fafafa',
+          transition:'all .2s',
+        }}>
+          {/* 모드 레이블 */}
+          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
+            <span style={{
+              width:'18px', height:'18px', borderRadius:'50%', flexShrink:0,
+              background: !selDay ? C.primary : '#e5e7eb',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:'11px', fontWeight:700, color:'#fff',
+              boxShadow: !selDay ? `0 0 0 3px #fed7aa` : 'none',
+              transition:'all .2s',
+            }}>✓</span>
+            <span style={{ fontSize:'12px', fontWeight:700, color: !selDay ? C.primary : '#9ca3af' }}>
+              수업 검색
+            </span>
+            <span style={{ fontSize:'11px', color: !selDay ? '#92400e' : '#d1d5db', background: !selDay ? '#fff7ed' : 'transparent', padding:'1px 8px', borderRadius:'10px', border: !selDay ? '1px solid #fde68a' : '1px solid transparent' }}>
+              📅 달력과 함께 사용
+            </span>
+            <div style={{ marginLeft:'auto', fontSize:'14px', fontWeight:700, color:C.primary }}>
+              👥 {students.filter(s => ['applied','selected','confirmed'].includes(s.status)).length}명
+            </div>
           </div>
+          {/* 필터 드롭다운 */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr 1fr', gap:'10px', alignItems:'end', opacity: selDay ? 0.45 : 1, transition:'opacity .2s' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+              <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>년도</label>
+              <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelClassId(''); setSelSection(''); setSelTerm(''); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
+                {years.map(y => <option key={y} value={y}>{y}년</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+              <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>학교</label>
+              <select value={selSchool} onChange={e => { handleSchoolChange(e.target.value); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
+                <option value="">전체 학교</option>
+                {[...new Set(allClasses.filter(c => !selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)).map(c => c.organization).filter(Boolean))].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+              <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>수업</label>
+              <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelSection(''); setSelTerm(''); setDateClicked(false); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
+                <option value="">전체 수업</option>
+                {schoolClasses.map(c => <option key={c.id} value={c.id}>{c.className}{c.section?' '+c.section+'반':''}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+              <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>반</label>
+              <select value={selSection} onChange={e => setSelSection(e.target.value)} style={{ ...selSt, width:'100%' }} disabled={!selClassId || sections.length === 0}>
+                <option value="">전체 반</option>
+                {sections.map(s => <option key={s} value={s}>{s}반</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+              <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>기간</label>
+              <select value={selTerm} onChange={e => setSelTerm(e.target.value)} style={{ ...selSt, width:'100%' }}>
+                <option value="">전체 기간</option>
+                {(!selClass || selClass.termType === 'quarter') && (
+                  <optgroup label="── 분기제 ──">
+                    <option value="q1">1분기 (1~3월)</option>
+                    <option value="q2">2분기 (4~6월)</option>
+                    <option value="q3">3분기 (7~9월)</option>
+                    <option value="q4">4분기 (10~12월)</option>
+                  </optgroup>
+                )}
+                {(!selClass || selClass.termType !== 'quarter') && (
+                  <optgroup label="── 학기제 ──">
+                    <option value="s1">1학기 (3~8월)</option>
+                    <option value="s2">2학기 (9~2월)</option>
+                  </optgroup>
+                )}
+              </select>
+            </div>
+          </div>
+          {selClass && <div style={{ marginTop:'6px', fontSize:'11px', color:C.muted }}>📅 {selClass.startDate?.slice(5)} ~ {selClass.endDate?.slice(5)} · {sessionDates.length}차시</div>}
         </div>
-        </div>
-        {/* 요일 필터 */}
-        <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-          <span style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>요일</span>
-          {['월','화','수','목','금','토','일'].map(day => {
-            const dayClasses = allClasses.filter(c =>
-              (c.days||[]).includes(day) &&
-              (!selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) &&
-              (!selSchool || c.organization === selSchool)
-            )
-            const count = dayClasses.length
-            return (
-              <button key={day} onClick={() => {
-                const newDay = selDay === day ? '' : day
-                setSelDay(newDay)
-                setSelClassId('')
-                setSelSection('')
-                setDateClicked(false)  // 날짜 클릭 초기화 → 요일 뷰로 전환
-              }}
-                style={{ padding:'5px 12px', borderRadius:'20px', border:'none', cursor:'pointer',
-                  background: selDay===day ? C.primary : count>0 ? '#f3f4f6' : '#fafafa',
-                  color: selDay===day ? '#fff' : count>0 ? C.text : '#d1d5db',
-                  fontSize:'13px', fontWeight: selDay===day ? 700 : 500,
-                  fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s',
-                  opacity: count===0 ? 0.4 : 1,
-                }}>
-                {day}{count > 0 ? ` (${count})` : ''}
+
+        {/* 구분선 */}
+        <div style={{ height:'1px', background: selDay ? `linear-gradient(90deg,${C.primary}40,#e5e7eb)` : '#e5e7eb' }} />
+
+        {/* ── 모드 B: 요일 검색 ── */}
+        <div style={{
+          padding:'12px 20px',
+          borderLeft: selDay ? `4px solid ${C.primary}` : '4px solid transparent',
+          background: selDay ? 'linear-gradient(90deg,#fff7ed 0%,#fff 60%)' : '#fff',
+          transition:'all .2s',
+        }}>
+          {/* 모드 레이블 */}
+          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
+            <span style={{
+              width:'18px', height:'18px', borderRadius:'50%', flexShrink:0,
+              background: selDay ? C.primary : '#e5e7eb',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:'11px', fontWeight:700, color:'#fff',
+              boxShadow: selDay ? `0 0 0 3px #fed7aa` : 'none',
+              transition:'all .2s',
+            }}>✓</span>
+            <span style={{ fontSize:'12px', fontWeight:700, color: selDay ? C.primary : '#9ca3af' }}>
+              요일 검색
+            </span>
+            {selDay && (
+              <span style={{ fontSize:'11px', color:'#92400e', background:'#fff7ed', padding:'1px 8px', borderRadius:'10px', border:'1px solid #fde68a' }}>
+                {selDay}요일 선택됨
+              </span>
+            )}
+            {selDay && (
+              <button onClick={() => { setSelDay(''); setSelClassId(''); setSelSection('') }}
+                style={{ marginLeft:'auto', padding:'3px 10px', borderRadius:'10px', border:`1px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                ✕ 초기화
               </button>
-            )
-          })}
-          {selDay && <button onClick={() => { setSelDay(''); setSelClassId(''); setSelSection('') }}
-            style={{ padding:'5px 10px', borderRadius:'20px', border:`1px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            ✕ 초기화
-          </button>}
+            )}
+          </div>
+          {/* 요일 버튼들 */}
+          <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+            {['월','화','수','목','금','토','일'].map(day => {
+              const dayClasses = allClasses.filter(c =>
+                (c.days||[]).includes(day) &&
+                (!selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) &&
+                (!selSchool || c.organization === selSchool)
+              )
+              const count = dayClasses.length
+              const isActive = selDay === day
+              return (
+                <button key={day} onClick={() => {
+                  const newDay = selDay === day ? '' : day
+                  setSelDay(newDay)
+                  setSelClassId('')
+                  setSelSection('')
+                  setDateClicked(false)
+                }}
+                  style={{
+                    padding:'6px 14px', borderRadius:'20px', cursor:'pointer', transition:'all .15s',
+                    border: isActive ? `2px solid ${C.primary}` : count>0 ? `1.5px solid #e5e7eb` : '1.5px solid #f3f4f6',
+                    background: isActive ? C.primary : count>0 ? '#fff' : '#fafafa',
+                    color: isActive ? '#fff' : count>0 ? C.text : '#d1d5db',
+                    fontSize:'13px', fontWeight: isActive ? 700 : 500,
+                    fontFamily:'Noto Sans KR, sans-serif',
+                    opacity: count===0 ? 0.4 : 1,
+                    boxShadow: isActive ? `0 2px 8px ${C.primary}40` : 'none',
+                  }}>
+                  {isActive ? '✓ ' : ''}{day}{count > 0 ? ` (${count})` : ''}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
@@ -2408,14 +2473,8 @@ export function Attendance({ user, pageParams = {} }) {
               ) : (
                 <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
                   {schoolClasses.map(cls => {
-                    const clsStudents = allStudents
+                    const clsStudents = students
                       .filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status))
-                      .sort((a, b) => {
-                        const g = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (g) return g
-                        const c = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (c) return c
-                        const n = parseInt(a.number||'0') - parseInt(b.number||'0'); if (n) return n
-                        return (a.name||'').localeCompare(b.name||'','ko')
-                      })
                     return (
                       <div key={cls.id} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
                         <div style={{ padding:'12px 18px', background:'#f9fafb', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
