@@ -24,10 +24,45 @@ export function PrintSetup({ user }) {
     )
   }
 
-  const classes = ClassesDB.byTeacher(user.id)
+  const DAY_ORDER = ['월','화','수','목','금','토','일']
+  const classes = ClassesDB.byTeacher(user.id).slice().sort((a, b) => {
+    const orgCmp = (a.organization||'').localeCompare(b.organization||'', 'ko')
+    if (orgCmp !== 0) return orgCmp
+    const aDay = DAY_ORDER.indexOf(a.days?.[0] ?? '')
+    const bDay = DAY_ORDER.indexOf(b.days?.[0] ?? '')
+    const dayCmp = (aDay===-1?99:aDay) - (bDay===-1?99:bDay)
+    if (dayCmp !== 0) return dayCmp
+    return (a.section||'').localeCompare(b.section||'', 'ko')
+  })
   const cls = classes.find(c => c.id === selectedClass)
-  const students = selectedClass ? StudentsDB.confirmed(selectedClass) : []
+
+  // 학생 정렬: 학년 → 반 → 번호 → 이름 ㄱㄴㄷ
+  const rawStudents = selectedClass ? StudentsDB.confirmed(selectedClass) : []
+  const students = rawStudents.slice().sort((a, b) => {
+    const ga = parseInt(a.grade) || 0, gb = parseInt(b.grade) || 0
+    if (ga !== gb) return ga - gb
+    const ca = parseInt(a.classNum) || 0, cb = parseInt(b.classNum) || 0
+    if (ca !== cb) return ca - cb
+    const na = parseInt(a.number) || 0, nb = parseInt(b.number) || 0
+    if (na !== nb) return na - nb
+    return (a.name||'').localeCompare(b.name||'', 'ko')
+  })
+
   const allSessions = cls ? calcSessionDates(cls) : []
+
+  // 수업에 직접 등록한 templateFiles + Templates.bySchool 통합
+  const dbTemplates = cls ? Templates.bySchool(cls.organization) : []
+  const clsTemplates = (cls?.templateFiles || []).map((f, i) => ({
+    id: 'cls_' + (f.docId || f.url || i),
+    templateName: f.name || f.fileName || '양식 ' + (i+1),
+    fileType: f.fileType || 'xlsx',
+    url: f.url || f.fileData || '',
+    fromClass: true,
+  }))
+  const templates = [
+    ...clsTemplates,
+    ...dbTemplates.filter(t => !clsTemplates.some(ct => ct.id === 'cls_' + t.id)),
+  ]
 
   // 기간 선택에 따른 실제 출력 차시
   const sessions = (() => {
@@ -36,7 +71,6 @@ export function PrintSetup({ user }) {
     return allSessions
   })()
 
-  const templates = cls ? Templates.bySchool(cls.organization) : []
   const tmpl = templates.find(t => t.id === selectedTemplate) || templates[0]
 
   // ─── 엑셀 출석부 실제 생성
@@ -258,9 +292,25 @@ export function PrintSetup({ user }) {
           onChange={e => { setSelectedClass(e.target.value); setStep(2); setSelectedTemplate('') }}
           style={{ width: '100%', padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', background: '#fff', outline: 'none', cursor: 'pointer' }}>
           <option value="">-- 수업을 선택하세요 --</option>
-          {classes.map(c => (
-            <option key={c.id} value={c.id}>{c.organization} {c.className}{c.section ? ' ' + c.section + '반' : ''}</option>
-          ))}
+          {(() => {
+            const groups = []
+            let lastOrg = null
+            classes.forEach(c => {
+              if (c.organization !== lastOrg) {
+                groups.push({ type: 'group', label: c.organization })
+                lastOrg = c.organization
+              }
+              groups.push({ type: 'option', cls: c })
+            })
+            return groups.map((g, i) =>
+              g.type === 'group'
+                ? <optgroup key={'g'+i} label={g.label} />
+                : <option key={g.cls.id} value={g.cls.id}>
+                    {g.cls.className}{g.cls.section ? ' ' + g.cls.section + '반' : ''}
+                    {g.cls.days?.length ? ' (' + g.cls.days.join('') + ')' : ''}
+                  </option>
+            )
+          })()}
         </select>
         {cls && (
           <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -295,9 +345,9 @@ export function PrintSetup({ user }) {
                     style={{ accentColor: '#f97316' }} />
                   <div>
                     <div style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{t.templateName}</div>
-                    <div style={{ fontSize: '12px', color: '#6b7280' }}>.{t.fileType} 형식</div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>.{t.fileType} 형식{t.fromClass ? ' · 수업 등록 양식' : ''}</div>
                   </div>
-                  <Tag color="#16a34a" bg="#dcfce7" style={{ marginLeft: 'auto' }}>사용 가능</Tag>
+                  <Tag color="#16a34a" bg="#dcfce7" style={{ marginLeft: 'auto' }}>{t.fromClass ? '수업 등록' : '사용 가능'}</Tag>
                 </label>
               ))}
             </div>
