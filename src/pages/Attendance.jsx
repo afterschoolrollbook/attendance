@@ -2081,6 +2081,7 @@ export function Attendance({ user, pageParams = {} }) {
   const [selSection, setSelSection] = useState('')
   const [selTerm,    setSelTerm]    = useState('')
   const [selDay,     setSelDay]     = useState('')  // 요일 필터 ('월','화','수','목','금','토','일')
+  const [activeMode, setActiveMode] = useState('class') // 'class' | 'day' — 두 모드 완전 분리
   const [selDate,    setSelDate]    = useState(() => pageParams.date || today)
   const [dateClicked, setDateClicked] = useState(false)
   const [calYear,    setCalYear]    = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getFullYear() })
@@ -2108,13 +2109,21 @@ export function Attendance({ user, pageParams = {} }) {
     return (cls.startDate || '') <= to && (cls.endDate || '') >= from
   }
 
-  // 필터 적용된 수업 목록 (년도 + 학교 + 기간)
-  const schoolClasses = sortClasses(allClasses.filter(c =>
-    (!selYear   || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) &&
-    (!selSchool || c.organization === selSchool) &&
-    (!selDay    || (c.days || []).includes(selDay)) &&
-    termInRange(c)
-  ))
+  // 필터 적용된 수업 목록
+  // - 수업 검색 모드: 년도 + 학교 + 수업 + 기간 적용
+  // - 요일 검색 모드: 년도 + 요일만 적용 (학교 필터 완전 분리)
+  const schoolClasses = sortClasses(allClasses.filter(c => {
+    if (selYear && !c.startDate?.startsWith(selYear) && !c.endDate?.startsWith(selYear)) return false
+    if (activeMode === 'class') {
+      if (selSchool && c.organization !== selSchool) return false
+      if (selDay && !(c.days||[]).includes(selDay)) return false
+      if (!termInRange(c)) return false
+    } else {
+      // 요일 모드: 학교/기간 필터 무시, 요일만 적용
+      if (selDay && !(c.days||[]).includes(selDay)) return false
+    }
+    return true
+  }))
   const selClass = allClasses.find(c => c.id === selClassId)
   // 달력 표시용 수업일: 선택된 수업이 있으면 그 수업일만, 없으면 필터된 전체 수업일 합산
   const sessionDates = selClass
@@ -2164,54 +2173,59 @@ export function Attendance({ user, pageParams = {} }) {
     return (a.name||'').localeCompare(b.name||'','ko')
   })
 
-  // ★ 핵심: 필터 순서대로 좁혀가되 classIds 없는 학생은 학교명으로 보완 매칭
+  // ★ 핵심: 모드에 따라 필터 적용 분리
+  // - 수업 검색 모드: 년도 + 기간 + 학교 + 수업 + 반 + 요일 모두 적용
+  // - 요일 검색 모드: 년도 + 요일만 적용 (학교/기간 필터 완전 무시)
   const students = sortStudents(allStudents.filter(s => {
     const hasClassIds = s.classIds?.length > 0
-    // 년도 필터
+    // 년도 필터 (공통)
     if (selYear) {
       const yearCls = allClasses.filter(c => c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear))
       const inYear = hasClassIds
         ? yearCls.some(c => s.classIds.includes(c.id))
-        : yearCls.some(c => c.organization === s.school)  // classIds 없으면 학교명으로 매칭
+        : yearCls.some(c => c.organization === s.school)
       if (!inYear) return false
     }
-    // 기간 필터: 해당 기간에 해당하는 수업의 학생만
-    if (selTerm) {
-      const termCls = allClasses.filter(c => termInRange(c))
-      const inTerm = hasClassIds
-        ? termCls.some(c => s.classIds.includes(c.id))
-        : termCls.some(c => c.organization === s.school)
-      if (!inTerm) return false
-    }
-    // 학교 필터
-    if (selSchool) {
-      const actualSchool = hasClassIds
-        ? (s.classIds.map(cid => allClasses.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || '')
-        : s.school || ''
-      if (actualSchool !== selSchool) return false
-    }
-    // 수업 필터
-    if (selClassId) {
-      const inClass = hasClassIds
-        ? s.classIds.includes(selClassId)
-        : selClass?.organization === s.school  // classIds 없으면 학교명으로 매칭
-      if (!inClass) return false
-    }
-    // 반 필터: selSection은 수업 section(A/B반), 해당 section의 수업 ID로 매칭
-    if (selSection) {
-      const sectionCls = sectionClasses.find(c => c.section === selSection)
-      if (sectionCls) {
-        const inSection = s.classIds?.includes(sectionCls.id) ||
-          (!s.classIds?.length && selClass?.organization === s.school)
-        if (!inSection) return false
+    if (activeMode === 'class') {
+      // 기간 필터
+      if (selTerm) {
+        const termCls = allClasses.filter(c => termInRange(c))
+        const inTerm = hasClassIds
+          ? termCls.some(c => s.classIds.includes(c.id))
+          : termCls.some(c => c.organization === s.school)
+        if (!inTerm) return false
       }
-    }
-    // 요일 필터
-    if (selDay) {
-      const inDay = hasClassIds
-        ? s.classIds.some(cid => (allClasses.find(c => c.id === cid)?.days || []).includes(selDay))
-        : false
-      if (!inDay) return false
+      // 학교 필터
+      if (selSchool) {
+        const actualSchool = hasClassIds
+          ? (s.classIds.map(cid => allClasses.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || '')
+          : s.school || ''
+        if (actualSchool !== selSchool) return false
+      }
+      // 수업 필터
+      if (selClassId) {
+        const inClass = hasClassIds
+          ? s.classIds.includes(selClassId)
+          : selClass?.organization === s.school
+        if (!inClass) return false
+      }
+      // 반 필터
+      if (selSection) {
+        const sectionCls = sectionClasses.find(c => c.section === selSection)
+        if (sectionCls) {
+          const inSection = s.classIds?.includes(sectionCls.id) ||
+            (!s.classIds?.length && selClass?.organization === s.school)
+          if (!inSection) return false
+        }
+      }
+    } else {
+      // 요일 검색 모드: 요일 필터만 (학교/기간 무시)
+      if (selDay) {
+        const inDay = hasClassIds
+          ? s.classIds.some(cid => (allClasses.find(c => c.id === cid)?.days || []).includes(selDay))
+          : false
+        if (!inDay) return false
+      }
     }
     return true
   }))
@@ -2269,24 +2283,26 @@ export function Attendance({ user, pageParams = {} }) {
         {/* ── 모드 A: 수업 검색 (달력과 세트) ── */}
         <div style={{
           padding:'14px 20px',
-          borderLeft: !selDay ? `4px solid ${C.primary}` : '4px solid transparent',
-          background: !selDay ? 'linear-gradient(90deg,#fff7ed 0%,#fff 60%)' : '#fafafa',
+          borderLeft: activeMode === 'class' ? `4px solid ${C.primary}` : '4px solid transparent',
+          background: activeMode === 'class' ? 'linear-gradient(90deg,#fff7ed 0%,#fff 60%)' : '#fafafa',
           transition:'all .2s',
         }}>
           {/* 모드 레이블 */}
           <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
-            <span style={{
-              width:'18px', height:'18px', borderRadius:'50%', flexShrink:0,
-              background: !selDay ? C.primary : '#e5e7eb',
-              display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:'11px', fontWeight:700, color:'#fff',
-              boxShadow: !selDay ? `0 0 0 3px #fed7aa` : 'none',
-              transition:'all .2s',
-            }}>✓</span>
-            <span style={{ fontSize:'12px', fontWeight:700, color: !selDay ? C.primary : '#9ca3af' }}>
+            <button onClick={() => { setActiveMode('class'); setSelDay(''); setDateClicked(false) }}
+              style={{
+                width:'20px', height:'20px', borderRadius:'50%', flexShrink:0, border:'none', cursor:'pointer',
+                background: activeMode === 'class' ? C.primary : '#e5e7eb',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:'11px', fontWeight:700, color:'#fff',
+                boxShadow: activeMode === 'class' ? `0 0 0 3px #fed7aa` : 'none',
+                transition:'all .2s', padding:0,
+              }}>✓</button>
+            <span style={{ fontSize:'12px', fontWeight:700, color: activeMode === 'class' ? C.primary : '#9ca3af', cursor:'pointer' }}
+              onClick={() => { setActiveMode('class'); setSelDay(''); setDateClicked(false) }}>
               수업 검색
             </span>
-            <span style={{ fontSize:'11px', color: !selDay ? '#92400e' : '#d1d5db', background: !selDay ? '#fff7ed' : 'transparent', padding:'1px 8px', borderRadius:'10px', border: !selDay ? '1px solid #fde68a' : '1px solid transparent' }}>
+            <span style={{ fontSize:'11px', color: activeMode === 'class' ? '#92400e' : '#d1d5db', background: activeMode === 'class' ? '#fff7ed' : 'transparent', padding:'1px 8px', borderRadius:'10px', border: activeMode === 'class' ? '1px solid #fde68a' : '1px solid transparent' }}>
               📅 달력과 함께 사용
             </span>
             <div style={{ marginLeft:'auto', fontSize:'14px', fontWeight:700, color:C.primary }}>
@@ -2294,23 +2310,23 @@ export function Attendance({ user, pageParams = {} }) {
             </div>
           </div>
           {/* 필터 드롭다운 */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr 1fr', gap:'10px', alignItems:'end', opacity: selDay ? 0.45 : 1, transition:'opacity .2s' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr 1fr', gap:'10px', alignItems:'end', opacity: activeMode === 'day' ? 0.45 : 1, transition:'opacity .2s', pointerEvents: activeMode === 'day' ? 'none' : 'auto' }}>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
               <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>년도</label>
-              <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelClassId(''); setSelSection(''); setSelTerm(''); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
+              <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelClassId(''); setSelSection(''); setSelTerm(''); setActiveMode('class'); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
                 {years.map(y => <option key={y} value={y}>{y}년</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
               <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>학교</label>
-              <select value={selSchool} onChange={e => { handleSchoolChange(e.target.value); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
+              <select value={selSchool} onChange={e => { handleSchoolChange(e.target.value); setActiveMode('class'); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
                 <option value="">전체 학교</option>
                 {[...new Set(allClasses.filter(c => !selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)).map(c => c.organization).filter(Boolean))].map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
               <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>수업</label>
-              <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelSection(''); setSelTerm(''); setDateClicked(false); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
+              <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelSection(''); setSelTerm(''); setDateClicked(false); setActiveMode('class'); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
                 <option value="">전체 수업</option>
                 {schoolClasses.map(c => <option key={c.id} value={c.id}>{c.className}{c.section?' '+c.section+'반':''}</option>)}
               </select>
@@ -2347,69 +2363,70 @@ export function Attendance({ user, pageParams = {} }) {
         </div>
 
         {/* 구분선 */}
-        <div style={{ height:'1px', background: selDay ? `linear-gradient(90deg,${C.primary}40,#e5e7eb)` : '#e5e7eb' }} />
+        <div style={{ height:'1px', background: activeMode === 'day' ? `linear-gradient(90deg,${C.primary}40,#e5e7eb)` : '#e5e7eb' }} />
 
         {/* ── 모드 B: 요일 검색 ── */}
         <div style={{
           padding:'12px 20px',
-          borderLeft: selDay ? `4px solid ${C.primary}` : '4px solid transparent',
-          background: selDay ? 'linear-gradient(90deg,#fff7ed 0%,#fff 60%)' : '#fff',
+          borderLeft: activeMode === 'day' ? `4px solid ${C.primary}` : '4px solid transparent',
+          background: activeMode === 'day' ? 'linear-gradient(90deg,#fff7ed 0%,#fff 60%)' : '#fff',
           transition:'all .2s',
         }}>
           {/* 모드 레이블 */}
           <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
-            <span style={{
-              width:'18px', height:'18px', borderRadius:'50%', flexShrink:0,
-              background: selDay ? C.primary : '#e5e7eb',
-              display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:'11px', fontWeight:700, color:'#fff',
-              boxShadow: selDay ? `0 0 0 3px #fed7aa` : 'none',
-              transition:'all .2s',
-            }}>✓</span>
-            <span style={{ fontSize:'12px', fontWeight:700, color: selDay ? C.primary : '#9ca3af' }}>
+            <button onClick={() => { setActiveMode('day'); setSelClassId(''); setSelSection(''); setDateClicked(false) }}
+              style={{
+                width:'20px', height:'20px', borderRadius:'50%', flexShrink:0, border:'none', cursor:'pointer',
+                background: activeMode === 'day' ? C.primary : '#e5e7eb',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:'11px', fontWeight:700, color:'#fff',
+                boxShadow: activeMode === 'day' ? `0 0 0 3px #fed7aa` : 'none',
+                transition:'all .2s', padding:0,
+              }}>✓</button>
+            <span style={{ fontSize:'12px', fontWeight:700, color: activeMode === 'day' ? C.primary : '#9ca3af', cursor:'pointer' }}
+              onClick={() => { setActiveMode('day'); setSelClassId(''); setSelSection(''); setDateClicked(false) }}>
               요일 검색
             </span>
-            {selDay && (
+            {activeMode === 'day' && selDay && (
               <span style={{ fontSize:'11px', color:'#92400e', background:'#fff7ed', padding:'1px 8px', borderRadius:'10px', border:'1px solid #fde68a' }}>
                 {selDay}요일 선택됨
               </span>
             )}
-            {selDay && (
-              <button onClick={() => { setSelDay(''); setSelClassId(''); setSelSection('') }}
+            {activeMode === 'day' && selDay && (
+              <button onClick={() => setSelDay('')}
                 style={{ marginLeft:'auto', padding:'3px 10px', borderRadius:'10px', border:`1px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                 ✕ 초기화
               </button>
             )}
           </div>
-          {/* 요일 버튼들 */}
+          {/* 요일 버튼들 — 학교 필터와 완전 독립, 년도만 반영 */}
           <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
             {['월','화','수','목','금','토','일'].map(day => {
-              const dayClasses = allClasses.filter(c =>
+              // 요일 카운트: 학교/기간 필터 완전 무시, 년도만 적용
+              const dayCount = allClasses.filter(c =>
                 (c.days||[]).includes(day) &&
-                (!selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) &&
-                (!selSchool || c.organization === selSchool)
-              )
-              const count = dayClasses.length
-              const isActive = selDay === day
+                (!selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear))
+              ).length
+              const isActive = activeMode === 'day' && selDay === day
               return (
                 <button key={day} onClick={() => {
-                  const newDay = selDay === day ? '' : day
-                  setSelDay(newDay)
+                  setActiveMode('day')
+                  setSelDay(selDay === day ? '' : day)
                   setSelClassId('')
                   setSelSection('')
                   setDateClicked(false)
                 }}
                   style={{
                     padding:'6px 14px', borderRadius:'20px', cursor:'pointer', transition:'all .15s',
-                    border: isActive ? `2px solid ${C.primary}` : count>0 ? `1.5px solid #e5e7eb` : '1.5px solid #f3f4f6',
-                    background: isActive ? C.primary : count>0 ? '#fff' : '#fafafa',
-                    color: isActive ? '#fff' : count>0 ? C.text : '#d1d5db',
+                    border: isActive ? `2px solid ${C.primary}` : dayCount>0 ? `1.5px solid #e5e7eb` : '1.5px solid #f3f4f6',
+                    background: isActive ? C.primary : dayCount>0 ? '#fff' : '#fafafa',
+                    color: isActive ? '#fff' : dayCount>0 ? C.text : '#d1d5db',
                     fontSize:'13px', fontWeight: isActive ? 700 : 500,
                     fontFamily:'Noto Sans KR, sans-serif',
-                    opacity: count===0 ? 0.4 : 1,
+                    opacity: dayCount===0 ? 0.4 : 1,
                     boxShadow: isActive ? `0 2px 8px ${C.primary}40` : 'none',
                   }}>
-                  {isActive ? '✓ ' : ''}{day}{count > 0 ? ` (${count})` : ''}
+                  {isActive ? '✓ ' : ''}{day}{dayCount > 0 ? ` (${dayCount})` : ''}
                 </button>
               )
             })}
@@ -2444,8 +2461,8 @@ export function Attendance({ user, pageParams = {} }) {
 
         {/* 오른쪽 패널 */}
         <div style={{ minWidth:0, overflowX:'auto' }}>
-          {/* 요일 선택 + 날짜 미클릭 → 해당 요일 수업 요약 + 학생 목록 */}
-          {selDay && !dateClicked ? (
+          {/* 요일 모드: 요일 선택 시 학생 목록 표시 */}
+          {activeMode === 'day' && selDay && !dateClicked ? (
             <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
               {/* 수업 요약 카드 */}
               <div style={{ padding:'16px 20px', background:'linear-gradient(135deg,#fff7ed 0%,#fff 100%)', borderRadius:'14px', border:'1.5px solid #fed7aa' }}>
