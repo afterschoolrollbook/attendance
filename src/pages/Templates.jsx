@@ -617,7 +617,9 @@ function AddCatModal({ onClose, onAdd }) {
 
 // ─── 메인 컴포넌트 ───
 export function Templates({ user }) {
-  const [docs, setDocs] = useState(() =>
+  const currentYear = String(new Date().getFullYear())
+  const [selectedYear, setSelectedYear] = useState(currentYear)
+  const [allDocs, setAllDocs] = useState(() =>
     (DocumentsDB?.all?.() || []).filter(d => d.teacherId === user.id || user.role === 'admin')
   )
   const [modalCat, setModalCat]     = useState(null)
@@ -626,15 +628,21 @@ export function Templates({ user }) {
   const { error: toastError, success } = useToast()
   const confirm = useConfirm()
 
-  const allCats = [...CATEGORIES, ...customCats]
+  // 연도별 필터 (year 없는 기존 문서는 2026으로 취급)
+  const docs = allDocs.filter(d => (d.year || '2026') === selectedYear)
+
+  // 존재하는 연도 목록 (탭용)
+  const years = [...new Set(allDocs.map(d => d.year || '2026'))]
+  if (!years.includes(currentYear)) years.push(currentYear)
+  years.sort((a, b) => b - a)
 
   const reload = () =>
-    setDocs((DocumentsDB?.all?.() || []).filter(d => d.teacherId === user.id || user.role === 'admin'))
+    setAllDocs((DocumentsDB?.all?.() || []).filter(d => d.teacherId === user.id || user.role === 'admin'))
 
   const handleSave = ({ title, fileData, fileName, fileType }) => {
     DocumentsDB.insert({
       id: uid(), teacherId: user.id,
-      category: modalCat.key, title,
+      category: modalCat.key, title, year: selectedYear,
       fileName, fileType, fileData, createdAt: now(),
     })
     reload()
@@ -659,9 +667,20 @@ export function Templates({ user }) {
       const updated = customCats.filter(c => c.key !== catKey)
       setCustomCats(updated)
       saveCustomCats(updated)
-      docs.filter(d => d.category === catKey).forEach(d => DocumentsDB.delete(d.id))
+      allDocs.filter(d => d.category === catKey).forEach(d => DocumentsDB.delete(d.id))
       reload()
     })
+  }
+
+  // 새 연도 추가
+  const handleAddYear = () => {
+    const input = window.prompt('추가할 연도를 입력하세요 (예: 2025, 2027)')
+    if (!input) return
+    const yr = input.trim()
+    if (!/^\d{4}$/.test(yr)) { toastError('올바른 연도를 입력해주세요 (4자리 숫자)'); return }
+    if (years.includes(yr)) { toastError(yr + '년 세트는 이미 존재합니다.'); return }
+    setSelectedYear(yr)
+    success(yr + '년 세트가 생성되었습니다.')
   }
 
   const docsFor = (catKey) =>
@@ -742,6 +761,31 @@ export function Templates({ user }) {
   return (
     <div style={{ padding: '28px', maxWidth: '1100px', fontFamily: 'Noto Sans KR, sans-serif' }}>
       <PageHeader title="방과후 서류" sub="방과후 수업에 필요한 서류를 보관하고 관리합니다." />
+
+      {/* ─── 연도 탭 ─── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        {years.map(yr => (
+          <button key={yr} onClick={() => setSelectedYear(yr)} style={{
+            padding: '7px 20px', borderRadius: '20px', cursor: 'pointer',
+            fontFamily: 'Noto Sans KR, sans-serif', fontSize: '14px', fontWeight: 700,
+            border: yr === selectedYear ? 'none' : '1.5px solid #e5e7eb',
+            background: yr === selectedYear ? '#1e3a5f' : '#fff',
+            color: yr === selectedYear ? '#fff' : '#6b7280',
+            transition: 'all 0.15s',
+          }}>
+            {yr}년
+          </button>
+        ))}
+        <button onClick={handleAddYear} style={{
+          padding: '7px 16px', borderRadius: '20px', cursor: 'pointer',
+          fontFamily: 'Noto Sans KR, sans-serif', fontSize: '13px', fontWeight: 600,
+          border: '1.5px dashed #d1d5db', background: '#fafafa', color: '#9ca3af',
+          transition: 'all 0.15s',
+        }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.color = '#2563eb' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.color = '#9ca3af' }}
+        >＋ 연도 추가</button>
+      </div>
 
       <div style={{
         marginBottom: '20px', padding: '12px 16px',
