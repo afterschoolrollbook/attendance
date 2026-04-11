@@ -51,6 +51,7 @@ export function Templates({ user }) {
   const [showModal, setShowModal] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState(null) // 업로드 대상 카테고리
   const [viewCategory, setViewCategory] = useState(null)         // 펼쳐진 카테고리
+  const [title, setTitle] = useState('')
   const [note, setNote] = useState('')
   const [files, setFiles] = useState([])  // 다중 파일 선택
   const fileRef = useRef()
@@ -71,6 +72,7 @@ export function Templates({ user }) {
   // 업로드 모달 열기
   const openUpload = (catKey) => {
     setSelectedCategory(catKey)
+    setTitle('')
     setNote('')
     setFiles([])
     setShowModal(true)
@@ -78,6 +80,10 @@ export function Templates({ user }) {
 
   // 저장
   const save = async () => {
+    if (!title.trim()) {
+      toastError('제목을 입력하세요.')
+      return
+    }
     if (!files.length) {
       toastError('파일을 선택하세요.')
       return
@@ -92,6 +98,7 @@ export function Templates({ user }) {
         id: uid(),
         teacherId: user.id,
         category: selectedCategory,
+        title: title.trim(),
         fileName: f.name,
         fileType: getFileType(f.name),
         fileData,
@@ -224,9 +231,13 @@ export function Templates({ user }) {
                             }}>{ftMeta.label}</span>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{
-                                fontSize: '13px', color: '#374151', fontWeight: 500,
+                                fontSize: '13px', color: '#111827', fontWeight: 600,
                                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                              }}>{doc.fileName}</div>
+                              }}>{doc.title || doc.fileName}</div>
+                              <div style={{
+                                fontSize: '11px', color: '#9ca3af',
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                              }}>📎 {doc.fileName}</div>
                               {doc.note && (
                                 <div style={{ fontSize: '11px', color: '#9ca3af' }}>{doc.note}</div>
                               )}
@@ -283,6 +294,13 @@ export function Templates({ user }) {
       {/* 업로드 모달 */}
       <Modal open={showModal} onClose={() => setShowModal(false)} title={`${cat?.icon || ''} ${cat?.label || ''} 파일 등록`} width={460}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <Input
+            label="제목"
+            value={title}
+            onChange={v => setTitle(v)}
+            placeholder="예) 2026년 1학기 판교초 출석부"
+            required
+          />
           <div>
             <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827', marginBottom: '8px' }}>
               파일 선택 <span style={{ color: '#dc2626' }}>*</span>
