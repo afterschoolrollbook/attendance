@@ -85,9 +85,10 @@ async function uploadToStorage(userId, classId, folder, file) {
 function emptyForm() {
   return {
     organization: '', className: '', section: '',
-    termType: 'semester', termCount: 4, termSizes: [4,4,4,4], days: [], repeatType: 'every', time: '', timeEnd: '',
+    termType: 'semester', termCount: 4, termSizes: [4,4,4,4], days: [], repeatType: 'every', time: '', timeEnd: '', classDuration: '',
     startDate: '', endDate: '', description: '',
     officePhone: '', schoolAddress: '', classLocation: '',
+    contactPhone: '', contactMobile: '',
     promotionImgs: [],   // Supabase Storage URL 배열
     noticeFiles: [],     // 안내장 파일 { url, name, fileType } 배열
     templateFiles: [],   // 출석부 양식 파일 배열 (최대 2)
@@ -186,6 +187,9 @@ export function Classes({ user, onNav }) {
       makeupDates: cls.makeupDates || [],
       termCount: cls.termCount || 4,
       termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
+      contactPhone: cls.contactPhone || '',
+      contactMobile: cls.contactMobile || '',
+      classDuration: cls.classDuration || '',
     })
     setEditId('__copy__')
     setTab('info')
@@ -207,6 +211,9 @@ export function Classes({ user, onNav }) {
       officePhone: cls.officePhone || '',
       schoolAddress: cls.schoolAddress || '',
       classLocation: cls.classLocation || '',
+      contactPhone: cls.contactPhone || '',
+      contactMobile: cls.contactMobile || '',
+      classDuration: cls.classDuration || '',
     })
     setEditId(cls.id)
     setTab('info')
@@ -469,9 +476,46 @@ export function Classes({ user, onNav }) {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <Input label="반 (선택)" value={form.section} onChange={v => set('section', v)} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <Input label="수업 시작시간 (선택)" value={form.time} onChange={v => set('time', v)} />
-                <Input label="종료시간 (선택)" value={form.timeEnd} onChange={v => set('timeEnd', v)} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '8px', alignItems: 'end' }}>
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:500, color:'#111827', display:'block', marginBottom:'6px' }}>수업 시작시간 (선택)</label>
+                  <input type="time" value={form.time}
+                    onChange={e => {
+                      const v = e.target.value
+                      set('time', v)
+                      if (v && form.classDuration) {
+                        const [h, m] = v.split(':').map(Number)
+                        const total = h * 60 + m + parseInt(form.classDuration)
+                        const eh = Math.floor(total / 60) % 24
+                        const em = total % 60
+                        set('timeEnd', `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`)
+                      }
+                    }}
+                    style={{ width:'100%', padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:500, color:'#111827', display:'block', marginBottom:'6px' }}>수업시간(분)</label>
+                  <input type="number" min="1" max="300" value={form.classDuration || ''}
+                    placeholder="80"
+                    onChange={e => {
+                      const v = e.target.value
+                      set('classDuration', v)
+                      if (form.time && v) {
+                        const [h, m] = form.time.split(':').map(Number)
+                        const total = h * 60 + m + parseInt(v)
+                        const eh = Math.floor(total / 60) % 24
+                        const em = total % 60
+                        set('timeEnd', `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`)
+                      }
+                    }}
+                    style={{ width:'68px', padding:'7px 8px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center', background:'#fff' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:'12px', fontWeight:500, color:'#111827', display:'block', marginBottom:'6px' }}>종료시간</label>
+                  <input type="time" value={form.timeEnd}
+                    onChange={e => set('timeEnd', e.target.value)}
+                    style={{ width:'100%', padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background: form.classDuration ? '#f0fdf4' : '#fff', boxSizing:'border-box' }} />
+                </div>
               </div>
             </div>
             <Select label="수업 운영 방식" value={form.termType} onChange={v => set('termType', v)} options={TERM_TYPES} required />
@@ -599,6 +643,10 @@ export function Classes({ user, onNav }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <Input label="📞 교무실 전화번호 (선택)" value={form.officePhone} onChange={v => set('officePhone', v)} placeholder="예: 031-123-4567" />
               <Input label="📍 학교 주소 (선택)" value={form.schoolAddress} onChange={v => set('schoolAddress', v)} placeholder="예: 경기도 군포시 ..." />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <Input label="☎️ 담당자 일반전화 (선택)" value={form.contactPhone} onChange={v => set('contactPhone', v)} placeholder="예: 031-123-4567" />
+              <Input label="📱 담당자 핸드폰 (선택)" value={form.contactMobile} onChange={v => set('contactMobile', v)} placeholder="예: 010-1234-5678" />
             </div>
             <Input label="🏫 수업 장소 (선택)" value={form.classLocation} onChange={v => set('classLocation', v)} placeholder="예: 3층 컴퓨터실, 음악실 201호" />
           </div>

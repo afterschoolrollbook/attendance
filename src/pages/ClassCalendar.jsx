@@ -47,7 +47,8 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           const isSession   = !!sessInfo && !isCancelled && !isMakeup
           const cancelInfo  = cancelledDates.find(c => c.date === dateStr)
           const makeupInfo  = makeupDates.find(m => m.date === dateStr)
-          const reasonLabel = CANCEL_REASONS.find(r => r.value === cancelInfo?.reason)?.label
+          const REASON_LABELS = { public_holiday:'공휴일', childrens_day:'어린이날', childrens_day_alt:'어린이날대체', election_day:'선거일', school_holiday:'재량휴일', teacher_absent:'강사사정', etc:'기타' }
+          const reasonLabel = CANCEL_REASONS.find(r => r.value === cancelInfo?.reason)?.label || REASON_LABELS[cancelInfo?.reason] || cancelInfo?.reason
           const termNum     = termMap[dateStr]
           const dow = (firstDay + day - 1) % 7
           const isSun = dow === 0, isSat = dow === 6
@@ -171,6 +172,8 @@ export function ClassCalendar({ cls, onUpdate }) {
 
   const CANCEL_OPTIONS = [
     { value: 'public_holiday', label: '공휴일' },
+    { value: 'childrens_day', label: '어린이날 (5/5)' },
+    { value: 'childrens_day_alt', label: '어린이날 대체공휴일' },
     { value: 'election_day',   label: '선거일' },
     { value: 'school_holiday', label: '학교재량휴일' },
     { value: 'teacher_absent', label: '강사사정' },
@@ -228,8 +231,10 @@ export function ClassCalendar({ cls, onUpdate }) {
   const startD = new Date(cls.startDate + 'T00:00:00')
   const endD   = new Date(cls.endDate   + 'T00:00:00')
   const months = []
-  let cur = new Date(startD.getFullYear(), startD.getMonth(), 1)
-  while (cur <= endD) {
+  // 앞뒤 1달 추가 표시 (신청기간/수업 전후 확인용)
+  let cur = new Date(startD.getFullYear(), startD.getMonth() - 1, 1)
+  const limitEnd = new Date(endD.getFullYear(), endD.getMonth() + 1, 1)
+  while (cur <= limitEnd) {
     months.push({ year: cur.getFullYear(), month: cur.getMonth() })
     cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1)
   }
@@ -307,6 +312,25 @@ export function ClassCalendar({ cls, onUpdate }) {
 
   return (
     <div>
+      {/* ── 수업 기간 / 운영방식 표시 & 편집 */}
+      <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px',
+        background:'#f8faff', border:'1.5px solid #dbeafe', borderRadius:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
+        <span style={{ fontSize:'13px', fontWeight:700, color:'#1d4ed8' }}>
+          {cls.termType === 'semester' ? '📚 학기제' : cls.termType === 'quarter' ? '📅 분기제' : '📋 ' + (cls.termType || '기타')}
+        </span>
+        <span style={{ fontSize:'12px', color:'#6b7280' }}>수업 기간:</span>
+        <input type="date" value={cls.startDate || ''}
+          onChange={e => onUpdate({ ...cls, startDate: e.target.value })}
+          style={{ padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #bfdbfe',
+            fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#111827' }} />
+        <span style={{ color:'#9ca3af', fontSize:'13px' }}>~</span>
+        <input type="date" value={cls.endDate || ''}
+          onChange={e => onUpdate({ ...cls, endDate: e.target.value })}
+          style={{ padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #bfdbfe',
+            fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#111827' }} />
+        <span style={{ fontSize:'11px', color:'#93c5fd', marginLeft:'auto' }}>← 날짜 수정 시 앞 탭과 자동 연동</span>
+      </div>
+
       {/* 신청기간 배너 */}
       {(cls.applyStartAt || cls.applyEndAt) && (
         <div style={{
