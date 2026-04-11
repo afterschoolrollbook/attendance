@@ -241,8 +241,8 @@ export function ClassCalendar({ cls, onUpdate }) {
 
   // 신청기간 모달 열 때 기존 값 로드
   const openApplyPeriod = () => {
-    setApplyStart(cls.applyStartAt ? cls.applyStartAt.slice(0,16) : '')
-    setApplyEnd(  cls.applyEndAt   ? cls.applyEndAt.slice(0,16)   : '')
+    setApplyStart(cls.applyStartAt ? cls.applyStartAt.slice(0,10) : '')
+    setApplyEnd(  cls.applyEndAt   ? cls.applyEndAt.slice(0,10)   : '')
     setShowApplyPeriod(true)
   }
   const saveApplyPeriod = () => {
@@ -258,8 +258,7 @@ export function ClassCalendar({ cls, onUpdate }) {
   const isApplyPast = applyEndD && now > applyEndD
   const fmtDT = (iso) => {
     if (!iso) return ''
-    const d = new Date(iso)
-    return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+    return iso.slice(5, 10).replace('-', '/')  // MM/DD 형식
   }
 
   const handleDateClick = (date, type) => {
@@ -375,34 +374,21 @@ export function ClassCalendar({ cls, onUpdate }) {
               <button onClick={() => setShowApplyPeriod(false)}
                 style={{ background:'none', border:'none', fontSize:'18px', color:'#9ca3af', cursor:'pointer', lineHeight:1, padding:'0 4px' }}>✕</button>
             </div>
-            <div style={{ fontSize:'13px', color:'#3b82f6', marginBottom:'14px', lineHeight:1.6 }}>
-              수강 신청 접수 기간을 설정합니다. 날짜와 시간까지 입력하세요.
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>신청 시작</label>
-                <input type="datetime-local" value={applyStart} onChange={e => setApplyStart(e.target.value)}
-                  style={{ padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #bfdbfe',
-                    fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:'#111827', background:'#fff' }} />
+            <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
+              <input type="date" value={applyStart} onChange={e => setApplyStart(e.target.value)}
+                style={{ padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #bfdbfe',
+                  fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#111827' }} />
+              <span style={{ color:'#9ca3af', fontSize:'13px' }}>~</span>
+              <input type="date" value={applyEnd} onChange={e => setApplyEnd(e.target.value)}
+                style={{ padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #bfdbfe',
+                  fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#111827' }} />
+              <div style={{ display:'flex', gap:'8px', marginLeft:'auto' }}>
+                <Btn variant="ghost" onClick={() => setShowApplyPeriod(false)}>닫기</Btn>
+                {(cls.applyStartAt || cls.applyEndAt) && (
+                  <Btn variant="danger" onClick={() => { onUpdate({ ...cls, applyStartAt: null, applyEndAt: null }); setShowApplyPeriod(false) }}>삭제</Btn>
+                )}
+                <Btn onClick={saveApplyPeriod}>저장</Btn>
               </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>신청 종료</label>
-                <input type="datetime-local" value={applyEnd} onChange={e => setApplyEnd(e.target.value)}
-                  style={{ padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #bfdbfe',
-                    fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:'#111827', background:'#fff' }} />
-              </div>
-              {applyStart && applyEnd && (
-                <div style={{ padding:'10px 14px', borderRadius:'9px', background:'#fff', border:'1px solid #bfdbfe', fontSize:'13px', color:'#1d4ed8' }}>
-                  📅 {fmtDT(applyStart)} ~ {fmtDT(applyEnd)}
-                </div>
-              )}
-            </div>
-            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', marginTop:'14px' }}>
-              <Btn variant="ghost" onClick={() => setShowApplyPeriod(false)}>닫기</Btn>
-              {(cls.applyStartAt || cls.applyEndAt) && (
-                <Btn variant="danger" onClick={() => { onUpdate({ ...cls, applyStartAt: null, applyEndAt: null }); setShowApplyPeriod(false) }}>삭제</Btn>
-              )}
-              <Btn onClick={saveApplyPeriod}>저장</Btn>
             </div>
           </div>
         )}
