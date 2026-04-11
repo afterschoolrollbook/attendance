@@ -102,7 +102,7 @@ const SYNC_TABLES = [
   // 선생님 프로필
   'teacherProfiles',
   // 방과후 서류
-  'documents',
+  'documents', 'customCategories',
   // 학교 담당자 포털
   'schoolAdmins', 'schoolAdminAccounts',
   'schoolAdminTeachers',   // 선생님 명단 (연도/과목/요일/서류)
@@ -755,6 +755,14 @@ export const DocumentsDB = {
   insert:    (r)     => db.insert('documents', r),
   update:    (id, p) => db.update('documents', id, p),
   delete:    (id)    => db.delete('documents', id),
+}
+
+export const CustomCategoriesDB = {
+  all:       ()      => db.get('customCategories'),
+  byTeacher: (tid)   => db.where('customCategories', r => r.teacherId === tid),
+  insert:    (r)     => db.insert('customCategories', r),
+  update:    (id, p) => db.update('customCategories', id, p),
+  delete:    (id)    => db.delete('customCategories', id),
 }
 
 // ─── 선생님 프로필 (이름 / 닉네임) ───────────────────────────────
