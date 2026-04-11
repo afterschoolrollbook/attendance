@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB, DocumentsDB } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, today } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
 import { ClassCalendar } from '../pages/ClassCalendar.jsx'
@@ -8,8 +8,9 @@ import { useToast } from '../hooks/useToast.js'
 
 const VIEW_TABS = ['요일별', '학교별', '과목별']
 const DAY_ORDER = ['월', '화', '수', '목', '금', '토', '일']
-const MAX_PROMO_IMAGES = 2
-const MAX_NOTICE_FILES = 3
+const MAX_PROMO_IMAGES = 8
+const MAX_NOTICE_FILES = 4
+const MAX_TEMPLATE_FILES = 2
 
 // 연도별 공휴일 목록
 const HOLIDAYS = {
@@ -89,7 +90,7 @@ function emptyForm() {
     officePhone: '', schoolAddress: '', classLocation: '',
     promotionImgs: [],   // Supabase Storage URL 배열
     noticeFiles: [],     // 안내장 파일 { url, name, fileType } 배열
-    templateFile: null,
+    templateFiles: [],   // 출석부 양식 파일 배열 (최대 2)
     cancelledDates: [],
     makeupDates: [],
     alarm:    { enabled: false, minutesBefore: 10 },
@@ -97,7 +98,7 @@ function emptyForm() {
   }
 }
 
-export function Classes({ user }) {
+export function Classes({ user, onNav }) {
   const [view,    setView]    = useState('요일별')
   const [selYear, setSelYear] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -178,15 +179,7 @@ export function Classes({ user }) {
       ...clsWithoutId,
       promotionImgs: cls.promotionImgs || [],
       noticeFiles: cls.noticeFiles || [],
-      templateFile: cls.templateFile || null,
-      alarm: cls.alarm || { enabled: false, minutesBefore: 10 },
-      alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 },
-      cancelledDates: cls.cancelledDates || [],
-      makeupDates: cls.makeupDates || [],
-      termCount: cls.termCount || 4,
-      termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
-    })
-    setEditId('__copy__')
+      templateFiles: cls.templateFiles || (cls.templateFile ? [cls.templateFile] : []),
     setTab('info')
     setShowModal(true)
   }
@@ -196,7 +189,7 @@ export function Classes({ user }) {
       ...cls,
       promotionImgs: cls.promotionImgs || [],
       noticeFiles: cls.noticeFiles || [],
-      templateFile: cls.templateFile || null,
+      templateFiles: cls.templateFiles || (cls.templateFile ? [cls.templateFile] : []),
       alarm: cls.alarm || { enabled: false, minutesBefore: 10 },
       alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 },
       cancelledDates: cls.cancelledDates || [],
@@ -283,13 +276,15 @@ export function Classes({ user }) {
   const handleTemplateFile = async (e) => {
     const file = e.target.files[0]
     if (!file) return
+    const current = form.templateFiles || []
+    if (current.length >= MAX_TEMPLATE_FILES) { toastError(`최대 ${MAX_TEMPLATE_FILES}개까지 등록 가능합니다.`); return }
     const ext = file.name.split('.').pop().toLowerCase()
     const fileType = (ext === 'hwp' || ext === 'hwpx') ? 'hwp' : 'xlsx'
     const classId = editId && editId !== '__copy__' ? editId : ('tmp_' + uid())
     setUploading(true)
     try {
       const url = await uploadToStorage(user.id, classId, 'template', file)
-      set('templateFile', { name: file.name, fileType, url })
+      set('templateFiles', [...current, { name: file.name, fileType, url }])
     } catch(err) { toastError('업로드 실패: ' + err.message) }
     finally { setUploading(false) }
     e.target.value = ''
@@ -385,7 +380,7 @@ export function Classes({ user }) {
                 const upcoming = sessions.find(d => d >= t)
                 const studentCount = StudentsDB.confirmed(cls.id).length
                 const hasPromo = cls.promotionImgs?.length > 0
-                const hasTpl = !!cls.templateFile
+                const hasTpl = (cls.templateFiles?.length > 0) || !!cls.templateFile
 
                 return (
                   <Card key={cls.id} onClick={() => openEdit(cls)}>
@@ -445,7 +440,7 @@ export function Classes({ user }) {
             { key: 'calendar', label: '수업 달력' },
             { key: 'promo',    label: `홍보물 ${form.promotionImgs?.length ? `(${form.promotionImgs.length})` : ''}` },
             { key: 'notice',   label: `안내장 ${form.noticeFiles?.length ? `(${form.noticeFiles.length})` : ''}` },
-            { key: 'template', label: `출석부 양식 ${form.templateFile ? '✓' : ''}` },
+            { key: 'template', label: `출석부 양식 ${(form.templateFiles||[]).length > 0 ? '✓' : ''}` },
           ].map(s => (
             <button key={s.key} onClick={() => setTab(s.key)} style={{
               padding: '10px 16px', border: 'none', cursor: 'pointer', background: 'none', whiteSpace: 'nowrap',
@@ -605,10 +600,80 @@ export function Classes({ user }) {
         {tab === 'promo' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ fontSize: '13px', color: '#6b7280', lineHeight: 1.7, background: '#f9fafb', padding: '12px 14px', borderRadius: '8px' }}>
-              A4 전단지 이미지를 최대 <strong>2장</strong>까지 등록할 수 있습니다.<br />
+              A4 전단지 이미지를 최대 <strong>{MAX_PROMO_IMAGES}장</strong>까지 등록할 수 있습니다.<br />
               학부모 공유, 수업 홍보에 활용됩니다.
             </div>
 
+            {/* 방과후 서류 안내 배너 */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:'10px' }}>
+              <span style={{ fontSize:'13px', color:'#c2410c' }}>📂 홍보물은 <strong>방과후 서류</strong> 메뉴에서 등록·관리할 수 있습니다.</span>
+              {onNav && <button onClick={() => onNav('templates')} style={{ padding:'5px 12px', borderRadius:'7px', border:'none', background:'#f97316', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>바로가기 →</button>}
+            </div>
+            {(() => {
+              const promoDocs = (DocumentsDB?.byCategory?.(user.id, 'promo') || [])
+              if (!promoDocs.length) return null
+              return (
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '10px' }}>
+                    🗂️ 방과후 서류에서 선택
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {promoDocs.map(doc => {
+                      const selected = (form.promotionImgs || []).includes(doc.fileData)
+                      const isFull   = (form.promotionImgs || []).length >= MAX_PROMO_IMAGES
+                      return (
+                        <div key={doc.id} style={{
+                          display: 'flex', alignItems: 'center', gap: '12px',
+                          padding: '10px 14px', borderRadius: '10px',
+                          border: `1.5px solid ${selected ? '#f97316' : '#e5e7eb'}`,
+                          background: selected ? '#fff7ed' : '#fafafa',
+                          cursor: (!selected && isFull) ? 'not-allowed' : 'pointer',
+                          transition: 'all .15s',
+                          opacity: (!selected && isFull) ? 0.5 : 1,
+                        }}
+                          onClick={() => {
+                            if (selected) {
+                              set('promotionImgs', (form.promotionImgs || []).filter(u => u !== doc.fileData))
+                            } else {
+                              if (isFull) return
+                              set('promotionImgs', [...(form.promotionImgs || []), doc.fileData])
+                            }
+                          }}
+                        >
+                          {/* 썸네일 */}
+                          {['image'].includes(doc.fileType) && doc.fileData ? (
+                            <img src={doc.fileData} alt={doc.title}
+                              style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
+                          ) : (
+                            <div style={{ width: '44px', height: '44px', background: '#f3f4f6', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>
+                              {doc.fileType === 'pdf' ? '📄' : '🎨'}
+                            </div>
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</div>
+                            <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>{doc.fileName}</div>
+                          </div>
+                          <div style={{
+                            width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0,
+                            border: `2px solid ${selected ? '#f97316' : '#d1d5db'}`,
+                            background: selected ? '#f97316' : '#fff',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {selected && <span style={{ color: '#fff', fontSize: '12px', fontWeight: 700 }}>✓</span>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div style={{ height: '1px', background: '#e5e7eb', margin: '16px 0' }} />
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '10px' }}>
+                    📤 직접 업로드
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* 선택/업로드된 이미지 미리보기 */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
               {(form.promotionImgs || []).map((img, i) => (
                 <div key={i} style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '1px solid #e5e7eb', aspectRatio: '0.707' }}>
@@ -638,13 +703,79 @@ export function Classes({ user }) {
               지원 형식: <strong>JPG, PNG, PDF</strong> · 최대 {MAX_NOTICE_FILES}개
             </div>
 
+            {/* 방과후 서류 안내 배너 */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:'10px' }}>
+              <span style={{ fontSize:'13px', color:'#1d4ed8' }}>📂 안내장은 <strong>방과후 서류</strong> 메뉴에서 등록·관리할 수 있습니다.</span>
+              {onNav && <button onClick={() => onNav('templates')} style={{ padding:'5px 12px', borderRadius:'7px', border:'none', background:'#2563eb', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>바로가기 →</button>}
+            </div>
+
+            {/* ── 방과후 서류에서 선택 */}
+            {(() => {
+              const noticeDocs = (DocumentsDB?.byCategory?.(user.id, 'notice') || [])
+              if (!noticeDocs.length) return null
+              return (
+                <div>
+                  <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>🗂️ 방과후 서류에서 선택</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                    {noticeDocs.map(doc => {
+                      const already = (form.noticeFiles || []).some(f => f.docId === doc.id)
+                      const isFull  = (form.noticeFiles || []).length >= MAX_NOTICE_FILES
+                      return (
+                        <div key={doc.id} style={{
+                          display:'flex', alignItems:'center', gap:'12px',
+                          padding:'10px 14px', borderRadius:'10px',
+                          border:`1.5px solid ${already ? '#f97316' : '#e5e7eb'}`,
+                          background: already ? '#fff7ed' : '#fafafa',
+                          cursor: (!already && isFull) ? 'not-allowed' : 'pointer',
+                          opacity: (!already && isFull) ? 0.5 : 1,
+                          transition:'all .15s',
+                        }}
+                          onClick={() => {
+                            if (already) {
+                              set('noticeFiles', (form.noticeFiles || []).filter(f => f.docId !== doc.id))
+                            } else {
+                              if (isFull) return
+                              set('noticeFiles', [...(form.noticeFiles || []), {
+                                docId: doc.id, url: doc.fileData,
+                                name: doc.title || doc.fileName,
+                                fileType: doc.fileType === 'pdf' ? 'application/pdf' : 'image/jpeg',
+                              }])
+                            }
+                          }}
+                        >
+                          <span style={{ fontSize:'22px', flexShrink:0 }}>
+                            {doc.fileType === 'pdf' ? '📄' : doc.fileType === 'image' ? '🖼' : '📎'}
+                          </span>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:'13px', fontWeight:600, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
+                            <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>{doc.fileName}</div>
+                          </div>
+                          <div style={{
+                            width:'22px', height:'22px', borderRadius:'50%', flexShrink:0,
+                            border:`2px solid ${already ? '#f97316' : '#d1d5db'}`,
+                            background: already ? '#f97316' : '#fff',
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                          }}>
+                            {already && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div style={{ height:'1px', background:'#e5e7eb', margin:'16px 0' }} />
+                  <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📤 직접 업로드</div>
+                </div>
+              )
+            })()}
+
+            {/* 등록된 안내장 목록 */}
             <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
               {(form.noticeFiles || []).map((f, i) => (
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 16px', background:'#f9fafb', borderRadius:'10px', border:'1px solid #e5e7eb' }}>
                   <span style={{ fontSize:'24px' }}>{f.fileType === 'application/pdf' ? '📄' : '🖼'}</span>
                   <div style={{ flex:1 }}>
                     <div style={{ fontSize:'13px', fontWeight:600, color:'#111827' }}>{f.name}</div>
-                    <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>{f.fileType}</div>
+                    <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>{f.docId ? '방과후 서류 연동' : f.fileType}</div>
                   </div>
                   <button onClick={() => setNoticePreview(f)}
                     style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #bfdbfe', background:'#eff6ff', color:'#1d4ed8', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>미리보기</button>
@@ -670,36 +801,87 @@ export function Classes({ user }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ fontSize: '13px', color: '#6b7280', lineHeight: 1.7, background: '#f9fafb', padding: '12px 14px', borderRadius: '8px' }}>
               이 수업에서 사용하는 <strong>출석부 양식</strong>을 등록합니다.<br />
-              지원 형식: <strong>.hwp, .hwpx, .xlsx</strong><br />
+              지원 형식: <strong>.hwp, .hwpx, .xlsx</strong> · 최대 {MAX_TEMPLATE_FILES}개<br />
               출석부 출력 시 AI가 자동으로 학생 정보를 삽입합니다.
             </div>
 
-            {form.templateFile ? (
-              <div style={{ padding: '16px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '28px' }}>{form.templateFile.fileType === 'hwp' ? '📝' : '📊'}</span>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#111827' }}>{form.templateFile.name}</div>
-                    <div style={{ fontSize: '12px', color: '#16a34a' }}>.{form.templateFile.fileType} 양식 등록됨</div>
-                    {form.templateFile.url && (
-                      <a href={form.templateFile.url} download={form.templateFile.name} target="_blank" rel="noopener noreferrer"
-                        style={{ fontSize: '11px', color: '#3b82f6', textDecoration: 'none', marginTop: '2px', display: 'inline-block' }}>⬇ 다운로드</a>
-                    )}
+            {/* 방과후 서류 안내 배너 */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:'#f0fdf4', border:'1.5px solid #86efac', borderRadius:'10px' }}>
+              <span style={{ fontSize:'13px', color:'#15803d' }}>📂 출석부는 <strong>방과후 서류</strong> 메뉴에서 등록·관리할 수 있습니다.</span>
+              {onNav && <button onClick={() => onNav('templates')} style={{ padding:'5px 12px', borderRadius:'7px', border:'none', background:'#16a34a', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>바로가기 →</button>}
+            </div>
+
+            {/* ── 방과후 서류에서 선택 */}
+            {(() => {
+              const attendanceDocs = (DocumentsDB?.byCategory?.(user.id, 'attendance') || [])
+              if (!attendanceDocs.length) return null
+              return (
+                <div>
+                  <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>🗂️ 방과후 서류에서 선택</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                    {attendanceDocs.map(doc => {
+                      const selected = (form.templateFiles || []).some(f => f.docId === doc.id)
+                      const isFull   = (form.templateFiles || []).length >= MAX_TEMPLATE_FILES
+                      return (
+                        <div key={doc.id} style={{
+                          display:'flex', alignItems:'center', gap:'12px',
+                          padding:'10px 14px', borderRadius:'10px',
+                          border:`1.5px solid ${selected ? '#16a34a' : '#e5e7eb'}`,
+                          background: selected ? '#f0fdf4' : '#fafafa',
+                          cursor: (!selected && isFull) ? 'not-allowed' : 'pointer',
+                          opacity: (!selected && isFull) ? 0.5 : 1,
+                          transition:'all .15s',
+                        }}
+                          onClick={() => {
+                            if (selected) {
+                              set('templateFiles', (form.templateFiles || []).filter(f => f.docId !== doc.id))
+                            } else {
+                              if (isFull) return
+                              set('templateFiles', [...(form.templateFiles || []), { docId: doc.id, name: doc.title || doc.fileName, fileType: doc.fileType, url: doc.fileData }])
+                            }
+                          }}
+                        >
+                          <span style={{ fontSize:'22px', flexShrink:0 }}>{doc.fileType === 'hwp' ? '📝' : doc.fileType === 'excel' ? '📊' : '📄'}</span>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:'13px', fontWeight:600, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
+                            <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>{doc.fileName}</div>
+                          </div>
+                          <div style={{ width:'22px', height:'22px', borderRadius:'50%', flexShrink:0, border:`2px solid ${selected ? '#16a34a' : '#d1d5db'}`, background: selected ? '#16a34a' : '#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            {selected && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
+                  <div style={{ height:'1px', background:'#e5e7eb', margin:'16px 0' }} />
+                  <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📤 직접 업로드</div>
                 </div>
-                <div style={{ display:'flex', gap:'8px' }}>
-                  <Btn size="sm" variant="ghost" onClick={() => templateRef.current?.click()}>교체</Btn>
-                  <Btn size="sm" variant="outlineDanger" onClick={() => set('templateFile', null)}>삭제</Btn>
+              )
+            })()}
+
+            {/* 등록된 파일 목록 */}
+            <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+              {(form.templateFiles || []).map((f, i) => (
+                <div key={i} style={{ padding:'14px 16px', background:'#f0fdf4', border:'1.5px solid #86efac', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+                    <span style={{ fontSize:'24px' }}>{f.fileType === 'hwp' ? '📝' : '📊'}</span>
+                    <div>
+                      <div style={{ fontSize:'13px', fontWeight:700, color:'#111827' }}>{f.name}</div>
+                      <div style={{ fontSize:'12px', color:'#16a34a' }}>{f.docId ? '방과후 서류 연동' : `.${f.fileType} 양식`}</div>
+                    </div>
+                  </div>
+                  <Btn size="sm" variant="outlineDanger" onClick={() => set('templateFiles', (form.templateFiles || []).filter((_, j) => j !== i))}>삭제</Btn>
                 </div>
-              </div>
-            ) : (
-              <button onClick={() => templateRef.current?.click()}
-                style={{ padding: '36px', borderRadius: '12px', border: '2px dashed #e5e7eb', background: '#f9fafb', cursor: 'pointer', textAlign: 'center', fontFamily: 'Noto Sans KR, sans-serif' }}>
-                <div style={{ fontSize: '36px', marginBottom: '10px' }}>📄</div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#374151' }}>파일 선택</div>
-                <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>.hwp / .hwpx / .xlsx 지원</div>
-              </button>
-            )}
+              ))}
+              {(form.templateFiles || []).length < MAX_TEMPLATE_FILES && (
+                <button onClick={() => templateRef.current?.click()}
+                  style={{ padding:'28px', borderRadius:'12px', border:'2px dashed #e5e7eb', background:'#f9fafb', cursor:'pointer', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  <div style={{ fontSize:'32px', marginBottom:'8px' }}>📄</div>
+                  <div style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>파일 추가</div>
+                  <div style={{ fontSize:'12px', color:'#9ca3af', marginTop:'4px' }}>.hwp / .hwpx / .xlsx · {(form.templateFiles||[]).length}/{MAX_TEMPLATE_FILES}</div>
+                </button>
+              )}
+            </div>
             <input ref={templateRef} type="file" accept=".hwp,.hwpx,.xlsx,.xls" onChange={handleTemplateFile} style={{ display: 'none' }} />
           </div>
         )}
