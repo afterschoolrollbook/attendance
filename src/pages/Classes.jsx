@@ -180,6 +180,14 @@ export function Classes({ user, onNav }) {
       promotionImgs: cls.promotionImgs || [],
       noticeFiles: cls.noticeFiles || [],
       templateFiles: cls.templateFiles || (cls.templateFile ? [cls.templateFile] : []),
+      alarm: cls.alarm || { enabled: false, minutesBefore: 10 },
+      alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 },
+      cancelledDates: cls.cancelledDates || [],
+      makeupDates: cls.makeupDates || [],
+      termCount: cls.termCount || 4,
+      termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
+    })
+    setEditId('__copy__')
     setTab('info')
     setShowModal(true)
   }
