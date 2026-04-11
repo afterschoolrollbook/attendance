@@ -174,74 +174,156 @@ function AddModal({ cat, onClose, onSave }) {
   )
 }
 
-// ─── 서류 칩 ───
-function DocChip({ doc, color, onDelete }) {
-  const ft = FT[doc.fileType] || FT.file
+// ─── 미리보기 모달 ───
+function PreviewModal({ doc, color, onClose }) {
   const noFile = !doc.fileData
+  const isImage = doc.fileType === 'image'
+  const isPdf   = doc.fileType === 'pdf'
+  const ft = FT[doc.fileType] || FT.file
 
-  const handleClick = () => {
-    if (noFile) return
+  const handleDownload = () => {
     const a = document.createElement('a')
     a.href = doc.fileData; a.download = doc.fileName; a.click()
   }
 
   return (
     <div style={{
-      display: 'inline-flex', alignItems: 'center', gap: '5px',
-      padding: '5px 8px 5px 10px',
-      background: noFile ? '#fffbeb' : '#f9fafb',
-      border: `1px solid ${noFile ? '#fcd34d' : '#e5e7eb'}`,
-      borderRadius: '8px', cursor: noFile ? 'default' : 'pointer',
-      fontSize: '12px', maxWidth: '220px',
-      transition: 'all 0.15s',
-    }}
-      onClick={handleClick}
-      title={noFile ? '파일 없음 (다운로드 불가)' : `${doc.fileName} 다운로드`}
-      onMouseEnter={e => { if (!noFile) e.currentTarget.style.background = `${color}10`; if (!noFile) e.currentTarget.style.borderColor = color }}
-      onMouseLeave={e => { e.currentTarget.style.background = noFile ? '#fffbeb' : '#f9fafb'; e.currentTarget.style.borderColor = noFile ? '#fcd34d' : '#e5e7eb' }}
-    >
-      {/* 파일타입 뱃지 */}
-      <span style={{
-        fontSize: '10px', fontWeight: 700, padding: '1px 5px',
-        borderRadius: '4px', background: ft.bg, color: ft.color,
-        flexShrink: 0,
-      }}>{ft.label}</span>
+      position: 'fixed', inset: 0, zIndex: 1100,
+      background: 'rgba(0,0,0,0.45)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{
+        background: '#fff', borderRadius: '16px', padding: '24px',
+        width: '520px', maxWidth: '92vw',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.22)',
+        fontFamily: 'Noto Sans KR, sans-serif',
+        display: 'flex', flexDirection: 'column', gap: '16px',
+      }}>
+        {/* 헤더 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{
+            fontSize: '10px', fontWeight: 700, padding: '2px 7px',
+            borderRadius: '5px', background: ft.bg, color: ft.color,
+          }}>{ft.label}</span>
+          <span style={{ fontWeight: 700, fontSize: '15px', color: '#111827', flex: 1 }}>{doc.title}</span>
+          <button onClick={onClose} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: '#9ca3af', fontSize: '22px', lineHeight: 1, padding: 0,
+          }}>×</button>
+        </div>
 
-      {/* 제목 */}
-      <span style={{
-        fontWeight: 600, color: '#374151',
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        maxWidth: '100px',
-      }}>{doc.title}</span>
+        {/* 파일명 */}
+        {doc.fileName && (
+          <div style={{ fontSize: '12px', color: '#6b7280', background: '#f9fafb', padding: '8px 12px', borderRadius: '8px' }}>
+            📎 {doc.fileName}
+          </div>
+        )}
 
-      {/* 서류첨부 필요 */}
-      {noFile && (
-        <span style={{
-          fontSize: '10px', fontWeight: 700, padding: '1px 5px',
-          borderRadius: '4px', background: '#fef3c7', color: '#b45309',
-          flexShrink: 0, whiteSpace: 'nowrap',
-        }}>서류첨부 필요</span>
-      )}
+        {/* 미리보기 영역 */}
+        <div style={{
+          borderRadius: '10px', overflow: 'hidden',
+          border: '1px solid #e5e7eb', minHeight: '200px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: '#f9fafb',
+        }}>
+          {noFile ? (
+            <div style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+              <div style={{ fontSize: '40px', marginBottom: '10px' }}>📭</div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#b45309' }}>서류 파일이 첨부되지 않았습니다</div>
+              <div style={{ fontSize: '12px', marginTop: '4px' }}>삭제 후 다시 등록해주세요</div>
+            </div>
+          ) : isImage ? (
+            <img src={doc.fileData} alt={doc.title}
+              style={{ maxWidth: '100%', maxHeight: '380px', objectFit: 'contain', display: 'block' }} />
+          ) : isPdf ? (
+            <iframe src={doc.fileData} title={doc.title}
+              style={{ width: '100%', height: '380px', border: 'none' }} />
+          ) : (
+            <div style={{ textAlign: 'center', color: '#6b7280', padding: '40px' }}>
+              <div style={{ fontSize: '48px', marginBottom: '12px' }}>
+                {doc.fileType === 'hwp' ? '📄' : doc.fileType === 'excel' ? '📊' : '📁'}
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>{doc.fileName}</div>
+              <div style={{ fontSize: '12px', marginTop: '4px', color: '#9ca3af' }}>이 형식은 브라우저에서 미리볼 수 없습니다</div>
+            </div>
+          )}
+        </div>
 
-      {/* 다운로드 아이콘 */}
-      {!noFile && (
-        <span style={{ fontSize: '11px', flexShrink: 0, opacity: 0.5 }}>⬇️</span>
-      )}
-
-      {/* 삭제 */}
-      <button
-        onClick={e => { e.stopPropagation(); onDelete() }}
-        style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          color: '#d1d5db', fontSize: '13px', padding: '0 0 0 2px',
-          lineHeight: 1, flexShrink: 0,
-          display: 'flex', alignItems: 'center',
-        }}
-        title="삭제"
-        onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-        onMouseLeave={e => e.currentTarget.style.color = '#d1d5db'}
-      >×</button>
+        {/* 버튼 */}
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{
+            padding: '9px 18px', borderRadius: '8px',
+            border: '1.5px solid #e5e7eb', background: '#fff',
+            fontSize: '13px', fontWeight: 600, color: '#6b7280',
+            cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+          }}>닫기</button>
+          {!noFile && (
+            <button onClick={handleDownload} style={{
+              padding: '9px 22px', borderRadius: '8px',
+              border: 'none', background: color,
+              fontSize: '13px', fontWeight: 700, color: '#fff',
+              cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+              display: 'flex', alignItems: 'center', gap: '6px',
+            }}>⬇️ 다운로드</button>
+          )}
+        </div>
+      </div>
     </div>
+  )
+}
+
+// ─── 서류 칩 ───
+function DocChip({ doc, color, onDelete }) {
+  const [showPreview, setShowPreview] = useState(false)
+  const noFile = !doc.fileData
+
+  return (
+    <>
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: '6px',
+        padding: '5px 8px 5px 11px',
+        background: noFile ? '#fffbeb' : '#f9fafb',
+        border: `1px solid ${noFile ? '#fcd34d' : '#e5e7eb'}`,
+        borderRadius: '8px', cursor: 'pointer',
+        fontSize: '12px',
+        transition: 'all 0.15s',
+      }}
+        onClick={() => setShowPreview(true)}
+        onMouseEnter={e => { e.currentTarget.style.background = noFile ? '#fef3c7' : `${color}10`; e.currentTarget.style.borderColor = noFile ? '#f59e0b' : color }}
+        onMouseLeave={e => { e.currentTarget.style.background = noFile ? '#fffbeb' : '#f9fafb'; e.currentTarget.style.borderColor = noFile ? '#fcd34d' : '#e5e7eb' }}
+      >
+        {/* 제목 + 서류첨부필요 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span style={{
+            fontWeight: 600, color: '#374151',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            maxWidth: '120px', lineHeight: 1.3,
+          }}>{doc.title}</span>
+          {noFile && (
+            <span style={{
+              fontSize: '10px', fontWeight: 700, color: '#b45309', lineHeight: 1.2,
+            }}>서류첨부 필요</span>
+          )}
+        </div>
+
+        {/* 삭제 */}
+        <button
+          onClick={e => { e.stopPropagation(); onDelete() }}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: '#d1d5db', fontSize: '14px', padding: '0 0 0 2px',
+            lineHeight: 1, flexShrink: 0,
+            display: 'flex', alignItems: 'center',
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+          onMouseLeave={e => e.currentTarget.style.color = '#d1d5db'}
+        >×</button>
+      </div>
+
+      {showPreview && (
+        <PreviewModal doc={doc} color={color} onClose={() => setShowPreview(false)} />
+      )}
+    </>
   )
 }
 
