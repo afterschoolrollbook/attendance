@@ -840,14 +840,11 @@ export function PrintSetup({ user }) {
                     원본 HWP 파일도 함께 받을 수 있습니다.
                   </div>
                   <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', marginBottom:'10px' }}>
-                    <span style={{ fontSize:'13px', color:'#9ca3af' }}>구현 예정</span>
+                    <span style={{ fontSize:'13px', color:'#9ca3af', alignSelf:'center' }}>구현 예정</span>
                     <Btn variant="ghost" onClick={downloadPDF} disabled={!!downloading} style={{ borderColor:'#7c3aed', color:'#7c3aed' }}>
                       {downloading==='pdf'?'⏳ 준비 중...':'🖨️ HWP 양식 스타일 PDF 인쇄'}
                     </Btn>
-                    <Btn variant="ghost" onClick={()=>{ if(selTmpl?.url){ const a=document.createElement('a'); a.href=selTmpl.url; a.download=selTmpl.templateName||'출석부양식.hwp'; a.click() }}} style={{ borderColor:'#9ca3af', color:'#6b7280', fontSize:'12px' }}>
-                      원본 HWP 받기
-                    </Btn>
-                  </div>
+                    <span style={{ fontSize:'13px', color:'#9ca3af', alignSelf:'center' }}>구현 예정</span>
                 </div>
               )
             }
