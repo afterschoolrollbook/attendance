@@ -5,7 +5,33 @@ import { PageHeader } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../components/Atoms.jsx'
 
-// ─── 서류 분류 그룹 ───
+// ─── 툴팁 ───
+function Tooltip({ text, children }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div style={{position:'relative',display:'inline-flex'}}
+      onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}>
+      {children}
+      {show && (
+        <div style={{
+          position:'absolute', bottom:'calc(100% + 6px)', left:'50%',
+          transform:'translateX(-50%)',
+          background:'#1e293b', color:'#fff',
+          fontSize:'11px', fontWeight:500, whiteSpace:'nowrap',
+          padding:'5px 10px', borderRadius:'6px',
+          pointerEvents:'none', zIndex:9999,
+          fontFamily:'Noto Sans KR, sans-serif',
+          boxShadow:'0 4px 12px rgba(0,0,0,0.2)',
+        }}>
+          {text}
+          <div style={{position:'absolute',top:'100%',left:'50%',transform:'translateX(-50%)',width:0,height:0,borderLeft:'5px solid transparent',borderRight:'5px solid transparent',borderTop:'5px solid #1e293b'}}/>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 const DOC_TYPES = {
   keep:        { label: '보관',           color: '#2563eb', bg: '#dbeafe' },
   form_submit: { label: '양식작성 후 제출', color: '#ea580c', bg: '#ffedd5' },
@@ -243,6 +269,56 @@ function CatModal({ cat, onClose, onSave }) {
   )
 }
 
+// ─── 카테고리 관리 모달 (위로/아래로/수정/삭제) ───
+function CatManageModal({ info, onClose, onMove, onEdit, onDelete }) {
+  const { cat, groupCats, ci } = info
+  const isFirst = ci === 0
+  const isLast  = ci === groupCats.length - 1
+
+  const btnStyle = (disabled, color, bg, border) => ({
+    display:'flex', alignItems:'center', gap:'12px', padding:'13px 16px',
+    borderRadius:'10px', border:'1.5px solid '+border,
+    background: disabled ? '#fafafa' : bg,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    fontFamily:'Noto Sans KR, sans-serif', fontSize:'14px', fontWeight:600,
+    color: disabled ? '#d1d5db' : color, width:'100%',
+  })
+
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:1050,background:'rgba(0,0,0,0.35)',display:'flex',alignItems:'center',justifyContent:'center'}}
+      onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
+      <div style={{background:'#fff',borderRadius:'16px',padding:'24px',width:'300px',boxShadow:'0 20px 60px rgba(0,0,0,0.18)',fontFamily:'Noto Sans KR, sans-serif'}}>
+        {/* 헤더 */}
+        <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'20px'}}>
+          <div style={{display:'inline-flex',alignItems:'center',gap:'5px',padding:'6px 14px',borderRadius:'8px',background:cat.color+'12',border:'1px solid '+cat.color+'30',fontSize:'13px',fontWeight:700,color:cat.color}}>
+            <span>{cat.icon}</span><span>{cat.label}</span>
+          </div>
+          <button onClick={onClose} style={{marginLeft:'auto',background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:'22px',lineHeight:1,padding:0}}>×</button>
+        </div>
+
+        <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+          <button disabled={isFirst} onClick={()=>onMove(cat,-1)} style={btnStyle(isFirst,'#374151','#f9fafb','#e5e7eb')}
+            onMouseEnter={e=>{if(!isFirst)e.currentTarget.style.background='#f3f4f6'}} onMouseLeave={e=>e.currentTarget.style.background=isFirst?'#fafafa':'#f9fafb'}>
+            <span style={{fontSize:'20px'}}>⬆️</span> 위로 이동
+          </button>
+          <button disabled={isLast} onClick={()=>onMove(cat,1)} style={btnStyle(isLast,'#374151','#f9fafb','#e5e7eb')}
+            onMouseEnter={e=>{if(!isLast)e.currentTarget.style.background='#f3f4f6'}} onMouseLeave={e=>e.currentTarget.style.background=isLast?'#fafafa':'#f9fafb'}>
+            <span style={{fontSize:'20px'}}>⬇️</span> 아래로 이동
+          </button>
+          <button onClick={()=>onEdit(cat)} style={btnStyle(false,'#2563eb','#eff6ff','#bfdbfe')}
+            onMouseEnter={e=>e.currentTarget.style.background='#dbeafe'} onMouseLeave={e=>e.currentTarget.style.background='#eff6ff'}>
+            <span style={{fontSize:'20px'}}>✏️</span> 수정
+          </button>
+          <button onClick={()=>onDelete(cat)} style={btnStyle(false,'#ef4444','#fef2f2','#fecaca')}
+            onMouseEnter={e=>e.currentTarget.style.background='#fee2e2'} onMouseLeave={e=>e.currentTarget.style.background='#fef2f2'}>
+            <span style={{fontSize:'20px'}}>🗑️</span> 삭제
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── 메인 컴포넌트 ───
 export function Templates({ user }) {
   const currentYear = String(new Date().getFullYear())
@@ -251,9 +327,10 @@ export function Templates({ user }) {
     (DocumentsDB?.all?.() || []).filter(d => d.teacherId === user.id || user.role === 'admin')
   )
   const [cats, setCats] = useState([])
-  const [modalCat, setModalCat]     = useState(null)
-  const [editCat, setEditCat]       = useState(null)   // 수정할 카테고리
-  const [showAddCat, setShowAddCat] = useState(false)
+  const [modalCat, setModalCat]         = useState(null)
+  const [editCat, setEditCat]           = useState(null)
+  const [manageCat, setManageCat]       = useState(null)  // 관리 모달
+  const [showAddCat, setShowAddCat]     = useState(false)
   const { error: toastError, success } = useToast()
   const confirm = useConfirm()
 
@@ -347,37 +424,24 @@ export function Templates({ user }) {
   // ─── 카테고리 행 렌더 ───
   const renderRow = (cat, groupCats, ci) => {
     const catDocs = docsFor(cat.key)
-    const isFirst = ci === 0
     const isLast  = ci === groupCats.length - 1
     return (
-      <div key={cat.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'10px 16px 10px 20px',borderBottom:isLast?'none':'1px solid #f3f4f6',minHeight:'52px'}}>
-
-        {/* 순서 버튼 */}
-        <div style={{display:'flex',flexDirection:'column',gap:'2px',flexShrink:0}}>
-          <button onClick={()=>movecat(cat,-1)} disabled={isFirst} style={{background:'none',border:'none',cursor:isFirst?'default':'pointer',color:isFirst?'#e5e7eb':'#9ca3af',fontSize:'10px',lineHeight:1,padding:'1px 3px'}}
-            onMouseEnter={e=>{if(!isFirst)e.currentTarget.style.color='#374151'}} onMouseLeave={e=>e.currentTarget.style.color=isFirst?'#e5e7eb':'#9ca3af'}>▲</button>
-          <button onClick={()=>movecat(cat,1)} disabled={isLast} style={{background:'none',border:'none',cursor:isLast?'default':'pointer',color:isLast?'#e5e7eb':'#9ca3af',fontSize:'10px',lineHeight:1,padding:'1px 3px'}}
-            onMouseEnter={e=>{if(!isLast)e.currentTarget.style.color='#374151'}} onMouseLeave={e=>e.currentTarget.style.color=isLast?'#e5e7eb':'#9ca3af'}>▼</button>
-        </div>
-
-        {/* 카테고리 버튼 */}
-        <div style={{display:'inline-flex',alignItems:'center',gap:'5px',padding:'6px 12px',borderRadius:'8px',background:cat.color+'12',border:'1px solid '+cat.color+'30',fontSize:'12px',fontWeight:700,color:cat.color,whiteSpace:'nowrap',flexShrink:0,minWidth:'130px',justifyContent:'center'}}>
-          <span>{cat.icon}</span><span>{cat.label}</span>
-        </div>
-
-        {/* 수정 버튼 */}
-        <button onClick={()=>setEditCat(cat)} title="수정"
-          style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:'14px',flexShrink:0,padding:'2px 4px'}}
-          onMouseEnter={e=>e.currentTarget.style.color='#2563eb'} onMouseLeave={e=>e.currentTarget.style.color='#9ca3af'}>✏️</button>
-
-        {/* 삭제 버튼 */}
-        <button onClick={()=>handleDeleteCat(cat)} title="삭제"
-          style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:'14px',flexShrink:0,padding:'2px 4px'}}
-          onMouseEnter={e=>e.currentTarget.style.color='#ef4444'} onMouseLeave={e=>e.currentTarget.style.color='#9ca3af'}>🗑️</button>
+      <div key={cat.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'11px 20px',borderBottom:isLast?'none':'1px solid #f3f4f6',minHeight:'52px'}}>
+        {/* 카테고리 버튼 — 클릭 시 관리 모달 */}
+        <Tooltip text="클릭하면 위치·수정·삭제할 수 있습니다">
+          <button onClick={()=>setManageCat({cat, groupCats, ci})}
+            style={{display:'inline-flex',alignItems:'center',gap:'5px',padding:'6px 12px',borderRadius:'8px',background:cat.color+'12',border:'1px solid '+cat.color+'30',fontSize:'12px',fontWeight:700,color:cat.color,whiteSpace:'nowrap',flexShrink:0,minWidth:'130px',justifyContent:'center',cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif',transition:'all 0.15s'}}
+            onMouseEnter={e=>{e.currentTarget.style.background=cat.color+'25';e.currentTarget.style.borderColor=cat.color+'60'}}
+            onMouseLeave={e=>{e.currentTarget.style.background=cat.color+'12';e.currentTarget.style.borderColor=cat.color+'30'}}>
+            <span>{cat.icon}</span><span>{cat.label}</span>
+          </button>
+        </Tooltip>
 
         {/* + 서류 등록 버튼 */}
-        <button onClick={()=>setModalCat(cat)} style={{width:'26px',height:'26px',borderRadius:'7px',background:cat.color+'18',border:'1.5px solid '+cat.color+'40',color:cat.color,fontSize:'18px',fontWeight:700,cursor:'pointer',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}
-          onMouseEnter={e=>{e.currentTarget.style.background=cat.color+'30'}} onMouseLeave={e=>{e.currentTarget.style.background=cat.color+'18'}}>+</button>
+        <Tooltip text="양식을 추가할 수 있습니다">
+          <button onClick={()=>setModalCat(cat)} style={{width:'26px',height:'26px',borderRadius:'7px',background:cat.color+'18',border:'1.5px solid '+cat.color+'40',color:cat.color,fontSize:'18px',fontWeight:700,cursor:'pointer',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}
+            onMouseEnter={e=>{e.currentTarget.style.background=cat.color+'30'}} onMouseLeave={e=>{e.currentTarget.style.background=cat.color+'18'}}>+</button>
+        </Tooltip>
 
         {/* 서류 칩들 */}
         <div style={{display:'flex',flexWrap:'wrap',gap:'6px',flex:1,alignItems:'center'}}>
@@ -435,6 +499,7 @@ export function Templates({ user }) {
       {modalCat   && <AddModal  cat={modalCat} onClose={()=>setModalCat(null)}    onSave={handleSave}/>}
       {showAddCat && <CatModal  cat={null}     onClose={()=>setShowAddCat(false)} onSave={handleAddCat}/>}
       {editCat    && <CatModal  cat={editCat}  onClose={()=>setEditCat(null)}     onSave={handleEditCat}/>}
+      {manageCat  && <CatManageModal info={manageCat} onClose={()=>setManageCat(null)} onMove={(cat,dir)=>{movecat(cat,dir);setManageCat(null)}} onEdit={(cat)=>{setManageCat(null);setEditCat(cat)}} onDelete={(cat)=>{setManageCat(null);handleDeleteCat(cat)}}/>}
     </div>
   )
 }
