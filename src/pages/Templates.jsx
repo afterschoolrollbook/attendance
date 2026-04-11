@@ -103,6 +103,33 @@ export function Templates({ user }) {
     success(`${toSave.length}개 서류가 등록되었습니다.`)
   }
 
+  // 카테고리 개별 저장
+  const saveCat = async (catKey) => {
+    const cat = CATEGORIES.find(c => c.key === catKey)
+    const toSave = entries[catKey].filter(e => e.title.trim() || e.file)
+    if (!toSave.length) { toastError('제목과 파일을 입력하세요.'); return }
+    const bad = toSave.find(e => !e.title.trim() || !e.file)
+    if (bad) { toastError(`[${cat.label}] 제목과 파일을 모두 입력해주세요.`); return }
+
+    for (const entry of toSave) {
+      const fileData = await new Promise(resolve => {
+        const reader = new FileReader()
+        reader.onload = e => resolve(e.target.result)
+        reader.readAsDataURL(entry.file)
+      })
+      DocumentsDB.insert({
+        id: uid(), teacherId: user.id,
+        category: catKey, title: entry.title.trim(),
+        fileName: entry.file.name, fileType: getFileType(entry.file.name),
+        fileData, createdAt: now(),
+      })
+    }
+    reload()
+    // 해당 카테고리 슬롯만 초기화
+    setEntries(e => ({ ...e, [catKey]: [{ id: uid(), title: '', file: null }] }))
+    success(`${toSave.length}개 서류가 등록되었습니다.`)
+  }
+
   const download = (doc) => {
     if (!doc.fileData) return
     const a = document.createElement('a')
@@ -132,7 +159,7 @@ export function Templates({ user }) {
 
         {/* 컬럼 헤더 */}
         <div style={{
-          display: 'grid', gridTemplateColumns: '160px 1fr 200px 36px',
+          display: 'grid', gridTemplateColumns: '160px 1fr 200px 36px 60px',
           gap: '10px', padding: '11px 20px',
           background: '#f9fafb', borderBottom: '1px solid #e5e7eb',
           fontSize: '12px', fontWeight: 700, color: '#6b7280',
@@ -140,6 +167,7 @@ export function Templates({ user }) {
           <span>분류</span>
           <span>제목 <span style={{ color: '#dc2626' }}>*</span></span>
           <span>파일 <span style={{ color: '#dc2626' }}>*</span></span>
+          <span />
           <span />
         </div>
 
@@ -152,7 +180,7 @@ export function Templates({ user }) {
               {/* 입력 슬롯들 */}
               {entries[cat.key].map((entry, ei) => (
                 <div key={entry.id} style={{
-                  display: 'grid', gridTemplateColumns: '160px 1fr 200px 36px',
+                  display: 'grid', gridTemplateColumns: '160px 1fr 200px 36px 60px',
                   gap: '10px', padding: '6px 20px', alignItems: 'center',
                 }}>
                   {/* 분류 라벨 */}
@@ -234,6 +262,22 @@ export function Templates({ user }) {
                         }}>✕</button>
                     )}
                   </div>
+
+                  {/* 등록 버튼 — 마지막 행에만 */}
+                  <div>
+                    {ei === entries[cat.key].length - 1 && (
+                      <button
+                        onClick={() => saveCat(cat.key)}
+                        style={{
+                          width: '100%', padding: '6px 0',
+                          background: cat.color, color: '#fff',
+                          border: 'none', borderRadius: '7px',
+                          fontSize: '12px', fontWeight: 700,
+                          cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+                        }}
+                      >등록</button>
+                    )}
+                  </div>
                 </div>
               ))}
 
@@ -269,16 +313,6 @@ export function Templates({ user }) {
               )}
             </div>
           ))}
-        </div>
-
-        {/* 등록 버튼 */}
-        <div style={{
-          padding: '14px 20px', borderTop: '1px solid #f3f4f6',
-          display: 'flex', justifyContent: 'flex-end',
-        }}>
-          <Btn onClick={save} disabled={saving}>
-            {saving ? '저장 중...' : '등록'}
-          </Btn>
         </div>
       </div>
     </div>
