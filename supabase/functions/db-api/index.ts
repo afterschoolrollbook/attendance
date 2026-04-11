@@ -73,6 +73,7 @@ const TABLE_MAP: Record<string, string> = {
   schoolCalendar:         'schoolCalendar',         // ← 추가
   schoolInfo:             'schoolInfo',             // ← 추가
   documents:              'documents',              // ← 방과후 서류
+  customCategories:       'customCategories',        // ← 커스텀 카테고리
 }
 
 // 컬럼이 camelCase로 저장된 테이블 — snake 변환 없이 그대로 사용
@@ -92,6 +93,7 @@ const CAMEL_TABLES = new Set([
   'schoolCalendar',                          // ← 추가
   'schoolInfo',                              // ← 추가
   'documents',                               // ← 방과후 서류
+  'customCategories',                        // ← 커스텀 카테고리
 ])
 
 // camelCase → snake_case 변환
