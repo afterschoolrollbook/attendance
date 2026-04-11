@@ -101,6 +101,8 @@ const SYNC_TABLES = [
   'messageGuides', 'messageCategories',
   // 선생님 프로필
   'teacherProfiles',
+  // 방과후 서류
+  'documents',
   // 학교 담당자 포털
   'schoolAdmins', 'schoolAdminAccounts',
   'schoolAdminTeachers',   // 선생님 명단 (연도/과목/요일/서류)
@@ -742,6 +744,17 @@ export const MessageCategories = {
   find:      (id)    => db.getOne('messageCategories', id),
   insert:    (r)     => db.insert('messageCategories', r),
   delete:    (id)    => db.delete('messageCategories', id),
+}
+
+// ─── 방과후 서류 ──────────────────────────────────────────────
+export const DocumentsDB = {
+  all:       ()      => db.get('documents'),
+  byTeacher: (tid)   => db.where('documents', r => r.teacherId === tid),
+  byCategory:(tid, cat) => db.where('documents', r => r.teacherId === tid && r.category === cat),
+  find:      (id)    => db.getOne('documents', id),
+  insert:    (r)     => db.insert('documents', r),
+  update:    (id, p) => db.update('documents', id, p),
+  delete:    (id)    => db.delete('documents', id),
 }
 
 // ─── 선생님 프로필 (이름 / 닉네임) ───────────────────────────────
