@@ -478,7 +478,17 @@ export function Templates({ user }) {
     reload()
   }
 
-  const docsFor = (catKey) => docs.filter(d => d.category === catKey)
+const DAY_ORDER = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 7 }
+
+function getDayFromTitle(title) {
+  const first = title?.split(' ')[0]
+  return DAY_ORDER[first] ?? 99
+}
+
+  const docsFor = (catKey) =>
+    docs
+      .filter(d => d.category === catKey)
+      .sort((a, b) => getDayFromTitle(a.title) - getDayFromTitle(b.title))
 
   return (
     <div style={{ padding: '28px', maxWidth: '1100px', fontFamily: 'Noto Sans KR, sans-serif' }}>
@@ -492,7 +502,7 @@ export function Templates({ user }) {
         background: '#eff6ff', border: '1.5px solid #bfdbfe',
         borderRadius: '10px', fontSize: '13px', color: '#1e40af',
       }}>
-        📌 학교마다 다른 서류를 여러 개 등록할 수 있습니다. 지원 형식: <strong>HWP · Excel · 이미지 · PDF</strong>
+        📌 학교마다 다른 서류를 여러 개 등록할 수 있습니다. 요일을 입력하면 <strong>월·화·수·목·금·토·일 순</strong>으로 자동 정렬됩니다. 지원 형식: <strong>HWP · Excel · 이미지 · PDF</strong>
       </div>
 
       {/* ─── 카테고리 목록 ─── */}
