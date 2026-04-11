@@ -841,9 +841,7 @@ export function PrintSetup({ user }) {
                   </div>
                   <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', marginBottom:'10px' }}>
                     <span style={{ fontSize:'13px', color:'#9ca3af', alignSelf:'center' }}>구현 예정</span>
-                    <Btn variant="ghost" onClick={downloadPDF} disabled={!!downloading} style={{ borderColor:'#7c3aed', color:'#7c3aed' }}>
-                      {downloading==='pdf'?'⏳ 준비 중...':'🖨️ HWP 양식 스타일 PDF 인쇄'}
-                    </Btn>
+                    <span style={{ fontSize:'13px', color:'#9ca3af', alignSelf:'center' }}>구현 예정</span>
                     <span style={{ fontSize:'13px', color:'#9ca3af', alignSelf:'center' }}>구현 예정</span>
                 </div>
               )
