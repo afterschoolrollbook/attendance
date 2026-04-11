@@ -13,7 +13,7 @@ export function PrintSetup({ user }) {
   const [selectedTemplate, setSelectedTemplate] = useState('')
   const [step, setStep] = useState(1)
   const [downloading, setDownloading] = useState('')
-  const [checkedDates, setCheckedDates] = useState(new Set())  // 선택한 출력 날짜
+  const [checkedDates, setCheckedDates] = useState(null)  // null=전체, Set=명시적 선택
   const { error: toastError } = useToast()
 
   if (!can(user, FEATURES.PRINT_ATTENDANCE)) {
@@ -62,7 +62,7 @@ export function PrintSetup({ user }) {
   const actualSessionDates = [...new Set([...regularDates, ...makeupSessionDates])].sort()
 
   // 체크박스로 선택된 날짜만 출력 (아무것도 선택 안 하면 전체)
-  const sessions = checkedDates.size > 0
+  const sessions = checkedDates !== null
     ? actualSessionDates.filter(d => checkedDates.has(d))
     : actualSessionDates
 
@@ -506,7 +506,7 @@ export function PrintSetup({ user }) {
       <Card style={{ marginBottom: '16px' }}>
         <div style={{ fontSize: '14px', fontWeight: 700, color: '#111827', marginBottom: '12px' }}>① 수업 선택</div>
         <select value={selectedClass}
-          onChange={e => { setSelectedClass(e.target.value); setStep(2); setSelectedTemplate('') }}
+          onChange={e => { setSelectedClass(e.target.value); setStep(2); setSelectedTemplate(''); setCheckedDates(null) }}
           style={{ width: '100%', padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', background: '#fff', outline: 'none', cursor: 'pointer' }}>
           <option value="">-- 수업을 선택하세요 --</option>
           {(() => {
@@ -532,7 +532,7 @@ export function PrintSetup({ user }) {
         {cls && (
           <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <Tag color="#3b82f6" bg="#eff6ff">확정 학생 {students.length}명</Tag>
-            <Tag color="#f97316" bg="#fff7ed">총 {allSessions.length}차시</Tag>
+            <Tag color="#f97316" bg="#fff7ed">총 {actualSessionDates.length}차시</Tag>
             <Tag color="#6b7280" bg="#f3f4f6">{cls.startDate} ~ {cls.endDate}</Tag>
           </div>
         )}
@@ -595,7 +595,7 @@ export function PrintSetup({ user }) {
                 수업일 선택 — 출력할 차시를 선택하세요
               </span>
               <div style={{ display:'flex', gap:'8px' }}>
-                <button onClick={() => setCheckedDates(new Set(actualSessionDates))}
+                <button onClick={() => setCheckedDates(null)}
                   style={{ padding:'4px 12px', borderRadius:'6px', border:'1.5px solid #e5e7eb', background:'#f9fafb', fontSize:'12px', color:'#374151', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   전체 선택
                 </button>
@@ -607,21 +607,21 @@ export function PrintSetup({ user }) {
             </div>
             <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', padding:'12px', background:'#f9fafb', borderRadius:'10px', border:'1px solid #e5e7eb' }}>
               {actualSessionDates.map((d, i) => {
-                const checked = checkedDates.size === 0 || checkedDates.has(d)
+                const checked = checkedDates === null || checkedDates.has(d)
                 const isMakeup = makeupSessionDates.includes(d)
                 return (
                   <label key={d} style={{
                     display:'flex', alignItems:'center', gap:'4px', padding:'5px 10px',
                     borderRadius:'8px', cursor:'pointer',
-                    border:`1.5px solid ${checkedDates.size === 0 || checkedDates.has(d) ? '#f97316' : '#e5e7eb'}`,
-                    background: checkedDates.size === 0 || checkedDates.has(d) ? '#fff7ed' : '#fff',
+                    border:`1.5px solid ${checked ? '#f97316' : '#e5e7eb'}`,
+                    background: checked ? '#fff7ed' : '#fff',
                     fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif',
                     transition:'all .12s',
                   }}>
                     <input type="checkbox"
-                      checked={checkedDates.size === 0 || checkedDates.has(d)}
+                      checked={checked}
                       onChange={e => {
-                        const next = new Set(checkedDates.size === 0 ? actualSessionDates : checkedDates)
+                        const next = new Set(checkedDates === null ? actualSessionDates : checkedDates)
                         if (e.target.checked) next.add(d)
                         else next.delete(d)
                         setCheckedDates(next)
@@ -637,7 +637,7 @@ export function PrintSetup({ user }) {
             <div style={{ marginTop:'8px', fontSize:'12px', color:'#9ca3af' }}>
               선택: <strong style={{ color:'#f97316' }}>{sessions.length}차시</strong>
               {sessions[0] && <span style={{ marginLeft:'8px' }}>({sessions[0].slice(5)} ~ {sessions[sessions.length-1].slice(5)})</span>}
-              {checkedDates.size === 0 && <span style={{ marginLeft:'8px', color:'#9ca3af' }}>(미선택 시 전체 출력)</span>}
+              {checkedDates === null && <span style={{ marginLeft:'8px', color:'#9ca3af' }}>(미선택 시 전체 출력)</span>}
             </div>
           </div>
           {/* 미리보기 테이블 — 전체 학생 */}
@@ -657,7 +657,7 @@ export function PrintSetup({ user }) {
                 <tbody>
                   {students.map((s,i)=>(
                     <tr key={s.id} style={{ borderBottom:'1px solid #f3f4f6', background:i%2===0?'#fff':'#fafafa' }}>
-                      <td style={{ padding:'8px 10px', textAlign:'center' }}>{s.number||i+1}</td>
+                      <td style={{ padding:'8px 10px', textAlign:'center' }}>{i+1}</td>
                       <td style={{ padding:'8px 10px', fontWeight:600 }}>{s.name}</td>
                       <td style={{ padding:'8px 10px', textAlign:'center' }}>{s.grade}</td>
                       <td style={{ padding:'8px 10px', textAlign:'center' }}>{s.classNum||'-'}</td>
