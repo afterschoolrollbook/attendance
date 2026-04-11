@@ -2514,7 +2514,6 @@ export function Attendance({ user, pageParams = {} }) {
                 </div>
               )}
             </div>
-            </div>
           ) : selClassId ? (
             (!isSessionDate && dateClicked) ? (
               <div style={{ textAlign:'center', padding:'60px 20px', background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, color:C.muted }}>
