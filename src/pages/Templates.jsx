@@ -105,27 +105,27 @@ export function Templates({ user }) {
 
   // 카테고리 개별 저장
   const saveCat = async (catKey) => {
-    const cat = CATEGORIES.find(c => c.key === catKey)
-    const toSave = entries[catKey].filter(e => e.title.trim() || e.file)
-    if (!toSave.length) { toastError('제목과 파일을 입력하세요.'); return }
-    const bad = toSave.find(e => !e.title.trim() || !e.file)
-    if (bad) { toastError(`[${cat.label}] 제목과 파일을 모두 입력해주세요.`); return }
+    const toSave = entries[catKey].filter(e => e.title.trim())
+    if (!toSave.length) { toastError('제목을 입력하세요.'); return }
 
     for (const entry of toSave) {
-      const fileData = await new Promise(resolve => {
-        const reader = new FileReader()
-        reader.onload = e => resolve(e.target.result)
-        reader.readAsDataURL(entry.file)
-      })
+      let fileData = '', fileName = '', fileType = 'file'
+      if (entry.file) {
+        fileData = await new Promise(resolve => {
+          const reader = new FileReader()
+          reader.onload = e => resolve(e.target.result)
+          reader.readAsDataURL(entry.file)
+        })
+        fileName = entry.file.name
+        fileType = getFileType(entry.file.name)
+      }
       DocumentsDB.insert({
         id: uid(), teacherId: user.id,
         category: catKey, title: entry.title.trim(),
-        fileName: entry.file.name, fileType: getFileType(entry.file.name),
-        fileData, createdAt: now(),
+        fileName, fileType, fileData, createdAt: now(),
       })
     }
     reload()
-    // 해당 카테고리 슬롯만 초기화
     setEntries(e => ({ ...e, [catKey]: [{ id: uid(), title: '', file: null }] }))
     success(`${toSave.length}개 서류가 등록되었습니다.`)
   }
@@ -300,10 +300,14 @@ export function Templates({ user }) {
                         <span style={{ fontWeight: 600, color: '#374151', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {doc.title}
                         </span>
-                        <span style={{ color: '#9ca3af', flexShrink: 0 }}>{doc.fileName}</span>
+                        <span style={{ color: '#9ca3af', flexShrink: 0 }}>{doc.fileName || ''}</span>
+                        {!doc.fileData && (
+                          <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#fef3c7', color: '#b45309', flexShrink: 0 }}>서류첨부 필요함</span>
+                        )}
                         <span style={{ color: '#d1d5db', flexShrink: 0 }}>{doc.createdAt?.slice(0,10)}</span>
-                        <button onClick={() => { const a = document.createElement('a'); a.href = doc.fileData; a.download = doc.fileName; a.click() }}
-                          style={{ background: '#eff6ff', border: 'none', borderRadius: '5px', padding: '3px 6px', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>⬇️</button>
+                        <button onClick={() => { if (!doc.fileData) return; const a = document.createElement('a'); a.href = doc.fileData; a.download = doc.fileName; a.click() }}
+                          title={doc.fileData ? '다운로드' : '파일 없음'}
+                          style={{ background: doc.fileData ? '#eff6ff' : '#f3f4f6', border: 'none', borderRadius: '5px', padding: '3px 6px', cursor: doc.fileData ? 'pointer' : 'not-allowed', fontSize: '12px', flexShrink: 0, opacity: doc.fileData ? 1 : 0.4 }}>⬇️</button>
                         <button onClick={() => del(doc.id)}
                           style={{ background: '#fef2f2', border: 'none', borderRadius: '5px', padding: '3px 6px', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>🗑️</button>
                       </div>
