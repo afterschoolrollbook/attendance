@@ -39,15 +39,42 @@ const FT = {
   file:  { label:'FILE',  color:'#6b7280', bg:'#f3f4f6' },
 }
 
+const DAYS    = ['해당없음', '월', '화', '수', '목', '금', '토', '일']
+const PERIODS = ['해당없음', '1학기', '2학기', '1분기', '2분기', '3분기', '4분기']
+
+// 제목 자동 조합: 선택된 항목만 + 카테고리명
+function buildTitle(day, school, period, catLabel) {
+  const parts = []
+  if (day && day !== '해당없음') parts.push(day)
+  if (school.trim()) parts.push(school.trim())
+  if (period && period !== '해당없음') parts.push(period)
+  parts.push(catLabel)
+  return parts.join(' ')
+}
+
+const dropStyle = (color) => ({
+  padding: '9px 12px', borderRadius: '8px',
+  border: '1.5px solid #e5e7eb', fontSize: '13px',
+  color: '#111827', outline: 'none', cursor: 'pointer',
+  fontFamily: 'Noto Sans KR, sans-serif', background: '#fff',
+  boxSizing: 'border-box', width: '100%',
+  appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center',
+  paddingRight: '28px',
+})
+
 // ─── 등록 모달 ───
 function AddModal({ cat, onClose, onSave }) {
-  const [title, setTitle] = useState('')
-  const [file, setFile] = useState(null)
+  const [day, setDay]       = useState('해당없음')
+  const [school, setSchool] = useState('')
+  const [period, setPeriod] = useState('해당없음')
+  const [file, setFile]     = useState(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef()
 
+  const autoTitle = buildTitle(day, school, period, cat.label)
+
   const handleSave = async () => {
-    if (!title.trim()) return
     setSaving(true)
     let fileData = '', fileName = '', fileType = 'file'
     if (file) {
@@ -59,9 +86,15 @@ function AddModal({ cat, onClose, onSave }) {
       fileName = file.name
       fileType = getFileType(file.name)
     }
-    onSave({ title: title.trim(), fileData, fileName, fileType })
+    onSave({ title: autoTitle, fileData, fileName, fileType })
     setSaving(false)
   }
+
+  const fieldLabel = (text, optional) => (
+    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
+      {text} {optional && <span style={{ color: '#9ca3af', fontWeight: 400 }}>(선택)</span>}
+    </label>
+  )
 
   return (
     <div style={{
@@ -74,7 +107,7 @@ function AddModal({ cat, onClose, onSave }) {
         width: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
         fontFamily: 'Noto Sans KR, sans-serif',
       }}>
-        {/* 모달 헤더 */}
+        {/* 헤더 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '22px' }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: '5px',
@@ -91,51 +124,68 @@ function AddModal({ cat, onClose, onSave }) {
           }}>×</button>
         </div>
 
-        {/* 제목 */}
+        {/* 요일 + 기간 나란히 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+          <div>
+            {fieldLabel('요일', true)}
+            <select value={day} onChange={e => setDay(e.target.value)} style={dropStyle(cat.color)}>
+              {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          <div>
+            {fieldLabel('기간', true)}
+            <select value={period} onChange={e => setPeriod(e.target.value)} style={dropStyle(cat.color)}>
+              {PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* 학교명 */}
         <div style={{ marginBottom: '14px' }}>
-          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
-            제목 <span style={{ color: '#dc2626' }}>*</span>
-          </label>
+          {fieldLabel('학교명', true)}
           <input
             autoFocus
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSave()}
-            placeholder="서류 제목을 입력하세요"
+            value={school}
+            onChange={e => setSchool(e.target.value)}
+            placeholder="예) 판교초"
             style={{
               width: '100%', padding: '9px 12px', borderRadius: '8px',
-              border: `1.5px solid ${title ? cat.color : '#e5e7eb'}`,
-              fontSize: '14px', color: '#111827', outline: 'none',
+              border: '1.5px solid #e5e7eb', fontSize: '13px',
+              color: '#111827', outline: 'none',
               fontFamily: 'Noto Sans KR, sans-serif', boxSizing: 'border-box',
-              transition: 'border-color 0.15s',
             }}
             onFocus={e => e.target.style.borderColor = cat.color}
-            onBlur={e => e.target.style.borderColor = title ? cat.color : '#e5e7eb'}
+            onBlur={e => e.target.style.borderColor = '#e5e7eb'}
           />
+        </div>
+
+        {/* 자동 생성 제목 미리보기 */}
+        <div style={{
+          marginBottom: '16px', padding: '10px 14px',
+          background: `${cat.color}08`, border: `1.5px solid ${cat.color}30`,
+          borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px',
+        }}>
+          <span style={{ fontSize: '11px', color: cat.color, fontWeight: 700, flexShrink: 0 }}>제목 미리보기</span>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: '#111827' }}>{autoTitle}</span>
         </div>
 
         {/* 파일 */}
         <div style={{ marginBottom: '24px' }}>
-          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
-            파일 <span style={{ color: '#9ca3af', fontWeight: 400 }}>(선택)</span>
-          </label>
+          {fieldLabel('파일', true)}
           <input ref={fileRef} type="file" accept={ACCEPT} style={{ display: 'none' }}
             onChange={e => setFile(e.target.files[0] || null)} />
-          <button
-            onClick={() => fileRef.current?.click()}
-            style={{
-              width: '100%', padding: '9px 12px',
-              border: `1.5px dashed ${file ? cat.color : '#d1d5db'}`,
-              borderRadius: '8px',
-              background: file ? `${cat.color}08` : '#fafafa',
-              cursor: 'pointer', fontSize: '13px',
-              color: file ? cat.color : '#9ca3af',
-              fontFamily: 'Noto Sans KR, sans-serif',
-              textAlign: 'left', overflow: 'hidden',
-              textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              boxSizing: 'border-box',
-            }}
-          >
+          <button onClick={() => fileRef.current?.click()} style={{
+            width: '100%', padding: '9px 12px',
+            border: `1.5px dashed ${file ? cat.color : '#d1d5db'}`,
+            borderRadius: '8px',
+            background: file ? `${cat.color}08` : '#fafafa',
+            cursor: 'pointer', fontSize: '13px',
+            color: file ? cat.color : '#9ca3af',
+            fontFamily: 'Noto Sans KR, sans-serif',
+            textAlign: 'left', overflow: 'hidden',
+            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            boxSizing: 'border-box',
+          }}>
             {file ? `✅ ${file.name}` : '📁 파일을 선택하세요'}
           </button>
           {file && (
@@ -154,18 +204,12 @@ function AddModal({ cat, onClose, onSave }) {
             fontSize: '13px', fontWeight: 600, color: '#6b7280',
             cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
           }}>취소</button>
-          <button
-            onClick={handleSave}
-            disabled={!title.trim() || saving}
-            style={{
-              padding: '9px 22px', borderRadius: '8px',
-              border: 'none', background: title.trim() ? cat.color : '#d1d5db',
-              fontSize: '13px', fontWeight: 700, color: '#fff',
-              cursor: title.trim() ? 'pointer' : 'not-allowed',
-              fontFamily: 'Noto Sans KR, sans-serif',
-              transition: 'background 0.15s',
-            }}
-          >
+          <button onClick={handleSave} disabled={saving} style={{
+            padding: '9px 22px', borderRadius: '8px',
+            border: 'none', background: cat.color,
+            fontSize: '13px', fontWeight: 700, color: '#fff',
+            cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+          }}>
             {saving ? '등록 중...' : '등록'}
           </button>
         </div>
