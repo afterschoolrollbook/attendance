@@ -147,7 +147,7 @@ function AddModal({ cat, onClose, onSave }) {
             autoFocus
             value={school}
             onChange={e => setSchool(e.target.value)}
-            placeholder="예) 판교초"
+            placeholder="예) 대한초"
             style={{
               width: '100%', padding: '9px 12px', borderRadius: '8px',
               border: '1.5px solid #e5e7eb', fontSize: '13px',
@@ -219,15 +219,33 @@ function AddModal({ cat, onClose, onSave }) {
 }
 
 // ─── 미리보기 모달 ───
-function PreviewModal({ doc, color, onClose }) {
-  const noFile = !doc.fileData
+function PreviewModal({ doc, color, onClose, onAttach }) {
+  const noFile  = !doc.fileData
   const isImage = doc.fileType === 'image'
   const isPdf   = doc.fileType === 'pdf'
-  const ft = FT[doc.fileType] || FT.file
+  const [newFile, setNewFile] = useState(null)
+  const [attaching, setAttaching] = useState(false)
+  const fileRef = useRef()
+  const { error: toastError, success } = useToast()
 
   const handleDownload = () => {
+    if (noFile) { toastError('첨부된 파일이 없습니다.'); return }
     const a = document.createElement('a')
     a.href = doc.fileData; a.download = doc.fileName; a.click()
+  }
+
+  const handleAttach = async () => {
+    if (!newFile) return
+    setAttaching(true)
+    const fileData = await new Promise(resolve => {
+      const reader = new FileReader()
+      reader.onload = e => resolve(e.target.result)
+      reader.readAsDataURL(newFile)
+    })
+    onAttach({ fileData, fileName: newFile.name, fileType: getFileType(newFile.name) })
+    success('파일이 첨부되었습니다.')
+    setAttaching(false)
+    onClose()
   }
 
   return (
@@ -245,10 +263,6 @@ function PreviewModal({ doc, color, onClose }) {
       }}>
         {/* 헤더 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{
-            fontSize: '10px', fontWeight: 700, padding: '2px 7px',
-            borderRadius: '5px', background: ft.bg, color: ft.color,
-          }}>{ft.label}</span>
           <span style={{ fontWeight: 700, fontSize: '15px', color: '#111827', flex: 1 }}>{doc.title}</span>
           <button onClick={onClose} style={{
             background: 'none', border: 'none', cursor: 'pointer',
@@ -257,7 +271,7 @@ function PreviewModal({ doc, color, onClose }) {
         </div>
 
         {/* 파일명 */}
-        {doc.fileName && (
+        {doc.fileName && !noFile && (
           <div style={{ fontSize: '12px', color: '#6b7280', background: '#f9fafb', padding: '8px 12px', borderRadius: '8px' }}>
             📎 {doc.fileName}
           </div>
@@ -274,7 +288,7 @@ function PreviewModal({ doc, color, onClose }) {
             <div style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
               <div style={{ fontSize: '40px', marginBottom: '10px' }}>📭</div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: '#b45309' }}>서류 파일이 첨부되지 않았습니다</div>
-              <div style={{ fontSize: '12px', marginTop: '4px' }}>삭제 후 다시 등록해주세요</div>
+              <div style={{ fontSize: '12px', marginTop: '4px' }}>아래에서 파일을 첨부해주세요</div>
             </div>
           ) : isImage ? (
             <img src={doc.fileData} alt={doc.title}
@@ -293,6 +307,28 @@ function PreviewModal({ doc, color, onClose }) {
           )}
         </div>
 
+        {/* 파일 없을 때 — 파일 첨부 영역 */}
+        {noFile && (
+          <div>
+            <input ref={fileRef} type="file" accept={ACCEPT} style={{ display: 'none' }}
+              onChange={e => setNewFile(e.target.files[0] || null)} />
+            <button onClick={() => fileRef.current?.click()} style={{
+              width: '100%', padding: '9px 12px',
+              border: `1.5px dashed ${newFile ? color : '#d1d5db'}`,
+              borderRadius: '8px',
+              background: newFile ? `${color}08` : '#fafafa',
+              cursor: 'pointer', fontSize: '13px',
+              color: newFile ? color : '#9ca3af',
+              fontFamily: 'Noto Sans KR, sans-serif',
+              textAlign: 'left', overflow: 'hidden',
+              textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              boxSizing: 'border-box',
+            }}>
+              {newFile ? `✅ ${newFile.name}` : '📁 파일 찾기'}
+            </button>
+          </div>
+        )}
+
         {/* 버튼 */}
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{
@@ -301,7 +337,14 @@ function PreviewModal({ doc, color, onClose }) {
             fontSize: '13px', fontWeight: 600, color: '#6b7280',
             cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
           }}>닫기</button>
-          {!noFile && (
+          {noFile ? (
+            <button disabled style={{
+              padding: '9px 22px', borderRadius: '8px', border: 'none',
+              background: '#e5e7eb', fontSize: '13px', fontWeight: 700, color: '#9ca3af',
+              cursor: 'not-allowed', fontFamily: 'Noto Sans KR, sans-serif',
+              display: 'flex', alignItems: 'center', gap: '6px',
+            }}>⬇️ 다운로드</button>
+          ) : (
             <button onClick={handleDownload} style={{
               padding: '9px 22px', borderRadius: '8px',
               border: 'none', background: color,
@@ -317,9 +360,13 @@ function PreviewModal({ doc, color, onClose }) {
 }
 
 // ─── 서류 칩 ───
-function DocChip({ doc, color, onDelete }) {
+function DocChip({ doc, color, onDelete, onUpdate }) {
   const [showPreview, setShowPreview] = useState(false)
   const noFile = !doc.fileData
+
+  const handleAttach = ({ fileData, fileName, fileType }) => {
+    onUpdate(doc.id, { fileData, fileName, fileType })
+  }
 
   return (
     <>
@@ -365,7 +412,7 @@ function DocChip({ doc, color, onDelete }) {
       </div>
 
       {showPreview && (
-        <PreviewModal doc={doc} color={color} onClose={() => setShowPreview(false)} />
+        <PreviewModal doc={doc} color={color} onClose={() => setShowPreview(false)} onAttach={handleAttach} />
       )}
     </>
   )
@@ -396,6 +443,11 @@ export function Templates({ user }) {
 
   const handleDelete = (id) =>
     confirm('이 서류를 삭제하시겠습니까?', () => { DocumentsDB.delete(id); reload() })
+
+  const handleUpdate = (id, patch) => {
+    DocumentsDB.update(id, patch)
+    reload()
+  }
 
   const docsFor = (catKey) => docs.filter(d => d.category === catKey)
 
@@ -473,6 +525,7 @@ export function Templates({ user }) {
                       doc={doc}
                       color={cat.color}
                       onDelete={() => handleDelete(doc.id)}
+                      onUpdate={handleUpdate}
                     />
                   ))
                 )}
