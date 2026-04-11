@@ -840,6 +840,7 @@ export function PrintSetup({ user }) {
                     원본 HWP 파일도 함께 받을 수 있습니다.
                   </div>
                   <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', marginBottom:'10px' }}>
+                    {/* TODO: 다운로드 버튼 삭제 구현 예정 */}
                     <Btn onClick={downloadExcel} disabled={!!downloading} style={{ background:downloading==='excel'?'#9ca3af':'#7c3aed' }}>
                       {downloading==='excel'?'⏳ 생성 중...':'📊 HWP 양식 스타일 Excel 다운로드'}
                     </Btn>
