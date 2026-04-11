@@ -39,15 +39,18 @@ const FT = {
   file:  { label:'FILE',  color:'#6b7280', bg:'#f3f4f6' },
 }
 
-const DAYS    = ['해당없음', '월', '화', '수', '목', '금', '토', '일']
-const PERIODS = ['해당없음', '1학기', '2학기', '1분기', '2분기', '3분기', '4분기']
+const DAYS     = ['해당없음', '월', '화', '수', '목', '금', '토', '일']
+const PERIODS1 = ['해당없음', '1학기', '2학기', '1분기', '2분기', '3분기', '4분기']
+const PERIODS2 = ['해당없음', '1텀', '2텀', '3텀', '4텀', '5텀', '6텀', '7텀', '8텀', '9텀', '10텀']
 
 // 제목 자동 조합: 선택된 항목만 + 카테고리명
-function buildTitle(day, school, period, catLabel) {
+function buildTitle(day, school, subject, period1, period2, catLabel) {
   const parts = []
   if (day && day !== '해당없음') parts.push(day)
   if (school.trim()) parts.push(school.trim())
-  if (period && period !== '해당없음') parts.push(period)
+  if (subject.trim()) parts.push(subject.trim())
+  if (period1 && period1 !== '해당없음') parts.push(period1)
+  if (period2 && period2 !== '해당없음') parts.push(period2)
   parts.push(catLabel)
   return parts.join(' ')
 }
@@ -65,14 +68,16 @@ const dropStyle = (color) => ({
 
 // ─── 등록 모달 ───
 function AddModal({ cat, onClose, onSave }) {
-  const [day, setDay]       = useState('해당없음')
-  const [school, setSchool] = useState('')
-  const [period, setPeriod] = useState('해당없음')
-  const [file, setFile]     = useState(null)
-  const [saving, setSaving] = useState(false)
+  const [day, setDay]         = useState('해당없음')
+  const [school, setSchool]   = useState('')
+  const [subject, setSubject] = useState('')
+  const [period1, setPeriod1] = useState('해당없음')
+  const [period2, setPeriod2] = useState('해당없음')
+  const [file, setFile]       = useState(null)
+  const [saving, setSaving]   = useState(false)
   const fileRef = useRef()
 
-  const autoTitle = buildTitle(day, school, period, cat.label)
+  const autoTitle = buildTitle(day, school, subject, period1, period2, cat.label)
 
   const handleSave = async () => {
     setSaving(true)
@@ -124,8 +129,8 @@ function AddModal({ cat, onClose, onSave }) {
           }}>×</button>
         </div>
 
-        {/* 요일 + 기간 나란히 */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+        {/* 요일 + 기간1 + 기간2 나란히 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
           <div>
             {fieldLabel('요일', true)}
             <select value={day} onChange={e => setDay(e.target.value)} style={dropStyle(cat.color)}>
@@ -133,30 +138,54 @@ function AddModal({ cat, onClose, onSave }) {
             </select>
           </div>
           <div>
-            {fieldLabel('기간', true)}
-            <select value={period} onChange={e => setPeriod(e.target.value)} style={dropStyle(cat.color)}>
-              {PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
+            {fieldLabel('기간1', true)}
+            <select value={period1} onChange={e => setPeriod1(e.target.value)} style={dropStyle(cat.color)}>
+              {PERIODS1.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div>
+            {fieldLabel('기간2', true)}
+            <select value={period2} onChange={e => setPeriod2(e.target.value)} style={dropStyle(cat.color)}>
+              {PERIODS2.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
         </div>
 
-        {/* 학교명 */}
-        <div style={{ marginBottom: '14px' }}>
-          {fieldLabel('학교명', true)}
-          <input
-            autoFocus
-            value={school}
-            onChange={e => setSchool(e.target.value)}
-            placeholder="예) 대한초"
-            style={{
-              width: '100%', padding: '9px 12px', borderRadius: '8px',
-              border: '1.5px solid #e5e7eb', fontSize: '13px',
-              color: '#111827', outline: 'none',
-              fontFamily: 'Noto Sans KR, sans-serif', boxSizing: 'border-box',
-            }}
-            onFocus={e => e.target.style.borderColor = cat.color}
-            onBlur={e => e.target.style.borderColor = '#e5e7eb'}
-          />
+        {/* 학교명 + 과목명 나란히 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+          <div>
+            {fieldLabel('학교명', true)}
+            <input
+              autoFocus
+              value={school}
+              onChange={e => setSchool(e.target.value)}
+              placeholder="예) 대한초"
+              style={{
+                width: '100%', padding: '9px 12px', borderRadius: '8px',
+                border: '1.5px solid #e5e7eb', fontSize: '13px',
+                color: '#111827', outline: 'none',
+                fontFamily: 'Noto Sans KR, sans-serif', boxSizing: 'border-box',
+              }}
+              onFocus={e => e.target.style.borderColor = cat.color}
+              onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+            />
+          </div>
+          <div>
+            {fieldLabel('과목명', true)}
+            <input
+              value={subject}
+              onChange={e => setSubject(e.target.value)}
+              placeholder="예) 로봇"
+              style={{
+                width: '100%', padding: '9px 12px', borderRadius: '8px',
+                border: '1.5px solid #e5e7eb', fontSize: '13px',
+                color: '#111827', outline: 'none',
+                fontFamily: 'Noto Sans KR, sans-serif', boxSizing: 'border-box',
+              }}
+              onFocus={e => e.target.style.borderColor = cat.color}
+              onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+            />
+          </div>
         </div>
 
         {/* 자동 생성 제목 미리보기 */}
