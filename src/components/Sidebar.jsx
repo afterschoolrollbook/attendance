@@ -9,7 +9,7 @@ const NAV = [
   { path: 'students',        label: '학생등록 및 관리', icon: '👥', feature: FEATURES.ADD_STUDENT },
   { path: 'confirm',         label: '인원확정 및 추첨', icon: '🎲', feature: null },
   { path: 'reports',         label: '출석 리포트',      icon: '📊', feature: FEATURES.VIEW_REPORT },
-  { path: 'templates',       label: '출석부 양식',      icon: '📄', feature: FEATURES.MANAGE_TEMPLATE },
+  { path: 'templates',       label: '방과후 서류',      icon: '🗂️', feature: FEATURES.MANAGE_TEMPLATE },
   { path: 'printsetup',      label: '출석부 출력',      icon: '🖨️', feature: FEATURES.PRINT_ATTENDANCE },
   { path: 'parent-service',  label: '출결 서비스 관리', icon: '📲', feature: null },
   { path: 'supplies',        label: '교구준비 및 관리', icon: '🎒', feature: null },
