@@ -47,7 +47,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           const isSession   = !!sessInfo && !isCancelled && !isMakeup
           const cancelInfo  = cancelledDates.find(c => c.date === dateStr)
           const makeupInfo  = makeupDates.find(m => m.date === dateStr)
-          const REASON_LABELS = { public_holiday:'공휴일', childrens_day:'어린이날', childrens_day_alt:'어린이날대체', election_day:'선거일', school_holiday:'재량휴일', teacher_absent:'강사사정', etc:'기타' }
+          const REASON_LABELS = { public_holiday:'공휴일', childrens_day:'어린이날', childrens_day_alt:'대체공휴일', election_day:'선거일', school_holiday:'재량휴일', teacher_absent:'강사사정', etc:'기타' }
           const reasonLabel = CANCEL_REASONS.find(r => r.value === cancelInfo?.reason)?.label || REASON_LABELS[cancelInfo?.reason] || cancelInfo?.reason
           const termNum     = termMap[dateStr]
           const dow = (firstDay + day - 1) % 7
@@ -172,8 +172,8 @@ export function ClassCalendar({ cls, onUpdate }) {
 
   const CANCEL_OPTIONS = [
     { value: 'public_holiday', label: '공휴일' },
-    { value: 'childrens_day', label: '어린이날 (5/5)' },
-    { value: 'childrens_day_alt', label: '어린이날 대체공휴일' },
+    { value: 'childrens_day', label: '어린이날' },
+    { value: 'childrens_day_alt', label: '대체공휴일' },
     { value: 'election_day',   label: '선거일' },
     { value: 'school_holiday', label: '학교재량휴일' },
     { value: 'teacher_absent', label: '강사사정' },
@@ -316,7 +316,13 @@ export function ClassCalendar({ cls, onUpdate }) {
       <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px',
         background:'#f8faff', border:'1.5px solid #dbeafe', borderRadius:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
         <span style={{ fontSize:'13px', fontWeight:700, color:'#1d4ed8' }}>
-          {cls.termType === 'semester' ? '📚 학기제' : cls.termType === 'quarter' ? '📅 분기제' : '📋 ' + (cls.termType || '기타')}
+          <select value={cls.termType || 'semester'}
+            onChange={e => onUpdate({ ...cls, termType: e.target.value })}
+            style={{ padding:'4px 8px', borderRadius:'7px', border:'1.5px solid #bfdbfe', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#1d4ed8', fontWeight:700, cursor:'pointer' }}>
+            <option value="semester">📚 학기제</option>
+            <option value="quarter">📅 분기제</option>
+            <option value="annual">📋 연간제</option>
+          </select>
         </span>
         <span style={{ fontSize:'12px', color:'#6b7280' }}>수업 기간:</span>
         <input type="date" value={cls.startDate || ''}
@@ -331,33 +337,76 @@ export function ClassCalendar({ cls, onUpdate }) {
         <span style={{ fontSize:'11px', color:'#93c5fd', marginLeft:'auto' }}>← 날짜 수정 시 앞 탭과 자동 연동</span>
       </div>
 
-      {/* 신청기간 배너 */}
-      {(cls.applyStartAt || cls.applyEndAt) && (
-        <div style={{
-          display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px',
-          borderRadius:'10px', marginBottom:'12px',
-          background: isApplyOpen ? '#f0fdf4' : isApplyPast ? '#f9fafb' : '#eff6ff',
-          border: `1.5px solid ${isApplyOpen ? '#86efac' : isApplyPast ? '#e5e7eb' : '#93c5fd'}`,
-        }}>
-          <span style={{ fontSize:'16px' }}>{isApplyOpen ? '🟢' : isApplyPast ? '⚫' : '🔵'}</span>
-          <div style={{ flex:1, fontSize:'13px', color: isApplyOpen ? '#15803d' : isApplyPast ? '#9ca3af' : '#1d4ed8', fontWeight:600 }}>
-            {isApplyOpen ? '신청 접수 중' : isApplyPast ? '신청 종료됨' : '신청 예정'}
-            <span style={{ fontWeight:400, marginLeft:'8px', fontSize:'12px' }}>
-              {fmtDT(cls.applyStartAt)} ~ {fmtDT(cls.applyEndAt)}
-            </span>
+      {/* 신청기간 배너 + 편집 패널 (배너 바로 아래 인라인) */}
+      <div style={{ marginBottom:'12px' }}>
+        {(cls.applyStartAt || cls.applyEndAt) && !showApplyPeriod && (
+          <div style={{
+            display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px',
+            borderRadius:'10px',
+            background: isApplyOpen ? '#f0fdf4' : isApplyPast ? '#f9fafb' : '#eff6ff',
+            border: `1.5px solid ${isApplyOpen ? '#86efac' : isApplyPast ? '#e5e7eb' : '#93c5fd'}`,
+          }}>
+            <span style={{ fontSize:'16px' }}>{isApplyOpen ? '🟢' : isApplyPast ? '⚫' : '🔵'}</span>
+            <div style={{ flex:1, fontSize:'13px', color: isApplyOpen ? '#15803d' : isApplyPast ? '#9ca3af' : '#1d4ed8', fontWeight:600 }}>
+              {isApplyOpen ? '신청 접수 중' : isApplyPast ? '신청 종료됨' : '신청 예정'}
+              <span style={{ fontWeight:400, marginLeft:'8px', fontSize:'12px' }}>
+                {fmtDT(cls.applyStartAt)} ~ {fmtDT(cls.applyEndAt)}
+              </span>
+            </div>
+            <button onClick={openApplyPeriod}
+              style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #e5e7eb', background:'#fff',
+                fontSize:'12px', color:'#6b7280', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              수정
+            </button>
+            <button onClick={() => onUpdate({ ...cls, applyStartAt: null, applyEndAt: null })}
+              style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background:'none',
+                fontSize:'12px', color:'#d1d5db', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              ✕
+            </button>
           </div>
-          <button onClick={openApplyPeriod}
-            style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #e5e7eb', background:'#fff',
-              fontSize:'12px', color:'#6b7280', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            수정
-          </button>
-          <button onClick={() => onUpdate({ ...cls, applyStartAt: null, applyEndAt: null })}
-            style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background:'none',
-              fontSize:'12px', color:'#d1d5db', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            ✕
-          </button>
-        </div>
-      )}
+        )}
+
+        {/* 신청기간 설정/편집 패널 — 배너 바로 아래 인라인 */}
+        {showApplyPeriod && (
+          <div style={{ borderRadius:'12px', border:'1.5px solid #bfdbfe',
+            background:'#eff6ff', padding:'16px', boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+              <div style={{ fontSize:'14px', fontWeight:700, color:'#1d4ed8' }}>📅 신청기간 설정</div>
+              <button onClick={() => setShowApplyPeriod(false)}
+                style={{ background:'none', border:'none', fontSize:'18px', color:'#9ca3af', cursor:'pointer', lineHeight:1, padding:'0 4px' }}>✕</button>
+            </div>
+            <div style={{ fontSize:'13px', color:'#3b82f6', marginBottom:'14px', lineHeight:1.6 }}>
+              수강 신청 접수 기간을 설정합니다. 날짜와 시간까지 입력하세요.
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>신청 시작</label>
+                <input type="datetime-local" value={applyStart} onChange={e => setApplyStart(e.target.value)}
+                  style={{ padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #bfdbfe',
+                    fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:'#111827', background:'#fff' }} />
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>신청 종료</label>
+                <input type="datetime-local" value={applyEnd} onChange={e => setApplyEnd(e.target.value)}
+                  style={{ padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #bfdbfe',
+                    fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:'#111827', background:'#fff' }} />
+              </div>
+              {applyStart && applyEnd && (
+                <div style={{ padding:'10px 14px', borderRadius:'9px', background:'#fff', border:'1px solid #bfdbfe', fontSize:'13px', color:'#1d4ed8' }}>
+                  📅 {fmtDT(applyStart)} ~ {fmtDT(applyEnd)}
+                </div>
+              )}
+            </div>
+            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', marginTop:'14px' }}>
+              <Btn variant="ghost" onClick={() => setShowApplyPeriod(false)}>닫기</Btn>
+              {(cls.applyStartAt || cls.applyEndAt) && (
+                <Btn variant="danger" onClick={() => { onUpdate({ ...cls, applyStartAt: null, applyEndAt: null }); setShowApplyPeriod(false) }}>삭제</Btn>
+              )}
+              <Btn onClick={saveApplyPeriod}>저장</Btn>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* 요약 */}
       <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'16px', alignItems:'center' }}>
@@ -448,47 +497,6 @@ export function ClassCalendar({ cls, onUpdate }) {
           </span>
         )}
       </div>
-
-      {/* 신청기간 설정 인라인 패널 */}
-      {showApplyPeriod && (
-        <div style={{ marginTop:'14px', borderRadius:'14px', border:'1.5px solid #bfdbfe',
-          background:'#eff6ff', padding:'16px', boxShadow:'0 2px 12px rgba(0,0,0,0.08)' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
-            <div style={{ fontSize:'14px', fontWeight:700, color:'#1d4ed8' }}>📅 신청기간 설정</div>
-            <button onClick={() => setShowApplyPeriod(false)}
-              style={{ background:'none', border:'none', fontSize:'18px', color:'#9ca3af', cursor:'pointer', lineHeight:1, padding:'0 4px' }}>✕</button>
-          </div>
-          <div style={{ fontSize:'13px', color:'#3b82f6', marginBottom:'14px', lineHeight:1.6 }}>
-            수강 신청 접수 기간을 설정합니다. 날짜와 시간까지 입력하세요.
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-            <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-              <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>신청 시작</label>
-              <input type="datetime-local" value={applyStart} onChange={e => setApplyStart(e.target.value)}
-                style={{ padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #bfdbfe',
-                  fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:'#111827', background:'#fff' }} />
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-              <label style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>신청 종료</label>
-              <input type="datetime-local" value={applyEnd} onChange={e => setApplyEnd(e.target.value)}
-                style={{ padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #bfdbfe',
-                  fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', color:'#111827', background:'#fff' }} />
-            </div>
-            {applyStart && applyEnd && (
-              <div style={{ padding:'10px 14px', borderRadius:'9px', background:'#fff', border:'1px solid #bfdbfe', fontSize:'13px', color:'#1d4ed8' }}>
-                📅 {fmtDT(applyStart)} ~ {fmtDT(applyEnd)}
-              </div>
-            )}
-            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-              <Btn variant="ghost" onClick={() => setShowApplyPeriod(false)}>닫기</Btn>
-              {(cls.applyStartAt || cls.applyEndAt) && (
-                <Btn variant="danger" onClick={() => { onUpdate({ ...cls, applyStartAt: null, applyEndAt: null }); setShowApplyPeriod(false) }}>삭제</Btn>
-              )}
-              <Btn onClick={saveApplyPeriod}>저장</Btn>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── 인라인 패널 (모달 대신) ── */}
       {(showNormalAction || showRegisteredAction || showCancel || showMakeup) && (
