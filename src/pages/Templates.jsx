@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { DocumentsDB } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
-import { Btn, Modal, PageHeader } from '../components/Atoms.jsx'
+import { Btn, PageHeader } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../components/Atoms.jsx'
 
@@ -38,7 +38,7 @@ const FT = {
   file:  { label:'FILE',  color:'#6b7280', bg:'#f3f4f6' },
 }
 
-// 카테고리별 초기 entries: { notice: [{id, title, file}], ... }
+// 카테고리별 입력 슬롯 초기화
 function initEntries() {
   return Object.fromEntries(CATEGORIES.map(c => [c.key, [{ id: uid(), title: '', file: null }]]))
 }
@@ -47,8 +47,8 @@ export function Templates({ user }) {
   const [docs, setDocs] = useState(() =>
     (DocumentsDB?.all?.() || []).filter(d => d.teacherId === user.id || user.role === 'admin')
   )
-  const [showModal, setShowModal] = useState(false)
   const [entries, setEntries] = useState(initEntries)
+  const [saving, setSaving] = useState(false)
   const { error: toastError, success } = useToast()
   const confirm = useConfirm()
   const fileRefs = useRef({})
@@ -56,33 +56,24 @@ export function Templates({ user }) {
   const reload = () =>
     setDocs((DocumentsDB?.all?.() || []).filter(d => d.teacherId === user.id || user.role === 'admin'))
 
-  // ─ entries 조작
-  const addEntry = (catKey) => {
+  // 슬롯 조작
+  const addEntry    = (catKey) => {
     setEntries(e => {
-      const list = e[catKey]
-      if (list.length >= 10) return e
-      return { ...e, [catKey]: [...list, { id: uid(), title: '', file: null }] }
+      if (e[catKey].length >= 10) return e
+      return { ...e, [catKey]: [...e[catKey], { id: uid(), title: '', file: null }] }
     })
   }
-  const removeEntry = (catKey, id) => {
+  const removeEntry = (catKey, id) =>
     setEntries(e => ({ ...e, [catKey]: e[catKey].filter(x => x.id !== id) }))
-  }
-  const patchEntry = (catKey, id, patch) => {
-    setEntries(e => ({
-      ...e,
-      [catKey]: e[catKey].map(x => x.id === id ? { ...x, ...patch } : x),
-    }))
-  }
+  const patchEntry  = (catKey, id, patch) =>
+    setEntries(e => ({ ...e, [catKey]: e[catKey].map(x => x.id === id ? { ...x, ...patch } : x) }))
 
-  const openModal = () => { setEntries(initEntries()); setShowModal(true) }
-
-  // ─ 저장
+  // 저장
   const save = async () => {
-    // 입력된 항목만 모으기 (제목 또는 파일 중 하나라도 있는 것)
     const toSave = []
     for (const cat of CATEGORIES) {
       for (const entry of entries[cat.key]) {
-        if (!entry.title.trim() && !entry.file) continue   // 빈 행 스킵
+        if (!entry.title.trim() && !entry.file) continue
         if (!entry.title.trim() || !entry.file) {
           toastError(`[${cat.label}] 제목과 파일을 모두 입력해주세요.`)
           return
@@ -92,6 +83,7 @@ export function Templates({ user }) {
     }
     if (!toSave.length) { toastError('입력된 서류가 없습니다.'); return }
 
+    setSaving(true)
     for (const { cat, entry } of toSave) {
       const fileData = await new Promise(resolve => {
         const reader = new FileReader()
@@ -106,7 +98,8 @@ export function Templates({ user }) {
       })
     }
     reload()
-    setShowModal(false)
+    setEntries(initEntries())
+    setSaving(false)
     success(`${toSave.length}개 서류가 등록되었습니다.`)
   }
 
@@ -117,16 +110,13 @@ export function Templates({ user }) {
   }
   const del = (id) => confirm('이 서류를 삭제하시겠습니까?', () => { DocumentsDB.delete(id); reload() })
 
-  const rows = CATEGORIES.flatMap(cat =>
-    docs.filter(d => d.category === cat.key).map((doc, idx) => ({ doc, cat, idx }))
-  )
+  const docsFor = (catKey) => docs.filter(d => d.category === catKey)
 
   return (
     <div style={{ padding: '28px', maxWidth: '1000px' }}>
       <PageHeader
         title="방과후 서류"
         sub="방과후 수업에 필요한 서류를 보관하고 관리합니다."
-        right={<Btn onClick={openModal}>+ 서류 등록</Btn>}
       />
 
       <div style={{
@@ -137,186 +127,160 @@ export function Templates({ user }) {
         📌 학교마다 다른 서류를 여러 개 등록할 수 있습니다. 지원 형식: <strong>HWP · Excel · 이미지 · PDF</strong>
       </div>
 
-      {/* 서류 테이블 */}
+      {/* ─── 메인 카드 ─── */}
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', overflow: 'hidden' }}>
+
+        {/* 컬럼 헤더 */}
         <div style={{
-          display: 'grid', gridTemplateColumns: '150px 1fr 70px 150px 90px 72px',
-          padding: '10px 16px', background: '#f9fafb',
-          borderBottom: '1px solid #e5e7eb',
+          display: 'grid', gridTemplateColumns: '160px 1fr 200px 36px',
+          gap: '10px', padding: '11px 20px',
+          background: '#f9fafb', borderBottom: '1px solid #e5e7eb',
           fontSize: '12px', fontWeight: 700, color: '#6b7280',
         }}>
-          <span>분류</span><span>제목</span><span>형식</span>
-          <span>파일명</span><span>등록일</span>
-          <span style={{ textAlign: 'center' }}>관리</span>
+          <span>분류</span>
+          <span>제목 <span style={{ color: '#dc2626' }}>*</span></span>
+          <span>파일 <span style={{ color: '#dc2626' }}>*</span></span>
+          <span />
         </div>
 
-        {rows.length === 0 ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: '#9ca3af' }}>
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>📂</div>
-            <div style={{ fontSize: '14px' }}>등록된 서류가 없습니다</div>
-            <div style={{ fontSize: '13px', marginTop: '6px' }}>우측 상단 <strong>서류 등록</strong> 버튼으로 추가하세요</div>
-          </div>
-        ) : rows.map(({ doc, cat, idx }) => {
-          const ft = FT[doc.fileType] || FT.file
-          return (
-            <div key={doc.id} style={{
-              display: 'grid', gridTemplateColumns: '150px 1fr 70px 150px 90px 72px',
-              padding: '10px 16px', alignItems: 'center',
-              borderBottom: '1px solid #f3f4f6',
-              background: idx === 0 ? '#fff' : '#fafafa',
-              fontSize: '13px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {idx === 0 ? (
-                  <><span style={{ fontSize: '15px' }}>{cat.icon}</span>
-                  <span style={{ fontWeight: 700, color: cat.color, fontSize: '12px' }}>{cat.label}</span></>
-                ) : (
-                  <span style={{ color: '#d1d5db', paddingLeft: '24px', fontSize: '12px' }}>↳</span>
-                )}
-              </div>
-              <div style={{ fontWeight: 500, color: '#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
-              <div><span style={{ fontSize:'11px', fontWeight:700, padding:'2px 6px', borderRadius:'4px', background:ft.bg, color:ft.color }}>{ft.label}</span></div>
-              <div style={{ color:'#9ca3af', fontSize:'12px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.fileName}</div>
-              <div style={{ color:'#9ca3af', fontSize:'12px' }}>{doc.createdAt?.slice(0,10)}</div>
-              <div style={{ display:'flex', gap:'6px', justifyContent:'center' }}>
-                <button onClick={() => download(doc)} title="다운로드"
-                  style={{ background:'#eff6ff', border:'none', borderRadius:'6px', padding:'4px 7px', cursor:'pointer', fontSize:'13px' }}>⬇️</button>
-                <button onClick={() => del(doc.id)} title="삭제"
-                  style={{ background:'#fef2f2', border:'none', borderRadius:'6px', padding:'4px 7px', cursor:'pointer', fontSize:'13px' }}>🗑️</button>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+        {/* 카테고리 행 */}
+        <div style={{ padding: '8px 0' }}>
+          {CATEGORIES.map((cat, ci) => (
+            <div key={cat.key}>
+              {ci > 0 && <div style={{ height: '1px', background: '#f3f4f6', margin: '4px 0' }} />}
 
-      {/* ─── 등록 모달 ─── */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="📂 서류 등록" width={680}>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-
-          {/* 컬럼 헤더 */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: '140px 1fr 190px 28px',
-            gap: '8px', paddingBottom: '8px',
-            fontSize: '12px', fontWeight: 700, color: '#6b7280',
-            borderBottom: '1px solid #f3f4f6', marginBottom: '4px',
-          }}>
-            <span>분류</span>
-            <span>제목 <span style={{ color:'#dc2626' }}>*</span></span>
-            <span>파일 <span style={{ color:'#dc2626' }}>*</span></span>
-            <span />
-          </div>
-
-          {/* 카테고리 행 목록 */}
-          <div style={{ maxHeight: '480px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            {CATEGORIES.map((cat, ci) => (
-              <div key={cat.key}>
-                {/* 구분선 (첫 번째 제외) */}
-                {ci > 0 && <div style={{ height: '1px', background: '#f3f4f6', margin: '4px 0' }} />}
-
-                {entries[cat.key].map((entry, ei) => (
-                  <div key={entry.id} style={{
-                    display: 'grid', gridTemplateColumns: '140px 1fr 190px 28px',
-                    gap: '8px', alignItems: 'center', padding: '4px 0',
-                  }}>
-                    {/* 분류 라벨 — 첫 번째 행만, 나머지는 ↳ */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {ei === 0 ? (
-                        <div style={{
-                          display: 'flex', alignItems: 'center', gap: '6px',
-                          padding: '6px 10px', borderRadius: '8px',
-                          background: `${cat.color}12`, border: `1px solid ${cat.color}30`,
-                          fontSize: '12px', fontWeight: 700, color: cat.color,
-                          whiteSpace: 'nowrap',
-                        }}>
-                          <span>{cat.icon}</span>
-                          <span>{cat.label}</span>
-                        </div>
-                      ) : (
-                        <div style={{ paddingLeft: '16px', color: '#d1d5db', fontSize: '13px' }}>↳</div>
-                      )}
-                    </div>
-
-                    {/* 제목 입력 */}
-                    <input
-                      value={entry.title}
-                      onChange={e => patchEntry(cat.key, entry.id, { title: e.target.value })}
-                      placeholder="예) 2026년 1학기 판교초"
-                      style={{
-                        padding: '7px 10px', borderRadius: '8px',
-                        border: '1.5px solid #e5e7eb', fontSize: '13px',
-                        fontFamily: 'Noto Sans KR, sans-serif',
-                        color: '#111827', outline: 'none', width: '100%', boxSizing: 'border-box',
-                      }}
-                      onFocus={e => e.target.style.borderColor = cat.color}
-                      onBlur={e => e.target.style.borderColor = '#e5e7eb'}
-                    />
-
-                    {/* 파일 선택 */}
-                    <div>
-                      <input
-                        ref={el => fileRefs.current[entry.id] = el}
-                        type="file" accept={ACCEPT} style={{ display: 'none' }}
-                        onChange={e => patchEntry(cat.key, entry.id, { file: e.target.files[0] || null })}
-                      />
-                      <button
-                        onClick={() => fileRefs.current[entry.id]?.click()}
-                        style={{
-                          width: '100%', padding: '7px 10px',
-                          border: `1.5px dashed ${entry.file ? cat.color : '#d1d5db'}`,
-                          borderRadius: '8px',
-                          background: entry.file ? `${cat.color}10` : '#fafafa',
-                          cursor: 'pointer', fontSize: '12px',
-                          color: entry.file ? cat.color : '#9ca3af',
-                          fontFamily: 'Noto Sans KR, sans-serif',
-                          textAlign: 'left', overflow: 'hidden',
-                          textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          boxSizing: 'border-box',
-                        }}
-                      >
-                        {entry.file ? `✅ ${entry.file.name}` : '📁 파일 선택'}
-                      </button>
-                    </div>
-
-                    {/* + 추가 or ✕ 삭제 */}
-                    <div style={{ display: 'flex', justifyContent: 'center' }}>
-                      {ei === entries[cat.key].length - 1 ? (
-                        // 마지막 행: + 버튼
-                        entries[cat.key].length < 10 && (
-                          <button onClick={() => addEntry(cat.key)}
-                            title="이 분류에 항목 추가"
-                            style={{
-                              background: `${cat.color}18`, border: 'none',
-                              borderRadius: '6px', width: '24px', height: '24px',
-                              cursor: 'pointer', color: cat.color,
-                              fontSize: '16px', lineHeight: 1, fontWeight: 700,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}>+</button>
-                        )
-                      ) : (
-                        // 중간 행: ✕ 버튼
-                        <button onClick={() => removeEntry(cat.key, entry.id)}
-                          style={{
-                            background: 'none', border: 'none', cursor: 'pointer',
-                            color: '#d1d5db', fontSize: '15px', padding: 0,
-                          }}>✕</button>
-                      )}
-                    </div>
+              {/* 입력 슬롯들 */}
+              {entries[cat.key].map((entry, ei) => (
+                <div key={entry.id} style={{
+                  display: 'grid', gridTemplateColumns: '160px 1fr 200px 36px',
+                  gap: '10px', padding: '6px 20px', alignItems: 'center',
+                }}>
+                  {/* 분류 라벨 */}
+                  <div>
+                    {ei === 0 ? (
+                      <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '5px',
+                        padding: '5px 10px', borderRadius: '8px',
+                        background: `${cat.color}12`, border: `1px solid ${cat.color}30`,
+                        fontSize: '12px', fontWeight: 700, color: cat.color,
+                        whiteSpace: 'nowrap',
+                      }}>
+                        <span>{cat.icon}</span><span>{cat.label}</span>
+                      </div>
+                    ) : (
+                      <div style={{ paddingLeft: '14px', color: '#d1d5db', fontSize: '13px' }}>↳</div>
+                    )}
                   </div>
-                ))}
-              </div>
-            ))}
-          </div>
 
-          {/* 저장 */}
-          <div style={{
-            display: 'flex', gap: '8px', justifyContent: 'flex-end',
-            marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #f3f4f6',
-          }}>
-            <Btn variant="ghost" onClick={() => setShowModal(false)}>취소</Btn>
-            <Btn onClick={save}>등록</Btn>
-          </div>
+                  {/* 제목 */}
+                  <input
+                    value={entry.title}
+                    onChange={e => patchEntry(cat.key, entry.id, { title: e.target.value })}
+                    placeholder=""
+                    style={{
+                      padding: '7px 10px', borderRadius: '8px',
+                      border: '1.5px solid #e5e7eb', fontSize: '13px',
+                      fontFamily: 'Noto Sans KR, sans-serif',
+                      color: '#111827', outline: 'none', width: '100%', boxSizing: 'border-box',
+                    }}
+                    onFocus={e => e.target.style.borderColor = cat.color}
+                    onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                  />
+
+                  {/* 파일 선택 */}
+                  <div>
+                    <input
+                      ref={el => fileRefs.current[entry.id] = el}
+                      type="file" accept={ACCEPT} style={{ display: 'none' }}
+                      onChange={e => patchEntry(cat.key, entry.id, { file: e.target.files[0] || null })}
+                    />
+                    <button
+                      onClick={() => fileRefs.current[entry.id]?.click()}
+                      style={{
+                        width: '100%', padding: '7px 10px',
+                        border: `1.5px dashed ${entry.file ? cat.color : '#d1d5db'}`,
+                        borderRadius: '8px',
+                        background: entry.file ? `${cat.color}10` : '#fafafa',
+                        cursor: 'pointer', fontSize: '12px',
+                        color: entry.file ? cat.color : '#9ca3af',
+                        fontFamily: 'Noto Sans KR, sans-serif',
+                        textAlign: 'left', overflow: 'hidden',
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      {entry.file ? `✅ ${entry.file.name}` : '📁 파일 선택'}
+                    </button>
+                  </div>
+
+                  {/* + / ✕ */}
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    {ei === entries[cat.key].length - 1 ? (
+                      entries[cat.key].length < 10 && (
+                        <button onClick={() => addEntry(cat.key)}
+                          style={{
+                            background: `${cat.color}18`, border: 'none',
+                            borderRadius: '6px', width: '26px', height: '26px',
+                            cursor: 'pointer', color: cat.color,
+                            fontSize: '18px', fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>+</button>
+                      )
+                    ) : (
+                      <button onClick={() => removeEntry(cat.key, entry.id)}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          color: '#d1d5db', fontSize: '16px', padding: 0,
+                        }}>✕</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* 이미 등록된 파일 목록 */}
+              {docsFor(cat.key).length > 0 && (
+                <div style={{ margin: '4px 20px 4px 190px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {docsFor(cat.key).map(doc => {
+                    const ft = FT[doc.fileType] || FT.file
+                    return (
+                      <div key={doc.id} style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        padding: '5px 10px', background: '#f9fafb',
+                        border: '1px solid #f3f4f6', borderRadius: '8px',
+                        fontSize: '12px',
+                      }}>
+                        <span style={{
+                          fontSize: '10px', fontWeight: 700, padding: '1px 5px',
+                          borderRadius: '4px', background: ft.bg, color: ft.color, flexShrink: 0,
+                        }}>{ft.label}</span>
+                        <span style={{ fontWeight: 600, color: '#374151', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {doc.title}
+                        </span>
+                        <span style={{ color: '#9ca3af', flexShrink: 0 }}>{doc.fileName}</span>
+                        <span style={{ color: '#d1d5db', flexShrink: 0 }}>{doc.createdAt?.slice(0,10)}</span>
+                        <button onClick={() => { const a = document.createElement('a'); a.href = doc.fileData; a.download = doc.fileName; a.click() }}
+                          style={{ background: '#eff6ff', border: 'none', borderRadius: '5px', padding: '3px 6px', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>⬇️</button>
+                        <button onClick={() => del(doc.id)}
+                          style={{ background: '#fef2f2', border: 'none', borderRadius: '5px', padding: '3px 6px', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>🗑️</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
-      </Modal>
+
+        {/* 등록 버튼 */}
+        <div style={{
+          padding: '14px 20px', borderTop: '1px solid #f3f4f6',
+          display: 'flex', justifyContent: 'flex-end',
+        }}>
+          <Btn onClick={save} disabled={saving}>
+            {saving ? '저장 중...' : '등록'}
+          </Btn>
+        </div>
+      </div>
     </div>
   )
 }
