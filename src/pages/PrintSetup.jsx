@@ -6,7 +6,7 @@ import { can, FEATURES } from '../constants/permissions.js'
 import { useToast } from '../hooks/useToast.js'
 
 // 출석 체크 칸 기호
-const BLANK = '□'
+const BLANK = ''
 
 export function PrintSetup({ user }) {
   const [selectedClass, setSelectedClass] = useState('')
@@ -14,6 +14,7 @@ export function PrintSetup({ user }) {
   const [step, setStep] = useState(1)
   const [downloading, setDownloading] = useState('')
   const [checkedDates, setCheckedDates] = useState(null)  // null=전체, Set=명시적 선택
+  const [selectMode, setSelectMode] = useState('term')  // 'all' | 'term' | 'quarter' | 'session'
   const { error: toastError } = useToast()
 
   if (!can(user, FEATURES.PRINT_ATTENDANCE)) {
@@ -51,20 +52,54 @@ export function PrintSetup({ user }) {
   const allSessions = cls ? calcSessionDates(cls) : []
 
   // ── 실제 수업일 계산 (ClassCalendar와 동일 로직)
-  // totalSessions 설정 시 그 수만큼만, 취소일 제외, 보강일 포함
   const cancelled = new Set((cls?.cancelledDates || []).map(c => c.date))
   const makeupDates = cls?.makeupDates || []
   const totalCap = cls?.totalSessions ? Number(cls.totalSessions) : null
   const regularDates = (totalCap ? allSessions.slice(0, totalCap) : allSessions)
     .filter(d => !cancelled.has(d))
   const makeupSessionDates = makeupDates.map(m => m.date)
-  // 전체 실제 수업일 (날짜순 정렬, 중복 제거)
   const actualSessionDates = [...new Set([...regularDates, ...makeupSessionDates])].sort()
 
-  // 체크박스로 선택된 날짜만 출력 (아무것도 선택 안 하면 전체)
-  const sessions = checkedDates !== null
-    ? actualSessionDates.filter(d => checkedDates.has(d))
-    : actualSessionDates
+  // ── 텀 그룹 계산 (ClassCalendar와 동일 로직)
+  const termSizes = cls
+    ? (cls.termSizes?.length > 0
+        ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length).map(n => Number(n) || 4)
+        : [cls.termSize ? Number(cls.termSize) : actualSessionDates.length])
+    : []
+  const termGroups = (() => {
+    const baseSessions = totalCap ? allSessions.slice(0, totalCap) : allSessions
+    const groups = []
+    let cursor = 0
+    termSizes.forEach((size, ti) => {
+      const termDates = baseSessions.slice(cursor, cursor + size).filter(d => !cancelled.has(d))
+      if (termDates.length > 0) groups.push({ num: ti + 1, dates: termDates })
+      cursor += size
+    })
+    if (cursor < baseSessions.length) {
+      const rest = baseSessions.slice(cursor).filter(d => !cancelled.has(d))
+      if (rest.length > 0) groups.push({ num: groups.length + 1, dates: rest })
+    }
+    if (makeupSessionDates.length > 0) {
+      if (groups.length === 0) groups.push({ num: 1, dates: [] })
+      groups[groups.length - 1].dates = [...groups[groups.length - 1].dates, ...makeupSessionDates].sort()
+    }
+    return groups
+  })()
+
+  // ── 분기 그룹 계산 (학기 기준)
+  const QUARTER_DEFS = [
+    { label: '1학기', months: [3,4,5,6,7,8] },
+    { label: '2학기', months: [9,10,11,12,1,2] },
+  ]
+  const quarterGroups = QUARTER_DEFS.map(q => ({
+    label: q.label,
+    dates: actualSessionDates.filter(d => q.months.includes(parseInt(d.slice(5,7)))),
+  })).filter(q => q.dates.length > 0)
+
+  // ── 선택된 날짜 최종 (전체 모드=null이면 전체, 아니면 명시 Set)
+  const sessions = (selectMode === 'all' || checkedDates === null)
+    ? actualSessionDates
+    : actualSessionDates.filter(d => checkedDates.has(d))
 
   // 수업에 직접 등록한 templateFiles + Templates.bySchool 통합
   const dbTemplates = cls ? Templates.bySchool(cls.organization) : []
@@ -144,7 +179,7 @@ export function PrintSetup({ user }) {
           <td style="font-weight:600;text-align:left;padding-left:3px">${s.name}</td>
           <td style="font-size:8px">${s.parentPhone||''}</td>
           <td>${cls.days?.join('·')||''}</td>
-          ${sessions.map(()=>'<td>□</td>').join('')}
+          ${sessions.map(()=>'<td></td>').join('')}
           <td></td>
           <td></td>
         </tr>`).join('')
@@ -251,7 +286,7 @@ export function PrintSetup({ user }) {
           row[4] = s.name || ''
           row[5] = s.parentPhone || ''
           row[6] = cls.days?.join('·') || ''
-          sessions.forEach((_, j) => { row[7 + j] = BLANK })
+          sessions.forEach((_, j) => { row[7 + j] = '' })
           return row
         })
 
@@ -320,7 +355,7 @@ export function PrintSetup({ user }) {
           s.number||(i+1), s.name, s.grade,
           s.classNum ? s.classNum+'반' : '',
           s.parentPhone||'',
-          ...sessions.map(()=>BLANK),
+          ...sessions.map(()=>''),
           '', '', '',
         ])
         const ws = XLSX.utils.aoa_to_sheet([...infoRows, sessionHeader1, sessionHeader2, ...studentRows])
@@ -374,7 +409,7 @@ export function PrintSetup({ user }) {
           <td class="name">${s.name}</td>
           <td>${s.parentPhone||''}</td>
           <td class="center">${cls.days?.join('·')||''}</td>
-          ${sessions.map(()=>`<td class="center chk">${BLANK}</td>`).join('')}
+          ${sessions.map(()=>'<td class="center chk"></td>').join('')}
           <td class="center"></td>
           <td></td>
         </tr>`).join('')
@@ -414,7 +449,7 @@ export function PrintSetup({ user }) {
           <td class="center">${s.grade}</td>
           <td class="center">${s.classNum ? s.classNum+'반' : ''}</td>
           <td>${s.parentPhone||''}</td>
-          ${sessions.map(()=>`<td class="center chk">${BLANK}</td>`).join('')}
+          ${sessions.map(()=>'<td class="center chk"></td>').join('')}
           <td class="center"></td>
           <td class="center"></td>
           <td></td>
@@ -506,7 +541,7 @@ export function PrintSetup({ user }) {
       <Card style={{ marginBottom: '16px' }}>
         <div style={{ fontSize: '14px', fontWeight: 700, color: '#111827', marginBottom: '12px' }}>① 수업 선택</div>
         <select value={selectedClass}
-          onChange={e => { setSelectedClass(e.target.value); setStep(2); setSelectedTemplate(''); setCheckedDates(null) }}
+          onChange={e => { setSelectedClass(e.target.value); setStep(2); setSelectedTemplate(''); setCheckedDates(null); setSelectMode('term') }}
           style={{ width: '100%', padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', background: '#fff', outline: 'none', cursor: 'pointer' }}>
           <option value="">-- 수업을 선택하세요 --</option>
           {(() => {
@@ -588,56 +623,146 @@ export function PrintSetup({ user }) {
         <Card>
           <div style={{ fontSize: '14px', fontWeight: 700, color: '#111827', marginBottom: '12px' }}>③ 출력 기간 & 다운로드</div>
 
-          {/* 날짜 체크박스 선택 */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px' }}>
-              <span style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>
-                수업일 선택 — 출력할 차시를 선택하세요
-              </span>
-              <div style={{ display:'flex', gap:'8px' }}>
-                <button onClick={() => setCheckedDates(null)}
-                  style={{ padding:'4px 12px', borderRadius:'6px', border:'1.5px solid #e5e7eb', background:'#f9fafb', fontSize:'12px', color:'#374151', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                  전체 선택
+          {/* ── 출력 기간 선택 모드 ── */}
+          <div style={{ marginBottom:'16px' }}>
+            {/* 모드 탭 */}
+            <div style={{ display:'flex', gap:'6px', marginBottom:'12px', flexWrap:'wrap' }}>
+              {[
+                { key:'all',     label:'📋 전체' },
+                ...(termGroups.length > 1 ? [{ key:'term',    label:'📦 텀별' }] : []),
+                ...(quarterGroups.length > 1 ? [{ key:'quarter', label:'🗓 학기별' }] : []),
+                { key:'session', label:'🔢 차시별' },
+              ].map(m => (
+                <button key={m.key} onClick={() => { setSelectMode(m.key); setCheckedDates(m.key === 'all' ? null : new Set()) }}
+                  style={{ padding:'6px 14px', borderRadius:'20px', border:`1.5px solid ${selectMode===m.key?'#f97316':'#e5e7eb'}`,
+                    background:selectMode===m.key?'#fff7ed':'#f9fafb', fontSize:'12px', fontWeight:selectMode===m.key?700:400,
+                    color:selectMode===m.key?'#f97316':'#6b7280', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
+                  {m.label}
                 </button>
-                <button onClick={() => setCheckedDates(new Set())}
-                  style={{ padding:'4px 12px', borderRadius:'6px', border:'1.5px solid #e5e7eb', background:'#f9fafb', fontSize:'12px', color:'#374151', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                  전체 해제
-                </button>
+              ))}
+            </div>
+
+            {/* 전체 모드 */}
+            {selectMode === 'all' && (
+              <div style={{ padding:'14px 16px', background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:'10px', fontSize:'13px', color:'#92400e' }}>
+                ✅ 전체 <strong>{actualSessionDates.length}차시</strong> 출력
+                <span style={{ color:'#d97706', marginLeft:'8px' }}>({actualSessionDates[0]?.slice(5,7).replace(/^0/,'')}/{actualSessionDates[0]?.slice(8).replace(/^0/,'')} ~ {actualSessionDates[actualSessionDates.length-1]?.slice(5,7).replace(/^0/,'')}/{actualSessionDates[actualSessionDates.length-1]?.slice(8).replace(/^0/,'')})</span>
               </div>
-            </div>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', padding:'12px', background:'#f9fafb', borderRadius:'10px', border:'1px solid #e5e7eb' }}>
-              {actualSessionDates.map((d, i) => {
-                const checked = checkedDates === null || checkedDates.has(d)
-                const isMakeup = makeupSessionDates.includes(d)
-                return (
-                  <label key={d} style={{
-                    display:'flex', alignItems:'center', gap:'4px', padding:'5px 10px',
-                    borderRadius:'8px', cursor:'pointer',
-                    border:`1.5px solid ${checked ? '#f97316' : '#e5e7eb'}`,
-                    background: checked ? '#fff7ed' : '#fff',
-                    fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif',
-                    transition:'all .12s',
-                  }}>
-                    <input type="checkbox"
-                      checked={checked}
-                      onChange={e => {
-                        const next = new Set(checkedDates === null ? actualSessionDates : checkedDates)
-                        if (e.target.checked) next.add(d)
-                        else next.delete(d)
+            )}
+
+            {/* 텀별 모드 */}
+            {selectMode === 'term' && (
+              <div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'8px', marginBottom:'10px' }}>
+                  {termGroups.map((tg, ti) => {
+                    const TERM_COLORS = ['#f97316','#16a34a','#3b82f6','#a855f7','#f43f5e','#eab308']
+                    const color = TERM_COLORS[ti % TERM_COLORS.length]
+                    const allIn = tg.dates.every(d => checkedDates?.has(d))
+                    const someIn = tg.dates.some(d => checkedDates?.has(d))
+                    return (
+                      <button key={tg.num} onClick={() => {
+                        const next = new Set(checkedDates)
+                        if (allIn) tg.dates.forEach(d => next.delete(d))
+                        else tg.dates.forEach(d => next.add(d))
                         setCheckedDates(next)
-                      }}
-                      style={{ accentColor:'#f97316', width:'14px', height:'14px' }} />
-                    <span style={{ fontWeight:600, color:'#f97316' }}>{i+1}차</span>
-                    <span style={{ color:'#6b7280' }}>{d.slice(5)}</span>
-                    {isMakeup && <span style={{ fontSize:'10px', color:'#3b82f6', fontWeight:700 }}>보강</span>}
-                  </label>
-                )
-              })}
-            </div>
-            <div style={{ marginTop:'8px', fontSize:'12px', color:'#9ca3af' }}>
-              선택: <strong style={{ color:'#f97316' }}>{sessions.length}차시</strong>
-              {sessions[0] && <span style={{ marginLeft:'8px' }}>({sessions[0].slice(5)} ~ {sessions[sessions.length-1].slice(5)})</span>}
-              {checkedDates === null && <span style={{ marginLeft:'8px', color:'#9ca3af' }}>(미선택 시 전체 출력)</span>}
+                      }} style={{ padding:'10px 18px', borderRadius:'10px', border:`2px solid ${allIn||someIn?color:'#e5e7eb'}`,
+                        background:allIn?color:someIn?color+'22':'#f9fafb',
+                        color:allIn?'#fff':someIn?color:'#6b7280',
+                        cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s', textAlign:'left' }}>
+                        <div style={{ fontSize:'14px', fontWeight:700 }}>{tg.num}텀</div>
+                        <div style={{ fontSize:'11px', opacity:0.85, marginTop:'2px' }}>
+                          {tg.dates.length}차시 · {tg.dates[0]?.slice(5,7).replace(/^0/,'')}/{tg.dates[0]?.slice(8).replace(/^0/,'')}~{tg.dates[tg.dates.length-1]?.slice(5,7).replace(/^0/,'')}/{tg.dates[tg.dates.length-1]?.slice(8).replace(/^0/,'')}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+                <div style={{ fontSize:'11px', color:'#9ca3af' }}>여러 텀 동시 선택 가능 · 클릭으로 선택/해제</div>
+              </div>
+            )}
+
+            {/* 학기별 모드 */}
+            {selectMode === 'quarter' && (
+              <div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'8px', marginBottom:'10px' }}>
+                  {quarterGroups.map((qg, qi) => {
+                    const colors = ['#3b82f6','#16a34a']
+                    const color = colors[qi % colors.length]
+                    const allIn = qg.dates.every(d => checkedDates?.has(d))
+                    const someIn = qg.dates.some(d => checkedDates?.has(d))
+                    return (
+                      <button key={qg.label} onClick={() => {
+                        const next = new Set(checkedDates)
+                        if (allIn) qg.dates.forEach(d => next.delete(d))
+                        else qg.dates.forEach(d => next.add(d))
+                        setCheckedDates(next)
+                      }} style={{ padding:'10px 18px', borderRadius:'10px', border:`2px solid ${allIn||someIn?color:'#e5e7eb'}`,
+                        background:allIn?color:someIn?color+'22':'#f9fafb',
+                        color:allIn?'#fff':someIn?color:'#6b7280',
+                        cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s', textAlign:'left' }}>
+                        <div style={{ fontSize:'14px', fontWeight:700 }}>{qg.label}</div>
+                        <div style={{ fontSize:'11px', opacity:0.85, marginTop:'2px' }}>
+                          {qg.dates.length}차시 · {qg.dates[0]?.slice(5,7).replace(/^0/,'')}/{qg.dates[0]?.slice(8).replace(/^0/,'')}~{qg.dates[qg.dates.length-1]?.slice(5,7).replace(/^0/,'')}/{qg.dates[qg.dates.length-1]?.slice(8).replace(/^0/,'')}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+                <div style={{ fontSize:'11px', color:'#9ca3af' }}>여러 학기 동시 선택 가능 · 클릭으로 선택/해제</div>
+              </div>
+            )}
+
+            {/* 차시별 모드 */}
+            {selectMode === 'session' && (
+              <div>
+                <div style={{ display:'flex', justifyContent:'flex-end', gap:'8px', marginBottom:'8px' }}>
+                  <button onClick={() => setCheckedDates(new Set(actualSessionDates))}
+                    style={{ padding:'4px 12px', borderRadius:'6px', border:'1.5px solid #e5e7eb', background:'#f9fafb', fontSize:'12px', color:'#374151', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    전체 선택
+                  </button>
+                  <button onClick={() => setCheckedDates(new Set())}
+                    style={{ padding:'4px 12px', borderRadius:'6px', border:'1.5px solid #e5e7eb', background:'#f9fafb', fontSize:'12px', color:'#374151', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    전체 해제
+                  </button>
+                </div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', padding:'12px', background:'#f9fafb', borderRadius:'10px', border:'1px solid #e5e7eb' }}>
+                  {actualSessionDates.map((d, i) => {
+                    const checked = checkedDates === null || checkedDates.has(d)
+                    const isMakeup = makeupSessionDates.includes(d)
+                    return (
+                      <label key={d} style={{ display:'flex', alignItems:'center', gap:'4px', padding:'5px 10px',
+                        borderRadius:'8px', cursor:'pointer',
+                        border:`1.5px solid ${checked?'#f97316':'#e5e7eb'}`,
+                        background:checked?'#fff7ed':'#fff', fontSize:'12px',
+                        fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
+                        <input type="checkbox" checked={checked}
+                          onChange={e => {
+                            const next = new Set(checkedDates === null ? actualSessionDates : checkedDates)
+                            if (e.target.checked) next.add(d)
+                            else next.delete(d)
+                            setCheckedDates(next)
+                          }}
+                          style={{ accentColor:'#f97316', width:'14px', height:'14px' }} />
+                        <span style={{ fontWeight:600, color:'#f97316' }}>{i+1}차</span>
+                        <span style={{ color:'#6b7280' }}>{d.slice(5,7).replace(/^0/,'')}/{d.slice(8).replace(/^0/,'')}</span>
+                        {isMakeup && <span style={{ fontSize:'10px', color:'#3b82f6', fontWeight:700 }}>보강</span>}
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 선택 결과 요약 */}
+            <div style={{ marginTop:'10px', padding:'8px 12px', background:'#f3f4f6', borderRadius:'8px', fontSize:'12px', color:'#6b7280', display:'flex', alignItems:'center', gap:'12px' }}>
+              <span>선택된 차시:</span>
+              <strong style={{ color:'#f97316', fontSize:'14px' }}>{sessions.length}차시</strong>
+              {sessions.length > 0 && (
+                <span>{sessions[0].slice(5,7).replace(/^0/,'')}/{sessions[0].slice(8).replace(/^0/,'')} ~ {sessions[sessions.length-1].slice(5,7).replace(/^0/,'')}/{sessions[sessions.length-1].slice(8).replace(/^0/,'')}</span>
+              )}
+              {sessions.length === 0 && selectMode !== 'all' && (
+                <span style={{ color:'#ef4444' }}>⚠️ 선택된 차시 없음 — 텀 또는 차시를 선택하세요</span>
+              )}
             </div>
           </div>
           {/* 미리보기 테이블 — 전체 학생 */}
@@ -649,25 +774,30 @@ export function PrintSetup({ user }) {
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'12px' }}>
                 <thead style={{ background:'#f9fafb', position:'sticky', top:'34px', zIndex:1 }}>
                   <tr>
-                    {['번호','이름','학년','반','학부모전화',...sessions.slice(0,5).map((d,i)=>`${i+1}차\n${d.slice(5)}`),'출석','결석','비고'].map(h=>(
-                      <th key={h} style={{ padding:'8px 10px', borderBottom:'1px solid #e5e7eb', textAlign:'center', fontWeight:600, color:'#6b7280', whiteSpace:'pre', fontSize:'11px' }}>{h}</th>
+                    {[
+                      '번호','학년','반','번호(학급)','이름','학부모전화',
+                      ...sessions.map((d,i)=>`${i+1}차\n${d.slice(5,7).replace(/^0/,'')}/${d.slice(8).replace(/^0/,'')}`),
+                      '출석','결석','비고'
+                    ].map((h,hi)=>(
+                      <th key={hi} style={{ padding:'7px 8px', borderBottom:'1px solid #e5e7eb', textAlign:'center', fontWeight:600, color:'#6b7280', whiteSpace:'pre', fontSize:'11px' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {students.map((s,i)=>(
                     <tr key={s.id} style={{ borderBottom:'1px solid #f3f4f6', background:i%2===0?'#fff':'#fafafa' }}>
-                      <td style={{ padding:'8px 10px', textAlign:'center' }}>{i+1}</td>
-                      <td style={{ padding:'8px 10px', fontWeight:600 }}>{s.name}</td>
-                      <td style={{ padding:'8px 10px', textAlign:'center' }}>{s.grade}</td>
-                      <td style={{ padding:'8px 10px', textAlign:'center' }}>{s.classNum||'-'}</td>
-                      <td style={{ padding:'8px 10px' }}>{s.parentPhone||'-'}</td>
-                      {sessions.slice(0,5).map(d=>(
-                        <td key={d} style={{ padding:'8px 10px', textAlign:'center', color:'#ccc', fontSize:'14px' }}>{BLANK}</td>
+                      <td style={{ padding:'7px 8px', textAlign:'center' }}>{i+1}</td>
+                      <td style={{ padding:'7px 8px', textAlign:'center' }}>{s.grade||'-'}</td>
+                      <td style={{ padding:'7px 8px', textAlign:'center' }}>{s.classNum||'-'}</td>
+                      <td style={{ padding:'7px 8px', textAlign:'center' }}>{s.number||'-'}</td>
+                      <td style={{ padding:'7px 8px', fontWeight:600 }}>{s.name}</td>
+                      <td style={{ padding:'7px 8px' }}>{s.parentPhone||'-'}</td>
+                      {sessions.map(d=>(
+                        <td key={d} style={{ padding:'7px 8px', textAlign:'center' }}></td>
                       ))}
-                      <td style={{ padding:'8px 10px', textAlign:'center', color:'#ccc' }}>-</td>
-                      <td style={{ padding:'8px 10px', textAlign:'center', color:'#ccc' }}>-</td>
-                      <td style={{ padding:'8px 10px' }}></td>
+                      <td style={{ padding:'7px 8px', textAlign:'center' }}></td>
+                      <td style={{ padding:'7px 8px', textAlign:'center' }}></td>
+                      <td style={{ padding:'7px 8px' }}></td>
                     </tr>
                   ))}
                 </tbody>
