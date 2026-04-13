@@ -102,7 +102,8 @@ function AddModal({ cat, onClose, onSave }) {
     setSaving(true)
     let fileData='',fileName='',fileType='file'
     if(file){fileData=await new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(file)});fileName=file.name;fileType=getFileType(file.name)}
-    onSave({title:autoTitle,fileData,fileName,fileType});setSaving(false)
+    const days = (day && day !== '해당없음') ? [day] : []
+    onSave({title:autoTitle,fileData,fileName,fileType,days});setSaving(false)
   }
   return (
     <div style={{position:'fixed',inset:0,zIndex:1000,background:'rgba(0,0,0,0.35)',display:'flex',alignItems:'center',justifyContent:'center'}} onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
@@ -344,7 +345,19 @@ export function Templates({ user }) {
     setCats(list.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)))
   }
 
-  useEffect(() => { loadCats() }, [])
+  useEffect(() => {
+    loadCats()
+    // 기존 서류 중 days가 없는 것들 title에서 요일 파싱하여 자동 업데이트
+    const VALID_DAYS = ['월','화','수','목','금','토','일']
+    const myDocs = (DocumentsDB?.all?.() || []).filter(d => d.teacherId === user.id)
+    myDocs.forEach(doc => {
+      if (!doc.days?.length) {
+        const firstWord = doc.title?.split(' ')[0]
+        const parsedDay = VALID_DAYS.includes(firstWord) ? [firstWord] : []
+        DocumentsDB.update(doc.id, { days: parsedDay })
+      }
+    })
+  }, [])
 
   const docs  = allDocs.filter(d => (d.year || '2026') === selectedYear)
   const years = [...new Set(allDocs.map(d => d.year || '2026'))]
@@ -355,7 +368,7 @@ export function Templates({ user }) {
   const docsFor   = (catKey) => docs.filter(d => d.category === catKey).sort((a,b) => getDayFromTitle(a.title)-getDayFromTitle(b.title))
 
   const handleSave = ({ title, fileData, fileName, fileType }) => {
-    DocumentsDB.insert({ id: uid(), teacherId: user.id, category: modalCat.key, title, year: selectedYear, fileName, fileType, fileData, createdAt: now() })
+    DocumentsDB.insert({ id: uid(), teacherId: user.id, category: modalCat.key, title, year: selectedYear, fileName, fileType, fileData, days: days || [], createdAt: now() })
     reload()
     success(modalCat.label + '이(가) 등록 완료되었습니다.')
     setModalCat(null)
