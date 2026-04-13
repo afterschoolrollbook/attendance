@@ -940,33 +940,15 @@ export function Classes({ user, onNav }) {
       <Modal open={!!docPickerTarget} onClose={() => setDocPickerTarget(null)} title="방과후 서류에서 선택" width={560}>
         {docPickerTarget && (() => {
           const category = docPickerTarget === 'promo' ? 'promo' : docPickerTarget === 'notice' ? 'notice' : 'attendance'
-          const searchVal = docPickerTarget === 'promo' ? promoSearch : docPickerTarget === 'notice' ? noticeSearch : templateSearch
-          const setSearch = docPickerTarget === 'promo' ? setPromoSearch : docPickerTarget === 'notice' ? setNoticeSearch : setTemplateSearch
           const allDocs = DocumentsDB?.byCategory?.(user.id, category) || []
-          const classDays = form.days || []
-          const filtered = allDocs.filter(doc => {
-            const q = searchVal.toLowerCase()
-            const matchSearch = !q || doc.title?.toLowerCase().includes(q) || doc.fileName?.toLowerCase().includes(q) || doc.organization?.toLowerCase().includes(q)
-            const matchDay = !doc.days?.length || classDays.some(d => doc.days.includes(d))
-            return matchSearch && matchDay
-          })
           return (
             <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-              <div style={{ display:'flex', gap:'6px', alignItems:'center', flexWrap:'wrap' }}>
-                <input type="text" value={searchVal} onChange={e => setSearch(e.target.value)}
-                  placeholder="제목·파일명 검색..."
-                  autoFocus
-                  style={{ flex:1, minWidth:'160px', padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-                {classDays.map(day => (
-                  <span key={day} style={{ padding:'3px 8px', borderRadius:'20px', background:'#eff6ff', border:'1.5px solid #3b82f6', fontSize:'11px', color:'#1d4ed8', fontWeight:700, whiteSpace:'nowrap' }}>{day}요일</span>
-                ))}
-              </div>
-              <div style={{ fontSize:'11px', color:'#9ca3af' }}>전체 {allDocs.length}개 · 표시 {filtered.length}개</div>
-              {filtered.length === 0 ? (
+              <div style={{ fontSize:'11px', color:'#9ca3af' }}>전체 {allDocs.length}개</div>
+              {allDocs.length === 0 ? (
                 <div style={{ padding:'32px', textAlign:'center', color:'#9ca3af', fontSize:'13px' }}>검색 결과가 없습니다.</div>
               ) : (
                 <div style={{ display:'flex', flexDirection:'column', gap:'8px', maxHeight:'360px', overflowY:'auto' }}>
-                  {filtered.map(doc => {
+                  {allDocs.map(doc => {
                     const isPromo    = docPickerTarget === 'promo'
                     const isNotice   = docPickerTarget === 'notice'
                     const isTemplate = docPickerTarget === 'template'
