@@ -674,13 +674,23 @@ export function Classes({ user, onNav }) {
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:'10px' }}>
               <span style={{ fontSize:'13px', color:'#374151', flex:1 }}>🗂️ 방과후 서류에서 선택</span>
-              {(DocumentsDB?.byCategory?.(user.id, 'promo') || []).length > 0
-                ? <button onClick={() => { setPromoSearch(''); setDocPickerTarget('promo') }}
-                    style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                    서류 선택
-                  </button>
-                : <span style={{ fontSize:'12px', color:'#9ca3af' }}>아직 등록된 서류가 없습니다</span>
-              }
+              {(() => {
+                const _docs = DocumentsDB?.byCategory?.(user.id, 'promo') || []
+                const _DAYS = ['월','화','수','목','금','토','일']
+                const _classDays = form.days || []
+                const _filtered = _classDays.length > 0
+                  ? _docs.filter(doc => {
+                      const dd = doc.days?.length ? doc.days : (_DAYS.includes(doc.title?.split(' ')[0]) ? [doc.title.split(' ')[0]] : [])
+                      return dd.length === 0 || _classDays.some(d => dd.includes(d))
+                    })
+                  : _docs
+                if (_docs.length === 0) return <span style={{ fontSize:'12px', color:'#9ca3af' }}>아직 등록된 서류가 없습니다</span>
+                if (_filtered.length === 0) return <span style={{ fontSize:'12px', color:'#9ca3af' }}>이 수업 요일({_classDays.join('·')})에 해당하는 서류가 없습니다</span>
+                return <button onClick={() => { setPromoSearch(''); setDocPickerTarget('promo') }}
+                  style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                  서류 선택 ({_filtered.length}개)
+                </button>
+              })()}
             </div>
             <div style={{ height:'1px', background:'#e5e7eb', margin:'4px 0 8px' }} />
             <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📤 직접 업로드</div>
@@ -724,13 +734,23 @@ export function Classes({ user, onNav }) {
             {/* ── 방과후 서류에서 선택 */}
             <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:'10px' }}>
               <span style={{ fontSize:'13px', color:'#374151', flex:1 }}>🗂️ 방과후 서류에서 선택</span>
-              {(DocumentsDB?.byCategory?.(user.id, 'notice') || []).length > 0
-                ? <button onClick={() => { setNoticeSearch(''); setDocPickerTarget('notice') }}
-                    style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:'#2563eb', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                    서류 선택
-                  </button>
-                : <span style={{ fontSize:'12px', color:'#9ca3af' }}>아직 등록된 서류가 없습니다</span>
-              }
+              {(() => {
+                const _docs = DocumentsDB?.byCategory?.(user.id, 'notice') || []
+                const _DAYS = ['월','화','수','목','금','토','일']
+                const _classDays = form.days || []
+                const _filtered = _classDays.length > 0
+                  ? _docs.filter(doc => {
+                      const dd = doc.days?.length ? doc.days : (_DAYS.includes(doc.title?.split(' ')[0]) ? [doc.title.split(' ')[0]] : [])
+                      return dd.length === 0 || _classDays.some(d => dd.includes(d))
+                    })
+                  : _docs
+                if (_docs.length === 0) return <span style={{ fontSize:'12px', color:'#9ca3af' }}>아직 등록된 서류가 없습니다</span>
+                if (_filtered.length === 0) return <span style={{ fontSize:'12px', color:'#9ca3af' }}>이 수업 요일({_classDays.join('·')})에 해당하는 서류가 없습니다</span>
+                return <button onClick={() => { setNoticeSearch(''); setDocPickerTarget('notice') }}
+                  style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:'#2563eb', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                  서류 선택 ({_filtered.length}개)
+                </button>
+              })()}
             </div>
             <div style={{ height:'1px', background:'#e5e7eb', margin:'4px 0 8px' }} />
             <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📤 직접 업로드</div>
@@ -781,13 +801,23 @@ export function Classes({ user, onNav }) {
             {/* ── 방과후 서류에서 선택 */}
             <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#f0fdf4', border:'1.5px solid #86efac', borderRadius:'10px' }}>
               <span style={{ fontSize:'13px', color:'#374151', flex:1 }}>🗂️ 방과후 서류에서 선택</span>
-              {(DocumentsDB?.byCategory?.(user.id, 'attendance') || []).length > 0
-                ? <button onClick={() => { setTemplateSearch(''); setDocPickerTarget('template') }}
-                    style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:'#16a34a', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                    서류 선택
-                  </button>
-                : <span style={{ fontSize:'12px', color:'#9ca3af' }}>아직 등록된 서류가 없습니다</span>
-              }
+              {(() => {
+                const _docs = DocumentsDB?.byCategory?.(user.id, 'attendance') || []
+                const _DAYS = ['월','화','수','목','금','토','일']
+                const _classDays = form.days || []
+                const _filtered = _classDays.length > 0
+                  ? _docs.filter(doc => {
+                      const dd = doc.days?.length ? doc.days : (_DAYS.includes(doc.title?.split(' ')[0]) ? [doc.title.split(' ')[0]] : [])
+                      return dd.length === 0 || _classDays.some(d => dd.includes(d))
+                    })
+                  : _docs
+                if (_docs.length === 0) return <span style={{ fontSize:'12px', color:'#9ca3af' }}>아직 등록된 서류가 없습니다</span>
+                if (_filtered.length === 0) return <span style={{ fontSize:'12px', color:'#9ca3af' }}>이 수업 요일({_classDays.join('·')})에 해당하는 서류가 없습니다</span>
+                return <button onClick={() => { setTemplateSearch(''); setDocPickerTarget('template') }}
+                  style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:'#16a34a', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                  서류 선택 ({_filtered.length}개)
+                </button>
+              })()}
             </div>
             <div style={{ height:'1px', background:'#e5e7eb', margin:'4px 0 8px' }} />
             <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📤 직접 업로드</div>
