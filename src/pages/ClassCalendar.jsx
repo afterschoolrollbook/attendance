@@ -16,7 +16,18 @@ const TERM_COLORS = [
 ]
 const getTermColor = (termNum) => TERM_COLORS[(termNum - 1) % TERM_COLORS.length] || TERM_COLORS[0]
 
-function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, makeupDates, termMap, onDateClick, applyStartAt, applyEndAt }) {
+// 특별 기간 타입
+const SPECIAL_PERIOD_TYPES = [
+  { value: 'summer_vacation',    label: '여름방학',    color: '#f59e0b', bg: '#fffbeb', border: '#fcd34d', emoji: '☀️' },
+  { value: 'winter_vacation',    label: '겨울방학',    color: '#60a5fa', bg: '#eff6ff', border: '#93c5fd', emoji: '❄️' },
+  { value: 'parent_observation', label: '학부모 참관', color: '#8b5cf6', bg: '#f5f3ff', border: '#c4b5fd', emoji: '👩‍👧' },
+  { value: 'open_class',         label: '공개수업',    color: '#10b981', bg: '#ecfdf5', border: '#6ee7b7', emoji: '🎓' },
+  { value: 'exhibition',         label: '전시기간',    color: '#ec4899', bg: '#fdf2f8', border: '#f9a8d4', emoji: '🎨' },
+  { value: 'etc',                label: '기타',        color: '#6b7280', bg: '#f9fafb', border: '#d1d5db', emoji: '📌' },
+]
+const getSpecialPeriodType = (value) => SPECIAL_PERIOD_TYPES.find(t => t.value === value) || SPECIAL_PERIOD_TYPES[SPECIAL_PERIOD_TYPES.length - 1]
+
+function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, makeupDates, termMap, onDateClick, applyStartAt, applyEndAt, specialPeriods }) {
   const firstDay = new Date(year, month, 1).getDay()
   const lastDate = new Date(year, month + 1, 0).getDate()
   const cells = []
@@ -61,6 +72,17 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
             <div style={{ width:'5px', height:'5px', borderRadius:'50%', background:'#3b82f6', margin:'1px auto 0' }} />
           ) : null
 
+          // 특별 기간 포함 여부 (여러 기간 중 첫 번째 매칭)
+          const spMatch = (specialPeriods || []).find(p => dateStr >= p.startDate && dateStr <= p.endDate)
+          const spType  = spMatch ? getSpecialPeriodType(spMatch.type) : null
+          const spBadge = spType ? (
+            <div title={spMatch.label || spType.label} style={{
+              fontSize:'8px', color:'#fff', background: spType.color,
+              borderRadius:'3px', padding:'0 2px', marginTop:'1px',
+              lineHeight:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+            }}>{spType.emoji}</div>
+          ) : null
+
           // 수동 추가 수업일 (makeupDates + type:'session')
           if (isMakeup && makeupInfo?.type === 'session') {
             return (
@@ -76,6 +98,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                 <div style={{ fontSize:'9px', color:'#fff', background:'#f97316', borderRadius:'4px',
                   padding:'0 3px', marginTop:'1px', lineHeight:'14px' }}>{sessInfo?.total||''}차시</div>
                 {applyDot}
+                {spBadge}
               </button>
             )
           }
@@ -92,6 +115,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                 <div style={{ fontSize:'10px', color:'#3b82f6', fontWeight:700, lineHeight:1.2 }}>보강</div>
                 {makeupInfo?.memo && <div style={{ fontSize:'9px', color:'#93c5fd', lineHeight:1.1 }}>{makeupInfo.memo.slice(0,4)}</div>}
                 {applyDot}
+                {spBadge}
               </button>
             )
           }
@@ -107,6 +131,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                 <div style={{ fontSize:'12px', fontWeight:700, color:'#d1d5db' }}>{day}</div>
                 <div style={{ fontSize:'9px', color:'#ef4444', lineHeight:1.2 }}>{reasonLabel||'취소'}</div>
                 {applyDot}
+                {spBadge}
               </button>
             )
           }
@@ -129,24 +154,26 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                   {sessInfo.termNum}텀{sessInfo.termSess}차
                 </div>
                 {applyDot}
+                {spBadge}
               </button>
             )
           }
 
-          // 일반 날짜 — 신청기간 내 날짜는 파란 배경
+          // 일반 날짜 — 신청기간 내 날짜는 파란 배경, 특별기간은 해당 색상 배경
           return (
             <button key={day} onClick={() => onDateClick(dateStr, 'normal')}
-              title={inApply ? '신청기간' : '클릭하면 휴일 또는 보강 추가'}
+              title={spMatch ? (spMatch.label || spType?.label || '') : inApply ? '신청기간' : '클릭하면 휴일 또는 보강 추가'}
               style={{ padding:'6px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
-                background: inApply ? '#eff6ff' : 'transparent',
-                outline: inApply ? '1px solid #bfdbfe' : 'none',
+                background: spType ? spType.bg : inApply ? '#eff6ff' : 'transparent',
+                outline: spType ? `1px solid ${spType.border}` : inApply ? '1px solid #bfdbfe' : 'none',
                 textAlign:'center', fontFamily:'Noto Sans KR, sans-serif',
-                color: isSun?'#fca5a5': isSat?'#93c5fd': inApply ? '#1d4ed8' : '#9ca3af', fontSize:'12px',
+                color: isSun?'#fca5a5': isSat?'#93c5fd': (spType || inApply) ? '#1d4ed8' : '#9ca3af', fontSize:'12px',
                 transition:'all .12s' }}
-              onMouseEnter={e => e.currentTarget.style.background= inApply ? '#dbeafe' : '#f0fdf4'}
-              onMouseLeave={e => e.currentTarget.style.background= inApply ? '#eff6ff' : 'transparent'}>
+              onMouseEnter={e => e.currentTarget.style.background= spType ? spType.border : inApply ? '#dbeafe' : '#f0fdf4'}
+              onMouseLeave={e => e.currentTarget.style.background= spType ? spType.bg : inApply ? '#eff6ff' : 'transparent'}>
               {day}
               {inApply && <div style={{ width:'4px', height:'4px', borderRadius:'50%', background:'#3b82f6', margin:'1px auto 0' }} />}
+              {spBadge}
             </button>
           )
         })}
@@ -169,6 +196,13 @@ export function ClassCalendar({ cls, onUpdate }) {
   const [showApplyPeriod, setShowApplyPeriod] = useState(false)
   const [applyStart, setApplyStart] = useState('')
   const [applyEnd,   setApplyEnd]   = useState('')
+
+  // 특별 기간 관리
+  const [showSpecialPeriods, setShowSpecialPeriods] = useState(false)
+  const [newPeriodType,  setNewPeriodType]  = useState('summer_vacation')
+  const [newPeriodLabel, setNewPeriodLabel] = useState('')
+  const [newPeriodStart, setNewPeriodStart] = useState('')
+  const [newPeriodEnd,   setNewPeriodEnd]   = useState('')
 
   const CANCEL_OPTIONS = [
     { value: 'public_holiday', label: '공휴일' },
@@ -285,6 +319,19 @@ export function ClassCalendar({ cls, onUpdate }) {
   const activeCount = sessions.filter(d => !cancelled.has(d)).length
   const makeupCount = makeupDates.length
   const cancelCount = cancelledDates.length
+  const specialPeriods = cls.specialPeriods || []
+
+  const addSpecialPeriod = () => {
+    if (!newPeriodStart || !newPeriodEnd) return
+    const typeInfo = getSpecialPeriodType(newPeriodType)
+    const label = newPeriodType === 'etc' ? (newPeriodLabel.trim() || '기타') : typeInfo.label
+    onUpdate({ ...cls, specialPeriods: [...specialPeriods, { type: newPeriodType, label, startDate: newPeriodStart, endDate: newPeriodEnd }] })
+    setNewPeriodStart(''); setNewPeriodEnd(''); setNewPeriodLabel('')
+  }
+
+  const removeSpecialPeriod = (idx) => {
+    onUpdate({ ...cls, specialPeriods: specialPeriods.filter((_, i) => i !== idx) })
+  }
 
   const termSummary = termSizes.map((size, ti) => {
     const start = termSizes.slice(0,ti).reduce((a,b)=>a+b,0)
@@ -421,7 +468,80 @@ export function ClassCalendar({ cls, onUpdate }) {
             📅 신청기간 설정
           </button>
         )}
+        <button onClick={() => setShowSpecialPeriods(v => !v)}
+          style={{ marginLeft: cls.applyStartAt ? 'auto' : '0',
+            padding:'5px 12px', borderRadius:'7px',
+            border: specialPeriods.length > 0 ? '1.5px solid #f9a8d4' : '1.5px dashed #f9a8d4',
+            background: specialPeriods.length > 0 ? '#fdf2f8' : '#fdf2f8',
+            color:'#ec4899', fontSize:'12px', fontWeight:600,
+            cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+          🗓️ 특별기간 {specialPeriods.length > 0 ? `(${specialPeriods.length})` : '설정'}
+        </button>
       </div>
+
+      {/* 특별 기간 관리 패널 */}
+      {showSpecialPeriods && (
+        <div style={{ marginBottom:'12px', borderRadius:'14px', border:'1.5px solid #f9a8d4',
+          background:'#fdf2f8', padding:'16px', boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+            <div style={{ fontSize:'14px', fontWeight:700, color:'#be185d' }}>🗓️ 특별기간 설정</div>
+            <button onClick={() => setShowSpecialPeriods(false)}
+              style={{ background:'none', border:'none', fontSize:'18px', color:'#9ca3af', cursor:'pointer', lineHeight:1, padding:'0 4px' }}>✕</button>
+          </div>
+
+          {/* 기존 특별기간 목록 */}
+          {specialPeriods.length > 0 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'14px' }}>
+              {specialPeriods.map((sp, i) => {
+                const spT = getSpecialPeriodType(sp.type)
+                return (
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px',
+                    background:'#fff', borderRadius:'10px', border:`1.5px solid ${spT.border}` }}>
+                    <span style={{ fontSize:'15px' }}>{spT.emoji}</span>
+                    <span style={{ fontSize:'13px', fontWeight:700, color: spT.color, minWidth:'70px' }}>{sp.label || spT.label}</span>
+                    <span style={{ fontSize:'12px', color:'#9ca3af' }}>{sp.startDate?.slice(5)} ~ {sp.endDate?.slice(5)}</span>
+                    <button onClick={() => removeSpecialPeriod(i)}
+                      style={{ marginLeft:'auto', background:'none', border:'none', color:'#f43f5e', cursor:'pointer', fontSize:'16px', padding:'0 4px', lineHeight:1 }}>×</button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* 새 특별기간 추가 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+            <div style={{ fontSize:'12px', fontWeight:600, color:'#9ca3af' }}>새 기간 추가</div>
+            <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
+              <select value={newPeriodType} onChange={e => setNewPeriodType(e.target.value)}
+                style={{ padding:'6px 10px', borderRadius:'8px', border:'1.5px solid #f9a8d4', fontSize:'13px',
+                  fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#be185d', fontWeight:700, cursor:'pointer' }}>
+                {SPECIAL_PERIOD_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.emoji} {t.label}</option>
+                ))}
+              </select>
+              {newPeriodType === 'etc' && (
+                <input type="text" value={newPeriodLabel} onChange={e => setNewPeriodLabel(e.target.value)}
+                  placeholder="기간 이름 입력"
+                  style={{ padding:'6px 10px', borderRadius:'8px', border:'1.5px solid #f9a8d4',
+                    fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', width:'120px' }} />
+              )}
+            </div>
+            <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+              <input type="date" value={newPeriodStart} onChange={e => setNewPeriodStart(e.target.value)}
+                min={cls.startDate} max={cls.endDate}
+                style={{ padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #f9a8d4',
+                  fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#111827' }} />
+              <span style={{ color:'#9ca3af', fontSize:'13px' }}>~</span>
+              <input type="date" value={newPeriodEnd} onChange={e => setNewPeriodEnd(e.target.value)}
+                min={newPeriodStart || cls.startDate} max={cls.endDate}
+                style={{ padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #f9a8d4',
+                  fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#111827' }} />
+              <Btn onClick={addSpecialPeriod} disabled={!newPeriodStart || !newPeriodEnd}
+                style={{ background:'#ec4899', borderColor:'#ec4899' }}>추가</Btn>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 경고 배너 */}
       {warnings.length > 0 && (
@@ -451,6 +571,7 @@ export function ClassCalendar({ cls, onUpdate }) {
               cancelledDates={cancelledDates} makeupDates={makeupDates}
               termMap={termMap} onDateClick={handleDateClick}
               applyStartAt={cls.applyStartAt} applyEndAt={cls.applyEndAt}
+              specialPeriods={specialPeriods}
             />
           </div>
         ))}
@@ -482,6 +603,16 @@ export function ClassCalendar({ cls, onUpdate }) {
             </span>신청기간
           </span>
         )}
+        {specialPeriods.map((sp, i) => {
+          const spT = getSpecialPeriodType(sp.type)
+          return (
+            <span key={i} style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+              <span style={{ width:'14px', height:'14px', borderRadius:'4px', background: spT.bg,
+                border:`1.5px solid ${spT.border}`, display:'inline-block', flexShrink:0 }} />
+              {sp.label || spT.label}
+            </span>
+          )
+        })}
       </div>
 
       {/* ── 인라인 패널 (모달 대신) ── */}

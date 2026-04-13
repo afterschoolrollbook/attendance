@@ -94,6 +94,7 @@ function emptyForm() {
     templateFiles: [],   // 출석부 양식 파일 배열 (최대 2)
     cancelledDates: [],
     makeupDates: [],
+    specialPeriods: [],
     alarm:    { enabled: false, minutesBefore: 10 },
     alarmEnd: { enabled: false, minutesBefore: 10 },
   }
@@ -185,6 +186,7 @@ export function Classes({ user, onNav }) {
       alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 },
       cancelledDates: cls.cancelledDates || [],
       makeupDates: cls.makeupDates || [],
+      specialPeriods: cls.specialPeriods || [],
       termCount: cls.termCount || 4,
       termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
       contactPhone: cls.contactPhone || '',
@@ -206,6 +208,7 @@ export function Classes({ user, onNav }) {
       alarmEnd: cls.alarmEnd || { enabled: false, minutesBefore: 10 },
       cancelledDates: cls.cancelledDates || [],
       makeupDates: cls.makeupDates || [],
+      specialPeriods: cls.specialPeriods || [],
       termCount: cls.termCount || 4,
       termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
       officePhone: cls.officePhone || '',
