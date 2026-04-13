@@ -110,6 +110,9 @@ export function Classes({ user, onNav }) {
   const [deleteId, setDeleteId] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [noticePreview, setNoticePreview] = useState(null)
+  const [promoSearch,    setPromoSearch]    = useState('')
+  const [noticeSearch,   setNoticeSearch]   = useState('')
+  const [templateSearch, setTemplateSearch] = useState('')
   const promoRef = useRef()
   const noticeRef = useRef()
   const templateRef = useRef()
@@ -669,65 +672,81 @@ export function Classes({ user, onNav }) {
               {onNav && <button onClick={() => onNav('templates')} style={{ padding:'5px 12px', borderRadius:'7px', border:'none', background:'#f97316', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>바로가기 →</button>}
             </div>
             {(() => {
-              const promoDocs = (DocumentsDB?.byCategory?.(user.id, 'promo') || [])
-              if (!promoDocs.length) return null
+              const allDocs = (DocumentsDB?.byCategory?.(user.id, 'promo') || [])
+              if (!allDocs.length) return null
+              const classDays = form.days || []
+              const filtered = allDocs.filter(doc => {
+                const q = promoSearch.toLowerCase()
+                const matchSearch = !q ||
+                  doc.title?.toLowerCase().includes(q) ||
+                  doc.fileName?.toLowerCase().includes(q) ||
+                  doc.organization?.toLowerCase().includes(q)
+                const matchDay = !doc.days?.length || classDays.some(d => doc.days.includes(d))
+                return matchSearch && matchDay
+              })
+              const showDocs = filtered.length > 0 ? filtered : (promoSearch ? [] : allDocs)
+              const hiddenCount = allDocs.length - showDocs.length
               return (
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '10px' }}>
-                    🗂️ 방과후 서류에서 선택
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px' }}>
+                    <div style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>🗂️ 방과후 서류에서 선택</div>
+                    <span style={{ fontSize:'11px', color:'#9ca3af' }}>{showDocs.length}/{allDocs.length}개</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {promoDocs.map(doc => {
-                      const selected = (form.promotionImgs || []).includes(doc.fileData)
-                      const isFull   = (form.promotionImgs || []).length >= MAX_PROMO_IMAGES
-                      return (
-                        <div key={doc.id} style={{
-                          display: 'flex', alignItems: 'center', gap: '12px',
-                          padding: '10px 14px', borderRadius: '10px',
-                          border: `1.5px solid ${selected ? '#f97316' : '#e5e7eb'}`,
-                          background: selected ? '#fff7ed' : '#fafafa',
-                          cursor: (!selected && isFull) ? 'not-allowed' : 'pointer',
-                          transition: 'all .15s',
-                          opacity: (!selected && isFull) ? 0.5 : 1,
-                        }}
-                          onClick={() => {
-                            if (selected) {
-                              set('promotionImgs', (form.promotionImgs || []).filter(u => u !== doc.fileData))
-                            } else {
-                              if (isFull) return
-                              set('promotionImgs', [...(form.promotionImgs || []), doc.fileData])
-                            }
-                          }}
-                        >
-                          {/* 썸네일 */}
-                          {['image'].includes(doc.fileType) && doc.fileData ? (
-                            <img src={doc.fileData} alt={doc.title}
-                              style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
-                          ) : (
-                            <div style={{ width: '44px', height: '44px', background: '#f3f4f6', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>
-                              {doc.fileType === 'pdf' ? '📄' : '🎨'}
-                            </div>
-                          )}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</div>
-                            <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>{doc.fileName}</div>
-                          </div>
-                          <div style={{
-                            width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0,
-                            border: `2px solid ${selected ? '#f97316' : '#d1d5db'}`,
-                            background: selected ? '#f97316' : '#fff',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  {/* 검색 + 요일 뱃지 */}
+                  <div style={{ display:'flex', gap:'6px', marginBottom:'10px', flexWrap:'wrap', alignItems:'center' }}>
+                    <input type="text" value={promoSearch} onChange={e => setPromoSearch(e.target.value)}
+                      placeholder="제목·파일명 검색..."
+                      style={{ flex:1, minWidth:'140px', padding:'6px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                    {classDays.map(day => (
+                      <span key={day} style={{ padding:'3px 8px', borderRadius:'20px', background:'#fff7ed', border:'1.5px solid #f97316', fontSize:'11px', color:'#ea580c', fontWeight:700, whiteSpace:'nowrap' }}>{day}요일</span>
+                    ))}
+                  </div>
+                  {hiddenCount > 0 && (
+                    <div style={{ fontSize:'11px', color:'#9ca3af', marginBottom:'8px' }}>
+                      💡 수업 요일({classDays.join('·')}) 문서만 표시 중 — 나머지 {hiddenCount}개는 제목 검색으로 찾을 수 있어요
+                    </div>
+                  )}
+                  {showDocs.length === 0 ? (
+                    <div style={{ padding:'16px', textAlign:'center', color:'#9ca3af', fontSize:'13px' }}>검색 결과가 없습니다.</div>
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:'8px', maxHeight:'260px', overflowY:'auto' }}>
+                      {showDocs.map(doc => {
+                        const selected = (form.promotionImgs || []).includes(doc.fileData)
+                        const isFull   = (form.promotionImgs || []).length >= MAX_PROMO_IMAGES
+                        return (
+                          <div key={doc.id} style={{
+                            display:'flex', alignItems:'center', gap:'12px',
+                            padding:'10px 14px', borderRadius:'10px',
+                            border:`1.5px solid ${selected ? '#f97316' : '#e5e7eb'}`,
+                            background: selected ? '#fff7ed' : '#fafafa',
+                            cursor: (!selected && isFull) ? 'not-allowed' : 'pointer',
+                            transition:'all .15s', opacity: (!selected && isFull) ? 0.5 : 1,
+                          }} onClick={() => {
+                            if (selected) set('promotionImgs', (form.promotionImgs||[]).filter(u => u !== doc.fileData))
+                            else { if (isFull) return; set('promotionImgs', [...(form.promotionImgs||[]), doc.fileData]) }
                           }}>
-                            {selected && <span style={{ color: '#fff', fontSize: '12px', fontWeight: 700 }}>✓</span>}
+                            {doc.fileType === 'image' && doc.fileData
+                              ? <img src={doc.fileData} alt={doc.title} style={{ width:'44px', height:'44px', objectFit:'cover', borderRadius:'6px', flexShrink:0 }} />
+                              : <div style={{ width:'44px', height:'44px', background:'#f3f4f6', borderRadius:'6px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px', flexShrink:0 }}>{doc.fileType === 'pdf' ? '📄' : '🎨'}</div>
+                            }
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:'13px', fontWeight:600, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
+                              <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>
+                                {doc.fileName}
+                                {doc.days?.length ? ` · ${doc.days.join('·')}요일` : ''}
+                                {doc.organization ? ` · ${doc.organization}` : ''}
+                              </div>
+                            </div>
+                            <div style={{ width:'22px', height:'22px', borderRadius:'50%', flexShrink:0, border:`2px solid ${selected ? '#f97316' : '#d1d5db'}`, background: selected ? '#f97316' : '#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                              {selected && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
+                            </div>
                           </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <div style={{ height: '1px', background: '#e5e7eb', margin: '16px 0' }} />
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#374151', marginBottom: '10px' }}>
-                    📤 직접 업로드
-                  </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <div style={{ height:'1px', background:'#e5e7eb', margin:'16px 0' }} />
+                  <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📤 직접 업로드</div>
                 </div>
               )
             })()}
@@ -770,57 +789,80 @@ export function Classes({ user, onNav }) {
 
             {/* ── 방과후 서류에서 선택 */}
             {(() => {
-              const noticeDocs = (DocumentsDB?.byCategory?.(user.id, 'notice') || [])
-              if (!noticeDocs.length) return null
+              const allDocs = (DocumentsDB?.byCategory?.(user.id, 'notice') || [])
+              if (!allDocs.length) return null
+              const classDays = form.days || []
+              const filtered = allDocs.filter(doc => {
+                const q = noticeSearch.toLowerCase()
+                const matchSearch = !q ||
+                  doc.title?.toLowerCase().includes(q) ||
+                  doc.fileName?.toLowerCase().includes(q) ||
+                  doc.organization?.toLowerCase().includes(q)
+                const matchDay = !doc.days?.length || classDays.some(d => doc.days.includes(d))
+                return matchSearch && matchDay
+              })
+              const showDocs = filtered.length > 0 ? filtered : (noticeSearch ? [] : allDocs)
+              const hiddenCount = allDocs.length - showDocs.length
               return (
                 <div>
-                  <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>🗂️ 방과후 서류에서 선택</div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-                    {noticeDocs.map(doc => {
-                      const already = (form.noticeFiles || []).some(f => f.docId === doc.id)
-                      const isFull  = (form.noticeFiles || []).length >= MAX_NOTICE_FILES
-                      return (
-                        <div key={doc.id} style={{
-                          display:'flex', alignItems:'center', gap:'12px',
-                          padding:'10px 14px', borderRadius:'10px',
-                          border:`1.5px solid ${already ? '#f97316' : '#e5e7eb'}`,
-                          background: already ? '#fff7ed' : '#fafafa',
-                          cursor: (!already && isFull) ? 'not-allowed' : 'pointer',
-                          opacity: (!already && isFull) ? 0.5 : 1,
-                          transition:'all .15s',
-                        }}
-                          onClick={() => {
-                            if (already) {
-                              set('noticeFiles', (form.noticeFiles || []).filter(f => f.docId !== doc.id))
-                            } else {
-                              if (isFull) return
-                              set('noticeFiles', [...(form.noticeFiles || []), {
-                                docId: doc.id, url: doc.fileData,
-                                name: doc.title || doc.fileName,
-                                fileType: doc.fileType === 'pdf' ? 'application/pdf' : 'image/jpeg',
-                              }])
-                            }
-                          }}
-                        >
-                          <span style={{ fontSize:'22px', flexShrink:0 }}>
-                            {doc.fileType === 'pdf' ? '📄' : doc.fileType === 'image' ? '🖼' : '📎'}
-                          </span>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:'13px', fontWeight:600, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
-                            <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>{doc.fileName}</div>
-                          </div>
-                          <div style={{
-                            width:'22px', height:'22px', borderRadius:'50%', flexShrink:0,
-                            border:`2px solid ${already ? '#f97316' : '#d1d5db'}`,
-                            background: already ? '#f97316' : '#fff',
-                            display:'flex', alignItems:'center', justifyContent:'center',
-                          }}>
-                            {already && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
-                          </div>
-                        </div>
-                      )
-                    })}
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px' }}>
+                    <div style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>🗂️ 방과후 서류에서 선택</div>
+                    <span style={{ fontSize:'11px', color:'#9ca3af' }}>{showDocs.length}/{allDocs.length}개</span>
                   </div>
+                  <div style={{ display:'flex', gap:'6px', marginBottom:'10px', flexWrap:'wrap', alignItems:'center' }}>
+                    <input type="text" value={noticeSearch} onChange={e => setNoticeSearch(e.target.value)}
+                      placeholder="제목·파일명 검색..."
+                      style={{ flex:1, minWidth:'140px', padding:'6px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                    {classDays.map(day => (
+                      <span key={day} style={{ padding:'3px 8px', borderRadius:'20px', background:'#eff6ff', border:'1.5px solid #3b82f6', fontSize:'11px', color:'#1d4ed8', fontWeight:700, whiteSpace:'nowrap' }}>{day}요일</span>
+                    ))}
+                  </div>
+                  {hiddenCount > 0 && (
+                    <div style={{ fontSize:'11px', color:'#9ca3af', marginBottom:'8px' }}>
+                      💡 수업 요일({classDays.join('·')}) 문서만 표시 중 — 나머지 {hiddenCount}개는 제목 검색으로 찾을 수 있어요
+                    </div>
+                  )}
+                  {showDocs.length === 0 ? (
+                    <div style={{ padding:'16px', textAlign:'center', color:'#9ca3af', fontSize:'13px' }}>검색 결과가 없습니다.</div>
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:'8px', maxHeight:'260px', overflowY:'auto' }}>
+                      {showDocs.map(doc => {
+                        const already = (form.noticeFiles || []).some(f => f.docId === doc.id)
+                        const isFull  = (form.noticeFiles || []).length >= MAX_NOTICE_FILES
+                        return (
+                          <div key={doc.id} style={{
+                            display:'flex', alignItems:'center', gap:'12px',
+                            padding:'10px 14px', borderRadius:'10px',
+                            border:`1.5px solid ${already ? '#f97316' : '#e5e7eb'}`,
+                            background: already ? '#fff7ed' : '#fafafa',
+                            cursor: (!already && isFull) ? 'not-allowed' : 'pointer',
+                            opacity: (!already && isFull) ? 0.5 : 1, transition:'all .15s',
+                          }} onClick={() => {
+                            if (already) set('noticeFiles', (form.noticeFiles||[]).filter(f => f.docId !== doc.id))
+                            else {
+                              if (isFull) return
+                              set('noticeFiles', [...(form.noticeFiles||[]), { docId: doc.id, url: doc.fileData, name: doc.title || doc.fileName, fileType: doc.fileType === 'pdf' ? 'application/pdf' : 'image/jpeg' }])
+                            }
+                          }}>
+                            <span style={{ fontSize:'22px', flexShrink:0 }}>
+                              {doc.fileType === 'pdf' ? '📄' : doc.fileType === 'image' ? '🖼' : '📎'}
+                            </span>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:'13px', fontWeight:600, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
+                              <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>
+                                {doc.fileName}
+                                {doc.days?.length ? ` · ${doc.days.join('·')}요일` : ''}
+                                {doc.organization ? ` · ${doc.organization}` : ''}
+                              </div>
+                            </div>
+                            <div style={{ width:'22px', height:'22px', borderRadius:'50%', flexShrink:0, border:`2px solid ${already ? '#f97316' : '#d1d5db'}`, background: already ? '#f97316' : '#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                              {already && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                   <div style={{ height:'1px', background:'#e5e7eb', margin:'16px 0' }} />
                   <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📤 직접 업로드</div>
                 </div>
@@ -872,46 +914,78 @@ export function Classes({ user, onNav }) {
 
             {/* ── 방과후 서류에서 선택 */}
             {(() => {
-              const attendanceDocs = (DocumentsDB?.byCategory?.(user.id, 'attendance') || [])
-              if (!attendanceDocs.length) return null
+              const allDocs = (DocumentsDB?.byCategory?.(user.id, 'attendance') || [])
+              if (!allDocs.length) return null
+              const classDays = form.days || []
+              const filtered = allDocs.filter(doc => {
+                const q = templateSearch.toLowerCase()
+                const matchSearch = !q ||
+                  doc.title?.toLowerCase().includes(q) ||
+                  doc.fileName?.toLowerCase().includes(q) ||
+                  doc.organization?.toLowerCase().includes(q)
+                const matchDay = !doc.days?.length || classDays.some(d => doc.days.includes(d))
+                return matchSearch && matchDay
+              })
+              const showDocs = filtered.length > 0 ? filtered : (templateSearch ? [] : allDocs)
+              const hiddenCount = allDocs.length - showDocs.length
               return (
                 <div>
-                  <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>🗂️ 방과후 서류에서 선택</div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-                    {attendanceDocs.map(doc => {
-                      const selected = (form.templateFiles || []).some(f => f.docId === doc.id)
-                      const isFull   = (form.templateFiles || []).length >= MAX_TEMPLATE_FILES
-                      return (
-                        <div key={doc.id} style={{
-                          display:'flex', alignItems:'center', gap:'12px',
-                          padding:'10px 14px', borderRadius:'10px',
-                          border:`1.5px solid ${selected ? '#16a34a' : '#e5e7eb'}`,
-                          background: selected ? '#f0fdf4' : '#fafafa',
-                          cursor: (!selected && isFull) ? 'not-allowed' : 'pointer',
-                          opacity: (!selected && isFull) ? 0.5 : 1,
-                          transition:'all .15s',
-                        }}
-                          onClick={() => {
-                            if (selected) {
-                              set('templateFiles', (form.templateFiles || []).filter(f => f.docId !== doc.id))
-                            } else {
-                              if (isFull) return
-                              set('templateFiles', [...(form.templateFiles || []), { docId: doc.id, name: doc.title || doc.fileName, fileType: doc.fileType, url: doc.fileData }])
-                            }
-                          }}
-                        >
-                          <span style={{ fontSize:'22px', flexShrink:0 }}>{doc.fileType === 'hwp' ? '📝' : doc.fileType === 'excel' ? '📊' : '📄'}</span>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:'13px', fontWeight:600, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
-                            <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>{doc.fileName}</div>
-                          </div>
-                          <div style={{ width:'22px', height:'22px', borderRadius:'50%', flexShrink:0, border:`2px solid ${selected ? '#16a34a' : '#d1d5db'}`, background: selected ? '#16a34a' : '#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                            {selected && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
-                          </div>
-                        </div>
-                      )
-                    })}
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px' }}>
+                    <div style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>🗂️ 방과후 서류에서 선택</div>
+                    <span style={{ fontSize:'11px', color:'#9ca3af' }}>{showDocs.length}/{allDocs.length}개</span>
                   </div>
+                  <div style={{ display:'flex', gap:'6px', marginBottom:'10px', flexWrap:'wrap', alignItems:'center' }}>
+                    <input type="text" value={templateSearch} onChange={e => setTemplateSearch(e.target.value)}
+                      placeholder="제목·파일명 검색..."
+                      style={{ flex:1, minWidth:'140px', padding:'6px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                    {classDays.map(day => (
+                      <span key={day} style={{ padding:'3px 8px', borderRadius:'20px', background:'#f0fdf4', border:'1.5px solid #16a34a', fontSize:'11px', color:'#15803d', fontWeight:700, whiteSpace:'nowrap' }}>{day}요일</span>
+                    ))}
+                  </div>
+                  {hiddenCount > 0 && (
+                    <div style={{ fontSize:'11px', color:'#9ca3af', marginBottom:'8px' }}>
+                      💡 수업 요일({classDays.join('·')}) 문서만 표시 중 — 나머지 {hiddenCount}개는 제목 검색으로 찾을 수 있어요
+                    </div>
+                  )}
+                  {showDocs.length === 0 ? (
+                    <div style={{ padding:'16px', textAlign:'center', color:'#9ca3af', fontSize:'13px' }}>검색 결과가 없습니다.</div>
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:'8px', maxHeight:'260px', overflowY:'auto' }}>
+                      {showDocs.map(doc => {
+                        const selected = (form.templateFiles || []).some(f => f.docId === doc.id)
+                        const isFull   = (form.templateFiles || []).length >= MAX_TEMPLATE_FILES
+                        return (
+                          <div key={doc.id} style={{
+                            display:'flex', alignItems:'center', gap:'12px',
+                            padding:'10px 14px', borderRadius:'10px',
+                            border:`1.5px solid ${selected ? '#16a34a' : '#e5e7eb'}`,
+                            background: selected ? '#f0fdf4' : '#fafafa',
+                            cursor: (!selected && isFull) ? 'not-allowed' : 'pointer',
+                            opacity: (!selected && isFull) ? 0.5 : 1, transition:'all .15s',
+                          }} onClick={() => {
+                            if (selected) set('templateFiles', (form.templateFiles||[]).filter(f => f.docId !== doc.id))
+                            else {
+                              if (isFull) return
+                              set('templateFiles', [...(form.templateFiles||[]), { docId: doc.id, name: doc.title || doc.fileName, fileType: doc.fileType, url: doc.fileData }])
+                            }
+                          }}>
+                            <span style={{ fontSize:'22px', flexShrink:0 }}>{doc.fileType === 'hwp' ? '📝' : doc.fileType === 'excel' ? '📊' : '📄'}</span>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:'13px', fontWeight:600, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
+                              <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'2px' }}>
+                                {doc.fileName}
+                                {doc.days?.length ? ` · ${doc.days.join('·')}요일` : ''}
+                                {doc.organization ? ` · ${doc.organization}` : ''}
+                              </div>
+                            </div>
+                            <div style={{ width:'22px', height:'22px', borderRadius:'50%', flexShrink:0, border:`2px solid ${selected ? '#16a34a' : '#d1d5db'}`, background: selected ? '#16a34a' : '#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                              {selected && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                   <div style={{ height:'1px', background:'#e5e7eb', margin:'16px 0' }} />
                   <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📤 직접 업로드</div>
                 </div>
