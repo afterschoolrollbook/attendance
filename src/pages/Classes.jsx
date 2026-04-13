@@ -672,15 +672,16 @@ export function Classes({ user, onNav }) {
               <span style={{ fontSize:'13px', color:'#c2410c' }}>📂 홍보물은 <strong>방과후 서류</strong> 메뉴에서 등록·관리할 수 있습니다.</span>
               {onNav && <button onClick={() => onNav('templates')} style={{ padding:'5px 12px', borderRadius:'7px', border:'none', background:'#f97316', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>바로가기 →</button>}
             </div>
-            {(DocumentsDB?.byCategory?.(user.id, 'promo') || []).length > 0 && (
-              <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:'10px' }}>
-                <span style={{ fontSize:'13px', color:'#374151', flex:1 }}>🗂️ 방과후 서류에서 선택</span>
-                <button onClick={() => { setPromoSearch(''); setDocPickerTarget('promo') }}
-                  style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                  서류 선택
-                </button>
-              </div>
-            )}
+            <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:'10px' }}>
+              <span style={{ fontSize:'13px', color:'#374151', flex:1 }}>🗂️ 방과후 서류에서 선택</span>
+              {(DocumentsDB?.byCategory?.(user.id, 'promo') || []).length > 0
+                ? <button onClick={() => { setPromoSearch(''); setDocPickerTarget('promo') }}
+                    style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                    서류 선택
+                  </button>
+                : <span style={{ fontSize:'12px', color:'#9ca3af' }}>아직 등록된 서류가 없습니다</span>
+              }
+            </div>
             <div style={{ height:'1px', background:'#e5e7eb', margin:'4px 0 8px' }} />
             <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📤 직접 업로드</div>
 
@@ -721,15 +722,16 @@ export function Classes({ user, onNav }) {
             </div>
 
             {/* ── 방과후 서류에서 선택 */}
-            {(DocumentsDB?.byCategory?.(user.id, 'notice') || []).length > 0 && (
-              <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:'10px' }}>
-                <span style={{ fontSize:'13px', color:'#374151', flex:1 }}>🗂️ 방과후 서류에서 선택</span>
-                <button onClick={() => { setNoticeSearch(''); setDocPickerTarget('notice') }}
-                  style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:'#2563eb', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                  서류 선택
-                </button>
-              </div>
-            )}
+            <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:'10px' }}>
+              <span style={{ fontSize:'13px', color:'#374151', flex:1 }}>🗂️ 방과후 서류에서 선택</span>
+              {(DocumentsDB?.byCategory?.(user.id, 'notice') || []).length > 0
+                ? <button onClick={() => { setNoticeSearch(''); setDocPickerTarget('notice') }}
+                    style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:'#2563eb', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                    서류 선택
+                  </button>
+                : <span style={{ fontSize:'12px', color:'#9ca3af' }}>아직 등록된 서류가 없습니다</span>
+              }
+            </div>
             <div style={{ height:'1px', background:'#e5e7eb', margin:'4px 0 8px' }} />
             <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📤 직접 업로드</div>
 
@@ -777,15 +779,16 @@ export function Classes({ user, onNav }) {
             </div>
 
             {/* ── 방과후 서류에서 선택 */}
-            {(DocumentsDB?.byCategory?.(user.id, 'attendance') || []).length > 0 && (
-              <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#f0fdf4', border:'1.5px solid #86efac', borderRadius:'10px' }}>
-                <span style={{ fontSize:'13px', color:'#374151', flex:1 }}>🗂️ 방과후 서류에서 선택</span>
-                <button onClick={() => { setTemplateSearch(''); setDocPickerTarget('template') }}
-                  style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:'#16a34a', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                  서류 선택
-                </button>
-              </div>
-            )}
+            <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#f0fdf4', border:'1.5px solid #86efac', borderRadius:'10px' }}>
+              <span style={{ fontSize:'13px', color:'#374151', flex:1 }}>🗂️ 방과후 서류에서 선택</span>
+              {(DocumentsDB?.byCategory?.(user.id, 'attendance') || []).length > 0
+                ? <button onClick={() => { setTemplateSearch(''); setDocPickerTarget('template') }}
+                    style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:'#16a34a', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                    서류 선택
+                  </button>
+                : <span style={{ fontSize:'12px', color:'#9ca3af' }}>아직 등록된 서류가 없습니다</span>
+              }
+            </div>
             <div style={{ height:'1px', background:'#e5e7eb', margin:'4px 0 8px' }} />
             <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📤 직접 업로드</div>
 
@@ -941,14 +944,18 @@ export function Classes({ user, onNav }) {
         {docPickerTarget && (() => {
           const category = docPickerTarget === 'promo' ? 'promo' : docPickerTarget === 'notice' ? 'notice' : 'attendance'
           const allDocs = DocumentsDB?.byCategory?.(user.id, category) || []
+          const classDays = form.days || []
+          const showDocs = classDays.length > 0
+            ? allDocs.filter(doc => !doc.days?.length || classDays.some(d => doc.days.includes(d)))
+            : allDocs
           return (
             <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-              <div style={{ fontSize:'11px', color:'#9ca3af' }}>전체 {allDocs.length}개</div>
-              {allDocs.length === 0 ? (
-                <div style={{ padding:'32px', textAlign:'center', color:'#9ca3af', fontSize:'13px' }}>검색 결과가 없습니다.</div>
+              <div style={{ fontSize:'11px', color:'#9ca3af' }}>전체 {allDocs.length}개{classDays.length > 0 && showDocs.length !== allDocs.length ? ` · ${classDays.join('·')}요일 ${showDocs.length}개` : ''}</div>
+              {showDocs.length === 0 ? (
+                <div style={{ padding:'32px', textAlign:'center', color:'#9ca3af', fontSize:'13px' }}>해당 요일({classDays.join('·')})에 맞는 서류가 없습니다.</div>
               ) : (
                 <div style={{ display:'flex', flexDirection:'column', gap:'8px', maxHeight:'360px', overflowY:'auto' }}>
-                  {allDocs.map(doc => {
+                  {showDocs.map(doc => {
                     const isPromo    = docPickerTarget === 'promo'
                     const isNotice   = docPickerTarget === 'notice'
                     const isTemplate = docPickerTarget === 'template'
