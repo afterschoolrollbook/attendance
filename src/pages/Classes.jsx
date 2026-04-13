@@ -946,11 +946,19 @@ export function Classes({ user, onNav }) {
           const allDocs = DocumentsDB?.byCategory?.(user.id, category) || []
           const classDays = form.days || []
           const showDocs = classDays.length > 0
-            ? allDocs.filter(doc => !doc.days?.length || classDays.some(d => doc.days.includes(d)))
+            ? allDocs.filter(doc => doc.days?.length ? classDays.some(d => doc.days.includes(d)) : true)
             : allDocs
           return (
             <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-              <div style={{ fontSize:'11px', color:'#9ca3af' }}>전체 {allDocs.length}개{classDays.length > 0 && showDocs.length !== allDocs.length ? ` · ${classDays.join('·')}요일 ${showDocs.length}개` : ''}</div>
+              {classDays.length > 0 && (
+                <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+                  <span style={{ fontSize:'12px', color:'#374151', fontWeight:600 }}>현재 수업 요일:</span>
+                  {classDays.map(day => (
+                    <span key={day} style={{ padding:'3px 8px', borderRadius:'20px', background:'#eff6ff', border:'1.5px solid #3b82f6', fontSize:'12px', color:'#1d4ed8', fontWeight:700 }}>{day}요일</span>
+                  ))}
+                  <span style={{ fontSize:'11px', color:'#9ca3af', marginLeft:'4px' }}>· 전체 {allDocs.length}개 중 {showDocs.length}개 표시</span>
+                </div>
+              )}
               {showDocs.length === 0 ? (
                 <div style={{ padding:'32px', textAlign:'center', color:'#9ca3af', fontSize:'13px' }}>해당 요일({classDays.join('·')})에 맞는 서류가 없습니다.</div>
               ) : (
