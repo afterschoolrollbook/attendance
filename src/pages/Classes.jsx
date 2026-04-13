@@ -945,8 +945,14 @@ export function Classes({ user, onNav }) {
           const category = docPickerTarget === 'promo' ? 'promo' : docPickerTarget === 'notice' ? 'notice' : 'attendance'
           const allDocs = DocumentsDB?.byCategory?.(user.id, category) || []
           const classDays = form.days || []
+          const VALID_DAYS = ['월','화','수','목','금','토','일']
           const showDocs = classDays.length > 0
-            ? allDocs.filter(doc => doc.days?.length ? classDays.some(d => doc.days.includes(d)) : true)
+            ? allDocs.filter(doc => {
+                const docDays = doc.days?.length
+                  ? doc.days
+                  : (VALID_DAYS.includes(doc.title?.split(' ')[0]) ? [doc.title.split(' ')[0]] : [])
+                return docDays.length === 0 || classDays.some(d => docDays.includes(d))
+              })
             : allDocs
           return (
             <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
