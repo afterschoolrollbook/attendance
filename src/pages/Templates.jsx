@@ -338,8 +338,13 @@ export function Templates({ user }) {
   // ─── 카테고리 로드 (없으면 기본값 세팅) ───
   const loadCats = () => {
     let list = CustomCategoriesDB.byTeacher(user.id)
+    const existingKeys = new Set(list.map(c => c.key))
     if (!list.length) {
-      DEFAULT_CATEGORIES.forEach(c => CustomCategoriesDB.insert({ id: uid(), ...c, teacherId: user.id, createdAt: now() }))
+      DEFAULT_CATEGORIES.forEach(c => {
+        if (!existingKeys.has(c.key)) {
+          CustomCategoriesDB.insert({ id: uid(), ...c, teacherId: user.id, createdAt: now() })
+        }
+      })
       list = CustomCategoriesDB.byTeacher(user.id)
     }
     setCats(list.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)))
