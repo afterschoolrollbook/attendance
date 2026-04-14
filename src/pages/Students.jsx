@@ -1141,12 +1141,17 @@ export function Students({ user, onNav }) {
       {/* ── 탭2: 학생 등록 */}
       {mainTab === 'register' && (() => {
         const newStudents = [...registerStudents].sort((a,b) => {
+          // 수업반 (A반→B반) 오름차순
+          const aClass = classes.find(c => c.id === a.classIds?.[0])
+          const bClass = classes.find(c => c.id === b.classIds?.[0])
+          const sectionCmp = (aClass?.section || '').localeCompare(bClass?.section || '', 'ko')
+          if (sectionCmp !== 0) return sectionCmp
           // 학년 오름차순
           const gradeCmp = parseInt(a.grade||'0') - parseInt(b.grade||'0')
           if (gradeCmp !== 0) return gradeCmp
-          // 반 오름차순 (A반→B반 또는 숫자반)
-          const classCmp = (a.classNum||'').localeCompare(b.classNum||'', 'ko')
-          if (classCmp !== 0) return classCmp
+          // 학급반 오름차순
+          const classNumCmp = parseInt(a.classNum||'0') - parseInt(b.classNum||'0')
+          if (classNumCmp !== 0) return classNumCmp
           // 번호 오름차순
           return parseInt(a.number||'0') - parseInt(b.number||'0')
         })
