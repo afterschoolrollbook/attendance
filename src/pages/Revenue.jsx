@@ -27,8 +27,10 @@ function getMonthDates(ym) {
 }
 function toYM(d) { return d.slice(0, 7) }
 
-// 입금이 특정 텀에 속하는지 판단 (termNo 비교 + 날짜 범위 fallback)
-function payMatchesTerm(p, term) {
+// 입금이 특정 텀에 속하는지 판단
+// classId 일치 + termNo 일치가 기본, termNo null이면 날짜 범위로 fallback
+function payMatchesTerm(p, term, classId) {
+  if (classId && p.classId !== classId) return false
   if (p.termNo != null && Number(p.termNo) === term.termNo) return true
   if (p.termNo == null && p.date >= term.startDate && p.date <= term.endDate) return true
   return false
@@ -220,7 +222,7 @@ export function Revenue({ user }) {
         const ps = perSessionFee(fee, term, cls)
         const termExpected = ps * cnt * term.sessions.length
         const tagged = clsPays.filter(p =>
-          payMatchesTerm(p, term)
+          payMatchesTerm(p, term, cls.id)
         )
         const termPaid = tagged.reduce((s, p) => s + p.amount, 0)
         const termUnpaid = fee && cnt ? termPaid < termExpected : false
@@ -257,19 +259,20 @@ export function Revenue({ user }) {
         const ps = perSessionFee(fee, term, cls)
         const expected = ps * cnt * term.sessions.length
         const tagged = clsPays.filter(p =>
-          payMatchesTerm(p, term)
+          payMatchesTerm(p, term, cls.id)
         )
         const paid = tagged.reduce((s, p) => s + p.amount, 0)
         const unpaid = expected - paid
         const td = today()
         const termEnded = term.endDate && term.endDate < td
         const termCurrent = term.startDate <= td && term.endDate >= td
+        const termStarted = term.startDate <= td  // 시작은 됐지만 endDate 없는 경우 포함
         // 종료된 텀(미수금) + 진행중 텀(진행중) 표시, 예정 텀 제외
-        if (unpaid > 0 && (termEnded || termCurrent)) {
+        if (unpaid > 0 && (termEnded || termCurrent || termStarted)) {
           list.push({
             cls, term, fee, cnt,
             expected, paid, unpaid,
-            termStatus: termEnded ? 'unpaid' : 'current',
+            termStatus: termEnded ? 'unpaid' : 'current',  // termStarted도 current로
             startApplied: appliedCount[cls.id] || cnt,
             cancelled: cancelledCount[cls.id] || 0,
             confirmed: cnt,
@@ -300,7 +303,7 @@ export function Revenue({ user }) {
         const ps = perSessionFee(fee, term, cls)
         expected += ps * cnt * term.sessions.length
         const tagged = clsPays.filter(p =>
-          payMatchesTerm(p, term)
+          payMatchesTerm(p, term, cls.id)
         )
         paid += tagged.reduce((s, p) => s + p.amount, 0)
       })
@@ -591,12 +594,12 @@ export function Revenue({ user }) {
                     monthItems.push({ cls, term, fee, cnt, monthSessions, monthRev: ps * cnt * monthSessions.length })
                   })
                 })
-                // sorted 순서(학교→요일→시간→반) + 텀 오름차순 정렬
+                // 텀 번호 우선 → 같은 텀 내에서 학교/요일/시간 순
                 monthItems.sort((a,b)=>{
+                  if(a.term.termNo !== b.term.termNo) return a.term.termNo-b.term.termNo
                   const ai=sorted.findIndex(c=>c.id===a.cls.id)
                   const bi=sorted.findIndex(c=>c.id===b.cls.id)
-                  if(ai!==bi) return ai-bi
-                  return a.term.termNo-b.term.termNo
+                  return ai-bi
                 })
                 if (monthItems.length === 0) return (
                   <div style={{ textAlign:'center', padding:'14px', color:C.muted, fontSize:'13px' }}>이번달 수업 없음</div>
@@ -688,7 +691,7 @@ export function Revenue({ user }) {
           getTerms(cls).forEach(term => {
             const ps=perSessionFee(fee,term,cls)
             const exp=ps*cnt*term.sessions.length
-            const paid=(payByClass[cls.id]||[]).filter(p=>payMatchesTerm(p,term)).reduce((s,p)=>s+p.amount,0)
+            const paid=(payByClass[cls.id]||[]).filter(p=>payMatchesTerm(p,term,cls.id)).reduce((s,p)=>s+p.amount,0)
             totalAllExpected+=exp; totalAllPaid+=paid
           })
         })
@@ -712,7 +715,7 @@ export function Revenue({ user }) {
                   const term=terms.find(t=>t.termNo===termNo)
                   if(!term) return
                   const clsPays=payByClass[cls.id]||[]
-                  const tagged=clsPays.filter(p=>payMatchesTerm(p,term))
+                  const tagged=clsPays.filter(p=>payMatchesTerm(p,term,cls.id))
                   const ps=perSessionFee(fee,term,cls)
                   const expected=fee&&cnt ? ps*cnt*term.sessions.length : 0
                   const paid=tagged.reduce((s,p)=>s+p.amount,0)
