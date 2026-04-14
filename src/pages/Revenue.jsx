@@ -669,6 +669,7 @@ export function Revenue({ user }) {
                   </div>
               }
           </div>
+          </div>
         </div>
       )}
 
