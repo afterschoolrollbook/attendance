@@ -144,90 +144,77 @@ function AddModal({ cat, onClose, onSave }) {
 // ─── 미리보기/수정 모달 ───
 function PreviewModal({ doc, color, onClose, onAttach, onUpdate }) {
   const VALID_DAYS = ['월','화','수','목','금','토','일']
+  // 기존 title 파싱
+  const titleParts = (doc.title||'').split(' ')
+  const catLabel = titleParts[titleParts.length-1] || ''
   const initDay = doc.days?.length ? doc.days[0] : '해당없음'
-  const titleParts = doc.title?.split(' ') || []
-  const initSchool = VALID_DAYS.includes(titleParts[0]) ? titleParts.slice(1,-1).join(' ') : titleParts.slice(0,-1).join(' ')
+  // p1/p2 파싱: PERIODS1/PERIODS2 값이 있으면 추출
+  const p1Opts = ['1학기','2학기','1분기','2분기','3분기','4분기']
+  const p2Opts = ['1텀','2텀','3텀','4텀','5텀','6텀','7텀','8텀','9텀','10텀']
+  const foundP1 = titleParts.find(p => p1Opts.includes(p)) || '해당없음'
+  const foundP2 = titleParts.find(p => p2Opts.includes(p)) || '해당없음'
+  const metaParts = new Set([initDay !== '해당없음' ? initDay : null, foundP1 !== '해당없음' ? foundP1 : null, foundP2 !== '해당없음' ? foundP2 : null, catLabel].filter(Boolean))
+  const remainParts = titleParts.filter(p => !metaParts.has(p))
+  const initSchool = remainParts.slice(0,-1).join(' ') || ''
+  const initSubject = remainParts[remainParts.length-1] !== catLabel ? remainParts[remainParts.length-1] || '' : ''
 
-  const [editMode, setEditMode] = useState(false)
-  const [day, setDay] = useState(initDay)
-  const [school, setSchool] = useState(initSchool)
-  const [newFile, setNewFile] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const fileRef = useRef()
-  const { success } = useToast()
+  const [day,setDay]=useState(initDay)
+  const [p1,setP1]=useState(foundP1)
+  const [p2,setP2]=useState(foundP2)
+  const [school,setSchool]=useState(initSchool)
+  const [subject,setSubject]=useState(initSubject)
+  const [file,setFile]=useState(null)
+  const [saving,setSaving]=useState(false)
+  const fileRef=useRef()
+  const {success}=useToast()
 
-  const noFile = !doc.fileData && !newFile
-  const catLabel = titleParts[titleParts.length - 1] || ''
-  const autoTitle = buildTitle(day, school, '', '해당없음', '해당없음', catLabel)
+  const autoTitle=buildTitle(day,school,subject,p1,p2,catLabel)
 
-  const handleDownload = () => { const a=document.createElement('a');a.href=doc.fileData;a.download=doc.fileName;a.click() }
+  const handleDownload=()=>{const a=document.createElement('a');a.href=doc.fileData;a.download=doc.fileName;a.click()}
 
-  const handleSave = async () => {
+  const handleSave=async()=>{
     setSaving(true)
-    const patch = {}
-    const newDays = (day && day !== '해당없음') ? [day] : []
-    patch.days = newDays
-    patch.title = autoTitle
-    if (newFile) {
-      patch.fileData = await new Promise(r => { const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(newFile) })
-      patch.fileName = newFile.name
-      patch.fileType = getFileType(newFile.name)
+    const patch={title:autoTitle, days:(day&&day!=='해당없음')?[day]:[]}
+    if(file){
+      patch.fileData=await new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(file)})
+      patch.fileName=file.name
+      patch.fileType=getFileType(file.name)
     }
-    onUpdate(doc.id, patch)
-    success('수정이 완료되었습니다.')
-    setSaving(false)
-    onClose()
+    onUpdate(doc.id,patch);success('수정이 완료되었습니다.');setSaving(false);onClose()
   }
 
   return (
     <div style={{position:'fixed',inset:0,zIndex:1100,background:'rgba(0,0,0,0.45)',display:'flex',alignItems:'center',justifyContent:'center'}} onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
-      <div style={{background:'#fff',borderRadius:'16px',padding:'24px',width:'520px',maxWidth:'92vw',boxShadow:'0 24px 64px rgba(0,0,0,0.22)',fontFamily:'Noto Sans KR, sans-serif',display:'flex',flexDirection:'column',gap:'16px'}}>
-        {/* 헤더 */}
-        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-          <span style={{fontWeight:700,fontSize:'15px',color:'#111827',flex:1}}>{editMode ? autoTitle : doc.title}</span>
-          <button onClick={()=>setEditMode(e=>!e)} style={{padding:'5px 12px',borderRadius:'7px',border:'1.5px solid '+color+'40',background:editMode?color+'12':'#fff',color:editMode?color:'#6b7280',fontSize:'12px',fontWeight:600,cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>
-            {editMode ? '✏️ 수정중' : '✏️ 수정'}
-          </button>
-          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:'22px',lineHeight:1,padding:0}}>×</button>
+      <div style={{background:'#fff',borderRadius:'16px',padding:'28px',width:'420px',maxWidth:'92vw',boxShadow:'0 20px 60px rgba(0,0,0,0.18)',fontFamily:'Noto Sans KR, sans-serif'}}>
+        <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'22px'}}>
+          <span style={{fontSize:'14px',fontWeight:600,color:'#111827'}}>서류 수정</span>
+          <button onClick={onClose} style={{marginLeft:'auto',background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:'20px',lineHeight:1,padding:0}}>×</button>
         </div>
-
-        {/* 수정 폼 */}
-        {editMode && (
-          <div style={{display:'flex',flexDirection:'column',gap:'10px',padding:'14px',background:'#f9fafb',borderRadius:'10px',border:'1px solid #e5e7eb'}}>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
-              <div>{lbl('요일',true)}<select value={day} onChange={e=>setDay(e.target.value)} style={ds()}>{DAYS.map(d=><option key={d}>{d}</option>)}</select></div>
-              <div>{lbl('학교명',true)}<input value={school} onChange={e=>setSchool(e.target.value)} placeholder="예) 대한초" style={{width:'100%',padding:'9px 12px',borderRadius:'8px',border:'1.5px solid #e5e7eb',fontSize:'13px',color:'#111827',outline:'none',fontFamily:'Noto Sans KR, sans-serif',boxSizing:'border-box'}}/></div>
-            </div>
-            <div>
-              {lbl('파일 교체',true)}
-              <input ref={fileRef} type="file" accept={ACCEPT} style={{display:'none'}} onChange={e=>setNewFile(e.target.files[0]||null)}/>
-              <button onClick={()=>fileRef.current?.click()} style={{width:'100%',padding:'9px 12px',border:'1.5px dashed '+(newFile?color:'#d1d5db'),borderRadius:'8px',background:newFile?color+'08':'#fff',cursor:'pointer',fontSize:'13px',color:newFile?color:'#9ca3af',fontFamily:'Noto Sans KR, sans-serif',textAlign:'left',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',boxSizing:'border-box'}}>
-                {newFile ? '✅ '+newFile.name : (doc.fileName ? '🔄 '+doc.fileName+' (클릭하여 교체)' : '📁 파일 선택')}
-              </button>
-              {newFile && <button onClick={()=>setNewFile(null)} style={{marginTop:'4px',background:'none',border:'none',cursor:'pointer',fontSize:'11px',color:'#9ca3af',padding:0}}>✕ 취소</button>}
-            </div>
-          </div>
-        )}
-
-        {/* 파일 미리보기 */}
-        {!editMode && (
-          <div style={{borderRadius:'10px',overflow:'hidden',border:'1px solid #e5e7eb',minHeight:'180px',display:'flex',alignItems:'center',justifyContent:'center',background:'#f9fafb'}}>
-            {!doc.fileData
-              ?(<div style={{textAlign:'center',padding:'40px'}}><div style={{fontSize:'40px',marginBottom:'10px'}}>📭</div><div style={{fontSize:'13px',fontWeight:600,color:'#b45309'}}>파일이 첨부되지 않았습니다</div><div style={{fontSize:'11px',marginTop:'4px',color:'#9ca3af'}}>수정 버튼을 눌러 파일을 첨부하세요</div></div>)
-              :doc.fileType==='image'?(<img src={doc.fileData} alt={doc.title} style={{maxWidth:'100%',maxHeight:'320px',objectFit:'contain',display:'block'}}/>)
-              :doc.fileType==='pdf'?(<iframe src={doc.fileData} title={doc.title} style={{width:'100%',height:'320px',border:'none'}}/>)
-              :(<div style={{textAlign:'center',padding:'40px'}}><div style={{fontSize:'48px',marginBottom:'12px'}}>{doc.fileType==='hwp'?'📄':doc.fileType==='excel'?'📊':'📁'}</div><div style={{fontSize:'13px',fontWeight:600,color:'#374151'}}>{doc.fileName}</div><div style={{fontSize:'12px',marginTop:'4px',color:'#9ca3af'}}>이 형식은 브라우저에서 미리볼 수 없습니다</div></div>)
-            }
-          </div>
-        )}
-
-        {/* 버튼 */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'10px',marginBottom:'14px'}}>
+          <div>{lbl('요일',true)}<select value={day} onChange={e=>setDay(e.target.value)} style={ds()}>{DAYS.map(d=><option key={d}>{d}</option>)}</select></div>
+          <div>{lbl('기간1',true)}<select value={p1} onChange={e=>setP1(e.target.value)} style={ds()}>{PERIODS1.map(p=><option key={p}>{p}</option>)}</select></div>
+          <div>{lbl('기간2',true)}<select value={p2} onChange={e=>setP2(e.target.value)} style={ds()}>{PERIODS2.map(p=><option key={p}>{p}</option>)}</select></div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'14px'}}>
+          <div>{lbl('학교명',true)}<input value={school} onChange={e=>setSchool(e.target.value)} placeholder="예) 대한초" style={{width:'100%',padding:'9px 12px',borderRadius:'8px',border:'1.5px solid #e5e7eb',fontSize:'13px',color:'#111827',outline:'none',fontFamily:'Noto Sans KR, sans-serif',boxSizing:'border-box'}} onFocus={e=>e.target.style.borderColor=color} onBlur={e=>e.target.style.borderColor='#e5e7eb'}/></div>
+          <div>{lbl('과목명',true)}<input value={subject} onChange={e=>setSubject(e.target.value)} placeholder="예) 로봇" style={{width:'100%',padding:'9px 12px',borderRadius:'8px',border:'1.5px solid #e5e7eb',fontSize:'13px',color:'#111827',outline:'none',fontFamily:'Noto Sans KR, sans-serif',boxSizing:'border-box'}} onFocus={e=>e.target.style.borderColor=color} onBlur={e=>e.target.style.borderColor='#e5e7eb'}/></div>
+        </div>
+        <div style={{marginBottom:'14px',padding:'10px 14px',background:color+'08',border:'1.5px solid '+color+'30',borderRadius:'8px',display:'flex',alignItems:'center',gap:'8px'}}>
+          <span style={{fontSize:'11px',color:color,fontWeight:700,flexShrink:0}}>제목 미리보기</span>
+          <span style={{fontSize:'13px',fontWeight:700,color:'#111827'}}>{autoTitle}</span>
+        </div>
+        <div style={{marginBottom:'24px'}}>
+          {lbl('파일',true)}
+          <input ref={fileRef} type="file" accept={ACCEPT} style={{display:'none'}} onChange={e=>setFile(e.target.files[0]||null)}/>
+          <button onClick={()=>fileRef.current?.click()} style={{width:'100%',padding:'9px 12px',border:'1.5px dashed '+(file?color:'#d1d5db'),borderRadius:'8px',background:file?color+'08':'#fafafa',cursor:'pointer',fontSize:'13px',color:file?color:'#9ca3af',fontFamily:'Noto Sans KR, sans-serif',textAlign:'left',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',boxSizing:'border-box'}}>
+            {file?'✅ '+file.name : doc.fileName?'🔄 '+doc.fileName+' (클릭하여 교체)':'📁 파일을 선택하세요'}
+          </button>
+          {file&&<button onClick={()=>setFile(null)} style={{marginTop:'6px',background:'none',border:'none',cursor:'pointer',fontSize:'11px',color:'#9ca3af',padding:0}}>✕ 파일 제거</button>}
+        </div>
         <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
-          <button onClick={onClose} style={{padding:'9px 18px',borderRadius:'8px',border:'1.5px solid #e5e7eb',background:'#fff',fontSize:'13px',fontWeight:600,color:'#6b7280',cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>닫기</button>
-          {editMode
-            ? <button onClick={handleSave} disabled={saving} style={{padding:'9px 22px',borderRadius:'8px',border:'none',background:color,fontSize:'13px',fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>{saving?'저장 중...':'💾 저장'}</button>
-            : doc.fileData && <button onClick={handleDownload} style={{padding:'9px 22px',borderRadius:'8px',border:'none',background:color,fontSize:'13px',fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>⬇️ 다운로드</button>
-          }
+          {doc.fileData&&<button onClick={handleDownload} style={{padding:'9px 18px',borderRadius:'8px',border:'1.5px solid #e5e7eb',background:'#fff',fontSize:'13px',fontWeight:600,color:'#6b7280',cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>⬇️ 다운로드</button>}
+          <button onClick={onClose} style={{padding:'9px 18px',borderRadius:'8px',border:'1.5px solid #e5e7eb',background:'#fff',fontSize:'13px',fontWeight:600,color:'#6b7280',cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>취소</button>
+          <button onClick={handleSave} disabled={saving} style={{padding:'9px 22px',borderRadius:'8px',border:'none',background:color,fontSize:'13px',fontWeight:700,color:'#fff',cursor:'pointer',fontFamily:'Noto Sans KR, sans-serif'}}>{saving?'저장 중...':'저장'}</button>
         </div>
       </div>
     </div>
