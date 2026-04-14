@@ -1140,7 +1140,16 @@ export function Students({ user, onNav }) {
 
       {/* ── 탭2: 학생 등록 */}
       {mainTab === 'register' && (() => {
-        const newStudents = registerStudents.sort((a,b) => new Date(b.createdAt)-new Date(a.createdAt))
+        const newStudents = [...registerStudents].sort((a,b) => {
+          // 학년 오름차순
+          const gradeCmp = parseInt(a.grade||'0') - parseInt(b.grade||'0')
+          if (gradeCmp !== 0) return gradeCmp
+          // 반 오름차순 (A반→B반 또는 숫자반)
+          const classCmp = (a.classNum||'').localeCompare(b.classNum||'', 'ko')
+          if (classCmp !== 0) return classCmp
+          // 번호 오름차순
+          return parseInt(a.number||'0') - parseInt(b.number||'0')
+        })
         const allNewSelected = newStudents.length > 0 && newStudents.every(s => selectedForMove.includes(s.id))
         const moveToManage = (ids) => {
           ids.forEach(id => StudentsDB.update(id, { movedToManage: true }))
