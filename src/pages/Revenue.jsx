@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { uid, now, today, localDateStr, calcSessionDates, sortClasses } from '../lib/utils.js'
 import { Classes, Students, RevenueFees, RevenuePayments } from '../lib/db.js'
+import { Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../hooks/useConfirm.js'
 
