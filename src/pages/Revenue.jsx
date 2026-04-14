@@ -523,8 +523,8 @@ export function Revenue({ user }) {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'16px', alignItems:'start' }}>
             {/* ★ 미수금 알림 패널 — 과거 텀 포함 전체 미수금 */}
             {(() => {
-              const unpaidItems = allUnpaidList.filter(r=>r.termStatus==='unpaid'||r.termStatus==='current')
-              const currentItems = allUnpaidList.filter(r=>r.termStatus==='current' && r.term.endDate >= today())
+              const unpaidItems = allUnpaidList.filter(r=>r.termStatus==='unpaid')
+              const currentItems = allUnpaidList.filter(r=>r.termStatus==='current')
               const renderItem = (item, idx) => (
                     <div key={idx}
                       onClick={() => setUnpaidDetail(item)}
