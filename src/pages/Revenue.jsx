@@ -107,7 +107,23 @@ export function Revenue({ user }) {
   }
   useEffect(() => { reload() }, [])
 
-  const sorted = useMemo(() => sortClasses(classes), [classes])
+  const sorted = useMemo(() => {
+    const DAY_ORDER = ['월','화','수','목','금','토','일']
+    return [...classes].sort((a, b) => {
+      const aDay = DAY_ORDER.indexOf(a.days?.[0] ?? '')
+      const bDay = DAY_ORDER.indexOf(b.days?.[0] ?? '')
+      const dayCmp = (aDay===-1?99:aDay) - (bDay===-1?99:bDay)
+      if (dayCmp !== 0) return dayCmp
+      // 같은 요일이면 시간순
+      const timeCmp = (a.time||'').localeCompare(b.time||'')
+      if (timeCmp !== 0) return timeCmp
+      // 같은 시간이면 학교명순
+      const schoolCmp = (a.organization||'').localeCompare(b.organization||'', 'ko')
+      if (schoolCmp !== 0) return schoolCmp
+      // 반(A→B)순
+      return (a.section||'').localeCompare(b.section||'')
+    })
+  }, [classes])
 
   const confirmedCount = useMemo(() => {
     const m = {}
@@ -1013,11 +1029,13 @@ export function Revenue({ user }) {
                               <div style={{ width:'18px', height:'18px', borderRadius:'4px', border:`2px solid ${isSel?C.primary:C.border}`, background:isSel?C.primary:'#fff', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
                                 {isSel&&<span style={{color:'#fff',fontSize:'12px',fontWeight:700}}>✓</span>}
                               </div>
-                              <div style={{ fontSize:'14px', fontWeight:700, color:isSel?C.primary:C.text }}>
-                                {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}
-                              </div>
-                              <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                                현재 {c}명{cls.time?` · ${cls.time}${cls.timeEnd?' ~ '+cls.timeEnd:''}`:''}{f?` · ${fmt(f.amount)}원/${f.feeType==='per_session'?'회':'텀'}`:''}
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ fontSize:'14px', fontWeight:700, color:isSel?C.primary:C.text }}>
+                                  {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}
+                                </div>
+                                <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+                                  현재 {c}명{cls.time?` · ${cls.time}${cls.timeEnd?' ~ '+cls.timeEnd:''}`:''}{f?` · ${fmt(f.amount)}원/${f.feeType==='per_session'?'회':'텀'}`:''}
+                                </div>
                               </div>
                             </div>
                           )
