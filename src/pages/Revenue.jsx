@@ -323,17 +323,12 @@ export function Revenue({ user }) {
     ids.forEach(cid => {
       const amt = Number(payForm[`amount_${cid}`] || payForm.amount || 0)
       if (!amt) return
-      const cls = sorted.find(c => c.id === cid)
-      const terms = cls ? getTerms(cls) : []
-      const termNo = terms.length > 0 ? (terms.find(isTermCurrent) || terms[0])?.termNo : null
       RevenuePayments.insert({
         id: uid(), teacherId: user.id,
         classId: cid,
-        termNo: termNo ? Number(termNo) : null,
         date: payDate,
         amount: amt,
         memo: payForm.memo,
-
         createdAt: now(),
       })
     })
@@ -630,6 +625,7 @@ export function Revenue({ user }) {
                                 {cls?`${cls.organization} · ${cls.className}${cls.section?' '+cls.section:''}`:' 수업 미상'}
                                 {p.termNo&&<span style={{ marginLeft:'6px', fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 5px' }}>{p.termNo}텀</span>}
                               </div>
+                              <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>{p.date?.replace(/-/g,'.')}</div>
                               {p.memo&&<div style={{ fontSize:'11px', color:C.muted }}>{p.memo}</div>}
                               {p.reason&&<div style={{ fontSize:'11px', color:C.warning }}>📝 {p.reason}</div>}
                             </div>
