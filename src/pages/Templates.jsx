@@ -367,7 +367,7 @@ export function Templates({ user }) {
   const reload    = () => setAllDocs((DocumentsDB?.all?.() || []).filter(d => d.teacherId === user.id || user.role === 'admin'))
   const docsFor   = (catKey) => docs.filter(d => d.category === catKey).sort((a,b) => getDayFromTitle(a.title)-getDayFromTitle(b.title))
 
-  const handleSave = ({ title, fileData, fileName, fileType }) => {
+  const handleSave = ({ title, fileData, fileName, fileType, days }) => {
     DocumentsDB.insert({ id: uid(), teacherId: user.id, category: modalCat.key, title, year: selectedYear, fileName, fileType, fileData, days: days || [], createdAt: now() })
     reload()
     success(modalCat.label + '이(가) 등록 완료되었습니다.')
