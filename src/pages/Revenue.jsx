@@ -27,13 +27,10 @@ function getMonthDates(ym) {
 }
 function toYM(d) { return d.slice(0, 7) }
 
-// 입금이 특정 텀에 속하는지 판단
-// classId 일치 + termNo 일치가 기본, termNo null이면 날짜 범위로 fallback
+// 입금이 특정 텀에 속하는지 판단 — classId + termNo 둘 다 일치해야 함
 function payMatchesTerm(p, term, classId) {
-  if (classId && p.classId !== classId) return false
-  if (p.termNo != null && Number(p.termNo) === term.termNo) return true
-  if (p.termNo == null && p.date >= term.startDate && p.date <= term.endDate) return true
-  return false
+  if (p.classId !== classId) return false
+  return Number(p.termNo) === term.termNo
 }
 
 // cls.termSizes로 텀별 날짜 슬라이스
@@ -272,7 +269,7 @@ export function Revenue({ user }) {
           list.push({
             cls, term, fee, cnt,
             expected, paid, unpaid,
-            termStatus: termEnded ? 'unpaid' : 'current',  // termStarted도 current로
+            termStatus: termEnded ? 'unpaid' : 'current',
             startApplied: appliedCount[cls.id] || cnt,
             cancelled: cancelledCount[cls.id] || 0,
             confirmed: cnt,
@@ -504,8 +501,8 @@ export function Revenue({ user }) {
 
       {/* ── 달력 탭 */}
       {tab === 'calendar' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: '20px', alignItems: 'start' }}>
-          {/* 달력 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* 달력 — 전체폭 */}
           <div style={{ background: C.card, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -522,12 +519,12 @@ export function Revenue({ user }) {
             {renderMonthCalendar()}
           </div>
 
-          {/* 우측 패널 */}
-          <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+          {/* 하단 4개 패널 — 가로 배치 */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'16px', alignItems:'start' }}>
             {/* ★ 미수금 알림 패널 — 과거 텀 포함 전체 미수금 */}
-            {allUnpaidList.length > 0 && (() => {
-              const unpaidItems = allUnpaidList.filter(r=>r.termStatus==='unpaid')
-              const currentItems = allUnpaidList.filter(r=>r.termStatus==='current')
+            {(() => {
+              const unpaidItems = allUnpaidList.filter(r=>r.termStatus==='unpaid'||r.termStatus==='current')
+              const currentItems = allUnpaidList.filter(r=>r.termStatus==='current' && r.term.endDate >= today())
               const renderItem = (item, idx) => (
                     <div key={idx}
                       onClick={() => setUnpaidDetail(item)}
@@ -553,26 +550,30 @@ export function Revenue({ user }) {
               )
               return (
                 <>
-                  {unpaidItems.length > 0 && (
-                    <div style={{ background:'#fef2f2', borderRadius:'14px', border:'1.5px solid #fca5a5', padding:'14px 16px' }}>
-                      <div style={{ fontSize:'14px', fontWeight:700, color:C.danger, marginBottom:'10px' }}>
-                        ⚠️ 미수금 {unpaidItems.length}건 · 합계 {fmt(unpaidItems.reduce((s,r)=>s+r.unpaid,0))}원
-                      </div>
-                      <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                        {unpaidItems.map((item,idx) => renderItem(item,idx))}
-                      </div>
+                  {/* 미수금 컬럼 */}
+                  <div style={{ background:'#fef2f2', borderRadius:'14px', border:'1.5px solid #fca5a5', padding:'14px 16px' }}>
+                    <div style={{ fontSize:'14px', fontWeight:700, color:C.danger, marginBottom:'10px' }}>
+                      ⚠️ 미수금 {unpaidItems.length}건 · {fmt(unpaidItems.reduce((s,r)=>s+r.unpaid,0))}원
                     </div>
-                  )}
-                  {currentItems.length > 0 && (
-                    <div style={{ background:'#f0fdf4', borderRadius:'14px', border:'1.5px solid #86efac', padding:'14px 16px' }}>
-                      <div style={{ fontSize:'14px', fontWeight:700, color:C.success, marginBottom:'10px' }}>
-                        📍 진행중 {currentItems.length}건 · 합계 {fmt(currentItems.reduce((s,r)=>s+r.unpaid,0))}원
-                      </div>
-                      <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                        {currentItems.map((item,idx) => renderItem(item,idx))}
-                      </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                      {unpaidItems.length === 0
+                        ? <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'10px' }}>없음</div>
+                        : unpaidItems.map((item,idx) => renderItem(item,idx))
+                      }
                     </div>
-                  )}
+                  </div>
+                  {/* 진행중 컬럼 */}
+                  <div style={{ background:'#f0fdf4', borderRadius:'14px', border:'1.5px solid #86efac', padding:'14px 16px' }}>
+                    <div style={{ fontSize:'14px', fontWeight:700, color:C.success, marginBottom:'10px' }}>
+                      📍 진행중 {currentItems.length}건 · {fmt(currentItems.reduce((s,r)=>s+r.unpaid,0))}원
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                      {currentItems.length === 0
+                        ? <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'10px' }}>없음</div>
+                        : currentItems.map((item,idx) => renderItem(item,idx))
+                      }
+                    </div>
+                  </div>
                 </>
               )
             })()}
@@ -634,7 +635,7 @@ export function Revenue({ user }) {
             {/* 선택 날짜 입금 내역 */}
             <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
-                <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>💵 입금 내역</div>
+                <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>💵 입금 내역 ({curDate.slice(5).replace('-','.')})</div>
                 <button onClick={() => openPayModal(curDate)}
                   style={{ padding:'5px 12px', borderRadius:'8px', border:'none', background:C.success, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   + 입금 등록
@@ -667,7 +668,6 @@ export function Revenue({ user }) {
                     })}
                   </div>
               }
-            </div>
           </div>
         </div>
       )}
