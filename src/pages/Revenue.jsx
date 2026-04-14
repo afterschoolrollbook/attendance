@@ -1014,24 +1014,28 @@ export function Revenue({ user }) {
                     </div>
                   </div>
                 )}
-                {payStep===3&&hasTerm&&(
+                {payStep===3&&(
                   <div>
                     <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>📚 몇 텀 수강료인가요?</div>
-                    <div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>
-                      {selCls?.organization} · {selCls?.className}{selCls?.section?' '+selCls?.section:''}
+                    <div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>텀을 선택하면 선택한 모든 수업에 동일하게 적용됩니다</div>
+                    {/* 선택된 수업 목록 표시 */}
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'12px' }}>
+                      {(payForm.classIds&&payForm.classIds.length>0?payForm.classIds:[payForm.classId]).filter(Boolean).map(cid=>{
+                        const cls2=sorted.find(c=>c.id===cid)
+                        return <span key={cid} style={{ fontSize:'12px', padding:'3px 10px', borderRadius:'20px', background:'#fff7ed', border:`1px solid ${C.primary}`, color:C.primary, fontWeight:600 }}>
+                          {cls2?.organization} · {cls2?.className}{cls2?.section?' '+cls2?.section:''}
+                        </span>
+                      })}
                     </div>
+                    {/* 첫 번째 수업 기준으로 텀 목록 표시 */}
                     <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
                       {terms.map(t=>{
                         const isSel=String(payForm.termNo)===String(t.termNo)
                         const isCur=isTermCurrent(t)
                         const td=today()
-                        const isPast=t.endDate < td   // 종료된 텀 — 선택 가능
-                        const isFuture=t.startDate > td // 예정 텀 — 선택 불가
-                        const isDisabled=isCur||isFuture // 진행중·예정 비활성
-                        const f=feeMap[selCls?.id]
-                        const c=confirmedCount[selCls?.id]||0
-                        const ps=f?perSessionFee(f,t,selCls):0
-                        const exp=ps*c*t.sessions.length
+                        const isPast=t.endDate < td
+                        const isFuture=t.startDate > td
+                        const isDisabled=isFuture
                         return (
                           <div key={t.termNo}
                             onClick={()=>{ if(!isDisabled) setPayForm(pf=>({...pf,termNo:String(t.termNo)})) }}
@@ -1052,7 +1056,6 @@ export function Revenue({ user }) {
                                 {t.startDate?.slice(5)} ~ {t.endDate?.slice(5)} · {t.sessions.length}회
                               </div>
                             </div>
-                            {exp>0&&<div style={{ fontSize:'13px', fontWeight:700, color:isSel?C.primary:isDisabled?'#d1d5db':C.muted }}>{fmt(exp)}원</div>}
                           </div>
                         )
                       })}
