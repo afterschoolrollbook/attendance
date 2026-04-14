@@ -95,6 +95,7 @@ export function Revenue({ user }) {
   const [payForm, setPayForm]     = useState({ classId: '', classIds: [], termNo: '', amount: '', memo: '' })
   const [isSaving, setIsSaving]   = useState(false)
   const savingRef = React.useRef(false)
+  const savingRef = React.useRef(false)
 
   const [expandedClass, setExpandedClass] = useState(null)
   const { error: toastError, success } = useToast()
@@ -412,8 +413,8 @@ export function Revenue({ user }) {
             const dayRev   = allDailyRevenue[date] || 0
             const paidAmt  = pays.reduce((s, p) => s + p.amount, 0)
             return (
-              <div key={date} onClick={() => { setCurDate(date); openPayModal(date) }}
-                title="클릭 → 입금 등록"
+              <div key={date} onClick={() => setCurDate(date)}
+                title="날짜 선택"
                 style={{ borderRadius: '8px', padding: '5px 4px', cursor: 'pointer', minHeight: '88px', transition: 'all .1s', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}` }}>
                 {/* 날짜 숫자 */}
                 <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '1px', color: isSel ? '#fff' : dow === 6 ? C.blue : dow === 0 ? C.danger : C.text }}>
@@ -635,19 +636,19 @@ export function Revenue({ user }) {
               })()}
             </div>
 
-            {/* 선택 날짜 입금 내역 */}
+            {/* 입금 내역 전체 */}
             <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
-                <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>💵 입금 내역 ({curDate.slice(5).replace('-','.')})</div>
-                <button onClick={() => openPayModal(curDate)}
+                <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>💵 입금 내역</div>
+                <button onClick={() => openPayModal(today())}
                   style={{ padding:'5px 12px', borderRadius:'8px', border:'none', background:C.success, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   + 입금 등록
                 </button>
               </div>
-              {dayPayments.length === 0
+              {payments.length === 0
                 ? <div style={{ textAlign:'center', padding:'10px', color:C.muted, fontSize:'13px' }}>입금 내역 없음</div>
-                : <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-                    {dayPayments.map(p => {
+                : <div style={{ display:'flex', flexDirection:'column', gap:'5px', maxHeight:'400px', overflowY:'auto' }}>
+                    {[...payments].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(p => {
                       const cls = classes.find(c=>c.id===p.classId)
                       return (
                         <div key={p.id} style={{ padding:'8px 10px', borderRadius:'8px', background:'#f0fdf4', border:'1px solid #86efac' }}>
@@ -659,11 +660,10 @@ export function Revenue({ user }) {
                               </div>
                               <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>{p.date?.replace(/-/g,'.')}</div>
                               {p.memo&&<div style={{ fontSize:'11px', color:C.muted }}>{p.memo}</div>}
-                              {p.reason&&<div style={{ fontSize:'11px', color:C.warning }}>📝 {p.reason}</div>}
                             </div>
                             <div style={{ display:'flex', alignItems:'center', gap:'6px', flexShrink:0 }}>
                               <span style={{ fontSize:'13px', fontWeight:700, color:C.success }}>+{fmt(p.amount)}원</span>
-                              <button onClick={()=>confirm('입금 내역을 삭제할까요?', () => deletePayment(p.id))} style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                              <button onClick={()=>confirm('삭제할까요?', () => deletePayment(p.id))} style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                             </div>
                           </div>
                         </div>
@@ -1070,6 +1070,13 @@ export function Revenue({ user }) {
                           const isSel = (payForm.classIds||[]).includes(cls.id)
                           const f = feeMap[cls.id]
                           const c = confirmedCount[cls.id]||0
+                          const clsTerms = getTerms(cls)
+                          const lastEndedNo = clsTerms.filter(t=>t.endDate&&t.endDate<payDate).reduce((mx,t)=>Math.max(mx,t.termNo),0)
+                          const curTerm = clsTerms.find(t=>t.termNo===lastEndedNo+1)||clsTerms.find(t=>t.startDate<=payDate&&t.endDate>=payDate)||clsTerms[0]
+                          const curTermPaid = curTerm?(payByClass[cls.id]||[]).filter(p=>payMatchesTerm(p,curTerm,cls.id)).reduce((s,p)=>s+p.amount,0):0
+                          const curTermExp = curTerm&&f&&c?perSessionFee(f,curTerm,cls)*c*curTerm.sessions.length:0
+                          const isPaid = curTermExp>0&&curTermPaid>=curTermExp
+                          if(isPaid) return null
                           return (
                             <div key={cls.id} onClick={()=>{
                               const cur = (payForm.classIds||[]).includes(cls.id)
