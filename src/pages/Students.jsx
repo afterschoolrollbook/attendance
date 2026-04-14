@@ -234,6 +234,9 @@ export function Students({ user, onNav }) {
   const [lastAddedId, setLastAddedId] = useState(null)
   const [addView, setAddView] = useState(false)
   const [mainTab, setMainTab] = useState('manage') // 'manage' | 'register'
+  const [selectedForMove, setSelectedForMove] = useState([]) // 탭2에서 선택된 학생 id 목록
+  const [selectedForRegister, setSelectedForRegister] = useState([]) // 탭1에서 탭2로 보낼 학생 id 목록
+  const [classFilterForMove, setClassFilterForMove] = useState('') // 탭1 이동용 수업 필터
   const [pinned, setPinned] = useState({ classId: false, classNum: false, organization: false, className: false, section: false })
 
   // ── 메시지 발송 모달
@@ -323,7 +326,9 @@ export function Students({ user, onNav }) {
     : []
 
   const allStudents = StudentsDB.byTeacher(user.id)
-  const filtered = allStudents.filter(s => {
+  // 탭1: movedToManage가 false인 신규 미이동 학생 제외 (기존 학생은 undefined → 표시)
+  const managedStudents = allStudents.filter(s => s.movedToManage !== false)
+  const filtered = managedStudents.filter(s => {
     if (ctxYear) {
       const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
       if (!inYear) return false
@@ -392,7 +397,7 @@ export function Students({ user, onNav }) {
     return sortOrder === 'asc' ? ta - tb : tb - ta
   })
 
-  const ctxBase = allStudents.filter(s => {
+  const ctxBase = managedStudents.filter(s => {
     if (ctxYear) {
       const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
       if (!inYear) return false
@@ -548,6 +553,7 @@ export function Students({ user, onNav }) {
       const newId = uid()
       StudentsDB.insert({
         id: newId, teacherId: user.id, ...saveData,
+        movedToManage: false,
         statusHistory: [{ status: saveData.status, changedAt: now(), memo: '' }],
         createdAt: now(),
       })
@@ -715,6 +721,7 @@ export function Students({ user, onNav }) {
         studentPhone: row.studentPhone,
         classIds:     excelClassId ? [excelClassId] : [],
         status: 'applied', memo: '',
+        movedToManage: false,
         statusHistory: [{ status: 'applied', changedAt: now(), memo: '엑셀 일괄 등록' }],
         createdAt: now(),
       })
@@ -826,6 +833,48 @@ export function Students({ user, onNav }) {
         </div>
       </div>
 
+      {/* 탭2로 이동 컨트롤 바 */}
+      {(() => {
+        const allFilteredSelected = filtered.length > 0 && filtered.every(s => selectedForRegister.includes(s.id))
+        const moveBackToRegister = (ids) => {
+          ids.forEach(id => StudentsDB.update(id, { movedToManage: false }))
+          setSelectedForRegister(p => p.filter(id => !ids.includes(id)))
+          refresh()
+          showToast(`${ids.length}명이 학생 등록 탭으로 이동되었습니다.`)
+          setMainTab('register')
+        }
+        return (
+          <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
+            <input type="checkbox" checked={allFilteredSelected} onChange={e => {
+              if (e.target.checked) setSelectedForRegister(filtered.map(s => s.id))
+              else setSelectedForRegister([])
+            }} style={{ width:'16px', height:'16px', accentColor:'#f97316', cursor:'pointer' }} />
+            <span style={{ fontSize:'13px', color:'#374151' }}>전체 선택</span>
+            <select value={classFilterForMove} onChange={e => {
+              const cid = e.target.value
+              setClassFilterForMove(cid)
+              if (cid) {
+                const ids = filtered.filter(s => s.classIds?.includes(cid)).map(s => s.id)
+                setSelectedForRegister(ids)
+              } else {
+                setSelectedForRegister([])
+              }
+            }} style={{ padding:'6px 12px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }}>
+              <option value=''>수업 선택하여 체크</option>
+              {filteredClasses.map(c => (
+                <option key={c.id} value={c.id}>{c.organization} · {c.className}{c.section ? ' '+c.section+'반' : ''}</option>
+              ))}
+            </select>
+            {selectedForRegister.length > 0 && (
+              <button onClick={() => moveBackToRegister(selectedForRegister)}
+                style={{ padding:'7px 16px', borderRadius:'8px', border:'none', background:'#6366f1', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                선택 {selectedForRegister.length}명 → 학생 등록으로 이동
+              </button>
+            )}
+          </div>
+        )
+      })()}
+
       {/* 상태 필터 + 정렬 */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -862,7 +911,7 @@ export function Students({ user, onNav }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '상태', '진도', '메모', '작업'].map(h => (
+                {['', '순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '상태', '진도', '메모', '작업'].map(h => (
                   <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -881,7 +930,13 @@ export function Students({ user, onNav }) {
                 const displaySchool = (s.classIds || []).map(cid => classes.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || ''
 
                 return (
-                  <tr key={s.id} style={{ borderBottom: '1px solid #f3f4f6', background: s.id === lastAddedId ? '#fff7ed' : i % 2 === 0 ? '#fff' : '#fafafa', outline: s.id === lastAddedId ? '2px solid #f97316' : 'none', transition: 'background 1s, outline 1s' }}>
+                  <tr key={s.id} style={{ borderBottom: '1px solid #f3f4f6', background: selectedForRegister.includes(s.id) ? '#f5f3ff' : s.id === lastAddedId ? '#fff7ed' : i % 2 === 0 ? '#fff' : '#fafafa', outline: s.id === lastAddedId ? '2px solid #f97316' : 'none', transition: 'background 1s, outline 1s' }}>
+                    <td style={{ padding: '11px 14px', textAlign:'center' }}>
+                      <input type="checkbox" checked={selectedForRegister.includes(s.id)} onChange={e => {
+                        if (e.target.checked) setSelectedForRegister(p => [...p, s.id])
+                        else setSelectedForRegister(p => p.filter(id => id !== s.id))
+                      }} style={{ width:'15px', height:'15px', accentColor:'#6366f1', cursor:'pointer' }} />
+                    </td>
                     <td style={{ padding: '11px 14px', fontSize: '13px', color: '#9ca3af', textAlign: 'center', whiteSpace: 'nowrap' }}>
                       {s.applyOrder
                         ? <span style={{ fontWeight: 700, color: '#f97316', background: '#fff7ed', padding: '2px 7px', borderRadius: '5px', border: '1px solid #fed7aa' }}>{s.applyOrder}</span>
@@ -1064,30 +1119,117 @@ export function Students({ user, onNav }) {
       </>)}
 
       {/* ── 탭2: 학생 등록 */}
-      {mainTab === 'register' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-          <div style={{ display:'flex', gap:'12px', flexWrap:'wrap' }}>
-            <div onClick={openAdd} style={{ flex:1, minWidth:'200px', padding:'32px 24px', borderRadius:'16px', border:'2px dashed #f97316', background:'#fff7ed', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px', transition:'all .15s' }}
-              onMouseEnter={e=>{e.currentTarget.style.background='#ffedd5'; e.currentTarget.style.borderColor='#ea580c'}}
-              onMouseLeave={e=>{e.currentTarget.style.background='#fff7ed'; e.currentTarget.style.borderColor='#f97316'}}>
-              <span style={{ fontSize:'40px' }}>👤</span>
-              <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:'16px', fontWeight:700, color:'#ea580c' }}>학생 단건 등록</div>
-                <div style={{ fontSize:'13px', color:'#9a3412', marginTop:'4px' }}>학생 정보를 직접 입력하여 등록합니다</div>
+      {mainTab === 'register' && (() => {
+        const newStudents = allStudents.filter(s => s.movedToManage === false).sort((a,b) => new Date(b.createdAt)-new Date(a.createdAt))
+        const allNewSelected = newStudents.length > 0 && newStudents.every(s => selectedForMove.includes(s.id))
+        const moveToManage = (ids) => {
+          ids.forEach(id => StudentsDB.update(id, { movedToManage: true }))
+          setSelectedForMove(p => p.filter(id => !ids.includes(id)))
+          refresh()
+          showToast(`${ids.length}명이 학생 관리로 이동되었습니다.`)
+        }
+        return (
+          <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+            {/* 등록 카드 */}
+            <div style={{ display:'flex', gap:'12px', flexWrap:'wrap' }}>
+              <div onClick={openAdd} style={{ flex:1, minWidth:'200px', padding:'24px', borderRadius:'16px', border:'2px dashed #f97316', background:'#fff7ed', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'10px', transition:'all .15s' }}
+                onMouseEnter={e=>{e.currentTarget.style.background='#ffedd5'; e.currentTarget.style.borderColor='#ea580c'}}
+                onMouseLeave={e=>{e.currentTarget.style.background='#fff7ed'; e.currentTarget.style.borderColor='#f97316'}}>
+                <span style={{ fontSize:'36px' }}>👤</span>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:'15px', fontWeight:700, color:'#ea580c' }}>학생 단건 등록</div>
+                  <div style={{ fontSize:'12px', color:'#9a3412', marginTop:'3px' }}>학생 정보를 직접 입력하여 등록합니다</div>
+                </div>
+              </div>
+              <div onClick={() => { setExcelStep(0); setExcelClassId(''); setShowExcel(true) }} style={{ flex:1, minWidth:'200px', padding:'24px', borderRadius:'16px', border:'2px dashed #16a34a', background:'#f0fdf4', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'10px', transition:'all .15s' }}
+                onMouseEnter={e=>{e.currentTarget.style.background='#dcfce7'; e.currentTarget.style.borderColor='#15803d'}}
+                onMouseLeave={e=>{e.currentTarget.style.background='#f0fdf4'; e.currentTarget.style.borderColor='#16a34a'}}>
+                <span style={{ fontSize:'36px' }}>📊</span>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:'15px', fontWeight:700, color:'#15803d' }}>엑셀 대량 업로드</div>
+                  <div style={{ fontSize:'12px', color:'#166534', marginTop:'3px' }}>엑셀 파일로 학생을 일괄 등록합니다</div>
+                </div>
               </div>
             </div>
-            <div onClick={() => { setExcelStep(0); setExcelClassId(''); setShowExcel(true) }} style={{ flex:1, minWidth:'200px', padding:'32px 24px', borderRadius:'16px', border:'2px dashed #16a34a', background:'#f0fdf4', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px', transition:'all .15s' }}
-              onMouseEnter={e=>{e.currentTarget.style.background='#dcfce7'; e.currentTarget.style.borderColor='#15803d'}}
-              onMouseLeave={e=>{e.currentTarget.style.background='#f0fdf4'; e.currentTarget.style.borderColor='#16a34a'}}>
-              <span style={{ fontSize:'40px' }}>📊</span>
-              <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:'16px', fontWeight:700, color:'#15803d' }}>엑셀 대량 업로드</div>
-                <div style={{ fontSize:'13px', color:'#166534', marginTop:'4px' }}>엑셀 파일로 학생을 일괄 등록합니다</div>
+
+            {/* 등록된 학생 확인 리스트 */}
+            <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', overflow:'hidden' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 20px', borderBottom:'1px solid #e5e7eb', background:'#f9fafb' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                  <input type="checkbox" checked={allNewSelected} onChange={e => {
+                    if (e.target.checked) setSelectedForMove(newStudents.map(s => s.id))
+                    else setSelectedForMove([])
+                  }} style={{ width:'16px', height:'16px', accentColor:'#f97316', cursor:'pointer' }} />
+                  <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>
+                    새로 등록된 학생 <span style={{ color:'#f97316' }}>{newStudents.length}명</span>
+                  </span>
+                  {selectedForMove.length > 0 && (
+                    <span style={{ fontSize:'12px', color:'#6b7280' }}>({selectedForMove.length}명 선택됨)</span>
+                  )}
+                </div>
+                {selectedForMove.length > 0 && (
+                  <button onClick={() => moveToManage(selectedForMove)}
+                    style={{ padding:'7px 16px', borderRadius:'8px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    선택 {selectedForMove.length}명 → 학생 관리로 이동
+                  </button>
+                )}
               </div>
+              {newStudents.length === 0 ? (
+                <div style={{ padding:'40px', textAlign:'center', color:'#9ca3af', fontSize:'13px' }}>등록된 학생이 없습니다. 위에서 학생을 등록해주세요.</div>
+              ) : (
+                <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                  <thead>
+                    <tr style={{ background:'#f9fafb', borderBottom:'1px solid #e5e7eb' }}>
+                      {['', '학교', '수업·반', '학년/반/번호', '이름', '학부모 전화', '작업'].map(h => (
+                        <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', whiteSpace:'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {newStudents.map((s, i) => {
+                      const sClasses = (s.classIds||[]).map(cid => { const cls=classes.find(c=>c.id===cid); return cls ? cls.className+(cls.section?' '+cls.section+'반':'') : null }).filter(Boolean)
+                      const displaySchool = (s.classIds||[]).map(cid => classes.find(c=>c.id===cid)?.organization).filter(Boolean)[0] || s.school || ''
+                      const isChecked = selectedForMove.includes(s.id)
+                      return (
+                        <tr key={s.id} style={{ borderBottom:'1px solid #f3f4f6', background: isChecked ? '#fff7ed' : i%2===0?'#fff':'#fafafa' }}>
+                          <td style={{ padding:'10px 14px' }}>
+                            <input type="checkbox" checked={isChecked} onChange={e => {
+                              if (e.target.checked) setSelectedForMove(p => [...p, s.id])
+                              else setSelectedForMove(p => p.filter(id => id !== s.id))
+                            }} style={{ width:'15px', height:'15px', accentColor:'#f97316', cursor:'pointer' }} />
+                          </td>
+                          <td style={{ padding:'10px 14px', fontSize:'13px', color:'#6b7280', whiteSpace:'nowrap' }}>{displaySchool}</td>
+                          <td style={{ padding:'10px 14px' }}>
+                            <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
+                              {sClasses.map(c => <Tag key={c} color="#6b7280" bg="#f3f4f6">{c}</Tag>)}
+                            </div>
+                          </td>
+                          <td style={{ padding:'10px 14px', fontSize:'13px', color:'#374151', whiteSpace:'nowrap' }}>
+                            <span>{s.grade ? s.grade+'학년' : '-'}</span>
+                            {s.classNum && <span style={{ marginLeft:'4px', padding:'1px 7px', borderRadius:'5px', background:'#f0fdf4', color:'#16a34a', fontWeight:600, fontSize:'12px' }}>{s.classNum}반</span>}
+                            {s.number && <span style={{ marginLeft:'4px', color:'#9ca3af', fontSize:'12px' }}>{s.number}번</span>}
+                          </td>
+                          <td style={{ padding:'10px 14px', fontSize:'14px', fontWeight:700, color:'#111827' }}>{s.name}</td>
+                          <td style={{ padding:'10px 14px', fontSize:'13px', color:'#374151' }}>{s.parentPhone || '-'}</td>
+                          <td style={{ padding:'10px 14px' }}>
+                            <div style={{ display:'flex', gap:'6px' }}>
+                              <Btn size="sm" variant="ghost" onClick={() => openEdit(s)}>편집</Btn>
+                              <button onClick={() => moveToManage([s.id])}
+                                style={{ padding:'5px 10px', borderRadius:'6px', border:'none', background:'#f97316', color:'#fff', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                                관리로 이동 →
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* 학생 등록/편집 모달 */}
       <Modal open={showModal} onClose={() => setShowModal(false)} title={editId ? '학생 정보 편집' : '학생 등록'} width={580}>
