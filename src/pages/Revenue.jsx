@@ -263,9 +263,10 @@ export function Revenue({ user }) {
         const td = today()
         const termEnded = term.endDate && term.endDate < td
         const termCurrent = term.startDate <= td && term.endDate >= td
-        const termStarted = term.startDate <= td  // 시작은 됐지만 endDate 없는 경우 포함
-        // 종료된 텀(미수금) + 진행중 텀(진행중) 표시, 예정 텀 제외
-        if (unpaid > 0 && (termEnded || termCurrent || termStarted)) {
+        // 수업 전체 기간이 진행중이면 (텀 사이 공백 포함) → current
+        const clsCurrent = cls.startDate <= td && (!cls.endDate || cls.endDate >= td)
+        // 종료된 텀(미수금) + 진행중 수업(진행중) 표시, 예정 텀 제외
+        if (unpaid > 0 && (termEnded || termCurrent || clsCurrent)) {
           list.push({
             cls, term, fee, cnt,
             expected, paid, unpaid,
