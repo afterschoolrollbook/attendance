@@ -100,11 +100,17 @@ export function Revenue({ user }) {
   const { error: toastError, success } = useToast()
   const { confirm } = useConfirm()
 
-  const reload = () => {
-    setFees(RevenueFees.byTeacher(user.id))
-    setPayments(RevenuePayments.byTeacher(user.id))
-    setClasses(Classes.byTeacher(user.id))
-    setStudents(Students.byTeacher(user.id))
+  const reload = async () => {
+    const [fees, payments, classes, students] = await Promise.all([
+      RevenueFees.byTeacher(user.id),
+      RevenuePayments.byTeacher(user.id),
+      Classes.byTeacher(user.id),
+      Students.byTeacher(user.id),
+    ])
+    setFees(fees || [])
+    setPayments(payments || [])
+    setClasses(classes || [])
+    setStudents(students || [])
   }
   useEffect(() => { reload() }, [])
 
@@ -307,13 +313,17 @@ export function Revenue({ user }) {
     return { expected, paid, unpaid: expected - paid }
   }, [sorted, feeMap, confirmedCount, payByClass, curYM])
 
-  const saveFeeForm = () => {
+  const saveFeeForm = async () => {
     if (!feeForm.amount) { toastError('금액을 입력하세요'); return }
-    RevenueFees.upsert({
-      teacherId: user.id, classId: feeTarget.classId,
-      feeType: feeForm.feeType, amount: Number(feeForm.amount), updatedAt: now(),
-    })
-    reload(); setFeeModal(false); success('수정이 완료되었습니다.')
+    try {
+      await RevenueFees.upsert({
+        teacherId: user.id, classId: feeTarget.classId,
+        feeType: feeForm.feeType, amount: Number(feeForm.amount), updatedAt: now(),
+      })
+      await reload(); setFeeModal(false); success('수정이 완료되었습니다.')
+    } catch {
+      toastError('저장 중 오류가 발생했습니다.')
+    }
   }
 
   const savePayForm = async () => {
@@ -323,7 +333,6 @@ export function Revenue({ user }) {
     if (ids.length === 0) { toastError('수업을 선택하세요'); setIsSaving(false); return }
     const hasAmt = ids.some(cid => Number(payForm[`amount_${cid}`]||payForm.amount) > 0)
     if (!hasAmt) { toastError('금액을 입력하세요'); setIsSaving(false); return }
-    // wizard에서 선택한 termNo 사용 (없으면 현재 텀으로 fallback)
     const selectedTermNo = payForm.termNo ? Number(payForm.termNo) : null
     try {
       for (const cid of ids) {
@@ -346,8 +355,8 @@ export function Revenue({ user }) {
           createdAt: now(),
         })
       }
-      reload(); setPayWizard(false); success(`${ids.length}건 등록이 완료되었습니다.`)
-    } catch (e) {
+      await reload(); setPayWizard(false); success(`${ids.length}건 등록이 완료되었습니다.`)
+    } catch {
       toastError('저장 중 오류가 발생했습니다.')
     } finally {
       setIsSaving(false)
@@ -373,7 +382,7 @@ export function Revenue({ user }) {
     setPayWizard(true)
   }
 
-  const deletePayment = (id) => { RevenuePayments.delete(id); reload(); success('삭제가 완료되었습니다.') }
+  const deletePayment = async (id) => { try { await RevenuePayments.delete(id); await reload(); success('삭제가 완료되었습니다.') } catch { toastError('삭제 중 오류가 발생했습니다.') } }
 
   // 월 달력 렌더
   const renderMonthCalendar = () => {
