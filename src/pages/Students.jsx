@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB } from '../lib/db.js'
-import { SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, RevenuePayments, TeacherParentLinks } from '../lib/db.js'
+import { SupplyItems, SupplyProducts, SupplyStudentProgress, SupplyProgressLogs, SupplySessionChecks, SupplyProductPlans } from '../lib/db.js'
 import { uid, now, fmtPhone, sortClasses } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox, Textarea } from '../components/Atoms.jsx'
 import { STUDENT_STATUS, GRADES, DAYS } from '../constants/config.js'
@@ -606,7 +606,34 @@ export function Students({ user, onNav }) {
 
   const deleteStudent = () => {
     if (!deleteTarget) return
-    StudentsDB.delete(deleteTarget.id)
+    const sid = deleteTarget.id
+
+    // 1. 학부모 연결 끊기
+    const links = TeacherParentLinks.byTeacher(user.id).filter(l => l.studentId === sid)
+    links.forEach(l => TeacherParentLinks.delete && TeacherParentLinks.delete(l.id))
+
+    // 2. 출결 기록 삭제
+    const attList = (AttendanceDB.byTeacher ? AttendanceDB.byTeacher(user.id) : []).filter(a => a.studentId === sid)
+    attList.forEach(a => AttendanceDB.delete(a.id))
+
+    // 3. 수납 기록 삭제
+    const payments = (RevenuePayments.all ? RevenuePayments.all() : []).filter(p => p.studentId === sid)
+    payments.forEach(p => RevenuePayments.delete(p.id))
+
+    // 4. 교구 진도 삭제
+    const progress = SupplyStudentProgress.byStudent ? SupplyStudentProgress.byStudent(sid) : []
+    progress.forEach(p => SupplyStudentProgress.delete(p.id))
+
+    // 5. 진도 로그 삭제
+    const logs = SupplyProgressLogs.byStudent ? SupplyProgressLogs.byStudent(sid) : []
+    logs.forEach(l => SupplyProgressLogs.delete(l.id))
+
+    // 6. 세션 체크 삭제
+    const checks = SupplySessionChecks.byStudent ? SupplySessionChecks.byStudent(sid) : []
+    checks.forEach(c => SupplySessionChecks.delete(c.id))
+
+    // 7. 학생 삭제
+    StudentsDB.delete(sid)
     setDeleteTarget(null)
     refresh()
     showToast('삭제가 완료되었습니다.')
@@ -1718,6 +1745,13 @@ export function Students({ user, onNav }) {
         <p style={{ fontSize: '14px', color: '#374151', marginBottom: '8px' }}>
           <strong>{deleteTarget?.name}</strong> 학생을 삭제하시겠습니까?
         </p>
+        <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>아래 데이터가 함께 삭제됩니다.</p>
+        <ul style={{ fontSize: '13px', color: '#374151', marginBottom: '12px', paddingLeft: '18px', lineHeight: '1.8' }}>
+          <li>출결 기록</li>
+          <li>수납 기록</li>
+          <li>교구 진도 기록</li>
+          <li>학부모 연결 정보</li>
+        </ul>
         <p style={{ fontSize: '13px', color: '#ef4444', marginBottom: '20px' }}>삭제 후 복구할 수 없습니다.</p>
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           <Btn variant="ghost" onClick={() => setDeleteTarget(null)}>취소</Btn>
