@@ -294,8 +294,11 @@ export function Revenue({ user }) {
   const savePayForm = () => {
     const ids = payForm.classIds && payForm.classIds.length > 0 ? payForm.classIds : (payForm.classId ? [payForm.classId] : [])
     if (ids.length === 0) { toastError('수업을 선택하세요'); return }
-    if (!payForm.amount)  { toastError('금액을 입력하세요'); return }
+    const hasAmt = ids.some(cid => Number(payForm[`amount_${cid}`]||payForm.amount) > 0)
+    if (!hasAmt) { toastError('금액을 입력하세요'); return }
     ids.forEach(cid => {
+      const amt = Number(payForm[`amount_${cid}`] || payForm.amount || 0)
+      if (!amt) return
       const cls = sorted.find(c => c.id === cid)
       const terms = cls ? getTerms(cls) : []
       const termNo = terms.length > 0 ? (terms.find(isTermCurrent) || terms[0])?.termNo : null
@@ -304,7 +307,7 @@ export function Revenue({ user }) {
         classId: cid,
         termNo: termNo ? Number(termNo) : null,
         date: payDate,
-        amount: Number(payForm.amount),
+        amount: amt,
         memo: payForm.memo,
         reason: '',
         createdAt: now(),
@@ -952,7 +955,7 @@ export function Revenue({ user }) {
         const canNext = payStep===1 ? !!payDate
           : payStep===2 ? (payForm.classIds && payForm.classIds.length > 0)
           : (hasTerm && payStep===3) ? !!payForm.termNo
-          : payStep===4 ? !!payForm.amount
+          : payStep===4 ? (payForm.classIds||[payForm.classId]).filter(Boolean).some(cid=>Number(payForm[`amount_${cid}`]||payForm.amount)>0)
           : true
 
         return (
@@ -1058,24 +1061,37 @@ export function Revenue({ user }) {
                 )}
                 {payStep===4&&(
                   <div>
-                    <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>💰 입금 금액이 얼마인가요?</div>
-                    {expectedAmt>0&&(
-                      <div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>
-                        예상 수강료: <strong style={{color:C.primary}}>{fmt(expectedAmt)}원</strong>
-                        <span onClick={()=>setPayForm(pf=>({...pf,amount:String(expectedAmt)}))}
-                          style={{ marginLeft:'8px', fontSize:'12px', color:C.primary, cursor:'pointer', textDecoration:'underline' }}>그대로 입력</span>
-                      </div>
-                    )}
-                    {!expectedAmt&&<div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>
-                      {selCls?.organization} · {selCls?.className}{selTerm?` · ${selTerm.label}`:''}
-                    </div>}
-                    <input type="number" value={payForm.amount} onChange={e=>setPayForm(pf=>({...pf,amount:e.target.value}))}
-                      placeholder="예: 750000" style={{...iStyle,fontSize:'18px',fontWeight:700}} autoFocus />
-                    {payForm.amount>0&&(
-                      <div style={{ marginTop:'10px', padding:'10px 14px', background:'#f0fdf4', borderRadius:'10px', fontSize:'15px', fontWeight:700, color:C.success }}>
-                        ✅ {fmt(payForm.amount)}원
-                      </div>
-                    )}
+                    <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>💰 수업별 입금 금액</div>
+                    <div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>각 수업의 입금 금액을 입력하세요</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'10px', maxHeight:'260px', overflowY:'auto' }}>
+                      {(payForm.classIds&&payForm.classIds.length>0 ? payForm.classIds : [payForm.classId]).filter(Boolean).map((cid,idx)=>{
+                        const cls = sorted.find(c=>c.id===cid)
+                        const f = feeMap[cid]
+                        const terms2 = cls ? getTerms(cls) : []
+                        const curTerm = terms2.find(isTermCurrent)||terms2[0]
+                        const cnt2 = confirmedCount[cid]||0
+                        const exp2 = (f&&curTerm) ? perSessionFee(f,curTerm,cls)*cnt2*curTerm.sessions.length : 0
+                        const amtKey = `amount_${cid}`
+                        const curAmt = payForm[amtKey]||''
+                        return (
+                          <div key={cid} style={{ padding:'12px 14px', borderRadius:'12px', border:`1px solid ${C.border}`, background:'#fafafa' }}>
+                            <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'6px' }}>
+                              {cls?.organization} · {cls?.className}{cls?.section?' '+cls?.section:''}
+                            </div>
+                            {exp2>0&&(
+                              <div style={{ fontSize:'12px', color:C.muted, marginBottom:'6px' }}>
+                                예상: <strong style={{color:C.primary}}>{fmt(exp2)}원</strong>
+                                <span onClick={()=>setPayForm(pf=>({...pf,[amtKey]:String(exp2)}))}
+                                  style={{ marginLeft:'8px', fontSize:'11px', color:C.primary, cursor:'pointer', textDecoration:'underline' }}>그대로 입력</span>
+                              </div>
+                            )}
+                            <input type="number" value={curAmt}
+                              onChange={e=>setPayForm(pf=>({...pf,[amtKey]:e.target.value}))}
+                              placeholder="금액 입력" style={{...iStyle,fontSize:'15px',fontWeight:700}} autoFocus={idx===0} />
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
                 {payStep===5&&(
@@ -1088,14 +1104,21 @@ export function Revenue({ user }) {
                       <div style={{ fontSize:'12px', color:C.muted, display:'flex', justifyContent:'space-between' }}>
                         <span>날짜</span><span style={{color:C.text,fontWeight:600}}>{payDate.replace(/-/g,'.')}</span>
                       </div>
-                      <div style={{ fontSize:'12px', color:C.muted, display:'flex', justifyContent:'space-between' }}>
-                        <span>수업</span><span style={{color:C.text,fontWeight:600,textAlign:'right',maxWidth:'200px'}}>{selCls?.organization} · {selCls?.className}{selCls?.section?' '+selCls?.section:''}</span>
-                      </div>
-                      {selTerm&&<div style={{ fontSize:'12px', color:C.muted, display:'flex', justifyContent:'space-between' }}>
-                        <span>텀</span><span style={{color:C.text,fontWeight:600}}>{selTerm.label}</span>
-                      </div>}
+                      {(payForm.classIds&&payForm.classIds.length>0?payForm.classIds:[payForm.classId]).filter(Boolean).map(cid=>{
+                        const cls2=sorted.find(c=>c.id===cid)
+                        const amt2=Number(payForm[`amount_${cid}`]||payForm.amount||0)
+                        return amt2>0&&(
+                          <div key={cid} style={{ fontSize:'12px', color:C.muted, display:'flex', justifyContent:'space-between' }}>
+                            <span style={{maxWidth:'160px'}}>{cls2?.organization} · {cls2?.className}{cls2?.section?' '+cls2?.section:''}</span>
+                            <span style={{color:C.success,fontWeight:700}}>{fmt(amt2)}원</span>
+                          </div>
+                        )
+                      })}
                       <div style={{ fontSize:'13px', color:C.muted, display:'flex', justifyContent:'space-between', borderTop:`1px solid ${C.border}`, paddingTop:'6px', marginTop:'2px' }}>
-                        <span style={{fontWeight:600}}>입금액</span><span style={{color:C.success,fontWeight:700,fontSize:'15px'}}>{fmt(payForm.amount)}원</span>
+                        <span style={{fontWeight:600}}>합계</span>
+                        <span style={{color:C.success,fontWeight:700,fontSize:'15px'}}>
+                          {fmt((payForm.classIds&&payForm.classIds.length>0?payForm.classIds:[payForm.classId]).filter(Boolean).reduce((s,cid)=>s+Number(payForm[`amount_${cid}`]||payForm.amount||0),0))}원
+                        </span>
                       </div>
                     </div>
                   </div>
