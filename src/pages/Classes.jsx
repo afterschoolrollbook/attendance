@@ -232,11 +232,16 @@ export function Classes({ user, onNav }) {
       toastError('필수 항목을 입력하세요 (단체명, 수업명, 요일, 기간).')
       return
     }
+    const cleanForm = {
+      ...form,
+      classDuration: form.classDuration === '' ? null : Number(form.classDuration),
+      termCount:     form.termCount === '' ? null : Number(form.termCount),
+    }
     if (editId && editId !== '__copy__') {
-      ClassesDB.update(editId, { ...form })
+      ClassesDB.update(editId, cleanForm)
       success('수정이 완료되었습니다.')
     } else {
-      const { id: _oldId, ...formWithoutId } = form
+      const { id: _oldId, ...formWithoutId } = cleanForm
       ClassesDB.insert({ ...formWithoutId, id: uid(), teacherId: user.id, createdAt: now() })
       success('등록이 완료되었습니다.')
     }
