@@ -100,17 +100,11 @@ export function Revenue({ user }) {
   const { error: toastError, success } = useToast()
   const { confirm } = useConfirm()
 
-  const reload = async () => {
-    const [fees, payments, classes, students] = await Promise.all([
-      RevenueFees.byTeacher(user.id),
-      RevenuePayments.byTeacher(user.id),
-      Classes.byTeacher(user.id),
-      Students.byTeacher(user.id),
-    ])
-    setFees(fees || [])
-    setPayments(payments || [])
-    setClasses(classes || [])
-    setStudents(students || [])
+  const reload = () => {
+    setFees(RevenueFees.byTeacher(user.id) || [])
+    setPayments(RevenuePayments.byTeacher(user.id) || [])
+    setClasses(Classes.byTeacher(user.id) || [])
+    setStudents(Students.byTeacher(user.id) || [])
   }
   useEffect(() => { reload() }, [])
 
@@ -320,7 +314,7 @@ export function Revenue({ user }) {
         teacherId: user.id, classId: feeTarget.classId,
         feeType: feeForm.feeType, amount: Number(feeForm.amount), updatedAt: now(),
       })
-      await reload(); setFeeModal(false); success('수정이 완료되었습니다.')
+      reload(); setFeeModal(false); success('수정이 완료되었습니다.')
     } catch {
       toastError('저장 중 오류가 발생했습니다.')
     }
@@ -355,7 +349,7 @@ export function Revenue({ user }) {
           createdAt: now(),
         })
       }
-      await reload(); setPayWizard(false); success(`${ids.length}건 등록이 완료되었습니다.`)
+      reload(); setPayWizard(false); success(`${ids.length}건 등록이 완료되었습니다.`)
     } catch {
       toastError('저장 중 오류가 발생했습니다.')
     } finally {
@@ -382,7 +376,7 @@ export function Revenue({ user }) {
     setPayWizard(true)
   }
 
-  const deletePayment = async (id) => { try { await RevenuePayments.delete(id); await reload(); success('삭제가 완료되었습니다.') } catch { toastError('삭제 중 오류가 발생했습니다.') } }
+  const deletePayment = async (id) => { try { await RevenuePayments.delete(id); reload(); success('삭제가 완료되었습니다.') } catch { toastError('삭제 중 오류가 발생했습니다.') } }
 
   // 월 달력 렌더
   const renderMonthCalendar = () => {
