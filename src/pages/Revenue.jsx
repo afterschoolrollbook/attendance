@@ -502,13 +502,10 @@ export function Revenue({ user }) {
           {/* 우측 패널 */}
           <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
             {/* ★ 미수금 알림 패널 — 과거 텀 포함 전체 미수금 */}
-            {allUnpaidList.length > 0 && (
-              <div style={{ background:'#fef2f2', borderRadius:'14px', border:'1.5px solid #fca5a5', padding:'14px 16px' }}>
-                <div style={{ fontSize:'14px', fontWeight:700, color:C.danger, marginBottom:'10px' }}>
-                  ⚠️ 미수금 {allUnpaidList.filter(r=>r.termStatus==='unpaid').length}건 · 진행중 {allUnpaidList.filter(r=>r.termStatus==='current').length}건 · 합계 {fmt(allUnpaidList.reduce((s,r)=>s+r.unpaid,0))}원
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                  {allUnpaidList.map((item, idx) => (
+            {allUnpaidList.length > 0 && (() => {
+              const unpaidItems = allUnpaidList.filter(r=>r.termStatus==='unpaid')
+              const currentItems = allUnpaidList.filter(r=>r.termStatus==='current')
+              const renderItem = (item, idx) => (
                     <div key={idx}
                       onClick={() => setUnpaidDetail(item)}
                       style={{ padding:'10px 12px', borderRadius:'10px', background:'#fff', border:`1px solid ${item.termStatus==='current'?'#86efac':'#fca5a5'}`, cursor:'pointer' }}>
@@ -532,10 +529,32 @@ export function Revenue({ user }) {
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              )
+              return (
+                <>
+                  {unpaidItems.length > 0 && (
+                    <div style={{ background:'#fef2f2', borderRadius:'14px', border:'1.5px solid #fca5a5', padding:'14px 16px' }}>
+                      <div style={{ fontSize:'14px', fontWeight:700, color:C.danger, marginBottom:'10px' }}>
+                        ⚠️ 미수금 {unpaidItems.length}건 · 합계 {fmt(unpaidItems.reduce((s,r)=>s+r.unpaid,0))}원
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                        {unpaidItems.map((item,idx) => renderItem(item,idx))}
+                      </div>
+                    </div>
+                  )}
+                  {currentItems.length > 0 && (
+                    <div style={{ background:'#f0fdf4', borderRadius:'14px', border:'1.5px solid #86efac', padding:'14px 16px' }}>
+                      <div style={{ fontSize:'14px', fontWeight:700, color:C.success, marginBottom:'10px' }}>
+                        📍 진행중 {currentItems.length}건 · 합계 {fmt(currentItems.reduce((s,r)=>s+r.unpaid,0))}원
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                        {currentItems.map((item,idx) => renderItem(item,idx))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
 
             {/* 이달 수업 예상 현황 */}
             <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px' }}>
