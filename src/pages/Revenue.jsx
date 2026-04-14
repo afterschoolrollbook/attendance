@@ -259,12 +259,15 @@ export function Revenue({ user }) {
         )
         const paid = tagged.reduce((s, p) => s + p.amount, 0)
         const unpaid = expected - paid
-        // 텀이 아직 시작 안 했으면 미수금 아님 (오늘 기준 startDate가 미래면 제외)
-        const termStarted = term.startDate && term.startDate <= today()
-        if (unpaid > 0 && termStarted) {
+        const td = today()
+        const termEnded = term.endDate && term.endDate < td
+        const termCurrent = term.startDate <= td && term.endDate >= td
+        // 종료된 텀(미수금) + 진행중 텀(진행중) 표시, 예정 텀 제외
+        if (unpaid > 0 && (termEnded || termCurrent)) {
           list.push({
             cls, term, fee, cnt,
             expected, paid, unpaid,
+            termStatus: termEnded ? 'unpaid' : 'current',
             startApplied: appliedCount[cls.id] || cnt,
             cancelled: cancelledCount[cls.id] || 0,
             confirmed: cnt,
@@ -502,18 +505,22 @@ export function Revenue({ user }) {
             {allUnpaidList.length > 0 && (
               <div style={{ background:'#fef2f2', borderRadius:'14px', border:'1.5px solid #fca5a5', padding:'14px 16px' }}>
                 <div style={{ fontSize:'14px', fontWeight:700, color:C.danger, marginBottom:'10px' }}>
-                  ⚠️ {allUnpaidList.map(r=>r.term.label).filter((v,i,a)=>a.indexOf(v)===i).join(', ')} 미수금 {allUnpaidList.length}건 · 합계 {fmt(allUnpaidList.reduce((s,r)=>s+r.unpaid,0))}원
+                  ⚠️ 미수금 {allUnpaidList.filter(r=>r.termStatus==='unpaid').length}건 · 진행중 {allUnpaidList.filter(r=>r.termStatus==='current').length}건 · 합계 {fmt(allUnpaidList.reduce((s,r)=>s+r.unpaid,0))}원
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
                   {allUnpaidList.map((item, idx) => (
                     <div key={idx}
                       onClick={() => setUnpaidDetail(item)}
-                      style={{ padding:'10px 12px', borderRadius:'10px', background:'#fff', border:'1px solid #fca5a5', cursor:'pointer' }}>
+                      style={{ padding:'10px 12px', borderRadius:'10px', background:'#fff', border:`1px solid ${item.termStatus==='current'?'#86efac':'#fca5a5'}`, cursor:'pointer' }}>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                         <div>
                           <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
                             {item.cls.organization} · {item.cls.className}{item.cls.section?' '+item.cls.section:''}
                             <span style={{ marginLeft:'6px', fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>{item.term.label} {item.term.sessions.length}회</span>
+                            {item.termStatus==='current'
+                              ? <span style={{ marginLeft:'4px', fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'1px 6px' }}>진행중</span>
+                              : <span style={{ marginLeft:'4px', fontSize:'11px', background:'#fef2f2', color:C.danger, border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px' }}>미수금</span>
+                            }
                           </div>
                           <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
                             {item.term.startDate?.slice(5)} ~ {item.term.endDate?.slice(5)} · {item.confirmed}명
