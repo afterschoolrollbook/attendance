@@ -326,8 +326,9 @@ export function Students({ user, onNav }) {
     : []
 
   const allStudents = StudentsDB.byTeacher(user.id)
-  // 탭1: movedToManage가 false인 신규 미이동 학생 제외 (기존 학생은 undefined → 표시)
+  // movedToManage: false → 학생등록탭, true 또는 undefined(구버전) → 학생관리탭
   const managedStudents = allStudents.filter(s => s.movedToManage !== false)
+  const registerStudents = allStudents.filter(s => s.movedToManage === false)
   const filtered = managedStudents.filter(s => {
     if (ctxYear) {
       const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
@@ -877,7 +878,7 @@ export function Students({ user, onNav }) {
 
       {/* 통계 한줄 + 상태 필터 + 정렬 */}
       {(() => {
-        const newStudentCount = allStudents.filter(s => s.movedToManage === false).length
+        const newStudentCount = registerStudents.length
         const schoolCount = new Set(ctxBase.map(s => (s.classIds||[]).map(cid => classes.find(c=>c.id===cid)?.organization).filter(Boolean)[0] || s.school).filter(Boolean)).size
         const sectionCount = new Set(ctxBase.map(s => {
           const cls = classes.find(c => c.id === s.classIds?.[0])
@@ -1139,7 +1140,7 @@ export function Students({ user, onNav }) {
 
       {/* ── 탭2: 학생 등록 */}
       {mainTab === 'register' && (() => {
-        const newStudents = allStudents.filter(s => s.movedToManage === false).sort((a,b) => new Date(b.createdAt)-new Date(a.createdAt))
+        const newStudents = registerStudents.sort((a,b) => new Date(b.createdAt)-new Date(a.createdAt))
         const allNewSelected = newStudents.length > 0 && newStudents.every(s => selectedForMove.includes(s.id))
         const moveToManage = (ids) => {
           ids.forEach(id => StudentsDB.update(id, { movedToManage: true }))
