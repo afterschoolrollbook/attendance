@@ -875,16 +875,35 @@ export function Students({ user, onNav }) {
         )
       })()}
 
-      {/* 상태 필터 + 정렬 */}
+      {/* 통계 한줄 + 상태 필터 + 정렬 */}
+      {(() => {
+        const newStudentCount = allStudents.filter(s => s.movedToManage === false).length
+        const schoolCount = new Set(ctxBase.map(s => (s.classIds||[]).map(cid => classes.find(c=>c.id===cid)?.organization).filter(Boolean)[0] || s.school).filter(Boolean)).size
+        const sectionCount = new Set(ctxBase.map(s => {
+          const cls = classes.find(c => c.id === s.classIds?.[0])
+          return cls ? (cls.className + (cls.section ? ' '+cls.section+'반' : '')) : null
+        }).filter(Boolean)).size
+        const sep = <span style={{ color:'#d1d5db', margin:'0 4px' }}>·</span>
+        return (
+          <div style={{ display:'flex', alignItems:'center', gap:'4px', padding:'8px 14px', background:'#f9fafb', borderRadius:'10px', border:'1px solid #e5e7eb', marginBottom:'12px', flexWrap:'wrap', fontSize:'13px' }}>
+            <span style={{ fontWeight:700, color:'#111827' }}>전체 {allStudents.length}명</span>{sep}
+            <span style={{ color:'#374151' }}>학생관리 <strong>{managedStudents.length}</strong>명</span>
+            <span style={{ fontSize:'12px', color:'#9ca3af' }}>(대기 {statusCounts.waiting} · 확정 {statusCounts.confirmed} · 취소 {statusCounts.cancelled})</span>{sep}
+            <span style={{ color:'#f97316' }}>학생등록 <strong>{newStudentCount}</strong>명</span>{sep}
+            <span style={{ color:'#374151' }}><strong>{schoolCount}</strong>개 학교</span>{sep}
+            <span style={{ color:'#374151' }}><strong>{sectionCount}</strong>개 반</span>
+          </div>
+        )
+      })()}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           {[
             { key: 'all',       label: `전체 ${statusCounts.all}` },
             { key: 'applied',   label: `신청 ${statusCounts.applied}` },
-            { key: 'waiting',   label: `대기 ${statusCounts.waiting}` },    // ✅ 대기 필터 추가
+            { key: 'waiting',   label: `대기 ${statusCounts.waiting}` },
             { key: 'selected',  label: `추첨완료 ${statusCounts.selected}` },
             { key: 'confirmed', label: `확정 ${statusCounts.confirmed}` },
-            { key: 'cancelled', label: `취소 ${statusCounts.cancelled}` },  // cancelled + cancel_before + cancel_after
+            { key: 'cancelled', label: `취소 ${statusCounts.cancelled}` },
           ].map(f => (
             <button key={f.key} onClick={() => setStatusFilter(f.key)} style={{
               padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer',
