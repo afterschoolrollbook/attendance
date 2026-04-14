@@ -256,8 +256,13 @@ export function Revenue({ user }) {
         }
       })
     })
-    // 오래된 텀부터 표시 (startDate 오름차순)
-    return list.sort((a, b) => (a.term.startDate || '').localeCompare(b.term.startDate || ''))
+    // sorted 순서(학교→요일→시간→반) 유지, 같은 수업 내에서 텀 오름차순
+    return list.sort((a, b) => {
+      const ai = sorted.findIndex(c => c.id === a.cls.id)
+      const bi = sorted.findIndex(c => c.id === b.cls.id)
+      if (ai !== bi) return ai - bi
+      return (a.term.startDate||'').localeCompare(b.term.startDate||'')
+    })
   }, [sorted, feeMap, confirmedCount, cancelledCount, appliedCount, payByClass])
 
   // 이번달 요약
@@ -309,7 +314,7 @@ export function Revenue({ user }) {
         date: payDate,
         amount: amt,
         memo: payForm.memo,
-        reason: '',
+
         createdAt: now(),
       })
     })
@@ -525,6 +530,13 @@ export function Revenue({ user }) {
                     const ps = perSessionFee(fee, term, cls)
                     monthItems.push({ cls, term, fee, cnt, monthSessions, monthRev: ps * cnt * monthSessions.length })
                   })
+                })
+                // sorted 순서(학교→요일→시간→반) + 텀 오름차순 정렬
+                monthItems.sort((a,b)=>{
+                  const ai=sorted.findIndex(c=>c.id===a.cls.id)
+                  const bi=sorted.findIndex(c=>c.id===b.cls.id)
+                  if(ai!==bi) return ai-bi
+                  return a.term.termNo-b.term.termNo
                 })
                 if (monthItems.length === 0) return (
                   <div style={{ textAlign:'center', padding:'14px', color:C.muted, fontSize:'13px' }}>이번달 수업 없음</div>
