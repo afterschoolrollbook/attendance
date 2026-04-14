@@ -263,10 +263,12 @@ export function Revenue({ user }) {
         const td = today()
         const termEnded = term.endDate && term.endDate < td
         const termCurrent = term.startDate <= td && term.endDate >= td
-        // 수업 전체 기간이 진행중이면 (텀 사이 공백 포함) → current
-        const clsCurrent = cls.startDate <= td && (!cls.endDate || cls.endDate >= td)
-        // 종료된 텀(미수금) + 진행중 수업(진행중) 표시, 예정 텀 제외
-        if (unpaid > 0 && (termEnded || termCurrent || clsCurrent)) {
+        // 이 수업에서 끝난 마지막 텀 번호
+        const allTerms = getTerms(cls)
+        const lastEndedTermNo = allTerms.filter(t => t.endDate && t.endDate < td).reduce((max, t) => Math.max(max, t.termNo), 0)
+        // 끝난 텀 다음 텀이 진행중
+        const isNextTerm = term.termNo === lastEndedTermNo + 1
+        if (unpaid > 0 && (termEnded || termCurrent || isNextTerm)) {
           list.push({
             cls, term, fee, cnt,
             expected, paid, unpaid,
