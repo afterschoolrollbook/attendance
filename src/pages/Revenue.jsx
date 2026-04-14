@@ -511,12 +511,12 @@ export function Revenue({ user }) {
                       style={{ padding:'10px 12px', borderRadius:'10px', background:'#fff', border:`1px solid ${item.termStatus==='current'?'#86efac':'#fca5a5'}`, cursor:'pointer' }}>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                         <div>
-                          <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
-                            {item.cls.organization} · {item.cls.className}{item.cls.section?' '+item.cls.section:''}
-                            <span style={{ marginLeft:'6px', fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px' }}>{item.term.label} {item.term.sessions.length}회</span>
+                          <div style={{ fontSize:'13px', fontWeight:700, color:C.text, display:'flex', alignItems:'center', flexWrap:'nowrap', gap:'4px' }}>
+                            <span style={{ whiteSpace:'nowrap' }}>{item.cls.organization} · {item.cls.className}{item.cls.section?' '+item.cls.section:''}</span>
+                            <span style={{ fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px', whiteSpace:'nowrap', flexShrink:0 }}>{item.term.label} {item.term.sessions.length}회</span>
                             {item.termStatus==='current'
-                              ? <span style={{ marginLeft:'4px', fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'1px 6px' }}>진행중</span>
-                              : <span style={{ marginLeft:'4px', fontSize:'11px', background:'#fef2f2', color:C.danger, border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px' }}>미수금</span>
+                              ? <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'1px 6px', whiteSpace:'nowrap', flexShrink:0 }}>진행중</span>
+                              : <span style={{ fontSize:'11px', background:'#fef2f2', color:C.danger, border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', whiteSpace:'nowrap', flexShrink:0 }}>미수금</span>
                             }
                           </div>
                           <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
