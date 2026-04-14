@@ -94,6 +94,7 @@ export function Revenue({ user }) {
   const [payStep, setPayStep]     = useState(1) // 1=날짜, 2=학교, 3=텀, 4=금액, 5=메모
   const [payDate, setPayDate]     = useState(today())
   const [payForm, setPayForm]     = useState({ classId: '', classIds: [], termNo: '', amount: '', memo: '' })
+  const [isSaving, setIsSaving]   = useState(false)
 
   const [expandedClass, setExpandedClass] = useState(null)
   const { error: toastError, success } = useToast()
@@ -316,6 +317,8 @@ export function Revenue({ user }) {
   }
 
   const savePayForm = () => {
+    if (isSaving) return
+    setIsSaving(true)
     const ids = payForm.classIds && payForm.classIds.length > 0 ? payForm.classIds : (payForm.classId ? [payForm.classId] : [])
     if (ids.length === 0) { toastError('수업을 선택하세요'); return }
     const hasAmt = ids.some(cid => Number(payForm[`amount_${cid}`]||payForm.amount) > 0)
@@ -336,7 +339,7 @@ export function Revenue({ user }) {
         createdAt: now(),
       })
     })
-    reload(); setPayWizard(false); success(`${ids.length}건 등록이 완료되었습니다.`)
+    reload(); setPayWizard(false); setIsSaving(false); success(`${ids.length}건 등록이 완료되었습니다.`)
   }
 
   const openPayModal = (date, classId = '', termNo = '') => {
@@ -997,7 +1000,7 @@ export function Revenue({ user }) {
             else { toastError('텀을 선택해주세요'); return }
           }
           const nextStep = (!hasTerm && payStep === 2) ? 4 : payStep + 1
-          if (nextStep > 5) { savePayForm(); return }
+          if (nextStep > totalSteps) { savePayForm(); return }
           setPayStep(nextStep)
         }
         const goBack = () => {
