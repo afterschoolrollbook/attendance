@@ -29,13 +29,16 @@ const pendingQ = {
   clear()    { localStorage.removeItem(PENDING_KEY) },
 }
 
-// ─── Supabase 전송 (실패 시 대기열 저장)
-function sync(action, table, payload) {
+// ─── Supabase 전송 (실패 시 에러 throw + 대기열 저장)
+async function sync(action, table, payload) {
   if (!isConfigured) return
-  dbCall(action, table, payload).catch(e => {
+  try {
+    await dbCall(action, table, payload)
+  } catch (e) {
     console.warn(`[Supabase sync 실패] ${action}/${table}:`, e.message)
     pendingQ.push({ action, table, payload, ts: Date.now() })
-  })
+    throw e
+  }
 }
 
 // ─── 대기열 재전송
@@ -174,30 +177,30 @@ export const db = {
   set:    (t, d)  => cache.set(t, d),
   getOne: (t, id) => cache.get(t).find(r => r.id === id && !r._deleted) || null,
 
-  insert(t, record) {
+  async insert(t, record) {
     const r = { ...record, updatedAt: now() }
     const rows = cache.get(t)
     rows.push(r)
     cache.set(t, rows)
-    sync('insert', t, { data: r })
+    await sync('insert', t, { data: r })
     return r
   },
 
-  update(t, id, patch) {
+  async update(t, id, patch) {
     const updated = { ...patch, updatedAt: now() }
     const rows = cache.get(t).map(r => r.id === id ? { ...r, ...updated } : r)
     cache.set(t, rows)
-    sync('update', t, { id, patch: updated })
+    await sync('update', t, { id, patch: updated })
     return rows.find(r => r.id === id)
   },
 
   // 소프트딜리트: _deleted 플래그 기록 → merge 시 양쪽에서 안전하게 제거
-  delete(t, id) {
+  async delete(t, id) {
     const rows = cache.get(t).map(r =>
       r.id === id ? { ...r, _deleted: true, updatedAt: now() } : r
     )
     cache.set(t, rows)
-    sync('delete', t, { id })
+    await sync('delete', t, { id })
   },
 
   where:    (t, fn) => cache.get(t).filter(r => !r._deleted && fn(r)),
