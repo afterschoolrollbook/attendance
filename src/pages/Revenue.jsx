@@ -323,9 +323,13 @@ export function Revenue({ user }) {
     ids.forEach(cid => {
       const amt = Number(payForm[`amount_${cid}`] || payForm.amount || 0)
       if (!amt) return
+      const cls = sorted.find(c => c.id === cid)
+      const terms = cls ? getTerms(cls) : []
+      const curTerm = terms.find(isTermCurrent) || terms[0]
       RevenuePayments.insert({
         id: uid(), teacherId: user.id,
         classId: cid,
+        termNo: curTerm ? Number(curTerm.termNo) : null,
         date: payDate,
         amount: amt,
         memo: payForm.memo,
