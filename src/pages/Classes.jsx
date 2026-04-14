@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB, DocumentsDB } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB, DocumentsDB, Attendance as AttendanceDB, RevenueFees, RevenuePayments, TeacherParentLinks, SupplyStudentProgress, SupplyProgressLogs, SupplySessionChecks } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, today } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
 import { ClassCalendar } from '../pages/ClassCalendar.jsx'
@@ -248,7 +248,23 @@ export function Classes({ user, onNav }) {
     setShowModal(false)
   }
 
-  const del = () => { ClassesDB.delete(deleteId); setDeleteId(null) }
+  const del = () => {
+    if (!deleteId) return
+    const cid = deleteId
+    TeacherParentLinks.unlinkByClass(user.id, cid)
+    AttendanceDB.byClass(cid).forEach(a => AttendanceDB.delete(a.id))
+    RevenuePayments.byClass(cid).forEach(p => RevenuePayments.delete(p.id))
+    const fee = RevenueFees.byClass(cid)
+    if (fee) RevenueFees.delete(fee.id)
+    SupplyStudentProgress.byClass(cid).forEach(p => SupplyStudentProgress.delete(p.id))
+    if (SupplyProgressLogs.byClass) SupplyProgressLogs.byClass(cid).forEach(l => SupplyProgressLogs.delete(l.id))
+    if (SupplySessionChecks.byClass) SupplySessionChecks.byClass(cid).forEach(c => SupplySessionChecks.delete(c.id))
+    StudentsDB.byClass(cid).forEach(s => {
+      StudentsDB.update(s.id, { classIds: (s.classIds || []).filter(id => id !== cid) })
+    })
+    ClassesDB.delete(cid)
+    setDeleteId(null)
+  }
 
   // 홍보물 이미지 — Supabase Storage 업로드
   const handlePromoFile = async (e) => {
@@ -1069,7 +1085,16 @@ export function Classes({ user, onNav }) {
 
       {/* 삭제 확인 */}
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="수업 삭제" width={380}>
-        <p style={{ fontSize: '14px', color: '#374151', marginBottom: '20px' }}>정말 삭제하시겠습니까? 관련 출석 데이터도 영향을 받을 수 있습니다.</p>
+        <p style={{ fontSize: '14px', color: '#374151', marginBottom: '8px' }}>정말 이 수업을 삭제하시겠습니까?</p>
+        <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>아래 데이터가 함께 삭제됩니다.</p>
+        <ul style={{ fontSize: '13px', color: '#374151', marginBottom: '12px', paddingLeft: '18px', lineHeight: '1.8' }}>
+          <li>출결 기록</li>
+          <li>수납 기록</li>
+          <li>교구 진도 기록</li>
+          <li>학부모 연결 정보</li>
+          <li>학생 수업 배정 해제</li>
+        </ul>
+        <p style={{ fontSize: '13px', color: '#ef4444', marginBottom: '20px' }}>삭제 후 복구할 수 없습니다.</p>
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           <Btn variant="ghost" onClick={() => setDeleteId(null)}>취소</Btn>
           <Btn variant="danger" onClick={del}>삭제</Btn>
