@@ -316,30 +316,42 @@ export function Revenue({ user }) {
     reload(); setFeeModal(false); success('수정이 완료되었습니다.')
   }
 
-  const savePayForm = () => {
+  const savePayForm = async () => {
     if (isSaving) return
     setIsSaving(true)
     const ids = payForm.classIds && payForm.classIds.length > 0 ? payForm.classIds : (payForm.classId ? [payForm.classId] : [])
-    if (ids.length === 0) { toastError('수업을 선택하세요'); return }
+    if (ids.length === 0) { toastError('수업을 선택하세요'); setIsSaving(false); return }
     const hasAmt = ids.some(cid => Number(payForm[`amount_${cid}`]||payForm.amount) > 0)
-    if (!hasAmt) { toastError('금액을 입력하세요'); return }
-    ids.forEach(cid => {
-      const amt = Number(payForm[`amount_${cid}`] || payForm.amount || 0)
-      if (!amt) return
-      const cls = sorted.find(c => c.id === cid)
-      const terms = cls ? getTerms(cls) : []
-      const curTerm = terms.find(isTermCurrent) || terms[0]
-      RevenuePayments.insert({
-        id: uid(), teacherId: user.id,
-        classId: cid,
-        termNo: curTerm ? Number(curTerm.termNo) : null,
-        date: payDate,
-        amount: amt,
-        memo: payForm.memo,
-        createdAt: now(),
-      })
-    })
-    reload(); setPayWizard(false); setIsSaving(false); success(`${ids.length}건 등록이 완료되었습니다.`)
+    if (!hasAmt) { toastError('금액을 입력하세요'); setIsSaving(false); return }
+    // wizard에서 선택한 termNo 사용 (없으면 현재 텀으로 fallback)
+    const selectedTermNo = payForm.termNo ? Number(payForm.termNo) : null
+    try {
+      for (const cid of ids) {
+        const amt = Number(payForm[`amount_${cid}`] || payForm.amount || 0)
+        if (!amt) continue
+        let termNo = selectedTermNo
+        if (!termNo) {
+          const cls = sorted.find(c => c.id === cid)
+          const terms = cls ? getTerms(cls) : []
+          const curTerm = terms.find(isTermCurrent) || terms[0]
+          termNo = curTerm ? Number(curTerm.termNo) : null
+        }
+        await RevenuePayments.insert({
+          id: uid(), teacherId: user.id,
+          classId: cid,
+          termNo,
+          date: payDate,
+          amount: amt,
+          memo: payForm.memo,
+          createdAt: now(),
+        })
+      }
+      reload(); setPayWizard(false); success(`${ids.length}건 등록이 완료되었습니다.`)
+    } catch (e) {
+      toastError('저장 중 오류가 발생했습니다.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const openPayModal = (date, classId = '', termNo = '') => {
