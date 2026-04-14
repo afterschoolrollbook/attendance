@@ -509,8 +509,7 @@ export function Revenue({ user }) {
                     <div key={idx}
                       onClick={() => setUnpaidDetail(item)}
                       style={{ padding:'10px 12px', borderRadius:'10px', background:'#fff', border:`1px solid ${item.termStatus==='current'?'#86efac':'#fca5a5'}`, cursor:'pointer' }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                        <div>
+                      <div>
                           <div style={{ fontSize:'13px', fontWeight:700, color:C.text, display:'flex', alignItems:'center', flexWrap:'nowrap', gap:'4px' }}>
                             <span style={{ whiteSpace:'nowrap' }}>{item.cls.organization} · {item.cls.className}{item.cls.section?' '+item.cls.section:''}</span>
                             <span style={{ fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px', whiteSpace:'nowrap', flexShrink:0 }}>{item.term.label} {item.term.sessions.length}회</span>
@@ -522,11 +521,10 @@ export function Revenue({ user }) {
                           <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
                             {item.term.startDate?.slice(5)} ~ {item.term.endDate?.slice(5)} · {item.confirmed}명
                           </div>
-                        </div>
-                        <div style={{ textAlign:'right', flexShrink:0 }}>
-                          <div style={{ fontSize:'14px', fontWeight:700, color:C.danger }}>{fmt(item.unpaid)}원</div>
-                          <div style={{ fontSize:'10px', color:C.muted }}>{fmt(item.paid)}/{fmt(item.expected)}</div>
-                        </div>
+                          <div style={{ marginTop:'6px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                            <div style={{ fontSize:'11px', color:C.muted }}>{fmt(item.paid)} / {fmt(item.expected)}</div>
+                            <div style={{ fontSize:'14px', fontWeight:700, color:C.danger }}>{fmt(item.unpaid)}원</div>
+                          </div>
                       </div>
                     </div>
               )
