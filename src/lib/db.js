@@ -227,7 +227,7 @@ export const Users = {
 export const Classes = {
   all:       ()      => db.get('classes'),
   find:      (id)    => db.getOne('classes', id),
-  byTeacher: (tid)   => db.where('classes', c => c.teacherId === tid),
+  byTeacher: async (tid) => await dbCall('where', 'classes', { where: { teacherId: tid } }),
   insert:    (c)     => db.insert('classes', c),
   update:    (id, p) => db.update('classes', id, p),
   delete:    (id)    => db.delete('classes', id),
@@ -236,7 +236,7 @@ export const Classes = {
 export const Students = {
   all:       ()      => db.get('students'),
   find:      (id)    => db.getOne('students', id),
-  byTeacher: (tid)   => db.where('students', s => s.teacherId === tid),
+  byTeacher: async (tid) => await dbCall('where', 'students', { where: { teacherId: tid } }),
   byClass:   (cid)   => db.where('students', s => s.classIds?.includes(cid)),
   confirmed: (cid)   => db.where('students', s => s.classIds?.includes(cid) && s.status === 'confirmed'),
   insert:    (s)     => db.insert('students', s),
@@ -511,16 +511,15 @@ export const Branches = {
 
 // 수강료 설정 (수업별)
 export const RevenueFees = {
-  all:       ()    => db.get('revenueFees'),
-  byTeacher: (tid) => db.where('revenueFees', r => r.teacherId === tid),
-  byClass:   (cid) => db.get('revenueFees').find(r => r.classId === cid && !r._deleted) || null,
-  insert:    (r)   => db.insert('revenueFees', r),
-  update:    (id, p) => db.update('revenueFees', id, p),
-  delete:    (id)  => db.delete('revenueFees', id),
+  all:       ()         => db.get('revenueFees'),
+  byTeacher: async (tid) => await dbCall('where', 'revenueFees', { where: { teacherId: tid } }),
+  byClass:   async (cid) => { const rows = await dbCall('where', 'revenueFees', { where: { classId: cid } }); return rows?.[0] || null },
+  insert:    (r)         => db.insert('revenueFees', r),
+  update:    (id, p)     => db.update('revenueFees', id, p),
+  delete:    (id)        => db.delete('revenueFees', id),
 
-  // 수업별 fee upsert (기존 있으면 update, 없으면 insert)
-  upsert(record) {
-    const ex = this.byClass(record.classId)
+  async upsert(record) {
+    const ex = await this.byClass(record.classId)
     if (ex) return db.update('revenueFees', ex.id, record)
     return db.insert('revenueFees', { id: uid(), ...record, createdAt: now() })
   },
@@ -528,12 +527,12 @@ export const RevenueFees = {
 
 // 입금 내역
 export const RevenuePayments = {
-  all:       ()    => db.get('revenuePayments'),
-  byTeacher: (tid) => db.where('revenuePayments', r => r.teacherId === tid),
-  byClass:   (cid) => db.where('revenuePayments', r => r.classId === cid),
-  insert:    (r)   => db.insert('revenuePayments', r),
-  update:    (id, p) => db.update('revenuePayments', id, p),
-  delete:    (id)  => db.delete('revenuePayments', id),
+  all:       ()          => db.get('revenuePayments'),
+  byTeacher: async (tid) => await dbCall('where', 'revenuePayments', { where: { teacherId: tid } }),
+  byClass:   async (cid) => await dbCall('where', 'revenuePayments', { where: { classId: cid } }),
+  insert:    async (r)   => await db.insert('revenuePayments', r),
+  update:    (id, p)     => db.update('revenuePayments', id, p),
+  delete:    async (id)  => await db.delete('revenuePayments', id),
 }
 
 // ─── 연수관리 ─────────────────────────────────────────────────
