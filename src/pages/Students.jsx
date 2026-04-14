@@ -233,6 +233,7 @@ export function Students({ user, onNav }) {
   const [pendingStatuses, setPendingStatuses] = useState({})
   const [lastAddedId, setLastAddedId] = useState(null)
   const [addView, setAddView] = useState(false)
+  const [mainTab, setMainTab] = useState('manage') // 'manage' | 'register'
   const [pinned, setPinned] = useState({ classId: false, classNum: false, organization: false, className: false, section: false })
 
   // ── 메시지 발송 모달
@@ -405,10 +406,11 @@ export function Students({ user, onNav }) {
     return true
   })
   const statusCounts = {
+    all:       ctxBase.length,
     applied:   ctxBase.filter(s => s.status === 'applied').length,
     selected:  ctxBase.filter(s => s.status === 'selected').length,
     confirmed: ctxBase.filter(s => s.status === 'confirmed').length,
-    waiting:   ctxBase.filter(s => s.status === 'waiting').length,   // ✅ 대기자 카운트 추가
+    waiting:   ctxBase.filter(s => s.status === 'waiting').length,
     cancelled: ctxBase.filter(s => s.status === 'cancelled' || s.status === 'cancel_before' || s.status === 'cancel_after').length,
   }
 
@@ -735,13 +737,29 @@ export function Students({ user, onNav }) {
         title="학생 관리"
         sub="학교 · 과목 · 반을 먼저 선택하고 학생을 관리하세요."
         right={
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <Btn variant="ghost" onClick={() => { setExcelStep(0); setExcelClassId(''); setShowExcel(true) }}>📊 엑셀 업로드</Btn>
-            <Btn variant="ghost" onClick={() => onNav('confirm')}>✅ 최종 확정</Btn>
-            <Btn onClick={openAdd}>+ 학생 등록</Btn>
-          </div>
+          mainTab === 'manage'
+            ? <Btn variant="ghost" onClick={() => onNav('confirm')}>✅ 최종 확정</Btn>
+            : null
         }
       />
+
+      {/* 메인 탭 */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '0' }}>
+        {[
+          { key: 'manage',   label: '📋 학생 관리' },
+          { key: 'register', label: '➕ 학생 등록' },
+        ].map(t => (
+          <button key={t.key} onClick={() => setMainTab(t.key)} style={{
+            padding: '10px 20px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer',
+            background: mainTab === t.key ? '#f97316' : 'transparent',
+            color: mainTab === t.key ? '#fff' : '#6b7280',
+            fontSize: '14px', fontWeight: mainTab === t.key ? 700 : 400,
+            fontFamily: 'Noto Sans KR, sans-serif',
+            borderBottom: mainTab === t.key ? '2px solid #f97316' : '2px solid transparent',
+            marginBottom: '-2px', transition: 'all .15s',
+          }}>{t.label}</button>
+        ))}
+      </div>
 
       {/* ✅ 대기자 자동 승격 알림 토스트 */}
       {promotedName && (
@@ -757,6 +775,8 @@ export function Students({ user, onNav }) {
         </div>
       )}
 
+      {/* ── 탭1: 학생 관리 */}
+      {mainTab === 'manage' && (<>
       {/* 컨텍스트 선택 바 */}
       <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #e5e7eb', padding: '16px 20px', marginBottom: '16px' }}>
         <div style={{ fontSize: '12px', fontWeight: 700, color: '#9ca3af', marginBottom: '10px', letterSpacing: '0.05em' }}>📍 학생 보기 범위 선택</div>
@@ -1038,6 +1058,34 @@ export function Students({ user, onNav }) {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      </>)}
+
+      {/* ── 탭2: 학생 등록 */}
+      {mainTab === 'register' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+          <div style={{ display:'flex', gap:'12px', flexWrap:'wrap' }}>
+            <div onClick={openAdd} style={{ flex:1, minWidth:'200px', padding:'32px 24px', borderRadius:'16px', border:'2px dashed #f97316', background:'#fff7ed', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px', transition:'all .15s' }}
+              onMouseEnter={e=>{e.currentTarget.style.background='#ffedd5'; e.currentTarget.style.borderColor='#ea580c'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='#fff7ed'; e.currentTarget.style.borderColor='#f97316'}}>
+              <span style={{ fontSize:'40px' }}>👤</span>
+              <div style={{ textAlign:'center' }}>
+                <div style={{ fontSize:'16px', fontWeight:700, color:'#ea580c' }}>학생 단건 등록</div>
+                <div style={{ fontSize:'13px', color:'#9a3412', marginTop:'4px' }}>학생 정보를 직접 입력하여 등록합니다</div>
+              </div>
+            </div>
+            <div onClick={() => { setExcelStep(0); setExcelClassId(''); setShowExcel(true) }} style={{ flex:1, minWidth:'200px', padding:'32px 24px', borderRadius:'16px', border:'2px dashed #16a34a', background:'#f0fdf4', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px', transition:'all .15s' }}
+              onMouseEnter={e=>{e.currentTarget.style.background='#dcfce7'; e.currentTarget.style.borderColor='#15803d'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='#f0fdf4'; e.currentTarget.style.borderColor='#16a34a'}}>
+              <span style={{ fontSize:'40px' }}>📊</span>
+              <div style={{ textAlign:'center' }}>
+                <div style={{ fontSize:'16px', fontWeight:700, color:'#15803d' }}>엑셀 대량 업로드</div>
+                <div style={{ fontSize:'13px', color:'#166534', marginTop:'4px' }}>엑셀 파일로 학생을 일괄 등록합니다</div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
