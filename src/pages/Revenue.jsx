@@ -93,7 +93,7 @@ export function Revenue({ user }) {
   const [payWizard, setPayWizard] = useState(false)
   const [payStep, setPayStep]     = useState(1) // 1=날짜, 2=학교, 3=텀, 4=금액, 5=메모
   const [payDate, setPayDate]     = useState(today())
-  const [payForm, setPayForm]     = useState({ classId: '', termNo: '', amount: '', memo: '' })
+  const [payForm, setPayForm]     = useState({ classId: '', classIds: [], termNo: '', amount: '', memo: '' })
 
   const [expandedClass, setExpandedClass] = useState(null)
   const { error: toastError, success } = useToast()
@@ -292,19 +292,25 @@ export function Revenue({ user }) {
   }
 
   const savePayForm = () => {
-    if (!payForm.classId) { toastError('수업을 선택하세요'); return }
+    const ids = payForm.classIds && payForm.classIds.length > 0 ? payForm.classIds : (payForm.classId ? [payForm.classId] : [])
+    if (ids.length === 0) { toastError('수업을 선택하세요'); return }
     if (!payForm.amount)  { toastError('금액을 입력하세요'); return }
-    RevenuePayments.insert({
-      id: uid(), teacherId: user.id,
-      classId: payForm.classId,
-      termNo: payForm.termNo ? Number(payForm.termNo) : null,
-      date: payDate,
-      amount: Number(payForm.amount),
-      memo: payForm.memo,
-      reason: '',
-      createdAt: now(),
+    ids.forEach(cid => {
+      const cls = sorted.find(c => c.id === cid)
+      const terms = cls ? getTerms(cls) : []
+      const termNo = terms.length > 0 ? (terms.find(isTermCurrent) || terms[0])?.termNo : null
+      RevenuePayments.insert({
+        id: uid(), teacherId: user.id,
+        classId: cid,
+        termNo: termNo ? Number(termNo) : null,
+        date: payDate,
+        amount: Number(payForm.amount),
+        memo: payForm.memo,
+        reason: '',
+        createdAt: now(),
+      })
     })
-    reload(); setPayWizard(false); success('등록이 완료되었습니다.')
+    reload(); setPayWizard(false); success(`${ids.length}건 등록이 완료되었습니다.`)
   }
 
   const openPayModal = (date, classId = '', termNo = '') => {
@@ -318,7 +324,7 @@ export function Revenue({ user }) {
       }
     }
     setPayDate(date)
-    setPayForm({ classId: classId || '', termNo: String(autoTermNo), amount: '', memo: '' })
+    setPayForm({ classId: classId || '', classIds: classId ? [classId] : [], termNo: String(autoTermNo), amount: '', memo: '' })
     // 진입 시작 스텝 결정
     if (classId && autoTermNo) setPayStep(4)
     else if (classId) setPayStep(3)
@@ -944,7 +950,7 @@ export function Revenue({ user }) {
           setPayStep(Math.max(1, prevStep))
         }
         const canNext = payStep===1 ? !!payDate
-          : payStep===2 ? !!payForm.classId
+          : payStep===2 ? (payForm.classIds && payForm.classIds.length > 0)
           : (hasTerm && payStep===3) ? !!payForm.termNo
           : payStep===4 ? !!payForm.amount
           : true
@@ -972,22 +978,26 @@ export function Revenue({ user }) {
                 )}
                 {payStep===2&&(
                   <div>
-                    <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>🏫 어느 학교 수업인가요?</div>
+                    <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>🏫 어느 수업인가요? <span style={{fontSize:'13px',color:C.primary,fontWeight:400}}>(복수 선택 가능)</span></div>
                     <div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>{payDate.replace(/-/g,'.')} 입금</div>
                     <div style={{ display:'flex', flexDirection:'column', gap:'8px', maxHeight:'220px', overflowY:'auto' }}>
                       {sorted.length===0
                         ? <div style={{ textAlign:'center', padding:'20px', color:C.muted, fontSize:'13px' }}>등록된 수업이 없습니다</div>
                         : sorted.map(cls=>{
-                          const isSel = payForm.classId === cls.id
+                          const isSel = (payForm.classIds||[]).includes(cls.id)
                           const f = feeMap[cls.id]
                           const c = confirmedCount[cls.id]||0
                           return (
                             <div key={cls.id} onClick={()=>{
-                              const ts = getTerms(cls)
-                              const cur = ts.find(isTermCurrent)||ts[0]
-                              setPayForm(pf=>({...pf,classId:cls.id,termNo:String(cur?.termNo||'')}))
+                              const cur = (payForm.classIds||[]).includes(cls.id)
+                                ? payForm.classIds.filter(id=>id!==cls.id)
+                                : [...(payForm.classIds||[]), cls.id]
+                              setPayForm(pf=>({...pf,classIds:cur,classId:cur[0]||''}))
                             }}
-                              style={{ padding:'12px 14px', borderRadius:'12px', border:`2px solid ${isSel?C.primary:C.border}`, background:isSel?'#fff7ed':'#fafafa', cursor:'pointer', transition:'all .15s' }}>
+                              style={{ padding:'12px 14px', borderRadius:'12px', border:`2px solid ${isSel?C.primary:C.border}`, background:isSel?'#fff7ed':'#fafafa', cursor:'pointer', transition:'all .15s', display:'flex', alignItems:'center', gap:'10px' }}>
+                              <div style={{ width:'18px', height:'18px', borderRadius:'4px', border:`2px solid ${isSel?C.primary:C.border}`, background:isSel?C.primary:'#fff', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                {isSel&&<span style={{color:'#fff',fontSize:'12px',fontWeight:700}}>✓</span>}
+                              </div>
                               <div style={{ fontSize:'14px', fontWeight:700, color:isSel?C.primary:C.text }}>
                                 {cls.organization} · {cls.className}{cls.section?' '+cls.section:''}
                               </div>
