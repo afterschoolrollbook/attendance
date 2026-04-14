@@ -96,7 +96,7 @@ export function Revenue({ user }) {
 
   const [expandedClass, setExpandedClass] = useState(null)
   const { error: toastError, success } = useToast()
-  const confirm = useConfirm()
+  const { confirm } = useConfirm()
 
   const reload = () => {
     setFees(RevenueFees.byTeacher(user.id))
