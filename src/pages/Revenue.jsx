@@ -47,7 +47,7 @@ function getTerms(cls) {
   const semesterNum = (startMonth >= 3 && startMonth <= 8) ? 1 : 2
   termSizes.forEach((size, i) => {
     const slice = sessions.slice(idx, idx + size)
-    if (slice.length > 0) terms.push({ termNo: i + 1, label: cls?.termType==='semester'?`${semesterNum}학기 ${i+1}텀`:`${i+1}분기 ${i+1}텀`, sessions: slice, startDate: slice[0], endDate: slice[slice.length - 1] })
+    if (slice.length > 0) terms.push({ termNo: i + 1, label: cls?.termType==='semester'?`${semesterNum}학기 ${i+1}텀`:`${semesterNum}분기 ${i+1}텀`, sessions: slice, startDate: slice[0], endDate: slice[slice.length - 1] })
     idx += size
   })
   if (idx < sessions.length && terms.length > 0) {
@@ -95,6 +95,7 @@ export function Revenue({ user }) {
   const [payDate, setPayDate]     = useState(today())
   const [payForm, setPayForm]     = useState({ classId: '', classIds: [], termNo: '', amount: '', memo: '' })
   const [isSaving, setIsSaving]   = useState(false)
+  const savingRef = React.useRef(false)
 
   const [expandedClass, setExpandedClass] = useState(null)
   const { error: toastError, success } = useToast()
@@ -321,7 +322,8 @@ export function Revenue({ user }) {
   }
 
   const savePayForm = async () => {
-    if (isSaving) return
+    if (savingRef.current) return
+    savingRef.current = true
     setIsSaving(true)
     const ids = payForm.classIds && payForm.classIds.length > 0 ? payForm.classIds : (payForm.classId ? [payForm.classId] : [])
     if (ids.length === 0) { toastError('수업을 선택하세요'); setIsSaving(false); return }
@@ -353,6 +355,7 @@ export function Revenue({ user }) {
     } catch {
       toastError('저장 중 오류가 발생했습니다.')
     } finally {
+      savingRef.current = false
       setIsSaving(false)
     }
   }
