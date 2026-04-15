@@ -246,15 +246,33 @@ export function Classes({ user, onNav }) {
       toastError('수업 기간을 설정하세요.')
       return
     }
-    // periods에서 전체 startDate/endDate 자동 연동
-    const autoStart = hasPeriods ? periods.find(p => p.startDate)?.startDate : form.startDate
-    const autoEnd   = hasPeriods ? [...periods].reverse().find(p => p.endDate)?.endDate : form.endDate
+
+    // periods → startDate/endDate/termSizes/termCount 통합 변환
+    // 어떤 방식으로 저장하든 calcSessionDates가 동작하는 기존 방식으로 통일
+    let autoStart = form.startDate
+    let autoEnd   = form.endDate
+    let autoTermSizes = form.termSizes
+    let autoTermCount = form.termCount
+
+    if (hasPeriods) {
+      autoStart     = periods.find(p => p.startDate)?.startDate || form.startDate
+      autoEnd       = [...periods].reverse().find(p => p.endDate)?.endDate || form.endDate
+      // 모든 학기/분기의 termSizes를 하나로 합침
+      autoTermSizes = periods.flatMap(p =>
+        (p.termSizes?.length > 0)
+          ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
+          : Array(Number(p.termCount) || 1).fill(4)
+      )
+      autoTermCount = autoTermSizes.length
+    }
+
     const cleanForm = {
       ...form,
-      startDate: autoStart || form.startDate,
-      endDate:   autoEnd   || form.endDate,
+      startDate:    autoStart,
+      endDate:      autoEnd,
+      termSizes:    autoTermSizes,
+      termCount:    autoTermCount,
       classDuration: form.classDuration === '' ? null : Number(form.classDuration),
-      termCount:     form.termCount === '' ? null : Number(form.termCount),
     }
     if (editId && editId !== '__copy__') {
       ClassesDB.update(editId, cleanForm)
