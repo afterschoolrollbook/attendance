@@ -2389,7 +2389,7 @@ function MobileDashboard({ user, onNav }) {
         {/* 교구 준비 알림 */}
         {(() => {
           const weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate()+7)
-          const weekEndStr = weekEnd.toISOString().slice(0,10)
+          const weekEndStr = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth()+1).padStart(2,'0')}-${String(weekEnd.getDate()).padStart(2,'0')}`
           const alerts = classes.flatMap(cls => {
             const upcoming = calcSessionDates(cls).filter(d => d >= today && d <= weekEndStr)
             if (!upcoming.length) return []
@@ -2402,7 +2402,7 @@ function MobileDashboard({ user, onNav }) {
           if (!alerts.length) return null
           return (
             <div style={{ background: '#fef2f2', borderRadius: '14px', border: '1.5px solid #fca5a5', padding: '14px 16px', marginBottom: '12px', cursor: 'pointer' }}
-              onClick={() => onNav('supply')}>
+              onClick={() => onNav('supplies')}>
               <div style={{ fontSize: '13px', fontWeight: 700, color: '#ef4444', marginBottom: '8px' }}>⚠️ 교구 준비 필요 — 이번주 수업</div>
               {alerts.map(({ cls, nextDate, notSetCount, total }) => (
                 <div key={cls.id} style={{ fontSize: '12px', color: '#374151', marginBottom: '4px' }}>
@@ -2506,7 +2506,7 @@ export function Dashboard({ user, onNav }) {
   classes.forEach(cls => calcSessionDates(cls).forEach(s => classDates.add(s)))
 
   const weekEnd    = new Date(); weekEnd.setDate(weekEnd.getDate() + 7)
-  const weekEndStr = weekEnd.toISOString().slice(0, 10)
+  const weekEndStr = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth()+1).padStart(2,'0')}-${String(weekEnd.getDate()).padStart(2,'0')}`
   const supplyAlerts = classes.flatMap(cls => {
     const upcoming   = calcSessionDates(cls).filter(d => d >= today && d <= weekEndStr)
     if (!upcoming.length) return []
@@ -2660,7 +2660,7 @@ export function Dashboard({ user, onNav }) {
             title="카드 숨기기"
             style={{ position: 'absolute', top: '10px', right: '12px', width: '22px', height: '22px', borderRadius: '50%', border: '1px solid #fca5a5', background: '#fff', cursor: 'pointer', fontSize: '11px', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >✕</button>
-          <div onClick={() => onNav('supply')} style={{ cursor: 'pointer' }}>
+          <div onClick={() => onNav('supplies')} style={{ cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
               <span style={{ fontSize: '16px' }}>⚠️</span>
               <span style={{ fontSize: '14px', fontWeight: 700, color: C.danger }}>교구 준비 필요 — 이번주 수업</span>
