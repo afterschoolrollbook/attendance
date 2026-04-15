@@ -45,52 +45,58 @@ export function getDayLabel(dateStr) {
   return labels[getDayOfWeek(dateStr)]
 }
 
-// 수업일 목록 계산 (startDate ~ endDate, days 배열, cancelledDates 배열)
-export function calcSessionDates(cls) {
-  const { startDate, endDate, days = [], cancelledDates = [], repeatType = 'every' } = cls
+// 단일 기간 수업일 계산 (내부 헬퍼)
+function _calcDatesForRange(startDate, endDate, days, cancelledSet, repeatType = 'every') {
   if (!startDate || !endDate || !days.length) return []
-
-  const cancelled = new Set(cancelledDates.map(c => c.date))
   const result = []
   const cur = new Date(startDate + 'T00:00:00')
   const end = new Date(endDate + 'T00:00:00')
   const targetDays = days.map(d => DAY_MAP[d])
-
-  // 반복 유형별 처리: every=매주, biweekly=격주, monthly_first~fourth=매월 N번째
-  // 기준일: startDate 기준으로 주차 계산
   const startTime = new Date(startDate + 'T00:00:00').getTime()
 
   while (cur <= end) {
     const dow = cur.getDay()
-    // ★ 핵심 수정: toISOString() 대신 로컬 날짜 사용 (UTC 변환 버그 방지)
     const dateStr = localDateStr(cur)
-
     if (targetDays.includes(dow)) {
       let include = false
-
       if (repeatType === 'every') {
         include = true
       } else if (repeatType === 'biweekly') {
-        // 격주: startDate 기준으로 몇 번째 주인지 계산
         const weekDiff = Math.floor((cur.getTime() - startTime) / (7 * 24 * 60 * 60 * 1000))
         include = weekDiff % 2 === 0
-      } else if (repeatType === 'monthly_first') {
-        include = getNthWeekday(cur) === 1
-      } else if (repeatType === 'monthly_second') {
-        include = getNthWeekday(cur) === 2
-      } else if (repeatType === 'monthly_third') {
-        include = getNthWeekday(cur) === 3
-      } else if (repeatType === 'monthly_fourth') {
-        include = getNthWeekday(cur) === 4
-      }
-
-      if (include && !cancelled.has(dateStr)) {
-        result.push(dateStr)
-      }
+      } else if (repeatType === 'monthly_first')  { include = getNthWeekday(cur) === 1 }
+      else if (repeatType === 'monthly_second')   { include = getNthWeekday(cur) === 2 }
+      else if (repeatType === 'monthly_third')    { include = getNthWeekday(cur) === 3 }
+      else if (repeatType === 'monthly_fourth')   { include = getNthWeekday(cur) === 4 }
+      if (include && !cancelledSet.has(dateStr)) result.push(dateStr)
     }
     cur.setDate(cur.getDate() + 1)
   }
-  // 보강일 추가 (makeupDates)
+  return result
+}
+
+// 수업일 목록 계산
+// periods 배열이 있으면 학기/분기별 기간을 합산, 없으면 기존 startDate~endDate 방식
+export function calcSessionDates(cls) {
+  const { days = [], cancelledDates = [], repeatType = 'every' } = cls
+  const cancelled = new Set(cancelledDates.map(c => c.date))
+  let result = []
+
+  if (cls.periods?.length > 0) {
+    // 신규: periods 배열 방식 (학기/분기별 기간 각각)
+    cls.periods.forEach(p => {
+      if (!p.startDate || !p.endDate) return
+      const dates = _calcDatesForRange(p.startDate, p.endDate, days, cancelled, repeatType)
+      dates.forEach(d => { if (!result.includes(d)) result.push(d) })
+    })
+  } else {
+    // 기존: startDate~endDate 단일 기간 (하위 호환)
+    const { startDate, endDate } = cls
+    if (!startDate || !endDate || !days.length) return []
+    result = _calcDatesForRange(startDate, endDate, days, cancelled, repeatType)
+  }
+
+  // 보강일 추가
   const makeupSet = (cls.makeupDates || []).map(m => m.date)
   makeupSet.forEach(d => {
     if (d && !cancelled.has(d) && !result.includes(d)) result.push(d)
@@ -115,9 +121,22 @@ export function getSession(cls, date) {
 export function getSessionInfo(cls, date) {
   const sessions = calcSessionDates(cls)
   const cancelled = new Set((cls.cancelledDates || []).map(c => c.date))
-  const termSizes = (cls.termSizes?.length > 0)
-    ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length).map(n => Number(n) || 4)
-    : [cls.termSize ? Number(cls.termSize) : 4]
+
+  // periods 방식: 학기/분기별 텀 크기 배열을 이어붙임
+  let termSizes
+  if (cls.periods?.length > 0) {
+    termSizes = []
+    cls.periods.forEach(p => {
+      const sizes = (p.termSizes?.length > 0)
+        ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
+        : Array(Number(p.termCount) || 1).fill(4)
+      termSizes.push(...sizes)
+    })
+  } else {
+    termSizes = (cls.termSizes?.length > 0)
+      ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length).map(n => Number(n) || 4)
+      : [cls.termSize ? Number(cls.termSize) : 4]
+  }
 
   let totalIdx = 1, cursor = 0
   for (let ti = 0; ti < termSizes.length; ti++) {
