@@ -657,7 +657,7 @@ export function Classes({ user, onNav }) {
                       <div>
                         <label style={{ fontSize:'11px', color:'#6b7280', display:'block', marginBottom:'6px' }}>텀 수</label>
                         <div style={{ display:'flex', gap:'6px' }}>
-                          {[1,2,3,4].map(n => (
+                          {[1,2,3,4,5,6].map(n => (
                             <button key={n} type="button" onClick={() => setTermCount(pIdx, n)}
                               style={{ padding:'5px 14px', borderRadius:'7px', border:`1.5px solid ${(p.termCount||1)===n?'#f97316':'#e5e7eb'}`, background:(p.termCount||1)===n?'#fff7ed':'#fff', color:(p.termCount||1)===n?'#f97316':'#374151', fontSize:'13px', fontWeight:(p.termCount||1)===n?700:400, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                               {n}텀

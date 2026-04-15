@@ -423,7 +423,7 @@ export function ClassCalendar({ cls, onUpdate }) {
                 {/* 텀 수 */}
                 <div style={{ display:'flex', alignItems:'center', gap:'4px', marginLeft:'8px' }}>
                   <span style={{ fontSize:'11px', color:'#9ca3af' }}>텀:</span>
-                  {[1,2,3,4].map(n => (
+                  {[1,2,3,4,5,6].map(n => (
                     <button key={n} type="button" onClick={() => {
                       const sizes = Array.from({ length: n }, (_, i) => (p.termSizes||[])[i] || 4)
                       updatePeriod(pIdx, { termCount: n, termSizes: sizes })
