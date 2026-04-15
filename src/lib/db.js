@@ -273,7 +273,7 @@ export const Attendance = {
   byClassDate:    (cid, date)      => db.where('attendance', a => a.classId === cid && a.date === date),
   byStudentClass: (sid, cid)       => db.where('attendance', a => a.studentId === sid && a.classId === cid),
   find:           (cid, sid, date) => db.get('attendance').find(a => a.classId === cid && a.studentId === sid && a.date === date),
-  upsert(record) {
+  async upsert(record) {
     const ex = this.find(record.classId, record.studentId, record.date)
     if (ex) {
       const updated = { ...ex, ...record, updatedAt: now() }
