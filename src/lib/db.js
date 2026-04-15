@@ -142,6 +142,9 @@ const SYNC_TABLES = [
 export async function initFromSupabase() {
   if (!isConfigured) return false
   try {
+    // 0) 모든 테이블에 _deleted 컬럼 자동 추가 — 어디서 접속해도 스키마 동일하게 유지
+    await Promise.allSettled(SYNC_TABLES.map(t => addDeletedColumn(t)))
+
     // 1) 대기열 먼저 재전송 — 로컬에만 있는 최신 변경사항 올리기
     await flushPending()
 
