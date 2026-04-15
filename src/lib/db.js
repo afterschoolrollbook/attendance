@@ -29,12 +29,35 @@ const pendingQ = {
   clear()    { localStorage.removeItem(PENDING_KEY) },
 }
 
+// ─── 스키마 자동 마이그레이션: _deleted 컬럼 누락 시 자동 추가
+async function addDeletedColumn(table) {
+  try {
+    await dbCall('addColumn', table, { column: '_deleted', colType: 'boolean', colDefault: false })
+    console.log(`[Schema] ${table}._deleted 컬럼 추가 완료`)
+  } catch (e) {
+    console.warn(`[Schema] ${table}._deleted 자동 추가 실패:`, e.message)
+  }
+}
+
 // ─── Supabase 전송 (실패 시 에러 throw + 대기열 저장)
 async function sync(action, table, payload) {
   if (!isConfigured) return
   try {
     await dbCall(action, table, payload)
   } catch (e) {
+    // _deleted 컬럼 누락 에러 → 컬럼 자동 추가 후 1회 재시도
+    if (e.message?.includes('_deleted')) {
+      console.warn(`[Schema] ${table}._deleted 누락 감지 → 자동 추가 후 재시도`)
+      await addDeletedColumn(table)
+      try {
+        await dbCall(action, table, payload)
+        return // 재시도 성공
+      } catch (e2) {
+        console.warn(`[Supabase sync 실패] ${action}/${table}:`, e2.message)
+        pendingQ.push({ action, table, payload, ts: Date.now() })
+        throw e2
+      }
+    }
     console.warn(`[Supabase sync 실패] ${action}/${table}:`, e.message)
     pendingQ.push({ action, table, payload, ts: Date.now() })
     throw e
