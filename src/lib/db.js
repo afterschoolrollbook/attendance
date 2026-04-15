@@ -278,7 +278,7 @@ export const Attendance = {
     if (ex) {
       const updated = { ...ex, ...record, updatedAt: now() }
       cache.set('attendance', cache.get('attendance').map(r => r.id === ex.id ? updated : r))
-      sync('attendanceUpsert', 'attendance', { data: updated })
+      await sync('attendanceUpsert', 'attendance', { data: updated })
       return updated
     }
     return db.insert('attendance', record)
