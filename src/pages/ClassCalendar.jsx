@@ -214,7 +214,8 @@ export function ClassCalendar({ cls, onUpdate }) {
     { value: 'etc',            label: '기타' },
   ]
 
-  if (!cls?.startDate || !cls?.endDate || !cls?.days?.length) {
+  const hasPeriods = cls.periods?.length > 0 && cls.periods.some(p => p.startDate && p.endDate)
+  if ((!hasPeriods && (!cls?.startDate || !cls?.endDate)) || !cls?.days?.length) {
     return <div style={{ color:'#9ca3af', fontSize:'14px', padding:'20px', textAlign:'center' }}>수업 기간과 요일을 먼저 설정하세요.</div>
   }
 
@@ -225,10 +226,16 @@ export function ClassCalendar({ cls, onUpdate }) {
   const cancelledDates = cls.cancelledDates || []
   const makeupDates   = cls.makeupDates || []
 
-  // 보강 차시는 취소된 차시 이후 번호 부여
-  const termSizes = (cls.termSizes?.length > 0)
-    ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length).map(n => Number(n) || 4)
-    : [cls.termSize ? Number(cls.termSize) : 4]
+  // termSizes: periods 방식이면 각 학기/분기의 termSizes를 이어붙임
+  const termSizes = cls.periods?.length > 0
+    ? cls.periods.flatMap(p =>
+        (p.termSizes?.length > 0)
+          ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
+          : Array(Number(p.termCount) || 1).fill(4)
+      )
+    : (cls.termSizes?.length > 0)
+      ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length).map(n => Number(n) || 4)
+      : [cls.termSize ? Number(cls.termSize) : 4]
 
   // sessionMap: 날짜 → { total: 전체차시, termNum: 텀번호, termSess: 텀내차시 }
   const sessionMap = {}
@@ -262,8 +269,8 @@ export function ClassCalendar({ cls, onUpdate }) {
     sessionMap[m.date] = { total: totalIdx++, termNum: 0, termSess: 0, isMakeup: true }
   })
 
-  const startD = new Date(cls.startDate + 'T00:00:00')
-  const endD   = new Date(cls.endDate   + 'T00:00:00')
+  const startD = new Date((cls.periods?.[0]?.startDate || cls.startDate) + 'T00:00:00')
+  const endD   = new Date((cls.periods?.[cls.periods.length-1]?.endDate || cls.endDate) + 'T00:00:00')
   const months = []
   // 2월 ~ 다음해 2월 고정 표시 (수업 시작 연도 기준)
   const baseYear = startD.getFullYear()

@@ -82,16 +82,22 @@ async function uploadToStorage(userId, classId, folder, file) {
   return `${SUPABASE_URL}/storage/v1/object/public/teacher-files/${filePath}`
 }
 
+function emptyPeriod(label) {
+  return { label, startDate: '', endDate: '', termCount: 1, termSizes: [4] }
+}
+
 function emptyForm() {
   return {
     organization: '', className: '', section: '',
-    termType: 'semester', termCount: 4, termSizes: [4,4,4,4], days: [], repeatType: 'every', time: '', timeEnd: '', classDuration: '',
+    termType: 'semester', termCount: 4, termSizes: [4,4,4,4],
+    periods: [], // 학기/분기별 기간 배열 [{ label, startDate, endDate, termCount, termSizes }]
+    days: [], repeatType: 'every', time: '', timeEnd: '', classDuration: '',
     startDate: '', endDate: '', description: '',
     officePhone: '', schoolAddress: '', classLocation: '',
     contactPhone: '', contactMobile: '',
-    promotionImgs: [],   // Supabase Storage URL 배열
-    noticeFiles: [],     // 안내장 파일 { url, name, fileType } 배열
-    templateFiles: [],   // 출석부 양식 파일 배열 (최대 2)
+    promotionImgs: [],
+    noticeFiles: [],
+    templateFiles: [],
     cancelledDates: [],
     makeupDates: [],
     specialPeriods: [],
@@ -191,6 +197,7 @@ export function Classes({ user, onNav }) {
       cancelledDates: cls.cancelledDates || [],
       makeupDates: cls.makeupDates || [],
       specialPeriods: cls.specialPeriods || [],
+      periods: cls.periods || [],
       termCount: cls.termCount || 4,
       termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
       contactPhone: cls.contactPhone || '',
@@ -213,6 +220,7 @@ export function Classes({ user, onNav }) {
       cancelledDates: cls.cancelledDates || [],
       makeupDates: cls.makeupDates || [],
       specialPeriods: cls.specialPeriods || [],
+      periods: cls.periods || [],
       termCount: cls.termCount || 4,
       termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
       officePhone: cls.officePhone || '',
@@ -228,12 +236,23 @@ export function Classes({ user, onNav }) {
   }
 
   const save = () => {
-    if (!form.organization.trim() || !form.className.trim() || !form.days.length || !form.startDate || !form.endDate) {
-      toastError('필수 항목을 입력하세요 (단체명, 수업명, 요일, 기간).')
+    if (!form.organization.trim() || !form.className.trim() || !form.days.length) {
+      toastError('필수 항목을 입력하세요 (단체명, 수업명, 요일).')
       return
     }
+    const periods = form.periods || []
+    const hasPeriods = periods.length > 0 && periods.some(p => p.startDate && p.endDate)
+    if (!hasPeriods && (!form.startDate || !form.endDate)) {
+      toastError('수업 기간을 설정하세요.')
+      return
+    }
+    // periods에서 전체 startDate/endDate 자동 연동
+    const autoStart = hasPeriods ? periods.find(p => p.startDate)?.startDate : form.startDate
+    const autoEnd   = hasPeriods ? [...periods].reverse().find(p => p.endDate)?.endDate : form.endDate
     const cleanForm = {
       ...form,
+      startDate: autoStart || form.startDate,
+      endDate:   autoEnd   || form.endDate,
       classDuration: form.classDuration === '' ? null : Number(form.classDuration),
       termCount:     form.termCount === '' ? null : Number(form.termCount),
     }
@@ -546,7 +565,141 @@ export function Classes({ user, onNav }) {
                 </div>
               </div>
             </div>
-            <Select label="수업 운영 방식" value={form.termType} onChange={v => set('termType', v)} options={TERM_TYPES} required />
+            <Select label="수업 운영 방식" value={form.termType} onChange={v => {
+              // 방식 바꿀 때 periods 초기화
+              const isSemester = v === 'semester'
+              const labels = isSemester ? ['1학기','2학기','3학기'] : ['1분기','2분기','3분기','4분기']
+              const defaultCount = isSemester ? 2 : 4
+              set('termType', v)
+              if ((form.periods || []).length === 0) {
+                set('periods', labels.slice(0, defaultCount).map(l => emptyPeriod(l)))
+              }
+            }} options={TERM_TYPES} required />
+
+            {/* ── 학기/분기별 기간 및 텀 설정 */}
+            {(() => {
+              const isSemester = form.termType === 'semester'
+              const allLabels = isSemester
+                ? ['1학기','2학기','3학기']
+                : ['1분기','2분기','3분기','4분기']
+              const maxCount = allLabels.length
+              const periods = form.periods?.length > 0
+                ? form.periods
+                : allLabels.slice(0, isSemester ? 2 : 4).map(l => emptyPeriod(l))
+
+              const setPeriod = (idx, patch) => {
+                const next = periods.map((p, i) => i === idx ? { ...p, ...patch } : p)
+                set('periods', next)
+              }
+              const addPeriod = () => {
+                if (periods.length >= maxCount) return
+                set('periods', [...periods, emptyPeriod(allLabels[periods.length])])
+              }
+              const removePeriod = (idx) => {
+                if (periods.length <= 1) return
+                set('periods', periods.filter((_, i) => i !== idx))
+              }
+              const setTermSize = (pIdx, tIdx, val) => {
+                const sizes = [...(periods[pIdx].termSizes || [])]
+                sizes[tIdx] = Number(val) || 0
+                setPeriod(pIdx, { termSizes: sizes })
+              }
+              const setTermCount = (pIdx, count) => {
+                const n = Number(count)
+                const prev = periods[pIdx].termSizes || []
+                const sizes = Array.from({ length: n }, (_, i) => prev[i] || 4)
+                setPeriod(pIdx, { termCount: n, termSizes: sizes })
+              }
+
+              // 기존 startDate/endDate 방식이면 periods에 반영
+              if (form.periods?.length === 0 && form.startDate) {
+                set('periods', [{ label: allLabels[0], startDate: form.startDate, endDate: form.endDate, termCount: form.termCount || 1, termSizes: form.termSizes || [4] }])
+              }
+
+              const inputSt = { padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', boxSizing:'border-box' }
+
+              return (
+                <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                  <div style={{ fontSize:'13px', fontWeight:700, color:'#111827' }}>
+                    📅 {isSemester ? '학기' : '분기'}별 기간 및 텀 설정
+                  </div>
+                  {periods.map((p, pIdx) => (
+                    <div key={pIdx} style={{ border:'1.5px solid #e5e7eb', borderRadius:'12px', padding:'14px 16px', background:'#fafafa', display:'flex', flexDirection:'column', gap:'12px' }}>
+                      {/* 헤더 */}
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <span style={{ fontSize:'13px', fontWeight:700, color:'#f97316' }}>{p.label}</span>
+                        {periods.length > 1 && (
+                          <button type="button" onClick={() => removePeriod(pIdx)}
+                            style={{ background:'none', border:'none', color:'#9ca3af', fontSize:'18px', cursor:'pointer', lineHeight:1 }}>×</button>
+                        )}
+                      </div>
+                      {/* 기간 */}
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', gap:'8px', alignItems:'center' }}>
+                        <div>
+                          <label style={{ fontSize:'11px', color:'#6b7280', display:'block', marginBottom:'4px' }}>시작일</label>
+                          <input type="date" value={p.startDate || ''} onChange={e => {
+                            setPeriod(pIdx, { startDate: e.target.value })
+                            // 첫 번째 학기면 form.startDate도 연동
+                            if (pIdx === 0) set('startDate', e.target.value)
+                          }} style={{ ...inputSt, width:'100%' }} />
+                        </div>
+                        <span style={{ color:'#9ca3af', marginTop:'16px' }}>~</span>
+                        <div>
+                          <label style={{ fontSize:'11px', color:'#6b7280', display:'block', marginBottom:'4px' }}>종료일</label>
+                          <input type="date" value={p.endDate || ''} onChange={e => {
+                            setPeriod(pIdx, { endDate: e.target.value })
+                            // 마지막 학기면 form.endDate도 연동
+                            if (pIdx === periods.length - 1) set('endDate', e.target.value)
+                          }} style={{ ...inputSt, width:'100%' }} />
+                        </div>
+                      </div>
+                      {/* 텀 수 */}
+                      <div>
+                        <label style={{ fontSize:'11px', color:'#6b7280', display:'block', marginBottom:'6px' }}>텀 수</label>
+                        <div style={{ display:'flex', gap:'6px' }}>
+                          {[1,2,3,4].map(n => (
+                            <button key={n} type="button" onClick={() => setTermCount(pIdx, n)}
+                              style={{ padding:'5px 14px', borderRadius:'7px', border:`1.5px solid ${(p.termCount||1)===n?'#f97316':'#e5e7eb'}`, background:(p.termCount||1)===n?'#fff7ed':'#fff', color:(p.termCount||1)===n?'#f97316':'#374151', fontSize:'13px', fontWeight:(p.termCount||1)===n?700:400, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                              {n}텀
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* 텀당 차시 */}
+                      <div>
+                        <label style={{ fontSize:'11px', color:'#6b7280', display:'block', marginBottom:'6px' }}>텀당 차시</label>
+                        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                          {Array.from({ length: p.termCount || 1 }, (_, tIdx) => (
+                            <div key={tIdx} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'3px' }}>
+                              <span style={{ fontSize:'10px', color:'#9ca3af' }}>{tIdx+1}텀</span>
+                              <input type="number" min="1" max="30" value={p.termSizes?.[tIdx] || 4}
+                                onChange={e => setTermSize(pIdx, tIdx, e.target.value)}
+                                style={{ width:'52px', padding:'5px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center' }} />
+                              <span style={{ fontSize:'10px', color:'#9ca3af' }}>차시</span>
+                            </div>
+                          ))}
+                          <div style={{ fontSize:'12px', color:'#9ca3af', alignSelf:'center' }}>
+                            = 총 {(p.termSizes||[]).slice(0, p.termCount||1).reduce((s,v)=>s+(Number(v)||0),0)}차시
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {periods.length < maxCount && (
+                    <button type="button" onClick={addPeriod}
+                      style={{ padding:'9px', borderRadius:'10px', border:'2px dashed #e5e7eb', background:'#fafafa', color:'#9ca3af', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                      + {allLabels[periods.length]} 추가
+                    </button>
+                  )}
+                  {/* 전체 요약 */}
+                  <div style={{ fontSize:'12px', color:'#6b7280', padding:'8px 12px', background:'#f0fdf4', borderRadius:'8px', border:'1px solid #86efac' }}>
+                    전체 {periods.reduce((s,p)=>(p.termSizes||[]).slice(0,p.termCount||1).reduce((a,v)=>a+(Number(v)||0),0)+s,0)}차시
+                    · {periods.length}{isSemester?'학기':'분기'}
+                    · {periods.reduce((s,p)=>s+(p.termCount||1),0)}텀
+                  </div>
+                </div>
+              )
+            })()}
 
             <div>
               <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827', marginBottom: '8px' }}>수업 요일 <span style={{ color: '#ef4444' }}>*</span></div>
