@@ -2390,14 +2390,28 @@ function MobileDashboard({ user, onNav }) {
         {(() => {
           const weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate()+7)
           const weekEndStr = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth()+1).padStart(2,'0')}-${String(weekEnd.getDate()).padStart(2,'0')}`
+          const mSupplyProds = SupplyProducts.byTeacher(user.id)
           const alerts = classes.flatMap(cls => {
             const upcoming = calcSessionDates(cls).filter(d => d >= today && d <= weekEndStr)
             if (!upcoming.length) return []
             const confirmed = StudentsDB.confirmed(cls.id)
             if (!confirmed.length) return []
-            const supplyData = SupplyItems.byClass(cls.id)
-            const notSet = confirmed.filter(s => !supplyData.find(item => item.studentId === s.id && (item.productId || item.name)))
-            return notSet.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: notSet.length, total: confirmed.length }] : []
+            const supplyData   = SupplyItems.byClass(cls.id)
+            const supplyProg   = SupplyStudentProgress.byClass(cls.id)
+            const supplyChecks = SupplySessionChecks.byTeacher(user.id).filter(c => c.classId === cls.id)
+            const needAlert = confirmed.filter(s => {
+              const item = supplyData.find(i => i.studentId === s.id && i.productId)
+              if (!item) return false
+              const prod = mSupplyProds.find(p => p.id === item.productId)
+              if (!prod) return false
+              const alertSess = prod.alertSession || 10
+              const spp = prod.sessionsPerStage || 12
+              const prog = supplyProg.find(p => p.studentId === s.id && p.productId === item.productId)
+              const curStage = prog?.curStage || item.stage || 1
+              const chk = supplyChecks.filter(c => c.studentId === s.id && c.productId === item.productId && c.stage === curStage).length
+              return chk >= alertSess && chk < spp
+            })
+            return needAlert.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: needAlert.length, total: confirmed.length }] : []
           })
           if (!alerts.length) return null
           return (
@@ -2507,14 +2521,30 @@ export function Dashboard({ user, onNav }) {
 
   const weekEnd    = new Date(); weekEnd.setDate(weekEnd.getDate() + 7)
   const weekEndStr = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth()+1).padStart(2,'0')}-${String(weekEnd.getDate()).padStart(2,'0')}`
+  const supplyProds  = SupplyProducts.byTeacher(user.id)
   const supplyAlerts = classes.flatMap(cls => {
     const upcoming   = calcSessionDates(cls).filter(d => d >= today && d <= weekEndStr)
     if (!upcoming.length) return []
     const confirmed  = StudentsDB.confirmed(cls.id)
     if (!confirmed.length) return []
     const supplyData = SupplyItems.byClass(cls.id)
-    const notSet     = confirmed.filter(s => !supplyData.find(item => item.studentId === s.id && (item.productId || item.name)))
-    return notSet.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: notSet.length, total: confirmed.length }] : []
+    const supplyProg = SupplyStudentProgress.byClass(cls.id)
+    const supplyChecks = SupplySessionChecks.byTeacher(user.id).filter(c => c.classId === cls.id)
+
+    // 교구 준비 필요한 학생: alertSession 이상 나간 학생
+    const needAlert = confirmed.filter(s => {
+      const item = supplyData.find(i => i.studentId === s.id && i.productId)
+      if (!item) return false
+      const prod = supplyProds.find(p => p.id === item.productId)
+      if (!prod) return false
+      const alertSess = prod.alertSession || 10
+      const spp = prod.sessionsPerStage || 12
+      const prog = supplyProg.find(p => p.studentId === s.id && p.productId === item.productId)
+      const curStage = prog?.curStage || item.stage || 1
+      const chk = supplyChecks.filter(c => c.studentId === s.id && c.productId === item.productId && c.stage === curStage).length
+      return chk >= alertSess && chk < spp
+    })
+    return needAlert.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: needAlert.length, total: confirmed.length }] : []
   }).sort((a, b) => {
     const dayOrder = d => (new Date(d + 'T00:00:00').getDay() + 6) % 7
     const dayCmp = dayOrder(a.nextDate) - dayOrder(b.nextDate)
