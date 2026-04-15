@@ -265,10 +265,11 @@ export function ClassCalendar({ cls, onUpdate }) {
   const startD = new Date(cls.startDate + 'T00:00:00')
   const endD   = new Date(cls.endDate   + 'T00:00:00')
   const months = []
-  // 앞뒤 1달 추가 표시 (신청기간/수업 전후 확인용)
-  let cur = new Date(startD.getFullYear(), startD.getMonth() - 1, 1)
-  const limitEnd = new Date(endD.getFullYear(), endD.getMonth() + 1, 1)
-  while (cur <= limitEnd) {
+  // 2월 ~ 다음해 2월 고정 표시 (수업 시작 연도 기준)
+  const baseYear = startD.getFullYear()
+  let cur = new Date(baseYear, 1, 1)          // 해당 연도 2월
+  const limitEnd = new Date(baseYear + 1, 2, 1) // 다음 연도 3월 (2월까지 포함)
+  while (cur < limitEnd) {
     months.push({ year: cur.getFullYear(), month: cur.getMonth() })
     cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1)
   }
