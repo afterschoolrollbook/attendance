@@ -84,6 +84,7 @@ export function Revenue({ user }) {
   const [classes, setClasses]   = useState([])
   const [students, setStudents] = useState([])
   const [unpaidDetail, setUnpaidDetail] = useState(null) // 미수금 상세 팝업
+  const [payDetailModal, setPayDetailModal] = useState(null) // 입금내역 상세 팝업 { date, pays }
 
   const [feeModal, setFeeModal]   = useState(false)
   const [feeTarget, setFeeTarget] = useState(null)
@@ -94,7 +95,6 @@ export function Revenue({ user }) {
   const [payDate, setPayDate]     = useState(today())
   const [payForm, setPayForm]     = useState({ classId: '', classIds: [], termNo: '', amount: '', memo: '' })
   const [isSaving, setIsSaving]   = useState(false)
-  const savingRef = React.useRef(false)
   const savingRef = React.useRef(false)
 
   const [expandedClass, setExpandedClass] = useState(null)
@@ -455,9 +455,13 @@ export function Revenue({ user }) {
                     </div>
                   )
                 })}
-                {/* 입금 표시 */}
+                {/* 입금 표시 — 클릭하면 상세 모달 */}
                 {paidAmt > 0 && (
-                  <div style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#ffffffcc' : C.blue, marginTop: '1px' }}>
+                  <div
+                    onClick={e => { e.stopPropagation(); setPayDetailModal({ date, pays }) }}
+                    style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#ffffffcc' : C.blue, marginTop: '1px', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+                    title="입금 내역 보기"
+                  >
                     입{fmt(paidAmt)}
                   </div>
                 )}
@@ -639,7 +643,18 @@ export function Revenue({ user }) {
             {/* 입금 내역 전체 */}
             <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
-                <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>💵 입금 내역</div>
+                <div
+                  onClick={() => { const pays = payByDate[curDate] || []; if (pays.length > 0) setPayDetailModal({ date: curDate, pays }) }}
+                  style={{ fontSize:'14px', fontWeight:700, color:C.text, cursor: (payByDate[curDate]||[]).length > 0 ? 'pointer' : 'default', display:'flex', alignItems:'center', gap:'6px' }}
+                >
+                  💵 입금 내역
+                  <span style={{ fontSize:'12px', fontWeight:500, color:C.muted }}>({curDate.slice(5).replace('-','.')})</span>
+                  {(payByDate[curDate]||[]).length > 0 && (
+                    <span style={{ fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 6px' }}>
+                      {(payByDate[curDate]||[]).length}건 상세보기 →
+                    </span>
+                  )}
+                </div>
                 <button onClick={() => openPayModal(today())}
                   style={{ padding:'5px 12px', borderRadius:'8px', border:'none', background:C.success, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   + 입금 등록
@@ -1232,6 +1247,53 @@ export function Revenue({ user }) {
           </Modal>
         )
       })()}
+
+      {/* ── 입금 내역 상세 팝업 */}
+      {payDetailModal&&(
+        <Modal open={!!payDetailModal} onClose={()=>setPayDetailModal(null)} title={`💵 입금 내역 — ${payDetailModal.date?.replace(/-/g,'.')}`} width={420}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+            {payDetailModal.pays.length === 0
+              ? <div style={{ textAlign:'center', padding:'20px', color:C.muted, fontSize:'13px' }}>입금 내역 없음</div>
+              : payDetailModal.pays.map(p => {
+                  const cls = classes.find(c=>c.id===p.classId)
+                  return (
+                    <div key={p.id} style={{ padding:'12px 14px', borderRadius:'10px', background:'#f0fdf4', border:'1px solid #86efac' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
+                            🏫 {cls?`${cls.organization} · ${cls.className}${cls.section?' '+cls.section:''}`:' 수업 미상'}
+                          </div>
+                          <div style={{ display:'flex', alignItems:'center', gap:'6px', marginTop:'4px', flexWrap:'wrap' }}>
+                            {p.termNo&&<span style={{ fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 5px' }}>{p.termNo}텀</span>}
+                            <span style={{ fontSize:'11px', color:C.muted }}>{p.date?.replace(/-/g,'.')}</span>
+                            {p.memo&&<span style={{ fontSize:'11px', color:C.muted }}>· {p.memo}</span>}
+                          </div>
+                        </div>
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0, marginLeft:'8px' }}>
+                          <span style={{ fontSize:'15px', fontWeight:700, color:C.success }}>+{fmt(p.amount)}원</span>
+                          <button onClick={()=>confirm('삭제할까요?', ()=>{ deletePayment(p.id); setPayDetailModal(null) })}
+                            style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+            }
+            {payDetailModal.pays.length > 0 && (
+              <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:'10px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:'13px', color:C.muted, fontWeight:600 }}>합계</span>
+                <span style={{ fontSize:'16px', fontWeight:700, color:C.success }}>
+                  +{fmt(payDetailModal.pays.reduce((s,p)=>s+p.amount,0))}원
+                </span>
+              </div>
+            )}
+            <button onClick={()=>{ openPayModal(payDetailModal.date); setPayDetailModal(null) }}
+              style={{ padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', marginTop:'4px' }}>
+              + 추가 입금 등록
+            </button>
+          </div>
+        </Modal>
+      )}
 
             {/* ── 미수금 상세 팝업 */}
       {unpaidDetail&&(
