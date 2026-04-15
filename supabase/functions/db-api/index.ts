@@ -238,6 +238,24 @@ serve(async (req) => {
         result = row ? toCamel(row) : null
         break
       }
+      case 'addColumn': {
+        // 컬럼이 없는 환경에서 자동 추가 (IF NOT EXISTS → 이미 있으면 무시)
+        const { column, colType, colDefault } = body
+        const sql = `ALTER TABLE "${tbl}" ADD COLUMN IF NOT EXISTS "${column}" ${colType ?? 'boolean'} DEFAULT ${colDefault ?? false}`
+        const { error } = await supabase.rpc('exec_sql', { sql_text: sql })
+        if (error) throw new Error(`addColumn 실패 (exec_sql RPC 없음): ${error.message}\n아래 SQL을 Supabase 대시보드에서 수동 실행하세요:\n${sql}`)
+        result = { ok: true }
+        break
+      }
+      case 'addColumn': {
+        // 컬럼 누락 환경에서 자동 추가 — service_role로 직접 SQL 실행
+        const { column, colType, colDefault } = body
+        const sql = `ALTER TABLE "${tbl}" ADD COLUMN IF NOT EXISTS "${column}" ${colType ?? 'boolean'} DEFAULT ${colDefault ?? false}`
+        const { error } = await supabase.rpc('exec_sql', { sql_text: sql })
+        if (error) throw new Error(`addColumn 실패: ${error.message}`)
+        result = { ok: true }
+        break
+      }
       default:
         throw new Error(`Unknown action: ${action}`)
     }
