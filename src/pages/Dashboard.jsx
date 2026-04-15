@@ -1396,12 +1396,12 @@ function RevenueCard({ user, onHide, onNav, mobile }) {
 
     const fee       = fees.find(f => f.classId === cls.id)
     const classPmts = payments.filter(p => p.classId === cls.id)
-    const paidSids  = new Set(classPmts.map(p => p.studentId))
-    const unpaidCount = confirmed.filter(s => !paidSids.has(s.id)).length
 
-    // 요일 레이블 (cls.day 숫자 또는 cls.days 배열 첫번째)
-    const dayIdx   = cls.day ?? cls.days?.[0] ?? null
-    const dayLabel = dayIdx != null ? DAYS_KO[dayIdx] : ''
+    // 요일 레이블
+    const dayIdx   = typeof cls.days?.[0] === 'string'
+      ? ['일','월','화','수','목','금','토'].indexOf(cls.days[0])
+      : (cls.day ?? null)
+    const dayLabel = dayIdx != null && dayIdx >= 0 ? DAYS_KO[dayIdx] : (cls.days?.[0] ?? '')
 
     // 이 수업이 속한 텀들 추출
     const seenTerms = new Set()
@@ -1410,22 +1410,29 @@ function RevenueCard({ user, onHide, onNav, mobile }) {
       if (!info || seenTerms.has(info.termNum)) return
       seenTerms.add(info.termNum)
 
-      // 해당 텀의 세션만 필터
-      const termSessions  = allSessions.filter(d => getSessionInfo(cls, d)?.termNum === info.termNum)
-      const pastSessions  = termSessions.filter(d => d < today)
+      // 해당 텀 세션
+      const termSessions   = allSessions.filter(d => getSessionInfo(cls, d)?.termNum === info.termNum)
+      const pastSessions   = termSessions.filter(d => d < today)
       const futureSessions = termSessions.filter(d => d >= today)
 
+      // 해당 텀 입금액 vs 예상액 비교
+      const termPmts    = classPmts.filter(p => Number(p.termNo) === info.termNum)
+      const paidAmount  = termPmts.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+      const feePerSess  = fee ? (fee.feeType === 'per_session' ? Number(fee.amount) : Math.round(Number(fee.amount) / (termSessions.length || 1))) : 0
+      const expectedAmt = feePerSess * confirmed.length * termSessions.length
+      const hasUnpaid   = fee && expectedAmt > 0 && paidAmount < expectedAmt
+
       let rowStatus
-      if (futureSessions.length === 0)     rowStatus = unpaidCount > 0 ? 'unpaid' : 'closed'
-      else if (pastSessions.length === 0)  rowStatus = 'upcoming'
-      else                                 rowStatus = 'active'
+      if (futureSessions.length === 0)    rowStatus = hasUnpaid ? 'unpaid' : 'closed'
+      else if (pastSessions.length === 0) rowStatus = 'upcoming'
+      else                                rowStatus = hasUnpaid ? 'active' : 'active'
 
       if (!termMap.has(info.termNum)) termMap.set(info.termNum, [])
       termMap.get(info.termNum).push({
         key: `${cls.id}-${info.termNum}`,
         cls, dayLabel, rowStatus,
-        feePerStudent: fee?.amount ?? null,
-        unpaidCount,
+        paidAmount, expectedAmt,
+        feeSet: !!fee,
         totalCount: confirmed.length,
       })
     })
@@ -1440,7 +1447,7 @@ function RevenueCard({ user, onHide, onNav, mobile }) {
 
   // 모든 행을 flat하게 — 텀 헤더 없이 행 하나에 모든 정보
   const visibleRows = sortedTerms.flatMap(([termNum, rows]) => {
-    const filtered = rows.filter(r => !(r.rowStatus === 'closed' && r.unpaidCount === 0))
+    const filtered = rows.filter(r => !(r.rowStatus === 'closed' && r.paidAmount >= r.expectedAmt))
     const hasUnpaid = filtered.some(r => r.rowStatus === 'unpaid')
     if (filtered.length === 0) return []
     if (!hasUnpaid && termNum < currentTermNum) return []
@@ -1457,21 +1464,19 @@ function RevenueCard({ user, onHide, onNav, mobile }) {
         ? <Empty msg="등록된 수업이 없습니다" />
         : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {visibleRows.map(({ key, cls, dayLabel, rowStatus, feePerStudent, unpaidCount, totalCount, termNum }) => {
-              const totalUnpaid = feePerStudent != null ? feePerStudent * unpaidCount : null
-              const totalFee    = feePerStudent != null ? feePerStudent * totalCount  : null
+            {visibleRows.map(({ key, cls, dayLabel, rowStatus, paidAmount, expectedAmt, feeSet, totalCount, termNum }) => {
+              const unpaidAmt = Math.max(0, expectedAmt - paidAmount)
 
               // 금액+납부 상태 뱃지
               let amtText, amtColor, amtBg, amtBorder
               if (rowStatus === 'unpaid') {
-                amtText = totalUnpaid != null ? `${totalUnpaid.toLocaleString()}원 미수` : '미수'
+                amtText = feeSet ? `${unpaidAmt.toLocaleString()}원 미수` : '미수'
                 amtColor = C.danger; amtBg = '#fef2f2'; amtBorder = '#fca5a5'
               } else if (rowStatus === 'active') {
-                amtText = totalFee != null ? `${totalFee.toLocaleString()}원` : '-'
+                amtText = feeSet ? `${expectedAmt.toLocaleString()}원` : '-'
                 amtColor = C.success; amtBg = '#f0fdf4'; amtBorder = '#86efac'
               } else {
-                // upcoming
-                amtText = totalFee != null ? `${totalFee.toLocaleString()}원` : '-'
+                amtText = feeSet ? `${expectedAmt.toLocaleString()}원` : '-'
                 amtColor = '#6b7280'; amtBg = '#f3f4f6'; amtBorder = '#e5e7eb'
               }
 
@@ -1880,7 +1885,7 @@ function DayDetail({ date, user, classes, onNav }) {
                         const supplyData = SupplyItems.byClass(cls.id)
                         if (!supplyData.length) return null
                         const set    = supplyData.filter(item => item.name)
-                        const notSet = students.filter(s => !supplyData.find(item => item.studentId === s.id && item.name))
+                        const notSet = students.filter(s => !supplyData.find(item => item.studentId === s.id && (item.productId || item.name)))
                         return (
                           <div style={{ marginTop: '6px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                             {set.length > 0    && <span style={{ fontSize: '11px', background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe', borderRadius: '5px', padding: '1px 8px' }}>🎒 교구 {set.length}명 설정</span>}
@@ -2391,13 +2396,13 @@ function MobileDashboard({ user, onNav }) {
             const confirmed = StudentsDB.confirmed(cls.id)
             if (!confirmed.length) return []
             const supplyData = SupplyItems.byClass(cls.id)
-            const notSet = confirmed.filter(s => !supplyData.find(item => item.studentId === s.id && item.name))
+            const notSet = confirmed.filter(s => !supplyData.find(item => item.studentId === s.id && (item.productId || item.name)))
             return notSet.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: notSet.length, total: confirmed.length }] : []
           })
           if (!alerts.length) return null
           return (
             <div style={{ background: '#fef2f2', borderRadius: '14px', border: '1.5px solid #fca5a5', padding: '14px 16px', marginBottom: '12px', cursor: 'pointer' }}
-              onClick={() => onNav('supplies')}>
+              onClick={() => onNav('supply')}>
               <div style={{ fontSize: '13px', fontWeight: 700, color: '#ef4444', marginBottom: '8px' }}>⚠️ 교구 준비 필요 — 이번주 수업</div>
               {alerts.map(({ cls, nextDate, notSetCount, total }) => (
                 <div key={cls.id} style={{ fontSize: '12px', color: '#374151', marginBottom: '4px' }}>
@@ -2508,7 +2513,7 @@ export function Dashboard({ user, onNav }) {
     const confirmed  = StudentsDB.confirmed(cls.id)
     if (!confirmed.length) return []
     const supplyData = SupplyItems.byClass(cls.id)
-    const notSet     = confirmed.filter(s => !supplyData.find(item => item.studentId === s.id && item.name))
+    const notSet     = confirmed.filter(s => !supplyData.find(item => item.studentId === s.id && (item.productId || item.name)))
     return notSet.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: notSet.length, total: confirmed.length }] : []
   }).sort((a, b) => {
     const dayOrder = d => (new Date(d + 'T00:00:00').getDay() + 6) % 7
