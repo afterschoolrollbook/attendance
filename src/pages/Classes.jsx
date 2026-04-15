@@ -1022,66 +1022,6 @@ export function Classes({ user, onNav }) {
         {/* ── 수업 달력 */}
         {tab === 'calendar' && (
           <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-            {/* 텀 구성 설정 — 달력과 연동 */}
-            <div style={{ background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:'12px', padding:'14px 16px' }}>
-              <div style={{ fontSize:'12px', fontWeight:700, color:'#ea580c', marginBottom:'12px' }}>📅 텀 구성 설정</div>
-
-              {/* 총 수업횟수 입력 */}
-              <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
-                <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>총 수업횟수</label>
-                <input type="number" min="1" max="200"
-                  value={form.totalSessions || ''}
-                  placeholder="예: 20"
-                  onChange={e => {
-                    const total = parseInt(e.target.value) || 0
-                    set('totalSessions', total || null)
-                  }}
-                  style={{ width:'72px', padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center', background:'#fff' }} />
-                {form.totalSessions > 0 && form.totalSessions !== (form.termSizes||[4,4,4,4]).slice(0,form.termCount||4).reduce((a,b)=>a+b,0) && (
-                  <span style={{ fontSize:'12px', color:'#ef4444', fontWeight:600 }}>
-                    {'\u26a0\ufe0f'} 텀 합산({(form.termSizes||[4,4,4,4]).slice(0,form.termCount||4).reduce((a,b)=>a+b,0)}차시)과 다릅니다. 확인해주세요.
-                  </span>
-                )}
-              </div>
-
-              <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
-                <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>총 텀 수</label>
-                <div style={{ display:'flex', gap:'6px' }}>
-                  {[1,2,3,4,5,6].map(n => (
-                    <button key={n} type="button" onClick={() => {
-                      const prev = form.termSizes || [4]
-                      const next = Array.from({length:n}, (_,i) => prev[i] || 4)
-                      set('termCount', n); set('termSizes', next)
-                    }} style={{ width:'32px', height:'32px', borderRadius:'8px', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:700, background:(form.termCount||4)===n?'#f97316':'#f3f4f6', color:(form.termCount||4)===n?'#fff':'#374151', transition:'all .15s' }}>{n}</button>
-                  ))}
-                </div>
-                <span style={{ fontSize:'12px', color:'#9ca3af' }}>텀</span>
-              </div>
-              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'flex-end' }}>
-                {Array.from({length: form.termCount || 4}, (_, i) => {
-                  const sizes = form.termSizes || [4,4,4,4]
-                  const startSession = sizes.slice(0,i).reduce((a,b)=>a+b,0) + 1
-                  const endSession   = sizes.slice(0,i+1).reduce((a,b)=>a+b,0)
-                  return (
-                    <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'4px' }}>
-                      <label style={{ fontSize:'11px', color:'#ea580c', fontWeight:700 }}>{i+1}텀</label>
-                      <input type="number" min="1" max="99"
-                        value={sizes[i] || 4}
-                        onChange={e => {
-                          const next = [...sizes]
-                          next[i] = parseInt(e.target.value) || 1
-                          set('termSizes', next)
-                        }}
-                        style={{ width:'52px', padding:'7px 6px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center', background:'#fff' }} />
-                      <span style={{ fontSize:'10px', color:'#9ca3af' }}>{startSession}~{endSession}차시</span>
-                    </div>
-                  )
-                })}
-                <div style={{ fontSize:'12px', color:'#9ca3af', marginLeft:'4px', marginBottom:'18px' }}>
-                  = 총 {(form.termSizes||[4,4,4,4]).slice(0,form.termCount||4).reduce((a,b)=>a+b,0)}차시
-                </div>
-              </div>
-            </div>
             <ClassCalendar cls={form} onUpdate={updated => setForm(updated)} />
 
             {/* 휴일 직접 추가 */}
