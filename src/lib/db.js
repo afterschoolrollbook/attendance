@@ -29,14 +29,18 @@ const pendingQ = {
   clear()    { localStorage.removeItem(PENDING_KEY) },
 }
 
-// ─── 스키마 자동 마이그레이션: _deleted 컬럼 누락 시 자동 추가
-async function addDeletedColumn(table) {
+// ─── 스키마 자동 마이그레이션: 컬럼 누락 시 자동 추가
+async function addColumnIfMissing(table, column, colType, colDefault) {
   try {
-    await dbCall('addColumn', table, { column: '_deleted', colType: 'boolean', colDefault: false })
-    console.log(`[Schema] ${table}._deleted 컬럼 추가 완료`)
+    await dbCall('addColumn', table, { column, colType, colDefault })
+    console.log(`[Schema] ${table}.${column} 컬럼 추가 완료`)
   } catch (e) {
-    console.warn(`[Schema] ${table}._deleted 자동 추가 실패:`, e.message)
+    console.warn(`[Schema] ${table}.${column} 자동 추가 실패:`, e.message)
   }
+}
+// 하위 호환용 래퍼
+function addDeletedColumn(table) {
+  return addColumnIfMissing(table, '_deleted', 'boolean', false)
 }
 
 // ─── Supabase 전송 (실패 시 에러 throw + 대기열 저장)
@@ -142,8 +146,13 @@ const SYNC_TABLES = [
 export async function initFromSupabase() {
   if (!isConfigured) return false
   try {
-    // 0) 모든 테이블에 _deleted 컬럼 자동 추가 — 어디서 접속해도 스키마 동일하게 유지
-    await Promise.allSettled(SYNC_TABLES.map(t => addDeletedColumn(t)))
+    // 0) 스키마 자동 마이그레이션 — 누락 컬럼 자동 추가
+    await Promise.allSettled([
+      // 모든 테이블에 _deleted 컬럼
+      ...SYNC_TABLES.map(t => addDeletedColumn(t)),
+      // classes 테이블에 periods 컬럼 (학기/분기별 기간 설정)
+      addColumnIfMissing('classes', 'periods', 'jsonb', "'[]'::jsonb"),
+    ])
 
     // 1) 대기열 먼저 재전송 — 로컬에만 있는 최신 변경사항 올리기
     await flushPending()
