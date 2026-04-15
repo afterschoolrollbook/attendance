@@ -366,30 +366,93 @@ export function ClassCalendar({ cls, onUpdate }) {
 
   return (
     <div>
-      {/* ── 수업 기간 / 운영방식 표시 & 편집 */}
-      <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px',
-        background:'#f8faff', border:'1.5px solid #dbeafe', borderRadius:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
-        <span style={{ fontSize:'13px', fontWeight:700, color:'#1d4ed8' }}>
-          <select value={cls.termType || 'semester'}
-            onChange={e => onUpdate({ ...cls, termType: e.target.value })}
-            style={{ padding:'4px 8px', borderRadius:'7px', border:'1.5px solid #bfdbfe', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#1d4ed8', fontWeight:700, cursor:'pointer' }}>
-            <option value="semester">📚 학기제</option>
-            <option value="quarter">📅 분기제</option>
-            <option value="annual">📋 연간제</option>
-          </select>
-        </span>
-        <span style={{ fontSize:'12px', color:'#6b7280' }}>수업 기간:</span>
-        <input type="date" value={cls.startDate || ''}
-          onChange={e => onUpdate({ ...cls, startDate: e.target.value })}
-          style={{ padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #bfdbfe',
-            fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#111827' }} />
-        <span style={{ color:'#9ca3af', fontSize:'13px' }}>~</span>
-        <input type="date" value={cls.endDate || ''}
-          onChange={e => onUpdate({ ...cls, endDate: e.target.value })}
-          style={{ padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #bfdbfe',
-            fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#111827' }} />
-        <span style={{ fontSize:'11px', color:'#93c5fd', marginLeft:'auto' }}>← 날짜 수정 시 앞 탭과 자동 연동</span>
-      </div>
+      {/* ── 학기/분기별 기간 표시 & 편집 */}
+      {(() => {
+        const isSemester = cls.termType === 'semester'
+        const periods = cls.periods?.length > 0 ? cls.periods : []
+        const inputSt = { padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #bfdbfe', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#111827' }
+
+        const updatePeriod = (idx, patch) => {
+          const next = periods.map((p, i) => i === idx ? { ...p, ...patch } : p)
+          // 전체 startDate/endDate도 자동 연동
+          const autoStart = next.find(p => p.startDate)?.startDate || cls.startDate
+          const autoEnd   = [...next].reverse().find(p => p.endDate)?.endDate || cls.endDate
+          onUpdate({ ...cls, periods: next, startDate: autoStart, endDate: autoEnd })
+        }
+
+        if (periods.length === 0) {
+          // 기존 방식 (periods 없음) — 단순 날짜 수정
+          return (
+            <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#f8faff', border:'1.5px solid #dbeafe', borderRadius:'10px', marginBottom:'12px', flexWrap:'wrap' }}>
+              <select value={cls.termType || 'semester'} onChange={e => onUpdate({ ...cls, termType: e.target.value })}
+                style={{ padding:'4px 8px', borderRadius:'7px', border:'1.5px solid #bfdbfe', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#1d4ed8', fontWeight:700, cursor:'pointer' }}>
+                <option value="semester">📚 학기제</option>
+                <option value="quarter">📅 분기제</option>
+              </select>
+              <span style={{ fontSize:'12px', color:'#6b7280' }}>수업 기간:</span>
+              <input type="date" value={cls.startDate || ''} onChange={e => onUpdate({ ...cls, startDate: e.target.value })} style={inputSt} />
+              <span style={{ color:'#9ca3af' }}>~</span>
+              <input type="date" value={cls.endDate || ''} onChange={e => onUpdate({ ...cls, endDate: e.target.value })} style={inputSt} />
+              <span style={{ fontSize:'11px', color:'#93c5fd', marginLeft:'auto' }}>← 날짜 수정 시 앞 탭과 자동 연동</span>
+            </div>
+          )
+        }
+
+        // periods 방식 — 학기/분기별 기간 수정
+        return (
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'12px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 14px', background:'#f8faff', border:'1.5px solid #dbeafe', borderRadius:'10px' }}>
+              <select value={cls.termType || 'semester'} onChange={e => onUpdate({ ...cls, termType: e.target.value })}
+                style={{ padding:'4px 8px', borderRadius:'7px', border:'1.5px solid #bfdbfe', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#1d4ed8', fontWeight:700, cursor:'pointer' }}>
+                <option value="semester">📚 학기제</option>
+                <option value="quarter">📅 분기제</option>
+              </select>
+              <span style={{ fontSize:'12px', color:'#6b7280', marginLeft:'4px' }}>
+                총 {periods.reduce((s,p)=>(p.termSizes||[]).slice(0,p.termCount||1).reduce((a,v)=>a+(Number(v)||0),0)+s,0)}차시
+                · {periods.length}{isSemester?'학기':'분기'}
+                · {periods.reduce((s,p)=>s+(p.termCount||1),0)}텀
+              </span>
+              <span style={{ fontSize:'11px', color:'#93c5fd', marginLeft:'auto' }}>← 기간 수정 시 달력에 자동 반영</span>
+            </div>
+            {periods.map((p, pIdx) => (
+              <div key={pIdx} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 14px', background:'#fafafa', border:'1.5px solid #e5e7eb', borderRadius:'10px', flexWrap:'wrap' }}>
+                <span style={{ fontSize:'13px', fontWeight:700, color:'#f97316', minWidth:'42px' }}>{p.label}</span>
+                <input type="date" value={p.startDate || ''} onChange={e => updatePeriod(pIdx, { startDate: e.target.value })} style={inputSt} />
+                <span style={{ color:'#9ca3af' }}>~</span>
+                <input type="date" value={p.endDate || ''} onChange={e => updatePeriod(pIdx, { endDate: e.target.value })} style={inputSt} />
+                {/* 텀 수 */}
+                <div style={{ display:'flex', alignItems:'center', gap:'4px', marginLeft:'8px' }}>
+                  <span style={{ fontSize:'11px', color:'#9ca3af' }}>텀:</span>
+                  {[1,2,3,4].map(n => (
+                    <button key={n} type="button" onClick={() => {
+                      const sizes = Array.from({ length: n }, (_, i) => (p.termSizes||[])[i] || 4)
+                      updatePeriod(pIdx, { termCount: n, termSizes: sizes })
+                    }} style={{ width:'26px', height:'26px', borderRadius:'6px', border:`1.5px solid ${(p.termCount||1)===n?'#f97316':'#e5e7eb'}`, background:(p.termCount||1)===n?'#fff7ed':'#fff', color:(p.termCount||1)===n?'#f97316':'#374151', fontSize:'12px', fontWeight:(p.termCount||1)===n?700:400, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                {/* 텀당 차시 */}
+                <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+                  <span style={{ fontSize:'11px', color:'#9ca3af' }}>차시:</span>
+                  {Array.from({ length: p.termCount || 1 }, (_, tIdx) => (
+                    <div key={tIdx} style={{ display:'flex', alignItems:'center', gap:'2px' }}>
+                      <span style={{ fontSize:'10px', color:'#9ca3af' }}>{tIdx+1}텀</span>
+                      <input type="number" min="1" max="30" value={(p.termSizes||[])[tIdx] || 4}
+                        onChange={e => {
+                          const sizes = [...(p.termSizes||[])]
+                          sizes[tIdx] = Number(e.target.value) || 0
+                          updatePeriod(pIdx, { termSizes: sizes })
+                        }}
+                        style={{ width:'44px', padding:'4px 5px', borderRadius:'6px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center' }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* 신청기간 배너 + 편집 패널 (배너 바로 아래 인라인) */}
       <div style={{ marginBottom:'12px' }}>

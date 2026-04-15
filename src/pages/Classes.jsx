@@ -816,10 +816,6 @@ export function Classes({ user, onNav }) {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <Input label="수업 시작일" value={form.startDate} onChange={v => set('startDate', v)} type="date" required />
-              <Input label="수업 종료일" value={form.endDate} onChange={v => set('endDate', v)} type="date" required />
-            </div>
             <Textarea label="수업 안내글 (선택)" value={form.description} onChange={v => set('description', v)} placeholder="수업 소개, 준비물, 유의사항 등" rows={3} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <Input label="📞 교무실 전화번호 (선택)" value={form.officePhone} onChange={v => set('officePhone', v)} placeholder="예: 031-123-4567" />
