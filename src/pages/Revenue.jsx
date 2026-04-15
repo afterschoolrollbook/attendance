@@ -640,52 +640,58 @@ export function Revenue({ user }) {
               })()}
             </div>
 
-            {/* 입금 내역 전체 */}
+            {/* 입금 내역 */}
             <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
-                <div
-                  onClick={() => { const pays = payByDate[curDate] || []; if (pays.length > 0) setPayDetailModal({ date: curDate, pays }) }}
-                  style={{ fontSize:'14px', fontWeight:700, color:C.text, cursor: (payByDate[curDate]||[]).length > 0 ? 'pointer' : 'default', display:'flex', alignItems:'center', gap:'6px' }}
-                >
+                <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>
                   💵 입금 내역
-                  <span style={{ fontSize:'12px', fontWeight:500, color:C.muted }}>({curDate.slice(5).replace('-','.')})</span>
-                  {(payByDate[curDate]||[]).length > 0 && (
-                    <span style={{ fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 6px' }}>
-                      {(payByDate[curDate]||[]).length}건 상세보기 →
-                    </span>
-                  )}
+                  <span style={{ fontSize:'12px', fontWeight:500, color:C.muted, marginLeft:'6px' }}>({curDate.slice(5).replace('-','.')})</span>
                 </div>
                 <button onClick={() => openPayModal(today())}
                   style={{ padding:'5px 12px', borderRadius:'8px', border:'none', background:C.success, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   + 입금 등록
                 </button>
               </div>
-              {payments.length === 0
-                ? <div style={{ textAlign:'center', padding:'10px', color:C.muted, fontSize:'13px' }}>입금 내역 없음</div>
-                : <div style={{ display:'flex', flexDirection:'column', gap:'5px', maxHeight:'400px', overflowY:'auto' }}>
-                    {[...payments].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(p => {
-                      const cls = classes.find(c=>c.id===p.classId)
-                      return (
-                        <div key={p.id} style={{ padding:'8px 10px', borderRadius:'8px', background:'#f0fdf4', border:'1px solid #86efac' }}>
-                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                            <div style={{ flex:1 }}>
-                              <div style={{ fontSize:'12px', fontWeight:600, color:C.text }}>
-                                {cls?`${cls.organization} · ${cls.className}${cls.section?' '+cls.section:''}`:' 수업 미상'}
-                                {p.termNo&&<span style={{ marginLeft:'6px', fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 5px' }}>{p.termNo}텀</span>}
-                              </div>
-                              <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>{p.date?.replace(/-/g,'.')}</div>
-                              {p.memo&&<div style={{ fontSize:'11px', color:C.muted }}>{p.memo}</div>}
-                            </div>
-                            <div style={{ display:'flex', alignItems:'center', gap:'6px', flexShrink:0 }}>
-                              <span style={{ fontSize:'13px', fontWeight:700, color:C.success }}>+{fmt(p.amount)}원</span>
-                              <button onClick={()=>confirm('삭제할까요?', () => deletePayment(p.id))} style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                            </div>
-                          </div>
+              {(() => {
+                const todayPays = payByDate[curDate] || []
+                const allTotal = payments.reduce((s,p)=>s+p.amount,0)
+                if (payments.length === 0) return (
+                  <div style={{ textAlign:'center', padding:'10px', color:C.muted, fontSize:'13px' }}>입금 내역 없음</div>
+                )
+                return (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                    {/* 전체 요약 */}
+                    <div style={{ padding:'10px 12px', borderRadius:'10px', background:'#f0fdf4', border:'1px solid #86efac', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <div style={{ fontSize:'12px', color:C.muted }}>전체 누적 입금</div>
+                      <div style={{ fontSize:'14px', fontWeight:700, color:C.success }}>+{fmt(allTotal)}원</div>
+                    </div>
+                    {/* 선택 날짜 입금 */}
+                    {todayPays.length > 0 ? (
+                      <div
+                        onClick={() => setPayDetailModal({ date: curDate, pays: todayPays })}
+                        style={{ padding:'10px 12px', borderRadius:'10px', background:'#eff6ff', border:'1px solid #bfdbfe', display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }}
+                      >
+                        <div>
+                          <div style={{ fontSize:'12px', fontWeight:700, color:C.blue }}>{curDate.slice(5).replace('-','.')} 입금</div>
+                          <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>{todayPays.length}건 · 상세보기 →</div>
                         </div>
-                      )
-                    })}
+                        <div style={{ fontSize:'14px', fontWeight:700, color:C.blue }}>+{fmt(todayPays.reduce((s,p)=>s+p.amount,0))}원</div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', padding:'6px' }}>
+                        {curDate.slice(5).replace('-','.')} 입금 내역 없음
+                      </div>
+                    )}
+                    {/* 전체 내역 보기 버튼 */}
+                    <button
+                      onClick={() => setPayDetailModal({ date: null, pays: [...payments].sort((a,b)=>(b.date||'').localeCompare(a.date||'')) })}
+                      style={{ padding:'8px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fafafa', color:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}
+                    >
+                      전체 입금 내역 보기 ({payments.length}건) →
+                    </button>
                   </div>
-              }
+                )
+              })()}
           </div>
           </div>
         </div>
@@ -1250,7 +1256,7 @@ export function Revenue({ user }) {
 
       {/* ── 입금 내역 상세 팝업 */}
       {payDetailModal&&(
-        <Modal open={!!payDetailModal} onClose={()=>setPayDetailModal(null)} title={`💵 입금 내역 — ${payDetailModal.date?.replace(/-/g,'.')}`} width={420}>
+        <Modal open={!!payDetailModal} onClose={()=>setPayDetailModal(null)} title={payDetailModal.date ? `💵 입금 내역 — ${payDetailModal.date.replace(/-/g,'.')}` : `💵 전체 입금 내역 (${payDetailModal.pays.length}건)`} width={420}>
           <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
             {payDetailModal.pays.length === 0
               ? <div style={{ textAlign:'center', padding:'20px', color:C.muted, fontSize:'13px' }}>입금 내역 없음</div>
