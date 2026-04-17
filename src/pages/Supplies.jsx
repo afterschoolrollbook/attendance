@@ -379,12 +379,10 @@ export function Supplies({ user }) {
     // 단계별 차시 제목+준비물 저장/수정
     for (let stage = 1; stage <= productForm.maxStage; stage++) {
       const items = stageSessionTitles[stage] || []
-      let savedAny = false
       items.forEach((item, idx) => {
         const t = typeof item === 'string' ? item : (item?.title || '')
         const m = typeof item === 'string' ? '' : (item?.memo || '')
         if (!t.trim()) return
-        savedAny = true
         const sessionNo = idx + 1
         const existing = productPlanList.find(p =>
           p.productId === productId && p.stage === stage && p.sessionNo === sessionNo
@@ -399,19 +397,6 @@ export function Supplies({ user }) {
           })
         }
       })
-      // 차시 제목이 하나도 없어도 단계 자체는 등록되도록 플레이스홀더 1건 저장
-      if (!savedAny) {
-        const existing = productPlanList.find(p =>
-          p.productId === productId && p.stage === stage && p.sessionNo === 1
-        )
-        if (!existing) {
-          SupplyProductPlans.insert({
-            id: uid(), teacherId: user.id, productId,
-            stage, sessionNo: 1, title: `${stage}단계 1차시`,
-            memo: '', fileUrl: null, fileName: null, createdAt: now(),
-          })
-        }
-      }
     }
     reload()
     setProductModal(false)
