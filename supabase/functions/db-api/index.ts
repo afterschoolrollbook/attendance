@@ -193,7 +193,12 @@ serve(async (req) => {
         break
       }
       case 'delete': {
-        const { error } = await supabase.from(tbl).delete().eq('id', id)
+        // 물리 삭제 대신 소프트딜리트: _deleted=true + updatedAt 갱신
+        // → 다른 기기/재동기화 시에도 삭제 상태가 유지됨
+        const { error } = await supabase
+          .from(tbl)
+          .update({ _deleted: true, updatedAt: new Date().toISOString() })
+          .eq('id', id)
         if (error) throw error
         result = { deleted: true }
         break
