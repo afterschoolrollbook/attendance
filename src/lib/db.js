@@ -250,12 +250,14 @@ export const db = {
   },
 
   // 소프트딜리트: _deleted 플래그 기록 → merge 시 양쪽에서 안전하게 제거
+  // update로 전송해야 Supabase에도 _deleted:true가 저장되어 앱 재시작 후 부활 방지
   async delete(t, id) {
+    const patch = { _deleted: true, updatedAt: now() }
     const rows = cache.get(t).map(r =>
-      r.id === id ? { ...r, _deleted: true, updatedAt: now() } : r
+      r.id === id ? { ...r, ...patch } : r
     )
     cache.set(t, rows)
-    await sync('delete', t, { id })
+    await sync('update', t, { id, patch })
   },
 
   where:    (t, fn) => cache.get(t).filter(r => r._deleted !== true && fn(r)),
