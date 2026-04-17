@@ -310,31 +310,6 @@ export function Supplies({ user }) {
   const subjectVendors = vendorList.filter(v => (v.subjects?.length > 0 ? v.subjects.includes(selSubject) : v.subject === selSubject))
   const subjectPlans   = planList.filter(p => p.subject === selSubject && !p.vendorId)
 
-  // 교구업체에 등록된 단계(productPlanList)를 지도안 탭용 planItems로 변환
-  const productPlanItems = (() => {
-    const subjectProds = productList.filter(p => p.subject === selSubject || vendorList.find(v=>v.id===p.vendorId)?.subject===selSubject)
-    const items = []
-    subjectProds.forEach(p => {
-      const stages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
-      stages.forEach(stage => {
-        // planList에 이미 있는 단계는 건너뜀 (중복 방지)
-        const exists = planList.some(pl => pl.productId===p.id && Number(pl.stage)===Number(stage) && (pl.fileType==='session'||pl.type==='session'))
-        if (!exists) {
-          items.push({
-            id: `pp_${p.id}_${stage}`,
-            _fromProductPlan: true,
-            productId: p.id,
-            subject: selSubject,
-            title: `${p.name} ${stage}단계 차시별 지도안`,
-            fileType: 'session', type: 'session',
-            stage, fileUrl: null, fileName: null, school: null,
-          })
-        }
-      })
-    })
-    return items
-  })()
-  const allSubjectPlans = [...subjectPlans, ...productPlanItems]
   const vendorFiles    = (vendorId) => planList.filter(p => p.vendorId === vendorId)
 
 
@@ -977,7 +952,7 @@ export function Supplies({ user }) {
                 </button>
               </div>
               {(() => {
-                const planItems = allSubjectPlans.filter(p => p.fileType!=='promo' && p.type!=='promo')
+                const planItems = subjectPlans.filter(p => p.fileType!=='promo' && p.type!=='promo')
                 if (!planItems.length) return <div style={{ textAlign:'center', padding:'60px', color:C.muted }}><div style={{ fontSize:'36px', marginBottom:'10px' }}>📋</div><div style={{ fontSize:'14px' }}>등록된 지도안이 없습니다</div></div>
                 const noSchool = planItems.filter(p=>!p.school)
                 const schools  = [...new Set(planItems.filter(p=>p.school).map(p=>p.school))]
