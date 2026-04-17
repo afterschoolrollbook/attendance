@@ -168,7 +168,10 @@ const SYNC_TABLES = [
 export async function initFromSupabase() {
   if (!isConfigured) return false
   try {
-    // 0) 스키마 자동 마이그레이션
+    // 0) 로컬 캐시 초기화 — Supabase가 정답이므로 앱 시작 시 항상 비우고 새로 불러옴
+    db.clearAll()
+
+    // 1) 스키마 자동 마이그레이션
     await Promise.allSettled([
       ...SYNC_TABLES.map(t => addDeletedColumn(t)),
       addColumnIfMissing('classes', 'periods', 'jsonb', "'[]'::jsonb"),
@@ -250,14 +253,12 @@ export const db = {
   },
 
   // 소프트딜리트: _deleted 플래그 기록 → merge 시 양쪽에서 안전하게 제거
-  // update로 전송해야 Supabase에도 _deleted:true가 저장되어 앱 재시작 후 부활 방지
   async delete(t, id) {
-    const patch = { _deleted: true, updatedAt: now() }
     const rows = cache.get(t).map(r =>
-      r.id === id ? { ...r, ...patch } : r
+      r.id === id ? { ...r, _deleted: true, updatedAt: now() } : r
     )
     cache.set(t, rows)
-    await sync('update', t, { id, patch })
+    await sync('delete', t, { id })
   },
 
   where:    (t, fn) => cache.get(t).filter(r => r._deleted !== true && fn(r)),
