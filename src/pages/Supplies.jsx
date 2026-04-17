@@ -1032,7 +1032,7 @@ export function Supplies({ user }) {
                 <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
                   {subjectVendors.map(v => {
                     const vFiles    = vendorFiles(v.id)
-                    const vProducts = productList.filter(p=>p.vendorId===v.id && p.subject===selSubject)
+                    const vProducts = productList.filter(p=>p.vendorId===v.id)
                     const isExpanded = expandedVendor === v.id
                     return (
                       <div key={v.id} style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
@@ -1797,7 +1797,7 @@ export function Supplies({ user }) {
                         onChange={e => setFileForm(f=>({...f, productId:e.target.value, stage:''}))}
                         style={{ ...iStyle, background:'#fff' }}>
                         <option value=''>-- 교구를 선택하세요 --</option>
-                        {modalProducts.map(p => { const stages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b); const stageLabel = stages.length > 0 ? ` (${stages.map(s=>s+'단계').join(', ')})` : ''; return <option key={p.id} value={p.id}>{p.name}{stageLabel}</option> })}
+                        {modalProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     )}
                   </div>
