@@ -106,8 +106,8 @@ function mergeRecords(local, remote) {
     }
   })
 
-  // _deleted 소프트딜리트 레코드 제거 후 반환
-  return [...map.values()].filter(r => r._deleted !== true)
+  // _deleted 소프트딜리트 레코드 제거 후 반환 (Supabase에서 boolean true 또는 정수 1로 올 수 있음)
+  return [...map.values()].filter(r => r._deleted !== true && r._deleted !== 1)
 }
 
 // ─── 동기화 대상 테이블 목록
@@ -164,7 +164,9 @@ export async function initFromSupabase() {
         if (!Array.isArray(remote)) return
         const local  = cache.get(t)
         const merged = mergeRecords(local, remote)
-        cache.set(t, merged)
+        // Supabase에서 _deleted=NULL로 내려온 레코드를 false로 정규화
+        const normalized = merged.map(r => r._deleted == null ? { ...r, _deleted: false } : r)
+        cache.set(t, normalized)
 
         // 로컬에만 있는 레코드(Supabase sync 실패분) → Supabase 재전송
         // ✅ insert → upsert: 이미 Supabase에 있어도 중복 키 오류 없이 처리
@@ -208,9 +210,9 @@ export async function initFromSupabase() {
 
 // ─── 핵심 DB 메서드
 export const db = {
-  get:    (t)     => cache.get(t).filter(r => r._deleted !== true),
+  get:    (t)     => cache.get(t).filter(r => r._deleted !== true && r._deleted !== 1),
   set:    (t, d)  => cache.set(t, d),
-  getOne: (t, id) => cache.get(t).find(r => r.id === id && !r._deleted) || null,
+  getOne: (t, id) => cache.get(t).find(r => r.id === id && r._deleted !== true && r._deleted !== 1) || null,
 
   async insert(t, record) {
     const r = { _deleted: false, ...record, updatedAt: now() }
@@ -238,7 +240,7 @@ export const db = {
     await sync('delete', t, { id })
   },
 
-  where:    (t, fn) => cache.get(t).filter(r => r._deleted !== true && fn(r)),
+  where:    (t, fn) => cache.get(t).filter(r => r._deleted !== true && r._deleted !== 1 && fn(r)),
   clearAll() {
     Object.keys(localStorage)
       .filter(k => k.startsWith(PREFIX))
