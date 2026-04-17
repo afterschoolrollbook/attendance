@@ -68,25 +68,47 @@ async function sync(action, table, payload) {
   }
 }
 
-// ─── 대기열 재전송
+// ─── 대기열 재전송 (실패 항목은 다시 queue에 보존)
 async function flushPending() {
   if (!isConfigured) return
   const q = pendingQ.get()
   if (!q.length) return
   pendingQ.clear()
-  const results = await Promise.allSettled(
-    q.map(({ action, table, payload }) => {
-      // ✅ insert → upsert 변환: 재전송 시 중복 키 오류 방지
+  let ok = 0
+  await Promise.allSettled(
+    q.map(async ({ action, table, payload, ts, retries = 0 }) => {
       const safeAction = action === 'insert' ? 'upsert' : action
-      return dbCall(safeAction, table, payload).catch(e => {
+      try {
+        await dbCall(safeAction, table, payload)
+        ok++
+      } catch (e) {
         console.warn(`[Supabase flush 실패] ${safeAction}/${table}:`, e.message)
-        pendingQ.push({ action, table, payload, ts: Date.now() })
-        throw e
-      })
+        // 실패한 항목은 재시도 횟수 기록 후 다시 queue에 보존
+        pendingQ.push({ action, table, payload, ts, retries: retries + 1 })
+      }
     })
   )
-  const ok = results.filter(r => r.status === 'fulfilled').length
-  console.log(`[Supabase] 대기열 재전송: ${ok}/${q.length}건 성공`)
+  const remaining = pendingQ.get().length
+  if (ok > 0 || remaining > 0) {
+    console.log(`[Supabase] 대기열 재전송: ${ok}건 성공, ${remaining}건 대기 중`)
+  }
+}
+
+// ─── 주기적 재시도: 앱 실행 중 30초마다 pending queue 재전송
+let _retryTimer = null
+export function startSyncRetry() {
+  if (_retryTimer) return  // 이미 실행 중
+  _retryTimer = setInterval(async () => {
+    const q = pendingQ.get()
+    if (q.length > 0) {
+      console.log(`[Supabase] 자동 재시도: ${q.length}건 pending`)
+      await flushPending()
+    }
+  }, 30000) // 30초마다
+}
+
+export function stopSyncRetry() {
+  if (_retryTimer) { clearInterval(_retryTimer); _retryTimer = null }
 }
 
 // ─── updatedAt 기준 merge: 더 최신 레코드가 이김, _deleted 반영
@@ -106,8 +128,8 @@ function mergeRecords(local, remote) {
     }
   })
 
-  // _deleted 소프트딜리트 레코드 제거 후 반환 (Supabase에서 boolean true 또는 정수 1로 올 수 있음)
-  return [...map.values()].filter(r => r._deleted !== true && r._deleted !== 1)
+  // _deleted 소프트딜리트 레코드 제거 후 반환
+  return [...map.values()].filter(r => r._deleted !== true)
 }
 
 // ─── 동기화 대상 테이블 목록
@@ -142,41 +164,35 @@ const SYNC_TABLES = [
   'schoolNoticeSubmits',   // 공지 제출 현황
 ]
 
-// ─── 초기화: Supabase 데이터와 로컬 merge
+// ─── 초기화: Supabase를 진실의 원천으로 — 항상 Supabase 우선
 export async function initFromSupabase() {
   if (!isConfigured) return false
   try {
-    // 0) 스키마 자동 마이그레이션 — 누락 컬럼 자동 추가
+    // 0) 스키마 자동 마이그레이션
     await Promise.allSettled([
-      // 모든 테이블에 _deleted 컬럼
       ...SYNC_TABLES.map(t => addDeletedColumn(t)),
-      // classes 테이블에 periods 컬럼 (학기/분기별 기간 설정)
       addColumnIfMissing('classes', 'periods', 'jsonb', "'[]'::jsonb"),
     ])
 
-    // 1) 대기열 먼저 재전송 — 로컬에만 있는 최신 변경사항 올리기
+    // 1) 로컬에만 있는 미전송 변경사항 먼저 올리기 (pending queue)
     await flushPending()
 
-    // 2) Supabase 데이터 가져와서 merge
+    // 2) Supabase → 로컬 완전 덮어쓰기 (merge 없음 — Supabase가 항상 정답)
     await Promise.all(SYNC_TABLES.map(async (t) => {
       try {
         const remote = await dbCall('getAll', t)
         if (!Array.isArray(remote)) return
-        const local  = cache.get(t)
-        const merged = mergeRecords(local, remote)
-        // Supabase에서 _deleted=NULL로 내려온 레코드를 false로 정규화
-        const normalized = merged.map(r => r._deleted == null ? { ...r, _deleted: false } : r)
-        cache.set(t, normalized)
 
-        // 로컬에만 있는 레코드(Supabase sync 실패분) → Supabase 재전송
-        // ✅ insert → upsert: 이미 Supabase에 있어도 중복 키 오류 없이 처리
-        const remoteIds = new Set(remote.map(r => r.id))
-        local.filter(r => !remoteIds.has(r.id) && !r._deleted).forEach(r => {
-          console.log(`[Supabase] 미sync 재전송: ${t}/${r.id}`)
-          sync('upsert', t, { data: r })
-        })
+        // Supabase 데이터를 그대로 캐시에 저장 (_deleted 정규화 포함)
+        const normalized = remote.map(r => ({
+          ...r,
+          _deleted: r._deleted === true || r._deleted === 1 ? true : false,
+        })).filter(r => r._deleted !== true)
+
+        cache.set(t, normalized)
+        console.log(`[Supabase] ${t}: ${normalized.length}건 로드`)
       } catch (e) {
-        console.warn(`[Supabase] ${t} 동기화 실패 — 로컬 데이터 유지:`, e.message)
+        console.warn(`[Supabase] ${t} 로드 실패 — 로컬 캐시 유지:`, e.message)
       }
     }))
 
@@ -201,18 +217,20 @@ export async function initFromSupabase() {
     }
 
     console.log('[Supabase] 데이터 동기화 완료')
+    startSyncRetry()  // 앱 실행 중 30초마다 pending 자동 재시도 시작
     return true
   } catch (e) {
     console.warn('[Supabase] 전체 실패 — 로컬 데이터로 동작:', e.message)
+    startSyncRetry()  // 실패해도 재시도는 계속
     return false
   }
 }
 
 // ─── 핵심 DB 메서드
 export const db = {
-  get:    (t)     => cache.get(t).filter(r => r._deleted !== true && r._deleted !== 1),
+  get:    (t)     => cache.get(t).filter(r => r._deleted !== true),
   set:    (t, d)  => cache.set(t, d),
-  getOne: (t, id) => cache.get(t).find(r => r.id === id && r._deleted !== true && r._deleted !== 1) || null,
+  getOne: (t, id) => cache.get(t).find(r => r.id === id && !r._deleted) || null,
 
   async insert(t, record) {
     const r = { _deleted: false, ...record, updatedAt: now() }
@@ -240,7 +258,7 @@ export const db = {
     await sync('delete', t, { id })
   },
 
-  where:    (t, fn) => cache.get(t).filter(r => r._deleted !== true && r._deleted !== 1 && fn(r)),
+  where:    (t, fn) => cache.get(t).filter(r => r._deleted !== true && fn(r)),
   clearAll() {
     Object.keys(localStorage)
       .filter(k => k.startsWith(PREFIX))
