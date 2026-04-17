@@ -398,6 +398,11 @@ export function Supplies({ user }) {
     const vendor = vendorList.find(v => v.id === productVendorId)
     const vendorSubjects = vendor ? (vendor.subjects?.length > 0 ? vendor.subjects : [vendor.subject].filter(Boolean)) : []
     if (vendorSubjects.length > 1 && !productForm.subject) { toastError('교구 과목 분류를 선택하세요'); return }
+    // 같은 업체에 같은 이름의 교구 중복 등록 방지 (수정 제외)
+    if (!productForm.id) {
+      const duplicate = productList.find(p => p.vendorId === productVendorId && p.name === productForm.name)
+      if (duplicate) { toastError(`이미 "${productForm.name}" 교구가 등록되어 있습니다`); return }
+    }
     const isEdit = !!productForm.id
     const productId = isEdit ? productForm.id : uid()
     if (isEdit) {
@@ -538,9 +543,9 @@ export function Supplies({ user }) {
     // 교구 선택 필수 (plan/session 모드)
     const needsProduct = ['plan','session','promo'].includes(fileModalMode)
     if (needsProduct && !fileForm.productId) { toastError('교구를 선택하세요'); return }
-    // 차시별 지도안이면 단계도 필수
+    // 단계 필수 (plan/session 모드)
     const isSession = fileModalMode === 'session' || (fileModalMode === 'plan' && fileForm.fileType === 'session')
-    if (isSession && !fileForm.stage) { toastError('단계를 선택하세요'); return }
+    if (['plan','session'].includes(fileModalMode) && !fileForm.stage) { toastError('단계를 선택하세요'); return }
     // 제목 자동 생성
     const autoProduct = productList.find(p => p.id === (fileProductTarget || fileForm.productId))
     const autoTitle = autoProduct
@@ -548,7 +553,7 @@ export function Supplies({ user }) {
           ? `${autoProduct.name} 홍보물`
           : (isSession || fileModalMode === 'product_session')
             ? `${autoProduct.name} ${fileForm.stage}단계 차시별 지도안`
-            : `${autoProduct.name} 연간지도안`)
+            : `${autoProduct.name} ${fileForm.stage}단계 연간지도안`)
       : (fileForm.fileType === 'promo' ? '홍보물' : fileForm.fileType === 'session' ? '차시별지도안' : '지도안')
     setUploading(true)
     try {
@@ -1802,45 +1807,64 @@ export function Supplies({ user }) {
                   </div>
                 )}
 
-                {/* 교구 선택 — plan/session 모드 */}
+                {/* 교구 시리즈 선택 → 단계 선택 */}
                 {['plan','session','promo'].includes(fileModalMode) && (
-                  <div>
-                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>교구 선택 *</label>
-                    {modalProducts.length === 0 ? (
-                      <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 12px', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', flexWrap:'wrap' }}>
-                        <span style={{ fontSize:'12px', color:C.warning }}>⚠️ 등록된 교구가 없습니다.</span>
-                        <button onClick={() => { setFileModal(false); setInnerTab('vendor') }}
-                          style={{ fontSize:'12px', color:C.primary, background:'#fff7ed', border:`1px solid ${C.primary}`, borderRadius:'5px', padding:'2px 9px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
-                          🏢 교구 등록하러 가기 →
-                        </button>
-                      </div>
-                    ) : (
-                      <select value={fileForm.productId}
-                        onChange={e => setFileForm(f=>({...f, productId:e.target.value, stage:''}))}
-                        style={{ ...iStyle, background:'#fff' }}>
-                        <option value=''>-- 교구를 선택하세요 --</option>
-                        {modalProducts.map(p => {
-                          const stages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
-                          const stageLabel = stages.length > 0 ? ` ${stages.map(s=>s+'단계').join('/')}` : ''
-                          const vendor = vendorList.find(v=>v.id===p.vendorId)
-                          const vendorLabel = vendor ? ` — ${vendor.name}` : ''
-                          return <option key={p.id} value={p.id}>{p.name}{stageLabel}{vendorLabel}</option>
-                        })}
-                      </select>
-                    )}
-                  </div>
-                )}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+                    {/* 1단계: 교구 시리즈 선택 (중복 제거) */}
+                    <div>
+                      <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>교구 시리즈 선택 *</label>
+                      {modalProducts.length === 0 ? (
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 12px', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', flexWrap:'wrap' }}>
+                          <span style={{ fontSize:'12px', color:C.warning }}>⚠️ 등록된 교구가 없습니다.</span>
+                          <button onClick={() => { setFileModal(false); setInnerTab('vendor') }}
+                            style={{ fontSize:'12px', color:C.primary, background:'#fff7ed', border:`1px solid ${C.primary}`, borderRadius:'5px', padding:'2px 9px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                            🏢 교구 등록하러 가기 →
+                          </button>
+                        </div>
+                      ) : (() => {
+                        // 시리즈명 중복 제거 (같은 이름은 첫 번째 교구 대표)
+                        const seriesMap = new Map()
+                        modalProducts.forEach(p => { if (!seriesMap.has(p.name)) seriesMap.set(p.name, p) })
+                        const seriesList = [...seriesMap.values()]
+                        return (
+                          <select value={fileForm.productId}
+                            onChange={e => setFileForm(f=>({...f, productId:e.target.value, stage:''}))}
+                            style={{ ...iStyle, background:'#fff' }}>
+                            <option value=''>-- 교구 시리즈를 선택하세요 --</option>
+                            {seriesList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          </select>
+                        )
+                      })()}
+                    </div>
 
-                {/* 단계 선택 — 차시별 지도안일 때 */}
-                {(fileModalMode === 'session' || (fileModalMode === 'plan' && fileForm.fileType === 'session')) && fileForm.productId && (
-                  <div>
-                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>단계 선택 *</label>
-                    <select value={fileForm.stage}
-                      onChange={e => setFileForm(f=>({...f, stage:Number(e.target.value)}))}
-                      style={{ ...iStyle, background:'#fff' }}>
-                      <option value=''>-- 단계를 선택하세요 --</option>
-                      {STAGES.slice(0, selectedProduct?.maxStage||10).map(s => <option key={s} value={s}>{s}단계</option>)}
-                    </select>
+                    {/* 2단계: 단계 선택 (선택한 시리즈에 등록된 단계만) */}
+                    {(fileModalMode === 'session' || fileModalMode === 'plan') && fileForm.productId && (() => {
+                      const selectedSeries = modalProducts.find(p=>p.id===fileForm.productId)
+                      // 같은 시리즈명의 모든 교구 ID 수집
+                      const sameNameProducts = modalProducts.filter(p=>p.name===selectedSeries?.name)
+                      const allStages = [...new Set(
+                        sameNameProducts.flatMap(p => productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))
+                      )].sort((a,b)=>a-b)
+                      if (allStages.length === 0) return null
+                      return (
+                        <div>
+                          <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>단계 선택 *</label>
+                          <select value={fileForm.stage}
+                            onChange={e => {
+                              const stage = Number(e.target.value)
+                              // 해당 단계를 가진 교구 ID로 productId 자동 변경
+                              const matchProduct = sameNameProducts.find(p =>
+                                productPlanList.some(pl=>pl.productId===p.id && pl.stage===stage)
+                              )
+                              setFileForm(f=>({...f, stage, productId: matchProduct?.id || f.productId}))
+                            }}
+                            style={{ ...iStyle, background:'#fff' }}>
+                            <option value=''>-- 단계를 선택하세요 --</option>
+                            {allStages.map(s => <option key={s} value={s}>{s}단계</option>)}
+                          </select>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
 
