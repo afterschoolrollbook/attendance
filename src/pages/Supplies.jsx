@@ -1016,7 +1016,7 @@ export function Supplies({ user }) {
                 <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
                   {subjectVendors.map(v => {
                     const vFiles    = vendorFiles(v.id)
-                    const vProducts = productList.filter(p=>p.vendorId===v.id)
+                    const vProducts = productList.filter(p=>p.vendorId===v.id && p.subject===selSubject)
                     const isExpanded = expandedVendor === v.id
                     return (
                       <div key={v.id} style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
