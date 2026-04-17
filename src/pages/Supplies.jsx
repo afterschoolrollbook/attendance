@@ -145,7 +145,7 @@ export function Supplies({ user }) {
   // 교구 등록/수정 모달
   const [productModal, setProductModal] = useState(false)
   const [productVendorId, setProductVendorId] = useState(null)
-  const [productForm, setProductForm] = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:10 })
+  const [productForm, setProductForm] = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:10, subject:'' })
   const [productStageTab, setProductStageTab] = useState(1)
   const [stageSessionTitles, setStageSessionTitles] = useState({})
 
@@ -307,7 +307,7 @@ export function Supplies({ user }) {
   }
 
   // ── 업체/교구 관련
-  const subjectVendors = vendorList.filter(v => v.subject === selSubject)
+  const subjectVendors = vendorList.filter(v => (v.subjects?.length > 0 ? v.subjects.includes(selSubject) : v.subject === selSubject))
   const subjectPlans   = planList.filter(p => p.subject === selSubject && !p.vendorId)
   const vendorFiles    = (vendorId) => planList.filter(p => p.vendorId === vendorId)
 
@@ -320,7 +320,7 @@ export function Supplies({ user }) {
         managerName: existingVendor.managerName || '',
         contact: existingVendor.contact || '',
         memo: existingVendor.memo || '',
-        subjects: existingVendor.subjects || [existingVendor.subject].filter(Boolean),
+        subjects: [existingVendor.subject].filter(Boolean),
       })
     } else {
       setVendorEditId(null)
@@ -371,7 +371,7 @@ export function Supplies({ user }) {
             memo:  plans[i]?.memo  || '',
           }))
         }
-        setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: maxS, sessionsPerStage: perS, alertSession: existingProduct.alertSession||10 })
+        setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: maxS, sessionsPerStage: perS, alertSession: existingProduct.alertSession||10, subject: existingProduct.subject||'' })
         setStageSessionTitles(titles)
       } else {
         const cnt = 12
@@ -379,7 +379,7 @@ export function Supplies({ user }) {
         for (let s = 1; s <= 10; s++) {
           titles[s] = Array.from({length: cnt}, () => ({ title:'', memo:'' }))
         }
-        setProductForm({ id:null, name:'', maxStage:10, sessionsPerStage:cnt, alertSession:10 })
+        setProductForm({ id:null, name:'', maxStage:10, sessionsPerStage:cnt, alertSession:10, subject: selSubject||'' })
         setStageSessionTitles(titles)
       }
       setProductStageTab(1)
@@ -392,16 +392,20 @@ export function Supplies({ user }) {
 
   const saveProduct = () => {
     if (!productForm.name) { toastError('교구명을 입력하세요'); return }
+    const vendor = vendorList.find(v => v.id === productVendorId)
+    const vendorSubjects = vendor ? (vendor.subjects?.length > 0 ? vendor.subjects : [vendor.subject].filter(Boolean)) : []
+    if (vendorSubjects.length > 1 && !productForm.subject) { toastError('교구 과목 분류를 선택하세요'); return }
     const isEdit = !!productForm.id
     const productId = isEdit ? productForm.id : uid()
     if (isEdit) {
       SupplyProducts.update(productId, {
         name: productForm.name, maxStage: productForm.maxStage,
         sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession,
+        subject: productForm.subject,
       })
     } else {
       SupplyProducts.insert({
-        id: productId, teacherId: user.id, vendorId: productVendorId, subject: selSubject,
+        id: productId, teacherId: user.id, vendorId: productVendorId, subject: productForm.subject || selSubject,
         name: productForm.name, maxStage: productForm.maxStage,
         sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession,
         createdAt: now(),
@@ -1487,6 +1491,33 @@ export function Supplies({ user }) {
                   )}
                 </div>
               )}
+
+              {/* 교구 과목 분류 */}
+              {(() => {
+                const vendor = vendorList.find(v => v.id === productVendorId)
+                const vendorSubjects = vendor
+                  ? (vendor.subjects?.length > 0 ? vendor.subjects : [vendor.subject].filter(Boolean))
+                  : subjects
+                return vendorSubjects.length > 1 ? (
+                  <div>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>
+                      교구 과목 분류 * <span style={{ fontWeight:400 }}>(이 교구가 속한 과목)</span>
+                    </label>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
+                      {vendorSubjects.map(s => {
+                        const selected = productForm.subject === s
+                        return (
+                          <button key={s} onClick={() => setProductForm(v=>({...v, subject:s}))}
+                            style={{ padding:'7px 16px', borderRadius:'20px', border:`1.5px solid ${selected ? C.primary : C.border}`, background: selected ? '#fff7ed' : '#fff', color: selected ? C.primary : C.muted, fontSize:'13px', fontWeight: selected ? 700 : 400, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
+                            {selected ? '✓ ' : ''}{s}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {!productForm.subject && <div style={{ fontSize:'11px', color:C.danger, marginTop:'4px' }}>과목을 선택하세요</div>}
+                  </div>
+                ) : null
+              })()}
 
               {/* 교구명 */}
               <div>
