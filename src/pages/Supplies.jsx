@@ -136,7 +136,9 @@ export function Supplies({ user }) {
 
   // 교구업체 모달
   const [vendorModal, setVendorModal] = useState(false)
-  const [vendorForm, setVendorForm]   = useState({ name:'', managerName:'', contact:'', memo:'' })
+  const [vendorForm, setVendorForm]   = useState({ name:'', managerName:'', contact:'', memo:'', subjects:[] })
+  const [vendorEditId, setVendorEditId] = useState(null)
+  const [vendorNewSubject, setVendorNewSubject] = useState('')
   const [expandedVendor, setExpandedVendor] = useState(null)
   const [expandedStage, setExpandedStage]   = useState(null)  // 진도체크 단계 펼침
 
@@ -309,10 +311,39 @@ export function Supplies({ user }) {
   const subjectPlans   = planList.filter(p => p.subject === selSubject && !p.vendorId)
   const vendorFiles    = (vendorId) => planList.filter(p => p.vendorId === vendorId)
 
+
+  const openVendorModal = (existingVendor=null) => {
+    if (existingVendor) {
+      setVendorEditId(existingVendor.id)
+      setVendorForm({
+        name: existingVendor.name || '',
+        managerName: existingVendor.managerName || '',
+        contact: existingVendor.contact || '',
+        memo: existingVendor.memo || '',
+        subjects: existingVendor.subjects || [existingVendor.subject].filter(Boolean),
+      })
+    } else {
+      setVendorEditId(null)
+      setVendorForm({ name:'', managerName:'', contact:'', memo:'', subjects: selSubject ? [selSubject] : [] })
+    }
+    setVendorNewSubject('')
+    setVendorModal(true)
+  }
+
   const saveVendor = () => {
     if (!vendorForm.name) { toastError('업체명을 입력하세요'); return }
-    SupplyVendors.insert({ id: uid(), teacherId: user.id, subject: selSubject, ...vendorForm, createdAt: now() })
-    reload(); setVendorModal(false); setVendorForm({ name:'', managerName:'', contact:'', memo:'' }); success('등록이 완료되었습니다.')
+    const subjectVal = vendorForm.subjects.length > 0 ? vendorForm.subjects[0] : selSubject
+    if (vendorEditId) {
+      SupplyVendors.update(vendorEditId, {
+        name: vendorForm.name, managerName: vendorForm.managerName,
+        contact: vendorForm.contact, memo: vendorForm.memo,
+        subject: subjectVal, subjects: vendorForm.subjects,
+      })
+      reload(); setVendorModal(false); setVendorEditId(null); setVendorForm({ name:'', managerName:'', contact:'', memo:'', subjects:[] }); success('수정이 완료되었습니다.')
+    } else {
+      SupplyVendors.insert({ id: uid(), teacherId: user.id, subject: subjectVal, subjects: vendorForm.subjects, name: vendorForm.name, managerName: vendorForm.managerName, contact: vendorForm.contact, memo: vendorForm.memo, createdAt: now() })
+      reload(); setVendorModal(false); setVendorForm({ name:'', managerName:'', contact:'', memo:'', subjects:[] }); success('등록이 완료되었습니다.')
+    }
   }
   const deleteVendor = (id) => {
     setDeleteConfirm({ msg:'이 업체를 삭제하시겠습니까?\n업체 파일도 함께 삭제됩니다.', onOk: () => {
@@ -965,7 +996,7 @@ export function Supplies({ user }) {
                     style={{ padding:'8px 18px', borderRadius:'9px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
                     + 교구 등록
                   </button>
-                  <button onClick={() => setVendorModal(true)}
+                  <button onClick={() => openVendorModal()}
                     style={{ padding:'8px 18px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontWeight:700, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
                     + 업체 등록
                   </button>
@@ -1000,6 +1031,8 @@ export function Supplies({ user }) {
                           <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                             {vProducts.length > 0 && <span style={{ fontSize:'12px', background:'#f5f3ff', color:'#7c3aed', border:'1px solid #ddd6fe', borderRadius:'5px', padding:'2px 8px', fontWeight:600 }}>교구 {vProducts.length}종</span>}
                             {vFiles.length > 0    && <span style={{ fontSize:'12px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'5px', padding:'2px 8px', fontWeight:600 }}>파일 {vFiles.length}개</span>}
+                            <button onClick={e=>{ e.stopPropagation(); openVendorModal(v) }}
+                              style={{ padding:'4px 9px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
                             <button onClick={e=>{ e.stopPropagation(); deleteVendor(v.id) }}
                               style={{ padding:'4px 9px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                             <span style={{ fontSize:'14px', color:C.muted }}>{isExpanded ? '▲' : '▼'}</span>
@@ -1797,9 +1830,9 @@ export function Supplies({ user }) {
               </div>
       </Modal>
 
-      {/* ── 교구업체 등록 모달 */}
-      <Modal open={vendorModal} onClose={() => setVendorModal(false)} title={`🏢 교구업체 등록 — ${selSubject}`} width={420}>
-        <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+      {/* ── 교구업체 등록/수정 모달 */}
+      <Modal open={vendorModal} onClose={() => { setVendorModal(false); setVendorEditId(null) }} title={vendorEditId ? '🏢 교구업체 수정' : '🏢 교구업체 등록'} width={460}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'14px', padding:'4px 0' }}>
               {[
                 { label:'업체명 *',      key:'name',        placeholder:'예: (주)로봇나라' },
                 { label:'담당자 이름',   key:'managerName', placeholder:'예: 홍길동' },
@@ -1812,13 +1845,66 @@ export function Supplies({ user }) {
                     placeholder={f.placeholder} style={iStyle} />
                 </div>
               ))}
+
+              {/* 취급 과목 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>취급 과목</label>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'8px' }}>
+                  {subjects.map(s => {
+                    const selected = vendorForm.subjects.includes(s)
+                    return (
+                      <button key={s} onClick={() => setVendorForm(v => ({
+                        ...v,
+                        subjects: selected ? v.subjects.filter(x=>x!==s) : [...v.subjects, s]
+                      }))}
+                        style={{ padding:'6px 14px', borderRadius:'20px', border:`1.5px solid ${selected ? C.primary : C.border}`, background: selected ? '#fff7ed' : '#fff', color: selected ? C.primary : C.muted, fontSize:'13px', fontWeight: selected ? 700 : 400, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
+                        {selected ? '✓ ' : ''}{s}
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* 과목 직접 추가 */}
+                <div style={{ display:'flex', gap:'6px' }}>
+                  <input value={vendorNewSubject} onChange={e=>setVendorNewSubject(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && vendorNewSubject.trim()) {
+                        const s = vendorNewSubject.trim()
+                        if (!subjects.includes(s)) {
+                          SupplySubjects.insert({ id: uid(), teacherId: user.id, name:s, sortOrder:subjects.length, createdAt:now() })
+                          reload()
+                        }
+                        setVendorForm(v => ({ ...v, subjects: v.subjects.includes(s) ? v.subjects : [...v.subjects, s] }))
+                        setVendorNewSubject('')
+                      }
+                    }}
+                    placeholder="과목 직접 추가 후 Enter"
+                    style={{ ...iStyle, flex:1, fontSize:'12px', padding:'7px 10px' }} />
+                  <button onClick={() => {
+                    const s = vendorNewSubject.trim()
+                    if (!s) return
+                    if (!subjects.includes(s)) {
+                      SupplySubjects.insert({ id: uid(), teacherId: user.id, name:s, sortOrder:subjects.length, createdAt:now() })
+                      reload()
+                    }
+                    setVendorForm(v => ({ ...v, subjects: v.subjects.includes(s) ? v.subjects : [...v.subjects, s] }))
+                    setVendorNewSubject('')
+                  }}
+                    style={{ padding:'7px 14px', borderRadius:'9px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                    + 추가
+                  </button>
+                </div>
+                {vendorForm.subjects.length > 0 && (
+                  <div style={{ fontSize:'11px', color:C.primary, marginTop:'5px' }}>선택됨: {vendorForm.subjects.join(', ')}</div>
+                )}
+              </div>
+
               <div style={{ fontSize:'12px', color:C.muted, background:'#f9fafb', padding:'10px 12px', borderRadius:'8px' }}>
                 💡 업체 등록 후 업체 카드를 펼쳐서 교구·홍보물·지도안을 추가할 수 있습니다.
               </div>
               <div style={{ display:'flex', gap:'8px' }}>
                 <button onClick={saveVendor}
-                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
-                <button onClick={()=>setVendorModal(false)}
+                  style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>{vendorEditId ? '수정 완료' : '저장'}</button>
+                <button onClick={()=>{ setVendorModal(false); setVendorEditId(null) }}
                   style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
               </div>
         </div>
