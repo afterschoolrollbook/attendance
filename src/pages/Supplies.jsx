@@ -223,7 +223,8 @@ export function Supplies({ user }) {
   // 파일 등록 모달 — 현재 과목 교구 목록 (IIFE 제거로 상단 이동)
   const modalProducts = productList.filter(p => {
     const vendor = vendorList.find(v => v.id === p.vendorId)
-    return vendor?.subject === selSubject
+    return p.subject === selSubject || vendor?.subject === selSubject ||
+      (vendor?.subjects?.length > 0 ? vendor.subjects.includes(selSubject) : false)
   })
   const selectedProduct = modalProducts.find(p => p.id === fileForm.productId)
   const toggleSchool = (s) => setFileForm(f => ({
