@@ -1105,7 +1105,8 @@ export function Supplies({ user }) {
                                 <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
                                   {vProducts.map(p => {
                                     const planCount   = productPlanList.filter(pl=>pl.productId===p.id).length
-                                    const annualPlans = planList.filter(pl=>pl.productId===p.id && (pl.fileType==='annual'||pl.type==='annual'))
+                                    const sameSeriesIds = productList.filter(x=>x.name===p.name && x.vendorId===p.vendorId).map(x=>x.id)
+                                    const annualPlans = planList.filter(pl=>sameSeriesIds.includes(pl.productId) && (pl.fileType==='annual'||pl.type==='annual'))
                                     const promos      = planList.filter(pl=>pl.productId===p.id && (pl.fileType==='promo'||pl.type==='promo'))
                                     return (
                                       <div key={p.id} style={{ background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
@@ -1218,14 +1219,43 @@ export function Supplies({ user }) {
                                             <div style={{ fontSize:'12px', color:C.muted }}>등록된 연간지도안이 없습니다</div>
                                           ) : (
                                             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                                              {annualPlans.map(f => <FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('product_annual', null, item.productId, item)}/>)}
+                                              {(() => {
+                                                const grouped = []
+                                                const seen = new Set()
+                                                annualPlans.forEach(f => {
+                                                  const key = f.stage||'annual'
+                                                  if (!seen.has(key)) {
+                                                    seen.add(key)
+                                                    const siblings = annualPlans.filter(x=>(x.stage||'annual')===key)
+                                                    const schools = siblings.map(x=>x.school).filter(Boolean)
+                                                    grouped.push({ item: siblings[0], schools, ids: siblings.map(x=>x.id) })
+                                                  }
+                                                })
+                                                return grouped.map(({ item, schools, ids }) => (
+                                                  <FileRow key={item.id} item={item} schools={schools}
+                                                    onDelete={() => ids.forEach(id => deleteFile(id))}
+                                                    onEdit={() => openFileModal('product_annual', null, item.productId, item)} />
+                                                ))
+                                              })()}
                                             </div>
                                           )}
                                         </div>
 
-                                        {/* 차시별지도안 파일 */}
+                                        {/* 차시별지도안 파일 — 단계별로 묶어서 표시 */}
                                         {(() => {
-                                          const sessionPlans = planList.filter(pl => pl.productId===p.id && (pl.fileType==='session'||pl.type==='session'))
+                                          const sessionPlans = planList.filter(pl => sameSeriesIds.includes(pl.productId) && (pl.fileType==='session'||pl.type==='session'))
+                                          // 단계별로 묶기 (같은 단계는 학교들 합쳐서 1행)
+                                          const stageGroups = []
+                                          const seenStages = new Set()
+                                          sessionPlans.forEach(pl => {
+                                            const stage = pl.stage
+                                            if (!seenStages.has(stage)) {
+                                              seenStages.add(stage)
+                                              const siblings = sessionPlans.filter(x => x.stage === stage)
+                                              const schools = siblings.map(x=>x.school).filter(Boolean)
+                                              stageGroups.push({ item: siblings[0], schools, ids: siblings.map(x=>x.id) })
+                                            }
+                                          })
                                           return (
                                             <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
                                               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
@@ -1235,11 +1265,15 @@ export function Supplies({ user }) {
                                                   + 추가
                                                 </button>
                                               </div>
-                                              {sessionPlans.length === 0 ? (
+                                              {stageGroups.length === 0 ? (
                                                 <div style={{ fontSize:'12px', color:C.muted }}>등록된 차시별지도안 파일이 없습니다</div>
                                               ) : (
                                                 <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                                                  {sessionPlans.map(f => <FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('product_session', null, item.productId, item)}/>)}
+                                                  {stageGroups.map(({ item, schools, ids }) => (
+                                                    <FileRow key={item.id} item={item} schools={schools}
+                                                      onDelete={() => ids.forEach(id => deleteFile(id))}
+                                                      onEdit={() => openFileModal('product_session', null, item.productId, item)} />
+                                                  ))}
                                                 </div>
                                               )}
                                             </div>
