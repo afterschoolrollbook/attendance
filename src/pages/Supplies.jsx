@@ -1498,13 +1498,17 @@ export function Supplies({ user }) {
                 const vendorSubjects = vendor
                   ? (vendor.subjects?.length > 0 ? vendor.subjects : [vendor.subject].filter(Boolean))
                   : subjects
-                return vendorSubjects.length > 1 ? (
+                // 신규: 복수과목 업체일 때만 / 수정: 항상 표시
+                const isEdit = !!productForm.id
+                const showSelector = isEdit || vendorSubjects.length > 1
+                const selectorOptions = isEdit && vendorSubjects.length === 0 ? subjects : vendorSubjects
+                return showSelector && selectorOptions.length > 0 ? (
                   <div>
                     <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>
                       교구 과목 분류 * <span style={{ fontWeight:400 }}>(이 교구가 속한 과목)</span>
                     </label>
                     <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
-                      {vendorSubjects.map(s => {
+                      {selectorOptions.map(s => {
                         const selected = productForm.subject === s
                         return (
                           <button key={s} onClick={() => setProductForm(v=>({...v, subject:s}))}
