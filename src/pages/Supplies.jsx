@@ -581,6 +581,21 @@ export function Supplies({ user }) {
     }})
   }
 
+
+  // 지도안/홍보물 정렬: 연간지도안 → 차시별지도안(단계 오름차순) → 나머지
+  const sortPlanItems = (items) => {
+    const typeOrder = { annual: 0, session: 1, promo: 2 }
+    return [...items].sort((a, b) => {
+      const ta = typeOrder[a.fileType || a.type] ?? 9
+      const tb = typeOrder[b.fileType || b.type] ?? 9
+      if (ta !== tb) return ta - tb
+      // 같은 타입이면 단계 오름차순
+      const sa = Number(a.stage) || 0
+      const sb = Number(b.stage) || 0
+      return sa - sb
+    })
+  }
+
   const INNER_TABS = [
     { key:'supply', label:`🎒 교구(${selSubject||''})` },
     { key:'plan',   label:`📋 지도안(${selSubject||''})` },
@@ -922,8 +937,8 @@ export function Supplies({ user }) {
                 const schools  = [...new Set(planItems.filter(p=>p.school).map(p=>p.school))]
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                    {noSchool.length > 0 && <div><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📁 공통 자료</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{noSchool.map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('plan', null, item.productId, item)}/>)}</div></div>}
-                    {schools.map(school => <div key={school}><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🏫 {school}</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{planItems.filter(p=>p.school===school).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('plan', null, item.productId, item)}/>)}</div></div>)}
+                    {noSchool.length > 0 && <div><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📁 공통 자료</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{sortPlanItems(noSchool).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('plan', null, item.productId, item)}/>)}</div></div>}
+                    {schools.map(school => <div key={school}><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🏫 {school}</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{sortPlanItems(planItems.filter(p=>p.school===school)).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('plan', null, item.productId, item)}/>)}</div></div>)}
                   </div>
                 )
               })()}
@@ -947,8 +962,8 @@ export function Supplies({ user }) {
                 const schools  = [...new Set(promoItems.filter(p=>p.school).map(p=>p.school))]
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                    {noSchool.length > 0 && <div><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📁 공통 홍보물</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{noSchool.map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('promo', null, item.productId, item)}/>)}</div></div>}
-                    {schools.map(school => <div key={school}><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🏫 {school}</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{promoItems.filter(p=>p.school===school).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('promo', null, item.productId, item)}/>)}</div></div>)}
+                    {noSchool.length > 0 && <div><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📁 공통 홍보물</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{sortPlanItems(noSchool).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('promo', null, item.productId, item)}/>)}</div></div>}
+                    {schools.map(school => <div key={school}><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🏫 {school}</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{sortPlanItems(promoItems.filter(p=>p.school===school)).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('promo', null, item.productId, item)}/>)}</div></div>)}
                   </div>
                 )
               })()}
