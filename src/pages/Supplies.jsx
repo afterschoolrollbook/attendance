@@ -961,11 +961,11 @@ export function Supplies({ user }) {
                   subjectProducts.forEach(p => {
                     const registeredStages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
                     registeredStages.forEach(stage => {
+                      // school 관계없이 planList에 해당 productId+stage가 하나라도 있으면 가상 항목 안 만듦
                       const exists = planList.some(pl =>
                         pl.productId === p.id &&
                         Number(pl.stage) === Number(stage) &&
-                        (pl.fileType==='session'||pl.type==='session') &&
-                        (pl.school||null) === (school||null)
+                        (pl.fileType==='session'||pl.type==='session')
                       )
                       if (!exists) {
                         virtual.push({
