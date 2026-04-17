@@ -1037,11 +1037,13 @@ export function Supplies({ user }) {
                                             <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px', display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
                                               {/* 등록된 단계별 차시 수 */}
                                               {(() => {
-                                                const registeredStages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
+                                                const stagesFromPlans = planList.filter(pl=>pl.productId===p.id&&(pl.fileType==='session'||pl.type==='session')&&pl.stage).map(pl=>Number(pl.stage))
+                                                const stagesFromProductPlans = productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage)
+                                                const registeredStages = [...new Set([...stagesFromProductPlans, ...stagesFromPlans])].sort((a,b)=>a-b)
                                                 if (registeredStages.length === 0) return <span style={{ color:C.danger }}>차시지도안 미등록</span>
                                                 return registeredStages.map(st => {
                                                   const cnt = productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===st).length
-                                                  return <span key={st} style={{ background:'#f5f3ff', color:'#7c3aed', borderRadius:'4px', padding:'1px 6px' }}>{st}단계({cnt}차시)</span>
+                                                  return <span key={st} style={{ background:'#f5f3ff', color:'#7c3aed', borderRadius:'4px', padding:'1px 6px' }}>{st}단계{cnt>0?`(${cnt}차시)`:''}</span>
                                                 })
                                               })()}
                                               {annualPlans.length > 0 && <span style={{ background:'#eff6ff', color:C.blue, borderRadius:'4px', padding:'1px 6px' }}>연간지도안 {annualPlans.length}개</span>}
@@ -1058,7 +1060,9 @@ export function Supplies({ user }) {
                                           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
                                             <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📊 단계별 진도체크</span>
                                             {(() => {
-                                              const registeredStages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
+                                              const stagesFromPlans2 = planList.filter(pl=>pl.productId===p.id&&(pl.fileType==='session'||pl.type==='session')&&pl.stage).map(pl=>Number(pl.stage))
+                                              const stagesFromProductPlans2 = productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage)
+                                              const registeredStages = [...new Set([...stagesFromProductPlans2, ...stagesFromPlans2])].sort((a,b)=>a-b)
                                               const nextStage = registeredStages.length > 0 ? Math.max(...registeredStages) + 1 : 1
                                               return nextStage <= (p.maxStage||10) ? (
                                                 <button onClick={() => openSessionPlan(p.id, nextStage)}
@@ -1069,7 +1073,9 @@ export function Supplies({ user }) {
                                             })()}
                                           </div>
                                           {(() => {
-                                            const registeredStages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
+                                            const stagesFromPlans3 = planList.filter(pl=>pl.productId===p.id&&(pl.fileType==='session'||pl.type==='session')&&pl.stage).map(pl=>Number(pl.stage))
+                                            const stagesFromProductPlans3 = productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage)
+                                            const registeredStages = [...new Set([...stagesFromProductPlans3, ...stagesFromPlans3])].sort((a,b)=>a-b)
                                             if (registeredStages.length === 0) return (
                                               <div style={{ fontSize:'12px', color:C.muted }}>등록된 차시지도안이 없습니다</div>
                                             )
@@ -1140,7 +1146,6 @@ export function Supplies({ user }) {
                                         {/* 차시별지도안 파일 */}
                                         {(() => {
                                           const sessionPlans = planList.filter(pl => pl.productId===p.id && (pl.fileType==='session'||pl.type==='session'))
-                                          const registeredStages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
                                           return (
                                             <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
                                               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
