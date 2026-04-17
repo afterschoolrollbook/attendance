@@ -952,58 +952,68 @@ export function Supplies({ user }) {
               </div>
               {(() => {
                 const planItems = subjectPlans.filter(p => p.fileType!=='promo' && p.type!=='promo')
+                if (!planItems.length) return <div style={{ textAlign:'center', padding:'60px', color:C.muted }}><div style={{ fontSize:'36px', marginBottom:'10px' }}>📋</div><div style={{ fontSize:'14px' }}>등록된 지도안이 없습니다</div></div>
 
-                // productPlanList에 등록된 단계 중 planList에 없는 것을 가상 항목으로 추가
-                const subjectProducts = productList.filter(p => {
-                  const vendor = vendorList.find(v => v.id === p.vendorId)
-                  return vendor?.subject === selSubject || p.subject === selSubject
-                })
-                const virtualItems = []
-                subjectProducts.forEach(p => {
-                  const registeredStages = [...new Set(productPlanList.filter(pl => pl.productId === p.id).map(pl => pl.stage))].sort((a,b)=>a-b)
-                  registeredStages.forEach(stage => {
-                    const alreadyInPlan = planItems.some(pl => pl.productId === p.id && Number(pl.stage) === stage && (pl.fileType==='session'||pl.type==='session'))
-                    if (!alreadyInPlan) {
-                      virtualItems.push({
-                        id: `virtual_${p.id}_${stage}`,
-                        _virtual: true,
-                        productId: p.id,
-                        title: `${p.name} ${stage}단계 차시별 지도안`,
-                        fileType: 'session',
-                        type: 'session',
-                        stage,
-                        fileUrl: null,
-                        fileName: null,
-                        school: null,
-                      })
-                    }
+                // 학교 그룹별로, productPlanList에 있는 단계 중 planList에 없는 단계를 가상 항목으로 추가
+                const subjectProducts = productList.filter(p => p.subject === selSubject || vendorList.find(v=>v.id===p.vendorId)?.subject===selSubject)
+                const getVirtualForSchool = (school) => {
+                  const virtual = []
+                  subjectProducts.forEach(p => {
+                    const registeredStages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
+                    registeredStages.forEach(stage => {
+                      const exists = planList.some(pl =>
+                        pl.productId === p.id &&
+                        Number(pl.stage) === Number(stage) &&
+                        (pl.fileType==='session'||pl.type==='session') &&
+                        (pl.school||null) === (school||null)
+                      )
+                      if (!exists) {
+                        virtual.push({
+                          id: `virtual_${p.id}_${stage}_${school||''}`,
+                          _virtual: true,
+                          productId: p.id,
+                          title: `${p.name} ${stage}단계 차시별 지도안`,
+                          fileType: 'session', type: 'session',
+                          stage, fileUrl: null, fileName: null, school: school||null,
+                        })
+                      }
+                    })
                   })
-                })
-                const allPlanItems = [...planItems, ...virtualItems]
+                  return virtual
+                }
 
-                if (!allPlanItems.length) return <div style={{ textAlign:'center', padding:'60px', color:C.muted }}><div style={{ fontSize:'36px', marginBottom:'10px' }}>📋</div><div style={{ fontSize:'14px' }}>등록된 지도안이 없습니다</div></div>
-                const noSchool = allPlanItems.filter(p=>!p.school)
-                const schools  = [...new Set(allPlanItems.filter(p=>p.school).map(p=>p.school))]
+                const noSchool = planItems.filter(p=>!p.school)
+                const schools  = [...new Set(planItems.filter(p=>p.school).map(p=>p.school))]
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                    {noSchool.length > 0 && <div><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📁 공통 자료</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{sortPlanItems(noSchool).map(p=> p._virtual ? (
-                      <div key={p.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#fff', borderRadius:'9px', border:'1.5px dashed #e5e7eb' }}>
-                        <span style={{ fontSize:'20px' }}>📝</span>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:'13px', fontWeight:600, color:'#111827' }}>{p.title}</div>
-                          <div style={{ fontSize:'11px', marginTop:'2px', display:'flex', gap:'8px', alignItems:'center' }}>
-                            <span style={{ background:'#f3f4f6', borderRadius:'4px', padding:'0 5px', color:'#6b7280' }}>차시별지도안</span>
-                            <span style={{ background:'#eff6ff', color:'#3b82f6', borderRadius:'4px', padding:'0 5px' }}>{p.stage}단계</span>
-                            <span style={{ color:'#f97316', fontWeight:600 }}>파일 미등록</span>
+                    {noSchool.length > 0 && <div><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📁 공통 자료</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{sortPlanItems(noSchool).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('plan', null, item.productId, item)}/>)}</div></div>}
+                    {schools.map(school => {
+                      const schoolItems = sortPlanItems([...planItems.filter(p=>p.school===school), ...getVirtualForSchool(school)])
+                      return (
+                        <div key={school}>
+                          <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🏫 {school}</div>
+                          <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                            {schoolItems.map(p => p._virtual ? (
+                              <div key={p.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:'#fff', borderRadius:'9px', border:'1.5px dashed #e5e7eb' }}>
+                                <span style={{ fontSize:'20px' }}>📝</span>
+                                <div style={{ flex:1 }}>
+                                  <div style={{ fontSize:'13px', fontWeight:600, color:'#111827' }}>{p.title}</div>
+                                  <div style={{ fontSize:'11px', marginTop:'2px', display:'flex', gap:'8px', alignItems:'center' }}>
+                                    <span style={{ background:'#f3f4f6', borderRadius:'4px', padding:'0 5px', color:'#6b7280' }}>차시별지도안</span>
+                                    <span style={{ background:'#eff6ff', color:'#3b82f6', borderRadius:'4px', padding:'0 5px' }}>{p.stage}단계</span>
+                                    <span style={{ color:'#f97316', fontWeight:600 }}>파일 미등록</span>
+                                  </div>
+                                </div>
+                                <button onClick={() => openFileModal('product_session', null, p.productId)}
+                                  style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #f97316', background:'#fff7ed', color:'#f97316', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                  + 파일 등록
+                                </button>
+                              </div>
+                            ) : <FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('plan', null, item.productId, item)}/>)}
                           </div>
                         </div>
-                        <button onClick={() => openFileModal('product_session', null, p.productId)}
-                          style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #f97316', background:'#fff7ed', color:'#f97316', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                          + 파일 등록
-                        </button>
-                      </div>
-                    ) : <FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('plan', null, item.productId, item)}/>)}</div></div>}
-                    {schools.map(school => <div key={school}><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🏫 {school}</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{sortPlanItems(allPlanItems.filter(p=>p.school===school)).map(p=> p._virtual ? null : <FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('plan', null, item.productId, item)}/>)}</div></div>)}
+                      )
+                    })}
                   </div>
                 )
               })()}
