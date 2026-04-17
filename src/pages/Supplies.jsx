@@ -502,10 +502,17 @@ export function Supplies({ user }) {
       setFileProductTarget(productId || null)
       setFileEditId(editItem?.id || null)
       if (editItem) {
-        // 수정 모드 — 기존 값 로드
+        // 수정 모드 — 같은 productId+fileType+stage인 항목들의 학교 모두 로드
+        const fileType = editItem.fileType || editItem.type || 'annual'
+        const siblings = planList.filter(p =>
+          p.productId === editItem.productId &&
+          (p.fileType||p.type) === fileType &&
+          (p.stage||'') === (editItem.stage||'')
+        )
+        const allSchools = siblings.map(p=>p.school).filter(Boolean)
         setFileForm({
-          fileType: editItem.fileType || editItem.type || 'annual',
-          schools: editItem.school ? [editItem.school] : [],
+          fileType,
+          schools: allSchools,
           stage: editItem.stage || '',
           vendorId: editItem.vendorId || '',
           productId: editItem.productId || '',
@@ -551,28 +558,29 @@ export function Supplies({ user }) {
         fileName = modalFile.name
       }
       if (fileEditId) {
-        // 수정 모드 — 학교 복수 선택 처리: 첫 번째는 기존 건 update, 나머지는 새로 insert
+        // 수정 모드 — 기존 siblings 전체 삭제 후 선택된 학교들로 새로 insert
+        const productIdToUse = fileProductTarget || fileForm.productId || null
+        const siblings = planList.filter(p =>
+          p.productId === productIdToUse &&
+          (p.fileType||p.type) === fileForm.fileType &&
+          (p.stage||'') === (fileForm.stage||'')
+        )
+        // 기존 항목 모두 삭제
+        siblings.forEach(p => SupplyPlans.delete(p.id))
+        // 선택된 학교들로 새로 insert
         const schoolsToSave = fileForm.schools.length > 0 ? fileForm.schools : [null]
-        SupplyPlans.update(fileEditId, {
-          title: autoTitle,
-          fileType: fileForm.fileType,
-          type: fileForm.fileType,
-          school: schoolsToSave[0] || null,
-          productId: fileProductTarget || fileForm.productId || null,
-          stage: fileForm.stage || null,
-          ...(fileUrl ? { fileUrl, fileName } : {}),
-        })
-        // 두 번째 학교부터 새로 insert
-        schoolsToSave.slice(1).forEach(school => {
+        schoolsToSave.forEach(school => {
           SupplyPlans.insert({
             id: uid(), teacherId: user.id, subject: selSubject,
             type: fileForm.fileType, fileType: fileForm.fileType,
             title: autoTitle,
             school: school || null,
-            vendorId: fileTarget||null,
-            productId: fileProductTarget || fileForm.productId || null,
+            vendorId: fileTarget || siblings[0]?.vendorId || null,
+            productId: productIdToUse,
             stage: fileForm.stage || null,
-            fileUrl, fileName, createdAt: now(),
+            fileUrl: fileUrl || siblings[0]?.fileUrl || null,
+            fileName: fileName || siblings[0]?.fileName || null,
+            createdAt: now(),
           })
         })
         setFileEditId(null)
