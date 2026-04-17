@@ -549,15 +549,29 @@ export function Supplies({ user }) {
         fileName = modalFile.name
       }
       if (fileEditId) {
-        // 수정 모드 — 파일만 교체하거나 내용 업데이트
+        // 수정 모드 — 학교 복수 선택 처리: 첫 번째는 기존 건 update, 나머지는 새로 insert
+        const schoolsToSave = fileForm.schools.length > 0 ? fileForm.schools : [null]
         SupplyPlans.update(fileEditId, {
           title: autoTitle,
           fileType: fileForm.fileType,
           type: fileForm.fileType,
-          school: fileForm.schools[0] || null,
+          school: schoolsToSave[0] || null,
           productId: fileProductTarget || fileForm.productId || null,
           stage: fileForm.stage || null,
           ...(fileUrl ? { fileUrl, fileName } : {}),
+        })
+        // 두 번째 학교부터 새로 insert
+        schoolsToSave.slice(1).forEach(school => {
+          SupplyPlans.insert({
+            id: uid(), teacherId: user.id, subject: selSubject,
+            type: fileForm.fileType, fileType: fileForm.fileType,
+            title: autoTitle,
+            school: school || null,
+            vendorId: fileTarget||null,
+            productId: fileProductTarget || fileForm.productId || null,
+            stage: fileForm.stage || null,
+            fileUrl, fileName, createdAt: now(),
+          })
         })
         setFileEditId(null)
       } else {
@@ -1782,7 +1796,7 @@ export function Supplies({ user }) {
                         onChange={e => setFileForm(f=>({...f, productId:e.target.value, stage:''}))}
                         style={{ ...iStyle, background:'#fff' }}>
                         <option value=''>-- 교구를 선택하세요 --</option>
-                        {modalProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {modalProducts.map(p => { const stages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b); const stageLabel = stages.length > 0 ? ` (${stages.map(s=>s+'단계').join(', ')})` : ''; return <option key={p.id} value={p.id}>{p.name}{stageLabel}</option> })}
                       </select>
                     )}
                   </div>
