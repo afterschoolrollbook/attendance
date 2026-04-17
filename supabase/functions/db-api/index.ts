@@ -149,7 +149,7 @@ serve(async (req) => {
 
     switch (action) {
       case 'getAll': {
-        const { data: rows, error } = await supabase.from(tbl).select('*')
+        const { data: rows, error } = await supabase.from(tbl).select('*').or('_deleted.is.null,_deleted.eq.false')
         if (error) throw error
         result = rows.map(fromDb)
         break
