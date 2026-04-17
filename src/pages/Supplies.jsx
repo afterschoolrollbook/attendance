@@ -38,10 +38,11 @@ const iStyle = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1
 
 
 // ── 파일 행
-function FileRow({ item, onDelete, onEdit }) {
+function FileRow({ item, onDelete, onEdit, schools=[] }) {
   const icon = item.fileType === 'promo' ? '🖼' : '📄'
   const typeLabel = { annual:'연간지도안', session:'차시별지도안', promo:'홍보물' }[item.fileType] || ''
   const noFile = !item.fileUrl
+  const allSchools = schools.length > 0 ? schools : (item.school ? [item.school] : [])
   return (
     <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:C.card, borderRadius:'9px', border:`1.5px solid ${noFile ? '#fca5a5' : C.border}` }}>
       <span style={{ fontSize:'20px', flexShrink:0 }}>{noFile ? '⚠️' : icon}</span>
@@ -50,7 +51,7 @@ function FileRow({ item, onDelete, onEdit }) {
         <div style={{ fontSize:'11px', marginTop:'2px', display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
           <span style={{ background:'#f3f4f6', borderRadius:'4px', padding:'0 5px', color:C.muted }}>{typeLabel}</span>
           {item.stage && <span style={{ background:'#eff6ff', color:'#3b82f6', borderRadius:'4px', padding:'0 5px' }}>{item.stage}단계</span>}
-          {item.school && <span style={{ color:C.muted }}>🏫 {item.school}</span>}
+          {allSchools.map(s => <span key={s} style={{ color:C.muted }}>🏫 {s}</span>)}
           {noFile
             ? <span style={{ color:'#ef4444', fontWeight:600 }}>파일 업로드가 필요합니다</span>
             : <span style={{ color:C.muted }}>{item.fileName}</span>
@@ -969,12 +970,25 @@ export function Supplies({ user }) {
               {(() => {
                 const planItems = subjectPlans.filter(p => p.fileType!=='promo' && p.type!=='promo')
                 if (!planItems.length) return <div style={{ textAlign:'center', padding:'60px', color:C.muted }}><div style={{ fontSize:'36px', marginBottom:'10px' }}>📋</div><div style={{ fontSize:'14px' }}>등록된 지도안이 없습니다</div></div>
-                const noSchool = planItems.filter(p=>!p.school)
-                const schools  = [...new Set(planItems.filter(p=>p.school).map(p=>p.school))]
+                // 같은 productId+fileType+stage끼리 묶어서 하나의 행으로 표시
+                const grouped = []
+                const seen = new Set()
+                sortPlanItems(planItems).forEach(p => {
+                  const key = `${p.productId||''}_${p.fileType}_${p.stage||''}`
+                  if (!seen.has(key)) {
+                    seen.add(key)
+                    const siblings = planItems.filter(x => `${x.productId||''}_${x.fileType}_${x.stage||''}` === key)
+                    const allSchools = siblings.map(x=>x.school).filter(Boolean)
+                    grouped.push({ item: siblings[0], schools: allSchools, ids: siblings.map(x=>x.id) })
+                  }
+                })
                 return (
-                  <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                    {noSchool.length > 0 && <div><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📁 공통 자료</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{sortPlanItems(noSchool).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('plan', null, item.productId, item)}/>)}</div></div>}
-                    {schools.map(school => <div key={school}><div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>🏫 {school}</div><div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>{sortPlanItems(planItems.filter(p=>p.school===school)).map(p=><FileRow key={p.id} item={p} onDelete={deleteFile} onEdit={item=>openFileModal('plan', null, item.productId, item)}/>)}</div></div>)}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                    {grouped.map(({ item, schools, ids }) => (
+                      <FileRow key={item.id} item={item} schools={schools}
+                        onDelete={() => ids.forEach(id => deleteFile(id))}
+                        onEdit={() => openFileModal('plan', null, item.productId, item)} />
+                    ))}
                   </div>
                 )
               })()}
