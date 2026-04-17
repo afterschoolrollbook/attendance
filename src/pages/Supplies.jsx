@@ -1811,7 +1811,13 @@ export function Supplies({ user }) {
                         onChange={e => setFileForm(f=>({...f, productId:e.target.value, stage:''}))}
                         style={{ ...iStyle, background:'#fff' }}>
                         <option value=''>-- 교구를 선택하세요 --</option>
-                        {modalProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {modalProducts.map(p => {
+                          const stages = [...new Set(productPlanList.filter(pl=>pl.productId===p.id).map(pl=>pl.stage))].sort((a,b)=>a-b)
+                          const stageLabel = stages.length > 0 ? ` ${stages.map(s=>s+'단계').join('/')}` : ''
+                          const vendor = vendorList.find(v=>v.id===p.vendorId)
+                          const vendorLabel = vendor ? ` — ${vendor.name}` : ''
+                          return <option key={p.id} value={p.id}>{p.name}{stageLabel}{vendorLabel}</option>
+                        })}
                       </select>
                     )}
                   </div>
