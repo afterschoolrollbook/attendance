@@ -543,9 +543,9 @@ export function Supplies({ user }) {
     // 교구 선택 필수 (plan/session 모드)
     const needsProduct = ['plan','session','promo'].includes(fileModalMode)
     if (needsProduct && !fileForm.productId) { toastError('교구를 선택하세요'); return }
-    // 단계 필수 (plan/session 모드)
+    // 차시별 지도안이면 단계 필수
     const isSession = fileModalMode === 'session' || (fileModalMode === 'plan' && fileForm.fileType === 'session')
-    if (['plan','session'].includes(fileModalMode) && !fileForm.stage) { toastError('단계를 선택하세요'); return }
+    if (isSession && !fileForm.stage) { toastError('단계를 선택하세요'); return }
     // 제목 자동 생성
     const autoProduct = productList.find(p => p.id === (fileProductTarget || fileForm.productId))
     const autoTitle = autoProduct
@@ -553,7 +553,7 @@ export function Supplies({ user }) {
           ? `${autoProduct.name} 홍보물`
           : (isSession || fileModalMode === 'product_session')
             ? `${autoProduct.name} ${fileForm.stage}단계 차시별 지도안`
-            : `${autoProduct.name} ${fileForm.stage}단계 연간지도안`)
+            : `${autoProduct.name} 연간지도안`)
       : (fileForm.fileType === 'promo' ? '홍보물' : fileForm.fileType === 'session' ? '차시별지도안' : '지도안')
     setUploading(true)
     try {
@@ -1837,8 +1837,8 @@ export function Supplies({ user }) {
                       })()}
                     </div>
 
-                    {/* 2단계: 단계 선택 (선택한 시리즈에 등록된 단계만) */}
-                    {(fileModalMode === 'session' || fileModalMode === 'plan') && fileForm.productId && (() => {
+                    {/* 2단계: 단계 선택 — 차시별지도안일 때만 */}
+                    {(fileModalMode === 'session' || (fileModalMode === 'plan' && fileForm.fileType === 'session')) && fileForm.productId && (() => {
                       const selectedSeries = modalProducts.find(p=>p.id===fileForm.productId)
                       // 같은 시리즈명의 모든 교구 ID 수집
                       const sameNameProducts = modalProducts.filter(p=>p.name===selectedSeries?.name)
