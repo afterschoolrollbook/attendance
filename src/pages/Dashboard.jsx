@@ -2112,7 +2112,7 @@ function DayDetail({ date, user, classes, onNav }) {
           studentId={supplyCheckModal.studentId} classId={supplyCheckModal.classId} productId={supplyCheckModal.productId}
           teacherId={user.id}
           onClose={() => setSupplyCheckModal(null)}
-          onDelivered={() => setSupplyCheckModal(null)}
+          onDelivered={() => { setSupplyCheckModal(null); setSpProg(SupplyStudentProgress.byTeacher(user.id)) }}
         />
       )}
     </div>
@@ -2567,6 +2567,7 @@ export function Dashboard({ user, onNav }) {
   const [showSettings,    setShowSettings]    = useState(false)
   const [showInstallGuide, setShowInstallGuide] = useState(false)
   const [dashScModal, setDashScModal] = useState(null) // 교구 준비/지급 체크 모달
+  const [supplyTick, setSupplyTick]   = useState(0)    // 지급완료 후 강제 리렌더용
   const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches
 
   const handleAddShortcut = () => {
@@ -2842,7 +2843,7 @@ export function Dashboard({ user, onNav }) {
           studentId={dashScModal.studentId} classId={dashScModal.classId} productId={dashScModal.productId}
           teacherId={user.id}
           onClose={() => setDashScModal(null)}
-          onDelivered={() => setDashScModal(null)}
+          onDelivered={() => { setDashScModal(null); setSupplyTick(t => t + 1) }}
         />
       )}
 
