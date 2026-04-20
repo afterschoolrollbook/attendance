@@ -1946,7 +1946,7 @@ function DayDetail({ date, user, classes, onNav }) {
                             const dAlertLbl  = isDone
                               ? (nextProd ? `${nextProd.name} ${sg.nextStage||1}단계 준비` : `${sp?.name} ${st+1}단계 준비`)
                               : (nextProd ? `${nextProd.name} ${sg?.nextStage||1}단계 준비 필요` : `${sp?.name} ${st+1}단계 준비 필요`)
-                            const showDAlert = isDone || isAlert
+                            const showDAlert = (isDone || isAlert) && !sg?.supplyDelivered
                             const hb  = stu.remark || (stu.student_careers?.length > 0) || stu.status === 'cancel_before' || stu.status === 'cancel_after' || (stu.relations||[]).length > 0
                             return (
                               <tr key={stu.id} style={{ borderBottom: '1px solid #f3f4f6', background: idx%2===0 ? '#fff' : '#fafafa' }}>
@@ -2579,6 +2579,7 @@ export function Dashboard({ user, onNav }) {
       const isDone = chk >= actualSessions
       const isAlert = chk >= (actualSessions - alertSess) && !isDone
       if (!isDone && !isAlert) return []
+      if (prog?.supplyDelivered) return []  // 지급완료는 알림에서 제외
       const nextProd = isDone && prog?.nextProductId ? supplyProds.find(p => p.id === prog.nextProductId) : null
       const nextStage = prog?.nextStage || 1
       const label = isDone

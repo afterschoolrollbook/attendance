@@ -836,7 +836,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
   const _supplyLabel = _supplyDone
     ? (_nextProd ? `${_nextProd.name} ${_prog.nextStage || 1}단계 준비` : `${_prod?.name} ${_curStage+1}단계 준비`)
     : (_nextProd ? `${_nextProd.name} ${_prog.nextStage || 1}단계 준비 필요` : `${_prod?.name} ${_curStage+1}단계 준비 필요`)
-  const showSupplyBadge = _supplyDone || _supplyAlert
+  const showSupplyBadge = (_supplyDone || _supplyAlert) && !_prog?.supplyDelivered
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>

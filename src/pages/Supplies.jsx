@@ -160,6 +160,8 @@ export function Supplies({ user }) {
   const [subjectModal, setSubjectModal] = useState(false)
   const [newSubject, setNewSubject]     = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  // 교구 준비/지급 체크 모달
+  const [supplyCheckModal, setSupplyCheckModal] = useState(null) // { studentId, classId, productId, alertLabel, studentName }
   const { error: toastError, success } = useToast()
 
   const schoolList = [...new Set(classes.map(c => c.organization).filter(Boolean))]
@@ -828,7 +830,29 @@ export function Supplies({ user }) {
                                   <span style={{ fontSize:'12px', color:C.muted }}>{s.grade}학년</span>
                                   <span style={{ fontSize:'12px', color:C.muted }}>{s.classNum}반</span>
                                   <span style={{ fontSize:'12px', color:C.muted }}>{s.number||'-'}</span>
-                                  <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{s.name}</span>
+                                  <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>
+                                    {hasSupply && curStage && (() => {
+                                      const stagePlans2 = SupplyProductPlans.byProductStage(supply.productId, curStage)
+                                      const actualSess2 = stagePlans2.length > 0 ? stagePlans2.length : sps
+                                      const alertSess2 = product?.alertSession || 3
+                                      const isDone2 = stageChecks >= actualSess2
+                                      const isAlert2 = stageChecks >= (actualSess2 - alertSess2) && !isDone2
+                                      const progRec = progressList.find(p => p.studentId===s.id && p.classId===selClassId && p.productId===supply.productId)
+                                      if ((!isDone2 && !isAlert2) || progRec?.supplyDelivered) return null
+                                      const nextProd2 = progRec?.nextProductId ? productList.find(p => p.id === progRec.nextProductId) : null
+                                      const alertLabel2 = isDone2
+                                        ? (nextProd2 ? `${nextProd2.name} ${progRec.nextStage||1}단계 준비` : `${product?.name} ${curStage+1}단계 준비`)
+                                        : (nextProd2 ? `${nextProd2.name} ${progRec?.nextStage||1}단계 준비 필요` : `${product?.name} ${curStage+1}단계 준비 필요`)
+                                      return (
+                                        <div
+                                          onClick={e => { e.stopPropagation(); setSupplyCheckModal({ studentId:s.id, classId:selClassId, productId:supply.productId, alertLabel:alertLabel2, studentName:s.name }) }}
+                                          style={{ marginBottom:'3px', fontSize:'10px', fontWeight:700, color:'#ef4444', background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'2px 6px', whiteSpace:'nowrap', display:'inline-block', cursor:'pointer' }}>
+                                          ⚠️ {alertLabel2}
+                                        </div>
+                                      )
+                                    })()}
+                                    <div>{s.name}</div>
+                                  </span>
                                   <span style={{ fontSize:'12px', fontWeight:600, color: hasSupply ? '#7c3aed' : C.danger }}>
                                     {hasSupply ? supply.name : '없음'}
                                   </span>
@@ -848,11 +872,6 @@ export function Supplies({ user }) {
                                         : (nextProd2 ? `${nextProd2.name} ${prog.nextStage||1}단계 준비 필요` : `${product?.name} ${curStage+1}단계 준비 필요`)
                                       return (
                                         <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
-                                          {(isDone2 || isAlert2) && (
-                                            <span style={{ fontSize:'10px', fontWeight:700, color:isDone2?'#16a34a':C.danger, background:isDone2?'#f0fdf4':'#fef2f2', border:`1px solid ${isDone2?'#86efac':'#fca5a5'}`, borderRadius:'4px', padding:'1px 5px', whiteSpace:'nowrap' }}>
-                                              {isDone2?'✅':'⚠️'} {alertLabel2}
-                                            </span>
-                                          )}
                                           <span>{sps}차시 중 {stageChecks}</span>
                                         </div>
                                       )
@@ -2079,6 +2098,73 @@ export function Supplies({ user }) {
               </div>
         </div>
       </Modal>
+
+      {/* ── 교구 준비/지급 체크 모달 */}
+      {supplyCheckModal && (() => {
+        const prog = progressList.find(p =>
+          p.studentId === supplyCheckModal.studentId &&
+          p.classId   === supplyCheckModal.classId   &&
+          p.productId === supplyCheckModal.productId
+        )
+        const supplyReady     = prog?.supplyReady     || false
+        const supplyDelivered = prog?.supplyDelivered || false
+
+        const upsertProg = (patch) => {
+          const base = prog || {
+            id: uid(), teacherId: user.id,
+            studentId: supplyCheckModal.studentId,
+            classId:   supplyCheckModal.classId,
+            productId: supplyCheckModal.productId,
+            createdAt: now(),
+          }
+          SupplyStudentProgress.upsert({ ...base, ...patch, updatedAt: now() })
+          reload()
+        }
+
+        const toggleReady = () => upsertProg({ supplyReady: !supplyReady, supplyDelivered })
+        const toggleDelivered = () => {
+          upsertProg({ supplyReady, supplyDelivered: !supplyDelivered })
+          if (!supplyDelivered) setSupplyCheckModal(null)
+        }
+
+        return (
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:4000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}
+            onClick={() => setSupplyCheckModal(null)}>
+            <div style={{ background:'#fff', borderRadius:'16px', padding:'24px', maxWidth:'320px', width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}
+              onClick={e => e.stopPropagation()}>
+              {/* 헤더 */}
+              <div style={{ marginBottom:'6px', fontSize:'10px', fontWeight:700, color:'#ef4444', background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'3px 8px', display:'inline-block' }}>
+                ⚠️ {supplyCheckModal.alertLabel}
+              </div>
+              <div style={{ fontSize:'16px', fontWeight:700, color:'#111827', marginBottom:'20px' }}>
+                {supplyCheckModal.studentName}
+              </div>
+              {/* 체크박스 목록 */}
+              <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'24px' }}>
+                {[
+                  { key:'ready',     checked: supplyReady,     label:'교구 준비 완료', toggle: toggleReady,     color:'#f59e0b', bg:'#fffbeb', border:'#fde68a' },
+                  { key:'delivered', checked: supplyDelivered, label:'교구 지급 완료', toggle: toggleDelivered,  color:'#16a34a', bg:'#f0fdf4', border:'#86efac' },
+                ].map(item => (
+                  <label key={item.key} onClick={item.toggle}
+                    style={{ display:'flex', alignItems:'center', gap:'12px', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${item.checked ? item.border : '#e5e7eb'}`, background: item.checked ? item.bg : '#f9fafb', cursor:'pointer', transition:'all .15s' }}>
+                    <div style={{ width:'20px', height:'20px', borderRadius:'5px', border:`2px solid ${item.checked ? item.color : '#d1d5db'}`, background: item.checked ? item.color : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .15s' }}>
+                      {item.checked && <span style={{ color:'#fff', fontSize:'13px', fontWeight:700, lineHeight:1 }}>✓</span>}
+                    </div>
+                    <span style={{ fontSize:'14px', fontWeight: item.checked ? 700 : 500, color: item.checked ? item.color : '#374151' }}>{item.label}</span>
+                  </label>
+                ))}
+              </div>
+              <div style={{ fontSize:'11px', color:'#9ca3af', marginBottom:'16px', textAlign:'center' }}>
+                지급 완료 체크 시 알림이 자동으로 사라집니다
+              </div>
+              <button onClick={() => setSupplyCheckModal(null)}
+                style={{ width:'100%', padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
+                닫기
+              </button>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── 삭제 확인 모달 */}
       {deleteConfirm && (
