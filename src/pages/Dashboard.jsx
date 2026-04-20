@@ -2420,7 +2420,7 @@ function MobileDashboard({ user, onNav }) {
                 : (nextProd ? `${nextProd.name} ${prog.nextStage||1}단계 준비 필요` : `${prod.name} ${curStage+1}단계 준비 필요`)
               return [{ s, label, isDone }]
             })
-            return needAlert.length > 0 ? [{ cls, nextDate: upcoming[0], students: needAlert, total: confirmed.length }] : []
+            return needAlert.length > 0 ? [{ cls, students: needAlert, total: confirmed.length }] : []
           })
           if (!alerts.length) return null
           return (
@@ -2539,12 +2539,8 @@ export function Dashboard({ user, onNav }) {
   const classDates = new Set()
   classes.forEach(cls => calcSessionDates(cls).forEach(s => classDates.add(s)))
 
-  const weekEnd    = new Date(); weekEnd.setDate(weekEnd.getDate() + 7)
-  const weekEndStr = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth()+1).padStart(2,'0')}-${String(weekEnd.getDate()).padStart(2,'0')}`
   const supplyProds  = SupplyProducts.byTeacher(user.id)
   const supplyAlerts = classes.flatMap(cls => {
-    const upcoming   = calcSessionDates(cls).filter(d => d >= today && d <= weekEndStr)
-    if (!upcoming.length) return []
     const confirmed  = StudentsDB.confirmed(cls.id)
     if (!confirmed.length) return []
     const supplyData = SupplyItems.byClass(cls.id)
@@ -2574,7 +2570,7 @@ export function Dashboard({ user, onNav }) {
         : `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — 교구 준비 필요`
       return [{ s, label, isDone }]
     })
-    return needAlert.length > 0 ? [{ cls, nextDate: upcoming[0], students: needAlert, total: confirmed.length }] : []
+    return needAlert.length > 0 ? [{ cls, students: needAlert, total: confirmed.length }] : []
   }).sort((a, b) => {
     const dayOrder = d => (new Date(d + 'T00:00:00').getDay() + 6) % 7
     const dayCmp = dayOrder(a.nextDate) - dayOrder(b.nextDate)
@@ -2733,20 +2729,19 @@ export function Dashboard({ user, onNav }) {
                     <div style={{ fontSize: '13px', color: C.text }}>
                       <span style={{ fontWeight: 700 }}>{cls.organization}</span>
                       <span style={{ color: C.muted }}> · {cls.className}{cls.section ? ' ' + cls.section + '반' : ''}</span>
-                      <span style={{ fontSize: '12px', color: C.muted, marginLeft: '6px' }}>📅 {nextDate}</span>
                     </div>
                     <span style={{ fontSize: '12px', fontWeight: 700, color: C.danger }}>{students.length}/{total}명</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 12px' }}>
                     {students.map(({ s, label, isDone }) => (
-                      <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, color: C.text }}>{s.name}</span>
-                        <span style={{ color: C.muted }}>
-                          {[s.school, s.grade ? s.grade+'학년' : null, s.classNum ? s.classNum+'반' : null, s.number ? s.number+'번' : null].filter(Boolean).join(' ')}
-                        </span>
-                        <span style={{ color: isDone ? '#16a34a' : C.danger, background: isDone ? '#f0fdf4' : '#fef2f2', border: `1px solid ${isDone ? '#86efac' : '#fca5a5'}`, borderRadius: '5px', padding: '1px 7px' }}>
+                      <div key={s.id} style={{ padding: '6px 10px', borderRadius: '8px', background: isDone ? '#f0fdf4' : '#fef2f2', border: `1px solid ${isDone ? '#86efac' : '#fca5a5'}`, marginBottom: '4px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: isDone ? '#16a34a' : C.danger, marginBottom: '2px' }}>
                           {isDone ? '✅' : '⚠️'} {label}
-                        </span>
+                        </div>
+                        <div style={{ fontSize: '12px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 700, color: C.text }}>{s.name}</span>
+                          <span style={{ color: C.muted }}>{[s.school, s.grade ? s.grade+'학년' : null, s.classNum ? s.classNum+'반' : null, s.number ? s.number+'번' : null].filter(Boolean).join(' ')}</span>
+                        </div>
                       </div>
                     ))}
                   </div>

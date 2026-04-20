@@ -723,16 +723,16 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
               style={{ fontSize:'11px', cursor:'pointer', padding:'4px 6px', borderRadius:'6px', transition:'background .15s' }}
               onMouseEnter={e => e.currentTarget.style.background='#f0fdf4'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+              {(isDone || isAlert) && (
+                <div style={{ marginBottom:'3px', fontSize:'10px', fontWeight:700, color:isDone?'#16a34a':C.danger, background:isDone?'#f0fdf4':'#fef2f2', border:`1px solid ${isDone?'#86efac':'#fca5a5'}`, borderRadius:'4px', padding:'1px 5px', whiteSpace:'nowrap' }}>
+                  {isDone ? '✅' : '⚠️'} {alertLabel}
+                </div>
+              )}
               <div style={{ fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{prod?.name||si.name||''}</div>
               <div style={{ color:'#6b7280', marginTop:'1px' }}>{curStage}단계 {chk}/{spp}차시</div>
               <div style={{ height:'3px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'70px' }}>
                 <div style={{ height:'100%', borderRadius:'2px', width:`${pct}%`, background:pct>=100?'#16a34a':pct>=80?'#f59e0b':'#f97316' }} />
               </div>
-              {(isDone || isAlert) && (
-                <div style={{ marginTop:'3px', fontSize:'10px', fontWeight:700, color: isDone?'#16a34a':'#f59e0b', background: isDone?'#f0fdf4':'#fffbeb', border:`1px solid ${isDone?'#86efac':'#fde68a'}`, borderRadius:'4px', padding:'1px 5px', whiteSpace:'nowrap' }}>
-                  {isDone ? '✅' : '⚠️'} {alertLabel}
-                </div>
-              )}
             </div>
           )
         })()}
@@ -868,16 +868,16 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
               style={{ fontSize:'11px', cursor:'pointer', padding:'4px 6px', borderRadius:'6px', transition:'background .15s' }}
               onMouseEnter={e => e.currentTarget.style.background='#f0fdf4'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+              {(isDone || isAlert) && (
+                <div style={{ marginBottom:'3px', fontSize:'10px', fontWeight:700, color:isDone?'#16a34a':C.danger, background:isDone?'#f0fdf4':'#fef2f2', border:`1px solid ${isDone?'#86efac':'#fca5a5'}`, borderRadius:'4px', padding:'1px 5px', whiteSpace:'nowrap' }}>
+                  {isDone ? '✅' : '⚠️'} {alertLabel}
+                </div>
+              )}
               <div style={{ fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{prod?.name||si.name||''}</div>
               <div style={{ color:'#6b7280', marginTop:'1px' }}>{curStage}단계 {chk}/{spp}차시</div>
               <div style={{ height:'3px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'70px' }}>
                 <div style={{ height:'100%', borderRadius:'2px', width:`${pct}%`, background:pct>=100?'#16a34a':pct>=80?'#f59e0b':'#f97316' }} />
               </div>
-              {(isDone || isAlert) && (
-                <div style={{ marginTop:'3px', fontSize:'10px', fontWeight:700, color: isDone?'#16a34a':'#f59e0b', background: isDone?'#f0fdf4':'#fffbeb', border:`1px solid ${isDone?'#86efac':'#fde68a'}`, borderRadius:'4px', padding:'1px 5px', whiteSpace:'nowrap' }}>
-                  {isDone ? '✅' : '⚠️'} {alertLabel}
-                </div>
-              )}
             </div>
           )
         })()}

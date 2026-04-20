@@ -848,12 +848,12 @@ export function Supplies({ user }) {
                                         : (nextProd2 ? `${nextProd2.name} ${prog.nextStage||1}단계 준비 필요` : `${product?.name} ${curStage+1}단계 준비 필요`)
                                       return (
                                         <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
-                                          <span>{sps}차시 중 {stageChecks}</span>
                                           {(isDone2 || isAlert2) && (
-                                            <span style={{ fontSize:'10px', fontWeight:700, color:isDone2?'#16a34a':'#f59e0b', background:isDone2?'#f0fdf4':'#fffbeb', border:`1px solid ${isDone2?'#86efac':'#fde68a'}`, borderRadius:'4px', padding:'1px 5px', whiteSpace:'nowrap' }}>
+                                            <span style={{ fontSize:'10px', fontWeight:700, color:isDone2?'#16a34a':C.danger, background:isDone2?'#f0fdf4':'#fef2f2', border:`1px solid ${isDone2?'#86efac':'#fca5a5'}`, borderRadius:'4px', padding:'1px 5px', whiteSpace:'nowrap' }}>
                                               {isDone2?'✅':'⚠️'} {alertLabel2}
                                             </span>
                                           )}
+                                          <span>{sps}차시 중 {stageChecks}</span>
                                         </div>
                                       )
                                     })() : <span style={{ color:C.danger }}>없음</span>}
