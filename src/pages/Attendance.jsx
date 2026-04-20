@@ -664,6 +664,32 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
 
         {/* 이름 */}
         <div style={{ textAlign: 'center' }}>
+          {(() => {
+            const _cid2 = classId || s.classIds?.[0] || ''
+            const _si2 = SupplyItems.byClassStudent(_cid2, s.id)[0]
+            if (!_si2?.productId) return null
+            const _prod2 = (spProds||[]).find(p => p.id === _si2.productId)
+            const _prog2 = SupplyStudentProgress.byStudent(s.id, _cid2).find(p => p.productId === _si2.productId)
+            const _cs2 = _prog2?.curStage || _si2.stage || 1
+            const _spp2 = _prod2?.sessionsPerStage || 12
+            const _chk2 = SupplySessionChecks.byProductStudent(_si2.productId, s.id, _cid2).filter(c => c.stage === _cs2).length
+            const _plans2 = SupplyProductPlans.byProductStage(_si2.productId, _cs2)
+            const _actual2 = _plans2.length > 0 ? _plans2.length : _spp2
+            const _alert2 = _prod2?.alertSession || 3
+            const _done2 = _chk2 >= _actual2
+            const _near2 = _chk2 >= (_actual2 - _alert2) && !_done2
+            if (!_done2 && !_near2) return null
+            const _np2 = _prog2?.nextProductId ? (spProds||[]).find(p => p.id === _prog2.nextProductId) : null
+            const _lbl2 = _done2
+              ? (_np2 ? `${_np2.name} ${_prog2.nextStage || 1}단계 준비` : `${_prod2?.name} ${_cs2+1}단계 준비`)
+              : (_np2 ? `${_np2.name} ${_prog2.nextStage || 1}단계 준비 필요` : `${_prod2?.name} ${_cs2+1}단계 준비 필요`)
+            return (
+              <div style={{ marginBottom: '4px', fontSize: '10px', fontWeight: 700, color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-block', cursor: 'pointer' }}
+                onClick={() => onProgOpen && onProgOpen(s, _si2.productId)}>
+                ⚠️ {_lbl2}
+              </div>
+            )
+          })()}
           <span onClick={() => onStudentClick(s)}
             style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
           {(s.remark || (s.student_careers?.length > 0) || s.status === 'cancel_before' || s.status === 'cancel_after' || (s.relations||[]).length > 0) && (
@@ -723,11 +749,6 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
               style={{ fontSize:'11px', cursor:'pointer', padding:'4px 6px', borderRadius:'6px', transition:'background .15s' }}
               onMouseEnter={e => e.currentTarget.style.background='#f0fdf4'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-              {(isDone || isAlert) && (
-                <div style={{ marginBottom:'3px', fontSize:'10px', fontWeight:700, color:isDone?'#16a34a':C.danger, background:isDone?'#f0fdf4':'#fef2f2', border:`1px solid ${isDone?'#86efac':'#fca5a5'}`, borderRadius:'4px', padding:'1px 5px', whiteSpace:'nowrap' }}>
-                  {isDone ? '✅' : '⚠️'} {alertLabel}
-                </div>
-              )}
               <div style={{ fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{prod?.name||si.name||''}</div>
               <div style={{ color:'#6b7280', marginTop:'1px' }}>{curStage}단계 {chk}/{spp}차시</div>
               <div style={{ height:'3px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'70px' }}>
@@ -798,6 +819,25 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteSent, setInviteSent] = useState(!!s.parentInviteSentAt)
 
+  // ── 교구 준비 알림 사전 계산 (이름 위 뱃지용)
+  const _cid = classId || s.classIds?.[0] || ''
+  const _si = spItems.find(i => i.studentId === s.id && i.classId === _cid)
+  const _prod = _si?.productId ? spProds.find(p => p.id === _si.productId) : null
+  const _prog = _si?.productId ? spProg.find(p => p.studentId === s.id && p.productId === _si.productId) : null
+  const _curStage = _prog?.curStage || _si?.stage || 1
+  const _spp = _prod?.sessionsPerStage || 12
+  const _chk = _si?.productId ? spChecks.filter(c => c.studentId === s.id && c.productId === _si.productId && c.stage === _curStage).length : 0
+  const _stagePlans = _si?.productId ? SupplyProductPlans.byProductStage(_si.productId, _curStage) : []
+  const _actualSess = _stagePlans.length > 0 ? _stagePlans.length : _spp
+  const _alertSess = _prod?.alertSession || 3
+  const _supplyDone = _si?.productId ? _chk >= _actualSess : false
+  const _supplyAlert = _si?.productId ? (_chk >= (_actualSess - _alertSess) && !_supplyDone) : false
+  const _nextProd = _prog?.nextProductId ? spProds.find(p => p.id === _prog.nextProductId) : null
+  const _supplyLabel = _supplyDone
+    ? (_nextProd ? `${_nextProd.name} ${_prog.nextStage || 1}단계 준비` : `${_prod?.name} ${_curStage+1}단계 준비`)
+    : (_nextProd ? `${_nextProd.name} ${_prog.nextStage || 1}단계 준비 필요` : `${_prod?.name} ${_curStage+1}단계 준비 필요`)
+  const showSupplyBadge = _supplyDone || _supplyAlert
+
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '35px 90px 90px 130px 220px 110px 90px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
@@ -812,6 +852,13 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
 
         {/* 이름 */}
         <div style={{ textAlign: 'center' }}>
+          {showSupplyBadge && (
+            <div
+              onClick={() => onProgOpen && onProgOpen(s, _si?.productId)}
+              style={{ marginBottom: '4px', fontSize: '10px', fontWeight: 700, color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-block', cursor: 'pointer' }}>
+              ⚠️ {_supplyLabel}
+            </div>
+          )}
           <span onClick={() => onStudentClick(s)}
             style={{ fontSize: '14px', fontWeight: 700, color: C.primary, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{s.name}</span>
           {(s.remark || (s.student_careers?.length > 0) || s.status === 'cancel_before' || s.status === 'cancel_after' || (s.relations||[]).length > 0) && (
@@ -868,11 +915,6 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
               style={{ fontSize:'11px', cursor:'pointer', padding:'4px 6px', borderRadius:'6px', transition:'background .15s' }}
               onMouseEnter={e => e.currentTarget.style.background='#f0fdf4'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-              {(isDone || isAlert) && (
-                <div style={{ marginBottom:'3px', fontSize:'10px', fontWeight:700, color:isDone?'#16a34a':C.danger, background:isDone?'#f0fdf4':'#fef2f2', border:`1px solid ${isDone?'#86efac':'#fca5a5'}`, borderRadius:'4px', padding:'1px 5px', whiteSpace:'nowrap' }}>
-                  {isDone ? '✅' : '⚠️'} {alertLabel}
-                </div>
-              )}
               <div style={{ fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{prod?.name||si.name||''}</div>
               <div style={{ color:'#6b7280', marginTop:'1px' }}>{curStage}단계 {chk}/{spp}차시</div>
               <div style={{ height:'3px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'70px' }}>

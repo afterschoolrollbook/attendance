@@ -1936,6 +1936,17 @@ function DayDetail({ date, user, classes, onNav }) {
                             const spp = sp?.sessionsPerStage || 12
                             const chk = si?.productId ? spChecks.filter(c => c.studentId === stu.id && c.productId === si.productId && c.stage === st).length : 0
                             const pct = si ? Math.min(Math.round(chk/spp*100), 100) : 0
+                            // ── 교구 준비 알림 계산
+                            const stagePlans = si?.productId ? SupplyProductPlans.byProductStage(si.productId, st) : []
+                            const actualSess = stagePlans.length > 0 ? stagePlans.length : spp
+                            const alertSess  = sp?.alertSession || 3
+                            const isDone     = si?.productId ? chk >= actualSess : false
+                            const isAlert    = si?.productId ? (chk >= (actualSess - alertSess) && !isDone) : false
+                            const nextProd   = (isDone || isAlert) && sg?.nextProductId ? spProds.find(p => p.id === sg.nextProductId) : null
+                            const dAlertLbl  = isDone
+                              ? (nextProd ? `${nextProd.name} ${sg.nextStage||1}단계 준비` : `${sp?.name} ${st+1}단계 준비`)
+                              : (nextProd ? `${nextProd.name} ${sg?.nextStage||1}단계 준비 필요` : `${sp?.name} ${st+1}단계 준비 필요`)
+                            const showDAlert = isDone || isAlert
                             const hb  = stu.remark || (stu.student_careers?.length > 0) || stu.status === 'cancel_before' || stu.status === 'cancel_after' || (stu.relations||[]).length > 0
                             return (
                               <tr key={stu.id} style={{ borderBottom: '1px solid #f3f4f6', background: idx%2===0 ? '#fff' : '#fafafa' }}>
@@ -1948,6 +1959,11 @@ function DayDetail({ date, user, classes, onNav }) {
                                   {stu.number  && <span style={{ marginLeft: '3px', color: '#9ca3af', fontSize: '11px' }}>{stu.number}번</span>}
                                 </td>
                                 <td style={{ padding: '8px 12px', fontSize: '13px', fontWeight: 700, color: '#111827' }}>
+                                  {showDAlert && (
+                                    <div style={{ marginBottom: '3px', fontSize: '10px', fontWeight: 700, color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 5px', whiteSpace: 'nowrap', display: 'inline-block' }}>
+                                      ⚠️ {dAlertLbl}
+                                    </div>
+                                  )}
                                   <div>{stu.name}</div>
                                   {hb && (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '3px' }}>
