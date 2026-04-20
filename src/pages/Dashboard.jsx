@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import {
   Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB,
-  Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks,
+  Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans,
   RevenueFees, RevenuePayments,
   Trainings, Careers, Educations, Certificates, Awards,
   Settings,
@@ -2531,20 +2531,30 @@ export function Dashboard({ user, onNav }) {
     const supplyProg = SupplyStudentProgress.byClass(cls.id)
     const supplyChecks = SupplySessionChecks.byTeacher(user.id).filter(c => c.classId === cls.id)
 
-    // 교구 준비 필요한 학생: alertSession 이상 나간 학생
-    const needAlert = confirmed.filter(s => {
+    // 교구 준비 필요한 학생: 실제 차시수 기준 -3차시 도달 or 단계 완료
+    const needAlert = confirmed.flatMap(s => {
       const item = supplyData.find(i => i.studentId === s.id && i.productId)
-      if (!item) return false
+      if (!item) return []
       const prod = supplyProds.find(p => p.id === item.productId)
-      if (!prod) return false
-      const alertSess = prod.alertSession || 10
+      if (!prod) return []
+      const alertSess = prod.alertSession || 3
       const spp = prod.sessionsPerStage || 12
       const prog = supplyProg.find(p => p.studentId === s.id && p.productId === item.productId)
       const curStage = prog?.curStage || item.stage || 1
+      const stagePlans = SupplyProductPlans.byProductStage(item.productId, curStage)
+      const actualSessions = stagePlans.length > 0 ? stagePlans.length : spp
       const chk = supplyChecks.filter(c => c.studentId === s.id && c.productId === item.productId && c.stage === curStage).length
-      return chk >= alertSess && chk < spp
+      const isDone = chk >= actualSessions
+      const isAlert = chk >= (actualSessions - alertSess) && !isDone
+      if (!isDone && !isAlert) return []
+      const nextProd = isDone && prog?.nextProductId ? supplyProds.find(p => p.id === prog.nextProductId) : null
+      const nextStage = prog?.nextStage || 1
+      const label = isDone
+        ? (nextProd ? `${nextProd.name} ${nextStage}단계 준비` : `${prod.name} ${curStage}단계 완료`)
+        : `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — 교구 준비 필요`
+      return [{ s, label, isDone }]
     })
-    return needAlert.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: needAlert.length, total: confirmed.length }] : []
+    return needAlert.length > 0 ? [{ cls, nextDate: upcoming[0], students: needAlert, total: confirmed.length }] : []
   }).sort((a, b) => {
     const dayOrder = d => (new Date(d + 'T00:00:00').getDay() + 6) % 7
     const dayCmp = dayOrder(a.nextDate) - dayOrder(b.nextDate)
@@ -2697,16 +2707,29 @@ export function Dashboard({ user, onNav }) {
               <span style={{ fontSize: '11px', color: C.primary, fontWeight: 600 }}>바로가기 →</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {supplyAlerts.map(({ cls, nextDate, notSetCount, total }) => (
-                <div key={cls.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#fff', borderRadius: '8px', border: '1px solid #fca5a5', gap: '8px', flexWrap: 'wrap' }}>
-                  <div style={{ fontSize: '13px', color: C.text }}>
-                    <span style={{ fontWeight: 700 }}>{cls.organization}</span>
-                    <span style={{ color: C.muted }}> · {cls.className}{cls.section ? ' ' + cls.section + '반' : ''}</span>
-                    <span style={{ fontSize: '12px', color: C.muted, marginLeft: '6px' }}>📅 {nextDate}</span>
+              {supplyAlerts.map(({ cls, nextDate, students, total }) => (
+                <div key={cls.id} style={{ background: '#fff', borderRadius: '8px', border: '1px solid #fca5a5', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#fef2f2', borderBottom: '1px solid #fca5a5' }}>
+                    <div style={{ fontSize: '13px', color: C.text }}>
+                      <span style={{ fontWeight: 700 }}>{cls.organization}</span>
+                      <span style={{ color: C.muted }}> · {cls.className}{cls.section ? ' ' + cls.section + '반' : ''}</span>
+                      <span style={{ fontSize: '12px', color: C.muted, marginLeft: '6px' }}>📅 {nextDate}</span>
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: C.danger }}>{students.length}/{total}명</span>
                   </div>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: C.danger, background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '6px', padding: '2px 8px', whiteSpace: 'nowrap' }}>
-                    🎒 교구 미설정 {notSetCount}/{total}명
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 12px' }}>
+                    {students.map(({ s, label, isDone }) => (
+                      <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, color: C.text }}>{s.name}</span>
+                        <span style={{ color: C.muted }}>
+                          {[s.school, s.grade ? s.grade+'학년' : null, s.classNum ? s.classNum+'반' : null, s.number ? s.number+'번' : null].filter(Boolean).join(' ')}
+                        </span>
+                        <span style={{ color: isDone ? '#16a34a' : C.danger, background: isDone ? '#f0fdf4' : '#fef2f2', border: `1px solid ${isDone ? '#86efac' : '#fca5a5'}`, borderRadius: '5px', padding: '1px 7px' }}>
+                          {isDone ? '✅' : '⚠️'} {label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

@@ -1481,8 +1481,19 @@ export function Supplies({ user }) {
                           <div style={{ padding:'10px 14px', background: isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
                             <span style={{ fontSize:'13px', fontWeight:700, color: isDone?C.success:isAlert?C.warning:C.text }}>{stage}단계</span>
                             <span style={{ fontSize:'12px', color:C.muted }}>{checkedCnt}/{sessionsPerStage}차시</span>
-                            {isDone  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>}
-                            {isAlert && <span style={{ fontSize:'11px', background:'#fffbeb', color:C.warning, border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ 다음 단계 준비</span>}
+                            {isDone && (() => {
+                              const np = prog?.nextProductId ? productList.find(p => p.id === prog.nextProductId) : null
+                              return np
+                                ? <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료 → {np.name} {prog.nextStage}단계 준비</span>
+                                : <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>
+                            })()}
+                            {isAlert && !isDone && (() => {
+                              const np = prog?.nextProductId ? productList.find(p => p.id === prog.nextProductId) : null
+                              const alertLabel = np
+                                ? `${np.name} ${prog.nextStage}단계 준비 필요`
+                                : `${product.name} ${stage + 1}단계 준비 필요`
+                              return <span style={{ fontSize:'11px', background:'#fffbeb', color:C.warning, border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ {alertLabel}</span>
+                            })()}
                           </div>
                           <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'5px' }}>
                             {sessions.map(sess => {
@@ -1633,7 +1644,7 @@ export function Supplies({ user }) {
                     style={{ ...iStyle, textAlign:'center' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>준비 알림 차시</label>
+                  <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>준비 알림 (차시 전)</label>
                   <input type="number" min={1} max={50} value={productForm.alertSession}
                     onChange={e => setProductForm(v=>({...v, alertSession: Number(e.target.value)}))}
                     style={{ ...iStyle, textAlign:'center' }} />

@@ -559,8 +559,19 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
               <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
                 <span style={{ fontSize:'13px', fontWeight:700, color:isDone?'#16a34a':isAlert?'#f59e0b':'#111827' }}>{stage}단계</span>
                 <span style={{ fontSize:'12px', color:'#6b7280' }}>{cnt}/{spp}차시</span>
-                {isDone  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>}
-                {isAlert && <span style={{ fontSize:'11px', background:'#fffbeb', color:'#f59e0b', border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ 다음 단계 준비</span>}
+                {isDone && (() => {
+                  const np = nextProductId ? spProds.find(p => p.id === nextProductId) : null
+                  return np
+                    ? <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료 → {np.name} {nextStage}단계 준비</span>
+                    : <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>
+                })()}
+                {isAlert && !isDone && (() => {
+                  const np = nextProductId ? spProds.find(p => p.id === nextProductId) : null
+                  const alertLabel = np
+                    ? `${np.name} ${nextStage}단계 준비 필요`
+                    : `${product.name} ${selStage + 1}단계 준비 필요`
+                  return <span style={{ fontSize:'11px', background:'#fffbeb', color:'#f59e0b', border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ {alertLabel}</span>
+                })()}
               </div>
               <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px' }}>
                 {sessions.map(sess => {
