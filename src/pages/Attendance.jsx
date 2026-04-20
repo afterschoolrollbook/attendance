@@ -431,6 +431,138 @@ function StudentMemoModal({ student, onClose, onSave }) {
 }
 
 // ─── 예정 수업 학생 행 — StudentRow 코드 완전 동일, 출석컬럼만 예정버튼으로 교체
+// ─── 진도 체크 모달 (공통 컴포넌트 — 교구/단계 변경 지원)
+function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose, onSaved }) {
+  const classId = student._clsId || student.classIds?.[0] || ''
+  const [selProductId, setSelProductId] = React.useState(initialProductId || '')
+  const [selStage, setSelStage] = React.useState(() => {
+    const si = SupplyItems.byClassStudent(classId, student.id)[0]
+    return si?.stage ? Number(si.stage) : 1
+  })
+  const [tick, setTick] = React.useState(0)
+
+  const si = SupplyItems.byClassStudent(classId, student.id)[0]
+  const product = spProds.find(p => p.id === selProductId)
+  if (!si || !product) return null
+
+  const spp = product.sessionsPerStage || 12
+  const alertSess = product.alertSession || 10
+  const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === selProductId)
+  const curStage = prog?.curStage || selStage || 1
+  const maxShowStage = Math.max(selStage, curStage)
+  const STAGES = Array.from({ length: maxShowStage }, (_, i) => i + 1)
+  const maxStage = product.maxStage || 10
+
+  const origProductId = si?.productId || ''
+  const origStage = si?.stage ? Number(si.stage) : 1
+  const isChanged = selProductId !== origProductId || selStage !== origStage
+
+  const handleProductChange = (newId) => {
+    setSelProductId(newId)
+    setSelStage(1)
+  }
+
+  const handleApply = () => {
+    if (!si) return
+    SupplyItems.upsert({ ...si, productId: selProductId, stage: selStage })
+    onSaved && onSaved()
+    setTick(t => t + 1)
+  }
+
+  const toggleCheck = (productId, stage, sessionNo) => {
+    const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
+    if (existing) SupplySessionChecks.delete(existing.id)
+    else SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
+    const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
+    const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
+    SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
+    onSaved && onSaved()
+    setTick(t => t + 1)
+  }
+
+  return (
+    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+      <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
+        {/* 교구 시리즈 / 단계 변경 */}
+        <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', marginBottom:'16px' }}>
+          <div style={{ display:'flex', alignItems:'flex-end', gap:'10px', flexWrap:'wrap' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'160px' }}>
+              <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>교구 시리즈</label>
+              <select value={selProductId} onChange={e => handleProductChange(e.target.value)}
+                style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+                {spProds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px', minWidth:'90px' }}>
+              <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>단계</label>
+              <select value={selStage} onChange={e => setSelStage(Number(e.target.value))}
+                style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+                {Array.from({ length: maxStage }, (_, i) => i+1).map(s => (
+                  <option key={s} value={s}>{s}단계</option>
+                ))}
+              </select>
+            </div>
+            {isChanged && (
+              <button onClick={handleApply}
+                style={{ padding:'8px 18px', borderRadius:'8px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                ✓ 적용
+              </button>
+            )}
+          </div>
+          <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'8px' }}>
+            🤖 {product.name} · {selStage}단계 배정 · 단계당 {spp}차시 기준
+          </div>
+        </div>
+        {/* 진도 목록 */}
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+          {STAGES.map(stage => {
+            const stagePlans = SupplyProductPlans.byProductStage(selProductId, stage).sort((a,b) => a.sessionNo-b.sessionNo)
+            const sessions = stagePlans.length > 0 ? stagePlans
+              : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
+            const stageChecks = SupplySessionChecks.byProductStudent(selProductId, student.id, classId).filter(c => c.stage===stage)
+            const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
+            const cnt = stageChecks.length
+            const isDone = cnt >= spp
+            const isAlert = cnt >= alertSess && !isDone
+            return (
+              <div key={stage} style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
+                <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
+                  <span style={{ fontSize:'13px', fontWeight:700, color:isDone?'#16a34a':isAlert?'#f59e0b':'#111827' }}>{stage}단계</span>
+                  <span style={{ fontSize:'12px', color:'#6b7280' }}>{cnt}/{spp}차시</span>
+                  {isDone  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>}
+                  {isAlert && <span style={{ fontSize:'11px', background:'#fffbeb', color:'#f59e0b', border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ 다음 단계 준비</span>}
+                </div>
+                <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                  {sessions.map(sess => {
+                    const isChk = checkedNos.has(sess.sessionNo)
+                    return (
+                      <div key={sess.id} onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)}
+                        style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, cursor:'pointer', transition:'all .12s' }}>
+                        <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827' }}>
+                          {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
+        <button onClick={onClose}
+          style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
+          닫기
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOpen, spProds, user }) {
   const note = s.memo || ''
   const [showInfo, setShowInfo] = useState(false)
@@ -922,77 +1054,15 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
       {progStudent && (() => {
         const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
         if (!si?.productId) return null
-        const product = spProds.find(p => p.id === progProductId)
-        if (!product) return null
-        const spp = product.sessionsPerStage || 12
-        const alertSess = product.alertSession || 10
-        const prog = SupplyStudentProgress.byStudent(progStudent.id, progStudent._clsId || '').find(p => p.productId === progProductId)
-        const curStage = prog?.curStage || si.stage || 1
-        const assignedStage = si.stage ? Number(si.stage) : curStage
-        const maxShowStage = Math.max(assignedStage, curStage)
-        const STAGES = Array.from({ length: maxShowStage }, (_, i) => i + 1)
-        const toggleCheck = (productId, stage, sessionNo) => {
-          const classId = progStudent._clsId || ''
-          const existing = SupplySessionChecks.byProductStudent(productId, progStudent.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
-          if (existing) SupplySessionChecks.delete(existing.id)
-          else SupplySessionChecks.upsert({ id: uid(), teacherId: cls.teacherId||'', studentId: progStudent.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
-          const allChks = SupplySessionChecks.byProductStudent(productId, progStudent.id, classId).filter(c => c.stage===stage)
-          const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
-          SupplyStudentProgress.upsert({ id: uid(), teacherId: cls.teacherId||'', studentId: progStudent.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
-          setProgTick(t => t+1)
-        }
         return (
-          <Modal open={true} onClose={() => setProgStudent(null)} title={`📊 ${progStudent.name} 진도 체크`} width={600}>
-            <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
-              <div style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', fontSize:'13px', color:'#6b7280', marginBottom:'16px' }}>
-                🤖 {product.name} · {assignedStage}단계 배정 · 단계당 {spp}차시 기준
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-                {STAGES.map(stage => {
-                  const stagePlans = SupplyProductPlans.byProductStage(si.productId, stage).sort((a,b) => a.sessionNo-b.sessionNo)
-                  const sessions = stagePlans.length > 0 ? stagePlans
-                    : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
-                  const stageChecks = SupplySessionChecks.byProductStudent(si.productId, progStudent.id, progStudent._clsId || '').filter(c => c.stage===stage)
-                  const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
-                  const cnt = stageChecks.length
-                  const isDone = cnt >= spp
-                  const isAlert = cnt >= alertSess && !isDone
-                  return (
-                    <div key={stage} style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
-                      <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
-                        <span style={{ fontSize:'13px', fontWeight:700, color:isDone?'#16a34a':isAlert?'#f59e0b':'#111827' }}>{stage}단계</span>
-                        <span style={{ fontSize:'12px', color:'#6b7280' }}>{cnt}/{spp}차시</span>
-                        {isDone  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>}
-                        {isAlert && <span style={{ fontSize:'11px', background:'#fffbeb', color:'#f59e0b', border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ 다음 단계 준비</span>}
-                      </div>
-                      <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px' }}>
-                        {sessions.map(sess => {
-                          const isChk = checkedNos.has(sess.sessionNo)
-                          return (
-                            <div key={sess.id} onClick={() => toggleCheck(si.productId, stage, sess.sessionNo)}
-                              style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, cursor:'pointer', transition:'all .12s' }}>
-                              <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                                {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
-                              </div>
-                              <span style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827' }}>
-                                {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-            <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
-              <button onClick={() => setProgStudent(null)}
-                style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
-                닫기
-              </button>
-            </div>
-          </Modal>
+          <ProgCheckModal
+            student={progStudent}
+            initialProductId={progProductId}
+            spProds={spProds}
+            teacherId={cls.teacherId||''}
+            onClose={() => setProgStudent(null)}
+            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls.teacherId||'')); setProgTick(t => t+1) }}
+          />
         )
       })()}
     </div>
@@ -1309,77 +1379,15 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
       {progStudent && (() => {
         const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
         if (!si?.productId) return null
-        const product = spProds.find(p => p.id === progProductId)
-        if (!product) return null
-        const spp = product.sessionsPerStage || 12
-        const alertSess = product.alertSession || 10
-        const prog = SupplyStudentProgress.byStudent(progStudent.id, progStudent._clsId || '').find(p => p.productId === progProductId)
-        const curStage = prog?.curStage || si.stage || 1
-        const assignedStage = si.stage ? Number(si.stage) : curStage
-        const maxShowStage = Math.max(assignedStage, curStage)
-        const STAGES = Array.from({ length: maxShowStage }, (_, i) => i + 1)
-        const toggleCheck = (productId, stage, sessionNo) => {
-          const classId = progStudent._clsId || ''
-          const existing = SupplySessionChecks.byProductStudent(productId, progStudent.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
-          if (existing) SupplySessionChecks.delete(existing.id)
-          else SupplySessionChecks.upsert({ id: uid(), teacherId: cls?.teacherId||'', studentId: progStudent.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
-          const allChks = SupplySessionChecks.byProductStudent(productId, progStudent.id, classId).filter(c => c.stage===stage)
-          const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
-          SupplyStudentProgress.upsert({ id: uid(), teacherId: cls?.teacherId||'', studentId: progStudent.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
-          setProgTick(t => t+1)
-        }
         return (
-          <Modal open={true} onClose={() => setProgStudent(null)} title={`📊 ${progStudent.name} 진도 체크`} width={600}>
-            <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
-              <div style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', fontSize:'13px', color:'#6b7280', marginBottom:'16px' }}>
-                🤖 {product.name} · {assignedStage}단계 배정 · 단계당 {spp}차시 기준
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-                {STAGES.map(stage => {
-                  const stagePlans = SupplyProductPlans.byProductStage(si.productId, stage).sort((a,b) => a.sessionNo-b.sessionNo)
-                  const sessions = stagePlans.length > 0 ? stagePlans
-                    : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
-                  const stageChecks = SupplySessionChecks.byProductStudent(si.productId, progStudent.id, progStudent._clsId || '').filter(c => c.stage===stage)
-                  const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
-                  const cnt = stageChecks.length
-                  const isDone = cnt >= spp
-                  const isAlert = cnt >= alertSess && !isDone
-                  return (
-                    <div key={stage} style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
-                      <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
-                        <span style={{ fontSize:'13px', fontWeight:700, color:isDone?'#16a34a':isAlert?'#f59e0b':'#111827' }}>{stage}단계</span>
-                        <span style={{ fontSize:'12px', color:'#6b7280' }}>{cnt}/{spp}차시</span>
-                        {isDone  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>}
-                        {isAlert && <span style={{ fontSize:'11px', background:'#fffbeb', color:'#f59e0b', border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ 다음 단계 준비</span>}
-                      </div>
-                      <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px' }}>
-                        {sessions.map(sess => {
-                          const isChk = checkedNos.has(sess.sessionNo)
-                          return (
-                            <div key={sess.id} onClick={() => toggleCheck(si.productId, stage, sess.sessionNo)}
-                              style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, cursor:'pointer', transition:'all .12s' }}>
-                              <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                                {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
-                              </div>
-                              <span style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827' }}>
-                                {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-            <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
-              <button onClick={() => setProgStudent(null)}
-                style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
-                닫기
-              </button>
-            </div>
-          </Modal>
+          <ProgCheckModal
+            student={progStudent}
+            initialProductId={progProductId}
+            spProds={spProds}
+            teacherId={cls?.teacherId||''}
+            onClose={() => setProgStudent(null)}
+            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls?.teacherId||'')); setProgTick(t => t+1) }}
+          />
         )
       })()}
     </div>
@@ -1967,79 +1975,17 @@ function MobileAttendance({ user, pageParams = {} }) {
 
       {/* 진도 체크 모달 */}
       {progStudent && progProductId && (() => {
-        const si = spItems.find(si => si.studentId === progStudent.id && si.productId === progProductId && si.classId === progStudent._clsId)
+        const si = SupplyItems.byClassStudent(progStudent._clsId || '', progStudent.id)[0]
         if (!si?.productId) return null
-        const product = spProds.find(p => p.id === progProductId)
-        if (!product) return null
-        const spp = product.sessionsPerStage || 12
-        const alertSess = product.alertSession || 10
-        const prog = SupplyStudentProgress.byStudent(progStudent.id, progStudent._clsId || '').find(p => p.productId === progProductId)
-        const curStage = prog?.curStage || si.stage || 1
-        const assignedStage = si.stage ? Number(si.stage) : curStage
-        const maxShowStage = Math.max(assignedStage, curStage)
-        const STAGES = Array.from({ length: maxShowStage }, (_, i) => i + 1)
-        const toggleCheck = (productId, stage, sessionNo) => {
-          const classId = progStudent._clsId || ''
-          const existing = SupplySessionChecks.byProductStudent(productId, progStudent.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
-          if (existing) SupplySessionChecks.delete(existing.id)
-          else SupplySessionChecks.upsert({ id: uid(), teacherId: selClass?.teacherId||'', studentId: progStudent.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
-          const allChks = SupplySessionChecks.byProductStudent(productId, progStudent.id, classId).filter(c => c.stage===stage)
-          const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
-          SupplyStudentProgress.upsert({ id: uid(), teacherId: selClass?.teacherId||'', studentId: progStudent.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
-          setProgTick(t => t+1)
-        }
         return (
-          <Modal open={true} onClose={() => setProgStudent(null)} title={`📊 ${progStudent.name} 진도 체크`} width={500}>
-            <div style={{ padding:'12px 16px', overflowY:'auto', maxHeight:'60vh' }}>
-              <div style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', fontSize:'13px', color:'#6b7280', marginBottom:'16px' }}>
-                🤖 {product.name} · {assignedStage}단계 배정 · 단계당 {spp}차시
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-                {STAGES.map(stage => {
-                  const stagePlans = SupplyProductPlans.byProductStage(si.productId, stage).sort((a,b) => a.sessionNo-b.sessionNo)
-                  const sessions = stagePlans.length > 0 ? stagePlans
-                    : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
-                  const stageChecks = SupplySessionChecks.byProductStudent(si.productId, progStudent.id, progStudent._clsId || '').filter(c => c.stage===stage)
-                  const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
-                  const cnt = stageChecks.length
-                  const isDone = cnt >= spp
-                  const isAlert = cnt >= alertSess && !isDone
-                  return (
-                    <div key={stage} style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
-                      <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
-                        <span style={{ fontSize:'13px', fontWeight:700, color:isDone?'#16a34a':isAlert?'#f59e0b':'#111827' }}>{stage}단계</span>
-                        <span style={{ fontSize:'12px', color:'#6b7280' }}>{cnt}/{spp}차시</span>
-                        {isDone  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>}
-                        {isAlert && <span style={{ fontSize:'11px', background:'#fffbeb', color:'#f59e0b', border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ 다음 단계 준비</span>}
-                      </div>
-                      <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px' }}>
-                        {sessions.map(sess => {
-                          const isChk = checkedNos.has(sess.sessionNo)
-                          return (
-                            <div key={sess.id} onClick={() => toggleCheck(si.productId, stage, sess.sessionNo)}
-                              style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 12px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, cursor:'pointer' }}>
-                              <div style={{ width:'22px', height:'22px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                                {isChk && <span style={{ color:'#fff', fontSize:'13px', fontWeight:700 }}>✓</span>}
-                              </div>
-                              <span style={{ fontSize:'14px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827' }}>
-                                {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-            <div style={{ padding:'14px 16px', borderTop:'1px solid #e5e7eb' }}>
-              <button onClick={() => setProgStudent(null)}
-                style={{ width:'100%', padding:'12px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
-                닫기
-              </button>
-            </div>
-          </Modal>
+          <ProgCheckModal
+            student={progStudent}
+            initialProductId={progProductId}
+            spProds={spProds}
+            teacherId={selClass?.teacherId||''}
+            onClose={() => setProgStudent(null)}
+            onSaved={() => setProgTick(t => t+1)}
+          />
         )
       })()}
 
