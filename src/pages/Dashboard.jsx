@@ -2399,28 +2399,48 @@ function MobileDashboard({ user, onNav }) {
             const supplyData   = SupplyItems.byClass(cls.id)
             const supplyProg   = SupplyStudentProgress.byClass(cls.id)
             const supplyChecks = SupplySessionChecks.byTeacher(user.id).filter(c => c.classId === cls.id)
-            const needAlert = confirmed.filter(s => {
+            const needAlert = confirmed.flatMap(s => {
               const item = supplyData.find(i => i.studentId === s.id && i.productId)
-              if (!item) return false
+              if (!item) return []
               const prod = mSupplyProds.find(p => p.id === item.productId)
-              if (!prod) return false
-              const alertSess = prod.alertSession || 10
+              if (!prod) return []
+              const alertSess = prod.alertSession || 3
               const spp = prod.sessionsPerStage || 12
               const prog = supplyProg.find(p => p.studentId === s.id && p.productId === item.productId)
               const curStage = prog?.curStage || item.stage || 1
+              const stagePlans = SupplyProductPlans.byProductStage(item.productId, curStage)
+              const actualSessions = stagePlans.length > 0 ? stagePlans.length : spp
               const chk = supplyChecks.filter(c => c.studentId === s.id && c.productId === item.productId && c.stage === curStage).length
-              return chk >= alertSess && chk < spp
+              const isDone = chk >= actualSessions
+              const isAlert = chk >= (actualSessions - alertSess) && !isDone
+              if (!isDone && !isAlert) return []
+              const nextProd = prog?.nextProductId ? mSupplyProds.find(p => p.id === prog.nextProductId) : null
+              const label = isDone
+                ? (nextProd ? `${nextProd.name} ${prog.nextStage||1}단계 준비` : `${prod.name} ${curStage+1}단계 준비`)
+                : (nextProd ? `${nextProd.name} ${prog.nextStage||1}단계 준비 필요` : `${prod.name} ${curStage+1}단계 준비 필요`)
+              return [{ s, label, isDone }]
             })
-            return needAlert.length > 0 ? [{ cls, nextDate: upcoming[0], notSetCount: needAlert.length, total: confirmed.length }] : []
+            return needAlert.length > 0 ? [{ cls, nextDate: upcoming[0], students: needAlert, total: confirmed.length }] : []
           })
           if (!alerts.length) return null
           return (
             <div style={{ background: '#fef2f2', borderRadius: '14px', border: '1.5px solid #fca5a5', padding: '14px 16px', marginBottom: '12px', cursor: 'pointer' }}
               onClick={() => onNav('supplies')}>
               <div style={{ fontSize: '13px', fontWeight: 700, color: '#ef4444', marginBottom: '8px' }}>⚠️ 교구 준비 필요 — 이번주 수업</div>
-              {alerts.map(({ cls, nextDate, notSetCount, total }) => (
-                <div key={cls.id} style={{ fontSize: '12px', color: '#374151', marginBottom: '4px' }}>
-                  {cls.organization} · {cls.className}{cls.section?' '+cls.section+'반':''} · {nextDate} · 미설정 {notSetCount}/{total}명
+              {alerts.map(({ cls, nextDate, students, total }) => (
+                <div key={cls.id} style={{ marginBottom: '8px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '4px' }}>
+                    {cls.organization} · {cls.className}{cls.section?' '+cls.section+'반':''} · {nextDate}
+                  </div>
+                  {students.map(({ s, label, isDone }) => (
+                    <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'6px', fontSize:'12px', marginBottom:'3px', flexWrap:'wrap' }}>
+                      <span style={{ fontWeight:700 }}>{s.name}</span>
+                      <span style={{ color:'#6b7280' }}>{[s.school, s.grade?s.grade+'학년':null, s.classNum?s.classNum+'반':null].filter(Boolean).join(' ')}</span>
+                      <span style={{ color:isDone?'#16a34a':'#f59e0b', background:isDone?'#f0fdf4':'#fffbeb', border:`1px solid ${isDone?'#86efac':'#fde68a'}`, borderRadius:'4px', padding:'1px 6px', fontWeight:700 }}>
+                        {isDone?'✅':'⚠️'} {label}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -2550,7 +2570,7 @@ export function Dashboard({ user, onNav }) {
       const nextProd = isDone && prog?.nextProductId ? supplyProds.find(p => p.id === prog.nextProductId) : null
       const nextStage = prog?.nextStage || 1
       const label = isDone
-        ? (nextProd ? `${nextProd.name} ${nextStage}단계 준비` : `${prod.name} ${curStage}단계 완료`)
+        ? (nextProd ? `${nextProd.name} ${nextStage}단계 준비` : `${prod.name} ${curStage + 1}단계 준비`)
         : `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — 교구 준비 필요`
       return [{ s, label, isDone }]
     })
