@@ -446,7 +446,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   if (!si || !product) return null
 
   const spp = product.sessionsPerStage || 12
-  const alertSess = product.alertSession || 10
+  const alertSess = product.alertSession || 3
   const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === selProductId)
   const curStage = prog?.curStage || selStage || 1
   const maxShowStage = Math.max(selStage, curStage)
@@ -552,7 +552,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
           const cnt = stageChecks.length
           const isDone = cnt >= spp
-          const isAlert = cnt >= alertSess && !isDone
+          const isAlert = cnt >= (spp - alertSess) && !isDone
           return (
             <div style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
               <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>

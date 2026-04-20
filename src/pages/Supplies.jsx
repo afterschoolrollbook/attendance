@@ -82,7 +82,7 @@ function FileRow({ item, onDelete, onEdit, schools=[] }) {
 function ProgressBadge({ checkedCount, totalCount, alertSession, sessionsPerStage }) {
   if (!totalCount) return null
   const rate = Math.round(checkedCount / totalCount * 100)
-  const isAlert = checkedCount >= alertSession
+  const isAlert = checkedCount >= (totalCount - alertSession) && !isDone
   const isDone  = checkedCount >= sessionsPerStage
   const color   = isDone ? C.success : isAlert ? C.warning : C.blue
   const bg      = isDone ? '#f0fdf4' : isAlert ? '#fffbeb' : '#eff6ff'
@@ -146,7 +146,7 @@ export function Supplies({ user }) {
   // 교구 등록/수정 모달
   const [productModal, setProductModal] = useState(false)
   const [productVendorId, setProductVendorId] = useState(null)
-  const [productForm, setProductForm] = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:10, subject:'' })
+  const [productForm, setProductForm] = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:3, subject:'' })
   const [productStageTab, setProductStageTab] = useState(1)
   const [stageSessionTitles, setStageSessionTitles] = useState({})
 
@@ -374,7 +374,7 @@ export function Supplies({ user }) {
             memo:  plans[i]?.memo  || '',
           }))
         }
-        setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: maxS, sessionsPerStage: perS, alertSession: existingProduct.alertSession||10, subject: existingProduct.subject||'' })
+        setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: maxS, sessionsPerStage: perS, alertSession: existingProduct.alertSession||3, subject: existingProduct.subject||'' })
         setStageSessionTitles(titles)
       } else {
         const cnt = 12
@@ -382,7 +382,7 @@ export function Supplies({ user }) {
         for (let s = 1; s <= 10; s++) {
           titles[s] = Array.from({length: cnt}, () => ({ title:'', memo:'' }))
         }
-        setProductForm({ id:null, name:'', maxStage:10, sessionsPerStage:cnt, alertSession:10, subject: selSubject||'' })
+        setProductForm({ id:null, name:'', maxStage:10, sessionsPerStage:cnt, alertSession:3, subject: selSubject||'' })
         setStageSessionTitles(titles)
       }
       setProductStageTab(1)
@@ -901,7 +901,7 @@ export function Supplies({ user }) {
 
                         return assignedProducts.map(product => {
                           const sessionsPerStage = product.sessionsPerStage || 12
-                          const alertSession     = product.alertSession || 10
+                          const alertSession     = product.alertSession || 3
                           const avg = avgProgress[product.id] || 0
                           // 이 교구가 배정된 학생만
                           const productStudents = confirmedStudents.filter(s => getStudentSupply(s.id).productId === product.id)
@@ -912,7 +912,7 @@ export function Supplies({ user }) {
                               <div style={{ padding:'14px 18px', background:'#f9fafb', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
                                 <div>
                                   <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>🤖 {product.name}</span>
-                                  <span style={{ fontSize:'12px', color:C.muted, marginLeft:'10px' }}>단계당 {sessionsPerStage}차시 기준 · {alertSession}차시 도달 시 준비 알림</span>
+                                  <span style={{ fontSize:'12px', color:C.muted, marginLeft:'10px' }}>단계당 {sessionsPerStage}차시 기준 · 마지막 {alertSession}차시 전 준비 알림</span>
                                 </div>
                                 <span style={{ fontSize:'12px', color:C.blue, background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'6px', padding:'2px 8px', fontWeight:600 }}>
                                   평균 진도 {Math.round(avg * 10) / 10}차시 · {productStudents.length}명
@@ -1434,7 +1434,7 @@ export function Supplies({ user }) {
                 const product = productList.find(p=>p.id===progressProductId)
                 if (!product) return <div style={{ color:C.muted }}>교구를 찾을 수 없습니다</div>
                 const sessionsPerStage = product.sessionsPerStage || 12
-                const alertSession     = product.alertSession || 10
+                const alertSession     = product.alertSession || 3
                 const studentChecks    = getStudentChecks(progressStudent.id, product.id)
                 const prog             = getProgress(progressStudent.id, product.id)
                 const curStage         = prog?.curStage || 1
@@ -1464,7 +1464,7 @@ export function Supplies({ user }) {
                       onMouseEnter={e => e.currentTarget.style.background='#f0f4ff'}
                       onMouseLeave={e => e.currentTarget.style.background='#f9fafb'}
                     >
-                      <span>🤖 {product.name} · {assignedStage}단계 배정 · 단계당 {sessionsPerStage}차시 기준 · {alertSession}차시 도달 시 준비 알림</span>
+                      <span>🤖 {product.name} · {assignedStage}단계 배정 · 단계당 {sessionsPerStage}차시 기준 · 마지막 {alertSession}차시 전 준비 알림</span>
                       <span style={{ fontSize:'11px', color:C.primary, fontWeight:600, marginLeft:'10px', whiteSpace:'nowrap' }}>✏️ 교구 등록에서 수정</span>
                     </div>
                     {showStages.map(stage => {
@@ -1472,7 +1472,7 @@ export function Supplies({ user }) {
                       const stageChecks = studentChecks.filter(c=>c.stage===stage)
                       const checkedNos  = new Set(stageChecks.map(c=>c.sessionNo))
                       const checkedCnt  = stageChecks.length
-                      const isAlert     = checkedCnt >= alertSession && checkedCnt < sessionsPerStage
+                      const isAlert     = checkedCnt >= (sessionsPerStage - alertSession) && checkedCnt < sessionsPerStage
                       const isDone      = checkedCnt >= sessionsPerStage
 
                       return (
