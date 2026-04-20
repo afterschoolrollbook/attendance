@@ -552,7 +552,8 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
           const cnt = stageChecks.length
           const isDone = cnt >= spp
-          const isAlert = cnt >= (spp - alertSess) && !isDone
+          const actualSessions = sessions.length > 0 ? sessions.length : spp
+          const isAlert = cnt >= (actualSessions - alertSess) && !isDone
           return (
             <div style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
               <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>

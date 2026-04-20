@@ -82,7 +82,7 @@ function FileRow({ item, onDelete, onEdit, schools=[] }) {
 function ProgressBadge({ checkedCount, totalCount, alertSession, sessionsPerStage }) {
   if (!totalCount) return null
   const rate = Math.round(checkedCount / totalCount * 100)
-  const isAlert = checkedCount >= (totalCount - alertSession) && !isDone
+  const isAlert = checkedCount >= (totalCount - alertSession) && !isDone  // totalCount = 해당 단계 실제 차시수
   const isDone  = checkedCount >= sessionsPerStage
   const color   = isDone ? C.success : isAlert ? C.warning : C.blue
   const bg      = isDone ? '#f0fdf4' : isAlert ? '#fffbeb' : '#eff6ff'
@@ -1472,7 +1472,8 @@ export function Supplies({ user }) {
                       const stageChecks = studentChecks.filter(c=>c.stage===stage)
                       const checkedNos  = new Set(stageChecks.map(c=>c.sessionNo))
                       const checkedCnt  = stageChecks.length
-                      const isAlert     = checkedCnt >= (sessionsPerStage - alertSession) && checkedCnt < sessionsPerStage
+                      const actualSessions = stagePlans.length > 0 ? stagePlans.length : sessionsPerStage
+                        const isAlert     = checkedCnt >= (actualSessions - alertSession) && checkedCnt < actualSessions
                       const isDone      = checkedCnt >= sessionsPerStage
 
                       return (
