@@ -457,6 +457,16 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const origStage = si?.stage ? Number(si.stage) : 1
   const isChanged = selProductId !== origProductId || selStage !== origStage
 
+  // 다음 진도 state
+  const [nextProductId, setNextProductId] = React.useState(prog?.nextProductId || '')
+  const [nextStage, setNextStage] = React.useState(prog?.nextStage || 1)
+  const [nextSaved, setNextSaved] = React.useState(false)
+  const nextProduct = spProds.find(p => p.id === nextProductId)
+  const nextMaxStage = nextProduct?.maxStage || 10
+  const origNextProductId = prog?.nextProductId || ''
+  const origNextStage = prog?.nextStage || 1
+  const isNextChanged = nextProductId !== origNextProductId || Number(nextStage) !== Number(origNextStage)
+
   const handleProductChange = (newId) => {
     setSelProductId(newId)
     setSelStage(1)
@@ -467,6 +477,15 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     SupplyItems.upsert({ ...si, productId: selProductId, stage: selStage })
     onSaved && onSaved()
     setTick(t => t + 1)
+  }
+
+  const handleSaveNext = () => {
+    if (!nextProductId) return
+    const base = prog || { id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId: selProductId, curStage: selStage, curSession: 1, createdAt: now() }
+    SupplyStudentProgress.upsert({ ...base, nextProductId, nextStage: Number(nextStage), updatedAt: now() })
+    setNextSaved(true)
+    setTimeout(() => setNextSaved(false), 2000)
+    onSaved && onSaved()
   }
 
   const toggleCheck = (productId, stage, sessionNo) => {
@@ -513,47 +532,90 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             🤖 {product.name} · {selStage}단계 배정 · 단계당 {spp}차시 기준
           </div>
         </div>
-        {/* 진도 목록 */}
-        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-          {STAGES.map(stage => {
-            const stagePlans = SupplyProductPlans.byProductStage(selProductId, stage).sort((a,b) => a.sessionNo-b.sessionNo)
-            const sessions = stagePlans.length > 0 ? stagePlans
-              : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
-            const stageChecks = SupplySessionChecks.byProductStudent(selProductId, student.id, classId).filter(c => c.stage===stage)
-            const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
-            const cnt = stageChecks.length
-            const isDone = cnt >= spp
-            const isAlert = cnt >= alertSess && !isDone
-            return (
-              <div key={stage} style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
-                <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
-                  <span style={{ fontSize:'13px', fontWeight:700, color:isDone?'#16a34a':isAlert?'#f59e0b':'#111827' }}>{stage}단계</span>
-                  <span style={{ fontSize:'12px', color:'#6b7280' }}>{cnt}/{spp}차시</span>
-                  {isDone  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>}
-                  {isAlert && <span style={{ fontSize:'11px', background:'#fffbeb', color:'#f59e0b', border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ 다음 단계 준비</span>}
-                </div>
-                <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px' }}>
-                  {sessions.map(sess => {
-                    const isChk = checkedNos.has(sess.sessionNo)
-                    return (
-                      <div key={sess.id} onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)}
-                        style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, cursor:'pointer', transition:'all .12s' }}>
-                        <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                          {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
-                        </div>
-                        <span style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827' }}>
-                          {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
+        {/* 이전 단계 완료 표시 */}
+        {selStage > 1 && (
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'10px' }}>
+            {Array.from({ length: selStage - 1 }, (_, i) => i + 1).map(s => (
+              <div key={s} style={{ padding:'6px 12px', borderRadius:'8px', background:'#f0fdf4', border:'1px solid #86efac', fontSize:'12px', fontWeight:600, color:'#16a34a' }}>
+                ✅ {s}단계 완료
               </div>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        )}
+        {/* 현재 단계 진도 목록 */}
+        {(() => {
+          const stage = selStage
+          const stagePlans = SupplyProductPlans.byProductStage(selProductId, stage).sort((a,b) => a.sessionNo-b.sessionNo)
+          const sessions = stagePlans.length > 0 ? stagePlans
+            : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
+          const stageChecks = SupplySessionChecks.byProductStudent(selProductId, student.id, classId).filter(c => c.stage===stage)
+          const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
+          const cnt = stageChecks.length
+          const isDone = cnt >= spp
+          const isAlert = cnt >= alertSess && !isDone
+          return (
+            <div style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
+              <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
+                <span style={{ fontSize:'13px', fontWeight:700, color:isDone?'#16a34a':isAlert?'#f59e0b':'#111827' }}>{stage}단계</span>
+                <span style={{ fontSize:'12px', color:'#6b7280' }}>{cnt}/{spp}차시</span>
+                {isDone  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>}
+                {isAlert && <span style={{ fontSize:'11px', background:'#fffbeb', color:'#f59e0b', border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ 다음 단계 준비</span>}
+              </div>
+              <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                {sessions.map(sess => {
+                  const isChk = checkedNos.has(sess.sessionNo)
+                  return (
+                    <div key={sess.id} onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)}
+                      style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, cursor:'pointer', transition:'all .12s' }}>
+                      <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827' }}>
+                        {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
       </div>
-      <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
+      {/* 다음 진도 준비 */}
+      <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#fafafa' }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📌 다음 진도 준비</div>
+        <div style={{ display:'flex', alignItems:'flex-end', gap:'10px', flexWrap:'wrap' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'150px' }}>
+            <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>다음 교구</label>
+            <select value={nextProductId} onChange={e => { setNextProductId(e.target.value); setNextStage(1) }}
+              style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+              <option value="">선택 안함</option>
+              {spProds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          {nextProductId && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px', minWidth:'90px' }}>
+              <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>단계</label>
+              <select value={nextStage} onChange={e => setNextStage(Number(e.target.value))}
+                style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+                {Array.from({ length: nextMaxStage }, (_, i) => i+1).map(s => (
+                  <option key={s} value={s}>{s}단계</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button onClick={handleSaveNext} disabled={!nextProductId || (!isNextChanged && !nextSaved)}
+            style={{ padding:'8px 16px', borderRadius:'8px', border:'none', background: nextSaved ? '#16a34a' : (nextProductId && isNextChanged ? '#f97316' : '#e5e7eb'), color: (nextProductId && isNextChanged) || nextSaved ? '#fff' : '#9ca3af', fontSize:'13px', fontWeight:700, cursor: nextProductId && isNextChanged ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', transition:'all .2s' }}>
+            {nextSaved ? '✅ 저장됨' : '저장'}
+          </button>
+        </div>
+        {nextProduct && (
+          <div style={{ marginTop:'8px', fontSize:'12px', color:'#6b7280' }}>
+            → {nextProduct.name} {nextStage}단계로 이어집니다
+          </div>
+        )}
+      </div>
+      <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
         <button onClick={onClose}
           style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
           닫기
