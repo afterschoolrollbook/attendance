@@ -644,6 +644,8 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
   const [memo, setMemo] = useState('')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteSent, setInviteSent] = useState(!!s.parentInviteSentAt)
+  const [fscOpen, setFscOpen] = useState(false)
+  const [fscLocalDelivered, setFscLocalDelivered] = useState(false)
 
   const handlePredictClick = () => {
     setShowInfo(true)
@@ -678,14 +680,14 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
             const _alert2 = _prod2?.alertSession || 3
             const _done2 = _chk2 >= _actual2
             const _near2 = _chk2 >= (_actual2 - _alert2) && !_done2
-            if (!_done2 && !_near2) return null
+            if ((!_done2 && !_near2) || _prog2?.supplyDelivered || fscLocalDelivered) return null
             const _np2 = _prog2?.nextProductId ? (spProds||[]).find(p => p.id === _prog2.nextProductId) : null
             const _lbl2 = _done2
               ? (_np2 ? `${_np2.name} ${_prog2.nextStage || 1}단계 준비` : `${_prod2?.name} ${_cs2+1}단계 준비`)
               : (_np2 ? `${_np2.name} ${_prog2.nextStage || 1}단계 준비 필요` : `${_prod2?.name} ${_cs2+1}단계 준비 필요`)
             return (
               <div style={{ marginBottom: '4px', fontSize: '10px', fontWeight: 700, color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-block', cursor: 'pointer' }}
-                onClick={() => onProgOpen && onProgOpen(s, _si2.productId)}>
+                onClick={() => setFscOpen(true)}>
                 ⚠️ {_lbl2}
               </div>
             )
@@ -802,15 +804,32 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
       {memoOpen && (
         <StudentMemoModal student={{ ...s, memo }} onClose={() => setMemoOpen(false)} onSave={v => setMemo(v)} />
       )}
-      {scOpen && _si?.productId && (
-        <SupplyCheckModal
-          studentName={s.name} alertLabel={_supplyLabel}
-          studentId={s.id} classId={_cid} productId={_si.productId}
-          teacherId={user?.id || ''}
-          onClose={() => setScOpen(false)}
-          onDelivered={() => setScLocalDelivered(true)}
-        />
-      )}
+      {fscOpen && (() => {
+        const _cid3 = classId || s.classIds?.[0] || ''
+        const _si3 = SupplyItems.byClassStudent(_cid3, s.id)[0]
+        if (!_si3?.productId) return null
+        const _prod3 = (spProds||[]).find(p => p.id === _si3.productId)
+        const _prog3 = SupplyStudentProgress.byStudent(s.id, _cid3).find(p => p.productId === _si3.productId)
+        const _cs3 = _prog3?.curStage || _si3.stage || 1
+        const _spp3 = _prod3?.sessionsPerStage || 12
+        const _chk3 = SupplySessionChecks.byProductStudent(_si3.productId, s.id, _cid3).filter(c => c.stage === _cs3).length
+        const _plans3 = SupplyProductPlans.byProductStage(_si3.productId, _cs3)
+        const _actual3 = _plans3.length > 0 ? _plans3.length : _spp3
+        const _np3 = _prog3?.nextProductId ? (spProds||[]).find(p => p.id === _prog3.nextProductId) : null
+        const _done3 = _chk3 >= _actual3
+        const _lbl3 = _done3
+          ? (_np3 ? `${_np3.name} ${_prog3.nextStage||1}단계 준비` : `${_prod3?.name} ${_cs3+1}단계 준비`)
+          : (_np3 ? `${_np3.name} ${_prog3.nextStage||1}단계 준비 필요` : `${_prod3?.name} ${_cs3+1}단계 준비 필요`)
+        return (
+          <SupplyCheckModal
+            studentName={s.name} alertLabel={_lbl3}
+            studentId={s.id} classId={_cid3} productId={_si3.productId}
+            teacherId={user?.id || ''}
+            onClose={() => setFscOpen(false)}
+            onDelivered={() => { setFscLocalDelivered(true); setFscOpen(false) }}
+          />
+        )
+      })()}
     </div>
   )
 }
@@ -992,6 +1011,15 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         </div>
       )}
 
+      {scOpen && _si?.productId && (
+        <SupplyCheckModal
+          studentName={s.name} alertLabel={_supplyLabel}
+          studentId={s.id} classId={_cid} productId={_si.productId}
+          teacherId={user?.id || ''}
+          onClose={() => setScOpen(false)}
+          onDelivered={() => { setScLocalDelivered(true); setScOpen(false) }}
+        />
+      )}
     </div>
   )
 }
