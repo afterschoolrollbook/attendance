@@ -802,6 +802,15 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
       {memoOpen && (
         <StudentMemoModal student={{ ...s, memo }} onClose={() => setMemoOpen(false)} onSave={v => setMemo(v)} />
       )}
+      {scOpen && _si?.productId && (
+        <SupplyCheckModal
+          studentName={s.name} alertLabel={_supplyLabel}
+          studentId={s.id} classId={_cid} productId={_si.productId}
+          teacherId={user?.id || ''}
+          onClose={() => setScOpen(false)}
+          onDelivered={() => setScLocalDelivered(true)}
+        />
+      )}
     </div>
   )
 }
@@ -836,7 +845,9 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
   const _supplyLabel = _supplyDone
     ? (_nextProd ? `${_nextProd.name} ${_prog.nextStage || 1}단계 준비` : `${_prod?.name} ${_curStage+1}단계 준비`)
     : (_nextProd ? `${_nextProd.name} ${_prog.nextStage || 1}단계 준비 필요` : `${_prod?.name} ${_curStage+1}단계 준비 필요`)
-  const showSupplyBadge = (_supplyDone || _supplyAlert) && !_prog?.supplyDelivered
+  const [scOpen, setScOpen] = useState(false)
+  const [scLocalDelivered, setScLocalDelivered] = useState(false)
+  const showSupplyBadge = (_supplyDone || _supplyAlert) && !_prog?.supplyDelivered && !scLocalDelivered
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>
@@ -854,7 +865,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         <div style={{ textAlign: 'center' }}>
           {showSupplyBadge && (
             <div
-              onClick={() => onProgOpen && onProgOpen(s, _si?.productId)}
+              onClick={() => setScOpen(true)}
               style={{ marginBottom: '4px', fontSize: '10px', fontWeight: 700, color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-block', cursor: 'pointer' }}>
               ⚠️ {_supplyLabel}
             </div>
@@ -981,6 +992,57 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         </div>
       )}
 
+    </div>
+  )
+}
+
+// ─── 교구 준비/지급 체크 모달 (출석부용)
+function SupplyCheckModal({ studentName, alertLabel, studentId, classId, productId, teacherId, onClose, onDelivered }) {
+  const [tick, setTick] = useState(0)
+  const prog = SupplyStudentProgress.byStudent(studentId, classId).find(p => p.productId === productId)
+  const supplyReady     = prog?.supplyReady     || false
+  const supplyDelivered = prog?.supplyDelivered || false
+
+  const upsertProg = (patch) => {
+    const base = prog || { id: uid(), teacherId, studentId, classId, productId, createdAt: now() }
+    SupplyStudentProgress.upsert({ ...base, ...patch, updatedAt: now() })
+    setTick(t => t + 1)
+  }
+  const toggleReady = () => upsertProg({ supplyReady: !supplyReady, supplyDelivered })
+  const toggleDelivered = () => {
+    upsertProg({ supplyReady, supplyDelivered: !supplyDelivered })
+    if (!supplyDelivered) { onDelivered && onDelivered(); onClose() }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:4000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}
+      onClick={onClose}>
+      <div style={{ background:'#fff', borderRadius:'16px', padding:'24px', maxWidth:'320px', width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ marginBottom:'6px', fontSize:'10px', fontWeight:700, color:'#ef4444', background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'3px 8px', display:'inline-block' }}>
+          ⚠️ {alertLabel}
+        </div>
+        <div style={{ fontSize:'16px', fontWeight:700, color:'#111827', marginBottom:'20px' }}>{studentName}</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'24px' }}>
+          {[
+            { checked: supplyReady,     label:'교구 준비 완료', toggle: toggleReady,     color:'#f59e0b', bg:'#fffbeb', border:'#fde68a' },
+            { checked: supplyDelivered, label:'교구 지급 완료', toggle: toggleDelivered,  color:'#16a34a', bg:'#f0fdf4', border:'#86efac' },
+          ].map((item, i) => (
+            <label key={i} onClick={item.toggle}
+              style={{ display:'flex', alignItems:'center', gap:'12px', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${item.checked ? item.border : '#e5e7eb'}`, background: item.checked ? item.bg : '#f9fafb', cursor:'pointer', transition:'all .15s' }}>
+              <div style={{ width:'20px', height:'20px', borderRadius:'5px', border:`2px solid ${item.checked ? item.color : '#d1d5db'}`, background: item.checked ? item.color : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                {item.checked && <span style={{ color:'#fff', fontSize:'13px', fontWeight:700, lineHeight:1 }}>✓</span>}
+              </div>
+              <span style={{ fontSize:'14px', fontWeight: item.checked ? 700 : 500, color: item.checked ? item.color : '#374151' }}>{item.label}</span>
+            </label>
+          ))}
+        </div>
+        <div style={{ fontSize:'11px', color:'#9ca3af', marginBottom:'16px', textAlign:'center' }}>지급 완료 체크 시 알림이 자동으로 사라집니다</div>
+        <button onClick={onClose}
+          style={{ width:'100%', padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
+          닫기
+        </button>
+      </div>
     </div>
   )
 }
