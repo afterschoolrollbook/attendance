@@ -709,6 +709,15 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
           const spp = prod?.sessionsPerStage || 12
           const chk = SupplySessionChecks.byProductStudent(si.productId, s.id, _cid).filter(c => c.stage === curStage).length
           const pct = Math.min(Math.round(chk/spp*100),100)
+          const stagePlans = SupplyProductPlans.byProductStage(si.productId, curStage)
+          const actualSess = stagePlans.length > 0 ? stagePlans.length : spp
+          const alertSess = prod?.alertSession || 3
+          const isDone = chk >= actualSess
+          const isAlert = chk >= (actualSess - alertSess) && !isDone
+          const nextProd = prog?.nextProductId ? spProds.find(p => p.id === prog.nextProductId) : null
+          const alertLabel = isDone
+            ? (nextProd ? `${nextProd.name} ${prog.nextStage || 1}단계 준비` : `${prod?.name} ${curStage+1}단계 준비`)
+            : (nextProd ? `${nextProd.name} ${prog.nextStage || 1}단계 준비 필요` : `${prod?.name} ${curStage+1}단계 준비 필요`)
           return (
             <div onClick={() => onProgOpen && onProgOpen(s, si.productId)}
               style={{ fontSize:'11px', cursor:'pointer', padding:'4px 6px', borderRadius:'6px', transition:'background .15s' }}
@@ -719,6 +728,11 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
               <div style={{ height:'3px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'70px' }}>
                 <div style={{ height:'100%', borderRadius:'2px', width:`${pct}%`, background:pct>=100?'#16a34a':pct>=80?'#f59e0b':'#f97316' }} />
               </div>
+              {(isDone || isAlert) && (
+                <div style={{ marginTop:'3px', fontSize:'10px', fontWeight:700, color: isDone?'#16a34a':'#f59e0b', background: isDone?'#f0fdf4':'#fffbeb', border:`1px solid ${isDone?'#86efac':'#fde68a'}`, borderRadius:'4px', padding:'1px 5px', whiteSpace:'nowrap' }}>
+                  {isDone ? '✅' : '⚠️'} {alertLabel}
+                </div>
+              )}
             </div>
           )
         })()}
@@ -840,6 +854,15 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
           const spp = prod?.sessionsPerStage || 12
           const chk = spChecks.filter(c => c.studentId === s.id && c.productId === si.productId && c.stage === curStage).length
           const pct = Math.min(Math.round(chk/spp*100),100)
+          const stagePlans = SupplyProductPlans.byProductStage(si.productId, curStage)
+          const actualSess = stagePlans.length > 0 ? stagePlans.length : spp
+          const alertSess = prod?.alertSession || 3
+          const isDone = chk >= actualSess
+          const isAlert = chk >= (actualSess - alertSess) && !isDone
+          const nextProd = prog?.nextProductId ? spProds.find(p => p.id === prog.nextProductId) : null
+          const alertLabel = isDone
+            ? (nextProd ? `${nextProd.name} ${prog.nextStage || 1}단계 준비` : `${prod?.name} ${curStage+1}단계 준비`)
+            : (nextProd ? `${nextProd.name} ${prog.nextStage || 1}단계 준비 필요` : `${prod?.name} ${curStage+1}단계 준비 필요`)
           return (
             <div onClick={() => onProgOpen && onProgOpen(s, si.productId)}
               style={{ fontSize:'11px', cursor:'pointer', padding:'4px 6px', borderRadius:'6px', transition:'background .15s' }}
@@ -850,6 +873,11 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
               <div style={{ height:'3px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'70px' }}>
                 <div style={{ height:'100%', borderRadius:'2px', width:`${pct}%`, background:pct>=100?'#16a34a':pct>=80?'#f59e0b':'#f97316' }} />
               </div>
+              {(isDone || isAlert) && (
+                <div style={{ marginTop:'3px', fontSize:'10px', fontWeight:700, color: isDone?'#16a34a':'#f59e0b', background: isDone?'#f0fdf4':'#fffbeb', border:`1px solid ${isDone?'#86efac':'#fde68a'}`, borderRadius:'4px', padding:'1px 5px', whiteSpace:'nowrap' }}>
+                  {isDone ? '✅' : '⚠️'} {alertLabel}
+                </div>
+              )}
             </div>
           )
         })()}

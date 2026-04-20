@@ -836,9 +836,27 @@ export function Supplies({ user }) {
                                     {hasSupply && curStage ? `${curStage}단계` : <span style={{ color:C.danger }}>없음</span>}
                                   </span>
                                   <span style={{ fontSize:'12px', color: hasSupply && curStage ? C.text : C.danger }}>
-                                    {hasSupply && curStage
-                                      ? `${sps}차시 중 ${stageChecks}`
-                                      : <span style={{ color:C.danger }}>없음</span>}
+                                    {hasSupply && curStage ? (() => {
+                                      const stagePlans2 = SupplyProductPlans.byProductStage(supply.productId, curStage)
+                                      const actualSess2 = stagePlans2.length > 0 ? stagePlans2.length : sps
+                                      const alertSess2 = product?.alertSession || 3
+                                      const isDone2 = stageChecks >= actualSess2
+                                      const isAlert2 = stageChecks >= (actualSess2 - alertSess2) && !isDone2
+                                      const nextProd2 = prog?.nextProductId ? productList.find(p => p.id === prog.nextProductId) : null
+                                      const alertLabel2 = isDone2
+                                        ? (nextProd2 ? `${nextProd2.name} ${prog.nextStage||1}단계 준비` : `${product?.name} ${curStage+1}단계 준비`)
+                                        : (nextProd2 ? `${nextProd2.name} ${prog.nextStage||1}단계 준비 필요` : `${product?.name} ${curStage+1}단계 준비 필요`)
+                                      return (
+                                        <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
+                                          <span>{sps}차시 중 {stageChecks}</span>
+                                          {(isDone2 || isAlert2) && (
+                                            <span style={{ fontSize:'10px', fontWeight:700, color:isDone2?'#16a34a':'#f59e0b', background:isDone2?'#f0fdf4':'#fffbeb', border:`1px solid ${isDone2?'#86efac':'#fde68a'}`, borderRadius:'4px', padding:'1px 5px', whiteSpace:'nowrap' }}>
+                                              {isDone2?'✅':'⚠️'} {alertLabel2}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )
+                                    })() : <span style={{ color:C.danger }}>없음</span>}
                                   </span>
                                   {hasSupply ? (
                                     <button onClick={e => {
