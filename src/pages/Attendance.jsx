@@ -914,14 +914,13 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         <div style={{ textAlign: 'center', display:'flex', flexDirection:'column', alignItems:'center', gap:'2px' }}>
           {_showProgAlert && (
             <div onClick={() => onProgOpen(s, _si?.productId)}
-              style={{ fontSize: '10px', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-block', cursor: 'pointer' }}>
+              style={{ fontSize: '10px', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', cursor: 'pointer' }}>
               📋 진도체크!
             </div>
           )}
           {showSupplyBadge && (
-            <div
-              onClick={() => setScOpen(true)}
-              style={{ fontSize: '10px', fontWeight: 700, color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-block', cursor: 'pointer' }}>
+            <div onClick={() => setScOpen(true)}
+              style={{ fontSize: '10px', fontWeight: 700, color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', cursor: 'pointer' }}>
               ⚠️ {_supplyLabel}
             </div>
           )}
@@ -961,8 +960,11 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         {(() => {
           const si = spItems.find(i => i.studentId === s.id && i.classId === (classId || s.classIds?.[0] || ''))
           if (!si?.productId) return <span style={{ fontSize:'11px', color:'#d1d5db', textAlign:'center' }}>-</span>
-          const prod = spProds.find(p => p.id === si.productId)
-          const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
+          // prog가 있으면 실제 진행 중인 교구/단계 우선 사용
+          const progAny = spProg.find(p => p.studentId === s.id && p.classId === (classId || s.classIds?.[0] || ''))
+          const activeProductId = progAny?.productId || si.productId
+          const prod = spProds.find(p => p.id === activeProductId)
+          const prog = spProg.find(p => p.studentId === s.id && p.productId === activeProductId)
           const curStage = prog?.curStage || si.stage || 1
           const spp = prod?.sessionsPerStage || 12
           const chk = spChecks.filter(c => c.studentId === s.id && c.productId === si.productId && c.stage === curStage).length
