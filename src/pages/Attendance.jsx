@@ -1089,12 +1089,14 @@ function NoteInline({ note, onSave, studentMemo, placeholder = '특이사항 메
         <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '5px', display: 'inline-block' }}>👤 {studentMemo}</div>
       )}
       {editing ? (
-        <div style={{ display: 'flex', gap: '5px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
           <input ref={ref} value={val} onChange={e => setVal(e.target.value)} autoFocus placeholder={placeholder}
             onKeyDown={e => { if (e.key==='Enter') save(); if (e.key==='Escape') { setEditing(false); setVal(note) } }}
-            style={{ flex:1, border:`1.5px solid ${C.primary}`, borderRadius:'6px', padding:'4px 9px', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-          <button onClick={save} style={sm('#f97316','#fff')}>저장</button>
-          <button onClick={() => { setEditing(false); setVal(note) }} style={sm('#f3f4f6','#374151')}>취소</button>
+            style={{ width:'100%', boxSizing:'border-box', border:`1.5px solid ${C.primary}`, borderRadius:'6px', padding:'4px 9px', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+          <div style={{ display:'flex', gap:'5px' }}>
+            <button onClick={save} style={sm('#f97316','#fff')}>저장</button>
+            <button onClick={() => { setEditing(false); setVal(note) }} style={sm('#f3f4f6','#374151')}>취소</button>
+          </div>
         </div>
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
