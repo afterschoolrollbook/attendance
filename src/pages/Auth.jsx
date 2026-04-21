@@ -205,15 +205,21 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
   const [sending,    setSending]    = useState(false)
   const [isDev,      setIsDev]      = useState(false)
   const [error,      setError]      = useState('')
+  const [useOtherEmail, setUseOtherEmail] = useState(false)
+  const [otherEmail,    setOtherEmail]    = useState('')
 
-  const targetEmail = isKakao ? emailInput.trim() : profile.email
+  const targetEmail = isKakao ? emailInput.trim() : useOtherEmail ? otherEmail.trim() : profile.email
 
   const handleSend = async () => {
     setError('')
+    const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (isKakao) {
-      const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       if (!emailInput.trim()) { setError('이메일을 입력해주세요.'); return }
       if (!emailReg.test(emailInput.trim())) { setError('올바른 이메일 형식이 아닙니다.'); return }
+    }
+    if (useOtherEmail) {
+      if (!otherEmail.trim()) { setError('이메일을 입력해주세요.'); return }
+      if (!emailReg.test(otherEmail.trim())) { setError('올바른 이메일 형식이 아닙니다.'); return }
     }
     // 중복 체크 — 모든 소셜 로그인 공통
     const dup = Users.findByEmail(targetEmail.toLowerCase())
@@ -259,7 +265,45 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
         </div>
       ) : (
         <div style={{ padding: '12px 14px', background: '#eff6ff', borderRadius: '10px', border: '1.5px solid #bfdbfe', fontSize: '13px', color: '#1e40af' }}>
-          <strong>{profile.email}</strong>으로 인증번호를 발송합니다. 인증 후 서비스를 이용하실 수 있습니다.
+          <div style={{ marginBottom: '10px', fontSize: '14px', color: '#1e40af', lineHeight: '1.8' }}>
+            안녕하세요~!<br/>
+            방과후 출석부를 찾아오신 선생님 반갑습니다!<br/>
+            대한민국 교육의 한 축을 이루고 있는 방과후 교육을 담당하고 계신 선생님 감사합니다!
+          </div>
+          <div style={{ marginBottom: '10px', fontSize: '13px', color: '#1e40af', lineHeight: '1.8' }}>
+            선생님께서는 처음 방문하신 선생님이셔서 불편하시더라도<br/>
+            실 사용하시는 이메일 인증을 통해 입장을 하고 있으니 양해 부탁드립니다.
+          </div>
+          <div style={{ marginBottom: '10px', fontSize: '13px', color: '#1e40af', lineHeight: '1.8' }}>
+            방과후 출석부는 무료회원가입으로 기본 출석부 기능을 사용하실수 있습니다!
+          </div>
+          <div style={{ fontSize: '13px', color: '#1e40af' }}>
+            <strong>{useOtherEmail ? otherEmail : profile.email}</strong>으로 인증번호를 발송합니다.
+          </div>
+          {!codeSent && (
+            <div style={{ marginTop: '10px' }}>
+              {!useOtherEmail ? (
+                <button onClick={() => { setUseOtherEmail(true); setCodeSent(false); setCode('') }}
+                  style={{ fontSize: '12px', color: '#f97316', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'Noto Sans KR, sans-serif' }}>
+                  다른 이메일로 인증받기
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+                  <input
+                    type="email"
+                    value={otherEmail}
+                    onChange={e => setOtherEmail(e.target.value)}
+                    placeholder="다른 이메일 주소 입력"
+                    style={{ padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #f97316', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }}
+                  />
+                  <button onClick={() => { setUseOtherEmail(false); setOtherEmail('') }}
+                    style={{ fontSize: '12px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'Noto Sans KR, sans-serif', textAlign: 'left' }}>
+                    원래 이메일로 돌아가기
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
