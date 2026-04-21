@@ -18,6 +18,7 @@ import { AdminSettings } from './pages/AdminSettings.jsx'
 import { Profile } from './pages/Profile.jsx'
 import { NaverCallback } from './pages/NaverCallback.jsx'
 import { KakaoCallback } from './pages/KakaoCallback.jsx'
+import { TermsPage, PrivacyPage } from './pages/LegalPage.jsx'
 import { Training }     from './pages/Training.jsx'
 import { Certificates } from './pages/Certificates.jsx'
 import { Career }       from './pages/Career.jsx'
@@ -131,6 +132,10 @@ export default function App() {
   // 네이버/카카오 콜백 — DB 불필요, 바로 렌더
   if (window.location.pathname === '/naver-callback')  return <NaverCallback />
   if (window.location.pathname === '/kakao-callback')  return <KakaoCallback />
+
+  // 공개 약관 페이지 — 로그인 불필요
+  if (window.location.pathname === '/terms')   return <TermsPage />
+  if (window.location.pathname === '/privacy') return <PrivacyPage />
 
   // ✅ 업체 포털 분기 (?vendor=1 또는 /vendor-login 접속 시)
   const isVendorPath =
