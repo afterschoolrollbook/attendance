@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -53,6 +53,157 @@ function todayStr() {
 
 function localDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+
+
+// ─── 수업 메모장 패널
+function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, onProgOpen }) {
+  const [tab, setTab] = useState('memo')
+  const [memos, setMemos] = useState(() => cls ? LessonMemos.byClassDate(cls.id, date) : [])
+  const [memoText, setMemoText] = useState('')
+
+  const addMemo = () => {
+    if (!memoText.trim() || !cls) return
+    LessonMemos.insert({ id: uid(), teacherId: cls.teacherId, classId: cls.id, date, content: memoText.trim(), createdAt: now() })
+    setMemos(LessonMemos.byClassDate(cls.id, date))
+    setMemoText('')
+  }
+  const delMemo = (id) => { LessonMemos.delete(id); setMemos(LessonMemos.byClassDate(cls.id, date)) }
+
+  const today = todayStr()
+  const activeStudents = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
+
+  const studentProgList = activeStudents.map(s => {
+    const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)
+    if (!si?.productId) return null
+    const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
+    const curStage = prog?.curStage || si.stage || 1
+    const prod = spProds.find(p => p.id === si.productId)
+    const todayChecks = spChecks.filter(c =>
+      c.studentId === s.id && c.productId === si.productId &&
+      c.stage === curStage && c.checkedAt && c.checkedAt.startsWith(date)
+    )
+    const allChecks = spChecks.filter(c => c.studentId === s.id && c.productId === si.productId && c.stage === curStage)
+    return { s, si, prod, curStage, todayChecks, allChecks }
+  }).filter(Boolean)
+
+  const checkedToday = studentProgList.filter(p => p.todayChecks.length > 0)
+  const notCheckedToday = studentProgList.filter(p => p.todayChecks.length === 0)
+
+  if (!cls) return null
+
+  return (
+    <div style={{ marginTop:'16px', borderTop:`1px solid ${C.border}`, paddingTop:'14px' }}>
+      <div style={{ display:'flex', gap:'6px', marginBottom:'12px' }}>
+        {[['memo','📝 메모'],['progress','📋 진도']].map(([key,label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            style={{ padding:'5px 12px', borderRadius:'8px', border:`1.5px solid ${tab===key?C.primary:C.border}`, background:tab===key?'#fff7ed':'#fff', color:tab===key?C.primary:C.muted, fontSize:'12px', fontWeight:tab===key?700:400, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'memo' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+          {memos.length === 0 && <div style={{ fontSize:'12px', color:'#d1d5db', textAlign:'center', padding:'8px 0' }}>메모가 없습니다</div>}
+          {memos.map(m => (
+            <div key={m.id} style={{ display:'flex', alignItems:'flex-start', gap:'6px', padding:'8px 10px', background:'#fffbeb', borderRadius:'8px', border:'1px solid #fde68a' }}>
+              <span style={{ flex:1, fontSize:'12px', color:'#374151', lineHeight:1.6 }}>{m.content}</span>
+              <button onClick={() => delMemo(m.id)} style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', flexShrink:0 }}>삭제</button>
+            </div>
+          ))}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <textarea value={memoText} onChange={e => setMemoText(e.target.value)} rows={2}
+              placeholder="수업 특이사항을 입력하세요..."
+              style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', resize:'none', outline:'none' }} />
+            <button onClick={addMemo}
+              style={{ padding:'6px', borderRadius:'7px', border:'none', background:C.primary, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              추가
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tab === 'progress' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+          {checkedToday.length > 0 && (
+            <div>
+              <div style={{ fontSize:'11px', fontWeight:700, color:'#16a34a', marginBottom:'5px' }}>✅ 진도체크 완료 ({checkedToday.length}명)</div>
+              {checkedToday.map(({ s, prod, curStage, todayChecks, allChecks }) => (
+                <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
+                  style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f0fdf4', border:'1px solid #86efac', marginBottom:'4px', cursor:'pointer' }}>
+                  <span style={{ fontSize:'13px', fontWeight:700, color:'#16a34a' }}>{s.name}</span>
+                  <span style={{ fontSize:'11px', color:'#6b7280' }}>{prod?.name} {curStage}단계</span>
+                  <span style={{ marginLeft:'auto', fontSize:'11px', fontWeight:700, color:'#16a34a' }}>+{todayChecks.length}차시 ({allChecks.length}차시)</span>
+                  {todayChecks.length >= 2 && <span style={{ fontSize:'10px', background:'#fef2f2', color:'#ef4444', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 5px' }}>최대</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          {notCheckedToday.length > 0 && (
+            <div>
+              <div style={{ fontSize:'11px', fontWeight:700, color:'#9ca3af', marginBottom:'5px' }}>⬜ 미체크 ({notCheckedToday.length}명)</div>
+              {notCheckedToday.map(({ s, prod, curStage }) => (
+                <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
+                  style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f9fafb', border:'1px solid #e5e7eb', marginBottom:'4px', cursor:'pointer' }}>
+                  <span style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>{s.name}</span>
+                  <span style={{ fontSize:'11px', color:'#9ca3af' }}>{prod?.name} {curStage}단계</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {studentProgList.length === 0 && (
+            <div style={{ fontSize:'12px', color:'#d1d5db', textAlign:'center', padding:'8px 0' }}>교구 배정된 학생이 없습니다</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── 수업 메모장 래퍼
+function LessonMemoPanelWrapper({ cls, date, classId }) {
+  const [spItems,  setSpItems]  = useState(() => cls ? SupplyItems.byTeacher(cls.teacherId||'') : [])
+  const [spProds,  setSpProds]  = useState(() => cls ? SupplyProducts.byTeacher(cls.teacherId||'') : [])
+  const [spProg,   setSpProg]   = useState(() => cls ? SupplyStudentProgress.byTeacher(cls.teacherId||'') : [])
+  const [spChecks, setSpChecks] = useState(() => cls ? SupplySessionChecks.byTeacher(cls.teacherId||'') : [])
+  const [progStudent, setProgStudent] = useState(null)
+  const [progProductId, setProgProductId] = useState('')
+  const [tick, setTick] = useState(0)
+
+  useEffect(() => {
+    if (!cls) return
+    setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
+    setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
+    setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
+    setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+  }, [cls?.id, date, tick])
+
+  const students = cls ? StudentsDB.byClass(cls.id) : []
+  if (!cls || !classId) return null
+
+  return (
+    <>
+      <LessonMemoPanel
+        cls={cls} date={date} students={students}
+        spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks}
+        onProgOpen={(s, pid) => { setProgStudent({...s, _clsId: cls.id}); setProgProductId(pid) }}
+      />
+      {progStudent && (
+        <ProgCheckModal
+          student={progStudent} initialProductId={progProductId}
+          spProds={spProds} teacherId={cls.teacherId}
+          onClose={() => setProgStudent(null)}
+          onSaved={() => {
+            setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
+            setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
+            setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+            setTick(t => t+1)
+          }}
+        />
+      )}
+    </>
+  )
 }
 
 // ─── 달력
@@ -496,7 +647,6 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
     const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
     SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
-    // SupplyItems도 실제 진행 교구/단계로 동기화
     if (si) SupplyItems.upsert({ ...si, productId, stage })
     onSaved && onSaved()
     setTick(t => t + 1)
@@ -2676,6 +2826,7 @@ export function Attendance({ user, pageParams = {} }) {
               })}
             </div>
           )}
+          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} key={selDate+selClassId} />
         </div>
 
         {/* 오른쪽 패널 */}
