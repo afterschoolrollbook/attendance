@@ -1407,6 +1407,143 @@ function PermissionsSection() {
   )
 }
 
+// ─── 섹션: 약관 / 개인정보처리방침
+function LegalSection() {
+  const DEFAULT_TERMS = `방과후 출석부 서비스 이용약관
+
+제1조 (목적)
+본 약관은 집현전에듀 지원센터(이하 "운영자")가 제공하는 방과후 출석부 서비스(이하 "서비스")의 이용과 관련하여 운영자와 이용자 간의 권리, 의무 및 책임 사항을 규정함을 목적으로 합니다.
+
+제2조 (정의)
+1. "서비스"란 운영자가 제공하는 방과후 출결 관리 웹 애플리케이션 및 관련 부가 서비스 일체를 말합니다.
+2. "이용자"란 본 약관에 동의하고 서비스에 가입하여 이용하는 자를 말합니다.
+
+제3조 (약관의 효력 및 변경)
+본 약관은 서비스 화면에 게시하거나 기타 방법으로 이용자에게 공지함으로써 효력이 발생합니다. 운영자는 필요한 경우 관련 법령에 위반되지 않는 범위 내에서 본 약관을 변경할 수 있으며, 변경 시 시행 7일 전에 서비스 내 공지합니다.
+
+제4조 (서비스 이용 계약의 성립)
+서비스 이용 계약은 이용자가 본 약관에 동의하고, 소셜 로그인 등을 통해 회원 가입을 완료한 시점에 성립합니다.
+
+제5조 (이용자의 의무)
+이용자는 타인의 개인정보 무단 수집, 서비스 운영 방해, 관련 법령 위반 행위를 하여서는 안 됩니다.
+
+제6조 (면책 조항)
+운영자는 천재지변, 불가항력적 사유로 인해 서비스를 제공할 수 없는 경우 책임이 면제됩니다.
+
+[시행일] 2025년 1월 1일`
+
+  const DEFAULT_PRIVACY = `개인정보처리방침
+
+집현전에듀 지원센터(이하 "운영자")는 방과후 출석부 서비스 이용자의 개인정보를 중요하게 생각하며, 「개인정보 보호법」 등 관련 법령을 준수합니다.
+
+1. 수집하는 개인정보 항목
+- 네이버/카카오 로그인: 이름, 이메일, 프로필 사진, 고유 식별자
+- 서비스 이용 중: 학급 정보, 학생 이름, 출결 기록
+
+2. 개인정보의 수집 및 이용 목적
+- 회원 식별 및 로그인 서비스 제공
+- 방과후 출결 관리 서비스 제공
+- 서비스 관련 공지 및 안내 발송
+
+3. 개인정보의 보유 및 이용 기간
+서비스 이용 계약 존속 기간 동안 보유하며, 회원 탈퇴 시 지체 없이 파기합니다.
+
+4. 개인정보의 제3자 제공
+운영자는 이용자의 사전 동의 없이 개인정보를 외부에 제공하지 않습니다.
+
+5. 개인정보 처리 위탁
+- Supabase Inc.: 데이터베이스 저장 및 관리
+- 네이버㈜: 소셜 로그인 인증 처리
+
+6. 개인정보 보호 책임자
+- 담당자: 민찬홍 (집현전에듀 지원센터)
+- 이메일: afterschool.rollbook@gmail.com
+- 전화: 010-2704-0307
+
+[시행일] 2025년 1월 1일`
+
+  const stored = Settings.get('legal') || {}
+  const [terms,   setTerms]   = useState(stored.terms   || DEFAULT_TERMS)
+  const [privacy, setPrivacy] = useState(stored.privacy || DEFAULT_PRIVACY)
+  const [subtab,  setSubtab]  = useState('terms')
+  const { success } = useToast()
+
+  const save = () => {
+    Settings.set('legal', { terms, privacy })
+    success('약관이 저장되었습니다. (Supabase 동기화 완료)')
+  }
+
+  const reset = () => {
+    if (subtab === 'terms') setTerms(DEFAULT_TERMS)
+    else setPrivacy(DEFAULT_PRIVACY)
+  }
+
+  const textareaStyle = {
+    width: '100%', minHeight: '420px', padding: '14px 16px',
+    borderRadius: '10px', border: `1.5px solid ${C.border}`,
+    fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif',
+    lineHeight: '1.8', color: C.text, resize: 'vertical', outline: 'none',
+    boxSizing: 'border-box',
+  }
+
+  return (
+    <Card style={{ marginBottom: '16px' }}>
+      <div style={{ fontSize: '16px', fontWeight: 700, color: C.text, marginBottom: '4px' }}>📜 약관 / 개인정보처리방침 관리</div>
+      <div style={{ fontSize: '13px', color: C.muted, marginBottom: '20px', lineHeight: 1.6 }}>
+        네이버 로그인 플러스 검수 및 서비스 공개용 약관을 관리합니다.
+        저장 시 Supabase에 자동으로 동기화됩니다.
+      </div>
+
+      {/* 서브탭 */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: `1px solid ${C.border}`, paddingBottom: '0' }}>
+        {[
+          { key: 'terms',   label: '📜 서비스 이용약관' },
+          { key: 'privacy', label: '🔒 개인정보처리방침' },
+        ].map(t => (
+          <button key={t.key} onClick={() => setSubtab(t.key)}
+            style={{ padding: '8px 16px', border: 'none', cursor: 'pointer', background: 'none',
+              color: subtab === t.key ? C.primary : '#9ca3af',
+              fontWeight: subtab === t.key ? 700 : 400, fontSize: '13px',
+              borderBottom: subtab === t.key ? `2px solid ${C.primary}` : '2px solid transparent',
+              fontFamily: 'Noto Sans KR, sans-serif', marginBottom: '-1px', transition: 'all .15s' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* URL 안내 */}
+      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px', color: '#15803d' }}>
+        💡 약관 페이지 URL: <strong>/terms</strong> · <strong>/privacy</strong> — Vercel 배포 후 네이버 개발자센터에 해당 URL 등록하세요.
+      </div>
+
+      {/* 텍스트 에디터 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <label style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>
+          {subtab === 'terms' ? '서비스 이용약관 본문' : '개인정보처리방침 본문'}
+        </label>
+        <textarea
+          value={subtab === 'terms' ? terms : privacy}
+          onChange={e => subtab === 'terms' ? setTerms(e.target.value) : setPrivacy(e.target.value)}
+          style={textareaStyle}
+          onFocus={e => e.target.style.borderColor = C.primary}
+          onBlur={e => e.target.style.borderColor = C.border}
+        />
+        <div style={{ fontSize: '12px', color: C.muted }}>
+          {(subtab === 'terms' ? terms : privacy).length.toLocaleString()}자
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+        <button onClick={reset}
+          style={{ padding: '8px 16px', borderRadius: '8px', border: `1.5px solid ${C.border}`, background: '#fff', color: C.muted, fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+          🔄 기본값으로 초기화
+        </button>
+        <Btn onClick={save}>💾 저장 (Supabase 동기화)</Btn>
+      </div>
+    </Card>
+  )
+}
+
 // ─── 메인
 export function AdminSettings() {
   const [tab, setTab] = useState('social')
@@ -1425,6 +1562,7 @@ export function AdminSettings() {
           { key:'region',      label:'🗺️ 지역/학교' },
           { key:'teacher',     label:'🎓 강사 서비스' },
           { key:'permissions', label:'🔐 메뉴 권한' },
+          { key:'legal',       label:'📜 약관 관리' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             style={{ padding:'10px 16px', border:'none', cursor:'pointer', background:'none', color:tab===t.key?C.primary:'#9ca3af', fontWeight:tab===t.key?700:400, fontSize:'14px', borderBottom:tab===t.key?`2px solid ${C.primary}`:'2px solid transparent', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'-1px', transition:'all .15s' }}>
@@ -1441,6 +1579,7 @@ export function AdminSettings() {
       {tab === 'region'      && <RegionSection />}
       {tab === 'teacher'     && <TeacherServiceSection />}
       {tab === 'permissions' && <PermissionsSection />}
+      {tab === 'legal'       && <LegalSection />}
     </div>
   )
 }
