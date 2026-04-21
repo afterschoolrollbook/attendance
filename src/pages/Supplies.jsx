@@ -8,16 +8,23 @@ import {
 import { Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 
-// ── 교구 목록 엑셀 다운로드
+// ── 교구 목록 엑셀 다운로드 (교구명/단계/차시번호/차시제목/메모 전체)
 async function downloadProductsExcel(vendorName, products, productPlanList) {
   const XLSX = await import('xlsx')
-  const rows = [['교구명', '최대단계', '단계별차시수', '알림차시']]
+  const rows = [['교구명', '단계', '차시번호', '차시제목', '메모']]
   products.forEach(p => {
-    rows.push([p.name, p.maxStage || 10, p.sessionsPerStage || 12, p.alertSession || 3])
+    const plans = productPlanList.filter(pl => pl.productId === p.id).sort((a,b) => a.stage - b.stage || a.sessionNo - b.sessionNo)
+    if (plans.length === 0) {
+      rows.push([p.name, '', '', '', ''])
+    } else {
+      plans.forEach(pl => {
+        rows.push([p.name, pl.stage || '', pl.sessionNo || '', pl.title || '', pl.memo || ''])
+      })
+    }
   })
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 12 }]
+  ws['!cols'] = [{ wch: 20 }, { wch: 8 }, { wch: 10 }, { wch: 30 }, { wch: 20 }]
   XLSX.utils.book_append_sheet(wb, ws, '교구목록')
   XLSX.writeFile(wb, `교구목록_${vendorName}_${new Date().toLocaleDateString('ko-KR').replace(/\. /g,'-').replace('.','')}.xlsx`)
 }
@@ -26,13 +33,16 @@ async function downloadProductsExcel(vendorName, products, productPlanList) {
 async function downloadSampleExcel() {
   const XLSX = await import('xlsx')
   const rows = [
-    ['교구명', '최대단계', '단계별차시수', '알림차시'],
-    ['큐보 1단계', 3, 12, 3],
-    ['드론 기초', 2, 10, 2],
+    ['교구명', '단계', '차시번호', '차시제목', '메모'],
+    ['큐보', 1, 1, '큐보 1단계 1차시', ''],
+    ['큐보', 1, 2, '큐보 1단계 2차시', ''],
+    ['큐보', 2, 1, '큐보 2단계 1차시', ''],
+    ['큐보', 2, 2, '큐보 2단계 2차시', ''],
+    ['드론', 1, 1, '드론 1단계 1차시', ''],
   ]
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 12 }]
+  ws['!cols'] = [{ wch: 20 }, { wch: 8 }, { wch: 10 }, { wch: 30 }, { wch: 20 }]
   XLSX.utils.book_append_sheet(wb, ws, '교구목록샘플')
   XLSX.writeFile(wb, '교구목록_샘플양식.xlsx')
 }
@@ -388,7 +398,7 @@ export function Supplies({ user }) {
   }
 
   // 교구 등록
-  // ── 일괄 등록 (엑셀 업로드)
+  // ── 일괄 등록 (엑셀 업로드) — 교구명/단계/차시번호/차시제목/메모
   const handleBulkUpload = async (e, vendorId) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -399,29 +409,57 @@ export function Supplies({ user }) {
       const wb = XLSX.read(data)
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
-      // 헤더 제외
       const dataRows = rows.slice(1).filter(r => r[0])
       if (dataRows.length === 0) { toastError('등록할 데이터가 없습니다.'); return }
-      let count = 0
+
+      // 교구명별로 그룹핑
+      const productMap = {}
       dataRows.forEach(r => {
-        const name = String(r[0] || '').trim()
-        const maxStage = Number(r[1]) || 10
-        const sessionsPerStage = Number(r[2]) || 12
-        const alertSession = Number(r[3]) || 3
+        const name       = String(r[0] || '').trim()
+        const stage      = Number(r[1]) || 1
+        const sessionNo  = Number(r[2]) || 1
+        const title      = String(r[3] || '').trim()
+        const memo       = String(r[4] || '').trim()
         if (!name) return
-        const duplicate = productList.find(p => p.vendorId === vendorId && p.name === name)
-        if (duplicate) return // 중복 스킵
-        SupplyProducts.insert({
-          id: uid(), teacherId: user.id, vendorId,
-          name, maxStage, sessionsPerStage, alertSession,
-          subject: selSubject || '', createdAt: now(),
-        })
-        count++
+        if (!productMap[name]) productMap[name] = []
+        productMap[name].push({ stage, sessionNo, title, memo })
       })
+
+      let productCount = 0
+      let planCount = 0
+
+      Object.entries(productMap).forEach(([name, plans]) => {
+        // 교구 등록 (중복이면 기존 것 사용)
+        let product = productList.find(p => p.vendorId === vendorId && p.name === name)
+        if (!product) {
+          const maxStage = Math.max(...plans.map(p => p.stage))
+          const newId = uid()
+          SupplyProducts.insert({
+            id: newId, teacherId: user.id, vendorId,
+            name, maxStage, sessionsPerStage: 12, alertSession: 3,
+            subject: selSubject || '', createdAt: now(),
+          })
+          product = { id: newId }
+          productCount++
+        }
+        // 차시 등록
+        plans.forEach(pl => {
+          const exists = productPlanList.find(x => x.productId === product.id && x.stage === pl.stage && x.sessionNo === pl.sessionNo)
+          if (!exists) {
+            SupplyProductPlans.insert({
+              id: uid(), teacherId: user.id, productId: product.id,
+              stage: pl.stage, sessionNo: pl.sessionNo,
+              title: pl.title, memo: pl.memo, createdAt: now(),
+            })
+            planCount++
+          }
+        })
+      })
+
       reload()
-      success(`${count}개 교구가 등록되었습니다.`)
-    } catch(e) {
-      toastError('파일 읽기 실패: ' + e.message)
+      success(`교구 ${productCount}개, 차시 ${planCount}개 등록 완료!`)
+    } catch(err) {
+      toastError('파일 읽기 실패: ' + err.message)
     }
   }
 
