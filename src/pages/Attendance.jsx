@@ -1333,7 +1333,7 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
             spProds={spProds}
             teacherId={cls.teacherId||''}
             onClose={() => setProgStudent(null)}
-            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls.teacherId||'')); setProgTick(t => t+1) }}
+            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls.teacherId||'')); setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||'')); setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||'')); setProgTick(t => t+1) }}
           />
         )
       })()}
@@ -1658,7 +1658,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
             spProds={spProds}
             teacherId={cls?.teacherId||''}
             onClose={() => setProgStudent(null)}
-            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls?.teacherId||'')); setProgTick(t => t+1) }}
+            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls?.teacherId||'')); setSpProg(SupplyStudentProgress.byTeacher(cls?.teacherId||'')); setSpChecks(SupplySessionChecks.byTeacher(cls?.teacherId||'')); setProgTick(t => t+1) }}
           />
         )
       })()}
