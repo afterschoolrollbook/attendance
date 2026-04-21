@@ -508,15 +508,20 @@ export function Auth({ onLogin }) {
   const handleSocialSuccess = (profile) => {
     const email = profile.email?.toLowerCase() || ''
 
-    // 1) 이메일로 기존 회원 찾기 (가짜 이메일 제외)
-    let existing = email && !isFakeEmail(email) ? Users.findByEmail(email) : null
+    // 1) providerId로 먼저 찾기 (네이버/카카오/구글 모두 동일)
+    let existing = profile.providerId ? findByProviderId(profile.provider, profile.providerId) : null
 
-    // 2) providerId로도 찾기
-    if (!existing && profile.providerId) {
-      existing = findByProviderId(profile.provider, profile.providerId)
+    // 2) 못 찾으면 이메일로도 찾기
+    if (!existing && email && !isFakeEmail(email)) {
+      existing = Users.findByEmail(email)
     }
 
     if (existing) {
+      // providerId 없거나 undefined면 자동 업데이트 (다음 로그인부터 providerId로 찾음)
+      if (profile.providerId && (!existing.providerId || existing.providerId === 'undefined')) {
+        Users.update(existing.id, { providerId: profile.providerId, provider: profile.provider })
+        existing = Users.find(existing.id)
+      }
       // 이름/전화번호 없으면 프로필 입력
       if (isGarbled(existing.name) || !existing.phone) {
         setPendingSocialProfile({ ...profile, existingId: existing.id })

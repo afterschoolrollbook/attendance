@@ -31,8 +31,8 @@ export function NaverCallback() {
           type:       'naver_login_success',
           email:      data.email || '',
           name:       data.name  || '',
-          avatar:     data.profile_image || '',
-          id:         data.id,
+          avatar:     data.avatar || '',
+          id:         data.providerId,
         }, window.location.origin)
       } catch (e) {
         window.opener?.postMessage({ type: 'naver_login_fail', error: e.message }, window.location.origin)
