@@ -496,6 +496,8 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
     const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
     SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
+    // SupplyItems도 실제 진행 교구/단계로 동기화
+    if (si) SupplyItems.upsert({ ...si, productId, stage })
     onSaved && onSaved()
     setTick(t => t + 1)
   }
@@ -960,11 +962,8 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         {(() => {
           const si = spItems.find(i => i.studentId === s.id && i.classId === (classId || s.classIds?.[0] || ''))
           if (!si?.productId) return <span style={{ fontSize:'11px', color:'#d1d5db', textAlign:'center' }}>-</span>
-          // prog가 있으면 실제 진행 중인 교구/단계 우선 사용
-          const progAny = spProg.find(p => p.studentId === s.id && p.classId === (classId || s.classIds?.[0] || ''))
-          const activeProductId = progAny?.productId || si.productId
-          const prod = spProds.find(p => p.id === activeProductId)
-          const prog = spProg.find(p => p.studentId === s.id && p.productId === activeProductId)
+          const prod = spProds.find(p => p.id === si.productId)
+          const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
           const curStage = prog?.curStage || si.stage || 1
           const spp = prod?.sessionsPerStage || 12
           const chk = spChecks.filter(c => c.studentId === s.id && c.productId === si.productId && c.stage === curStage).length
