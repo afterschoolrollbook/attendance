@@ -489,13 +489,20 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     onSaved && onSaved()
   }
 
-  const toggleCheck = (productId, stage, sessionNo) => {
+  const toggleCheck = (productId, stage, sessionNo, customDate) => {
     const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
     if (existing) SupplySessionChecks.delete(existing.id)
-    else SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
+    else SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage, sessionNo, checkedAt: customDate || now(), createdAt: now() })
     const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
     const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
     SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
+    onSaved && onSaved()
+    setTick(t => t + 1)
+  }
+  const updateCheckDate = (productId, stage, sessionNo, newDateStr) => {
+    const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
+    if (!existing) return
+    SupplySessionChecks.upsert({ ...existing, checkedAt: new Date(newDateStr).toISOString() })
     onSaved && onSaved()
     setTick(t => t + 1)
   }
@@ -578,21 +585,35 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
                 {sessions.map(sess => {
                   const isChk = checkedNos.has(sess.sessionNo)
                   const chkRecord = stageChecks.find(c => c.sessionNo === sess.sessionNo)
-                  const chkDate = chkRecord?.checkedAt ? (() => {
+                  const chkDateStr = chkRecord?.checkedAt ? (() => {
                     const d = new Date(chkRecord.checkedAt)
-                    return `${String(d.getFullYear()).slice(2)}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`
+                    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+                  })() : null
+                  const chkDateLabel = chkDateStr ? (() => {
+                    const [y,m,d] = chkDateStr.split('-')
+                    return `${String(y).slice(2)}.${m}.${d}`
                   })() : null
                   return (
-                    <div key={sess.id} onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)}
-                      style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, cursor:'pointer', transition:'all .12s' }}>
-                      <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <div key={sess.id}
+                      style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, transition:'all .12s' }}>
+                      <div onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)}
+                        style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, cursor:'pointer' }}>
                         {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
                       </div>
-                      <span style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827', flex:1 }}>
+                      <span onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)} style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827', flex:1, cursor:'pointer' }}>
                         {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
                       </span>
-                      {isChk && chkDate && (
-                        <span style={{ fontSize:'11px', color:'#6b7280', whiteSpace:'nowrap' }}>{chkDate}</span>
+                      {isChk && chkDateStr && (
+                        <input
+                          type="date"
+                          defaultValue={chkDateStr}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => { if(e.target.value) updateCheckDate(selProductId, stage, sess.sessionNo, e.target.value) }}
+                          style={{ fontSize:'11px', color:'#6b7280', border:'1px solid #e5e7eb', borderRadius:'5px', padding:'1px 4px', background:'#fff', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}
+                        />
+                      )}
+                      {isChk && !chkDateStr && (
+                        <span style={{ fontSize:'11px', color:'#9ca3af' }}>날짜 없음</span>
                       )}
                     </div>
                   )
@@ -876,6 +897,17 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
   const [scOpen, setScOpen] = useState(false)
   const [scLocalDelivered, setScLocalDelivered] = useState(false)
   const showSupplyBadge = (_supplyDone || _supplyAlert) && !_prog?.supplyDelivered && !scLocalDelivered
+  // 2주 이상 진도체크 미실시 경고
+  const _lastCheck = _si?.productId ? (() => {
+    const all = spChecks.filter(c => c.studentId === s.id && c.productId === _si.productId)
+    if (!all.length) return null
+    return all.reduce((latest, c) => (!latest || c.checkedAt > latest) ? c.checkedAt : latest, null)
+  })() : null
+  const _showProgAlert = _si?.productId && (() => {
+    if (!_lastCheck) return true
+    const diffDays = (Date.now() - new Date(_lastCheck).getTime()) / (1000 * 60 * 60 * 24)
+    return diffDays >= 14
+  })()
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>
@@ -891,6 +923,13 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
 
         {/* 이름 */}
         <div style={{ textAlign: 'center' }}>
+          {_showProgAlert && (
+            <div
+              onClick={() => onProgOpen(s, _si?.productId)}
+              style={{ marginBottom: '3px', fontSize: '10px', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-block', cursor: 'pointer' }}>
+              📋 진도체크!
+            </div>
+          )}
           {showSupplyBadge && (
             <div
               onClick={() => setScOpen(true)}
@@ -1098,12 +1137,14 @@ function NoteInline({ note, onSave, studentMemo, placeholder = '특이사항 메
         <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '5px', display: 'inline-block' }}>👤 {studentMemo}</div>
       )}
       {editing ? (
-        <div style={{ display: 'flex', gap: '5px' }}>
+        <div style={{ display: 'flex', flexDirection:'column', gap: '5px' }}>
           <input ref={ref} value={val} onChange={e => setVal(e.target.value)} autoFocus placeholder={placeholder}
             onKeyDown={e => { if (e.key==='Enter') save(); if (e.key==='Escape') { setEditing(false); setVal(note) } }}
-            style={{ flex:1, border:`1.5px solid ${C.primary}`, borderRadius:'6px', padding:'4px 9px', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-          <button onClick={save} style={sm('#f97316','#fff')}>저장</button>
-          <button onClick={() => { setEditing(false); setVal(note) }} style={sm('#f3f4f6','#374151')}>취소</button>
+            style={{ width:'100%', boxSizing:'border-box', border:`1.5px solid ${C.primary}`, borderRadius:'6px', padding:'4px 9px', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+          <div style={{ display:'flex', gap:'5px' }}>
+            <button onClick={save} style={sm('#f97316','#fff')}>저장</button>
+            <button onClick={() => { setEditing(false); setVal(note) }} style={sm('#f3f4f6','#374151')}>취소</button>
+          </div>
         </div>
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
