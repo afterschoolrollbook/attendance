@@ -489,10 +489,10 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     onSaved && onSaved()
   }
 
-  const toggleCheck = (productId, stage, sessionNo, customDate) => {
+  const toggleCheck = (productId, stage, sessionNo) => {
     const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
     if (existing) SupplySessionChecks.delete(existing.id)
-    else SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage, sessionNo, checkedAt: customDate || now(), createdAt: now() })
+    else SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
     const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
     const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
     SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
@@ -589,10 +589,6 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
                     const d = new Date(chkRecord.checkedAt)
                     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
                   })() : null
-                  const chkDateLabel = chkDateStr ? (() => {
-                    const [y,m,d] = chkDateStr.split('-')
-                    return `${String(y).slice(2)}.${m}.${d}`
-                  })() : null
                   return (
                     <div key={sess.id}
                       style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, transition:'all .12s' }}>
@@ -604,16 +600,11 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
                         {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
                       </span>
                       {isChk && chkDateStr && (
-                        <input
-                          type="date"
-                          defaultValue={chkDateStr}
+                        <input type="date" defaultValue={chkDateStr}
                           onClick={e => e.stopPropagation()}
                           onChange={e => { if(e.target.value) updateCheckDate(selProductId, stage, sess.sessionNo, e.target.value) }}
                           style={{ fontSize:'11px', color:'#6b7280', border:'1px solid #e5e7eb', borderRadius:'5px', padding:'1px 4px', background:'#fff', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}
                         />
-                      )}
-                      {isChk && !chkDateStr && (
-                        <span style={{ fontSize:'11px', color:'#9ca3af' }}>날짜 없음</span>
                       )}
                     </div>
                   )
@@ -897,7 +888,6 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
   const [scOpen, setScOpen] = useState(false)
   const [scLocalDelivered, setScLocalDelivered] = useState(false)
   const showSupplyBadge = (_supplyDone || _supplyAlert) && !_prog?.supplyDelivered && !scLocalDelivered
-  // 2주 이상 진도체크 미실시 경고
   const _lastCheck = _si?.productId ? (() => {
     const all = spChecks.filter(c => c.studentId === s.id && c.productId === _si.productId)
     if (!all.length) return null
@@ -905,8 +895,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
   })() : null
   const _showProgAlert = _si?.productId && (() => {
     if (!_lastCheck) return true
-    const diffDays = (Date.now() - new Date(_lastCheck).getTime()) / (1000 * 60 * 60 * 24)
-    return diffDays >= 14
+    return (Date.now() - new Date(_lastCheck).getTime()) / (1000*60*60*24) >= 14
   })()
 
   return (
@@ -922,18 +911,17 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         </div>
 
         {/* 이름 */}
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: 'center', display:'flex', flexDirection:'column', alignItems:'center', gap:'2px' }}>
           {_showProgAlert && (
-            <div
-              onClick={() => onProgOpen(s, _si?.productId)}
-              style={{ marginBottom: '3px', fontSize: '10px', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-block', cursor: 'pointer' }}>
+            <div onClick={() => onProgOpen(s, _si?.productId)}
+              style={{ fontSize: '10px', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-block', cursor: 'pointer' }}>
               📋 진도체크!
             </div>
           )}
           {showSupplyBadge && (
             <div
               onClick={() => setScOpen(true)}
-              style={{ marginBottom: '4px', fontSize: '10px', fontWeight: 700, color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-block', cursor: 'pointer' }}>
+              style={{ fontSize: '10px', fontWeight: 700, color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-block', cursor: 'pointer' }}>
               ⚠️ {_supplyLabel}
             </div>
           )}
