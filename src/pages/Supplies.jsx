@@ -8,41 +8,40 @@ import {
 import { Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 
-// ── 교구 목록 엑셀 다운로드 (교구명/단계/차시번호/차시제목/메모 전체)
-async function downloadProductsExcel(vendorName, products, productPlanList) {
+// ── 교구 목록 엑셀 다운로드 (업체+교구+차시 전체)
+async function downloadProductsExcel(vendor, products, productPlanList) {
   const XLSX = await import('xlsx')
-  const rows = [['교구명', '단계', '차시번호', '차시제목', '메모']]
+  const rows = [['업체명', '담당자', '연락처', '과목', '교구명', '단계', '차시번호', '차시제목', '메모']]
   products.forEach(p => {
     const plans = productPlanList.filter(pl => pl.productId === p.id).sort((a,b) => a.stage - b.stage || a.sessionNo - b.sessionNo)
     if (plans.length === 0) {
-      rows.push([p.name, '', '', '', ''])
+      rows.push([vendor.name, vendor.managerName||'', vendor.contact||'', p.subject||'', p.name, '', '', '', ''])
     } else {
       plans.forEach(pl => {
-        rows.push([p.name, pl.stage || '', pl.sessionNo || '', pl.title || '', pl.memo || ''])
+        rows.push([vendor.name, vendor.managerName||'', vendor.contact||'', p.subject||'', p.name, pl.stage||'', pl.sessionNo||'', pl.title||'', pl.memo||''])
       })
     }
   })
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 20 }, { wch: 8 }, { wch: 10 }, { wch: 30 }, { wch: 20 }]
+  ws['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 20 }, { wch: 8 }, { wch: 10 }, { wch: 30 }, { wch: 20 }]
   XLSX.utils.book_append_sheet(wb, ws, '교구목록')
-  XLSX.writeFile(wb, `교구목록_${vendorName}_${new Date().toLocaleDateString('ko-KR').replace(/\. /g,'-').replace('.','')}.xlsx`)
+  XLSX.writeFile(wb, `교구목록_${vendor.name}_${new Date().toLocaleDateString('ko-KR').replace(/\. /g,'-').replace('.','')}.xlsx`)
 }
 
 // ── 샘플 엑셀 다운로드
 async function downloadSampleExcel() {
   const XLSX = await import('xlsx')
   const rows = [
-    ['교구명', '단계', '차시번호', '차시제목', '메모'],
-    ['큐보', 1, 1, '큐보 1단계 1차시', ''],
-    ['큐보', 1, 2, '큐보 1단계 2차시', ''],
-    ['큐보', 2, 1, '큐보 2단계 1차시', ''],
-    ['큐보', 2, 2, '큐보 2단계 2차시', ''],
-    ['드론', 1, 1, '드론 1단계 1차시', ''],
+    ['업체명', '담당자', '연락처', '과목', '교구명', '단계', '차시번호', '차시제목', '메모'],
+    ['집현전에듀', '민찬홍', '010-2704-0307', '로봇', '큐보', 1, 1, '큐보 1단계 1차시', ''],
+    ['집현전에듀', '민찬홍', '010-2704-0307', '로봇', '큐보', 1, 2, '큐보 1단계 2차시', ''],
+    ['집현전에듀', '민찬홍', '010-2704-0307', '로봇', '큐보', 2, 1, '큐보 2단계 1차시', ''],
+    ['집현전에듀', '민찬홍', '010-2704-0307', '로봇', '드론', 1, 1, '드론 1단계 1차시', ''],
   ]
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 20 }, { wch: 8 }, { wch: 10 }, { wch: 30 }, { wch: 20 }]
+  ws['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 20 }, { wch: 8 }, { wch: 10 }, { wch: 30 }, { wch: 20 }]
   XLSX.utils.book_append_sheet(wb, ws, '교구목록샘플')
   XLSX.writeFile(wb, '교구목록_샘플양식.xlsx')
 }
@@ -398,7 +397,7 @@ export function Supplies({ user }) {
   }
 
   // 교구 등록
-  // ── 일괄 등록 (엑셀 업로드) — 교구명/단계/차시번호/차시제목/메모
+  // ── 일괄 등록 (엑셀 업로드) — 업체/교구/차시 전체
   const handleBulkUpload = async (e, vendorId) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -412,52 +411,80 @@ export function Supplies({ user }) {
       const dataRows = rows.slice(1).filter(r => r[0])
       if (dataRows.length === 0) { toastError('등록할 데이터가 없습니다.'); return }
 
-      // 교구명별로 그룹핑
-      const productMap = {}
+      let vendorCount = 0, productCount = 0, planCount = 0
+      const allVendors = SupplyVendors.byTeacher(user.id)
+      const allProducts = SupplyProducts.byTeacher(user.id)
+      const allPlans = SupplyProductPlans.byTeacher(user.id)
+
+      // 업체+교구별 그룹핑
+      // 컬럼: 업체명(0) 담당자(1) 연락처(2) 과목(3) 교구명(4) 단계(5) 차시번호(6) 차시제목(7) 메모(8)
+      const vendorMap = {}
       dataRows.forEach(r => {
-        const name       = String(r[0] || '').trim()
-        const stage      = Number(r[1]) || 1
-        const sessionNo  = Number(r[2]) || 1
-        const title      = String(r[3] || '').trim()
-        const memo       = String(r[4] || '').trim()
-        if (!name) return
-        if (!productMap[name]) productMap[name] = []
-        productMap[name].push({ stage, sessionNo, title, memo })
+        const vendorName  = String(r[0] || '').trim()
+        const managerName = String(r[1] || '').trim()
+        const contact     = String(r[2] || '').trim()
+        const subject     = String(r[3] || '').trim()
+        const productName = String(r[4] || '').trim()
+        const stage       = Number(r[5]) || 1
+        const sessionNo   = Number(r[6]) || 1
+        const title       = String(r[7] || '').trim()
+        const memo        = String(r[8] || '').trim()
+        if (!vendorName) return
+        if (!vendorMap[vendorName]) vendorMap[vendorName] = { managerName, contact, subject, products: {} }
+        if (productName) {
+          if (!vendorMap[vendorName].products[productName]) vendorMap[vendorName].products[productName] = { subject, plans: [] }
+          vendorMap[vendorName].products[productName].plans.push({ stage, sessionNo, title, memo })
+        }
       })
 
-      let productCount = 0
-      let planCount = 0
-
-      Object.entries(productMap).forEach(([name, plans]) => {
-        // 교구 등록 (중복이면 기존 것 사용)
-        let product = productList.find(p => p.vendorId === vendorId && p.name === name)
-        if (!product) {
-          const maxStage = Math.max(...plans.map(p => p.stage))
-          const newId = uid()
-          SupplyProducts.insert({
-            id: newId, teacherId: user.id, vendorId,
-            name, maxStage, sessionsPerStage: 12, alertSession: 3,
-            subject: selSubject || '', createdAt: now(),
+      Object.entries(vendorMap).forEach(([vendorName, vInfo]) => {
+        // 업체 등록 (중복이면 기존 것 사용)
+        let vendor = allVendors.find(v => v.name === vendorName)
+        if (!vendor) {
+          const newVendorId = uid()
+          SupplyVendors.insert({
+            id: newVendorId, teacherId: user.id,
+            name: vendorName, managerName: vInfo.managerName,
+            contact: vInfo.contact, memo: '',
+            subject: vInfo.subject, subjects: vInfo.subject ? [vInfo.subject] : [],
+            createdAt: now(),
           })
-          product = { id: newId }
-          productCount++
+          vendor = { id: newVendorId }
+          vendorCount++
         }
-        // 차시 등록
-        plans.forEach(pl => {
-          const exists = productPlanList.find(x => x.productId === product.id && x.stage === pl.stage && x.sessionNo === pl.sessionNo)
-          if (!exists) {
-            SupplyProductPlans.insert({
-              id: uid(), teacherId: user.id, productId: product.id,
-              stage: pl.stage, sessionNo: pl.sessionNo,
-              title: pl.title, memo: pl.memo, createdAt: now(),
+
+        // 교구 등록
+        Object.entries(vInfo.products).forEach(([productName, pInfo]) => {
+          let product = allProducts.find(p => p.vendorId === vendor.id && p.name === productName)
+          if (!product) {
+            const maxStage = Math.max(...pInfo.plans.map(p => p.stage))
+            const newProductId = uid()
+            SupplyProducts.insert({
+              id: newProductId, teacherId: user.id, vendorId: vendor.id,
+              name: productName, maxStage, sessionsPerStage: 12, alertSession: 3,
+              subject: pInfo.subject || vInfo.subject || '', createdAt: now(),
             })
-            planCount++
+            product = { id: newProductId }
+            productCount++
           }
+
+          // 차시 등록
+          pInfo.plans.forEach(pl => {
+            const exists = allPlans.find(x => x.productId === product.id && x.stage === pl.stage && x.sessionNo === pl.sessionNo)
+            if (!exists) {
+              SupplyProductPlans.insert({
+                id: uid(), teacherId: user.id, productId: product.id,
+                stage: pl.stage, sessionNo: pl.sessionNo,
+                title: pl.title, memo: pl.memo, createdAt: now(),
+              })
+              planCount++
+            }
+          })
         })
       })
 
       reload()
-      success(`교구 ${productCount}개, 차시 ${planCount}개 등록 완료!`)
+      success(`업체 ${vendorCount}개, 교구 ${productCount}개, 차시 ${planCount}개 등록 완료!`)
     } catch(err) {
       toastError('파일 읽기 실패: ' + err.message)
     }
@@ -1234,7 +1261,7 @@ export function Supplies({ user }) {
                                 <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>🤖 교구 목록</span>
                                 <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
                                   {vProducts.length > 0 && (
-                                    <button onClick={() => downloadProductsExcel(v.name, vProducts, productPlanList)}
+                                    <button onClick={() => downloadProductsExcel(v, vProducts, productPlanList)}
                                       style={{ padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                       ⬇ 다운로드
                                     </button>
