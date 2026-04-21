@@ -71,7 +71,6 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   const delMemo = (id) => { LessonMemos.delete(id); setMemos(LessonMemos.byClassDate(cls.id, date)) }
 
   const activeStudents = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
-
   const studentProgList = activeStudents.map(s => {
     const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)
     if (!si?.productId) return null
@@ -88,7 +87,6 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
 
   const checkedToday = studentProgList.filter(p => p.todayChecks.length > 0)
   const notCheckedToday = studentProgList.filter(p => p.todayChecks.length === 0)
-
   if (!cls) return null
 
   return (
@@ -1527,9 +1525,10 @@ function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user
             <span style={{ fontSize:'12px', color:C.muted }}>수업 장소</span>
           </div>
           <div style={{ padding:'12px 16px' }}>
-            {classes.map(cls => (
-              <ClassAttendanceSection key={cls.id + date} cls={cls} date={date} allStudents={allStudents} user={user} />
-            ))}
+            {classes.map(cls => {
+              const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting'].includes(s.status))
+              return <UnifiedPanel key={cls.id + date} cls={cls} date={date} students={clsStudents} user={user} allClasses={allClasses} />
+            })}
           </div>
         </div>
       ))}
@@ -1752,18 +1751,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                   {secStudents.map((s, i) => (
                     showAttendance
                       ? <StudentRow key={s.id} s={s} idx={i} rec={getRec(s.id)} onMark={mark} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls?.id}); setProgProductId(pid) }} classId={cls?.id} spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} user={user} />
-                      : (
-                        <div key={s.id} style={{ display:'grid', gridTemplateColumns:'35px 90px 90px 130px 220px 110px 90px 1fr', gap:'6px', alignItems:'center', padding:'10px 14px', borderBottom: i<secStudents.length-1?`1px solid #f3f4f6`:'none', background:i%2===0?'#fff':'#fafafa', textAlign:'center' }}>
-                          <span style={{ fontSize:'12px', color:C.muted }}>{i+1}</span>
-                          <span style={{ fontSize:'12px', color:C.muted }}>{s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}</span>
-                          <span onClick={() => setSelStudent(s)} style={{ fontSize:'14px', fontWeight:700, color:C.primary, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:'2px' }}>{s.name}</span>
-                          <PhoneAction phone={s.parentPhone}>{fmtPhone(s.parentPhone)||'-'}</PhoneAction>
-                          <span style={{ fontSize:'12px', color:C.muted }}>-</span>
-                          <span style={{ fontSize:'12px', color:C.muted }}>-</span>
-                          <span style={{ fontSize:'12px', color:C.muted }}>-</span>
-                          <span style={{ fontSize:'11px', color:'#92400e', textAlign:'left' }}>{s.memo ? '📌 '+s.memo : '-'}</span>
-                        </div>
-                      )
+                      : <FutureStudentRow key={s.id} s={s} idx={i} onMsgOpen={setMsgStudent} onStudentClick={setSelStudent} classId={cls?.id} onProgOpen={(stu, pid) => { setProgStudent({...stu, _clsId: cls?.id}); setProgProductId(pid) }} spProds={spProds} user={user} />
                   ))}
                 </div>
               )}
@@ -2615,7 +2603,7 @@ export function Attendance({ user, pageParams = {} }) {
       const year = rep.startDate?.slice(0,4) || String(d.getFullYear())
       setSelYear(year)
       setSelSchool(rep.organization || '')
-      setSelClassId('')      // 전체 수업 — A/B반 모두 표시
+      setSelClassId(matched.length === 1 ? matched[0].id : '')      // 수업 1개면 자동 선택, 여러개면 전체 표시
       setSelSection('')
 
       // 기간(분기/학기) 자동 세팅
