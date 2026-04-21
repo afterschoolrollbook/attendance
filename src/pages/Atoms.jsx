@@ -212,7 +212,7 @@ export function Modal({ open, onClose, title, children, width = 520 }) {
   if (isMobile) {
     return (
       <div
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 5000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
         onClick={e => { if (e.target === e.currentTarget) onClose() }}
       >
         <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 -8px 40px rgba(0,0,0,0.15)' }}>
@@ -233,7 +233,7 @@ export function Modal({ open, onClose, title, children, width = 520 }) {
   // ── PC: 드래그 가능 중앙 모달
   return (
     <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: width, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', transform: `translate(${pos.x}px, ${pos.y}px)` }}>
