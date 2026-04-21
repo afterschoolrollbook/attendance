@@ -356,727 +356,393 @@ function ProdForm({ form, setForm, onSave, onCancel, editing }) {
   )
 }
 
-// ─── A형 교구 관리
-function TypeAProducts({ vendorId, subjectId, products, onReload }) {
+// ─── 공통 교구 관리 (Supplies.jsx 방식과 동일)
+function TypeProducts({ vendorId, subjectId, products, onReload }) {
   const { success, error } = useToast()
   const { confirm, modal } = useConfirmModal()
-  const fileRef = React.useRef()
 
-  const [form, setForm]         = useState({...EMPTY_PROD})
-  const [selProd, setSelProd]   = useState(null)
-  const [tab, setTab]           = useState('stages')
-  const [stages, setStages]     = useState([])
-  const [selStage, setSelStage] = useState(null)
-  const [contents, setContents] = useState([])
-  const [contMode, setContMode] = useState('one')
-  const [bulkCount, setBulkCount] = useState(12)
-  const [files, setFiles]       = useState([])
-  const [fileForm, setFileForm] = useState({ fileType:'annual', title:'', stageLabel:'' })
-  const xlsxRef = useRef()
-  const [editProd, setEditProd] = useState(null) // 수정 중인 교구
+  const [productModal, setProductModal]   = useState(false)
+  const [productForm, setProductForm]     = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:3 })
+  const [productStageTab, setProductStageTab] = useState(1)
+  const [stageSessionTitles, setStageSessionTitles] = useState({})
+  const [productPlanList, setProductPlanList] = useState([])
+  const [editingProduct, setEditingProduct] = useState(null)
 
-  const subjectProds = products.filter(p=>p.subjectId===subjectId && p.type==='textbook')
+  const subjectProds = products.filter(p => p.subjectId === subjectId)
 
-  const loadProd = useCallback(async (p) => {
-    if (!p) return
-    const s = await DB.stagesByProduct(p.id)
-    setStages(s)
-    setSelStage(s[0]||null)
-    const f = await DB.filesByProduct(p.id)
-    setFiles(f)
-  }, [])
+  const loadPlans = async () => {
+    const all = (await dbCall('getAll', 'hqVendorStages')) || []
+    // hqVendorContents를 차시로 사용
+    const contents = (await dbCall('getAll', 'hqVendorContents')) || []
+    setProductPlanList(contents)
+  }
 
-  useEffect(() => {
-    if (subjectProds.length > 0 && !selProd) {
-      setSelProd(subjectProds[0])
-      loadProd(subjectProds[0])
-    }
-  }, [subjectProds.length])
+  useEffect(() => { loadPlans() }, [])
 
-  useEffect(() => { if (selProd) loadProd(selProd) }, [selProd])
+  // 샘플 다운로드
+  const downloadSample = async () => {
+    const rows = [
+      ['교구명', '단계', '차시번호', '차시제목', '준비물'],
+      ['큐보', 1, 1, '큐보 1단계 1차시', '큐보 로봇'],
+      ['큐보', 1, 2, '큐보 1단계 2차시', '큐보 로봇'],
+      ['큐보', 2, 1, '큐보 2단계 1차시', '큐보 로봇'],
+    ]
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = [{wch:20},{wch:8},{wch:10},{wch:30},{wch:20}]
+    XLSX.utils.book_append_sheet(wb, ws, '교구목록샘플')
+    XLSX.writeFile(wb, '교구목록_샘플양식.xlsx')
+  }
 
-  useEffect(() => {
-    if (!selStage) return
-    DB.contentsByStage(selStage.id).then(setContents)
-  }, [selStage])
+  // 현재 교구 다운로드
+  const downloadProducts = async () => {
+    const rows = [['교구명', '단계', '차시번호', '차시제목', '준비물']]
+    subjectProds.forEach(p => {
+      const plans = productPlanList.filter(x => x.productId === p.id).sort((a,b) => a.stage - b.stage || a.sessionNo - b.sessionNo)
+      if (plans.length === 0) {
+        rows.push([p.name, '', '', '', ''])
+      } else {
+        plans.forEach(pl => rows.push([p.name, pl.stage||'', pl.sessionNo||'', pl.title||'', pl.supplies||'']))
+      }
+    })
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = [{wch:20},{wch:8},{wch:10},{wch:30},{wch:20}]
+    XLSX.utils.book_append_sheet(wb, ws, '교구목록')
+    XLSX.writeFile(wb, `교구목록_${new Date().toLocaleDateString('ko-KR')}.xlsx`)
+  }
 
-  const saveProd = async () => {
-    if (!form.name.trim()) { error('교구명을 입력해주세요.'); return }
-    if (editProd) {
-      await DB.saveProduct({ ...editProd, name:form.name, year:form.year,
-        priceRetail:Number(form.priceRetail)||0, priceSchool:Number(form.priceSchool)||0,
-        priceBranch:Number(form.priceBranch)||0, priceTeacher:Number(form.priceTeacher)||0 })
-      setEditProd(null)
-      setForm({...EMPTY_PROD})
+  // 일괄 등록
+  const handleBulkUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    try {
+      const data = await file.arrayBuffer()
+      const wb = XLSX.read(data)
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(ws, { header:1 })
+      const dataRows = rows.slice(1).filter(r => r[0])
+      if (!dataRows.length) { error('등록할 데이터가 없습니다.'); return }
+
+      // 교구명별 그룹핑
+      const productMap = {}
+      dataRows.forEach(r => {
+        const name      = String(r[0]||'').trim()
+        const stage     = Number(r[1])||1
+        const sessionNo = Number(r[2])||1
+        const title     = String(r[3]||'').trim()
+        const supplies  = String(r[4]||'').trim()
+        if (!name) return
+        if (!productMap[name]) productMap[name] = []
+        productMap[name].push({ stage, sessionNo, title, supplies })
+      })
+
+      let productCount = 0, planCount = 0
+      for (const [name, plans] of Object.entries(productMap)) {
+        let product = subjectProds.find(p => p.name === name)
+        if (!product) {
+          const maxStage = Math.max(...plans.map(p => p.stage))
+          const newId = uid()
+          await DB.saveProduct({ id:newId, vendorId, subjectId, name, maxStage, sessionsPerStage:12, alertSession:3, createdAt:now() })
+          product = { id:newId }
+          productCount++
+        }
+        for (const pl of plans) {
+          const exists = productPlanList.find(x => x.productId === product.id && x.stage === pl.stage && x.sessionNo === pl.sessionNo)
+          if (!exists) {
+            await DB.saveContent({ id:uid(), stageId:`${product.id}_${pl.stage}`, productId:product.id, stage:pl.stage, sessionNo:pl.sessionNo, title:pl.title, supplies:pl.supplies, createdAt:now() })
+            planCount++
+          }
+        }
+      }
+      await loadPlans()
       onReload()
-      success('교구가 수정되었습니다.')
-    } else {
-      await DB.saveProduct({ id:uid(), vendorId, subjectId, type:'textbook', name:form.name, year:form.year,
-        priceRetail:Number(form.priceRetail)||0, priceSchool:Number(form.priceSchool)||0,
-        priceBranch:Number(form.priceBranch)||0, priceTeacher:Number(form.priceTeacher)||0, createdAt:now() })
-      setForm({...EMPTY_PROD})
-      onReload()
-      success('교구가 추가되었습니다.')
+      success(`교구 ${productCount}개, 차시 ${planCount}개 등록 완료!`)
+    } catch(err) {
+      error('파일 읽기 실패: ' + err.message)
     }
   }
 
-  const deleteProd = async (id) => {
+  const openProductModal = (existingProduct = null) => {
+    if (existingProduct) {
+      const maxS = existingProduct.maxStage || 10
+      const perS = existingProduct.sessionsPerStage || 12
+      const titles = {}
+      for (let s = 1; s <= maxS; s++) {
+        const plans = productPlanList
+          .filter(p => p.productId === existingProduct.id && p.stage === s)
+          .sort((a, b) => a.sessionNo - b.sessionNo)
+        titles[s] = Array.from({ length: perS }, (_, i) => ({
+          title: plans[i]?.title || '',
+          memo: plans[i]?.supplies || '',
+        }))
+      }
+      setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: maxS, sessionsPerStage: perS, alertSession: existingProduct.alertSession || 3 })
+      setStageSessionTitles(titles)
+      setEditingProduct(existingProduct)
+    } else {
+      const titles = {}
+      for (let s = 1; s <= 10; s++) {
+        titles[s] = Array.from({ length: 12 }, () => ({ title: '', memo: '' }))
+      }
+      setProductForm({ id: null, name: '', maxStage: 10, sessionsPerStage: 12, alertSession: 3 })
+      setStageSessionTitles(titles)
+      setEditingProduct(null)
+    }
+    setProductStageTab(1)
+    setProductModal(true)
+  }
+
+  const saveProduct = async () => {
+    if (!productForm.name.trim()) { error('교구명을 입력하세요'); return }
+    const isEdit = !!productForm.id
+    const productId = isEdit ? productForm.id : uid()
+
+    if (isEdit) {
+      await DB.saveProduct({ ...editingProduct, name: productForm.name, maxStage: productForm.maxStage, sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession })
+    } else {
+      await DB.saveProduct({ id: productId, vendorId, subjectId, name: productForm.name, maxStage: productForm.maxStage, sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession, createdAt: now() })
+    }
+
+    // 단계별 차시 저장
+    for (let stage = 1; stage <= productForm.maxStage; stage++) {
+      const items = stageSessionTitles[stage] || []
+      for (let idx = 0; idx < items.length; idx++) {
+        const item = items[idx]
+        const t = item?.title || ''
+        const m = item?.memo || ''
+        if (!t.trim()) continue
+        const sessionNo = idx + 1
+        const existing = productPlanList.find(p => p.productId === productId && p.stage === stage && p.sessionNo === sessionNo)
+        if (existing) {
+          await DB.saveContent({ ...existing, title: t, supplies: m })
+        } else {
+          await DB.saveContent({ id: uid(), stageId: `${productId}_${stage}`, productId, stage, sessionNo, title: t, supplies: m, createdAt: now() })
+        }
+      }
+    }
+
+    await loadPlans()
+    onReload()
+    setProductModal(false)
+    success(isEdit ? '수정되었습니다.' : '교구가 등록되었습니다.')
+  }
+
+  const deleteProduct = async (id) => {
     const ok = await confirm('교구를 삭제하시겠습니까?')
     if (!ok) return
     await DB.deleteProduct(id)
-    if (selProd?.id===id) { setSelProd(null); setStages([]); setContents([]); setFiles([]) }
     onReload()
     success('삭제되었습니다.')
   }
 
-  const addStage = async () => {
-    const newStage = { id:uid(), productId:selProd.id, label:`${stages.length+1}단계`, order:stages.length+1, createdAt:now() }
-    await DB.saveStage(newStage)
-    const s = await DB.stagesByProduct(selProd.id)
-    setStages(s)
-    setSelStage(newStage)
-    success(`${newStage.label} 추가되었습니다.`)
-  }
-
-  const deleteStage = async (sid) => {
-    const ok = await confirm('단계를 삭제하시겠습니까?\n해당 단계의 목차도 삭제됩니다.')
-    if (!ok) return
-    await DB.deleteStage(sid)
-    const s = await DB.stagesByProduct(selProd.id)
-    setStages(s)
-    setSelStage(s[0]||null)
-  }
-
-  const bulkCreate = async () => {
-    const n = Number(bulkCount)||0
-    if (n < 1) return
-    const existing = await DB.contentsByStage(selStage.id)
-    const next = existing.length + 1
-    await Promise.all(Array.from({length:n},(_,i)=>
-      DB.saveContent({ id:uid(), stageId:selStage.id, productId:selProd.id, session:next+i, title:'', supplies:'', createdAt:now() })
-    ))
-    const all = await DB.contentsByStage(selStage.id)
-    setContents(all)
-    success(`${n}개 목차가 생성되었습니다.`)
-  }
-
-  // 샘플 엑셀 다운로드
-  const downloadSample = () => {
-    const ws = XLSX.utils.aoa_to_sheet([
-      ['차시', '제목', '준비물'],
-      [1, '예시 제목', '예시 준비물'],
-      [2, '', ''],
-    ])
-    ws['!cols'] = [{wch:6},{wch:30},{wch:30}]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, '목차')
-    XLSX.writeFile(wb, `${selStage?.label||'목차'}_샘플.xlsx`)
-  }
-
-  // 엑셀 업로드
-  const uploadXlsx = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-    const reader = new FileReader()
-    reader.onload = async ev => {
-      try {
-        const wb = XLSX.read(ev.target.result, { type:'array' })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' })
-        // 첫 행 헤더 스킵
-        const dataRows = rows.slice(1).filter(r => r[0] || r[1] || r[2])
-        if (!dataRows.length) { error('데이터가 없습니다.'); return }
-        const existing = await DB.contentsByStage(selStage.id)
-        let next = existing.length + 1
-        await Promise.all(dataRows.map((r, i) =>
-          DB.saveContent({
-            id: uid(),
-            stageId: selStage.id,
-            productId: selProd.id,
-            session: Number(r[0]) || next + i,
-            title: String(r[1] || ''),
-            supplies: String(r[2] || ''),
-            createdAt: now(),
-          })
-        ))
-        setContents(await DB.contentsByStage(selStage.id))
-        success(`${dataRows.length}개 목차가 업로드되었습니다.`)
-      } catch(err) {
-        error('엑셀 파일을 읽을 수 없습니다.')
-      }
-    }
-    reader.readAsArrayBuffer(file)
-  }
-
-  const addOneCont = async () => {
-    const existing = await DB.contentsByStage(selStage.id)
-    await DB.saveContent({ id:uid(), stageId:selStage.id, productId:selProd.id, session:existing.length+1, title:'', supplies:'', createdAt:now() })
-    setContents(await DB.contentsByStage(selStage.id))
-  }
-
-  const updateCont = async (id, field, val) => {
-    const c = contents.find(x=>x.id===id)
-    if (!c) return
-    await DB.saveContent({ ...c, [field]:val })
-    setContents(prev=>prev.map(x=>x.id===id?{...x,[field]:val}:x))
-  }
-
-  const deleteCont = async (id) => {
-    await DB.deleteContent(id)
-    const all = (await DB.contentsByStage(selStage.id)).map((c,i)=>({...c,session:i+1}))
-    await Promise.all(all.map(c=>DB.saveContent(c)))
-    setContents(all)
-  }
-
-  const saveFile = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!fileForm.title.trim()) { error('파일 제목을 먼저 입력해주세요.'); e.target.value=''; return }
-    const reader = new FileReader()
-    reader.onload = async ev => {
-      await DB.saveFile({ id:uid(), productId:selProd.id, fileType:fileForm.fileType, stageLabel:fileForm.stageLabel, title:fileForm.title, fileName:file.name, fileUrl:ev.target.result, createdAt:now() })
-      setFiles(await DB.filesByProduct(selProd.id))
-      setFileForm({ fileType:'annual', title:'', stageLabel:'' })
-      success('파일이 등록되었습니다.')
-    }
-    reader.readAsDataURL(file)
-    e.target.value=''
-  }
-
-  const deleteFile = async (id) => {
-    await DB.deleteFile(id)
-    setFiles(await DB.filesByProduct(selProd.id))
-  }
-
-  const FILE_TYPE = { annual:'📅 연간지도안', session:'📖 차시별지도안', promo:'🖼 홍보물' }
+  const iSt2 = { width:'100%', padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
 
   return (
     <div>
       {modal}
-      <ProdForm form={form} setForm={setForm} onSave={saveProd} editing={false} />
 
-      {subjectProds.length===0 ? <Empty icon="📦" msg="등록된 교구가 없습니다." /> : (
-        <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
-          {subjectProds.map(p=>(
-            <div key={p.id} onClick={()=>{ setSelProd(p); setTab('stages') }} style={{
-              padding:'12px 16px', borderRadius:'12px',
-              border:`2px solid ${selProd?.id===p.id?C.primary:C.border}`,
-              background:selProd?.id===p.id?'#fff7ed':C.card,
-              cursor:'pointer', display:'flex', alignItems:'center', gap:'12px',
-            }}>
-              <div style={{ flex:1 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                  <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>📦 {p.name}</span>
-                  <span style={{ fontSize:'11px', padding:'1px 7px', borderRadius:'999px', background:'#eff6ff', color:C.blue, fontWeight:600 }}>{p.year}년</span>
+      {/* 교구 목록 */}
+      {subjectProds.length === 0
+        ? <Empty icon="📦" msg="등록된 교구가 없습니다." />
+        : (
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'16px' }}>
+            {subjectProds.map(p => {
+              const plans = productPlanList.filter(x => x.productId === p.id)
+              const stages = [...new Set(plans.map(x => x.stage))].sort((a,b)=>a-b)
+              return (
+                <div key={p.id} style={{ padding:'12px 16px', borderRadius:'12px', border:`1.5px solid ${C.border}`, background:C.card, display:'flex', alignItems:'center', gap:'12px' }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>📦 {p.name}</div>
+                    <div style={{ fontSize:'11px', color:C.muted, marginTop:'3px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                      {stages.map(st => {
+                        const cnt = plans.filter(x => x.stage === st).length
+                        return <span key={st} style={{ background:'#f5f3ff', color:'#7c3aed', borderRadius:'4px', padding:'1px 6px' }}>{st}단계({cnt}차시)</span>
+                      })}
+                      {stages.length === 0 && <span style={{ color:C.muted }}>차시 미등록</span>}
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', gap:'6px' }}>
+                    <button type="button" onClick={() => openProductModal(p)} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #bfdbfe', background:'#eff6ff', color:C.blue, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                    <button type="button" onClick={() => deleteProduct(p.id)} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                  </div>
                 </div>
-                <PriceTags p={p} />
+              )
+            })}
+          </div>
+        )
+      }
+
+      {/* 버튼 그룹 */}
+      <div style={{ display:'flex', gap:'8px', marginBottom:'8px' }}>
+        <button type="button" onClick={downloadSample} style={{ padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #3b82f6', background:'#eff6ff', color:'#3b82f6', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플 다운로드</button>
+        <label style={{ padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #8b5cf6', background:'#f5f3ff', color:'#8b5cf6', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          📤 일괄 등록
+          <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleBulkUpload} />
+        </label>
+        {subjectProds.length > 0 && (
+          <button type="button" onClick={downloadProducts} style={{ padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운로드</button>
+        )}
+      </div>
+
+      {/* 교구 등록 버튼 */}
+      <button type="button" onClick={() => openProductModal()} style={{ width:'100%', padding:'10px', borderRadius:'10px', border:`2px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+        + 교구 등록
+      </button>
+
+      {/* 교구 등록/수정 모달 */}
+      {productModal && (
+        <div style={{ position:'fixed', inset:0, zIndex:3000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setProductModal(false) }}>
+          <div style={{ background:'#fff', borderRadius:'16px', width:'560px', maxWidth:'95vw', maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
+            <div style={{ padding:'20px 24px', borderBottom:'1px solid #e5e7eb', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>{productForm.id ? '🤖 교구 수정' : '🤖 교구 등록'}</div>
+              <button type="button" onClick={() => setProductModal(false)} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:C.muted }}>✕</button>
+            </div>
+
+            <div style={{ padding:'20px', overflowY:'auto', display:'flex', flexDirection:'column', gap:'14px' }}>
+              {/* 교구명 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교구명 *</label>
+                <input value={productForm.name} onChange={e => setProductForm(v => ({...v, name:e.target.value}))}
+                  placeholder="예: 큐보 1단계" style={iSt2} autoFocus />
               </div>
-              <div style={{ display:'flex', gap:'6px' }}>
-                <button type="button" onClick={e=>{ e.stopPropagation(); setEditProd(p); setForm({name:p.name,year:p.year,priceRetail:p.priceRetail,priceSchool:p.priceSchool,priceBranch:p.priceBranch,priceTeacher:p.priceTeacher}) }} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #bfdbfe', background:'#eff6ff', color:C.blue, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
-                <button type="button" onClick={e=>{ e.stopPropagation(); deleteProd(p.id) }} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+
+              {/* 기본 설정 */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px' }}>
+                <div>
+                  <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>최대 단계</label>
+                  <input type="number" min={1} max={20} value={productForm.maxStage}
+                    onChange={e => {
+                      const val = Number(e.target.value)
+                      setProductForm(v => ({...v, maxStage:val}))
+                      setStageSessionTitles(prev => {
+                        const next = {...prev}
+                        for (let s = 1; s <= val; s++) {
+                          if (!next[s]) next[s] = Array.from({length: productForm.sessionsPerStage}, () => ({title:'', memo:''}))
+                        }
+                        return next
+                      })
+                      if (productStageTab > val) setProductStageTab(val)
+                    }}
+                    style={{ ...iSt2, textAlign:'center' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>단계당 차시 수</label>
+                  <input type="number" min={1} max={50} value={productForm.sessionsPerStage}
+                    onChange={e => {
+                      const val = Number(e.target.value)
+                      setProductForm(v => ({...v, sessionsPerStage:val}))
+                      setStageSessionTitles(prev => {
+                        const newTitles = {}
+                        for (let s = 1; s <= productForm.maxStage; s++) {
+                          const cur = prev[s] || []
+                          newTitles[s] = Array.from({length: val}, (_, i) => cur[i] || {title:'', memo:''})
+                        }
+                        return newTitles
+                      })
+                    }}
+                    style={{ ...iSt2, textAlign:'center' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>준비 알림 (차시 전)</label>
+                  <input type="number" min={1} max={50} value={productForm.alertSession}
+                    onChange={e => setProductForm(v => ({...v, alertSession:Number(e.target.value)}))}
+                    style={{ ...iSt2, textAlign:'center' }} />
+                </div>
+              </div>
+
+              {/* 단계 선택 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>단계 선택</label>
+                <select value={productStageTab}
+                  onChange={e => {
+                    const st = Number(e.target.value)
+                    setProductStageTab(st)
+                    setStageSessionTitles(prev => ({
+                      ...prev,
+                      [st]: prev[st] || Array.from({length: productForm.sessionsPerStage}, () => ({title:'', memo:''}))
+                    }))
+                  }}
+                  style={{ ...iSt2, background:'#fff' }}>
+                  {Array.from({length: productForm.maxStage}, (_, i) => i+1).map(s => {
+                    const filled = (stageSessionTitles[s] || []).filter(t => (t?.title || '').trim()).length
+                    return <option key={s} value={s}>{s}단계 {filled > 0 ? `(${filled}개 입력됨)` : ''}</option>
+                  })}
+                </select>
+              </div>
+
+              {/* 차시 목록 */}
+              <div style={{ border:'1px solid #e5e7eb', borderRadius:'10px', overflow:'hidden' }}>
+                <div style={{ padding:'10px 14px', background:'#f9fafb', borderBottom:'1px solid #e5e7eb', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>📝 {productStageTab}단계 차시별 제목</span>
+                  <span style={{ fontSize:'11px', color:C.muted }}>
+                    {(stageSessionTitles[productStageTab]||[]).filter(i => (i?.title||'').trim()).length} / {(stageSessionTitles[productStageTab]||[]).length}개 입력
+                  </span>
+                </div>
+                <div style={{ padding:'6px 14px', background:'#fafafa', borderBottom:'1px solid #e5e7eb', display:'grid', gridTemplateColumns:'46px 1fr 1fr 28px', gap:'6px' }}>
+                  <span style={{ fontSize:'11px', color:C.muted, fontWeight:600 }}>차시</span>
+                  <span style={{ fontSize:'11px', color:C.muted, fontWeight:600 }}>제목</span>
+                  <span style={{ fontSize:'11px', color:C.muted, fontWeight:600 }}>준비물</span>
+                  <span></span>
+                </div>
+                <div style={{ padding:'8px 14px', display:'flex', flexDirection:'column', gap:'5px', maxHeight:'220px', overflowY:'auto' }}>
+                  {(stageSessionTitles[productStageTab] || Array.from({length: productForm.sessionsPerStage}, () => ({title:'', memo:''}))).map((item, idx) => {
+                    const t = item?.title || ''
+                    const m = item?.memo || ''
+                    const updateItem = (field, val) => {
+                      setStageSessionTitles(prev => {
+                        const cur = [...(prev[productStageTab] || Array.from({length: productForm.sessionsPerStage}, () => ({title:'', memo:''})))]
+                        cur[idx] = { ...cur[idx], title: field==='title' ? val : t, memo: field==='memo' ? val : m }
+                        return {...prev, [productStageTab]: cur}
+                      })
+                    }
+                    return (
+                      <div key={idx} style={{ display:'grid', gridTemplateColumns:'46px 1fr 1fr 28px', gap:'6px', alignItems:'center' }}>
+                        <span style={{ fontSize:'12px', fontWeight:700, color:C.primary }}>{idx+1}차시</span>
+                        <input value={t} onChange={e => updateItem('title', e.target.value)} placeholder="제목 (선택)" style={{ ...iSt2, padding:'5px 8px', fontSize:'12px' }} />
+                        <input value={m} onChange={e => updateItem('memo', e.target.value)} placeholder="준비물 (선택)" style={{ ...iSt2, padding:'5px 8px', fontSize:'12px' }} />
+                        <button type="button" onClick={() => setStageSessionTitles(prev => {
+                          const cur = [...(prev[productStageTab]||[])]
+                          cur.splice(idx, 1)
+                          return {...prev, [productStageTab]: cur}
+                        })} style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{ padding:'8px 14px', borderTop:'1px solid #e5e7eb' }}>
+                  <button type="button" onClick={() => setStageSessionTitles(prev => {
+                    const cur = [...(prev[productStageTab] || [])]
+                    cur.push({title:'', memo:''})
+                    return {...prev, [productStageTab]: cur}
+                  })} style={{ width:'100%', padding:'7px', borderRadius:'7px', border:'1.5px dashed #e5e7eb', background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                    + 차시 추가
+                  </button>
+                </div>
               </div>
             </div>
-          ))}
-        </div>
-      )}
 
-      {editProd && (
-        <div style={{ background:'#eff6ff', borderRadius:'12px', border:'2px solid #3b82f6', padding:'14px 16px', marginBottom:'12px' }}>
-          <div style={{ fontSize:'13px', fontWeight:700, color:C.blue, marginBottom:'10px' }}>✏️ {editProd.name} 수정 중</div>
-          <ProdForm form={form} setForm={setForm} onSave={saveProd} onCancel={()=>{ setEditProd(null); setForm({...EMPTY_PROD}) }} editing={true} />
-        </div>
-      )}
-
-      {selProd && (
-        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-          <div style={{ borderBottom:`1px solid ${C.border}` }}>
-            <div style={{ padding:'14px 20px 0', background:'#fff7ed' }}>
-              <div style={{ fontSize:'15px', fontWeight:700, color:C.primary, marginBottom:'12px' }}>📦 {selProd.name} <span style={{ fontSize:'12px', fontWeight:400, color:C.muted }}>{selProd.year}년</span></div>
-              <div style={{ display:'flex', gap:'4px' }}>
-                {[['stages','📋 단계 · 목차'],['files','📁 파일 관리']].map(([t,l])=>(
-                  <button key={t} type="button" onClick={()=>setTab(t)} style={{
-                    padding:'9px 20px', borderRadius:'8px 8px 0 0', border:'none',
-                    background:tab===t?C.card:'transparent',
-                    color:tab===t?C.primary:C.muted, fontWeight:tab===t?700:400,
-                    fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                    borderBottom:tab===t?`2px solid ${C.primary}`:'2px solid transparent',
-                  }}>{l}</button>
-                ))}
-              </div>
+            <div style={{ padding:'14px 20px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
+              <button type="button" onClick={saveProduct} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+              <button type="button" onClick={() => setProductModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
             </div>
           </div>
-
-          {tab==='stages' && (
-            <div style={{ padding:'20px' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
-                <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>단계</span>
-                {stages.map(st=>(
-                  <div key={st.id} style={{ display:'flex', alignItems:'center', gap:'2px' }}>
-                    <button type="button" onClick={()=>setSelStage(st)} style={{
-                      padding:'6px 16px', borderRadius:'999px',
-                      border:`2px solid ${selStage?.id===st.id?C.primary:C.border}`,
-                      background:selStage?.id===st.id?C.primary:'#fff',
-                      color:selStage?.id===st.id?'#fff':C.muted,
-                      fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                    }}>{st.label}</button>
-                    <button type="button" onClick={()=>deleteStage(st.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'14px', padding:'0 2px' }}>✕</button>
-                  </div>
-                ))}
-                <button type="button" onClick={addStage} style={{ padding:'6px 14px', borderRadius:'999px', border:`2px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 단계 추가</button>
-              </div>
-
-              {stages.length===0 && <div style={{ padding:'20px', textAlign:'center', fontSize:'13px', color:C.muted, background:C.bg, borderRadius:'10px', border:`1px dashed ${C.border}` }}>단계를 먼저 추가해주세요.</div>}
-              {!selStage && stages.length>0 && <div style={{ padding:'20px', textAlign:'center', fontSize:'13px', color:C.muted, background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}` }}>단계를 선택하면 목차를 관리할 수 있습니다.</div>}
-
-              {selStage && (
-                <div style={{ background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px' }}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px', flexWrap:'wrap', gap:'8px' }}>
-                    <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
-                      {selStage.label} 목차 <span style={{ fontSize:'12px', color:C.muted, fontWeight:400 }}>{contents.length}개</span>
-                    </div>
-                    <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-                      {[['one','한 개씩'],['bulk','개수로']].map(([m,l])=>(
-                        <button key={m} type="button" onClick={()=>setContMode(m)} style={{ padding:'4px 12px', borderRadius:'7px', fontSize:'12px', cursor:'pointer', border:`1.5px solid ${contMode===m?C.blue:C.border}`, background:contMode===m?'#eff6ff':'#fff', color:contMode===m?C.blue:C.muted, fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>{l}</button>
-                      ))}
-                      {contMode==='bulk' && (
-                        <>
-                          <input style={{ ...iSt, width:'60px', padding:'4px 8px' }} type="number" min="1" value={bulkCount} onChange={e=>setBulkCount(e.target.value)} />
-                          <span style={{ fontSize:'12px', color:C.muted }}>개</span>
-                          <button type="button" onClick={bulkCreate} style={{ padding:'4px 14px', borderRadius:'7px', border:'none', background:C.blue, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>생성</button>
-                        </>
-                      )}
-                      {contMode==='one' && (
-                        <button type="button" onClick={addOneCont} style={{ padding:'4px 14px', borderRadius:'7px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 목차 추가</button>
-                      )}
-                      <button type="button" onClick={downloadSample} style={{ padding:'4px 12px', borderRadius:'7px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📥 샘플</button>
-                      <input ref={xlsxRef} type="file" accept=".xlsx,.xls,.csv" style={{ display:'none' }} onChange={uploadXlsx} />
-                      <button type="button" onClick={()=>xlsxRef.current?.click()} style={{ padding:'4px 12px', borderRadius:'7px', border:'none', background:'#16a34a', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📤 엑셀 업로드</button>
-                    </div>
-                  </div>
-                  {contents.length>0 && (
-                    <div style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 20px', gap:'5px', padding:'4px 8px', marginBottom:'4px' }}>
-                      <span style={{ fontSize:'11px', color:C.muted, textAlign:'center' }}>차시</span>
-                      <span style={{ fontSize:'11px', color:C.muted }}>제목</span>
-                      <span style={{ fontSize:'11px', color:C.muted }}>준비물</span>
-                    </div>
-                  )}
-                  <div style={{ display:'flex', flexDirection:'column', gap:'5px', maxHeight:'360px', overflowY:'auto' }}>
-                    {contents.length===0
-                      ? <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', padding:'16px' }}>목차가 없습니다.</div>
-                      : contents.map(c=>(
-                        <div key={c.id} style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 20px', gap:'5px', alignItems:'center' }}>
-                          <span style={{ fontSize:'11px', fontWeight:700, color:C.blue, textAlign:'center' }}>{c.session}</span>
-                          <input style={{ ...iSt, padding:'6px 8px', fontSize:'12px', background:'#fff' }} value={c.title} onChange={e=>updateCont(c.id,'title',e.target.value)} placeholder="제목" />
-                          <input style={{ ...iSt, padding:'6px 8px', fontSize:'12px', background:'#fff' }} value={c.supplies} onChange={e=>updateCont(c.id,'supplies',e.target.value)} placeholder="준비물" />
-                          <button type="button" onClick={()=>deleteCont(c.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'15px', lineHeight:1 }}>✕</button>
-                        </div>
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {tab==='files' && (
-            <div style={{ padding:'20px' }}>
-              <div style={{ background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px', marginBottom:'16px' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px', marginBottom:'10px' }}>
-                  <div>
-                    <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>파일 유형</label>
-                    <select style={iSt} value={fileForm.fileType} onChange={e=>setFileForm(f=>({...f,fileType:e.target.value}))}>
-                      <option value="annual">📅 연간지도안</option>
-                      <option value="session">📖 차시별지도안</option>
-                      <option value="promo">🖼 홍보물</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>해당 단계 (선택)</label>
-                    <input style={iSt} value={fileForm.stageLabel} onChange={e=>setFileForm(f=>({...f,stageLabel:e.target.value}))} placeholder="예: 1단계" />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>파일 제목 *</label>
-                    <input style={iSt} value={fileForm.title} onChange={e=>setFileForm(f=>({...f,title:e.target.value}))} placeholder="예: 1단계 연간지도안" />
-                  </div>
-                </div>
-                <input ref={fileRef} type="file" accept=".pdf,.xlsx,.xls,.hwp,.hwpx,.pptx,.jpg,.png" style={{ display:'none' }} onChange={saveFile} />
-                <button type="button" onClick={()=>fileRef.current?.click()} style={{ width:'100%', padding:'10px', borderRadius:'9px', border:`1.5px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📎 파일 선택하여 등록</button>
-              </div>
-              {files.length===0 ? <Empty icon="📁" msg="등록된 파일이 없습니다." /> :
-                files.map(f=>(
-                  <div key={f.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}`, marginBottom:'6px' }}>
-                    <span style={{ fontSize:'12px', color:C.blue, fontWeight:600 }}>{FILE_TYPE[f.fileType]}</span>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{f.title}</div>
-                      <div style={{ fontSize:'11px', color:C.muted }}>{f.fileName}{f.stageLabel?` · ${f.stageLabel}`:''}</div>
-                    </div>
-                    <a href={f.fileUrl} download={f.fileName} style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #86efac', background:'#f0fdf4', color:C.success, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>⬇ 다운</a>
-                    <button type="button" onClick={()=>deleteFile(f.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'18px', lineHeight:1 }}>✕</button>
-                  </div>
-                ))
-              }
-            </div>
-          )}
         </div>
       )}
     </div>
   )
 }
 
+// ─── A형 교구 관리
+function TypeAProducts({ vendorId, subjectId, products, onReload }) {
+  return <TypeProducts vendorId={vendorId} subjectId={subjectId} products={products} onReload={onReload} />
+}
+
 // ─── B형·C형 교구 관리
 function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
-  const { success, error } = useToast()
-  const { confirm, modal } = useConfirmModal()
-  const fileRef = React.useRef()
-  const xlsxRef = useRef()
-
-  const [form, setForm]         = useState({...EMPTY_PROD})
-  const [selProd, setSelProd]   = useState(null)
-  const [tab, setTab]           = useState('quarters')
-  const [quarters, setQuarters] = useState([])
-  const [selQuarter, setSelQuarter] = useState(null)
-  const [sessions, setSessions]   = useState([])
-  const [sessMode, setSessMode]   = useState('one')
-  const [bulkSessCount, setBulkSessCount] = useState(12)
-  const [editProd, setEditProd]   = useState(null)
-  const [files, setFiles]         = useState([])
-  const [fileForm, setFileForm]   = useState({ fileType:'annual', title:'' })
-
-  const subjectProds = products.filter(p=>p.subjectId===subjectId && p.type!=='textbook')
-
-  const loadProd = useCallback(async (p) => {
-    if (!p) return
-    const q = await DB.quartersByProduct(p.id)
-    setQuarters(q)
-    setSelQuarter(q[0]||null)
-    const f = await DB.filesByProduct(p.id)
-    setFiles(f)
-  }, [])
-
-  useEffect(() => {
-    if (subjectProds.length > 0 && !selProd) {
-      setSelProd(subjectProds[0])
-      loadProd(subjectProds[0])
-    }
-  }, [subjectProds.length])
-
-  useEffect(() => { if (selProd) loadProd(selProd) }, [selProd])
-
-  useEffect(() => {
-    if (!selQuarter) return
-    DB.sessionsByQuarter(selQuarter.id).then(setSessions)
-  }, [selQuarter])
-
-  const saveProd = async () => {
-    if (!form.name.trim()) { error('교구명을 입력해주세요.'); return }
-    if (editProd) {
-      await DB.saveProduct({ ...editProd, name:form.name, year:form.year,
-        priceRetail:Number(form.priceRetail)||0, priceSchool:Number(form.priceSchool)||0,
-        priceBranch:Number(form.priceBranch)||0, priceTeacher:Number(form.priceTeacher)||0 })
-      setEditProd(null); setForm({...EMPTY_PROD}); onReload(); success('교구가 수정되었습니다.')
-    } else {
-      await DB.saveProduct({ id:uid(), vendorId, subjectId, type:'bc_product', name:form.name, year:form.year,
-        priceRetail:Number(form.priceRetail)||0, priceSchool:Number(form.priceSchool)||0,
-        priceBranch:Number(form.priceBranch)||0, priceTeacher:Number(form.priceTeacher)||0, createdAt:now() })
-      setForm({...EMPTY_PROD}); onReload(); success('교구가 추가되었습니다.')
-    }
-  }
-
-  const deleteProd = async (id) => {
-    const ok = await confirm('교구를 삭제하시겠습니까?')
-    if (!ok) return
-    await DB.deleteProduct(id)
-    if (selProd?.id===id) { setSelProd(null); setQuarters([]); setSessions([]); setFiles([]) }
-    onReload()
-    success('삭제되었습니다.')
-  }
-
-  const addQuarter = async () => {
-    const q = { id:uid(), productId:selProd.id, label:`${quarters.length+1}분기`, order:quarters.length+1, createdAt:now() }
-    await DB.saveQuarter(q)
-    const all = await DB.quartersByProduct(selProd.id)
-    setQuarters(all)
-    setSelQuarter(q)
-    success(`${q.label} 추가되었습니다.`)
-  }
-
-  const deleteQuarter = async (qid) => {
-    const ok = await confirm('분기를 삭제하시겠습니까?\n해당 분기의 차시도 삭제됩니다.')
-    if (!ok) return
-    await DB.deleteQuarter(qid)
-    const all = await DB.quartersByProduct(selProd.id)
-    setQuarters(all)
-    setSelQuarter(all[0]||null)
-  }
-
-  const bulkCreateSessions = async () => {
-    const n = Number(bulkSessCount)||0
-    if (n < 1) return
-    const existing = await DB.sessionsByQuarter(selQuarter.id)
-    const next = existing.length + 1
-    await Promise.all(Array.from({length:n},(_,i)=>
-      DB.saveSession({ id:uid(), quarterId:selQuarter.id, productId:selProd.id, session:next+i, title:'', supplies:'', createdAt:now() })
-    ))
-    setSessions(await DB.sessionsByQuarter(selQuarter.id))
-    success(`${n}개 차시가 생성되었습니다.`)
-  }
-
-  const downloadSampleB = () => {
-    const ws = XLSX.utils.aoa_to_sheet([
-      ['차시', '제목', '준비물'],
-      [1, '예시 제목', '예시 준비물'],
-      [2, '', ''],
-    ])
-    ws['!cols'] = [{wch:6},{wch:30},{wch:30}]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, '차시')
-    XLSX.writeFile(wb, `${selQuarter?.label||'차시'}_샘플.xlsx`)
-  }
-
-  const uploadXlsxB = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-    const reader = new FileReader()
-    reader.onload = async ev => {
-      try {
-        const wb = XLSX.read(ev.target.result, { type:'array' })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' })
-        const dataRows = rows.slice(1).filter(r => r[0] || r[1] || r[2])
-        if (!dataRows.length) { error('데이터가 없습니다.'); return }
-        const existing = await DB.sessionsByQuarter(selQuarter.id)
-        let next = existing.length + 1
-        await Promise.all(dataRows.map((r, i) =>
-          DB.saveSession({
-            id: uid(),
-            quarterId: selQuarter.id,
-            productId: selProd.id,
-            session: Number(r[0]) || next + i,
-            title: String(r[1] || ''),
-            supplies: String(r[2] || ''),
-            createdAt: now(),
-          })
-        ))
-        setSessions(await DB.sessionsByQuarter(selQuarter.id))
-        success(`${dataRows.length}개 차시가 업로드되었습니다.`)
-      } catch(err) {
-        error('엑셀 파일을 읽을 수 없습니다.')
-      }
-    }
-    reader.readAsArrayBuffer(file)
-  }
-
-  const addSession = async () => {
-    const existing = await DB.sessionsByQuarter(selQuarter.id)
-    await DB.saveSession({ id:uid(), quarterId:selQuarter.id, productId:selProd.id, session:existing.length+1, title:'', supplies:'', createdAt:now() })
-    setSessions(await DB.sessionsByQuarter(selQuarter.id))
-  }
-
-  const updateSession = async (id, field, val) => {
-    const s = sessions.find(x=>x.id===id)
-    if (!s) return
-    await DB.saveSession({...s,[field]:val})
-    setSessions(prev=>prev.map(x=>x.id===id?{...x,[field]:val}:x))
-  }
-
-  const deleteSession = async (id) => {
-    await DB.deleteSession(id)
-    const all = (await DB.sessionsByQuarter(selQuarter.id)).map((s,i)=>({...s,session:i+1}))
-    await Promise.all(all.map(s=>DB.saveSession(s)))
-    setSessions(all)
-  }
-
-  const saveFile = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!fileForm.title.trim()) { error('파일 제목을 먼저 입력해주세요.'); e.target.value=''; return }
-    const reader = new FileReader()
-    reader.onload = async ev => {
-      await DB.saveFile({ id:uid(), productId:selProd.id, fileType:fileForm.fileType, title:fileForm.title, fileName:file.name, fileUrl:ev.target.result, createdAt:now() })
-      setFiles(await DB.filesByProduct(selProd.id))
-      setFileForm({ fileType:'annual', title:'' })
-      success('파일이 등록되었습니다.')
-    }
-    reader.readAsDataURL(file)
-    e.target.value=''
-  }
-
-  const deleteFile = async (id) => {
-    await DB.deleteFile(id)
-    setFiles(await DB.filesByProduct(selProd.id))
-  }
-
-  const FILE_TYPE = { annual:'📅 연간지도안', session:'📖 차시별지도안', promo:'🖼 홍보물' }
-
-  return (
-    <div>
-      {modal}
-      <ProdForm form={form} setForm={setForm} onSave={saveProd} editing={false} />
-
-      {subjectProds.length===0 ? <Empty icon="🎒" msg="등록된 교구가 없습니다." /> : (
-        <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
-          {subjectProds.map(p=>(
-            <div key={p.id} onClick={()=>{ setSelProd(p); setTab('quarters') }} style={{
-              padding:'12px 16px', borderRadius:'12px',
-              border:`2px solid ${selProd?.id===p.id?C.primary:C.border}`,
-              background:selProd?.id===p.id?'#fff7ed':C.card,
-              cursor:'pointer', display:'flex', alignItems:'center', gap:'12px',
-            }}>
-              <div style={{ flex:1 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                  <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>🎒 {p.name}</span>
-                  <span style={{ fontSize:'11px', padding:'1px 7px', borderRadius:'999px', background:'#eff6ff', color:C.blue, fontWeight:600 }}>{p.year}년</span>
-                </div>
-                <PriceTags p={p} />
-              </div>
-              <div style={{ display:'flex', gap:'6px' }}>
-                <button type="button" onClick={e=>{ e.stopPropagation(); setEditProd(p); setForm({name:p.name,year:p.year,priceRetail:p.priceRetail,priceSchool:p.priceSchool,priceBranch:p.priceBranch,priceTeacher:p.priceTeacher}) }} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #bfdbfe', background:'#eff6ff', color:C.blue, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
-                <button type="button" onClick={e=>{ e.stopPropagation(); deleteProd(p.id) }} style={{ padding:'4px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {editProd && (
-        <div style={{ background:'#eff6ff', borderRadius:'12px', border:'2px solid #3b82f6', padding:'14px 16px', marginBottom:'12px' }}>
-          <div style={{ fontSize:'13px', fontWeight:700, color:C.blue, marginBottom:'10px' }}>✏️ {editProd.name} 수정 중</div>
-          <ProdForm form={form} setForm={setForm} onSave={saveProd} onCancel={()=>{ setEditProd(null); setForm({...EMPTY_PROD}) }} editing={true} />
-        </div>
-      )}
-
-      {selProd && (
-        <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-          <div style={{ borderBottom:`1px solid ${C.border}` }}>
-            <div style={{ padding:'14px 20px 0', background:'#fff7ed' }}>
-              <div style={{ fontSize:'15px', fontWeight:700, color:C.primary, marginBottom:'12px' }}>🎒 {selProd.name} <span style={{ fontSize:'12px', fontWeight:400, color:C.muted }}>{selProd.year}년</span></div>
-              <div style={{ display:'flex', gap:'4px' }}>
-                {[['quarters','📋 분기 · 차시'],['files','📁 파일 관리']].map(([t,l])=>(
-                  <button key={t} type="button" onClick={()=>setTab(t)} style={{
-                    padding:'9px 20px', borderRadius:'8px 8px 0 0', border:'none',
-                    background:tab===t?C.card:'transparent',
-                    color:tab===t?C.primary:C.muted, fontWeight:tab===t?700:400,
-                    fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                    borderBottom:tab===t?`2px solid ${C.primary}`:'2px solid transparent',
-                  }}>{l}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {tab==='quarters' && (
-            <div style={{ padding:'20px' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'16px', flexWrap:'wrap' }}>
-                <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>분기</span>
-                {quarters.map(q=>(
-                  <div key={q.id} style={{ display:'flex', alignItems:'center', gap:'2px' }}>
-                    <button type="button" onClick={()=>setSelQuarter(q)} style={{
-                      padding:'6px 16px', borderRadius:'999px',
-                      border:`2px solid ${selQuarter?.id===q.id?C.primary:C.border}`,
-                      background:selQuarter?.id===q.id?C.primary:'#fff',
-                      color:selQuarter?.id===q.id?'#fff':C.muted,
-                      fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
-                    }}>{q.label}</button>
-                    <button type="button" onClick={()=>deleteQuarter(q.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'14px', padding:'0 2px' }}>✕</button>
-                  </div>
-                ))}
-                <button type="button" onClick={addQuarter} style={{ padding:'6px 14px', borderRadius:'999px', border:`2px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 분기 추가</button>
-              </div>
-
-              {quarters.length===0 && <div style={{ padding:'20px', textAlign:'center', fontSize:'13px', color:C.muted, background:C.bg, borderRadius:'10px', border:`1px dashed ${C.border}` }}>분기를 먼저 추가해주세요.</div>}
-              {!selQuarter && quarters.length>0 && <div style={{ padding:'20px', textAlign:'center', fontSize:'13px', color:C.muted, background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}` }}>분기를 선택하면 차시를 관리할 수 있습니다.</div>}
-
-              {selQuarter && (
-                <div style={{ background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px' }}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px', flexWrap:'wrap', gap:'8px' }}>
-                    <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
-                      {selQuarter.label} 차시 <span style={{ fontSize:'12px', color:C.muted, fontWeight:400 }}>{sessions.length}개</span>
-                    </div>
-                    <div style={{ display:'flex', gap:'6px', alignItems:'center', flexWrap:'wrap' }}>
-                      {[['one','한 개씩'],['bulk','개수로']].map(([m,l])=>(
-                        <button key={m} type="button" onClick={()=>setSessMode(m)} style={{ padding:'4px 12px', borderRadius:'7px', fontSize:'12px', cursor:'pointer', border:`1.5px solid ${sessMode===m?C.blue:C.border}`, background:sessMode===m?'#eff6ff':'#fff', color:sessMode===m?C.blue:C.muted, fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>{l}</button>
-                      ))}
-                      {sessMode==='bulk' && (
-                        <>
-                          <input style={{ ...iSt, width:'60px', padding:'4px 8px' }} type="number" min="1" value={bulkSessCount} onChange={e=>setBulkSessCount(e.target.value)} />
-                          <span style={{ fontSize:'12px', color:C.muted }}>개</span>
-                          <button type="button" onClick={bulkCreateSessions} style={{ padding:'4px 14px', borderRadius:'7px', border:'none', background:C.blue, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>생성</button>
-                        </>
-                      )}
-                      {sessMode==='one' && (
-                        <button type="button" onClick={addSession} style={{ padding:'4px 14px', borderRadius:'7px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 차시 추가</button>
-                      )}
-                      <button type="button" onClick={downloadSampleB} style={{ padding:'4px 12px', borderRadius:'7px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📥 샘플</button>
-                      <input ref={xlsxRef} type="file" accept=".xlsx,.xls,.csv" style={{ display:'none' }} onChange={uploadXlsxB} />
-                      <button type="button" onClick={()=>xlsxRef.current?.click()} style={{ padding:'4px 12px', borderRadius:'7px', border:'none', background:'#16a34a', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📤 엑셀 업로드</button>
-                    </div>
-                  </div>
-                  {sessions.length>0 && (
-                    <div style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 20px', gap:'5px', padding:'4px 8px', marginBottom:'4px' }}>
-                      <span style={{ fontSize:'11px', color:C.muted, textAlign:'center' }}>차시</span>
-                      <span style={{ fontSize:'11px', color:C.muted }}>제목</span>
-                      <span style={{ fontSize:'11px', color:C.muted }}>준비물</span>
-                    </div>
-                  )}
-                  <div style={{ display:'flex', flexDirection:'column', gap:'5px', maxHeight:'320px', overflowY:'auto' }}>
-                    {sessions.length===0
-                      ? <div style={{ fontSize:'12px', color:C.muted, textAlign:'center', padding:'16px' }}>차시가 없습니다.</div>
-                      : sessions.map(s=>(
-                        <div key={s.id} style={{ display:'grid', gridTemplateColumns:'30px 1fr 1fr 20px', gap:'5px', alignItems:'center' }}>
-                          <span style={{ fontSize:'11px', fontWeight:700, color:C.blue, textAlign:'center' }}>{s.session}</span>
-                          <input style={{ ...iSt, padding:'6px 8px', fontSize:'12px', background:'#fff' }} value={s.title} onChange={e=>updateSession(s.id,'title',e.target.value)} placeholder="제목" />
-                          <input style={{ ...iSt, padding:'6px 8px', fontSize:'12px', background:'#fff' }} value={s.supplies} onChange={e=>updateSession(s.id,'supplies',e.target.value)} placeholder="준비물" />
-                          <button type="button" onClick={()=>deleteSession(s.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'15px', lineHeight:1 }}>✕</button>
-                        </div>
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {tab==='files' && (
-            <div style={{ padding:'20px' }}>
-              <div style={{ background:C.bg, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px', marginBottom:'16px' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
-                  <div>
-                    <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>파일 유형</label>
-                    <select style={iSt} value={fileForm.fileType} onChange={e=>setFileForm(f=>({...f,fileType:e.target.value}))}>
-                      <option value="annual">📅 연간지도안</option>
-                      <option value="session">📖 차시별지도안</option>
-                      <option value="promo">🖼 홍보물</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>파일 제목 *</label>
-                    <input style={iSt} value={fileForm.title} onChange={e=>setFileForm(f=>({...f,title:e.target.value}))} placeholder="예: 연간지도안" />
-                  </div>
-                </div>
-                <input ref={fileRef} type="file" accept=".pdf,.xlsx,.xls,.hwp,.hwpx,.pptx,.jpg,.png" style={{ display:'none' }} onChange={saveFile} />
-                <button type="button" onClick={()=>fileRef.current?.click()} style={{ width:'100%', padding:'10px', borderRadius:'9px', border:`1.5px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📎 파일 선택하여 등록</button>
-              </div>
-              {files.length===0 ? <Empty icon="📁" msg="등록된 파일이 없습니다." /> :
-                files.map(f=>(
-                  <div key={f.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}`, marginBottom:'6px' }}>
-                    <span style={{ fontSize:'12px', color:C.blue, fontWeight:600 }}>{FILE_TYPE[f.fileType]}</span>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{f.title}</div>
-                      <div style={{ fontSize:'11px', color:C.muted }}>{f.fileName}</div>
-                    </div>
-                    <a href={f.fileUrl} download={f.fileName} style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #86efac', background:'#f0fdf4', color:C.success, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>⬇ 다운</a>
-                    <button type="button" onClick={()=>deleteFile(f.id)} style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'18px', lineHeight:1 }}>✕</button>
-                  </div>
-                ))
-              }
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
+  return <TypeProducts vendorId={vendorId} subjectId={subjectId} products={products} onReload={onReload} />
 }
 
 // ─── 교구 관리 페이지
