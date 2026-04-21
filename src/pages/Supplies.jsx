@@ -248,7 +248,6 @@ export function Supplies({ user }) {
         stage: supplyForm.stage || '',
         createdAt: now(),
       })
-      // productId 있으면 진도도 초기화
       if (supplyForm.productId) {
         await SupplyStudentProgress.upsert({
           id: uid(), teacherId: user.id, studentId: sid, classId: selClassId,
@@ -2117,7 +2116,7 @@ export function Supplies({ user }) {
             productId: supplyCheckModal.productId,
             createdAt: now(),
           }
-          await SupplyStudentProgress.upsert({ ...base, ...patch, updatedAt: now() })
+          SupplyStudentProgress.upsert({ ...base, ...patch, updatedAt: now() })
           reload()
         }
 
