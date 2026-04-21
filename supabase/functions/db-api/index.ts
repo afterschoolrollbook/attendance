@@ -173,23 +173,23 @@ serve(async (req) => {
       }
       case 'insert': {
         const dbData = toDb(data)
-        const { data: row, error } = await supabase.from(tbl).insert(dbData).select().single()
+        const { data: rows, error } = await supabase.from(tbl).insert(dbData).select()
         if (error) throw error
-        result = row ? fromDb(row) : null
+        result = rows && rows.length > 0 ? fromDb(rows[0]) : null
         break
       }
       case 'upsert': {
         const dbData = toDb(data)
-        const { data: row, error } = await supabase.from(tbl).upsert(dbData).select().single()
+        const { data: rows, error } = await supabase.from(tbl).upsert(dbData).select()
         if (error) throw error
-        result = row ? fromDb(row) : null
+        result = rows && rows.length > 0 ? fromDb(rows[0]) : null
         break
       }
       case 'update': {
         const dbPatch = toDb(patch)
-        const { data: row, error } = await supabase.from(tbl).update(dbPatch).eq('id', id).select().single()
+        const { data: rows, error } = await supabase.from(tbl).update(dbPatch).eq('id', id).select()
         if (error) throw error
-        result = row ? fromDb(row) : null
+        result = rows && rows.length > 0 ? fromDb(rows[0]) : null
         break
       }
       case 'delete': {
