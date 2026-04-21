@@ -437,7 +437,8 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const [selProductId, setSelProductId] = React.useState(initialProductId || '')
   const [selStage, setSelStage] = React.useState(() => {
     const si = SupplyItems.byClassStudent(classId, student.id)[0]
-    return si?.stage ? Number(si.stage) : 1
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || si?.productId || ''))
+    return prog?.curStage ? Number(prog.curStage) : (si?.stage ? Number(si.stage) : 1)
   })
   const [tick, setTick] = React.useState(0)
 
@@ -576,15 +577,23 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
               <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px' }}>
                 {sessions.map(sess => {
                   const isChk = checkedNos.has(sess.sessionNo)
+                  const chkRecord = stageChecks.find(c => c.sessionNo === sess.sessionNo)
+                  const chkDate = chkRecord?.checkedAt ? (() => {
+                    const d = new Date(chkRecord.checkedAt)
+                    return `${String(d.getFullYear()).slice(2)}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`
+                  })() : null
                   return (
                     <div key={sess.id} onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)}
                       style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, cursor:'pointer', transition:'all .12s' }}>
                       <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                         {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
                       </div>
-                      <span style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827' }}>
+                      <span style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827', flex:1 }}>
                         {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
                       </span>
+                      {isChk && chkDate && (
+                        <span style={{ fontSize:'11px', color:'#6b7280', whiteSpace:'nowrap' }}>{chkDate}</span>
+                      )}
                     </div>
                   )
                 })}
@@ -1089,14 +1098,12 @@ function NoteInline({ note, onSave, studentMemo, placeholder = '특이사항 메
         <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '5px', display: 'inline-block' }}>👤 {studentMemo}</div>
       )}
       {editing ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+        <div style={{ display: 'flex', gap: '5px' }}>
           <input ref={ref} value={val} onChange={e => setVal(e.target.value)} autoFocus placeholder={placeholder}
             onKeyDown={e => { if (e.key==='Enter') save(); if (e.key==='Escape') { setEditing(false); setVal(note) } }}
-            style={{ width:'100%', boxSizing:'border-box', border:`1.5px solid ${C.primary}`, borderRadius:'6px', padding:'4px 9px', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-          <div style={{ display:'flex', gap:'5px' }}>
-            <button onClick={save} style={sm('#f97316','#fff')}>저장</button>
-            <button onClick={() => { setEditing(false); setVal(note) }} style={sm('#f3f4f6','#374151')}>취소</button>
-          </div>
+            style={{ flex:1, border:`1.5px solid ${C.primary}`, borderRadius:'6px', padding:'4px 9px', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+          <button onClick={save} style={sm('#f97316','#fff')}>저장</button>
+          <button onClick={() => { setEditing(false); setVal(note) }} style={sm('#f3f4f6','#374151')}>취소</button>
         </div>
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
