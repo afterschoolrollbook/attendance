@@ -8,6 +8,35 @@ import {
 import { Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 
+// ── 교구 목록 엑셀 다운로드
+async function downloadProductsExcel(vendorName, products, productPlanList) {
+  const XLSX = await import('xlsx')
+  const rows = [['교구명', '최대단계', '단계별차시수', '알림차시']]
+  products.forEach(p => {
+    rows.push([p.name, p.maxStage || 10, p.sessionsPerStage || 12, p.alertSession || 3])
+  })
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 12 }]
+  XLSX.utils.book_append_sheet(wb, ws, '교구목록')
+  XLSX.writeFile(wb, `교구목록_${vendorName}_${new Date().toLocaleDateString('ko-KR').replace(/\. /g,'-').replace('.','')}.xlsx`)
+}
+
+// ── 샘플 엑셀 다운로드
+async function downloadSampleExcel() {
+  const XLSX = await import('xlsx')
+  const rows = [
+    ['교구명', '최대단계', '단계별차시수', '알림차시'],
+    ['큐보 1단계', 3, 12, 3],
+    ['드론 기초', 2, 10, 2],
+  ]
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 12 }]
+  XLSX.utils.book_append_sheet(wb, ws, '교구목록샘플')
+  XLSX.writeFile(wb, '교구목록_샘플양식.xlsx')
+}
+
 const C = {
   primary: '#f97316', success: '#16a34a', danger: '#ef4444',
   border: '#e5e7eb', text: '#111827', muted: '#6b7280', card: '#fff',
@@ -359,6 +388,43 @@ export function Supplies({ user }) {
   }
 
   // 교구 등록
+  // ── 일괄 등록 (엑셀 업로드)
+  const handleBulkUpload = async (e, vendorId) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    try {
+      const XLSX = await import('xlsx')
+      const data = await file.arrayBuffer()
+      const wb = XLSX.read(data)
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
+      // 헤더 제외
+      const dataRows = rows.slice(1).filter(r => r[0])
+      if (dataRows.length === 0) { toastError('등록할 데이터가 없습니다.'); return }
+      let count = 0
+      dataRows.forEach(r => {
+        const name = String(r[0] || '').trim()
+        const maxStage = Number(r[1]) || 10
+        const sessionsPerStage = Number(r[2]) || 12
+        const alertSession = Number(r[3]) || 3
+        if (!name) return
+        const duplicate = productList.find(p => p.vendorId === vendorId && p.name === name)
+        if (duplicate) return // 중복 스킵
+        SupplyProducts.insert({
+          id: uid(), teacherId: user.id, vendorId,
+          name, maxStage, sessionsPerStage, alertSession,
+          subject: selSubject || '', createdAt: now(),
+        })
+        count++
+      })
+      reload()
+      success(`${count}개 교구가 등록되었습니다.`)
+    } catch(e) {
+      toastError('파일 읽기 실패: ' + e.message)
+    }
+  }
+
   const openProductModal = (vendorId, existingProduct=null) => {
     try {
       setProductVendorId(vendorId || null)
@@ -1128,12 +1194,31 @@ export function Supplies({ user }) {
                             <div style={{ padding:'14px 18px', borderBottom:`1px solid #f3f4f6` }}>
                               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
                                 <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>🤖 교구 목록</span>
-                                {isRobot && (
-                                  <button onClick={() => openProductModal(v.id)}
-                                    style={{ padding:'4px 12px', borderRadius:'6px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                                    + 교구 등록
-                                  </button>
-                                )}
+                                <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                                  {vProducts.length > 0 && (
+                                    <button onClick={() => downloadProductsExcel(v.name, vProducts, productPlanList)}
+                                      style={{ padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                      ⬇ 다운로드
+                                    </button>
+                                  )}
+                                  {isRobot && (
+                                    <>
+                                      <button onClick={() => downloadSampleExcel()}
+                                        style={{ padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #3b82f6', background:'#eff6ff', color:'#3b82f6', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                        📋 샘플
+                                      </button>
+                                      <label style={{ padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #8b5cf6', background:'#f5f3ff', color:'#8b5cf6', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                        📤 일괄등록
+                                        <input type="file" accept=".xlsx,.xls" style={{ display:'none' }}
+                                          onChange={(e) => handleBulkUpload(e, v.id)} />
+                                      </label>
+                                      <button onClick={() => openProductModal(v.id)}
+                                        style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                        + 교구 등록
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                               {vProducts.length === 0 ? (
                                 <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'12px 0' }}>등록된 교구가 없습니다</div>
