@@ -70,7 +70,6 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   }
   const delMemo = (id) => { LessonMemos.delete(id); setMemos(LessonMemos.byClassDate(cls.id, date)) }
 
-  const today = todayStr()
   const activeStudents = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
 
   const studentProgList = activeStudents.map(s => {
@@ -102,7 +101,6 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
           </button>
         ))}
       </div>
-
       {tab === 'memo' && (
         <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
           {memos.length === 0 && <div style={{ fontSize:'12px', color:'#d1d5db', textAlign:'center', padding:'8px 0' }}>메모가 없습니다</div>}
@@ -123,7 +121,6 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
           </div>
         </div>
       )}
-
       {tab === 'progress' && (
         <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
           {checkedToday.length > 0 && (
