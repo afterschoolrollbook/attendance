@@ -962,8 +962,22 @@ export function Auth({ onLogin }) {
                       <span style={{ color: '#9ca3af' }}>→</span>
                       <span style={{ color: '#f97316', fontWeight: 700 }}>② 이메일 인증</span>
                     </div>
-                    <div style={{ padding: '12px 14px', background: '#eff6ff', borderRadius: '10px', border: '1.5px solid #bfdbfe', fontSize: '13px', color: '#1e40af', lineHeight: 1.7 }}>
-                      <strong>{form.email}</strong>으로 인증번호를 발송합니다.
+                    <div style={{ padding: '12px 14px', background: '#eff6ff', borderRadius: '10px', border: '1.5px solid #bfdbfe', fontSize: '13px', color: '#1e40af', lineHeight: 1.8 }}>
+                      <div style={{ marginBottom: '10px', fontSize: '14px', lineHeight: '1.8' }}>
+                        안녕하세요~!<br/>
+                        방과후 출석부를 찾아오신 선생님 반갑습니다!<br/>
+                        대한민국 교육의 한 축을 이루고 있는 방과후 교육을 담당하고 계신 선생님 감사합니다!
+                      </div>
+                      <div style={{ marginBottom: '10px', fontSize: '13px', lineHeight: '1.8' }}>
+                        선생님께서는 처음 방문하신 선생님이셔서 불편하시더라도<br/>
+                        실 사용하시는 이메일 인증을 통해 입장을 하고 있으니 양해 부탁드립니다.
+                      </div>
+                      <div style={{ marginBottom: '10px', fontSize: '13px', lineHeight: '1.8' }}>
+                        방과후 출석부는 무료회원가입으로 기본 출석부 기능을 사용하실수 있습니다!
+                      </div>
+                      <div style={{ fontSize: '13px' }}>
+                        <strong>{form.email}</strong>으로 인증번호를 발송합니다.
+                      </div>
                     </div>
                     {!verified && (
                       <button onClick={sendCode} disabled={sending}
