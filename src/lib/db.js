@@ -145,6 +145,7 @@ const SYNC_TABLES = [
   'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
   // 로봇 교구 진도
   'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress', 'supplyProgressLogs', 'supplySessionChecks',
+  'lessonMemos',
   // 지사 / 학부모 회원 / 연결 정보
   'branches', 'parentMembers', 'teacherParentLinks',
   // 출결 서비스 설정
@@ -682,10 +683,10 @@ export const SupplyItems = {
   insert:        (r)             => db.insert('supplyItems', r),
   update:        (id, p)         => db.update('supplyItems', id, p),
   delete:        (id)            => db.delete('supplyItems', id),
-  upsert(r) {
+  async upsert(r) {
     const existing = db.where('supplyItems', x => x.classId === r.classId && x.studentId === r.studentId)[0]
-    if (existing) return db.update('supplyItems', existing.id, r)
-    return db.insert('supplyItems', { ...r, id: r.id || uid() })
+    if (existing) return await db.update('supplyItems', existing.id, r)
+    return await db.insert('supplyItems', { ...r, id: r.id || uid() })
   },
 }
 
@@ -746,12 +747,12 @@ export const SupplyStudentProgress = {
   insert:       (r)            => db.insert('supplyStudentProgress', r),
   update:       (id, p)        => db.update('supplyStudentProgress', id, p),
   delete:       (id)           => db.delete('supplyStudentProgress', id),
-  upsert(r) {
+  async upsert(r) {
     const existing = db.where('supplyStudentProgress', x =>
       x.studentId === r.studentId && x.classId === r.classId && x.productId === r.productId
     )[0]
-    if (existing) return db.update('supplyStudentProgress', existing.id, { ...r, updatedAt: r.updatedAt })
-    return db.insert('supplyStudentProgress', { ...r, id: r.id || uid() })
+    if (existing) return await db.update('supplyStudentProgress', existing.id, { ...r, updatedAt: r.updatedAt })
+    return await db.insert('supplyStudentProgress', { ...r, id: r.id || uid() })
   },
 }
 
@@ -778,13 +779,13 @@ export const SupplySessionChecks = {
   insert:       (r)            => db.insert('supplySessionChecks', r),
   update:       (id, p)        => db.update('supplySessionChecks', id, p),
   delete:       (id)           => db.delete('supplySessionChecks', id),
-  upsert(r) {
+  async upsert(r) {
     const existing = db.where('supplySessionChecks', x =>
       x.studentId === r.studentId && x.classId === r.classId &&
       x.productId === r.productId && x.stage === r.stage && x.sessionNo === r.sessionNo
     )[0]
-    if (existing) return db.update('supplySessionChecks', existing.id, { ...r })
-    return db.insert('supplySessionChecks', { ...r, id: r.id || uid() })
+    if (existing) return await db.update('supplySessionChecks', existing.id, { ...r })
+    return await db.insert('supplySessionChecks', { ...r, id: r.id || uid() })
   },
 }
 
@@ -833,4 +834,14 @@ export const TeacherProfiles = {
     if (existing) return db.update('teacherProfiles', existing.id, { name, nickname })
     return db.insert('teacherProfiles', { id: uid(), teacherId: tid, name, nickname, createdAt: now() })
   },
+}
+
+// ─── 수업 메모장 ──────────────────────────────────────────────
+export const LessonMemos = {
+  all:          ()                    => db.get('lessonMemos'),
+  byClassDate:  (classId, date)       => db.where('lessonMemos', r => r.classId === classId && r.date === date),
+  byTeacher:    (tid)                 => db.where('lessonMemos', r => r.teacherId === tid),
+  insert:       (r)                   => db.insert('lessonMemos', r),
+  update:       (id, p)               => db.update('lessonMemos', id, p),
+  delete:       (id)                  => db.delete('lessonMemos', id),
 }
