@@ -235,12 +235,12 @@ export function Supplies({ user }) {
     schools: f.schools.includes(s) ? f.schools.filter(x => x !== s) : [...f.schools, s]
   }))
 
-  const saveSupply = () => {
+  const saveSupply = async () => {
     if (!supplyForm.name && !supplyForm.productId) { toastError('교구명을 입력하거나 교구를 선택하세요'); return }
     const product = productList.find(p => p.id === supplyForm.productId)
     const finalName = supplyForm.productId ? (product?.name || supplyForm.name) : supplyForm.name
-    checkedStudents.forEach(sid => {
-      SupplyItems.upsert({
+    for (const sid of checkedStudents) {
+      await SupplyItems.upsert({
         id: uid(), teacherId: user.id, classId: selClassId, studentId: sid,
         subject: selSubject,
         name: finalName,
@@ -250,13 +250,13 @@ export function Supplies({ user }) {
       })
       // productId 있으면 진도도 초기화
       if (supplyForm.productId) {
-        SupplyStudentProgress.upsert({
+        await SupplyStudentProgress.upsert({
           id: uid(), teacherId: user.id, studentId: sid, classId: selClassId,
           productId: supplyForm.productId, curStage: supplyForm.stage || 1, curSession: 1,
           updatedAt: now(), createdAt: now(),
         })
       }
-    })
+    }
     reload(); setSupplyModal(false); setSupplyForm({ name:'', productId:'', stage:1 }); success('수정이 완료되었습니다.')
   }
 
@@ -286,15 +286,15 @@ export function Supplies({ user }) {
   }, [checkList, progressList, confirmedStudents, selClassId, robotProducts])
 
   // 진도 체크 토글
-  const toggleCheck = (studentId, productId, stage, sessionNo) => {
+  const toggleCheck = async (studentId, productId, stage, sessionNo) => {
     const existing = checkList.find(c =>
       c.studentId===studentId && c.classId===selClassId && c.productId===productId &&
       c.stage===stage && c.sessionNo===sessionNo
     )
     if (existing) {
-      SupplySessionChecks.delete(existing.id)
+      await SupplySessionChecks.delete(existing.id)
     } else {
-      SupplySessionChecks.upsert({
+      await SupplySessionChecks.upsert({
         id: uid(), teacherId: user.id, studentId, classId: selClassId,
         productId, stage, sessionNo, checkedAt: now(), createdAt: now(),
       })
@@ -303,7 +303,7 @@ export function Supplies({ user }) {
     const allChecks = SupplySessionChecks.byProductStudent(productId, studentId, selClassId)
     const stageChecks = allChecks.filter(c => c.stage === stage)
     const maxSession = stageChecks.length > 0 ? Math.max(...stageChecks.map(c=>c.sessionNo)) : 1
-    SupplyStudentProgress.upsert({
+    await SupplyStudentProgress.upsert({
       id: uid(), teacherId: user.id, studentId, classId: selClassId,
       productId, curStage: stage, curSession: maxSession, updatedAt: now(), createdAt: now(),
     })
@@ -2117,7 +2117,7 @@ export function Supplies({ user }) {
             productId: supplyCheckModal.productId,
             createdAt: now(),
           }
-          SupplyStudentProgress.upsert({ ...base, ...patch, updatedAt: now() })
+          await SupplyStudentProgress.upsert({ ...base, ...patch, updatedAt: now() })
           reload()
         }
 
