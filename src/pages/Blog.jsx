@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { dbCall } from '../lib/supabase.js'
+import { Users } from '../lib/db.js'
+import { BlogAdmin } from './BlogAdmin.jsx'
 
 // ── 간단한 마크다운 → HTML 변환기 (외부 라이브러리 없이)
 function parseMarkdown(md) {
@@ -246,11 +248,49 @@ function BlogDetail({ post, onBack }) {
   )
 }
 
-// ── 메인 Blog 컴포넌트
+// ── 애드센스 슬롯 컴포넌트 (코드 직접 삽입)
+// 실제 애드센스 코드로 교체하세요
+function AdSense({ slot, style = {} }) {
+  useEffect(() => {
+    try { (window.adsbygoogle = window.adsbygoogle || []).push({}) } catch {}
+  }, [])
+  return (
+    <div style={{ textAlign: 'center', ...style }}>
+      {/* ↓ 실제 애드센스 코드로 교체 */}
+      <ins className="adsbygoogle"
+        style={{ display: 'block' }}
+        data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+        data-ad-slot={slot}
+        data-ad-format="auto"
+        data-full-width-responsive="true" />
+    </div>
+  )
+}
 export function Blog() {
   const [posts, setPosts] = useState([])
   const [selPost, setSelPost] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [adminUser, setAdminUser] = useState(null)
+  const [showAdminLogin, setShowAdminLogin] = useState(false)
+  const [loginForm, setLoginForm] = useState({ email: '', pw: '' })
+  const [loginError, setLoginError] = useState('')
+  const [blogAdminMode, setBlogAdminMode] = useState(false)
+
+  const handleAdminLogin = () => {
+    setLoginError('')
+    const user = Users.findByEmail(loginForm.email.trim().toLowerCase())
+    if (!user || user.pw !== loginForm.pw) {
+      setLoginError('이메일 또는 비밀번호가 올바르지 않습니다.')
+      return
+    }
+    if (user.level < 5) {
+      setLoginError('관리자 권한이 없습니다.')
+      return
+    }
+    setAdminUser(user)
+    setShowAdminLogin(false)
+    setBlogAdminMode(true)
+  }
 
   useEffect(() => {
     // SEO 메타 기본값
@@ -312,11 +352,56 @@ export function Blog() {
           <span style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>방과후 출석부</span>
           <span style={{ fontSize: '12px', color: '#9ca3af', marginLeft: '4px' }}>블로그</span>
         </a>
-        <a href="/" style={{ padding: '7px 18px', background: '#f97316', color: '#fff', borderRadius: '8px', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-          앱 시작하기 →
-        </a>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {adminUser ? (
+            <button onClick={() => setBlogAdminMode(v => !v)}
+              style={{ padding: '7px 16px', background: blogAdminMode ? '#1f2937' : '#f97316', color: '#fff', borderRadius: '8px', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+              {blogAdminMode ? '← 블로그' : '✏️ 글관리'}
+            </button>
+          ) : (
+            <button onClick={() => setShowAdminLogin(true)}
+              style={{ padding: '7px 16px', background: 'none', border: '1px solid #e5e7eb', color: '#6b7280', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+              관리자
+            </button>
+          )}
+          <a href="/" style={{ padding: '7px 18px', background: '#f97316', color: '#fff', borderRadius: '8px', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
+            앱 시작하기 →
+          </a>
+        </div>
       </div>
     </nav>
+  )
+
+  // 관리자 로그인 모달
+  const AdminLoginModal = () => (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+      onClick={e => { if (e.target === e.currentTarget) { setShowAdminLogin(false); setLoginError('') } }}>
+      <div style={{ background: '#fff', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '380px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#111827', marginBottom: '8px' }}>🔐 관리자 로그인</h2>
+        <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '24px' }}>블로그 글 작성 및 관리</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <input
+            type="email" placeholder="이메일"
+            value={loginForm.email}
+            onChange={e => setLoginForm(v => ({ ...v, email: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && handleAdminLogin()}
+            style={{ padding: '10px 14px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }}
+          />
+          <input
+            type="password" placeholder="비밀번호"
+            value={loginForm.pw}
+            onChange={e => setLoginForm(v => ({ ...v, pw: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && handleAdminLogin()}
+            style={{ padding: '10px 14px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }}
+          />
+          {loginError && <div style={{ fontSize: '13px', color: '#ef4444', fontWeight: 600 }}>{loginError}</div>}
+          <button onClick={handleAdminLogin}
+            style={{ padding: '11px', borderRadius: '9px', border: 'none', background: '#f97316', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', marginTop: '4px' }}>
+            로그인
+          </button>
+        </div>
+      </div>
+    </div>
   )
 
   if (loading) return (
@@ -331,19 +416,59 @@ export function Blog() {
   return (
     <div style={{ minHeight: '100vh', background: '#fafafa', fontFamily: 'Noto Sans KR, sans-serif' }}>
       <Nav />
-      {selPost
-        ? <BlogDetail post={selPost} onBack={handleBack} />
-        : <BlogList posts={posts} onSelect={handleSelect} />
-      }
-      {/* 푸터 */}
-      <footer style={{ borderTop: '1px solid #e5e7eb', padding: '32px 20px', textAlign: 'center', color: '#9ca3af', fontSize: '13px', background: '#fff' }}>
-        <div style={{ marginBottom: '8px' }}>📋 방과후 출석부 — 방과후 강사를 위한 스마트 출석 관리</div>
-        <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
-          <a href="/terms" style={{ color: '#9ca3af', textDecoration: 'none' }}>이용약관</a>
-          <a href="/privacy" style={{ color: '#9ca3af', textDecoration: 'none' }}>개인정보처리방침</a>
-          <a href="/" style={{ color: '#9ca3af', textDecoration: 'none' }}>앱으로 이동</a>
+      {showAdminLogin && <AdminLoginModal />}
+      {blogAdminMode ? (
+        <div style={{ padding: '24px' }}>
+          <BlogAdmin user={adminUser} />
         </div>
-      </footer>
+      ) : (
+        <>
+          {/* 좌우 광고 + 컨텐츠 3단 레이아웃 */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', padding: '0 16px', maxWidth: '1400px', margin: '0 auto' }}>
+
+            {/* 왼쪽 광고 */}
+            <div style={{ width: '160px', flexShrink: 0, paddingTop: '32px', display: 'none' }}
+              className="blog-sidebar-ad"
+              ref={el => { if (el) el.style.display = window.innerWidth >= 1200 ? 'block' : 'none' }}>
+              <div style={{ position: 'sticky', top: '80px' }}>
+                <AdSense slot="1111111111" style={{ width: '160px', minHeight: '600px' }} />
+              </div>
+            </div>
+
+            {/* 메인 컨텐츠 */}
+            <div style={{ flex: 1, minWidth: 0, maxWidth: '900px' }}>
+              {selPost
+                ? <BlogDetail post={selPost} onBack={handleBack} />
+                : <BlogList posts={posts} onSelect={handleSelect} />
+              }
+              {/* 하단 광고 */}
+              {!blogAdminMode && (
+                <div style={{ padding: '0 20px 40px', maxWidth: '900px', margin: '0 auto' }}>
+                  <AdSense slot="3333333333" style={{ minHeight: '90px' }} />
+                </div>
+              )}
+            </div>
+
+            {/* 오른쪽 광고 */}
+            <div style={{ width: '160px', flexShrink: 0, paddingTop: '32px', display: 'none' }}
+              ref={el => { if (el) el.style.display = window.innerWidth >= 1200 ? 'block' : 'none' }}>
+              <div style={{ position: 'sticky', top: '80px' }}>
+                <AdSense slot="2222222222" style={{ width: '160px', minHeight: '600px' }} />
+              </div>
+            </div>
+          </div>
+
+          {/* 푸터 */}
+          <footer style={{ borderTop: '1px solid #e5e7eb', padding: '32px 20px', textAlign: 'center', color: '#9ca3af', fontSize: '13px', background: '#fff' }}>
+            <div style={{ marginBottom: '8px' }}>📋 방과후 출석부 — 방과후 강사를 위한 스마트 출석 관리</div>
+            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+              <a href="/terms" style={{ color: '#9ca3af', textDecoration: 'none' }}>이용약관</a>
+              <a href="/privacy" style={{ color: '#9ca3af', textDecoration: 'none' }}>개인정보처리방침</a>
+              <a href="/" style={{ color: '#9ca3af', textDecoration: 'none' }}>앱으로 이동</a>
+            </div>
+          </footer>
+        </>
+      )}
     </div>
   )
 }
