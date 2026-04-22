@@ -617,17 +617,22 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const origNextStage = prog?.nextStage || 1
   const isNextChanged = nextProductId !== origNextProductId || Number(nextStage) !== Number(origNextStage)
 
-  const handleProductChange = (newId) => {
-    setSelProductId(newId)
-    setSelStage(1)
-  }
-
-  const handleApply = () => {
+  const saveProgress = (productId, stage) => {
     if (!si) return
-    SupplyItems.upsert({ ...si, productId: selProductId, stage: selStage, remoteNo: si.remoteNo || '' })
+    SupplyItems.upsert({ ...si, productId, stage, remoteNo: si.remoteNo || '' })
+    const existingProg = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === productId)
+    SupplyStudentProgress.upsert({ ...(existingProg || {}), id: existingProg?.id || uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, updatedAt: now(), createdAt: existingProg?.createdAt || now() })
     onSaved && onSaved()
     setTick(t => t + 1)
   }
+
+  const handleProductChange = (newId) => {
+    setSelProductId(newId)
+    setSelStage(1)
+    saveProgress(newId, 1)
+  }
+
+  const handleApply = () => saveProgress(selProductId, selStage)
 
   const handleSaveRemoteNo = () => {
     if (!si) return
@@ -680,19 +685,13 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px', minWidth:'90px' }}>
               <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>단계</label>
-              <select value={selStage} onChange={e => setSelStage(Number(e.target.value))}
+              <select value={selStage} onChange={e => { const s = Number(e.target.value); setSelStage(s); saveProgress(selProductId, s) }}
                 style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
                 {Array.from({ length: maxStage }, (_, i) => i+1).map(s => (
                   <option key={s} value={s}>{s}단계</option>
                 ))}
               </select>
             </div>
-            {isChanged && (
-              <button onClick={handleApply}
-                style={{ padding:'8px 18px', borderRadius:'8px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                ✓ 적용
-              </button>
-            )}
           </div>
           <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'8px' }}>
             🤖 {product.name} · {selStage}단계 배정 · 단계당 {spp}차시 기준
@@ -821,7 +820,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
         )}
       </div>
       <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
-        <button onClick={onClose}
+        <button onClick={() => { saveProgress(selProductId, selStage); onClose && onClose() }}
           style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
           닫기
         </button>
@@ -2206,17 +2205,11 @@ function MobileAttendance({ user, pageParams = {} }) {
   // 달력 점 표시용 날짜
   const classDates = [...new Set(allClasses.flatMap(c => calcSessionDates(c)))]
 
-  // 진도 관련 데이터 — progTick 변경 시 강제 갱신
-  const [spItems,  setSpItems]  = useState(() => selClass ? SupplyItems.byClass(selClass.id) : [])
-  const [spProds,  setSpProds]  = useState(() => SupplyProducts.byTeacher(user.id))
-  const [spProg,   setSpProg]   = useState(() => SupplyStudentProgress.byTeacher(user.id))
-  const [spChecks, setSpChecks] = useState(() => SupplySessionChecks.byTeacher ? SupplySessionChecks.byTeacher(user.id) : [])
-  useEffect(() => {
-    setSpItems(selClass ? SupplyItems.byClass(selClass.id) : [])
-    setSpProds(SupplyProducts.byTeacher(user.id))
-    setSpProg(SupplyStudentProgress.byTeacher(user.id))
-    setSpChecks(SupplySessionChecks.byTeacher ? SupplySessionChecks.byTeacher(user.id) : [])
-  }, [progTick, selClassId])
+  // 진도 관련 데이터
+  const spItems  = selClass ? SupplyItems.byClass(selClass.id) : []
+  const spProds  = SupplyProducts.byTeacher(user.id)
+  const spProg   = SupplyStudentProgress.byTeacher(user.id)
+  const spChecks = SupplySessionChecks.byTeacher ? SupplySessionChecks.byTeacher(user.id) : []
 
   const students = selClass
     ? [...allStudents.filter(s => s.classIds?.includes(selClass.id) && ['applied','selected','confirmed'].includes(s.status))]
