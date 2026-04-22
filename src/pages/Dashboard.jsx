@@ -2672,7 +2672,7 @@ export function Dashboard({ user, onNav }) {
   const hiddenCount = Object.values(settings).filter(v => !v).length
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1100px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ padding: '24px', maxWidth: '1400px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
       {/* ── 학교 담당자 연결 요청 팝업 ── */}
       <SchoolConnectPopup user={user} />
