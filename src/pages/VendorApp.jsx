@@ -357,7 +357,7 @@ function ProdForm({ form, setForm, onSave, onCancel, editing }) {
 }
 
 // ─── 공통 교구 관리 (Supplies.jsx 방식과 동일)
-function TypeProducts({ vendorId, subjectId, products, onReload }) {
+function TypeProducts({ vendorId, subjectId, subjects, vendorSession, products, onReload }) {
   const { success, error } = useToast()
   const { confirm, modal } = useConfirmModal()
 
@@ -396,20 +396,22 @@ function TypeProducts({ vendorId, subjectId, products, onReload }) {
 
   // 현재 교구 다운로드
   const downloadProducts = async () => {
-    const rows = [['교구명', '단계', '차시번호', '차시제목', '준비물']]
+    const vendor = vendorSession?.vendor || {}
+    const rows = [['업체명', '담당자', '연락처', '과목', '교구명', '단계', '차시번호', '차시제목', '메모']]
     subjectProds.forEach(p => {
+      const subj = subjects.find(s => s.id === p.subjectId)
       const plans = productPlanList.filter(x => x.productId === p.id).sort((a,b) => a.stage - b.stage || a.sessionNo - b.sessionNo)
       if (plans.length === 0) {
-        rows.push([p.name, '', '', '', ''])
+        rows.push([vendor.name||'', vendor.managerName||'', vendor.phone||'', subj?.name||'', p.name, '', '', '', ''])
       } else {
-        plans.forEach(pl => rows.push([p.name, pl.stage||'', pl.sessionNo||'', pl.title||'', pl.supplies||'']))
+        plans.forEach(pl => rows.push([vendor.name||'', vendor.managerName||'', vendor.phone||'', subj?.name||'', p.name, pl.stage||'', pl.sessionNo||'', pl.title||'', pl.supplies||'']))
       }
     })
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.aoa_to_sheet(rows)
-    ws['!cols'] = [{wch:20},{wch:8},{wch:10},{wch:30},{wch:20}]
+    ws['!cols'] = [{wch:20},{wch:10},{wch:14},{wch:10},{wch:20},{wch:8},{wch:10},{wch:30},{wch:20}]
     XLSX.utils.book_append_sheet(wb, ws, '교구목록')
-    XLSX.writeFile(wb, `교구목록_${new Date().toLocaleDateString('ko-KR')}.xlsx`)
+    XLSX.writeFile(wb, `교구목록_${vendor.name||''}_${new Date().toLocaleDateString('ko-KR').replace(/\. /g,'-').replace('.','')}.xlsx`)
   }
 
   // 일괄 등록
@@ -764,28 +766,121 @@ function TypeProducts({ vendorId, subjectId, products, onReload }) {
 }
 
 // ─── A형 교구 관리
-function TypeAProducts({ vendorId, subjectId, products, onReload }) {
-  return <TypeProducts vendorId={vendorId} subjectId={subjectId} products={products} onReload={onReload} />
+function TypeAProducts({ vendorId, subjectId, subjects, vendorSession, products, onReload }) {
+  return <TypeProducts vendorId={vendorId} subjectId={subjectId} subjects={subjects} vendorSession={vendorSession} products={products} onReload={onReload} />
 }
 
-// ─── B형·C형 교구 관리
-function TypeBCProducts({ vendorId, subjectId, products, onReload }) {
-  return <TypeProducts vendorId={vendorId} subjectId={subjectId} products={products} onReload={onReload} />
+function TypeBCProducts({ vendorId, subjectId, subjects, vendorSession, products, onReload }) {
+  return <TypeProducts vendorId={vendorId} subjectId={subjectId} subjects={subjects} vendorSession={vendorSession} products={products} onReload={onReload} />
 }
 
 // ─── 교구 관리 페이지
-function VendorProductsPage({ vendorId, subjects, products, onReload }) {
+function VendorProductsPage({ vendorId, vendorSession, subjects, products, onReload }) {
   const [filterSubjectId, setFilterSubjectId] = useState('')
   const filteredSubjects = filterSubjectId ? subjects.filter(s=>s.id===filterSubjectId) : subjects
+  const { success, error } = useToast()
+
+  // 페이지 레벨 일괄등록 — 과목 자동 생성 포함
+  const downloadSample = async () => {
+    const rows = [
+      ['업체명', '담당자', '연락처', '과목', '과목분류(A:로봇 / B:과학실험,보드게임 / C:미술,체육,기타)', '교구명', '단계', '차시번호', '차시제목', '메모'],
+      ['집현전에듀지원센터', '민찬홍', '010-2704-0307', '로봇', 'A', '큐보', 1, 1, '토끼,양팔저울', '배터리'],
+      ['집현전에듀지원센터', '민찬홍', '010-2704-0307', '로봇', 'A', '큐보', 1, 2, '풍차', '배터리'],
+      ['집현전에듀지원센터', '민찬홍', '010-2704-0307', '로봇', 'A', '큐보', 2, 1, '드론 조립', ''],
+      ['집현전에듀지원센터', '민찬홍', '010-2704-0307', '보드게임', 'B', '할리갈리', 1, 1, '할리갈리 기초', ''],
+    ]
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = [{wch:20},{wch:10},{wch:14},{wch:10},{wch:40},{wch:20},{wch:8},{wch:10},{wch:30},{wch:20}]
+    XLSX.utils.book_append_sheet(wb, ws, '교구목록샘플')
+    XLSX.writeFile(wb, '교구목록_샘플양식.xlsx')
+  }
+
+  const handleBulkUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    try {
+      const data = await file.arrayBuffer()
+      const wb = XLSX.read(data)
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(ws, { header:1 })
+      const dataRows = rows.slice(1).filter(r => r[0])
+      if (!dataRows.length) { error('등록할 데이터가 없습니다.'); return }
+
+      // 컬럼: 업체명(0) 담당자(1) 연락처(2) 과목(3) 과목분류(4) 교구명(5) 단계(6) 차시번호(7) 차시제목(8) 메모(9)
+      const subjectMap = {}
+      dataRows.forEach(r => {
+        const subjectName = String(r[3]||'').trim()
+        const subjectType = String(r[4]||'A').trim().toUpperCase()
+        const productName = String(r[5]||'').trim()
+        const stage       = Number(r[6])||1
+        const sessionNo   = Number(r[7])||1
+        const title       = String(r[8]||'').trim()
+        const supplies    = String(r[9]||'').trim()
+        if (!subjectName || !productName) return
+        if (!subjectMap[subjectName]) subjectMap[subjectName] = { subjectType, products: {} }
+        if (!subjectMap[subjectName].products[productName]) subjectMap[subjectName].products[productName] = []
+        subjectMap[subjectName].products[productName].push({ stage, sessionNo, title, supplies })
+      })
+
+      let subjectCount = 0, productCount = 0, planCount = 0
+      const allContents = (await dbCall('getAll','hqVendorContents'))||[]
+
+      for (const [subjectName, subjectData] of Object.entries(subjectMap)) {
+        let subject = subjects.find(s => s.name === subjectName)
+        if (!subject) {
+          const newSubjectId = uid()
+          await DB.saveSubject({ id:newSubjectId, vendorId, name:subjectName, subjectType: subjectData.subjectType||'A', createdAt:now() })
+          subject = { id:newSubjectId }
+          subjectCount++
+        }
+
+        for (const [productName, plans] of Object.entries(subjectData.products)) {
+          // 교구 없으면 자동 생성
+          let product = products.find(p => p.subjectId === subject.id && p.name === productName)
+          if (!product) {
+            const maxStage = Math.max(...plans.map(p => p.stage))
+            const newProductId = uid()
+            await DB.saveProduct({ id:newProductId, vendorId, subjectId:subject.id, name:productName, maxStage, sessionsPerStage:12, alertSession:3, createdAt:now() })
+            product = { id:newProductId }
+            productCount++
+          }
+
+          for (const pl of plans) {
+            const exists = allContents.find(x => x.productId === product.id && x.stage === pl.stage && x.sessionNo === pl.sessionNo)
+            if (!exists) {
+              await DB.saveContent({ id:uid(), stageId:`${product.id}_${pl.stage}`, productId:product.id, stage:pl.stage, sessionNo:pl.sessionNo, title:pl.title, supplies:pl.supplies, createdAt:now() })
+              planCount++
+            }
+          }
+        }
+      }
+
+      onReload()
+      success(`과목 ${subjectCount}개, 교구 ${productCount}개, 차시 ${planCount}개 등록 완료!`)
+    } catch(err) {
+      error('파일 읽기 실패: ' + err.message)
+    }
+  }
 
   return (
     <div style={{ padding:'28px', fontFamily:'Noto Sans KR, sans-serif', maxWidth:'1000px' }}>
-      <h2 style={{ fontSize:'22px', fontWeight:700, color:C.text, margin:'0 0 6px' }}>🎒 교구 관리</h2>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px', flexWrap:'wrap', gap:'8px' }}>
+        <h2 style={{ fontSize:'22px', fontWeight:700, color:C.text, margin:0 }}>🎒 교구 관리</h2>
+        <div style={{ display:'flex', gap:'8px' }}>
+          <button type="button" onClick={downloadSample} style={{ padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #3b82f6', background:'#eff6ff', color:'#3b82f6', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플 다운로드</button>
+          <label style={{ padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #8b5cf6', background:'#f5f3ff', color:'#8b5cf6', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            📤 일괄 등록
+            <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleBulkUpload} />
+          </label>
+        </div>
+      </div>
       <p style={{ fontSize:'13px', color:C.muted, marginBottom:'20px' }}>과목을 클릭하면 해당 과목만 보입니다.</p>
 
       {subjects.length===0 ? (
         <div style={{ padding:'18px', background:'#fff7ed', borderRadius:'12px', border:'1px solid #fed7aa', fontSize:'14px', color:C.primary }}>
-          ⚠️ 먼저 <strong>과목 관리</strong>에서 과목을 등록해주세요.
+          ⚠️ 먼저 <strong>과목 관리</strong>에서 과목을 등록하거나, 위의 <strong>일괄 등록</strong>으로 한번에 등록하세요.
         </div>
       ) : (
         <>
@@ -813,8 +908,8 @@ function VendorProductsPage({ vendorId, subjects, products, onReload }) {
                     <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'999px', background:t.bg, color:t.color }}>{t.label} 유형</span>
                   </div>
                   {s.subjectType==='A'
-                    ? <TypeAProducts vendorId={vendorId} subjectId={s.id} products={products} onReload={onReload} />
-                    : <TypeBCProducts vendorId={vendorId} subjectId={s.id} products={products} onReload={onReload} />
+                    ? <TypeAProducts vendorId={vendorId} subjectId={s.id} subjects={subjects} vendorSession={vendorSession} products={products} onReload={onReload} />
+                    : <TypeBCProducts vendorId={vendorId} subjectId={s.id} subjects={subjects} vendorSession={vendorSession} products={products} onReload={onReload} />
                   }
                 </div>
               )
@@ -852,7 +947,7 @@ export function VendorApp({ vendorSession, onLogout }) {
       <main style={{ flex:1, background:'#f9fafb', overflowY:'auto' }}>
         {page==='dashboard' && <VendorDashboard vendorSession={vendorSession} subjects={subjects} products={products} />}
         {page==='subjects'  && <VendorSubjectsPage vendorId={vendorId} subjects={subjects} onReload={reload} />}
-        {page==='products'  && <VendorProductsPage vendorId={vendorId} subjects={subjects} products={products} onReload={reload} />}
+        {page==='products'  && <VendorProductsPage vendorId={vendorId} vendorSession={vendorSession} subjects={subjects} products={products} onReload={reload} />}
       </main>
     </div>
   )
