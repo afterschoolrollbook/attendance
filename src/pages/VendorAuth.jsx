@@ -496,15 +496,26 @@ function RegisterTab({ onDone, onSwitch }) {
             </div>
             <div>
               <label style={{ fontSize:'12px', color:C.muted, marginBottom:'4px', display:'block' }}>이메일 (로그인 ID)</label>
+              {!verified && (
+                <div style={{ padding:'10px 12px', background:'#fff7ed', borderRadius:'8px', border:'1px solid #fed7aa', marginBottom:'8px', fontSize:'12px', color:'#92400e', lineHeight:'1.7' }}>
+                  📧 실제 사용하시는 이메일을 입력 후 <strong>"발송" 버튼을 클릭</strong>하여 인증번호를 받아주세요.<br />
+                  <span style={{ color:'#b45309' }}>※ 이메일 인증은 필수입니다.</span>
+                </div>
+              )}
               <div style={{ display:'flex', gap:'8px' }}>
                 <input style={{ ...iSt, flex:1 }} type="email" value={regEmail} onChange={e=>setRegEmail(e.target.value)} placeholder="이메일 입력" />
                 <button onClick={handleSendCode} disabled={verified} style={{
                   flexShrink:0, padding:'0 14px', borderRadius:'10px', border:`1.5px solid ${C.primary}`,
-                  background: verified ? '#f3f4f6' : '#fff7ed', color: verified ? C.muted : C.primary,
+                  background: verified ? '#f3f4f6' : C.primary, color: verified ? C.muted : '#fff',
                   fontWeight:600, fontSize:'13px', cursor: verified ? 'not-allowed' : 'pointer',
                   fontFamily:'Noto Sans KR, sans-serif',
-                }}>{verified ? '인증완료' : '발송'}</button>
+                }}>{verified ? '✅ 인증완료' : '발송 →'}</button>
               </div>
+              {!verified && !sentCode && (
+                <p style={{ fontSize:'11px', color:C.primary, margin:'5px 0 0', fontWeight:600 }}>
+                  ⬆️ 이메일 입력 후 "발송 →" 버튼을 클릭하세요
+                </p>
+              )}
             </div>
             {sentCode && !verified && (
               <div style={{ display:'flex', gap:'8px' }}>
