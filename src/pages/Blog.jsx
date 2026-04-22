@@ -401,7 +401,9 @@ export function Blog() {
     const user = Users.findByEmail(loginForm.email.trim().toLowerCase())
     if (!user || user.pw !== loginForm.pw) { setLoginError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
     if (user.level < 5) { setLoginError('관리자 권한이 없습니다.'); return }
-    setAdminUser(user); setShowAdminLogin(false); setBlogAdminMode(true)
+    // 세션 저장 후 앱 관리자 페이지로 이동
+    sessionStorage.setItem('asa_user', JSON.stringify(user))
+    window.location.href = '/?page=admin'
   }
 
   const switchTab = (t) => { setTab(t); setSelPost(null); window.history.pushState({}, '', `/${t}`) }
