@@ -58,7 +58,6 @@ function localDateStr(d) {
 
 // ─── 수업 메모장 패널
 function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, onProgOpen }) {
-  const [tab, setTab] = useState('memo')
   const [memos, setMemos] = useState(() => cls ? LessonMemos.byClassDate(cls.id, date) : [])
   const [memoText, setMemoText] = useState('')
 
@@ -91,35 +90,9 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
 
   return (
     <div style={{ marginTop:'16px', borderTop:`1px solid ${C.border}`, paddingTop:'14px' }}>
-      <div style={{ display:'flex', gap:'6px', marginBottom:'12px' }}>
-        {[['memo','📝 메모'],['progress','📋 진도']].map(([key,label]) => (
-          <button key={key} onClick={() => setTab(key)}
-            style={{ padding:'5px 12px', borderRadius:'8px', border:`1.5px solid ${tab===key?C.primary:C.border}`, background:tab===key?'#fff7ed':'#fff', color:tab===key?C.primary:C.muted, fontSize:'12px', fontWeight:tab===key?700:400, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {label}
-          </button>
-        ))}
-      </div>
-      {tab === 'memo' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-          {memos.length === 0 && <div style={{ fontSize:'12px', color:'#d1d5db', textAlign:'center', padding:'8px 0' }}>메모가 없습니다</div>}
-          {memos.map(m => (
-            <div key={m.id} style={{ display:'flex', alignItems:'flex-start', gap:'6px', padding:'8px 10px', background:'#fffbeb', borderRadius:'8px', border:'1px solid #fde68a' }}>
-              <span style={{ flex:1, fontSize:'12px', color:'#374151', lineHeight:1.6 }}>{m.content}</span>
-              <button onClick={() => delMemo(m.id)} style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', flexShrink:0 }}>삭제</button>
-            </div>
-          ))}
-          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-            <textarea value={memoText} onChange={e => setMemoText(e.target.value)} rows={2}
-              placeholder="수업 특이사항을 입력하세요..."
-              style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', resize:'none', outline:'none' }} />
-            <button onClick={addMemo}
-              style={{ padding:'6px', borderRadius:'7px', border:'none', background:C.primary, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-              추가
-            </button>
-          </div>
-        </div>
-      )}
-      {tab === 'progress' && (
+      {/* 진도 섹션 — 항상 표시 */}
+      <div style={{ marginBottom:'14px' }}>
+        <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📋 진도</div>
         <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
           {checkedToday.length > 0 && (
             <div>
@@ -151,7 +124,30 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
             <div style={{ fontSize:'12px', color:'#d1d5db', textAlign:'center', padding:'8px 0' }}>교구 배정된 학생이 없습니다</div>
           )}
         </div>
-      )}
+      </div>
+
+      {/* 메모 섹션 — 항상 표시 */}
+      <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:'12px' }}>
+        <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📝 메모</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+          {memos.length === 0 && <div style={{ fontSize:'12px', color:'#d1d5db', textAlign:'center', padding:'8px 0' }}>메모가 없습니다</div>}
+          {memos.map(m => (
+            <div key={m.id} style={{ display:'flex', alignItems:'flex-start', gap:'6px', padding:'8px 10px', background:'#fffbeb', borderRadius:'8px', border:'1px solid #fde68a' }}>
+              <span style={{ flex:1, fontSize:'12px', color:'#374151', lineHeight:1.6 }}>{m.content}</span>
+              <button onClick={() => delMemo(m.id)} style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', flexShrink:0 }}>삭제</button>
+            </div>
+          ))}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <textarea value={memoText} onChange={e => setMemoText(e.target.value)} rows={2}
+              placeholder="수업 특이사항을 입력하세요..."
+              style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', resize:'none', outline:'none' }} />
+            <button onClick={addMemo}
+              style={{ padding:'6px', borderRadius:'7px', border:'none', background:C.primary, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              추가
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
