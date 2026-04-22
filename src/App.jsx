@@ -203,7 +203,24 @@ export default function App() {
     setPage(p)
     setPageParams(params)
     setSidebarOpen(false)
+    // 브라우저 히스토리에 쌓기
+    window.history.pushState({ page: p, params }, '', window.location.pathname)
   }
+
+  // 뒤로가기/앞으로가기 감지
+  useEffect(() => {
+    const handlePopState = (e) => {
+      if (e.state?.page) {
+        setPage(e.state.page)
+        setPageParams(e.state.params || {})
+      } else {
+        setPage('dashboard')
+        setPageParams({})
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   if (!dbReady) return (
     <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#fff7ed', flexDirection:'column', gap:'16px' }}>
