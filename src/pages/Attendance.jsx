@@ -809,8 +809,8 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
               </select>
             </div>
           )}
-          <button onClick={handleSaveNext} disabled={!nextProductId || (!isNextChanged && !nextSaved)}
-            style={{ padding:'8px 16px', borderRadius:'8px', border:'none', background: nextSaved ? '#16a34a' : (nextProductId && isNextChanged ? '#f97316' : '#e5e7eb'), color: (nextProductId && isNextChanged) || nextSaved ? '#fff' : '#9ca3af', fontSize:'13px', fontWeight:700, cursor: nextProductId && isNextChanged ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', transition:'all .2s' }}>
+          <button onClick={handleSaveNext} disabled={!nextProductId}
+            style={{ padding:'8px 16px', borderRadius:'8px', border:'none', background: nextSaved ? '#16a34a' : (nextProductId ? '#f97316' : '#e5e7eb'), color: nextProductId || nextSaved ? '#fff' : '#9ca3af', fontSize:'13px', fontWeight:700, cursor: nextProductId ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', transition:'all .2s' }}>
             {nextSaved ? '✅ 저장됨' : '저장'}
           </button>
         </div>
