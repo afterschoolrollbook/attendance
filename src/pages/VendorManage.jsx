@@ -246,9 +246,18 @@ function InviteModal({ vendor, onClose, onSent }) {
 // ─────────────────────────────────
 // 업체 등록/수정 모달
 // ─────────────────────────────────
+// 전화번호 자동 하이픈 포매팅 (010-0000-0000)
+function formatPhone(value) {
+  const digits = value.replace(/\D/g, '').slice(0, 11)
+  if (digits.length < 4) return digits
+  if (digits.length < 8) return `${digits.slice(0,3)}-${digits.slice(3)}`
+  return `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7)}`
+}
+
 function VendorFormModal({ vendor, onClose, onSave }) {
   const [form, setForm] = useState({ name:'', managerName:'', phone:'', email:'', kakaoId:'', memo:'', ...(vendor||{}) })
   const set = (k) => (e) => setForm(f=>({...f,[k]:e.target.value}))
+  const setPhone = (e) => setForm(f=>({...f, phone: formatPhone(e.target.value)}))
 
   const handleSave = () => {
     if (!form.name.trim()) { alert('업체명을 입력해주세요.'); return }
@@ -270,7 +279,7 @@ function VendorFormModal({ vendor, onClose, onSave }) {
         </div>
         <div>
           <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'3px' }}>📱 휴대폰</label>
-          <input style={iSt} value={form.phone||''} onChange={set('phone')} placeholder="010-0000-0000" />
+          <input style={iSt} value={form.phone||''} onChange={setPhone} placeholder="010-0000-0000" />
         </div>
         <div>
           <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'3px' }}>📧 이메일</label>
