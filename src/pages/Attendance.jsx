@@ -582,6 +582,11 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || si?.productId || ''))
     return prog?.curStage ? Number(prog.curStage) : (si?.stage ? Number(si.stage) : 1)
   })
+  const [remoteNo, setRemoteNo] = React.useState(() => {
+    const si = SupplyItems.byClassStudent(classId, student.id)[0]
+    return si?.remoteNo || ''
+  })
+  const [remoteNoSaved, setRemoteNoSaved] = React.useState(false)
   const [tick, setTick] = React.useState(0)
 
   const si = SupplyItems.byClassStudent(classId, student.id)[0]
@@ -617,9 +622,17 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
 
   const handleApply = () => {
     if (!si) return
-    SupplyItems.upsert({ ...si, productId: selProductId, stage: selStage })
+    SupplyItems.upsert({ ...si, productId: selProductId, stage: selStage, remoteNo: si.remoteNo || '' })
     onSaved && onSaved()
     setTick(t => t + 1)
+  }
+
+  const handleSaveRemoteNo = () => {
+    if (!si) return
+    SupplyItems.upsert({ ...si, remoteNo })
+    setRemoteNoSaved(true)
+    setTimeout(() => setRemoteNoSaved(false), 2000)
+    onSaved && onSaved()
   }
 
   const handleSaveNext = () => {
@@ -638,7 +651,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
     const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
     SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
-    if (si) SupplyItems.upsert({ ...si, productId, stage })
+    if (si) SupplyItems.upsert({ ...si, productId, stage, remoteNo: si.remoteNo || '' })
     onSaved && onSaved()
     setTick(t => t + 1)
   }
@@ -682,6 +695,20 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'8px' }}>
             🤖 {product.name} · {selStage}단계 배정 · 단계당 {spp}차시 기준
           </div>
+        </div>
+        {/* 리모컨 번호 */}
+        <div style={{ padding:'10px 14px', background:'#f0f9ff', border:'1px solid #bae6fd', borderRadius:'10px', marginBottom:'16px', display:'flex', alignItems:'center', gap:'10px' }}>
+          <span style={{ fontSize:'12px', fontWeight:700, color:'#0369a1', whiteSpace:'nowrap' }}>🎮 리모컨 번호</span>
+          <input
+            value={remoteNo}
+            onChange={e => setRemoteNo(e.target.value)}
+            placeholder="예: A-12, 5번, RC03..."
+            style={{ flex:1, padding:'6px 10px', borderRadius:'7px', border:'1.5px solid #bae6fd', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}
+          />
+          <button onClick={handleSaveRemoteNo}
+            style={{ padding:'6px 14px', borderRadius:'7px', border:'none', background: remoteNoSaved ? '#16a34a' : '#0284c7', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            {remoteNoSaved ? '✓ 저장됨' : '저장'}
+          </button>
         </div>
         {/* 이전 단계 완료 표시 */}
         {selStage > 1 && (
@@ -1124,6 +1151,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
               onMouseEnter={e => e.currentTarget.style.background='#f0fdf4'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
               <div style={{ fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{prod?.name||si.name||''}</div>
+              {si.remoteNo && <div style={{ fontSize:'10px', color:'#0284c7', fontWeight:600, marginTop:'1px' }}>🎮 {si.remoteNo}</div>}
               <div style={{ color:'#6b7280', marginTop:'1px' }}>{curStage}단계 {chk}/{spp}차시</div>
               <div style={{ height:'3px', background:'#e5e7eb', borderRadius:'2px', marginTop:'3px', width:'70px' }}>
                 <div style={{ height:'100%', borderRadius:'2px', width:`${pct}%`, background:pct>=100?'#16a34a':pct>=80?'#f59e0b':'#f97316' }} />

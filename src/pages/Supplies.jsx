@@ -156,7 +156,7 @@ export function Supplies({ user }) {
 
   // 교구 설정 모달
   const [supplyModal, setSupplyModal] = useState(false)
-  const [supplyForm, setSupplyForm]   = useState({ name:'', productId:'', stage:1 })
+  const [supplyForm, setSupplyForm]   = useState({ name:'', productId:'', stage:1, remoteNo:'' })
 
   // 진도 체크 모달 (학생별)
   const [progressModal, setProgressModal] = useState(false)
@@ -284,6 +284,7 @@ export function Supplies({ user }) {
         name: finalName,
         productId: supplyForm.productId || null,
         stage: supplyForm.stage || '',
+        remoteNo: supplyForm.remoteNo || '',
         createdAt: now(),
       })
       if (supplyForm.productId) {
@@ -294,7 +295,7 @@ export function Supplies({ user }) {
         })
       }
     }
-    reload(); setSupplyModal(false); setSupplyForm({ name:'', productId:'', stage:1 }); success('수정이 완료되었습니다.')
+    reload(); setSupplyModal(false); setSupplyForm({ name:'', productId:'', stage:1, remoteNo:'' }); success('수정이 완료되었습니다.')
   }
 
   // ── 진도 체크 헬퍼
@@ -922,11 +923,11 @@ export function Supplies({ user }) {
                         const selClass   = classes.find(c => c.id === selClassId)
                         const school     = selClass?.organization || '-'
                         const classLabel = `${selClass?.className || ''}${selClass?.section ? ' '+selClass.section : ''}`
-                        const cols = '32px 100px 90px 56px 44px 40px 1fr 1fr 62px 110px 52px'
+                        const cols = '32px 100px 90px 56px 44px 40px 1fr 1fr 62px 72px 110px 52px'
                         return (
                           <div style={{ display:'flex', flexDirection:'column', gap:'4px', overflowX:'auto' }}>
                             {/* 헤더 */}
-                            <div style={{ display:'grid', gridTemplateColumns:cols, gap:'8px', padding:'7px 12px', background:'#f3f4f6', borderRadius:'8px', fontSize:'11px', fontWeight:700, color:C.muted, minWidth:'900px' }}>
+                            <div style={{ display:'grid', gridTemplateColumns:cols, gap:'8px', padding:'7px 12px', background:'#f3f4f6', borderRadius:'8px', fontSize:'11px', fontWeight:700, color:C.muted, minWidth:'980px' }}>
                               <span></span>
                               <span>학교명</span>
                               <span>수업반</span>
@@ -936,6 +937,7 @@ export function Supplies({ user }) {
                               <span>이름</span>
                               <span>교구명</span>
                               <span>단계</span>
+                              <span>리모컨</span>
                               <span>진도</span>
                               <span></span>
                             </div>
@@ -952,7 +954,7 @@ export function Supplies({ user }) {
                               const hasSupply = !!supply.name
                               return (
                                 <div key={s.id}
-                                  style={{ display:'grid', gridTemplateColumns:cols, gap:'8px', alignItems:'center', padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${isChecked ? C.primary : C.border}`, background: isChecked ? '#fff7ed' : C.card, minWidth:'900px' }}>
+                                  style={{ display:'grid', gridTemplateColumns:cols, gap:'8px', alignItems:'center', padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${isChecked ? C.primary : C.border}`, background: isChecked ? '#fff7ed' : C.card, minWidth:'980px' }}>
                                   <input type="checkbox" checked={isChecked} onChange={() => toggleOne(s.id)}
                                     style={{ width:'16px', height:'16px', cursor:'pointer' }} />
                                   <span style={{ fontSize:'12px', color:C.text }}>{school}</span>
@@ -989,6 +991,9 @@ export function Supplies({ user }) {
                                   <span style={{ fontSize:'12px', color: hasSupply && curStage ? C.text : C.danger }}>
                                     {hasSupply && curStage ? `${curStage}단계` : <span style={{ color:C.danger }}>없음</span>}
                                   </span>
+                                  <span style={{ fontSize:'12px', color: supply.remoteNo ? C.text : C.muted }}>
+                                    {supply.remoteNo || '-'}
+                                  </span>
                                   <span style={{ fontSize:'12px', color: hasSupply && curStage ? C.text : C.danger }}>
                                     {hasSupply && curStage ? (() => {
                                       const stagePlans2 = SupplyProductPlans.byProductStage(supply.productId, curStage)
@@ -1018,6 +1023,7 @@ export function Supplies({ user }) {
                                         name: validPid ? (supply.name || '') : '',
                                         productId: validPid,
                                         stage: supply.stage ? Number(supply.stage) : 1,
+                                        remoteNo: supply.remoteNo || '',
                                       })
                                       setSupplyModal(true)
                                     }}
@@ -1536,7 +1542,18 @@ export function Supplies({ user }) {
                 )}
               </div>
 
-              {/* ② 단계 */}
+              {/* ② 리모컨 번호 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>리모컨 번호 <span style={{ fontWeight:400, color:'#9ca3af' }}>(선택)</span></label>
+                <input
+                  value={supplyForm.remoteNo}
+                  onChange={e => setSupplyForm(v => ({ ...v, remoteNo: e.target.value }))}
+                  placeholder="예: A-12, 5번, RC03..."
+                  style={{ ...iStyle }}
+                />
+              </div>
+
+              {/* ③ 단계 */}
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>단계</label>
                 <select
