@@ -1972,7 +1972,7 @@ function DayDetail({ date, user, classes, onNav }) {
                       <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                         <thead>
                           <tr style={{ background: '#f9fafb', borderTop: '1px solid #f3f4f6' }}>
-                            {['순번','학년·반·번호','이름','학부모전화','출석·지각·조퇴·결석','진도','특이사항·메모'].map(h => (
+                            {['순번','학년·반·번호','이름','학부모전화','출석·지각·조퇴·결석','리모컨','진도','특이사항·메모'].map(h => (
                               <th key={h} style={{ padding: '6px 12px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap', borderBottom: '1px solid #f3f4f6' }}>{h}</th>
                             ))}
                           </tr>
@@ -2044,6 +2044,9 @@ function DayDetail({ date, user, classes, onNav }) {
                                   ) : (
                                     <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '5px', background: ac.bg, color: ac.color, border: `1px solid ${ac.color}40` }}>{ac.label}</span>
                                   )}
+                                </td>
+                                <td style={{ padding: '8px 12px', fontSize: '12px', color: si?.remoteNo ? '#0284c7' : '#d1d5db', fontWeight: si?.remoteNo ? 600 : 400, whiteSpace: 'nowrap', textAlign: 'center' }}>
+                                  {si?.remoteNo || '-'}
                                 </td>
                                 <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                                   {si ? (

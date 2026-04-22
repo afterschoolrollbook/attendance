@@ -847,7 +847,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: '#fff', borderLeft: '3px solid transparent', transition: 'all .12s' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '35px 90px 90px 130px 220px 110px 90px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '35px 90px 90px 130px 220px 70px 110px 90px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
 
         {/* 순번 */}
         <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{idx+1}</span>
@@ -919,11 +919,14 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
           )}
         </div>
 
-        {/* 진도 */}
+        {/* 리모컨 */}
         {(() => {
           const _cid = classId || s.classIds?.[0] || ''
           const si = SupplyItems.byClassStudent(_cid, s.id)[0]
-          if (!si?.productId) return <span style={{ fontSize:'11px', color:'#d1d5db', textAlign:'center' }}>-</span>
+          return <span style={{ fontSize:'12px', color: si?.remoteNo ? '#0284c7' : '#d1d5db', textAlign:'center', fontWeight: si?.remoteNo ? 600 : 400 }}>{si?.remoteNo || '-'}</span>
+        })()}
+
+        {/* 진도 */}
           const prod = (spProds||[]).find(p => p.id === si.productId)
           const prog = SupplyStudentProgress.byStudent(s.id, _cid).find(p => p.productId === si.productId)
           const curStage = prog?.curStage || si.stage || 1
@@ -1072,7 +1075,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
 
   return (
     <div style={{ borderBottom: '1px solid #f3f4f6', background: isPending ? '#fff' : cfg.bg, borderLeft: `3px solid ${isPending ? 'transparent' : cfg.color}`, transition: 'all .12s' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '35px 90px 90px 130px 220px 110px 90px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '35px 90px 90px 130px 220px 70px 110px 90px 1fr', gap: '6px', alignItems: 'center', padding: '10px 14px' }}>
 
         {/* 순번 */}
         <span style={{ fontSize: '12px', color: C.muted, textAlign: 'center' }}>{idx+1}</span>
@@ -1128,10 +1131,13 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
           ))}
         </div>
 
-        {/* 진도 */}
+        {/* 리모컨 */}
         {(() => {
           const si = spItems.find(i => i.studentId === s.id && i.classId === (classId || s.classIds?.[0] || ''))
-          if (!si?.productId) return <span style={{ fontSize:'11px', color:'#d1d5db', textAlign:'center' }}>-</span>
+          return <span style={{ fontSize:'12px', color: si?.remoteNo ? '#0284c7' : '#d1d5db', textAlign:'center', fontWeight: si?.remoteNo ? 600 : 400 }}>{si?.remoteNo || '-'}</span>
+        })()}
+
+        {/* 진도 */}
           const prod = spProds.find(p => p.id === si.productId)
           const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
           const curStage = prog?.curStage || si.stage || 1
@@ -1467,8 +1473,8 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
           </div>
         )}
         {/* 컬럼 헤더 */}
-        <div style={{ display:'grid', gridTemplateColumns:'35px 90px 90px 130px 220px 110px 90px 1fr', gap:'6px', padding:'7px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
-          <span>순번</span><span>학년·반·번호</span><span>이름</span><span>학부모전화</span><span>출석·지각·조퇴·결석</span><span>진도</span><span>출결초대</span><span>특이사항·메모</span>
+        <div style={{ display:'grid', gridTemplateColumns:'35px 90px 90px 130px 220px 70px 110px 90px 1fr', gap:'6px', padding:'7px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
+          <span>순번</span><span>학년·반·번호</span><span>이름</span><span>학부모전화</span><span>출석·지각·조퇴·결석</span><span>리모컨</span><span>진도</span><span>출결초대</span><span>특이사항·메모</span>
         </div>
         {sorted.length === 0
           ? <div style={{ padding:'24px', textAlign:'center', color:C.muted, fontSize:'13px' }}>등록된 학생이 없습니다</div>
@@ -1739,12 +1745,13 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
         }))].sort()
 
         const ColHeader = () => (
-          <div style={{ display:'grid', gridTemplateColumns:'35px 90px 90px 130px 220px 110px 90px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'35px 90px 90px 130px 220px 70px 110px 90px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
             <span>순번</span>
             <span>학년·반·번호</span>
             <span>이름</span>
             <span>학부모전화</span>
             <span>출석·지각·조퇴·결석</span>
+            <span>리모컨</span>
             <span>진도</span>
             <span>출결초대</span>
             <span>특이사항·메모</span>
