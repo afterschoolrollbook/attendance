@@ -809,8 +809,8 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
               </select>
             </div>
           )}
-          <button onClick={handleSaveNext} disabled={!nextProductId}
-            style={{ padding:'8px 16px', borderRadius:'8px', border:'none', background: nextSaved ? '#16a34a' : (nextProductId ? '#f97316' : '#e5e7eb'), color: nextProductId || nextSaved ? '#fff' : '#9ca3af', fontSize:'13px', fontWeight:700, cursor: nextProductId ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', transition:'all .2s' }}>
+          <button onClick={handleSaveNext} disabled={!nextProductId || (!isNextChanged && !nextSaved)}
+            style={{ padding:'8px 16px', borderRadius:'8px', border:'none', background: nextSaved ? '#16a34a' : (nextProductId && isNextChanged ? '#f97316' : '#e5e7eb'), color: (nextProductId && isNextChanged) || nextSaved ? '#fff' : '#9ca3af', fontSize:'13px', fontWeight:700, cursor: nextProductId && isNextChanged ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', transition:'all .2s' }}>
             {nextSaved ? '✅ 저장됨' : '저장'}
           </button>
         </div>
@@ -2206,11 +2206,17 @@ function MobileAttendance({ user, pageParams = {} }) {
   // 달력 점 표시용 날짜
   const classDates = [...new Set(allClasses.flatMap(c => calcSessionDates(c)))]
 
-  // 진도 관련 데이터
-  const spItems  = selClass ? SupplyItems.byClass(selClass.id) : []
-  const spProds  = SupplyProducts.byTeacher(user.id)
-  const spProg   = SupplyStudentProgress.byTeacher(user.id)
-  const spChecks = SupplySessionChecks.byTeacher ? SupplySessionChecks.byTeacher(user.id) : []
+  // 진도 관련 데이터 — progTick 변경 시 강제 갱신
+  const [spItems,  setSpItems]  = useState(() => selClass ? SupplyItems.byClass(selClass.id) : [])
+  const [spProds,  setSpProds]  = useState(() => SupplyProducts.byTeacher(user.id))
+  const [spProg,   setSpProg]   = useState(() => SupplyStudentProgress.byTeacher(user.id))
+  const [spChecks, setSpChecks] = useState(() => SupplySessionChecks.byTeacher ? SupplySessionChecks.byTeacher(user.id) : [])
+  useEffect(() => {
+    setSpItems(selClass ? SupplyItems.byClass(selClass.id) : [])
+    setSpProds(SupplyProducts.byTeacher(user.id))
+    setSpProg(SupplyStudentProgress.byTeacher(user.id))
+    setSpChecks(SupplySessionChecks.byTeacher ? SupplySessionChecks.byTeacher(user.id) : [])
+  }, [progTick, selClassId])
 
   const students = selClass
     ? [...allStudents.filter(s => s.classIds?.includes(selClass.id) && ['applied','selected','confirmed'].includes(s.status))]
