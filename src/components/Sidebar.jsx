@@ -36,6 +36,7 @@ const ADMIN_NAV = [
   { path: 'admin',          label: '관리자',     icon: '⚙️', feature: FEATURES.APPROVE_TEACHER },
   { path: 'admin_settings', label: '서비스 설정', icon: '🔧', feature: FEATURES.MANAGE_AD },
   { path: 'adsense',        label: '광고 관리',  icon: '📢', feature: FEATURES.MANAGE_AD },
+  { path: 'blog_admin',     label: '블로그 관리', icon: '📝', feature: FEATURES.MANAGE_AD },
 ]
 
 // ✅ Lv.5 전용 — 본사 운영 메뉴
