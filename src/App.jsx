@@ -133,6 +133,7 @@ export default function App() {
 
   // 블로그 — 공개 페이지 (로그인 불필요, SEO용)
   if (window.location.pathname.startsWith('/blog')) return <Blog />
+  if (window.location.pathname.startsWith('/docs')) return <Blog />
 
   // 네이버/카카오 콜백 — DB 불필요, 바로 렌더
   if (window.location.pathname === '/naver-callback')  return <NaverCallback />
