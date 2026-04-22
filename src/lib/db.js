@@ -16,6 +16,18 @@ const PREFIX = 'asa_'
 const PENDING_KEY = 'asa__pending_sync'
 const key = (t) => PREFIX + t
 
+// ─── 전역 DB 변경 이벤트 시스템
+const _listeners = new Map()
+export function onDbChange(table, fn) {
+  if (!_listeners.has(table)) _listeners.set(table, new Set())
+  _listeners.get(table).add(fn)
+  return () => _listeners.get(table)?.delete(fn) // unsubscribe 반환
+}
+function _emit(table) {
+  _listeners.get(table)?.forEach(fn => fn())
+  _listeners.get('*')?.forEach(fn => fn(table))
+}
+
 // ─── localStorage 캐시
 const cache = {
   get(t)    { try { return JSON.parse(localStorage.getItem(key(t)) || '[]') } catch { return [] } },
@@ -242,6 +254,7 @@ export const db = {
     const rows = cache.get(t)
     rows.push(r)
     cache.set(t, rows)
+    _emit(t)
     await sync('insert', t, { data: r })
     return r
   },
@@ -250,6 +263,7 @@ export const db = {
     const updated = { ...patch, updatedAt: now() }
     const rows = cache.get(t).map(r => r.id === id ? { ...r, ...updated } : r)
     cache.set(t, rows)
+    _emit(t)
     await sync('update', t, { id, patch: updated })
     return rows.find(r => r.id === id)
   },
@@ -260,6 +274,7 @@ export const db = {
       r.id === id ? { ...r, _deleted: true, updatedAt: now() } : r
     )
     cache.set(t, rows)
+    _emit(t)
     await sync('delete', t, { id })
   },
 
