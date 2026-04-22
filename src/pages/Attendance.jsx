@@ -927,6 +927,10 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
         })()}
 
         {/* 진도 */}
+        {(() => {
+          const _cid = classId || s.classIds?.[0] || ''
+          const si = SupplyItems.byClassStudent(_cid, s.id)[0]
+          if (!si?.productId) return <span style={{ fontSize:'11px', color:'#d1d5db', textAlign:'center' }}>-</span>
           const prod = (spProds||[]).find(p => p.id === si.productId)
           const prog = SupplyStudentProgress.byStudent(s.id, _cid).find(p => p.productId === si.productId)
           const curStage = prog?.curStage || si.stage || 1
@@ -1138,6 +1142,9 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         })()}
 
         {/* 진도 */}
+        {(() => {
+          const si = spItems.find(i => i.studentId === s.id && i.classId === (classId || s.classIds?.[0] || ''))
+          if (!si?.productId) return <span style={{ fontSize:'11px', color:'#d1d5db', textAlign:'center' }}>-</span>
           const prod = spProds.find(p => p.id === si.productId)
           const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
           const curStage = prog?.curStage || si.stage || 1
