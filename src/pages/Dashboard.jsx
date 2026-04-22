@@ -4,7 +4,7 @@ import {
   Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans,
   RevenueFees, RevenuePayments,
   Trainings, Careers, Educations, Certificates, Awards,
-  Settings,
+  Settings, onDbChange,
 } from '../lib/db.js'
 import { dbCall } from '../lib/supabase.js'
 import { calcSessionDates, sortClasses, uid, now, getSessionInfo } from '../lib/utils.js'
@@ -1850,6 +1850,18 @@ function DayDetail({ date, user, classes, onNav }) {
     try { setSpProg(SupplyStudentProgress.byTeacher(user.id)) }    catch {}
     try { setSpChecks(SupplySessionChecks.byTeacher(user.id)) }    catch {}
   }, [date, user.id])
+
+  useEffect(() => {
+    const refresh = () => {
+      try { setSpItems(SupplyItems.byTeacher(user.id)) }    catch {}
+      try { setSpProg(SupplyStudentProgress.byTeacher(user.id)) }  catch {}
+      try { setSpChecks(SupplySessionChecks.byTeacher(user.id)) }  catch {}
+    }
+    const u1 = onDbChange('supplyStudentProgress', refresh)
+    const u2 = onDbChange('supplyItems',           refresh)
+    const u3 = onDbChange('supplySessionChecks',   refresh)
+    return () => { u1(); u2(); u3() }
+  }, [user.id])
 
   const dayClasses = sortClasses(classes.filter(cls => calcSessionDates(cls).includes(date)))
 

@@ -4,6 +4,7 @@ import {
   Classes, Students,
   SupplySubjects, SupplyVendors, SupplyItems, SupplyPlans,
   SupplyProducts, SupplyProductPlans, SupplyStudentProgress, SupplySessionChecks,
+  onDbChange,
 } from '../lib/db.js'
 import { Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
@@ -232,7 +233,13 @@ export function Supplies({ user }) {
     setStudents(Students.byTeacher(user.id))
   }
 
-  useEffect(() => { reload() }, [])
+  useEffect(() => {
+    reload()
+    const u1 = onDbChange('supplyStudentProgress', reload)
+    const u2 = onDbChange('supplyItems',           reload)
+    const u3 = onDbChange('supplySessionChecks',   reload)
+    return () => { u1(); u2(); u3() }
+  }, [])
   useEffect(() => { if (subjects.length > 0 && !selSubject) setSelSubject(subjects[0]) }, [subjects])
   useEffect(() => { setCheckedStudents([]) }, [selClassId, selSubject])
 

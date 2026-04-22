@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers, onDbChange } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -165,10 +165,17 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
 
   useEffect(() => {
     if (!cls) return
-    setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
-    setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
-    setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
-    setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+    const refresh = () => {
+      setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
+      setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
+      setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
+      setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+    }
+    refresh()
+    const u1 = onDbChange('supplyStudentProgress', refresh)
+    const u2 = onDbChange('supplyItems', refresh)
+    const u3 = onDbChange('supplySessionChecks', refresh)
+    return () => { u1(); u2(); u3() }
   }, [cls?.id, date, tick])
 
   const students = cls ? StudentsDB.byClass(cls.id) : []
@@ -617,22 +624,17 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const origNextStage = prog?.nextStage || 1
   const isNextChanged = nextProductId !== origNextProductId || Number(nextStage) !== Number(origNextStage)
 
-  const saveProgress = (productId, stage) => {
-    if (!si) return
-    SupplyItems.upsert({ ...si, productId, stage, remoteNo: si.remoteNo || '' })
-    const existingProg = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === productId)
-    SupplyStudentProgress.upsert({ ...(existingProg || {}), id: existingProg?.id || uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, updatedAt: now(), createdAt: existingProg?.createdAt || now() })
-    onSaved && onSaved()
-    setTick(t => t + 1)
-  }
-
   const handleProductChange = (newId) => {
     setSelProductId(newId)
     setSelStage(1)
-    saveProgress(newId, 1)
   }
 
-  const handleApply = () => saveProgress(selProductId, selStage)
+  const handleApply = () => {
+    if (!si) return
+    SupplyItems.upsert({ ...si, productId: selProductId, stage: selStage, remoteNo: si.remoteNo || '' })
+    onSaved && onSaved()
+    setTick(t => t + 1)
+  }
 
   const handleSaveRemoteNo = () => {
     if (!si) return
@@ -685,13 +687,19 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px', minWidth:'90px' }}>
               <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>단계</label>
-              <select value={selStage} onChange={e => { const s = Number(e.target.value); setSelStage(s); saveProgress(selProductId, s) }}
+              <select value={selStage} onChange={e => setSelStage(Number(e.target.value))}
                 style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
                 {Array.from({ length: maxStage }, (_, i) => i+1).map(s => (
                   <option key={s} value={s}>{s}단계</option>
                 ))}
               </select>
             </div>
+            {isChanged && (
+              <button onClick={handleApply}
+                style={{ padding:'8px 18px', borderRadius:'8px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                ✓ 적용
+              </button>
+            )}
           </div>
           <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'8px' }}>
             🤖 {product.name} · {selStage}단계 배정 · 단계당 {spp}차시 기준
@@ -820,7 +828,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
         )}
       </div>
       <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
-        <button onClick={() => { saveProgress(selProductId, selStage); onClose && onClose() }}
+        <button onClick={onClose}
           style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
           닫기
         </button>
@@ -1373,10 +1381,17 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
   const [spChecks, setSpChecks] = useState(() => SupplySessionChecks.byTeacher(cls.teacherId||''))
 
   useEffect(() => {
-    setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
-    setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
-    setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
-    setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+    const refresh = () => {
+      setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
+      setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
+      setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
+      setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+    }
+    refresh()
+    const u1 = onDbChange('supplyStudentProgress', refresh)
+    const u2 = onDbChange('supplyItems', refresh)
+    const u3 = onDbChange('supplySessionChecks', refresh)
+    return () => { u1(); u2(); u3() }
   }, [progTick])
 
   const isFuture = date > today
@@ -2184,6 +2199,13 @@ function MobileAttendance({ user, pageParams = {} }) {
   const [progStudent,  setProgStudent]  = useState(null)
   const [progProductId,setProgProductId]= useState(null)
   const [progTick,     setProgTick]     = useState(0)
+
+  useEffect(() => {
+    const u1 = onDbChange('supplyStudentProgress', () => setProgTick(t => t+1))
+    const u2 = onDbChange('supplyItems',           () => setProgTick(t => t+1))
+    const u3 = onDbChange('supplySessionChecks',   () => setProgTick(t => t+1))
+    return () => { u1(); u2(); u3() }
+  }, [])
 
   const d = new Date(selDate + 'T00:00:00')
   const [calYear,  setCalYear]  = useState(d.getFullYear())
