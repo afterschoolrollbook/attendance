@@ -176,6 +176,7 @@ export async function initFromSupabase() {
     await Promise.allSettled([
       ...SYNC_TABLES.map(t => addDeletedColumn(t)),
       addColumnIfMissing('classes', 'periods', 'jsonb', "'[]'::jsonb"),
+      addColumnIfMissing('supplyItems', 'remoteNo', 'text', "''"),
     ])
 
     // 1) 로컬에만 있는 미전송 변경사항 먼저 올리기 (pending queue)
