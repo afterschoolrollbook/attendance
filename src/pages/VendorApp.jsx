@@ -362,7 +362,7 @@ function TypeProducts({ vendorId, subjectId, products, onReload }) {
   const { confirm, modal } = useConfirmModal()
 
   const [productModal, setProductModal]   = useState(false)
-  const [productForm, setProductForm]     = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:3 })
+  const [productForm, setProductForm]     = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:3, priceRetail:'', priceSchool:'', priceBranch:'', priceTeacher:'' })
   const [productStageTab, setProductStageTab] = useState(1)
   const [stageSessionTitles, setStageSessionTitles] = useState({})
   const [productPlanList, setProductPlanList] = useState([])
@@ -478,7 +478,7 @@ function TypeProducts({ vendorId, subjectId, products, onReload }) {
           memo: plans[i]?.supplies || '',
         }))
       }
-      setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: maxS, sessionsPerStage: perS, alertSession: existingProduct.alertSession || 3 })
+      setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: maxS, sessionsPerStage: perS, alertSession: existingProduct.alertSession || 3, priceRetail: existingProduct.priceRetail||'', priceSchool: existingProduct.priceSchool||'', priceBranch: existingProduct.priceBranch||'', priceTeacher: existingProduct.priceTeacher||'' })
       setStageSessionTitles(titles)
       setEditingProduct(existingProduct)
     } else {
@@ -486,7 +486,7 @@ function TypeProducts({ vendorId, subjectId, products, onReload }) {
       for (let s = 1; s <= 10; s++) {
         titles[s] = Array.from({ length: 12 }, () => ({ title: '', memo: '' }))
       }
-      setProductForm({ id: null, name: '', maxStage: 10, sessionsPerStage: 12, alertSession: 3 })
+      setProductForm({ id: null, name: '', maxStage: 10, sessionsPerStage: 12, alertSession: 3, priceRetail:'', priceSchool:'', priceBranch:'', priceTeacher:'' })
       setStageSessionTitles(titles)
       setEditingProduct(null)
     }
@@ -500,9 +500,9 @@ function TypeProducts({ vendorId, subjectId, products, onReload }) {
     const productId = isEdit ? productForm.id : uid()
 
     if (isEdit) {
-      await DB.saveProduct({ ...editingProduct, name: productForm.name, maxStage: productForm.maxStage, sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession })
+      await DB.saveProduct({ ...editingProduct, name: productForm.name, maxStage: productForm.maxStage, sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession, priceRetail: productForm.priceRetail||null, priceSchool: productForm.priceSchool||null, priceBranch: productForm.priceBranch||null, priceTeacher: productForm.priceTeacher||null })
     } else {
-      await DB.saveProduct({ id: productId, vendorId, subjectId, name: productForm.name, maxStage: productForm.maxStage, sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession, createdAt: now() })
+      await DB.saveProduct({ id: productId, vendorId, subjectId, name: productForm.name, maxStage: productForm.maxStage, sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession, priceRetail: productForm.priceRetail||null, priceSchool: productForm.priceSchool||null, priceBranch: productForm.priceBranch||null, priceTeacher: productForm.priceTeacher||null, createdAt: now() })
     }
 
     // 단계별 차시 저장
@@ -561,6 +561,16 @@ function TypeProducts({ vendorId, subjectId, products, onReload }) {
                         return <span key={st} style={{ background:'#f5f3ff', color:'#7c3aed', borderRadius:'4px', padding:'1px 6px' }}>{st}단계({cnt}차시)</span>
                       })}
                       {stages.length === 0 && <span style={{ color:C.muted }}>차시 미등록</span>}
+                    </div>
+                    <div style={{ fontSize:'11px', marginTop:'4px', display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                      {[
+                        { label:'소비자가', val:p.priceRetail,  color:C.muted },
+                        { label:'학교',     val:p.priceSchool,  color:C.blue },
+                        { label:'지사',     val:p.priceBranch,  color:C.purple },
+                        { label:'선생님',   val:p.priceTeacher, color:C.success },
+                      ].filter(x=>x.val>0).map(({label,val,color}) => (
+                        <span key={label} style={{ color }}>{label} {Number(val).toLocaleString()}원</span>
+                      ))}
                     </div>
                   </div>
                   <div style={{ display:'flex', gap:'6px' }}>
@@ -650,6 +660,24 @@ function TypeProducts({ vendorId, subjectId, products, onReload }) {
                   <input type="number" min={1} max={50} value={productForm.alertSession}
                     onChange={e => setProductForm(v => ({...v, alertSession:Number(e.target.value)}))}
                     style={{ ...iSt2, textAlign:'center' }} />
+                </div>
+              </div>
+
+              {/* 가격 4종 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>가격 설정</label>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px' }}>
+                  {[
+                    { key:'priceRetail',  label:'💰 소비자가' },
+                    { key:'priceSchool',  label:'🏫 학교공급가' },
+                    { key:'priceBranch',  label:'🏢 지사공급가' },
+                    { key:'priceTeacher', label:'👨‍🏫 선생님공급가' },
+                  ].map(({key,label}) => (
+                    <div key={key}>
+                      <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px' }}>{label}</label>
+                      <input style={iSt2} type="number" value={productForm[key]||''} onChange={e => setProductForm(v => ({...v, [key]:e.target.value}))} placeholder="0" />
+                    </div>
+                  ))}
                 </div>
               </div>
 
