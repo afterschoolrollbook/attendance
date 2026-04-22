@@ -28,6 +28,8 @@ import { Jobs }         from './pages/Jobs.jsx'
 import { Revenue }      from './pages/Revenue.jsx'
 import { Supplies }     from './pages/Supplies.jsx'
 import { MessageGuide } from './pages/MessageGuide.jsx'
+import { Blog }         from './pages/Blog.jsx'
+import { BlogAdmin }    from './pages/BlogAdmin.jsx'
 import { ParentInvite } from './pages/ParentInvite.jsx'
 import { ParentLogin }  from './pages/ParentLogin.jsx'
 import ParentServiceManage from './pages/ParentServiceManage.jsx'
@@ -128,6 +130,9 @@ export default function App() {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // 블로그 — 공개 페이지 (로그인 불필요, SEO용)
+  if (window.location.pathname.startsWith('/blog')) return <Blog />
 
   // 네이버/카카오 콜백 — DB 불필요, 바로 렌더
   if (window.location.pathname === '/naver-callback')  return <NaverCallback />
@@ -283,6 +288,7 @@ export default function App() {
       case 'revenue':         return <Revenue      user={user} />
       case 'supplies':        return <Supplies     user={user} />
       case 'messageguide':    return <MessageGuide user={user} />
+      case 'blog_admin':      return <BlogAdmin user={user} />
       // ✅ 본사 업체 관리 (Lv.5 전용)
       case 'vendor_manage':   return <VendorManage user={user} />
       // ✅ 본사 학교 담당자 관리 (Lv.5 전용)
