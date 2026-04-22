@@ -403,7 +403,7 @@ export function Blog() {
     if (user.level < 5) { setLoginError('관리자 권한이 없습니다.'); return }
     // 세션 저장 후 앱 관리자 페이지로 이동
     sessionStorage.setItem('asa_user', JSON.stringify(user))
-    window.location.href = '/?page=admin'
+    window.location.href = '/?page=blog_admin'
   }
 
   const switchTab = (t) => { setTab(t); setSelPost(null); window.history.pushState({}, '', `/${t}`) }
