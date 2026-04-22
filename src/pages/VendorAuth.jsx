@@ -426,7 +426,10 @@ function RegisterTab({ onDone, onSwitch }) {
 
   const handleSendCode = async () => {
     if (!regEmail.includes('@')) { setErr('올바른 이메일을 입력해주세요.'); return }
-    if (await VendorAccounts.byEmail(regEmail)) { setErr('이미 사용 중인 이메일입니다.'); return }
+    if (regEmail.toLowerCase() !== matchedVendor.email?.toLowerCase()) {
+      setErr('본사에서 초대한 이메일만 사용 가능합니다.\n다른 이메일을 사용하고 싶으시면 본사 담당자에게 연락해주세요.')
+      return
+    }
     const code6 = String(Math.floor(100000 + Math.random() * 900000))
     setSentCode(code6)
     setErr('')
