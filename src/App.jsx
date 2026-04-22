@@ -176,7 +176,11 @@ export default function App() {
         try {
           const u = JSON.parse(saved)
           const fresh = Users.find(u.id)
-          if (fresh) setUser(fresh)
+          if (fresh) {
+            setUser(fresh)
+            const pageParam = new URLSearchParams(window.location.search).get('page')
+            if (pageParam) setPage(pageParam)
+          }
         } catch {}
       }
     }
@@ -186,7 +190,8 @@ export default function App() {
   const handleLogin = (u) => {
     setUser(u)
     sessionStorage.setItem('asa_user', JSON.stringify(u))
-    setPage('dashboard')
+    const pageParam = new URLSearchParams(window.location.search).get('page')
+    setPage(pageParam || 'dashboard')
     setPageParams({})
   }
 
