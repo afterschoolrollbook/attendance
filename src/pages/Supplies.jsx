@@ -370,7 +370,9 @@ export function Supplies({ user }) {
         managerName: existingVendor.managerName || '',
         contact: existingVendor.contact || '',
         memo: existingVendor.memo || '',
-        subjects: [existingVendor.subject].filter(Boolean),
+        subjects: existingVendor.subjects?.length > 0
+          ? existingVendor.subjects
+          : [existingVendor.subject].filter(Boolean),
       })
     } else {
       setVendorEditId(null)
