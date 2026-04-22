@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers, onDbChange } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -165,17 +165,10 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
 
   useEffect(() => {
     if (!cls) return
-    const refresh = () => {
-      setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
-      setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
-      setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
-      setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
-    }
-    refresh()
-    const u1 = onDbChange('supplyStudentProgress', refresh)
-    const u2 = onDbChange('supplyItems', refresh)
-    const u3 = onDbChange('supplySessionChecks', refresh)
-    return () => { u1(); u2(); u3() }
+    setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
+    setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
+    setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
+    setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
   }, [cls?.id, date, tick])
 
   const students = cls ? StudentsDB.byClass(cls.id) : []
@@ -1381,17 +1374,10 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
   const [spChecks, setSpChecks] = useState(() => SupplySessionChecks.byTeacher(cls.teacherId||''))
 
   useEffect(() => {
-    const refresh = () => {
-      setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
-      setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
-      setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
-      setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
-    }
-    refresh()
-    const u1 = onDbChange('supplyStudentProgress', refresh)
-    const u2 = onDbChange('supplyItems', refresh)
-    const u3 = onDbChange('supplySessionChecks', refresh)
-    return () => { u1(); u2(); u3() }
+    setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
+    setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
+    setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
+    setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
   }, [progTick])
 
   const isFuture = date > today
@@ -2200,13 +2186,6 @@ function MobileAttendance({ user, pageParams = {} }) {
   const [progProductId,setProgProductId]= useState(null)
   const [progTick,     setProgTick]     = useState(0)
 
-  useEffect(() => {
-    const u1 = onDbChange('supplyStudentProgress', () => setProgTick(t => t+1))
-    const u2 = onDbChange('supplyItems',           () => setProgTick(t => t+1))
-    const u3 = onDbChange('supplySessionChecks',   () => setProgTick(t => t+1))
-    return () => { u1(); u2(); u3() }
-  }, [])
-
   const d = new Date(selDate + 'T00:00:00')
   const [calYear,  setCalYear]  = useState(d.getFullYear())
   const [calMonth, setCalMonth] = useState(d.getMonth())
@@ -2744,7 +2723,13 @@ export function Attendance({ user, pageParams = {} }) {
               <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>수업</label>
               <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelSection(''); setSelTerm(''); setDateClicked(false); setActiveMode('class'); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
                 <option value="">전체 수업</option>
-                {schoolClasses.map(c => <option key={c.id} value={c.id}>{c.className}{c.section?' '+c.section+'반':''}</option>)}
+                {[...schoolClasses].sort((a, b) => {
+                  const DAY_ORDER = ['월','화','수','목','금','토','일']
+                  const aDay = DAY_ORDER.indexOf(a.days?.[0] ?? '')
+                  const bDay = DAY_ORDER.indexOf(b.days?.[0] ?? '')
+                  if (aDay !== bDay) return aDay - bDay
+                  return (a.section||'').localeCompare(b.section||'', 'ko')
+                }).map(c => <option key={c.id} value={c.id}>{c.className}{c.section?' '+c.section+'반':''}</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
