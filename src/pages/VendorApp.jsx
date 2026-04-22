@@ -782,12 +782,10 @@ function VendorProductsPage({ vendorId, vendorSession, subjects, products, onRel
 
   // 페이지 레벨 일괄등록 — 과목 자동 생성 포함
   const downloadSample = async () => {
+    const vendor = vendorSession?.vendor || {}
     const rows = [
       ['업체명', '담당자', '연락처', '과목', '과목분류(A:로봇 / B:과학실험,보드게임 / C:미술,체육,기타)', '교구명', '단계', '차시번호', '차시제목', '메모'],
-      ['집현전에듀지원센터', '민찬홍', '010-2704-0307', '로봇', 'A', '큐보', 1, 1, '토끼,양팔저울', '배터리'],
-      ['집현전에듀지원센터', '민찬홍', '010-2704-0307', '로봇', 'A', '큐보', 1, 2, '풍차', '배터리'],
-      ['집현전에듀지원센터', '민찬홍', '010-2704-0307', '로봇', 'A', '큐보', 2, 1, '드론 조립', ''],
-      ['집현전에듀지원센터', '민찬홍', '010-2704-0307', '보드게임', 'B', '할리갈리', 1, 1, '할리갈리 기초', ''],
+      [vendor.name||'업체명', vendor.managerName||'담당자', vendor.phone||'연락처', '로봇', 'A', '교구명 입력', 1, 1, '차시제목 입력', '메모 입력'],
     ]
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.aoa_to_sheet(rows)
