@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import ReactDOM from 'react-dom'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
@@ -180,7 +181,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
         spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks}
         onProgOpen={(s, pid) => { setProgStudent({...s, _clsId: cls.id}); setProgProductId(pid) }}
       />
-      {progStudent && (
+      {progStudent && ReactDOM.createPortal(
         <ProgCheckModal
           student={progStudent} initialProductId={progProductId}
           spProds={spProds} teacherId={cls.teacherId}
@@ -191,7 +192,8 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
             setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
             setTick(t => t+1)
           }}
-        />
+        />,
+        document.body
       )}
     </>
   )
@@ -2816,7 +2818,7 @@ export function Attendance({ user, pageParams = {} }) {
       {/* 항상 달력 + 패널 레이아웃 */}
       <div style={{ display:'grid', gridTemplateColumns:'300px 1fr', gap:'20px', alignItems:'start' }}>
         {/* 달력 */}
-        <div style={{ background:C.card, borderRadius:'16px', border:`1px solid ${C.border}`, padding:'20px', position:'sticky', top:'24px' }}>
+        <div style={{ background:C.card, borderRadius:'16px', border:`1px solid ${C.border}`, padding:'20px', position:'sticky', top:'24px', zIndex:10 }}>
           <AttCalendar year={calYear} month={calMonth} selectedDate={selDate} sessionDates={calendarDates}
             onSelect={handleSelectDate} onPrevMonth={prevMonth} onNextMonth={nextMonth} onToday={goToday} />
           {selClassId && monthSessions.length > 0 && (
