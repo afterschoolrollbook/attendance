@@ -85,8 +85,8 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
     return { s, si, prod, curStage, todayChecks, allChecks }
   }).filter(Boolean)
 
-  const checkedToday = studentProgList.filter(p => p.todayChecks.length > 0)
-  const notCheckedToday = studentProgList.filter(p => p.todayChecks.length === 0)
+  const checkedToday = studentProgList.filter(p => p.todayChecks.length > 0).sort((a, b) => a.s.name.localeCompare(b.s.name, 'ko'))
+  const notCheckedToday = studentProgList.filter(p => p.todayChecks.length === 0).sort((a, b) => a.s.name.localeCompare(b.s.name, 'ko'))
   if (!cls) return null
 
   return (
@@ -157,7 +157,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
 }
 
 // ─── 수업 메모장 래퍼
-function LessonMemoPanelWrapper({ cls, date, classId }) {
+function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
   const [spItems,  setSpItems]  = useState(() => cls ? SupplyItems.byTeacher(cls.teacherId||'') : [])
   const [spProds,  setSpProds]  = useState(() => cls ? SupplyProducts.byTeacher(cls.teacherId||'') : [])
   const [spProg,   setSpProg]   = useState(() => cls ? SupplyStudentProgress.byTeacher(cls.teacherId||'') : [])
@@ -188,7 +188,7 @@ function LessonMemoPanelWrapper({ cls, date, classId }) {
         <ProgCheckModal
           student={progStudent} initialProductId={progProductId}
           spProds={spProds} teacherId={cls.teacherId}
-          onClose={() => setProgStudent(null)}
+          onClose={() => { setProgStudent(null); onProgClose && onProgClose() }}
           onSaved={() => {
             setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
             setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
@@ -2438,6 +2438,7 @@ export function Attendance({ user, pageParams = {} }) {
   const [activeMode, setActiveMode] = useState('class') // 'class' | 'day' — 두 모드 완전 분리
   const [selDate,    setSelDate]    = useState(() => pageParams.date || today)
   const [dateClicked, setDateClicked] = useState(false)
+  const [rightPanelTick, setRightPanelTick] = useState(0)
   const [calYear,    setCalYear]    = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getFullYear() })
   const [calMonth,   setCalMonth]   = useState(() => { const d = pageParams.date ? new Date(pageParams.date+'T00:00:00') : now_; return d.getMonth() })
 
@@ -2811,7 +2812,7 @@ export function Attendance({ user, pageParams = {} }) {
               })}
             </div>
           )}
-          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} key={selDate+selClassId} />
+          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} key={selDate+selClassId} onProgClose={() => setRightPanelTick(t => t+1)} />
         </div>
 
         {/* 오른쪽 패널 */}
@@ -2846,7 +2847,7 @@ export function Attendance({ user, pageParams = {} }) {
                 <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
                   {schoolClasses.map(cls => {
                     const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting'].includes(s.status))
-                    return <UnifiedPanel key={cls.id + selDate} cls={cls} date={selDate} students={clsStudents} user={user} allClasses={allClasses} />
+                    return <UnifiedPanel key={cls.id + selDate + rightPanelTick} cls={cls} date={selDate} students={clsStudents} user={user} allClasses={allClasses} />
                   })}
                 </div>
               )}
@@ -2859,7 +2860,7 @@ export function Attendance({ user, pageParams = {} }) {
                 <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
               </div>
             ) : (
-              <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} key={selDate+selClassId} />
+              <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} key={selDate+selClassId+rightPanelTick} />
             )
           ) : (
             <DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} user={user} key={selDate} />
