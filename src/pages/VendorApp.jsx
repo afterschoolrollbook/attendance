@@ -809,16 +809,19 @@ function VendorProductsPage({ vendorId, vendorSession, subjects, products, onRel
       const dataRows = rows.slice(1).filter(r => r[0])
       if (!dataRows.length) { error('등록할 데이터가 없습니다.'); return }
 
-      // 컬럼: 업체명(0) 담당자(1) 연락처(2) 과목(3) 과목분류(4) 교구명(5) 단계(6) 차시번호(7) 차시제목(8) 메모(9)
+      // 컬럼: 업체명(0) 담당자(1) 연락처(2) 과목(3) [과목분류(4)] 교구명(4or5) 단계 차시번호 차시제목 메모
+      // 과목분류 컬럼 있는지 자동 감지 (5번째 값이 A/B/C면 있는 것)
+      const hasTypeCol = ['A','B','C'].includes(String(dataRows[0]?.[4]||'').trim().toUpperCase())
       const subjectMap = {}
       dataRows.forEach(r => {
         const subjectName = String(r[3]||'').trim()
-        const subjectType = String(r[4]||'A').trim().toUpperCase()
-        const productName = String(r[5]||'').trim()
-        const stage       = Number(r[6])||1
-        const sessionNo   = Number(r[7])||1
-        const title       = String(r[8]||'').trim()
-        const supplies    = String(r[9]||'').trim()
+        const subjectType = hasTypeCol ? String(r[4]||'A').trim().toUpperCase() : 'A'
+        const offset      = hasTypeCol ? 1 : 0
+        const productName = String(r[4+offset]||'').trim()
+        const stage       = Number(r[5+offset])||1
+        const sessionNo   = Number(r[6+offset])||1
+        const title       = String(r[7+offset]||'').trim()
+        const supplies    = String(r[8+offset]||'').trim()
         if (!subjectName || !productName) return
         if (!subjectMap[subjectName]) subjectMap[subjectName] = { subjectType, products: {} }
         if (!subjectMap[subjectName].products[productName]) subjectMap[subjectName].products[productName] = []
