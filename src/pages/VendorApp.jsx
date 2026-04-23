@@ -720,7 +720,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
 
   // 업체 수정 모달 — Supplies.jsx vendorModal 방식 그대로
   const [vendorModal,  setVendorModal]  = useState(false)
-  const [vendorForm,   setVendorForm]   = useState({ name:'', managerName:'', contact:'', memo:'' })
+  const [vendorForm,   setVendorForm]   = useState({ name:'', managerName:'', contact:'', phone:'', email:'', kakaoId:'', kakaoChannel:'', memo:'' })
   const { success, error: toastError }  = useToast()
 
   const vendorId = vendorSession?.vendorId
@@ -740,7 +740,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
 
   const openVendorModal = () => {
     const v = vendorSession?.vendor || {}
-    setVendorForm({ name:v.name||'', managerName:v.managerName||'', contact:v.contact||'', memo:v.memo||'' })
+    setVendorForm({ name:v.name||'', managerName:v.managerName||'', contact:v.contact||'', phone:v.phone||'', email:v.email||'', kakaoId:v.kakaoId||'', kakaoChannel:v.kakaoChannel||'', memo:v.memo||'' })
     setVendorModal(true)
   }
 
@@ -806,10 +806,13 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
             <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'20px' }}>🏢 업체 정보 수정</div>
             <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
               {[
-                { label:'업체명 *',      key:'name',        placeholder:'예: (주)집현전에듀' },
-                { label:'담당자 이름',   key:'managerName', placeholder:'예: 홍길동' },
-                { label:'담당자 연락처', key:'contact',     placeholder:'예: 010-1234-5678' },
-                { label:'메모',          key:'memo',        placeholder:'비고' },
+                { label:'업체명 *',        key:'name',          placeholder:'예: (주)집현전에듀' },
+                { label:'담당자 이름',     key:'managerName',   placeholder:'예: 홍길동' },
+                { label:'담당자 연락처',   key:'contact',       placeholder:'예: 010-1234-5678' },
+                { label:'전화번호',        key:'phone',         placeholder:'예: 02-1234-5678' },
+                { label:'이메일',          key:'email',         placeholder:'예: admin@example.com' },
+                { label:'카카오 채널',     key:'kakaoChannel',  placeholder:'예: @업체채널명' },
+                { label:'메모',            key:'memo',          placeholder:'비고' },
               ].map(f=>(
                 <div key={f.key}>
                   <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>{f.label}</label>
