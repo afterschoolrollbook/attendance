@@ -58,6 +58,7 @@ const TABLE_MAP: Record<string, string> = {
   hqVendorQuarters:       'hqVendorQuarters',
   hqVendorSessions:       'hqVendorSessions',
   hqVendorFiles:          'hqVendorFiles',
+  hqVendorPrices:         'hqVendorPrices',
   // 업체 계정 관리
   hqVendors:              'hqVendors',
   hqVendorUsers:          'hqVendorUsers',
@@ -87,7 +88,7 @@ const CAMEL_TABLES = new Set([
   'supplyProgressLogs', 'supplySessionChecks',
   'messageGuides', 'messageCategories', 'teacherProfiles',
   'hqVendorSubjects', 'hqVendorProducts', 'hqVendorStages',
-  'hqVendorContents', 'hqVendorQuarters', 'hqVendorSessions', 'hqVendorFiles',
+  'hqVendorContents', 'hqVendorQuarters', 'hqVendorSessions', 'hqVendorFiles', 'hqVendorPrices',
   'hqVendors', 'hqVendorUsers', 'vendorAccounts',
   'schoolAdmins', 'schoolAdminAccounts', 'schoolAdminTeachers',
   'schoolSubjects', 'schoolTeacherInvites',  // ← 신규
