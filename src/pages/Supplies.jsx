@@ -1275,28 +1275,11 @@ export function Supplies({ user }) {
                               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
                                 <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>🤖 교구 목록</span>
                                 <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-                                  {vProducts.length > 0 && (
-                                    <button onClick={() => downloadProductsExcel(v, vProducts, productPlanList)}
-                                      style={{ padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                                      ⬇ 다운로드
-                                    </button>
-                                  )}
                                   {isRobot && (
-                                    <>
-                                      <button onClick={() => downloadSampleExcel()}
-                                        style={{ padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #3b82f6', background:'#eff6ff', color:'#3b82f6', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                                        📋 샘플
-                                      </button>
-                                      <label style={{ padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #8b5cf6', background:'#f5f3ff', color:'#8b5cf6', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                                        📤 일괄등록
-                                        <input type="file" accept=".xlsx,.xls" style={{ display:'none' }}
-                                          onChange={(e) => handleBulkUpload(e, v.id)} />
-                                      </label>
-                                      <button onClick={() => openProductModal(v.id)}
-                                        style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                                        + 교구 등록
-                                      </button>
-                                    </>
+                                    <button onClick={() => openProductModal(v.id)}
+                                      style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                      + 교구 등록
+                                    </button>
                                   )}
                                 </div>
                               </div>
@@ -1336,6 +1319,8 @@ export function Supplies({ user }) {
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>수정</button>
                                           <button onClick={() => deleteProduct(p.id)}
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
+                                          <button onClick={() => downloadProductsExcel(v, [p], productPlanList)}
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>⬇ 다운</button>
                                         </div>
                                         {/* 단계별 차시지도안 */}
                                         <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
@@ -1386,6 +1371,14 @@ export function Supplies({ user }) {
                                                           style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
                                                           삭제
                                                         </button>
+                                                        <button onClick={e=>{ e.stopPropagation(); downloadProductsExcel(v, [p], productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage)) }}
+                                                          style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                                          ⬇ 다운
+                                                        </button>
+                                                        <label onClick={e=>e.stopPropagation()} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #8b5cf6', background:'#f5f3ff', color:'#8b5cf6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                                          📤 일괄등록
+                                                          <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={(e) => handleBulkUpload(e, v.id)} />
+                                                        </label>
                                                         <span style={{ fontSize:'12px', color:C.muted, cursor:'pointer' }}>{expandedStage===expandKey ? '▲' : '▼'}</span>
                                                       </div>
                                                       {/* 차시 목차 — 펼쳤을 때만 */}
