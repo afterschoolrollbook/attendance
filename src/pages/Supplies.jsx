@@ -1321,6 +1321,12 @@ export function Supplies({ user }) {
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
                                           <button onClick={() => downloadProductsExcel(v, [p], productPlanList)}
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>⬇ 다운</button>
+                                          <button onClick={() => downloadSampleExcel()}
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #3b82f6', background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>📋 샘플</button>
+                                          <label style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #8b5cf6', background:'#f5f3ff', color:'#8b5cf6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                            📤 일괄등록
+                                            <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={(e) => handleBulkUpload(e, v.id)} />
+                                          </label>
                                         </div>
                                         {/* 단계별 차시지도안 */}
                                         <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
@@ -1374,6 +1380,10 @@ export function Supplies({ user }) {
                                                         <button onClick={e=>{ e.stopPropagation(); downloadProductsExcel(v, [p], productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage)) }}
                                                           style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
                                                           ⬇ 다운
+                                                        </button>
+                                                        <button onClick={e=>{ e.stopPropagation(); downloadSampleExcel() }}
+                                                          style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #3b82f6', background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                                          📋 샘플
                                                         </button>
                                                         <label onClick={e=>e.stopPropagation()} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #8b5cf6', background:'#f5f3ff', color:'#8b5cf6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
                                                           📤 일괄등록
