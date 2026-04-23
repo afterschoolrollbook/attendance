@@ -154,7 +154,13 @@ serve(async (req) => {
 
     switch (action) {
       case 'getAll': {
-        const { data: rows, error } = await supabase.from(tbl).select('*').or('_deleted.is.null,_deleted.eq.false')
+        // _deleted 컬럼이 없는 테이블은 필터 없이 전체 조회
+        const NO_DELETED_TABLES = new Set(['hqVendorPrices'])
+        let q = supabase.from(tbl).select('*')
+        if (!NO_DELETED_TABLES.has(table)) {
+          q = q.or('_deleted.is.null,_deleted.eq.false')
+        }
+        const { data: rows, error } = await q
         if (error) throw error
         result = rows.map(fromDb)
         break
