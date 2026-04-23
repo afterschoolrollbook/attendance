@@ -719,14 +719,6 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교구명 *</label>
                 <input value={productForm.name} onChange={e=>setProductForm(v=>({...v,name:e.target.value}))} placeholder="예: 큐보 1단계" style={iSt} autoFocus />
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px' }}>
-                {[{key:'stageCount',label:'최대 단계',min:1,max:20},{key:'sessionsPerStage',label:'단계당 차시 수',min:1,max:50},{key:'alertSession',label:'준비 알림 (차시 전)',min:1,max:50}].map(({key,label,min,max})=>(
-                  <div key={key}>
-                    <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>{label}</label>
-                    <input type="number" min={min} max={max} value={productForm[key]} onChange={e=>{ const val=Number(e.target.value); setProductForm(v=>({...v,[key]:val})); if(key==='stageCount'){ setStageSessionTitles(prev=>{ const n={...prev}; for(let s=1;s<=val;s++) if(!n[s]) n[s]=Array.from({length:productForm.sessionsPerStage},()=>({title:'',memo:''})); return n }); if(productStageTab>val) setProductStageTab(val) } if(key==='sessionsPerStage'){ setStageSessionTitles(prev=>{ const n={}; for(let s=1;s<=productForm.stageCount;s++){ const c=prev[s]||[]; n[s]=Array.from({length:val},(_,i)=>c[i]||{title:'',memo:''}) } return n }) } }} style={{ ...iSt, textAlign:'center' }} />
-                  </div>
-                ))}
-              </div>
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>단계 선택</label>
                 <select value={productStageTab} onChange={e=>{ const st=Number(e.target.value); setProductStageTab(st); setStageSessionTitles(prev=>({...prev,[st]:prev[st]||Array.from({length:productForm.sessionsPerStage},()=>({title:'',memo:''})) })) }} style={{ ...iSt, background:'#fff' }}>
