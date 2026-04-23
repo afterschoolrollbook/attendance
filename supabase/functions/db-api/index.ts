@@ -88,7 +88,7 @@ const CAMEL_TABLES = new Set([
   'supplyProgressLogs', 'supplySessionChecks',
   'messageGuides', 'messageCategories', 'teacherProfiles',
   'hqVendorSubjects', 'hqVendorProducts', 'hqVendorStages',
-  'hqVendorContents', 'hqVendorQuarters', 'hqVendorSessions', 'hqVendorFiles',
+  'hqVendorContents', 'hqVendorQuarters', 'hqVendorSessions', 'hqVendorFiles', 'hqVendorPrices',
   'hqVendors', 'hqVendorUsers', 'vendorAccounts',
   'schoolAdmins', 'schoolAdminAccounts', 'schoolAdminTeachers',
   'schoolSubjects', 'schoolTeacherInvites',  // ← 신규
