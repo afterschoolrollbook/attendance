@@ -151,9 +151,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
   const [uploading,     setUploading]     = useState(false)
   const fileRef = useRef()
 
-  // 메인 내부 탭 (Supplies.jsx INNER_TABS 방식)
-  const [innerTab, setInnerTab] = useState('product')
-
+  const [innerTab, setInnerTab] = useState('supply')
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const { success, error: toastError } = useToast()
 
@@ -399,7 +397,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
           <div style={{ display:'flex', gap:'6px', marginBottom:'20px', flexWrap:'wrap', alignItems:'center' }}>
             {subjects.map(s => (
               <div key={s.id} style={{ display:'flex', alignItems:'center' }}>
-                <button type="button" onClick={()=>setSelSubject(s.name)}
+                <button type="button" onClick={()=>{ setSelSubject(s.name); setInnerTab('supply') }}
                   style={{ padding:'8px 16px', borderRadius: selSubject===s.name ? '8px 0 0 8px' : '8px', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600, fontSize:'14px', background: selSubject===s.name ? C.primary : '#f3f4f6', color: selSubject===s.name ? '#fff' : C.muted }}>
                   {s.name}
                 </button>
@@ -415,234 +413,244 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
             </button>
           </div>
 
-          {/* ── 내부 탭 바 — Supplies.jsx와 동일하게 과목 탭 바로 아래, 카드 밖 독립 렌더 */}
-          {selSubject && (
-            <>
-              <div style={{ display:'flex', marginBottom:'20px', borderBottom:`1px solid ${C.border}`, overflowX:'auto' }}>
-                {[
-                  { key:'product', label:`🎒 교구(${selSubject})` },
-                  { key:'plan',    label:`📋 지도안(${selSubject})` },
-                  { key:'promo',   label:`🖼 홍보물(${selSubject})` },
-                ].map(t=>(
-                  <button key={t.key} type="button" onClick={()=>setInnerTab(t.key)}
-                    style={{ padding:'10px 18px', border:'none', cursor:'pointer', background:'none', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight: innerTab===t.key ? 700 : 400, color: innerTab===t.key ? C.primary : C.muted, borderBottom: innerTab===t.key ? `2px solid ${C.primary}` : '2px solid transparent', marginBottom:'-1px', whiteSpace:'nowrap' }}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-
-              {(() => {
+          {/* 선택된 과목이 있을 때 */}
+          {selSubject && (() => {
+            const INNER_TABS = [
+              { key:'supply', label:`🎒 교구(${selSubject||''})` },
+              { key:'plan',   label:`📋 지도안(${selSubject||''})` },
+              { key:'promo',  label:`🖼 홍보물(${selSubject||''})` },
+            ]
             return (
-              <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-
-                {/* 업체 헤더 */}
-                <div style={{ padding:'14px 18px', display:'flex', alignItems:'center', gap:'12px', cursor:'pointer', background: expandedVendor==='me' ? C.bg : C.card }}
-                  onClick={()=>setExpandedVendor(v=>v==='me'?null:'me')}>
-                  <span style={{ fontSize:'20px' }}>🏢</span>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{vendor.name}</div>
-                    <div style={{ display:'flex', gap:'12px', fontSize:'12px', color:C.muted, marginTop:'2px', flexWrap:'wrap' }}>
-                      {vendor.managerName && <span>👤 {vendor.managerName}</span>}
-                      {vendor.contact     && <span>📞 {vendor.contact}</span>}
-                      {vendor.memo        && <span>📌 {vendor.memo}</span>}
-                    </div>
-                  </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                    {selProducts.length>0 && <span style={{ fontSize:'12px', background:'#f5f3ff', color:'#7c3aed', border:'1px solid #ddd6fe', borderRadius:'5px', padding:'2px 8px', fontWeight:600 }}>교구 {selProducts.length}종</span>}
-                    <span style={{ fontSize:'14px', color:C.muted }}>{expandedVendor==='me'?'▲':'▼'}</span>
-                  </div>
+              <>
+                {/* 내부 탭 */}
+                <div style={{ display:'flex', marginBottom:'20px', borderBottom:`1px solid ${C.border}`, overflowX:'auto' }}>
+                  {INNER_TABS.map(t => (
+                    <button key={t.key} type="button" onClick={() => setInnerTab(t.key)}
+                      style={{ padding:'10px 18px', border:'none', cursor:'pointer', background:'none', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight: innerTab===t.key ? 700 : 400, color: innerTab===t.key ? C.primary : C.muted, borderBottom: innerTab===t.key ? `2px solid ${C.primary}` : '2px solid transparent', marginBottom:'-1px', whiteSpace:'nowrap' }}>
+                      {t.label}
+                    </button>
+                  ))}
                 </div>
 
-                {expandedVendor==='me' && (
-                  <div style={{ borderTop:`1px solid ${C.border}` }}>
+                {/* ── 교구 탭 */}
+                {innerTab === 'supply' && (
+            <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
 
-                    {/* ── 탭 버튼 바 */}
-                    <div style={{ display:'flex', gap:'4px', padding:'10px 18px 0', borderBottom:`1px solid ${C.border}`, background:'#fafafa' }}>
-                      {INNER_TABS.map(t=>(
-                        <button key={t.key} type="button" onClick={()=>setInnerTab(t.key)}
-                          style={{ padding:'8px 18px', borderRadius:'8px 8px 0 0', border:'none', borderBottom: innerTab===t.key ? `3px solid ${C.primary}` : '3px solid transparent', background: innerTab===t.key ? '#fff' : 'transparent', color: innerTab===t.key ? C.primary : C.muted, fontSize:'13px', fontWeight: innerTab===t.key ? 700 : 500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
-                          {t.label}
-                        </button>
-                      ))}
+              {/* 업체 헤더 */}
+              <div style={{ padding:'14px 18px', display:'flex', alignItems:'center', gap:'12px', cursor:'pointer', background: expandedVendor==='me' ? C.bg : C.card }}
+                onClick={()=>setExpandedVendor(v=>v==='me'?null:'me')}>
+                <span style={{ fontSize:'20px' }}>🏢</span>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{vendor.name}</div>
+                  <div style={{ display:'flex', gap:'12px', fontSize:'12px', color:C.muted, marginTop:'2px', flexWrap:'wrap' }}>
+                    {vendor.managerName && <span>👤 {vendor.managerName}</span>}
+                    {vendor.contact     && <span>📞 {vendor.contact}</span>}
+                    {vendor.memo        && <span>📌 {vendor.memo}</span>}
+                  </div>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  {selProducts.length>0 && <span style={{ fontSize:'12px', background:'#f5f3ff', color:'#7c3aed', border:'1px solid #ddd6fe', borderRadius:'5px', padding:'2px 8px', fontWeight:600 }}>교구 {selProducts.length}종</span>}
+                  <span style={{ fontSize:'14px', color:C.muted }}>{expandedVendor==='me'?'▲':'▼'}</span>
+                </div>
+              </div>
+
+              {/* 교구 목록 */}
+              {expandedVendor==='me' && (
+                <div style={{ borderTop:`1px solid ${C.border}`, padding:'14px 18px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
+                    <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>🤖 교구 목록</span>
+                    <div style={{ display:'flex', gap:'6px' }}>
+                      {selProducts.length>0 && <button type="button" onClick={()=>downloadProductsExcel(vendor.name||'', selProducts, contents)} style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.success}`, background:'#f0fdf4', color:C.success, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운로드</button>}
+                      <button type="button" onClick={downloadSampleExcel} style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.blue}`, background:'#eff6ff', color:C.blue, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플</button>
+                      <label style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.purple}`, background:'#f5f3ff', color:C.purple, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                        📤 일괄등록
+                        <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleBulkUpload} />
+                      </label>
+                      <button type="button" onClick={()=>openProductModal(selSubjectObj?.id)} style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 교구 등록</button>
                     </div>
+                  </div>
 
-                    {/* ── 교구 탭 */}
-                    {innerTab==='product' && (
-                      <div style={{ padding:'16px 18px' }}>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
-                          <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>🤖 교구 목록</span>
-                          <div style={{ display:'flex', gap:'6px' }}>
-                            {selProducts.length>0 && <button type="button" onClick={()=>downloadProductsExcel(vendor.name||'', selProducts, contents)} style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.success}`, background:'#f0fdf4', color:C.success, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운로드</button>}
-                            <button type="button" onClick={downloadSampleExcel} style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.blue}`, background:'#eff6ff', color:C.blue, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플</button>
-                            <label style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.purple}`, background:'#f5f3ff', color:C.purple, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                              📤 일괄등록
-                              <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleBulkUpload} />
-                            </label>
-                            <button type="button" onClick={()=>openProductModal(selSubjectObj?.id)} style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 교구 등록</button>
-                          </div>
-                        </div>
-                        {selProducts.length===0
-                          ? <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'30px 0' }}>등록된 교구가 없습니다</div>
-                          : (
-                            <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-                              {selProducts.map(p => {
-                                const pContents   = contents.filter(c=>c.productId===p.id)
-                                const stages      = [...new Set(pContents.map(c=>c.stage))].sort((a,b)=>a-b)
-                                const pFiles      = files.filter(f=>f.productId===p.id)
-                                const annualFiles  = pFiles.filter(f=>f.fileType==='annual')
-                                const promoFiles   = pFiles.filter(f=>f.fileType==='promo')
-                                return (
-                                  <div key={p.id} style={{ background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-                                    {/* 교구 헤더 */}
-                                    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px' }}>
-                                      <span style={{ fontSize:'18px' }}>🤖</span>
-                                      <div style={{ flex:1 }}>
-                                        <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name}</div>
-                                        <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
-                                          {stages.length===0 ? <span style={{ color:C.danger }}>차시 미등록</span>
-                                            : stages.map(st=>{ const cnt=pContents.filter(c=>c.stage===st).length; return <span key={st} style={{ background:'#f5f3ff', color:'#7c3aed', borderRadius:'4px', padding:'1px 6px' }}>{st}단계({cnt}차시)</span> })}
-                                          {annualFiles.length>0  && <span style={{ background:'#eff6ff', color:C.blue, borderRadius:'4px', padding:'1px 6px' }}>연간지도안 {annualFiles.length}개</span>}
-                                          {promoFiles.length>0   && <span style={{ background:'#f0fdf4', color:C.success, borderRadius:'4px', padding:'1px 6px' }}>홍보물 {promoFiles.length}개</span>}
-                                        </div>
-                                      </div>
-                                      <button type="button" onClick={()=>openProductModal(selSubjectObj?.id,p)} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
-                                      <button type="button" onClick={()=>deleteProduct(p)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                                    </div>
-                                    {/* 단계별 진도체크 */}
-                                    <div style={{ padding:'8px 14px 12px', borderTop:`1px solid ${C.border}` }}>
-                                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px' }}>
-                                        <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📊 단계별 진도체크</span>
-                                        {(()=>{ const next=stages.length>0?Math.max(...stages)+1:1; return next<=(p.maxStage||10)?(<button type="button" onClick={()=>openSessionPlan(p.id,next)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>):null })()}
-                                      </div>
-                                      {stages.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 차시가 없습니다</div> : (
-                                        <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                                          {stages.map(stage => {
-                                            const plans=pContents.filter(c=>c.stage===stage).sort((a,b)=>a.sessionNo-b.sessionNo)
-                                            const expandKey=`${p.id}_${stage}`; const isOpen=expandedStage===expandKey
-                                            return (
-                                              <div key={stage} style={{ background:C.card, borderRadius:'9px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-                                                <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', cursor:'pointer' }} onClick={()=>setExpandedStage(isOpen?null:expandKey)}>
-                                                  <span style={{ fontSize:'16px' }}>📝</span>
-                                                  <div style={{ flex:1 }}>
-                                                    <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name} {stage}단계 목차리스트</span>
-                                                    <span style={{ fontSize:'11px', color:C.success, marginLeft:'8px' }}>{plans.length}차시</span>
-                                                  </div>
-                                                  <button type="button" onClick={e=>{ e.stopPropagation(); openSessionPlan(p.id,stage) }} style={{ padding:'3px 10px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
-                                                  <button type="button" onClick={e=>{ e.stopPropagation(); setDeleteConfirm({ msg:`${stage}단계 차시를 삭제하시겠습니까?`, onOk:async()=>{ for(const c of plans) await DB.delContent(c.id); reload(); success('삭제가 완료되었습니다.') }}) }} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                                                  <span style={{ fontSize:'12px', color:C.muted }}>{isOpen?'▲':'▼'}</span>
-                                                </div>
-                                                {isOpen && (
-                                                  <div style={{ padding:'6px 12px 10px', borderTop:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:'3px' }}>
-                                                    {plans.map(pl=>(
-                                                      <div key={pl.id} style={{ display:'grid', gridTemplateColumns:'40px 1fr 1fr', gap:'6px', fontSize:'12px', padding:'4px 0', borderBottom:'1px solid #f9fafb' }}>
-                                                        <span style={{ color:C.primary, fontWeight:700 }}>{pl.sessionNo}차시</span>
-                                                        <span style={{ color:C.text }}>{pl.title}</span>
-                                                        <span style={{ color:C.muted }}>{pl.supplies?`📌 ${pl.supplies}`:''}</span>
-                                                      </div>
-                                                    ))}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            )
-                                          })}
-                                        </div>
-                                      )}
-                                    </div>
+                  {selProducts.length===0
+                    ? <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'20px 0' }}>등록된 교구가 없습니다</div>
+                    : (
+                      <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+                        {selProducts.map(p => {
+                          const pContents   = contents.filter(c=>c.productId===p.id)
+                          const stages      = [...new Set(pContents.map(c=>c.stage))].sort((a,b)=>a-b)
+                          const pFiles      = files.filter(f=>f.productId===p.id)
+                          const annualFiles  = pFiles.filter(f=>f.fileType==='annual')
+                          const sessionFiles = pFiles.filter(f=>f.fileType==='session')
+                          const promoFiles   = pFiles.filter(f=>f.fileType==='promo')
+                          return (
+                            <div key={p.id} style={{ background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                              {/* 교구 헤더 */}
+                              <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px' }}>
+                                <span style={{ fontSize:'18px' }}>🤖</span>
+                                <div style={{ flex:1 }}>
+                                  <div style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name}</div>
+                                  <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                                    {stages.length===0 ? <span style={{ color:C.danger }}>차시 미등록</span>
+                                      : stages.map(st=>{ const cnt=pContents.filter(c=>c.stage===st).length; return <span key={st} style={{ background:'#f5f3ff', color:'#7c3aed', borderRadius:'4px', padding:'1px 6px' }}>{st}단계({cnt}차시)</span> })}
+                                    {annualFiles.length>0  && <span style={{ background:'#eff6ff', color:C.blue, borderRadius:'4px', padding:'1px 6px' }}>연간지도안 {annualFiles.length}개</span>}
+                                    {promoFiles.length>0   && <span style={{ background:'#f0fdf4', color:C.success, borderRadius:'4px', padding:'1px 6px' }}>홍보물 {promoFiles.length}개</span>}
                                   </div>
-                                )
-                              })}
+                                </div>
+                                <button type="button" onClick={()=>openProductModal(selSubjectObj?.id,p)} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                                <button type="button" onClick={()=>deleteProduct(p)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                              </div>
+                              {/* 단계별 진도체크 */}
+                              <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
+                                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
+                                  <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📊 단계별 진도체크</span>
+                                  {(()=>{ const next=stages.length>0?Math.max(...stages)+1:1; return next<=(p.maxStage||10)?(<button type="button" onClick={()=>openSessionPlan(p.id,next)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>):null })()}
+                                </div>
+                                {stages.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 차시가 없습니다</div> : (
+                                  <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                                    {stages.map(stage => {
+                                      const plans=pContents.filter(c=>c.stage===stage).sort((a,b)=>a.sessionNo-b.sessionNo)
+                                      const expandKey=`${p.id}_${stage}`; const isOpen=expandedStage===expandKey
+                                      return (
+                                        <div key={stage} style={{ background:C.card, borderRadius:'9px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                                          <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', cursor:'pointer' }} onClick={()=>setExpandedStage(isOpen?null:expandKey)}>
+                                            <span style={{ fontSize:'16px' }}>📝</span>
+                                            <div style={{ flex:1 }}>
+                                              <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name} {stage}단계 목차리스트</span>
+                                              <span style={{ fontSize:'11px', color:C.success, marginLeft:'8px' }}>{plans.length}차시</span>
+                                            </div>
+                                            <button type="button" onClick={e=>{ e.stopPropagation(); openSessionPlan(p.id,stage) }} style={{ padding:'3px 10px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                                            <button type="button" onClick={e=>{ e.stopPropagation(); setDeleteConfirm({ msg:`${stage}단계 차시를 삭제하시겠습니까?`, onOk:async()=>{ for(const c of plans) await DB.delContent(c.id); reload(); success('삭제가 완료되었습니다.') }}) }} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                                            <span style={{ fontSize:'12px', color:C.muted }}>{isOpen?'▲':'▼'}</span>
+                                          </div>
+                                          {isOpen && (
+                                            <div style={{ padding:'6px 12px 10px', borderTop:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:'3px' }}>
+                                              {plans.map(pl=>(
+                                                <div key={pl.id} style={{ display:'grid', gridTemplateColumns:'40px 1fr 1fr', gap:'6px', fontSize:'12px', padding:'4px 0', borderBottom:'1px solid #f9fafb' }}>
+                                                  <span style={{ color:C.primary, fontWeight:700 }}>{pl.sessionNo}차시</span>
+                                                  <span style={{ color:C.text }}>{pl.title}</span>
+                                                  <span style={{ color:C.muted }}>{pl.supplies?`📌 ${pl.supplies}`:''}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                              {/* 연간지도안 */}
+                              <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
+                                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
+                                  <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📅 연간지도안</span>
+                                  <button type="button" onClick={()=>openFileModal('annual',p.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
+                                </div>
+                                {annualFiles.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 연간지도안이 없습니다</div>
+                                  : <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>{annualFiles.map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('annual',item.productId,'',item)} />)}</div>}
+                              </div>
+                              {/* 차시별지도안 */}
+                              <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
+                                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
+                                  <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📝 차시별지도안 파일</span>
+                                  <button type="button" onClick={()=>openFileModal('session',p.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
+                                </div>
+                                {sessionFiles.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 차시별지도안 파일이 없습니다</div>
+                                  : <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>{sessionFiles.sort((a,b)=>Number(a.stage||0)-Number(b.stage||0)).map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('session',item.productId,item.stage||'',item)} />)}</div>}
+                              </div>
+                              {/* 홍보물 */}
+                              <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
+                                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
+                                  <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>🖼 홍보물</span>
+                                  <button type="button" onClick={()=>openFileModal('promo',p.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
+                                </div>
+                                {promoFiles.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 홍보물이 없습니다</div>
+                                  : <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>{promoFiles.map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('promo',item.productId,'',item)} />)}</div>}
+                              </div>
                             </div>
                           )
-                        }
+                        })}
                       </div>
-                    )}
+                    )
+                  }
+                </div>
+              )}
+            </div>
+                )} {/* end innerTab === 'supply' */}
 
-                    {/* ── 지도안 탭 */}
-                    {innerTab==='plan' && (
-                      <div style={{ padding:'16px 18px' }}>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
-                          <div style={{ fontSize:'13px', color:C.muted }}>교구별 연간/차시별 지도안 파일을 관리합니다.</div>
-                        </div>
-                        {selProducts.length===0 ? (
-                          <div style={{ textAlign:'center', padding:'40px', color:C.muted }}><div style={{ fontSize:'32px', marginBottom:'8px' }}>📋</div><div>교구를 먼저 등록해주세요</div></div>
-                        ) : (
-                          <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                            {selProducts.map(p => {
-                              const pFiles      = files.filter(f=>f.productId===p.id)
-                              const annualFiles  = pFiles.filter(f=>f.fileType==='annual')
-                              const sessionFiles = pFiles.filter(f=>f.fileType==='session')
-                              return (
-                                <div key={p.id} style={{ background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-                                  <div style={{ padding:'10px 14px', display:'flex', alignItems:'center', gap:'8px', borderBottom:`1px solid ${C.border}` }}>
-                                    <span style={{ fontSize:'16px' }}>🤖</span>
-                                    <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{p.name}</span>
-                                    <div style={{ flex:1 }} />
-                                  </div>
-                                  {/* 연간지도안 */}
-                                  <div style={{ padding:'8px 14px 10px', borderBottom:`1px solid ${C.border}` }}>
-                                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px' }}>
-                                      <span style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>📅 연간지도안</span>
-                                      <button type="button" onClick={()=>openFileModal('annual',p.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
-                                    </div>
-                                    {annualFiles.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 연간지도안이 없습니다</div>
-                                      : <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>{annualFiles.map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('annual',item.productId,'',item)} />)}</div>}
-                                  </div>
-                                  {/* 차시별지도안 */}
-                                  <div style={{ padding:'8px 14px 10px' }}>
-                                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px' }}>
-                                      <span style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>📝 차시별지도안 파일</span>
-                                      <button type="button" onClick={()=>openFileModal('session',p.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
-                                    </div>
-                                    {sessionFiles.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 차시별지도안 파일이 없습니다</div>
-                                      : <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>{sessionFiles.sort((a,b)=>Number(a.stage||0)-Number(b.stage||0)).map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('session',item.productId,item.stage||'',item)} />)}</div>}
-                                  </div>
+                {/* ── 지도안 탭 */}
+                {innerTab === 'plan' && (
+                  <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px 18px' }}>
+                    <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>교구별 연간/차시별 지도안 파일을 관리합니다.</div>
+                    {selProducts.length===0 ? (
+                      <div style={{ textAlign:'center', padding:'40px', color:C.muted }}><div style={{ fontSize:'32px', marginBottom:'8px' }}>📋</div><div>교구를 먼저 등록해주세요</div></div>
+                    ) : (
+                      <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+                        {selProducts.map(p => {
+                          const pFiles = files.filter(f=>f.productId===p.id)
+                          const annualFiles  = pFiles.filter(f=>f.fileType==='annual')
+                          const sessionFiles = pFiles.filter(f=>f.fileType==='session')
+                          return (
+                            <div key={p.id} style={{ background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                              <div style={{ padding:'10px 14px', display:'flex', alignItems:'center', gap:'8px', borderBottom:`1px solid ${C.border}` }}>
+                                <span style={{ fontSize:'16px' }}>🤖</span>
+                                <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{p.name}</span>
+                              </div>
+                              <div style={{ padding:'8px 14px 10px', borderBottom:`1px solid ${C.border}` }}>
+                                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px' }}>
+                                  <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📅 연간지도안</span>
+                                  <button type="button" onClick={()=>openFileModal('annual',p.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
                                 </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* ── 홍보물 탭 */}
-                    {innerTab==='promo' && (
-                      <div style={{ padding:'16px 18px' }}>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
-                          <div style={{ fontSize:'13px', color:C.muted }}>교구별 홍보물 파일을 관리합니다.</div>
-                        </div>
-                        {selProducts.length===0 ? (
-                          <div style={{ textAlign:'center', padding:'40px', color:C.muted }}><div style={{ fontSize:'32px', marginBottom:'8px' }}>🖼</div><div>교구를 먼저 등록해주세요</div></div>
-                        ) : (
-                          <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                            {selProducts.map(p => {
-                              const promoFiles = files.filter(f=>f.productId===p.id&&f.fileType==='promo')
-                              return (
-                                <div key={p.id} style={{ background:C.bg, borderRadius:'10px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-                                  <div style={{ padding:'10px 14px', display:'flex', alignItems:'center', gap:'8px', borderBottom:`1px solid ${C.border}` }}>
-                                    <span style={{ fontSize:'16px' }}>🤖</span>
-                                    <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{p.name}</span>
-                                    <div style={{ flex:1 }} />
-                                    <button type="button" onClick={()=>openFileModal('promo',p.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
-                                  </div>
-                                  <div style={{ padding:'8px 14px 10px' }}>
-                                    {promoFiles.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 홍보물이 없습니다</div>
-                                      : <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>{promoFiles.map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('promo',item.productId,'',item)} />)}</div>}
-                                  </div>
+                                {annualFiles.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 연간지도안이 없습니다</div>
+                                  : <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>{annualFiles.map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('annual',item.productId,'',item)} />)}</div>}
+                              </div>
+                              <div style={{ padding:'8px 14px 10px' }}>
+                                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px' }}>
+                                  <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📝 차시별지도안 파일</span>
+                                  <button type="button" onClick={()=>openFileModal('session',p.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
                                 </div>
-                              )
-                            })}
-                          </div>
-                        )}
+                                {sessionFiles.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 차시별지도안 파일이 없습니다</div>
+                                  : <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>{sessionFiles.sort((a,b)=>Number(a.stage||0)-Number(b.stage||0)).map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('session',item.productId,item.stage||'',item)} />)}</div>}
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
-
                   </div>
                 )}
-              </div>
+
+                {/* ── 홍보물 탭 */}
+                {innerTab === 'promo' && (
+                  <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px 18px' }}>
+                    <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>교구별 홍보물 파일을 관리합니다.</div>
+                    {selProducts.length===0 ? (
+                      <div style={{ textAlign:'center', padding:'40px', color:C.muted }}><div style={{ fontSize:'32px', marginBottom:'8px' }}>🖼</div><div>교구를 먼저 등록해주세요</div></div>
+                    ) : (
+                      <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+                        {selProducts.map(p => {
+                          const promoFiles = files.filter(f=>f.productId===p.id&&f.fileType==='promo')
+                          return (
+                            <div key={p.id} style={{ background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
+                              <div style={{ padding:'10px 14px', display:'flex', alignItems:'center', gap:'8px', borderBottom:`1px solid ${C.border}` }}>
+                                <span style={{ fontSize:'16px' }}>🤖</span>
+                                <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{p.name}</span>
+                                <div style={{ flex:1 }} />
+                                <button type="button" onClick={()=>openFileModal('promo',p.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
+                              </div>
+                              <div style={{ padding:'8px 14px 10px' }}>
+                                {promoFiles.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 홍보물이 없습니다</div>
+                                  : <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>{promoFiles.map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('promo',item.productId,'',item)} />)}</div>}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              </>
             )
           })()}
-            </>
-          )}
         </div>
       </main>
 
