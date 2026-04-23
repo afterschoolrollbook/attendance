@@ -40,6 +40,13 @@ const DB = {
   files:       async (vid) => ((await dbCall('getAll','hqVendorFiles'))||[]).filter(f=>f.vendorId===vid&&!f._deleted),
   saveFile:    async (f)   => dbCall('upsert','hqVendorFiles',{data:f}),
   delFile:     async (id)  => dbCall('delete','hqVendorFiles',{id}),
+
+  prices:      async (vid) => {
+    const prods = ((await dbCall('getAll','hqVendorProducts'))||[]).filter(p=>p.vendorId===vid&&!p._deleted)
+    const pids  = new Set(prods.map(p=>p.id))
+    return ((await dbCall('getAll','hqVendorPrices'))||[]).filter(pr=>pids.has(pr.productId))
+  },
+  savePrice:   async (p)   => dbCall('upsert','hqVendorPrices',{data:p}),
 }
 
 // ── 엑셀 샘플/다운로드
@@ -115,6 +122,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
   const [products,   setProducts]   = useState([])
   const [contents,   setContents]   = useState([])
   const [files,      setFiles]      = useState([])
+  const [prices,     setPrices]     = useState([])
 
   // 과목 탭 — Supplies.jsx selSubject 방식 그대로
   const [selSubject,   setSelSubject]   = useState(null)
@@ -159,11 +167,12 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
 
   const reload = useCallback(async () => {
     if (!vendorId) return
-    const [s, p, c, f] = await Promise.all([
+    const [s, p, c, f, pr] = await Promise.all([
       DB.subjects(vendorId), DB.products(vendorId),
       DB.allContents(vendorId), DB.files(vendorId),
+      DB.prices(vendorId),
     ])
-    setSubjects(s); setProducts(p); setContents(c); setFiles(f)
+    setSubjects(s); setProducts(p); setContents(c); setFiles(f); setPrices(pr)
   }, [vendorId])
 
   useEffect(() => { reload() }, [reload])
@@ -511,6 +520,51 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                                                 </div>
                                               ))}
                                             </div>
+                                            {/* 💰 단계별 단가 */}
+                                            {(() => {
+                                              const priceRec = prices.find(pr=>pr.productId===p.id&&pr.stage===stage) || {}
+                                              const PRICE_FIELDS = [
+                                                { key:'priceRetail',  label:'소비자가' },
+                                                { key:'priceSchool',  label:'학교공급가' },
+                                                { key:'priceTeacher', label:'강사가' },
+                                                { key:'priceBranch',  label:'지사가' },
+                                              ]
+                                              return (
+                                                <div style={{ padding:'10px 12px 12px', borderTop:`1px solid ${C.border}`, background:'#fffbf5' }}>
+                                                  <div style={{ fontSize:'11px', fontWeight:700, color:C.primary, marginBottom:'8px' }}>💰 단계별 단가</div>
+                                                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'8px' }}>
+                                                    {PRICE_FIELDS.map(({key, label})=>(
+                                                      <div key={key}>
+                                                        <label style={{ fontSize:'10px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>{label}</label>
+                                                        <input
+                                                          type="number"
+                                                          defaultValue={priceRec[key]||''}
+                                                          placeholder="0"
+                                                          onBlur={async e=>{
+                                                            const val = Number(e.target.value)||0
+                                                            const existing = prices.find(pr=>pr.productId===p.id&&pr.stage===stage)
+                                                            await DB.savePrice({
+                                                              id: existing?.id || uid(),
+                                                              vendorId,
+                                                              productId: p.id,
+                                                              stage,
+                                                              priceRetail:  existing?.priceRetail  || 0,
+                                                              priceSchool:  existing?.priceSchool  || 0,
+                                                              priceTeacher: existing?.priceTeacher || 0,
+                                                              priceBranch:  existing?.priceBranch  || 0,
+                                                              [key]: val,
+                                                              createdAt: existing?.createdAt || now(),
+                                                            })
+                                                            await reload()
+                                                          }}
+                                                          style={{ width:'100%', padding:'6px 8px', borderRadius:'7px', border:`1.5px solid ${C.border}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', textAlign:'right' }}
+                                                        />
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                              )
+                                            })()}
                                           )}
                                         </div>
                                       )
