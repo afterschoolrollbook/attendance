@@ -561,7 +561,6 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                                                               priceTeacher: existing?.priceTeacher || 0,
                                                               priceBranch:  existing?.priceBranch  || 0,
                                                               [key]: val,
-                                                              createdAt: existing?.createdAt || now(),
                                                             })
                                                             await reload()
                                                           }}
