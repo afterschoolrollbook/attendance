@@ -252,9 +252,10 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
           }
         }
       }
-      reload()
+      await reload()
       if (!selSubject && sc > 0) setSelSubject(Object.keys(subjectMap)[0])
       success(`과목 ${sc}개, 교구 ${pc}개, 차시 ${cc}개 등록 완료!`)
+      setTimeout(() => window.location.reload(), 800)
     } catch(err) { toastError('파일 읽기 실패: ' + err.message) }
   }
 
