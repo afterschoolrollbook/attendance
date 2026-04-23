@@ -517,7 +517,8 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                                             <span style={{ fontSize:'12px', color:C.muted }}>{isOpen?'▲':'▼'}</span>
                                           </div>
                                           {isOpen && (
-                                            <div style={{ padding:'6px 12px 10px', borderTop:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:'3px' }}>
+                                            <div style={{ borderTop:`1px solid ${C.border}` }}>
+                                              <div style={{ padding:'6px 12px 10px', display:'flex', flexDirection:'column', gap:'3px' }}>
                                               {plans.map(pl=>(
                                                 <div key={pl.id} style={{ display:'grid', gridTemplateColumns:'40px 1fr 1fr', gap:'6px', fontSize:'12px', padding:'4px 0', borderBottom:'1px solid #f9fafb' }}>
                                                   <span style={{ color:C.primary, fontWeight:700 }}>{pl.sessionNo}차시</span>
@@ -571,6 +572,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                                                 </div>
                                               )
                                             })()}
+                                            </div>
                                           )}
                                         </div>
                                       )
