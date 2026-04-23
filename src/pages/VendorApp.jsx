@@ -132,7 +132,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
   // 교구 모달
   const [productModal,       setProductModal]       = useState(false)
   const [editingProduct,     setEditingProduct]     = useState(null)
-  const [productForm,        setProductForm]        = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:3 })
+  const [productForm,        setProductForm]        = useState({ id:null, name:'', stageCount:10, sessionsPerStage:12, alertSession:3 })
   const [productStageTab,    setProductStageTab]    = useState(1)
   const [stageSessionTitles, setStageSessionTitles] = useState({})
 
@@ -243,7 +243,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
         if (!subject) { const n={id:uid(),vendorId,name:sName,createdAt:now()}; await DB.saveSubject(n); subject=n; myS.push(n); sc++ }
         for (const [pName, plans] of Object.entries(sData.products)) {
           let product = myP.find(p=>p.subjectId===subject.id&&p.name===pName)
-          if (!product) { const n={id:uid(),vendorId,subjectId:subject.id,name:pName,maxStage:Math.max(...plans.map(p=>p.stage)),sessionsPerStage:12,alertSession:3,createdAt:now()}; await DB.saveProduct(n); product=n; myP.push(n); pc++ }
+          if (!product) { const n={id:uid(),vendorId,subjectId:subject.id,name:pName,stageCount:Math.max(...plans.map(p=>p.stage)),sessionsPerStage:12,alertSession:3,createdAt:now()}; await DB.saveProduct(n); product=n; myP.push(n); pc++ }
           for (const pl of plans) {
             if (!myC.find(x=>x.productId===product.id&&x.stage===pl.stage&&x.sessionNo===pl.sessionNo)) {
               const n={id:uid(),stageId:`${product.id}_${pl.stage}`,productId:product.id,stage:pl.stage,sessionNo:pl.sessionNo,title:pl.title,supplies:pl.supplies,createdAt:now()}
@@ -261,17 +261,17 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
   // ── 교구 모달
   const openProductModal = (subjectId, existing=null) => {
     if (existing) {
-      const maxS=existing.maxStage||10; const perS=existing.sessionsPerStage||12
+      const maxS=existing.stageCount||10; const perS=existing.sessionsPerStage||12
       const titles={}
       for (let s=1;s<=maxS;s++) {
         const plans=contents.filter(c=>c.productId===existing.id&&c.stage===s).sort((a,b)=>a.sessionNo-b.sessionNo)
         titles[s]=Array.from({length:perS},(_,i)=>({title:plans[i]?.title||'',memo:plans[i]?.supplies||''}))
       }
-      setProductForm({id:existing.id,name:existing.name,subjectId:existing.subjectId,maxStage:maxS,sessionsPerStage:perS,alertSession:existing.alertSession||3})
+      setProductForm({id:existing.id,name:existing.name,subjectId:existing.subjectId,stageCount:maxS,sessionsPerStage:perS,alertSession:existing.alertSession||3})
       setStageSessionTitles(titles); setEditingProduct(existing)
     } else {
       const titles={}; for(let s=1;s<=10;s++) titles[s]=Array.from({length:12},()=>({title:'',memo:''}))
-      setProductForm({id:null,name:'',subjectId,maxStage:10,sessionsPerStage:12,alertSession:3})
+      setProductForm({id:null,name:'',subjectId,stageCount:10,sessionsPerStage:12,alertSession:3})
       setStageSessionTitles(titles); setEditingProduct(null)
     }
     setProductStageTab(1); setProductModal(true)
@@ -279,8 +279,8 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
   const saveProduct = async () => {
     if (!productForm.name.trim()) { toastError('교구명을 입력하세요'); return }
     const isEdit=!!productForm.id; const productId=isEdit?productForm.id:uid()
-    await DB.saveProduct({id:productId,vendorId,subjectId:productForm.subjectId,name:productForm.name,maxStage:productForm.maxStage,sessionsPerStage:productForm.sessionsPerStage,alertSession:productForm.alertSession,createdAt:isEdit?(editingProduct?.createdAt||now()):now()})
-    for (let stage=1;stage<=productForm.maxStage;stage++) {
+    await DB.saveProduct({id:productId,vendorId,subjectId:productForm.subjectId,name:productForm.name,stageCount:productForm.stageCount,sessionsPerStage:productForm.sessionsPerStage,alertSession:productForm.alertSession,createdAt:isEdit?(editingProduct?.createdAt||now()):now()})
+    for (let stage=1;stage<=productForm.stageCount;stage++) {
       const items=stageSessionTitles[stage]||[]
       for (let idx=0;idx<items.length;idx++) {
         const t=items[idx]?.title||''; const m=items[idx]?.memo||''
@@ -502,7 +502,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                               <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
                                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
                                   <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📊 단계별 진도체크</span>
-                                  {(()=>{ const next=stages.length>0?Math.max(...stages)+1:1; return next<=(p.maxStage||10)?(<button type="button" onClick={()=>openSessionPlan(p.id,next)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>):null })()}
+                                  {(()=>{ const next=stages.length>0?Math.max(...stages)+1:1; return next<=(p.stageCount||10)?(<button type="button" onClick={()=>openSessionPlan(p.id,next)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>):null })()}
                                 </div>
                                 {stages.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 차시가 없습니다</div> : (
                                   <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
@@ -720,17 +720,17 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                 <input value={productForm.name} onChange={e=>setProductForm(v=>({...v,name:e.target.value}))} placeholder="예: 큐보 1단계" style={iSt} autoFocus />
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px' }}>
-                {[{key:'maxStage',label:'최대 단계',min:1,max:20},{key:'sessionsPerStage',label:'단계당 차시 수',min:1,max:50},{key:'alertSession',label:'준비 알림 (차시 전)',min:1,max:50}].map(({key,label,min,max})=>(
+                {[{key:'stageCount',label:'최대 단계',min:1,max:20},{key:'sessionsPerStage',label:'단계당 차시 수',min:1,max:50},{key:'alertSession',label:'준비 알림 (차시 전)',min:1,max:50}].map(({key,label,min,max})=>(
                   <div key={key}>
                     <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>{label}</label>
-                    <input type="number" min={min} max={max} value={productForm[key]} onChange={e=>{ const val=Number(e.target.value); setProductForm(v=>({...v,[key]:val})); if(key==='maxStage'){ setStageSessionTitles(prev=>{ const n={...prev}; for(let s=1;s<=val;s++) if(!n[s]) n[s]=Array.from({length:productForm.sessionsPerStage},()=>({title:'',memo:''})); return n }); if(productStageTab>val) setProductStageTab(val) } if(key==='sessionsPerStage'){ setStageSessionTitles(prev=>{ const n={}; for(let s=1;s<=productForm.maxStage;s++){ const c=prev[s]||[]; n[s]=Array.from({length:val},(_,i)=>c[i]||{title:'',memo:''}) } return n }) } }} style={{ ...iSt, textAlign:'center' }} />
+                    <input type="number" min={min} max={max} value={productForm[key]} onChange={e=>{ const val=Number(e.target.value); setProductForm(v=>({...v,[key]:val})); if(key==='stageCount'){ setStageSessionTitles(prev=>{ const n={...prev}; for(let s=1;s<=val;s++) if(!n[s]) n[s]=Array.from({length:productForm.sessionsPerStage},()=>({title:'',memo:''})); return n }); if(productStageTab>val) setProductStageTab(val) } if(key==='sessionsPerStage'){ setStageSessionTitles(prev=>{ const n={}; for(let s=1;s<=productForm.stageCount;s++){ const c=prev[s]||[]; n[s]=Array.from({length:val},(_,i)=>c[i]||{title:'',memo:''}) } return n }) } }} style={{ ...iSt, textAlign:'center' }} />
                   </div>
                 ))}
               </div>
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>단계 선택</label>
                 <select value={productStageTab} onChange={e=>{ const st=Number(e.target.value); setProductStageTab(st); setStageSessionTitles(prev=>({...prev,[st]:prev[st]||Array.from({length:productForm.sessionsPerStage},()=>({title:'',memo:''})) })) }} style={{ ...iSt, background:'#fff' }}>
-                  {Array.from({length:productForm.maxStage},(_,i)=>i+1).map(s=>{ const filled=(stageSessionTitles[s]||[]).filter(t=>(t?.title||'').trim()).length; return <option key={s} value={s}>{s}단계{filled>0?` (${filled}개 입력됨)`:''}</option> })}
+                  {Array.from({length:productForm.stageCount},(_,i)=>i+1).map(s=>{ const filled=(stageSessionTitles[s]||[]).filter(t=>(t?.title||'').trim()).length; return <option key={s} value={s}>{s}단계{filled>0?` (${filled}개 입력됨)`:''}</option> })}
                 </select>
               </div>
               <div style={{ border:`1px solid ${C.border}`, borderRadius:'10px', overflow:'hidden' }}>
@@ -828,7 +828,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                   <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>단계 선택 *</label>
                   <select value={fileStage} onChange={e=>setFileStage(e.target.value)} style={{ ...iSt, background:'#fff' }}>
                     <option value=''>-- 단계를 선택하세요 --</option>
-                    {Array.from({length:(selProducts.find(p=>p.id===fileProductId)?.maxStage||10)},(_,i)=>i+1).map(s=><option key={s} value={s}>{s}단계</option>)}
+                    {Array.from({length:(selProducts.find(p=>p.id===fileProductId)?.stageCount||10)},(_,i)=>i+1).map(s=><option key={s} value={s}>{s}단계</option>)}
                   </select>
                 </div>
               )}
