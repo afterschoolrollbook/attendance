@@ -44,7 +44,8 @@ const DB = {
   prices:      async (vid) => {
     const prods = ((await dbCall('getAll','hqVendorProducts'))||[]).filter(p=>p.vendorId===vid&&!p._deleted)
     const pids  = new Set(prods.map(p=>p.id))
-    return ((await dbCall('getAll','hqVendorPrices'))||[]).filter(pr=>pids.has(pr.productId))
+    const all   = ((await dbCall('getAll','hqVendorPrices'))||[])
+    return all.filter(pr=>pids.has(pr.productId))
   },
   savePrice:   async (p)   => dbCall('upsert','hqVendorPrices',{data:p}),
 }
