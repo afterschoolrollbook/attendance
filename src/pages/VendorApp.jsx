@@ -120,37 +120,6 @@ function FileRow({ item, onDelete, onEdit }) {
 }
 
 // ── 사이드바
-function Sidebar({ vendorSession, onLogout }) {
-  return (
-    <aside style={{ width:'210px', minWidth:'210px', background:C.sidebar, display:'flex', flexDirection:'column', height:'100vh', position:'sticky', top:0, fontFamily:'Noto Sans KR, sans-serif' }}>
-      <div style={{ padding:'24px 20px 20px', borderBottom:'1px solid #27272a' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-          <span style={{ fontSize:'22px' }}>🎒</span>
-          <div>
-            <div style={{ fontSize:'14px', fontWeight:700, color:'#fff' }}>업체 파트너</div>
-            <div style={{ fontSize:'11px', color:'#71717a', marginTop:'2px' }}>방과후 출석부</div>
-          </div>
-        </div>
-      </div>
-      <div style={{ padding:'14px 20px', borderBottom:'1px solid #27272a' }}>
-        <div style={{ fontSize:'13px', fontWeight:600, color:'#fff', marginBottom:'2px' }}>🏢 {vendorSession?.vendor?.name||'업체명'}</div>
-        <div style={{ fontSize:'11px', color:'#71717a' }}>{vendorSession?.name||vendorSession?.email}</div>
-        <div style={{ marginTop:'6px', display:'inline-block', fontSize:'10px', fontWeight:600, padding:'2px 8px', borderRadius:'999px', background:C.primary, color:'#fff' }}>파트너</div>
-      </div>
-      <nav style={{ flex:1, padding:'10px 0' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 20px', background:'#f9731618', borderLeft:`3px solid ${C.primary}`, color:C.primary, fontSize:'14px', fontWeight:600 }}>
-          <span>🎒</span> 교구 관리
-        </div>
-      </nav>
-      <div style={{ padding:'12px 20px', borderTop:'1px solid #27272a' }}>
-        <button type="button" onClick={onLogout} style={{ background:'none', border:'none', cursor:'pointer', color:'#71717a', fontSize:'14px', display:'flex', alignItems:'center', gap:'8px', fontFamily:'Noto Sans KR, sans-serif' }}>
-          <span>🚪</span> 로그아웃
-        </button>
-      </div>
-    </aside>
-  )
-}
-
 // ── 메인 페이지
 function ProductsPage({ vendorId, vendorSession, subjects, products, contents, files, onReload }) {
   const [expandedVendor, setExpandedVendor] = useState(null)
@@ -742,11 +711,18 @@ function ProductsPage({ vendorId, vendorSession, subjects, products, contents, f
 }
 
 // ── 메인
-export function VendorApp({ vendorSession, onLogout }) {
+export function VendorApp({ vendorSession: initSession, onLogout }) {
+  const [vendorSession, setVendorSession] = useState(initSession)
   const [subjects, setSubjects] = useState([])
   const [products, setProducts] = useState([])
   const [contents, setContents] = useState([])
   const [files,    setFiles]    = useState([])
+
+  // 업체 수정 모달 — Supplies.jsx vendorModal 방식 그대로
+  const [vendorModal,  setVendorModal]  = useState(false)
+  const [vendorForm,   setVendorForm]   = useState({ name:'', managerName:'', contact:'', memo:'' })
+  const { success, error: toastError }  = useToast()
+
   const vendorId = vendorSession?.vendorId
 
   const reload = useCallback(async () => {
@@ -762,14 +738,93 @@ export function VendorApp({ vendorSession, onLogout }) {
 
   useEffect(() => { reload() }, [reload])
 
+  const openVendorModal = () => {
+    const v = vendorSession?.vendor || {}
+    setVendorForm({ name:v.name||'', managerName:v.managerName||'', contact:v.contact||'', memo:v.memo||'' })
+    setVendorModal(true)
+  }
+
+  const saveVendor = async () => {
+    if (!vendorForm.name) { toastError('업체명을 입력하세요'); return }
+    const v = vendorSession?.vendor || {}
+    await dbCall('upsert', 'hqVendors', { data: { ...v, ...vendorForm } })
+    const updated = { ...vendorSession, vendor: { ...v, ...vendorForm } }
+    localStorage.setItem(LS_SESSION, JSON.stringify(updated))
+    setVendorSession(updated)
+    setVendorModal(false)
+    success('수정이 완료되었습니다.')
+  }
+
   const handleLogout = () => { localStorage.removeItem(LS_SESSION); onLogout() }
+
+  const vendor = vendorSession?.vendor || {}
 
   return (
     <div style={{ display:'flex', minHeight:'100vh', fontFamily:'Noto Sans KR, sans-serif' }}>
-      <Sidebar vendorSession={vendorSession} onLogout={handleLogout} />
+      {/* 사이드바 */}
+      <aside style={{ width:'210px', minWidth:'210px', background:C.sidebar, display:'flex', flexDirection:'column', height:'100vh', position:'sticky', top:0, fontFamily:'Noto Sans KR, sans-serif' }}>
+        <div style={{ padding:'24px 20px 20px', borderBottom:'1px solid #27272a' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+            <span style={{ fontSize:'22px' }}>🎒</span>
+            <div>
+              <div style={{ fontSize:'14px', fontWeight:700, color:'#fff' }}>업체 파트너</div>
+              <div style={{ fontSize:'11px', color:'#71717a', marginTop:'2px' }}>방과후 출석부</div>
+            </div>
+          </div>
+        </div>
+        <div style={{ padding:'14px 20px', borderBottom:'1px solid #27272a' }}>
+          <div style={{ fontSize:'13px', fontWeight:600, color:'#fff', marginBottom:'2px' }}>🏢 {vendor.name||'업체명'}</div>
+          {vendor.managerName && <div style={{ fontSize:'11px', color:'#a1a1aa', marginTop:'2px' }}>👤 {vendor.managerName}</div>}
+          {vendor.contact     && <div style={{ fontSize:'11px', color:'#a1a1aa', marginTop:'2px' }}>📞 {vendor.contact}</div>}
+          {vendor.memo        && <div style={{ fontSize:'11px', color:'#a1a1aa', marginTop:'2px' }}>📌 {vendor.memo}</div>}
+          <div style={{ marginTop:'8px', display:'flex', gap:'6px', alignItems:'center' }}>
+            <span style={{ fontSize:'10px', fontWeight:600, padding:'2px 8px', borderRadius:'999px', background:C.primary, color:'#fff' }}>파트너</span>
+            <button type="button" onClick={openVendorModal} style={{ fontSize:'10px', fontWeight:600, padding:'2px 8px', borderRadius:'999px', background:'#3f3f46', color:'#a1a1aa', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+          </div>
+        </div>
+        <nav style={{ flex:1, padding:'10px 0' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 20px', background:'#f9731618', borderLeft:`3px solid ${C.primary}`, color:C.primary, fontSize:'14px', fontWeight:600 }}>
+            <span>🎒</span> 교구 관리
+          </div>
+        </nav>
+        <div style={{ padding:'12px 20px', borderTop:'1px solid #27272a' }}>
+          <button type="button" onClick={handleLogout} style={{ background:'none', border:'none', cursor:'pointer', color:'#71717a', fontSize:'14px', display:'flex', alignItems:'center', gap:'8px', fontFamily:'Noto Sans KR, sans-serif' }}>
+            <span>🚪</span> 로그아웃
+          </button>
+        </div>
+      </aside>
+
       <main style={{ flex:1, background:C.bg, overflowY:'auto' }}>
         <ProductsPage vendorId={vendorId} vendorSession={vendorSession} subjects={subjects} products={products} contents={contents} files={files} onReload={reload} />
       </main>
+
+      {/* 업체 정보 수정 모달 — Supplies.jsx vendorModal 방식 */}
+      {vendorModal && (
+        <div style={{ position:'fixed', inset:0, zIndex:3000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={e=>{ if(e.target===e.currentTarget) setVendorModal(false) }}>
+          <div style={{ background:'#fff', borderRadius:'16px', width:'460px', maxWidth:'95vw', padding:'24px', boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'20px' }}>🏢 업체 정보 수정</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+              {[
+                { label:'업체명 *',      key:'name',        placeholder:'예: (주)집현전에듀' },
+                { label:'담당자 이름',   key:'managerName', placeholder:'예: 홍길동' },
+                { label:'담당자 연락처', key:'contact',     placeholder:'예: 010-1234-5678' },
+                { label:'메모',          key:'memo',        placeholder:'비고' },
+              ].map(f=>(
+                <div key={f.key}>
+                  <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>{f.label}</label>
+                  <input value={vendorForm[f.key]} onChange={e=>setVendorForm(v=>({...v,[f.key]:e.target.value}))}
+                    placeholder={f.placeholder} style={iSt} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:'8px', marginTop:'20px' }}>
+              <button type="button" onClick={saveVendor} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정 완료</button>
+              <button type="button" onClick={()=>setVendorModal(false)} style={{ padding:'11px 18px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted }}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
