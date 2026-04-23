@@ -40,6 +40,9 @@ const DB = {
   files:       async (vid) => ((await dbCall('getAll','hqVendorFiles'))||[]).filter(f=>f.vendorId===vid&&!f._deleted),
   saveFile:    async (f)   => dbCall('upsert','hqVendorFiles',{data:f}),
   delFile:     async (id)  => dbCall('delete','hqVendorFiles',{id}),
+
+  prices:      async (vid) => ((await dbCall('getAll','hqVendorPrices'))||[]).filter(p=>p.vendorId===vid),
+  savePrice:   async (p)   => dbCall('upsert','hqVendorPrices',{data:p}),
 }
 
 // ── 엑셀 샘플/다운로드
@@ -115,6 +118,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
   const [products,   setProducts]   = useState([])
   const [contents,   setContents]   = useState([])
   const [files,      setFiles]      = useState([])
+  const [prices,     setPrices]     = useState([])
 
   // 과목 탭 — Supplies.jsx selSubject 방식 그대로
   const [selSubject,   setSelSubject]   = useState(null)
@@ -160,11 +164,12 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
 
   const reload = useCallback(async () => {
     if (!vendorId) return
-    const [s, p, c, f] = await Promise.all([
+    const [s, p, c, f, pr] = await Promise.all([
       DB.subjects(vendorId), DB.products(vendorId),
       DB.allContents(vendorId), DB.files(vendorId),
+      DB.prices(vendorId),
     ])
-    setSubjects(s); setProducts(p); setContents(c); setFiles(f)
+    setSubjects(s); setProducts(p); setContents(c); setFiles(f); setPrices(pr)
   }, [vendorId])
 
   useEffect(() => { reload() }, [reload])
@@ -529,14 +534,60 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                                             <span style={{ fontSize:'12px', color:C.muted }}>{isOpen?'▲':'▼'}</span>
                                           </div>
                                           {isOpen && (
-                                            <div style={{ padding:'6px 12px 10px', borderTop:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:'3px' }}>
-                                              {plans.map(pl=>(
-                                                <div key={pl.id} style={{ display:'grid', gridTemplateColumns:'40px 1fr 1fr', gap:'6px', fontSize:'12px', padding:'4px 0', borderBottom:'1px solid #f9fafb' }}>
-                                                  <span style={{ color:C.primary, fontWeight:700 }}>{pl.sessionNo}차시</span>
-                                                  <span style={{ color:C.text }}>{pl.title}</span>
-                                                  <span style={{ color:C.muted }}>{pl.supplies?`📌 ${pl.supplies}`:''}</span>
-                                                </div>
-                                              ))}
+                                            <div style={{ borderTop:`1px solid ${C.border}` }}>
+                                              {/* 차시 목록 */}
+                                              <div style={{ padding:'6px 12px 10px', display:'flex', flexDirection:'column', gap:'3px' }}>
+                                                {plans.map(pl=>(
+                                                  <div key={pl.id} style={{ display:'grid', gridTemplateColumns:'40px 1fr 1fr', gap:'6px', fontSize:'12px', padding:'4px 0', borderBottom:'1px solid #f9fafb' }}>
+                                                    <span style={{ color:C.primary, fontWeight:700 }}>{pl.sessionNo}차시</span>
+                                                    <span style={{ color:C.text }}>{pl.title}</span>
+                                                    <span style={{ color:C.muted }}>{pl.supplies?`📌 ${pl.supplies}`:''}</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                              {/* 단가 입력 */}
+                                              {(() => {
+                                                const priceRec = prices.find(pr=>pr.productId===p.id&&pr.stage===stage) || {}
+                                                const priceFields = [
+                                                  { key:'priceRetail',  label:'소비자가' },
+                                                  { key:'priceSchool',  label:'학교공급가' },
+                                                  { key:'priceTeacher', label:'강사가' },
+                                                  { key:'priceBranch',  label:'지사가' },
+                                                ]
+                                                return (
+                                                  <div style={{ padding:'10px 12px 12px', borderTop:`1px solid ${C.border}`, background:'#fffbf5' }}>
+                                                    <div style={{ fontSize:'11px', fontWeight:700, color:C.primary, marginBottom:'8px' }}>💰 단계별 단가</div>
+                                                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'8px' }}>
+                                                      {priceFields.map(({key, label})=>(
+                                                        <div key={key}>
+                                                          <label style={{ fontSize:'10px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>{label}</label>
+                                                          <input
+                                                            type="number"
+                                                            defaultValue={priceRec[key]||''}
+                                                            placeholder="0"
+                                                            onBlur={async e=>{
+                                                              const val = Number(e.target.value)||0
+                                                              const existing = prices.find(pr=>pr.productId===p.id&&pr.stage===stage)
+                                                              await DB.savePrice({
+                                                                id: existing?.id || uid(),
+                                                                vendorId, productId:p.id, stage,
+                                                                priceRetail:  existing?.priceRetail  || 0,
+                                                                priceSchool:  existing?.priceSchool  || 0,
+                                                                priceTeacher: existing?.priceTeacher || 0,
+                                                                priceBranch:  existing?.priceBranch  || 0,
+                                                                [key]: val,
+                                                                createdAt: existing?.createdAt || now(),
+                                                              })
+                                                              reload()
+                                                            }}
+                                                            style={{ width:'100%', padding:'6px 8px', borderRadius:'7px', border:`1.5px solid ${C.border}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', textAlign:'right' }}
+                                                          />
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                )
+                                              })()}
                                             </div>
                                           )}
                                         </div>
