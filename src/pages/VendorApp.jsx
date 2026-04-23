@@ -40,9 +40,6 @@ const DB = {
   files:       async (vid) => ((await dbCall('getAll','hqVendorFiles'))||[]).filter(f=>f.vendorId===vid&&!f._deleted),
   saveFile:    async (f)   => dbCall('upsert','hqVendorFiles',{data:f}),
   delFile:     async (id)  => dbCall('delete','hqVendorFiles',{id}),
-
-  prices:      async (vid) => ((await dbCall('getAll','hqVendorPrices'))||[]).filter(p=>p.vendorId===vid),
-  savePrice:   async (p)   => dbCall('upsert','hqVendorPrices',{data:p}),
 }
 
 // ── 엑셀 샘플/다운로드
@@ -118,7 +115,6 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
   const [products,   setProducts]   = useState([])
   const [contents,   setContents]   = useState([])
   const [files,      setFiles]      = useState([])
-  const [prices,     setPrices]     = useState([])
 
   // 과목 탭 — Supplies.jsx selSubject 방식 그대로
   const [selSubject,   setSelSubject]   = useState(null)
@@ -136,7 +132,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
   // 교구 모달
   const [productModal,       setProductModal]       = useState(false)
   const [editingProduct,     setEditingProduct]     = useState(null)
-  const [productForm,        setProductForm]        = useState({ id:null, name:'', stageCount:10, sessionsPerStage:12, alertSession:3 })
+  const [productForm,        setProductForm]        = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:3 })
   const [productStageTab,    setProductStageTab]    = useState(1)
   const [stageSessionTitles, setStageSessionTitles] = useState({})
 
@@ -155,7 +151,6 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
   const [uploading,     setUploading]     = useState(false)
   const fileRef = useRef()
 
-  const [innerTab, setInnerTab] = useState('supply')
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const { success, error: toastError } = useToast()
 
@@ -164,12 +159,11 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
 
   const reload = useCallback(async () => {
     if (!vendorId) return
-    const [s, p, c, f, pr] = await Promise.all([
+    const [s, p, c, f] = await Promise.all([
       DB.subjects(vendorId), DB.products(vendorId),
       DB.allContents(vendorId), DB.files(vendorId),
-      DB.prices(vendorId),
     ])
-    setSubjects(s); setProducts(p); setContents(c); setFiles(f); setPrices(pr)
+    setSubjects(s); setProducts(p); setContents(c); setFiles(f)
   }, [vendorId])
 
   useEffect(() => { reload() }, [reload])
@@ -248,7 +242,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
         if (!subject) { const n={id:uid(),vendorId,name:sName,createdAt:now()}; await DB.saveSubject(n); subject=n; myS.push(n); sc++ }
         for (const [pName, plans] of Object.entries(sData.products)) {
           let product = myP.find(p=>p.subjectId===subject.id&&p.name===pName)
-          if (!product) { const n={id:uid(),vendorId,subjectId:subject.id,name:pName,stageCount:Math.max(...plans.map(p=>p.stage)),sessionsPerStage:12,alertSession:3,createdAt:now()}; await DB.saveProduct(n); product=n; myP.push(n); pc++ }
+          if (!product) { const n={id:uid(),vendorId,subjectId:subject.id,name:pName,maxStage:Math.max(...plans.map(p=>p.stage)),sessionsPerStage:12,alertSession:3,createdAt:now()}; await DB.saveProduct(n); product=n; myP.push(n); pc++ }
           for (const pl of plans) {
             if (!myC.find(x=>x.productId===product.id&&x.stage===pl.stage&&x.sessionNo===pl.sessionNo)) {
               const n={id:uid(),stageId:`${product.id}_${pl.stage}`,productId:product.id,stage:pl.stage,sessionNo:pl.sessionNo,title:pl.title,supplies:pl.supplies,createdAt:now()}
@@ -257,27 +251,26 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
           }
         }
       }
-      await reload()
+      reload()
       if (!selSubject && sc > 0) setSelSubject(Object.keys(subjectMap)[0])
       success(`과목 ${sc}개, 교구 ${pc}개, 차시 ${cc}개 등록 완료!`)
-      setTimeout(() => window.location.reload(), 800)
     } catch(err) { toastError('파일 읽기 실패: ' + err.message) }
   }
 
   // ── 교구 모달
   const openProductModal = (subjectId, existing=null) => {
     if (existing) {
-      const maxS=existing.stageCount||10; const perS=existing.sessionsPerStage||12
+      const maxS=existing.maxStage||10; const perS=existing.sessionsPerStage||12
       const titles={}
       for (let s=1;s<=maxS;s++) {
         const plans=contents.filter(c=>c.productId===existing.id&&c.stage===s).sort((a,b)=>a.sessionNo-b.sessionNo)
         titles[s]=Array.from({length:perS},(_,i)=>({title:plans[i]?.title||'',memo:plans[i]?.supplies||''}))
       }
-      setProductForm({id:existing.id,name:existing.name,subjectId:existing.subjectId,stageCount:maxS,sessionsPerStage:perS,alertSession:existing.alertSession||3})
+      setProductForm({id:existing.id,name:existing.name,subjectId:existing.subjectId,maxStage:maxS,sessionsPerStage:perS,alertSession:existing.alertSession||3})
       setStageSessionTitles(titles); setEditingProduct(existing)
     } else {
       const titles={}; for(let s=1;s<=10;s++) titles[s]=Array.from({length:12},()=>({title:'',memo:''}))
-      setProductForm({id:null,name:'',subjectId,stageCount:10,sessionsPerStage:12,alertSession:3})
+      setProductForm({id:null,name:'',subjectId,maxStage:10,sessionsPerStage:12,alertSession:3})
       setStageSessionTitles(titles); setEditingProduct(null)
     }
     setProductStageTab(1); setProductModal(true)
@@ -285,8 +278,8 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
   const saveProduct = async () => {
     if (!productForm.name.trim()) { toastError('교구명을 입력하세요'); return }
     const isEdit=!!productForm.id; const productId=isEdit?productForm.id:uid()
-    await DB.saveProduct({id:productId,vendorId,subjectId:productForm.subjectId,name:productForm.name,stageCount:productForm.stageCount,sessionsPerStage:productForm.sessionsPerStage,alertSession:productForm.alertSession,createdAt:isEdit?(editingProduct?.createdAt||now()):now()})
-    for (let stage=1;stage<=productForm.stageCount;stage++) {
+    await DB.saveProduct({id:productId,vendorId,subjectId:productForm.subjectId,name:productForm.name,maxStage:productForm.maxStage,sessionsPerStage:productForm.sessionsPerStage,alertSession:productForm.alertSession,createdAt:isEdit?(editingProduct?.createdAt||now()):now()})
+    for (let stage=1;stage<=productForm.maxStage;stage++) {
       const items=stageSessionTitles[stage]||[]
       for (let idx=0;idx<items.length;idx++) {
         const t=items[idx]?.title||''; const m=items[idx]?.memo||''
@@ -403,7 +396,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
           <div style={{ display:'flex', gap:'6px', marginBottom:'20px', flexWrap:'wrap', alignItems:'center' }}>
             {subjects.map(s => (
               <div key={s.id} style={{ display:'flex', alignItems:'center' }}>
-                <button type="button" onClick={()=>{ setSelSubject(s.name); setInnerTab('supply') }}
+                <button type="button" onClick={()=>setSelSubject(s.name)}
                   style={{ padding:'8px 16px', borderRadius: selSubject===s.name ? '8px 0 0 8px' : '8px', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600, fontSize:'14px', background: selSubject===s.name ? C.primary : '#f3f4f6', color: selSubject===s.name ? '#fff' : C.muted }}>
                   {s.name}
                 </button>
@@ -419,27 +412,8 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
             </button>
           </div>
 
-          {/* 선택된 과목이 있을 때 */}
-          {selSubject && (() => {
-            const INNER_TABS = [
-              { key:'supply', label:`🎒 교구(${selSubject||''})` },
-              { key:'plan',   label:`📋 지도안(${selSubject||''})` },
-              { key:'promo',  label:`🖼 홍보물(${selSubject||''})` },
-            ]
-            return (
-              <>
-                {/* 내부 탭 */}
-                <div style={{ display:'flex', marginBottom:'20px', borderBottom:`1px solid ${C.border}`, overflowX:'auto' }}>
-                  {INNER_TABS.map(t => (
-                    <button key={t.key} type="button" onClick={() => setInnerTab(t.key)}
-                      style={{ padding:'10px 18px', border:'none', cursor:'pointer', background:'none', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight: innerTab===t.key ? 700 : 400, color: innerTab===t.key ? C.primary : C.muted, borderBottom: innerTab===t.key ? `2px solid ${C.primary}` : '2px solid transparent', marginBottom:'-1px', whiteSpace:'nowrap' }}>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* ── 교구 탭 */}
-                {innerTab === 'supply' && (
+          {/* 선택된 과목이 있을 때 — 업체 카드 */}
+          {selSubject && (
             <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
 
               {/* 업체 헤더 */}
@@ -466,6 +440,12 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
                     <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>🤖 교구 목록</span>
                     <div style={{ display:'flex', gap:'6px' }}>
+                      {selProducts.length>0 && <button type="button" onClick={()=>downloadProductsExcel(vendor.name||'', selProducts, contents)} style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.success}`, background:'#f0fdf4', color:C.success, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운로드</button>}
+                      <button type="button" onClick={downloadSampleExcel} style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.blue}`, background:'#eff6ff', color:C.blue, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플</button>
+                      <label style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.purple}`, background:'#f5f3ff', color:C.purple, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                        📤 일괄등록
+                        <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleBulkUpload} />
+                      </label>
                       <button type="button" onClick={()=>openProductModal(selSubjectObj?.id)} style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 교구 등록</button>
                     </div>
                   </div>
@@ -497,18 +477,12 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                                 </div>
                                 <button type="button" onClick={()=>openProductModal(selSubjectObj?.id,p)} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
                                 <button type="button" onClick={()=>deleteProduct(p)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                                <button type="button" onClick={()=>downloadProductsExcel(vendor.name||'', [p], contents)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운</button>
-                                <button type="button" onClick={downloadSampleExcel} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.blue}`, background:'#eff6ff', color:C.blue, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플</button>
-                                <label style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.purple}`, background:'#f5f3ff', color:C.purple, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                                  📤 일괄등록
-                                  <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleBulkUpload} />
-                                </label>
                               </div>
                               {/* 단계별 진도체크 */}
                               <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
                                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
                                   <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📊 단계별 진도체크</span>
-                                  {(()=>{ const next=stages.length>0?Math.max(...stages)+1:1; return next<=(p.stageCount||10)?(<button type="button" onClick={()=>openSessionPlan(p.id,next)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>):null })()}
+                                  {(()=>{ const next=stages.length>0?Math.max(...stages)+1:1; return next<=(p.maxStage||10)?(<button type="button" onClick={()=>openSessionPlan(p.id,next)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>):null })()}
                                 </div>
                                 {stages.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 차시가 없습니다</div> : (
                                   <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
@@ -525,69 +499,17 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                                             </div>
                                             <button type="button" onClick={e=>{ e.stopPropagation(); openSessionPlan(p.id,stage) }} style={{ padding:'3px 10px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
                                             <button type="button" onClick={e=>{ e.stopPropagation(); setDeleteConfirm({ msg:`${stage}단계 차시를 삭제하시겠습니까?`, onOk:async()=>{ for(const c of plans) await DB.delContent(c.id); reload(); success('삭제가 완료되었습니다.') }}) }} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                                            <button type="button" onClick={e=>{ e.stopPropagation(); downloadProductsExcel(vendor.name||'', [p], contents.filter(c=>c.productId===p.id&&c.stage===stage)) }} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운</button>
-                                            <button type="button" onClick={e=>{ e.stopPropagation(); downloadSampleExcel() }} style={{ padding:'3px 8px', borderRadius:'6px', border:`1px solid ${C.blue}`, background:'#eff6ff', color:C.blue, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플</button>
-                                            <label onClick={e=>e.stopPropagation()} style={{ padding:'3px 8px', borderRadius:'6px', border:`1px solid ${C.purple}`, background:'#f5f3ff', color:C.purple, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                                              📤 일괄등록
-                                              <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleBulkUpload} />
-                                            </label>
                                             <span style={{ fontSize:'12px', color:C.muted }}>{isOpen?'▲':'▼'}</span>
                                           </div>
                                           {isOpen && (
-                                            <div style={{ borderTop:`1px solid ${C.border}` }}>
-                                              {/* 차시 목록 */}
-                                              <div style={{ padding:'6px 12px 10px', display:'flex', flexDirection:'column', gap:'3px' }}>
-                                                {plans.map(pl=>(
-                                                  <div key={pl.id} style={{ display:'grid', gridTemplateColumns:'40px 1fr 1fr', gap:'6px', fontSize:'12px', padding:'4px 0', borderBottom:'1px solid #f9fafb' }}>
-                                                    <span style={{ color:C.primary, fontWeight:700 }}>{pl.sessionNo}차시</span>
-                                                    <span style={{ color:C.text }}>{pl.title}</span>
-                                                    <span style={{ color:C.muted }}>{pl.supplies?`📌 ${pl.supplies}`:''}</span>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                              {/* 단가 입력 */}
-                                              {(() => {
-                                                const priceRec = prices.find(pr=>pr.productId===p.id&&pr.stage===stage) || {}
-                                                const priceFields = [
-                                                  { key:'priceRetail',  label:'소비자가' },
-                                                  { key:'priceSchool',  label:'학교공급가' },
-                                                  { key:'priceTeacher', label:'강사가' },
-                                                  { key:'priceBranch',  label:'지사가' },
-                                                ]
-                                                return (
-                                                  <div style={{ padding:'10px 12px 12px', borderTop:`1px solid ${C.border}`, background:'#fffbf5' }}>
-                                                    <div style={{ fontSize:'11px', fontWeight:700, color:C.primary, marginBottom:'8px' }}>💰 단계별 단가</div>
-                                                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'8px' }}>
-                                                      {priceFields.map(({key, label})=>(
-                                                        <div key={key}>
-                                                          <label style={{ fontSize:'10px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>{label}</label>
-                                                          <input
-                                                            type="number"
-                                                            defaultValue={priceRec[key]||''}
-                                                            placeholder="0"
-                                                            onBlur={async e=>{
-                                                              const val = Number(e.target.value)||0
-                                                              const existing = prices.find(pr=>pr.productId===p.id&&pr.stage===stage)
-                                                              await DB.savePrice({
-                                                                id: existing?.id || uid(),
-                                                                vendorId, productId:p.id, stage,
-                                                                priceRetail:  existing?.priceRetail  || 0,
-                                                                priceSchool:  existing?.priceSchool  || 0,
-                                                                priceTeacher: existing?.priceTeacher || 0,
-                                                                priceBranch:  existing?.priceBranch  || 0,
-                                                                [key]: val,
-                                                                createdAt: existing?.createdAt || now(),
-                                                              })
-                                                              reload()
-                                                            }}
-                                                            style={{ width:'100%', padding:'6px 8px', borderRadius:'7px', border:`1.5px solid ${C.border}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', textAlign:'right' }}
-                                                          />
-                                                        </div>
-                                                      ))}
-                                                    </div>
-                                                  </div>
-                                                )
-                                              })()}
+                                            <div style={{ padding:'6px 12px 10px', borderTop:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:'3px' }}>
+                                              {plans.map(pl=>(
+                                                <div key={pl.id} style={{ display:'grid', gridTemplateColumns:'40px 1fr 1fr', gap:'6px', fontSize:'12px', padding:'4px 0', borderBottom:'1px solid #f9fafb' }}>
+                                                  <span style={{ color:C.primary, fontWeight:700 }}>{pl.sessionNo}차시</span>
+                                                  <span style={{ color:C.text }}>{pl.title}</span>
+                                                  <span style={{ color:C.muted }}>{pl.supplies?`📌 ${pl.supplies}`:''}</span>
+                                                </div>
+                                              ))}
                                             </div>
                                           )}
                                         </div>
@@ -632,83 +554,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                 </div>
               )}
             </div>
-                )} {/* end innerTab === 'supply' */}
-
-                {/* ── 지도안 탭 */}
-                {innerTab === 'plan' && (
-                  <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px 18px' }}>
-                    <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>교구별 연간/차시별 지도안 파일을 관리합니다.</div>
-                    {selProducts.length===0 ? (
-                      <div style={{ textAlign:'center', padding:'40px', color:C.muted }}><div style={{ fontSize:'32px', marginBottom:'8px' }}>📋</div><div>교구를 먼저 등록해주세요</div></div>
-                    ) : (
-                      <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                        {selProducts.map(p => {
-                          const pFiles = files.filter(f=>f.productId===p.id)
-                          const annualFiles  = pFiles.filter(f=>f.fileType==='annual')
-                          const sessionFiles = pFiles.filter(f=>f.fileType==='session')
-                          return (
-                            <div key={p.id} style={{ background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-                              <div style={{ padding:'10px 14px', display:'flex', alignItems:'center', gap:'8px', borderBottom:`1px solid ${C.border}` }}>
-                                <span style={{ fontSize:'16px' }}>🤖</span>
-                                <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{p.name}</span>
-                              </div>
-                              <div style={{ padding:'8px 14px 10px', borderBottom:`1px solid ${C.border}` }}>
-                                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px' }}>
-                                  <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📅 연간지도안</span>
-                                  <button type="button" onClick={()=>openFileModal('annual',p.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
-                                </div>
-                                {annualFiles.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 연간지도안이 없습니다</div>
-                                  : <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>{annualFiles.map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('annual',item.productId,'',item)} />)}</div>}
-                              </div>
-                              <div style={{ padding:'8px 14px 10px' }}>
-                                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px' }}>
-                                  <span style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>📝 차시별지도안 파일</span>
-                                  <button type="button" onClick={()=>openFileModal('session',p.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
-                                </div>
-                                {sessionFiles.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 차시별지도안 파일이 없습니다</div>
-                                  : <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>{sessionFiles.sort((a,b)=>Number(a.stage||0)-Number(b.stage||0)).map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('session',item.productId,item.stage||'',item)} />)}</div>}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* ── 홍보물 탭 */}
-                {innerTab === 'promo' && (
-                  <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px 18px' }}>
-                    <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>교구별 홍보물 파일을 관리합니다.</div>
-                    {selProducts.length===0 ? (
-                      <div style={{ textAlign:'center', padding:'40px', color:C.muted }}><div style={{ fontSize:'32px', marginBottom:'8px' }}>🖼</div><div>교구를 먼저 등록해주세요</div></div>
-                    ) : (
-                      <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                        {selProducts.map(p => {
-                          const promoFiles = files.filter(f=>f.productId===p.id&&f.fileType==='promo')
-                          return (
-                            <div key={p.id} style={{ background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-                              <div style={{ padding:'10px 14px', display:'flex', alignItems:'center', gap:'8px', borderBottom:`1px solid ${C.border}` }}>
-                                <span style={{ fontSize:'16px' }}>🤖</span>
-                                <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{p.name}</span>
-                                <div style={{ flex:1 }} />
-                                <button type="button" onClick={()=>openFileModal('promo',p.id)} style={{ padding:'2px 8px', borderRadius:'5px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 추가</button>
-                              </div>
-                              <div style={{ padding:'8px 14px 10px' }}>
-                                {promoFiles.length===0 ? <div style={{ fontSize:'12px', color:C.muted }}>등록된 홍보물이 없습니다</div>
-                                  : <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>{promoFiles.map(f=><FileRow key={f.id} item={f} onDelete={deleteFile} onEdit={item=>openFileModal('promo',item.productId,'',item)} />)}</div>}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-              </>
-            )
-          })()}
+          )}
         </div>
       </main>
 
@@ -771,10 +617,18 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교구명 *</label>
                 <input value={productForm.name} onChange={e=>setProductForm(v=>({...v,name:e.target.value}))} placeholder="예: 큐보 1단계" style={iSt} autoFocus />
               </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px' }}>
+                {[{key:'maxStage',label:'최대 단계',min:1,max:20},{key:'sessionsPerStage',label:'단계당 차시 수',min:1,max:50},{key:'alertSession',label:'준비 알림 (차시 전)',min:1,max:50}].map(({key,label,min,max})=>(
+                  <div key={key}>
+                    <label style={{ fontSize:'11px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>{label}</label>
+                    <input type="number" min={min} max={max} value={productForm[key]} onChange={e=>{ const val=Number(e.target.value); setProductForm(v=>({...v,[key]:val})); if(key==='maxStage'){ setStageSessionTitles(prev=>{ const n={...prev}; for(let s=1;s<=val;s++) if(!n[s]) n[s]=Array.from({length:productForm.sessionsPerStage},()=>({title:'',memo:''})); return n }); if(productStageTab>val) setProductStageTab(val) } if(key==='sessionsPerStage'){ setStageSessionTitles(prev=>{ const n={}; for(let s=1;s<=productForm.maxStage;s++){ const c=prev[s]||[]; n[s]=Array.from({length:val},(_,i)=>c[i]||{title:'',memo:''}) } return n }) } }} style={{ ...iSt, textAlign:'center' }} />
+                  </div>
+                ))}
+              </div>
               <div>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>단계 선택</label>
                 <select value={productStageTab} onChange={e=>{ const st=Number(e.target.value); setProductStageTab(st); setStageSessionTitles(prev=>({...prev,[st]:prev[st]||Array.from({length:productForm.sessionsPerStage},()=>({title:'',memo:''})) })) }} style={{ ...iSt, background:'#fff' }}>
-                  {Array.from({length:productForm.stageCount},(_,i)=>i+1).map(s=>{ const filled=(stageSessionTitles[s]||[]).filter(t=>(t?.title||'').trim()).length; return <option key={s} value={s}>{s}단계{filled>0?` (${filled}개 입력됨)`:''}</option> })}
+                  {Array.from({length:productForm.maxStage},(_,i)=>i+1).map(s=>{ const filled=(stageSessionTitles[s]||[]).filter(t=>(t?.title||'').trim()).length; return <option key={s} value={s}>{s}단계{filled>0?` (${filled}개 입력됨)`:''}</option> })}
                 </select>
               </div>
               <div style={{ border:`1px solid ${C.border}`, borderRadius:'10px', overflow:'hidden' }}>
@@ -872,7 +726,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                   <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>단계 선택 *</label>
                   <select value={fileStage} onChange={e=>setFileStage(e.target.value)} style={{ ...iSt, background:'#fff' }}>
                     <option value=''>-- 단계를 선택하세요 --</option>
-                    {Array.from({length:(selProducts.find(p=>p.id===fileProductId)?.stageCount||10)},(_,i)=>i+1).map(s=><option key={s} value={s}>{s}단계</option>)}
+                    {Array.from({length:(selProducts.find(p=>p.id===fileProductId)?.maxStage||10)},(_,i)=>i+1).map(s=><option key={s} value={s}>{s}단계</option>)}
                   </select>
                 </div>
               )}
