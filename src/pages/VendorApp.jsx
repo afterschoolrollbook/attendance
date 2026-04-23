@@ -415,18 +415,23 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
             </button>
           </div>
 
-          {/* ── 내부 탭 바 (Supplies.jsx INNER_TABS 방식) */}
-          {selSubject && (() => {
-            const INNER_TABS = [
-              { key:'product', label:`🎒 교구(${selSubject})` },
-              { key:'plan',    label:`📋 지도안(${selSubject})` },
-              { key:'promo',   label:`🖼 홍보물(${selSubject})` },
-            ]
-            const allFiles = files.filter(f => selProducts.some(p => p.id === f.productId))
-            const allAnnual  = allFiles.filter(f=>f.fileType==='annual')
-            const allSession = allFiles.filter(f=>f.fileType==='session')
-            const allPromo   = allFiles.filter(f=>f.fileType==='promo')
+          {/* ── 내부 탭 바 — Supplies.jsx와 동일하게 과목 탭 바로 아래, 카드 밖 독립 렌더 */}
+          {selSubject && (
+            <>
+              <div style={{ display:'flex', marginBottom:'20px', borderBottom:`1px solid ${C.border}`, overflowX:'auto' }}>
+                {[
+                  { key:'product', label:`🎒 교구(${selSubject})` },
+                  { key:'plan',    label:`📋 지도안(${selSubject})` },
+                  { key:'promo',   label:`🖼 홍보물(${selSubject})` },
+                ].map(t=>(
+                  <button key={t.key} type="button" onClick={()=>setInnerTab(t.key)}
+                    style={{ padding:'10px 18px', border:'none', cursor:'pointer', background:'none', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight: innerTab===t.key ? 700 : 400, color: innerTab===t.key ? C.primary : C.muted, borderBottom: innerTab===t.key ? `2px solid ${C.primary}` : '2px solid transparent', marginBottom:'-1px', whiteSpace:'nowrap' }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
 
+              {(() => {
             return (
               <div style={{ background:C.card, borderRadius:'12px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
 
@@ -636,6 +641,8 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
               </div>
             )
           })()}
+            </>
+          )}
         </div>
       </main>
 
