@@ -64,12 +64,13 @@ function downloadSampleExcel() {
   XLSX.utils.book_append_sheet(wb, ws, '교구목록샘플')
   XLSX.writeFile(wb, '교구목록_샘플양식.xlsx')
 }
-function downloadProductsExcel(vendorName, products, contents) {
+function downloadProductsExcel(vendorName, products, contents, subjects=[]) {
   const rows = [['업체명','담당자','연락처','과목','교구명','단계','차시번호','차시제목','메모']]
   products.forEach(p => {
+    const subjectName = subjects.find(s=>s.id===p.subjectId)?.name || ''
     const plans = contents.filter(c=>c.productId===p.id).sort((a,b)=>a.stage-b.stage||a.sessionNo-b.sessionNo)
-    if (!plans.length) rows.push([vendorName,'','','',p.name,'','','',''])
-    else plans.forEach(pl=>rows.push([vendorName,'','','',p.name,pl.stage||'',pl.sessionNo||'',pl.title||'',pl.supplies||'']))
+    if (!plans.length) rows.push([vendorName,'','',subjectName,p.name,'','','',''])
+    else plans.forEach(pl=>rows.push([vendorName,'','',subjectName,p.name,pl.stage||'',pl.sessionNo||'',pl.title||'',pl.supplies||'']))
   })
   const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = [{wch:16},{wch:10},{wch:14},{wch:10},{wch:20},{wch:8},{wch:10},{wch:30},{wch:20}]
@@ -481,7 +482,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                                 </div>
                                 <button type="button" onClick={()=>openProductModal(selSubjectObj?.id,p)} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
                                 <button type="button" onClick={()=>deleteProduct(p)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                                <button type="button" onClick={()=>downloadProductsExcel(vendor.name||'', [p], contents)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운</button>
+                                <button type="button" onClick={()=>downloadProductsExcel(vendor.name||'', [p], contents, subjects)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운</button>
                                 <button type="button" onClick={downloadSampleExcel} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.blue}`, background:'#eff6ff', color:C.blue, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플</button>
                                 <label style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.purple}`, background:'#f5f3ff', color:C.purple, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                   📤 일괄등록
@@ -509,7 +510,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                                             </div>
                                             <button type="button" onClick={e=>{ e.stopPropagation(); openSessionPlan(p.id,stage) }} style={{ padding:'3px 10px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
                                             <button type="button" onClick={e=>{ e.stopPropagation(); setDeleteConfirm({ msg:`${stage}단계 차시를 삭제하시겠습니까?`, onOk:async()=>{ for(const c of plans) await DB.delContent(c.id); reload(); success('삭제가 완료되었습니다.') }}) }} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                                            <button type="button" onClick={e=>{ e.stopPropagation(); downloadProductsExcel(vendor.name||'', [p], contents.filter(c=>c.productId===p.id&&c.stage===stage)) }} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운</button>
+                                            <button type="button" onClick={e=>{ e.stopPropagation(); downloadProductsExcel(vendor.name||'', [p], contents.filter(c=>c.productId===p.id&&c.stage===stage), subjects) }} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운</button>
                                             <button type="button" onClick={e=>{ e.stopPropagation(); downloadSampleExcel() }} style={{ padding:'3px 8px', borderRadius:'6px', border:`1px solid ${C.blue}`, background:'#eff6ff', color:C.blue, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플</button>
                                             <label onClick={e=>e.stopPropagation()} style={{ padding:'3px 8px', borderRadius:'6px', border:`1px solid ${C.purple}`, background:'#f5f3ff', color:C.purple, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                               📤 일괄등록
