@@ -460,12 +460,6 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
                     <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>🤖 교구 목록</span>
                     <div style={{ display:'flex', gap:'6px' }}>
-                      {selProducts.length>0 && <button type="button" onClick={()=>downloadProductsExcel(vendor.name||'', selProducts, contents)} style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.success}`, background:'#f0fdf4', color:C.success, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운로드</button>}
-                      <button type="button" onClick={downloadSampleExcel} style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.blue}`, background:'#eff6ff', color:C.blue, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플</button>
-                      <label style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.purple}`, background:'#f5f3ff', color:C.purple, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                        📤 일괄등록
-                        <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleBulkUpload} />
-                      </label>
                       <button type="button" onClick={()=>openProductModal(selSubjectObj?.id)} style={{ padding:'4px 10px', borderRadius:'6px', border:`1.5px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 교구 등록</button>
                     </div>
                   </div>
@@ -497,6 +491,12 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                                 </div>
                                 <button type="button" onClick={()=>openProductModal(selSubjectObj?.id,p)} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
                                 <button type="button" onClick={()=>deleteProduct(p)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                                <button type="button" onClick={()=>downloadProductsExcel(vendor.name||'', [p], contents)} style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운</button>
+                                <button type="button" onClick={downloadSampleExcel} style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.blue}`, background:'#eff6ff', color:C.blue, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플</button>
+                                <label style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.purple}`, background:'#f5f3ff', color:C.purple, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                  📤 일괄등록
+                                  <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleBulkUpload} />
+                                </label>
                               </div>
                               {/* 단계별 진도체크 */}
                               <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
@@ -519,6 +519,12 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
                                             </div>
                                             <button type="button" onClick={e=>{ e.stopPropagation(); openSessionPlan(p.id,stage) }} style={{ padding:'3px 10px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
                                             <button type="button" onClick={e=>{ e.stopPropagation(); setDeleteConfirm({ msg:`${stage}단계 차시를 삭제하시겠습니까?`, onOk:async()=>{ for(const c of plans) await DB.delContent(c.id); reload(); success('삭제가 완료되었습니다.') }}) }} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                                            <button type="button" onClick={e=>{ e.stopPropagation(); downloadProductsExcel(vendor.name||'', [p], contents.filter(c=>c.productId===p.id&&c.stage===stage)) }} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운</button>
+                                            <button type="button" onClick={e=>{ e.stopPropagation(); downloadSampleExcel() }} style={{ padding:'3px 8px', borderRadius:'6px', border:`1px solid ${C.blue}`, background:'#eff6ff', color:C.blue, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플</button>
+                                            <label onClick={e=>e.stopPropagation()} style={{ padding:'3px 8px', borderRadius:'6px', border:`1px solid ${C.purple}`, background:'#f5f3ff', color:C.purple, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                              📤 일괄등록
+                                              <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleBulkUpload} />
+                                            </label>
                                             <span style={{ fontSize:'12px', color:C.muted }}>{isOpen?'▲':'▼'}</span>
                                           </div>
                                           {isOpen && (
