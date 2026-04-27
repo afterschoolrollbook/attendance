@@ -8,15 +8,212 @@ const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL     || ''
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 export const isConfigured = !!SUPABASE_URL && !!SUPABASE_ANON
+export const FUNCTIONS_BASE = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1` : ''
 
 // ─── Supabase JS 클라이언트 (DB 직접 접근)
 export const supabase = isConfigured
   ? createClient(SUPABASE_URL, SUPABASE_ANON)
   : null
 
-// ─── Edge Function 호출 (이메일/SMS/푸시/OAuth 전용)
-const FUNCTIONS_BASE = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1` : ''
+// ─── 실제 DB 테이블 이름 매핑
+const TABLE_MAP = {
+  users:                'users',
+  classes:              'classes',
+  students:             'students',
+  attendance:           'attendance',
+  notes:                'notes',
+  adSlots:              'ad_slots',
+  attendanceTemplates:  'attendance_templates',
+  settings:             'settings',
+  revenueFees:          'revenueFees',
+  revenuePayments:      'revenuePayments',
+  trainings:            'trainings',
+  careers:              'careers',
+  educations:           'educations',
+  certificates:         'certificates',
+  awards:               'awards',
+  jobSubs:              'jobSubs',
+  branches:             'branches',
+  points:               'points',
+  parentMembers:        'parent_members',
+  teacherParentLinks:   'teacher_parent_links',
+  teacherServiceConfigs:'teacher_service_configs',
+  supplySubjects:       'supplySubjects',
+  supplyVendors:        'supplyVendors',
+  supplyItems:          'supplyItems',
+  supplyPlans:          'supplyPlans',
+  supplyPromos:         'supplyPromos',
+  supplyProducts:       'supplyProducts',
+  supplyProductPlans:   'supplyProductPlans',
+  supplyStudentProgress:'supplyStudentProgress',
+  supplyProgressLogs:   'supplyProgressLogs',
+  supplySessionChecks:  'supplySessionChecks',
+  messageGuides:        'messageGuides',
+  messageCategories:    'messageCategories',
+  teacherProfiles:      'teacherProfiles',
+  documents:            'documents',
+  customCategories:     'custom_categories',
+  lessonMemos:          'lesson_memos',
+  schoolAdmins:         'schoolAdmins',
+  schoolAdminAccounts:  'schoolAdminAccounts',
+  schoolAdminTeachers:  'schoolAdminTeachers',
+  schoolSubjects:       'schoolSubjects',
+  schoolTeacherInvites: 'schoolTeacherInvites',
+  schoolNotices:        'schoolNotices',
+  schoolNoticeSubmits:  'schoolNoticeSubmits',
+  schoolCalendar:       'schoolCalendar',
+  schoolInfo:           'schoolInfo',
+  blogPosts:            'blog_posts',
+}
 
+// ─── camelCase 컬럼 테이블 (변환 없이 그대로 사용)
+const CAMEL_TABLES = new Set([
+  'revenueFees', 'revenuePayments',
+  'trainings', 'careers', 'educations', 'certificates', 'awards', 'jobSubs',
+  'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
+  'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress',
+  'supplyProgressLogs', 'supplySessionChecks',
+  'messageGuides', 'messageCategories', 'teacherProfiles',
+  'schoolAdmins', 'schoolAdminAccounts', 'schoolAdminTeachers',
+  'schoolSubjects', 'schoolTeacherInvites',
+  'schoolNotices', 'schoolNoticeSubmits',
+  'schoolCalendar', 'schoolInfo',
+  'documents',
+])
+
+function toSnake(obj) {
+  const result = {}
+  for (const [k, v] of Object.entries(obj)) {
+    const snake = k.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
+    result[snake] = v !== null && typeof v === 'object' && !Array.isArray(v) ? toSnake(v) : v
+  }
+  return result
+}
+
+function toCamel(obj) {
+  const result = {}
+  for (const [k, v] of Object.entries(obj)) {
+    const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+    result[camel] = v !== null && typeof v === 'object' && !Array.isArray(v) ? toCamel(v) : v
+  }
+  return result
+}
+
+function getConverters(table) {
+  const isCamel = CAMEL_TABLES.has(table)
+  const tbl = TABLE_MAP[table] || table
+  return {
+    tbl,
+    toDb:   (obj) => isCamel ? obj : toSnake(obj),
+    fromDb: (obj) => isCamel ? obj : toCamel(obj),
+  }
+}
+
+// ─── dbCall: 기존 API 호환 유지 + Supabase JS 클라이언트로 직접 처리
+export async function dbCall(action, table, payload = {}) {
+  if (!supabase) throw new Error('Supabase 미설정')
+
+  const { tbl, toDb, fromDb } = getConverters(table)
+  const { data: d, id, where, patch } = payload
+
+  switch (action) {
+    case 'getAll': {
+      let q = supabase.from(tbl).select('*')
+        .or('_deleted.is.null,_deleted.eq.false')
+      if (table === 'attendance') {
+        const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+        q = q.gte('date', since)
+      }
+      const { data: rows, error } = await q
+      if (error) throw new Error(error.message)
+      return (rows || []).map(fromDb)
+    }
+
+    case 'getOne': {
+      const { data: row, error } = await supabase.from(tbl).select('*').eq('id', id).single()
+      if (error) throw new Error(error.message)
+      return row ? fromDb(row) : null
+    }
+
+    case 'where': {
+      let q = supabase.from(tbl).select('*')
+      for (const [col, val] of Object.entries(where || {})) {
+        const dbCol = CAMEL_TABLES.has(table) ? col : col.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
+        q = q.eq(dbCol, val)
+      }
+      const { data: rows, error } = await q
+      if (error) throw new Error(error.message)
+      return (rows || []).map(fromDb)
+    }
+
+    case 'insert': {
+      const { data: rows, error } = await supabase.from(tbl).insert(toDb(d)).select()
+      if (error) throw new Error(error.message)
+      return rows && rows.length > 0 ? fromDb(rows[0]) : null
+    }
+
+    case 'upsert': {
+      const { data: rows, error } = await supabase.from(tbl).upsert(toDb(d)).select()
+      if (error) throw new Error(error.message)
+      return rows && rows.length > 0 ? fromDb(rows[0]) : null
+    }
+
+    case 'update': {
+      const { data: rows, error } = await supabase.from(tbl).update(toDb(patch)).eq('id', id).select()
+      if (error) throw new Error(error.message)
+      return rows && rows.length > 0 ? fromDb(rows[0]) : null
+    }
+
+    case 'delete': {
+      const { error } = await supabase
+        .from(tbl)
+        .update({ _deleted: true, updatedAt: new Date().toISOString() })
+        .eq('id', id)
+      if (error) throw new Error(error.message)
+      return { deleted: true }
+    }
+
+    case 'settingGet': {
+      const { data: row } = await supabase.from('settings').select('value').eq('key', id).single()
+      return row?.value ?? null
+    }
+
+    case 'settingSet': {
+      await supabase.from('settings').upsert({ key: id, value: d, updated_at: new Date().toISOString() })
+      return { ok: true }
+    }
+
+    case 'findByEmail': {
+      const { data: rows } = await supabase.from('users').select('*').eq('email', d.email).limit(1)
+      return rows?.[0] ? toCamel(rows[0]) : null
+    }
+
+    case 'attendanceUpsert': {
+      const { data: row, error } = await supabase
+        .from('attendance')
+        .upsert(toSnake(d), { onConflict: 'class_id,student_id,date' })
+        .select().single()
+      if (error) throw new Error(error.message)
+      return row ? toCamel(row) : null
+    }
+
+    case 'storageUpload': {
+      const { bucket, path: filePath, base64, contentType } = payload
+      const binaryStr = atob(base64)
+      const bytes = new Uint8Array(binaryStr.length)
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i)
+      const { error } = await supabase.storage.from(bucket).upload(filePath, bytes, { contentType, upsert: true })
+      if (error) throw new Error(error.message)
+      const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(filePath)
+      return { url: urlData.publicUrl }
+    }
+
+    default:
+      throw new Error(`Unknown action: ${action}`)
+  }
+}
+
+// ─── Edge Function 호출 (이메일/SMS/푸시/OAuth 전용)
 async function callFunction(name, body) {
   if (!FUNCTIONS_BASE) throw new Error('Supabase URL이 설정되지 않았습니다.')
   const res = await fetch(`${FUNCTIONS_BASE}/${name}`, {
@@ -32,22 +229,18 @@ async function callFunction(name, body) {
   return data.data
 }
 
-// ─── 이메일 발송
 export async function sendEmail(to, code) {
   return callFunction('send-email', { to, code })
 }
 
-// ─── SMS 발송
 export async function sendSMS(to, text, type = 'SMS') {
   return callFunction('send-sms', { to, text, type })
 }
 
-// ─── 네이버 OAuth 토큰 교환
 export async function naverOAuth(code, state) {
   return callFunction('naver-oauth', { code, state })
 }
 
-// ─── 웹 푸시 발송
 export async function sendPush(subscription, { title, body, url = '/parent-invite', tag = 'attendance' }) {
   if (!subscription) return
   try {
@@ -55,15 +248,4 @@ export async function sendPush(subscription, { title, body, url = '/parent-invit
   } catch (e) {
     console.warn('[Push] 발송 실패:', e.message)
   }
-}
-
-// ─── 파일 업로드 (Storage 직접)
-export async function storageUpload(bucket, filePath, file, contentType) {
-  if (!supabase) throw new Error('Supabase 미설정')
-  const { error } = await supabase.storage
-    .from(bucket)
-    .upload(filePath, file, { contentType, upsert: true })
-  if (error) throw new Error(error.message)
-  const { data } = supabase.storage.from(bucket).getPublicUrl(filePath)
-  return { url: data.publicUrl }
 }
