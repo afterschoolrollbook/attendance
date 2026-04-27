@@ -413,7 +413,7 @@ export function Revenue({ user }) {
             const dayRev   = allDailyRevenue[date] || 0
             const paidAmt  = pays.reduce((s, p) => s + p.amount, 0)
             return (
-              <div key={date} onClick={() => setCurDate(date)}
+              <div key={date} onClick={() => { setCurDate(date); openPayModal(date) }}
                 title="날짜 선택"
                 style={{ borderRadius: '8px', padding: '5px 4px', cursor: 'pointer', minHeight: '88px', transition: 'all .1s', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}` }}>
                 {/* 날짜 숫자 */}
@@ -647,7 +647,7 @@ export function Revenue({ user }) {
                   💵 입금 내역
                   <span style={{ fontSize:'12px', fontWeight:500, color:C.muted, marginLeft:'6px' }}>({curDate.slice(5).replace('-','.')})</span>
                 </div>
-                <button onClick={() => openPayModal(today())}
+                <button onClick={() => openPayModal(curDate)}
                   style={{ padding:'5px 12px', borderRadius:'8px', border:'none', background:C.success, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   + 입금 등록
                 </button>
