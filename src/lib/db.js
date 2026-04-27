@@ -257,23 +257,127 @@ export const Settings = {
 export const ParentMembers = {
   all:    () => db.get('parentMembers'),
   find:   (id) => db.getOne('parentMembers', id),
+
   allByPhone: (phone) => {
     const clean = phone?.replace(/[^0-9]/g, '')
     return db.get('parentMembers').filter(p => p.phone === clean)
   },
+
+  findByPhoneAndTeacher: (phone, teacherId) => {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    return db.get('parentMembers').find(p => p.phone === clean && p.teacherId === teacherId) || null
+  },
+
+  findByPhone: (phone) => {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    return db.get('parentMembers').find(p => p.phone === clean) || null
+  },
+
   byTeacher:  (tid) => db.where('parentMembers', p => p.teacherId === tid),
   insert:     (p)   => db.insert('parentMembers', p),
   update:     (id, patch) => db.update('parentMembers', id, patch),
   delete:     (id)  => db.delete('parentMembers', id),
+
+  join(phone, {
+    marketingAgree   = false,
+    invitedByTeacher = '',
+    studentName  = '',
+    grade        = '',
+    schoolName   = '',
+    subjectName  = '',
+    teacherName  = '',
+    teacherPhone = '',
+  } = {}) {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    if (!clean) return null
+    const fields = {
+      appJoined: true, teacherId: invitedByTeacher,
+      marketingAgree, invitedByTeacher,
+      studentName, grade, schoolName, subjectName, teacherName, teacherPhone,
+      joinedAt: now(),
+    }
+    const existing = this.findByPhoneAndTeacher(clean, invitedByTeacher)
+    if (existing) { db.update('parentMembers', existing.id, fields); return existing }
+    const record = { id: uid(), phone: clean, name: '', memo: '', createdAt: now(), ...fields }
+    db.insert('parentMembers', record)
+    return record
+  },
+
+  withdrawByTeacher(phone, teacherId, reason = 'teacher_request') {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    const member = this.findByPhoneAndTeacher(clean, teacherId)
+    if (!member) return
+    db.update('parentMembers', member.id, { appJoined: false, withdrawnAt: now(), withdrawReason: reason })
+  },
+
+  savePushSubscription(phone, teacherId, subscriptionJson) {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    const member = this.findByPhoneAndTeacher(clean, teacherId)
+    if (!member) return
+    db.update('parentMembers', member.id, { pushSubscription: subscriptionJson })
+    if (isConfigured) {
+      dbCall('update', 'parentMembers', { id: member.id, fields: { push_subscription: subscriptionJson } })
+        .catch(e => console.warn('[Push] 구독 저장 실패:', e.message))
+    }
+  },
+
+  getPushSubscriptions(phone) {
+    const clean = phone?.replace(/[^0-9]/g, '')
+    return db.get('parentMembers')
+      .filter(p => p.phone === clean && p.pushSubscription)
+      .map(p => p.pushSubscription)
+  },
 }
 
 export const TeacherParentLinks = {
-  all:        ()    => db.get('teacherParentLinks'),
-  byTeacher:  (tid) => db.where('teacherParentLinks', l => l.teacherId === tid),
-  byParent:   (pid) => db.where('teacherParentLinks', l => l.parentId === pid),
-  byStudent:  (sid) => db.where('teacherParentLinks', l => l.studentId === sid),
-  insert:     (l)   => db.insert('teacherParentLinks', l),
-  delete:     (id)  => db.delete('teacherParentLinks', id),
+  all:         ()    => db.get('teacherParentLinks'),
+  byTeacher:   (tid) => db.where('teacherParentLinks', l => l.teacherId === tid),
+  active:      (tid) => db.where('teacherParentLinks', l => l.teacherId === tid && l.status === 'active'),
+  activeCount: (tid) => db.where('teacherParentLinks', l => l.teacherId === tid && l.status === 'active').length,
+  byParent:    (pid) => db.where('teacherParentLinks', l => l.parentId === pid),
+  byStudent:   (sid) => db.where('teacherParentLinks', l => l.studentId === sid),
+  insert:      (l)   => db.insert('teacherParentLinks', l),
+  delete:      (id)  => db.delete('teacherParentLinks', id),
+
+  link(teacherId, student, classId) {
+    if (!student.parentPhone) return
+    const clean = student.parentPhone.replace(/[^0-9]/g, '')
+    let parent = ParentMembers.findByPhoneAndTeacher(clean, teacherId)
+    if (!parent) {
+      const record = { id: uid(), phone: clean, name: '', memo: '', appJoined: false, teacherId, createdAt: now() }
+      db.insert('parentMembers', record)
+      parent = record
+    }
+    const existing = db.get('teacherParentLinks').find(l =>
+      l.teacherId === teacherId && l.parentMemberId === parent.id && l.studentId === student.id
+    )
+    if (existing?.status === 'active') return
+    db.insert('teacherParentLinks', {
+      id: uid(), teacherId,
+      parentMemberId: parent.id,
+      studentId: student.id, classId,
+      status: 'active', startedAt: now(),
+      endedAt: null, endReason: null, createdAt: now(),
+    })
+  },
+
+  unlink(teacherId, studentId, reason = 'student_left') {
+    db.where('teacherParentLinks', l =>
+      l.teacherId === teacherId && l.studentId === studentId && l.status === 'active'
+    ).forEach(l => db.update('teacherParentLinks', l.id, { status: 'ended', endedAt: now(), endReason: reason }))
+  },
+
+  unlinkByClass(teacherId, classId) {
+    db.where('teacherParentLinks', l =>
+      l.teacherId === teacherId && l.classId === classId && l.status === 'active'
+    ).forEach(l => db.update('teacherParentLinks', l.id, { status: 'ended', endedAt: now(), endReason: 'class_ended' }))
+  },
+
+  unlinkByMember(teacherId, parentMemberId, reason = 'service_ended') {
+    db.where('teacherParentLinks', l =>
+      l.teacherId === teacherId && l.parentMemberId === parentMemberId && l.status === 'active'
+    ).forEach(l => db.update('teacherParentLinks', l.id, { status: 'ended', endedAt: now(), endReason: reason }))
+  },
 }
 
 export const TeacherServiceConfigs = {
@@ -354,13 +458,43 @@ export const JobSubs = {
   delete:    (id)    => db.delete('jobSubs', id),
 }
 
+// ─── 포인트
+export const Points = {
+  all:       ()    => db.get('points'),
+  byTeacher: (tid) => db.where('points', p => p.teacherId === tid),
+
+  balance(tid) {
+    const now_ = new Date().toISOString()
+    return this.byTeacher(tid).reduce((sum, p) => {
+      if (p.type === 'earn') {
+        if (p.expiresAt && p.expiresAt < now_) return sum
+        return sum + (p.amount || 0)
+      }
+      return sum - (p.amount || 0)
+    }, 0)
+  },
+
+  earn(teacherId, amount, { source='shop', parentMemberId='', orderId='', memo='', expireDays=365 } = {}) {
+    const expiresAt = new Date(Date.now() + expireDays * 86400000).toISOString()
+    return db.insert('points', { id:uid(), teacherId, type:'earn', amount, source, parentMemberId, orderId, memo, expiresAt, createdAt:now() })
+  },
+
+  use(teacherId, amount, { memo='', orderId='' } = {}) {
+    if (this.balance(teacherId) < amount) throw new Error('포인트가 부족합니다.')
+    return db.insert('points', { id:uid(), teacherId, type:'use', amount, source:'use', memo, orderId, createdAt:now() })
+  },
+}
+
 // ─── 지사
 export const Branches = {
   all:    ()      => db.get('branches'),
   find:   (id)    => db.getOne('branches', id),
-  insert: (r)     => db.insert('branches', r),
+  active: ()      => db.where('branches', b => b.active),
+  insert: (b)     => db.insert('branches', b),
   update: (id, p) => db.update('branches', id, p),
   delete: (id)    => db.delete('branches', id),
+  assignTeacher(branchId, teacherId)  { Users.update(teacherId, { branchId }) },
+  unassignTeacher(teacherId)          { Users.update(teacherId, { branchId: null }) },
 }
 
 // ─── 교구 관리
