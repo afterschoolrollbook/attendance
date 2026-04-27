@@ -3,7 +3,7 @@ import { uid, now, today, localDateStr, calcSessionDates, sortClasses } from '..
 import { Classes, Students, RevenueFees, RevenuePayments } from '../lib/db.js'
 import { Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
-// useConfirm 대신 로컬 confirm 상태 사용
+import { useConfirm } from '../hooks/useConfirm.js'
 
 const C = {
   primary: '#f97316', success: '#16a34a', danger: '#ef4444',
@@ -99,8 +99,7 @@ export function Revenue({ user }) {
 
   const [expandedClass, setExpandedClass] = useState(null)
   const { error: toastError, success } = useToast()
-  const [localConfirm, setLocalConfirm] = useState(null)
-  const confirm = (msg, onOk) => setLocalConfirm({ msg, onOk })
+  const { confirm } = useConfirm()
 
   const reload = () => {
     setFees(RevenueFees.byTeacher(user.id) || [])
@@ -414,7 +413,7 @@ export function Revenue({ user }) {
             const dayRev   = allDailyRevenue[date] || 0
             const paidAmt  = pays.reduce((s, p) => s + p.amount, 0)
             return (
-              <div key={date} onClick={() => { setCurDate(date); openPayModal(date) }}
+              <div key={date} onClick={() => setCurDate(date)}
                 title="날짜 선택"
                 style={{ borderRadius: '8px', padding: '5px 4px', cursor: 'pointer', minHeight: '88px', transition: 'all .1s', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}` }}>
                 {/* 날짜 숫자 */}
@@ -648,7 +647,7 @@ export function Revenue({ user }) {
                   💵 입금 내역
                   <span style={{ fontSize:'12px', fontWeight:500, color:C.muted, marginLeft:'6px' }}>({curDate.slice(5).replace('-','.')})</span>
                 </div>
-                <button onClick={() => openPayModal(curDate)}
+                <button onClick={() => openPayModal(today())}
                   style={{ padding:'5px 12px', borderRadius:'8px', border:'none', background:C.success, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   + 입금 등록
                 </button>
@@ -1215,8 +1214,10 @@ export function Revenue({ user }) {
                     <input value={payForm.memo} onChange={e=>setPayForm(pf=>({...pf,memo:e.target.value}))}
                       placeholder="예: 1분기 수강료 전액, 분할납부 1회차 등" style={iStyle} autoFocus />
                     <div style={{ marginTop:'16px', padding:'12px 14px', background:'#f9fafb', borderRadius:'12px', display:'flex', flexDirection:'column', gap:'6px' }}>
-                      <div style={{ fontSize:'12px', color:C.muted, display:'flex', justifyContent:'space-between' }}>
-                        <span>날짜</span><span style={{color:C.text,fontWeight:600}}>{payDate.replace(/-/g,'.')}</span>
+                      <div style={{ fontSize:'12px', color:C.muted, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                        <span>날짜</span>
+                        <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)}
+                          style={{ border:'none', background:'transparent', fontSize:'12px', fontWeight:600, color:C.text, cursor:'pointer', textAlign:'right', fontFamily:'Noto Sans KR, sans-serif' }} />
                       </div>
                       {(payForm.classIds&&payForm.classIds.length>0?payForm.classIds:[payForm.classId]).filter(Boolean).map(cid=>{
                         const cls2=sorted.find(c=>c.id===cid)
@@ -1303,22 +1304,6 @@ export function Revenue({ user }) {
       )}
 
             {/* ── 미수금 상세 팝업 */}
-      {localConfirm && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
-          onClick={() => setLocalConfirm(null)}>
-          <div onClick={e=>e.stopPropagation()} style={{ background:'#fff', borderRadius:'16px', padding:'28px 24px', width:'320px', boxShadow:'0 8px 32px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column', gap:'18px' }}>
-            <div style={{ fontSize:'32px', textAlign:'center' }}>🗑</div>
-            <div style={{ fontSize:'15px', fontWeight:600, color:'#374151', textAlign:'center' }}>{localConfirm.msg}</div>
-            <div style={{ display:'flex', gap:'10px' }}>
-              <button onClick={() => setLocalConfirm(null)}
-                style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#f9fafb', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
-              <button onClick={() => { localConfirm.onOk(); setLocalConfirm(null) }}
-                style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:'#ef4444', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {unpaidDetail&&(
         <Modal open={!!unpaidDetail} onClose={()=>setUnpaidDetail(null)} title="⚠️ 미수금 상세" width={440}>
           <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
