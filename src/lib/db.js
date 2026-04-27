@@ -1,20 +1,16 @@
 /**
- * DB 레이어 — localStorage 캐시 + Supabase 동기화
+ * DB 레이어 — 인메모리 캐시 + Supabase 동기화
  *
  * 핵심 원칙:
  *  - 모든 레코드에 updatedAt 자동 기록
- *  - 로컬 vs Supabase merge 시 updatedAt 최신 레코드가 이김
- *  - 삭제는 _deleted: true 소프트딜리트 → 실수로 살아나는 현상 방지
- *  - Supabase sync 실패 시 pending 대기열(localStorage) 저장 → 재연결 시 자동 재전송
- *  - Supabase 미설정 시 localStorage 단독으로 완전 동작
+ *  - 삭제는 _deleted: true 소프트딜리트
+ *  - Supabase가 진실의 원천 — 페이지 로드 시 항상 Supabase에서 불러옴
+ *  - localStorage 캐시 없음 → 5MB 한도 문제 없음
+ *  - 멀티기기(PC/스마트폰) 항상 최신 데이터
  */
 
 import { dbCall, isConfigured } from './supabase.js'
 import { uid, now } from './utils.js'
-
-const PREFIX = 'asa_'
-const PENDING_KEY = 'asa__pending_sync'
-const key = (t) => PREFIX + t
 
 // ─── 전역 DB 변경 이벤트 시스템
 const _listeners = new Map()
@@ -28,124 +24,25 @@ function _emit(table) {
   _listeners.get('*')?.forEach(fn => fn(table))
 }
 
-// ─── localStorage 캐시
+// ─── 인메모리 캐시 (localStorage 대신 — 5MB 제한 없음)
+const _cache = {}
 const cache = {
-  get(t)    { try { return JSON.parse(localStorage.getItem(key(t)) || '[]') } catch { return [] } },
-  set(t, d) { localStorage.setItem(key(t), JSON.stringify(d)) },
+  get(t)    { return _cache[t] || [] },
+  set(t, d) { _cache[t] = d },
 }
 
-// ─── 미sync 대기열
-const pendingQ = {
-  get()      { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]') } catch { return [] } },
-  push(item) { const q = this.get(); q.push(item); localStorage.setItem(PENDING_KEY, JSON.stringify(q)) },
-  clear()    { localStorage.removeItem(PENDING_KEY) },
-}
-
-// ─── 스키마 자동 마이그레이션: 컬럼 누락 시 자동 추가
-async function addColumnIfMissing(table, column, colType, colDefault) {
-  try {
-    await dbCall('addColumn', table, { column, colType, colDefault })
-    console.log(`[Schema] ${table}.${column} 컬럼 추가 완료`)
-  } catch (e) {
-    console.warn(`[Schema] ${table}.${column} 자동 추가 실패:`, e.message)
-  }
-}
-// 하위 호환용 래퍼
-function addDeletedColumn(table) {
-  return addColumnIfMissing(table, '_deleted', 'boolean', false)
-}
-
-// ─── Supabase 전송 (실패 시 에러 throw + 대기열 저장)
+// ─── Supabase 전송
 async function sync(action, table, payload) {
   if (!isConfigured) return
   try {
     await dbCall(action, table, payload)
   } catch (e) {
-    // _deleted 컬럼 누락 에러 → 컬럼 자동 추가 후 1회 재시도
-    if (e.message?.includes('_deleted')) {
-      console.warn(`[Schema] ${table}._deleted 누락 감지 → 자동 추가 후 재시도`)
-      await addDeletedColumn(table)
-      try {
-        await dbCall(action, table, payload)
-        return // 재시도 성공
-      } catch (e2) {
-        console.warn(`[Supabase sync 실패] ${action}/${table}:`, e2.message)
-        pendingQ.push({ action, table, payload, ts: Date.now() })
-        throw e2
-      }
-    }
     console.warn(`[Supabase sync 실패] ${action}/${table}:`, e.message)
-    pendingQ.push({ action, table, payload, ts: Date.now() })
     throw e
   }
 }
 
-// ─── 대기열 재전송 (실패 항목은 다시 queue에 보존)
-async function flushPending() {
-  if (!isConfigured) return
-  const q = pendingQ.get()
-  if (!q.length) return
-  pendingQ.clear()
-  let ok = 0
-  await Promise.allSettled(
-    q.map(async ({ action, table, payload, ts, retries = 0 }) => {
-      const safeAction = action === 'insert' ? 'upsert' : action
-      try {
-        await dbCall(safeAction, table, payload)
-        ok++
-      } catch (e) {
-        console.warn(`[Supabase flush 실패] ${safeAction}/${table}:`, e.message)
-        // 실패한 항목은 재시도 횟수 기록 후 다시 queue에 보존
-        pendingQ.push({ action, table, payload, ts, retries: retries + 1 })
-      }
-    })
-  )
-  const remaining = pendingQ.get().length
-  if (ok > 0 || remaining > 0) {
-    console.log(`[Supabase] 대기열 재전송: ${ok}건 성공, ${remaining}건 대기 중`)
-  }
-}
-
-// ─── 주기적 재시도: 앱 실행 중 30초마다 pending queue 재전송
-let _retryTimer = null
-export function startSyncRetry() {
-  if (_retryTimer) return  // 이미 실행 중
-  _retryTimer = setInterval(async () => {
-    const q = pendingQ.get()
-    if (q.length > 0) {
-      console.log(`[Supabase] 자동 재시도: ${q.length}건 pending`)
-      await flushPending()
-    }
-  }, 30000) // 30초마다
-}
-
-export function stopSyncRetry() {
-  if (_retryTimer) { clearInterval(_retryTimer); _retryTimer = null }
-}
-
-// ─── updatedAt 기준 merge: 더 최신 레코드가 이김, _deleted 반영
-function mergeRecords(local, remote) {
-  const map = new Map()
-
-  local.forEach(r => map.set(r.id, r))
-
-  remote.forEach(r => {
-    const loc = map.get(r.id)
-    if (!loc) {
-      map.set(r.id, r)
-    } else {
-      const localTime  = new Date(loc.updatedAt  || loc.createdAt || 0).getTime()
-      const remoteTime = new Date(r.updatedAt    || r.createdAt   || 0).getTime()
-      if (remoteTime > localTime) map.set(r.id, r)
-    }
-  })
-
-  // _deleted 소프트딜리트 레코드 제거 후 반환
-  return [...map.values()].filter(r => r._deleted !== true)
-}
-
 // ─── 동기화 대상 테이블 목록
-// 기존 핵심 테이블 + 내 관리 / 수익 관련 테이블 추가
 const SYNC_TABLES = [
   // 기존
   'users', 'classes', 'students', 'attendance', 'notes',
@@ -170,66 +67,39 @@ const SYNC_TABLES = [
   'documents', 'customCategories',
   // 학교 담당자 포털
   'schoolAdmins', 'schoolAdminAccounts',
-  'schoolAdminTeachers',   // 선생님 명단 (연도/과목/요일/서류)
-  'schoolSubjects',        // 학교별 연도 과목 목록
-  'schoolTeacherInvites',  // 선생님 초대 내역 (대시보드 팝업 트리거)
-  'schoolNotices',         // 공지·업무 요청
-  'schoolNoticeSubmits',   // 공지 제출 현황
+  'schoolAdminTeachers',
+  'schoolSubjects',
+  'schoolTeacherInvites',
+  'schoolNotices',
+  'schoolNoticeSubmits',
 ]
 
 // ─── 초기화: Supabase를 진실의 원천으로 — 항상 Supabase 우선
 export async function initFromSupabase() {
   if (!isConfigured) return false
   try {
-    // 0) 로컬 캐시 초기화 — Supabase가 정답이므로 앱 시작 시 항상 비우고 새로 불러옴
-    db.clearAll()
-
-    // 1) 스키마 자동 마이그레이션 — 최초 1번만 실행
-    const SCHEMA_DONE_KEY = 'asa__schema_migrated_v1'
-    if (!localStorage.getItem(SCHEMA_DONE_KEY)) {
-      await Promise.allSettled([
-        ...SYNC_TABLES.map(t => addDeletedColumn(t)),
-        addColumnIfMissing('classes', 'periods', 'jsonb', "'[]'::jsonb"),
-        addColumnIfMissing('supplyItems', 'remoteNo', 'text', "''"),
-      ])
-      localStorage.setItem(SCHEMA_DONE_KEY, '1')
-    }
-
-    // 1) 로컬에만 있는 미전송 변경사항 먼저 올리기 (pending queue)
-    await flushPending()
-
-    // 2) Supabase → 로컬 완전 덮어쓰기 (merge 없음 — Supabase가 항상 정답)
+    // Supabase → 인메모리 캐시로 로드
     await Promise.all(SYNC_TABLES.map(async (t) => {
       try {
         const remote = await dbCall('getAll', t)
         if (!Array.isArray(remote)) return
-
-        // Supabase 데이터를 그대로 캐시에 저장 (_deleted 정규화 포함)
-        const normalized = remote.map(r => ({
-          ...r,
-          _deleted: r._deleted === true || r._deleted === 1 ? true : false,
-        })).filter(r => r._deleted !== true)
-
+        const normalized = remote
+          .map(r => ({ ...r, _deleted: r._deleted === true || r._deleted === 1 ? true : false }))
+          .filter(r => r._deleted !== true)
         cache.set(t, normalized)
         console.log(`[Supabase] ${t}: ${normalized.length}건 로드`)
       } catch (e) {
-        console.warn(`[Supabase] ${t} 로드 실패 — 로컬 캐시 유지:`, e.message)
+        console.warn(`[Supabase] ${t} 로드 실패:`, e.message)
       }
     }))
 
-    // 3) settings merge
+    // settings 동기화 (settings는 localStorage 유지 — 용량 작음)
     try {
       const settings = await dbCall('getAll', 'settings')
       if (Array.isArray(settings)) {
         settings.forEach(row => {
           if (!row.key || !row.value) return
-          const lk        = 'asa_settings_' + row.key
-          const localRaw  = localStorage.getItem(lk)
-          const localTime = localRaw ? (JSON.parse(localRaw)?._updatedAt || 0) : 0
-          const remoteTime = row.updatedAt ? new Date(row.updatedAt).getTime() : 0
-          if (!localRaw || remoteTime > localTime) {
-            localStorage.setItem(lk, JSON.stringify(row.value))
-          }
+          localStorage.setItem('asa_settings_' + row.key, JSON.stringify(row.value))
         })
         console.log('[Supabase] settings 동기화 완료')
       }
@@ -238,14 +108,16 @@ export async function initFromSupabase() {
     }
 
     console.log('[Supabase] 데이터 동기화 완료')
-    startSyncRetry()  // 앱 실행 중 30초마다 pending 자동 재시도 시작
     return true
   } catch (e) {
-    console.warn('[Supabase] 전체 실패 — 로컬 데이터로 동작:', e.message)
-    startSyncRetry()  // 실패해도 재시도는 계속
+    console.warn('[Supabase] 전체 실패:', e.message)
     return false
   }
 }
+
+// 호환성 유지용 빈 함수 (기존 코드에서 호출해도 에러 안 남)
+export function startSyncRetry() {}
+export function stopSyncRetry() {}
 
 // ─── 핵심 DB 메서드
 export const db = {
@@ -272,7 +144,6 @@ export const db = {
     return rows.find(r => r.id === id)
   },
 
-  // 소프트딜리트: _deleted 플래그 기록 → merge 시 양쪽에서 안전하게 제거
   async delete(t, id) {
     const rows = cache.get(t).map(r =>
       r.id === id ? { ...r, _deleted: true, updatedAt: now() } : r
@@ -283,11 +154,7 @@ export const db = {
   },
 
   where:    (t, fn) => cache.get(t).filter(r => r._deleted !== true && fn(r)),
-  clearAll() {
-    Object.keys(localStorage)
-      .filter(k => k.startsWith(PREFIX))
-      .forEach(k => localStorage.removeItem(k))
-  },
+  clearAll() { Object.keys(_cache).forEach(k => delete _cache[k]) },
 }
 
 // ─── 기존 테이블 ───────────────────────────────────────────────
@@ -374,10 +241,7 @@ export const Settings = {
     if (isConfigured) {
       dbCall('settingSet', 'settings', { id: k, data: v })
         .then(() => console.log(`[Settings] "${k}" Supabase 저장 완료`))
-        .catch(e => {
-          console.warn(`[Settings] "${k}" Supabase 저장 실패:`, e.message)
-          pendingQ.push({ action: 'settingSet', table: 'settings', payload: { id: k, data: v }, ts: Date.now() })
-        })
+        .catch(e => console.warn(`[Settings] "${k}" Supabase 저장 실패:`, e.message))
     }
   },
   getAll() {
@@ -393,295 +257,120 @@ export const Settings = {
 export const ParentMembers = {
   all:    () => db.get('parentMembers'),
   find:   (id) => db.getOne('parentMembers', id),
-
-  // 전화번호로 전체 조회 (선생님 여러 명 지원)
   allByPhone: (phone) => {
     const clean = phone?.replace(/[^0-9]/g, '')
     return db.get('parentMembers').filter(p => p.phone === clean)
   },
-
-  // 전화번호 + 선생님 조합으로 단일 조회
-  findByPhoneAndTeacher: (phone, teacherId) => {
-    const clean = phone?.replace(/[^0-9]/g, '')
-    return db.get('parentMembers').find(p => p.phone === clean && p.teacherId === teacherId) || null
-  },
-
-  // 하위 호환용 — phone만으로 첫 번째 레코드 반환
-  findByPhone: (phone) => {
-    const clean = phone?.replace(/[^0-9]/g, '')
-    return db.get('parentMembers').find(p => p.phone === clean) || null
-  },
-
-  update(id, fields) {
-    db.update('parentMembers', id, fields)
-  },
-
-  // 학부모 앱 가입 처리 (초대 링크 통해 가입 시)
-  // teacher_id + phone 조합으로 upsert — 다중 선생님 지원
-  join(phone, {
-    marketingAgree  = false,
-    invitedByTeacher = '',
-    studentName  = '',
-    grade        = '',
-    schoolName   = '',
-    subjectName  = '',
-    teacherName  = '',
-    teacherPhone = '',
-  } = {}) {
-    const clean = phone?.replace(/[^0-9]/g, '')
-    if (!clean) return null
-
-    const fields = {
-      appJoined: true,
-      teacherId: invitedByTeacher,
-      marketingAgree,
-      invitedByTeacher,
-      studentName,
-      grade,
-      schoolName,
-      subjectName,
-      teacherName,
-      teacherPhone,
-      joinedAt: now(),
-    }
-
-    const existing = this.findByPhoneAndTeacher(clean, invitedByTeacher)
-    if (existing) {
-      db.update('parentMembers', existing.id, fields)
-      return existing
-    }
-    const record = { id: uid(), phone: clean, name: '', memo: '', createdAt: now(), ...fields }
-    db.insert('parentMembers', record)
-    return record
-  },
-
-  // 선생님이 직접 종료 또는 자동 종료
-  withdrawByTeacher(phone, teacherId, reason = 'teacher_request') {
-    const clean = phone?.replace(/[^0-9]/g, '')
-    const member = this.findByPhoneAndTeacher(clean, teacherId)
-    if (!member) return
-    db.update('parentMembers', member.id, {
-      appJoined: false,
-      withdrawnAt: now(),
-      withdrawReason: reason,
-    })
-  },
-
-  // 웹 푸시 구독 정보 저장
-  savePushSubscription(phone, teacherId, subscriptionJson) {
-    const clean = phone?.replace(/[^0-9]/g, '')
-    const member = this.findByPhoneAndTeacher(clean, teacherId)
-    if (!member) return
-    db.update('parentMembers', member.id, { pushSubscription: subscriptionJson })
-    if (isConfigured) {
-      dbCall('update', 'parentMembers', {
-        id: member.id,
-        fields: { push_subscription: subscriptionJson },
-      }).catch(e => console.warn('[Push] 구독 저장 실패:', e.message))
-    }
-  },
-
-  // 전화번호로 구독 정보 전체 조회 (선생님 여러 명 대응)
-  getPushSubscriptions(phone) {
-    const clean = phone?.replace(/[^0-9]/g, '')
-    return db.get('parentMembers')
-      .filter(p => p.phone === clean && p.pushSubscription)
-      .map(p => p.pushSubscription)
-  },
+  byTeacher:  (tid) => db.where('parentMembers', p => p.teacherId === tid),
+  insert:     (p)   => db.insert('parentMembers', p),
+  update:     (id, patch) => db.update('parentMembers', id, patch),
+  delete:     (id)  => db.delete('parentMembers', id),
 }
 
-// ─── 선생님-학부모 연결
 export const TeacherParentLinks = {
-  all:         ()    => db.get('teacherParentLinks'),
-  byTeacher:   (tid) => db.where('teacherParentLinks', l => l.teacherId === tid),
-  active:      (tid) => db.where('teacherParentLinks', l => l.teacherId === tid && l.status === 'active'),
-  activeCount: (tid) => db.where('teacherParentLinks', l => l.teacherId === tid && l.status === 'active').length,
+  all:        ()    => db.get('teacherParentLinks'),
+  byTeacher:  (tid) => db.where('teacherParentLinks', l => l.teacherId === tid),
+  byParent:   (pid) => db.where('teacherParentLinks', l => l.parentId === pid),
+  byStudent:  (sid) => db.where('teacherParentLinks', l => l.studentId === sid),
+  insert:     (l)   => db.insert('teacherParentLinks', l),
+  delete:     (id)  => db.delete('teacherParentLinks', id),
+}
 
-  link(teacherId, student, classId) {
-    if (!student.parentPhone) return
-    const clean = student.parentPhone.replace(/[^0-9]/g, '')
-    let parent = ParentMembers.findByPhoneAndTeacher(clean, teacherId)
-    if (!parent) {
-      // 아직 가입 전이면 최소 레코드 생성
-      const record = { id: uid(), phone: clean, name: '', memo: '', appJoined: false, teacherId, createdAt: now() }
-      db.insert('parentMembers', record)
-      parent = record
-    }
-    const existing = db.get('teacherParentLinks').find(l =>
-      l.teacherId === teacherId && l.parentMemberId === parent.id && l.studentId === student.id
-    )
-    if (existing?.status === 'active') return
-    db.insert('teacherParentLinks', {
-      id: uid(), teacherId,
-      parentMemberId: parent.id,
-      studentId: student.id, classId,
-      status: 'active', startedAt: now(),
-      endedAt: null, endReason: null, createdAt: now(),
-    })
-  },
-
-  unlink(teacherId, studentId, reason = 'student_left') {
-    db.where('teacherParentLinks', l =>
-      l.teacherId === teacherId && l.studentId === studentId && l.status === 'active'
-    ).forEach(l => db.update('teacherParentLinks', l.id, {
-      status: 'ended', endedAt: now(), endReason: reason,
-    }))
-  },
-
-  unlinkByClass(teacherId, classId) {
-    db.where('teacherParentLinks', l =>
-      l.teacherId === teacherId && l.classId === classId && l.status === 'active'
-    ).forEach(l => db.update('teacherParentLinks', l.id, {
-      status: 'ended', endedAt: now(), endReason: 'class_ended',
-    }))
-  },
-
-  // 출결서비스 종료 시 해당 teacher + parentMemberId 연결 일괄 종료
-  unlinkByMember(teacherId, parentMemberId, reason = 'service_ended') {
-    db.where('teacherParentLinks', l =>
-      l.teacherId === teacherId && l.parentMemberId === parentMemberId && l.status === 'active'
-    ).forEach(l => db.update('teacherParentLinks', l.id, {
-      status: 'ended', endedAt: now(), endReason: reason,
-    }))
+export const TeacherServiceConfigs = {
+  byTeacher: (tid) => db.where('teacherServiceConfigs', c => c.teacherId === tid)[0] || null,
+  save(tid, patch) {
+    const existing = this.byTeacher(tid)
+    if (existing) return db.update('teacherServiceConfigs', existing.id, patch)
+    return db.insert('teacherServiceConfigs', { id: uid(), teacherId: tid, ...patch, createdAt: now() })
   },
 }
 
-// ─── 포인트
-export const Points = {
-  all:       ()    => db.get('points'),
-  byTeacher: (tid) => db.where('points', p => p.teacherId === tid),
+// ─── 수익 관리
+export const RevenueFees = {
+  all:       ()      => db.get('revenueFees'),
+  byTeacher: (tid)   => db.where('revenueFees', r => r.teacherId === tid),
+  find:      (id)    => db.getOne('revenueFees', id),
+  insert:    (r)     => db.insert('revenueFees', r),
+  update:    (id, p) => db.update('revenueFees', id, p),
+  delete:    (id)    => db.delete('revenueFees', id),
+}
 
-  balance(tid) {
-    const now_ = new Date().toISOString()
-    return this.byTeacher(tid).reduce((sum, p) => {
-      if (p.type === 'earn') {
-        if (p.expiresAt && p.expiresAt < now_) return sum
-        return sum + (p.amount || 0)
-      }
-      return sum - (p.amount || 0)
-    }, 0)
-  },
+export const RevenuePayments = {
+  all:       ()      => db.get('revenuePayments'),
+  byTeacher: (tid)   => db.where('revenuePayments', r => r.teacherId === tid),
+  byFee:     (fid)   => db.where('revenuePayments', r => r.feeId === fid),
+  find:      (id)    => db.getOne('revenuePayments', id),
+  insert:    (r)     => db.insert('revenuePayments', r),
+  update:    (id, p) => db.update('revenuePayments', id, p),
+  delete:    (id)    => db.delete('revenuePayments', id),
+}
 
-  earn(teacherId, amount, { source='shop', parentMemberId='', orderId='', memo='', expireDays=365 } = {}) {
-    const expiresAt = new Date(Date.now() + expireDays * 86400000).toISOString()
-    return db.insert('points', { id:uid(), teacherId, type:'earn', amount, source, parentMemberId, orderId, memo, expiresAt, createdAt:now() })
-  },
+// ─── 내 관리 (강사 관련)
+export const Trainings = {
+  all:       ()      => db.get('trainings'),
+  byTeacher: (tid)   => db.where('trainings', r => r.teacherId === tid),
+  insert:    (r)     => db.insert('trainings', r),
+  update:    (id, p) => db.update('trainings', id, p),
+  delete:    (id)    => db.delete('trainings', id),
+}
 
-  use(teacherId, amount, { memo='', orderId='' } = {}) {
-    if (this.balance(teacherId) < amount) throw new Error('포인트가 부족합니다.')
-    return db.insert('points', { id:uid(), teacherId, type:'use', amount, source:'use', memo, orderId, createdAt:now() })
-  },
+export const Careers = {
+  all:       ()      => db.get('careers'),
+  byTeacher: (tid)   => db.where('careers', r => r.teacherId === tid),
+  insert:    (r)     => db.insert('careers', r),
+  update:    (id, p) => db.update('careers', id, p),
+  delete:    (id)    => db.delete('careers', id),
+}
+
+export const Educations = {
+  all:       ()      => db.get('educations'),
+  byTeacher: (tid)   => db.where('educations', r => r.teacherId === tid),
+  insert:    (r)     => db.insert('educations', r),
+  update:    (id, p) => db.update('educations', id, p),
+  delete:    (id)    => db.delete('educations', id),
+}
+
+export const Certificates = {
+  all:       ()      => db.get('certificates'),
+  byTeacher: (tid)   => db.where('certificates', r => r.teacherId === tid),
+  insert:    (r)     => db.insert('certificates', r),
+  update:    (id, p) => db.update('certificates', id, p),
+  delete:    (id)    => db.delete('certificates', id),
+}
+
+export const Awards = {
+  all:       ()      => db.get('awards'),
+  byTeacher: (tid)   => db.where('awards', r => r.teacherId === tid),
+  insert:    (r)     => db.insert('awards', r),
+  update:    (id, p) => db.update('awards', id, p),
+  delete:    (id)    => db.delete('awards', id),
+}
+
+export const JobSubs = {
+  all:       ()      => db.get('jobSubs'),
+  byTeacher: (tid)   => db.where('jobSubs', r => r.teacherId === tid),
+  insert:    (r)     => db.insert('jobSubs', r),
+  update:    (id, p) => db.update('jobSubs', id, p),
+  delete:    (id)    => db.delete('jobSubs', id),
 }
 
 // ─── 지사
 export const Branches = {
   all:    ()      => db.get('branches'),
   find:   (id)    => db.getOne('branches', id),
-  active: ()      => db.where('branches', b => b.active),
-  insert: (b)     => db.insert('branches', b),
+  insert: (r)     => db.insert('branches', r),
   update: (id, p) => db.update('branches', id, p),
   delete: (id)    => db.delete('branches', id),
-
-  assignTeacher(branchId, teacherId)  { Users.update(teacherId, { branchId }) },
-  unassignTeacher(teacherId)          { Users.update(teacherId, { branchId: null }) },
 }
 
-// ─── 수익관리 ─────────────────────────────────────────────────
-
-// 수강료 설정 (수업별)
-export const RevenueFees = {
-  all:       ()         => db.get('revenueFees'),
-  byTeacher: (tid)      => db.where('revenueFees', r => r.teacherId === tid),
-  byClass:   (cid)      => db.where('revenueFees', r => r.classId === cid)?.[0] || null,
-  insert:    (r)         => db.insert('revenueFees', r),
-  update:    (id, p)     => db.update('revenueFees', id, p),
-  delete:    (id)        => db.delete('revenueFees', id),
-
-  async upsert(record) {
-    const ex = this.byClass(record.classId)
-    if (ex) return db.update('revenueFees', ex.id, record)
-    return db.insert('revenueFees', { id: uid(), ...record, createdAt: now() })
-  },
-}
-
-// 입금 내역
-export const RevenuePayments = {
-  all:       ()          => db.get('revenuePayments'),
-  byTeacher: (tid)       => db.where('revenuePayments', r => r.teacherId === tid),
-  byClass:   (cid)       => db.where('revenuePayments', r => r.classId === cid),
-  insert:    (r)         => db.insert('revenuePayments', r),
-  update:    (id, p)     => db.update('revenuePayments', id, p),
-  delete:    (id)        => db.delete('revenuePayments', id),
-}
-
-// ─── 연수관리 ─────────────────────────────────────────────────
-export const Trainings = {
-  all:       ()    => db.get('trainings'),
-  byTeacher: (tid) => db.where('trainings', r => r.teacherId === tid),
-  find:      (id)  => db.getOne('trainings', id),
-  insert:    (r)   => db.insert('trainings', r),
-  update:    (id, p) => db.update('trainings', id, p),
-  delete:    (id)  => db.delete('trainings', id),
-}
-
-// ─── 이력관리 ─────────────────────────────────────────────────
-export const Careers = {
-  all:       ()    => db.get('careers'),
-  byTeacher: (tid) => db.where('careers', r => r.teacherId === tid),
-  find:      (id)  => db.getOne('careers', id),
-  insert:    (r)   => db.insert('careers', r),
-  update:    (id, p) => db.update('careers', id, p),
-  delete:    (id)  => db.delete('careers', id),
-}
-
-// ─── 자격증관리 ───────────────────────────────────────────────
-export const Certificates = {
-  all:       ()    => db.get('certificates'),
-  byTeacher: (tid) => db.where('certificates', r => r.teacherId === tid),
-  find:      (id)  => db.getOne('certificates', id),
-  insert:    (r)   => db.insert('certificates', r),
-  update:    (id, p) => db.update('certificates', id, p),
-  delete:    (id)  => db.delete('certificates', id),
-}
-
-// ─── 공고 구독 설정 ───────────────────────────────────────────
-export const JobSubs = {
-  all:       ()    => db.get('jobSubs'),
-  byTeacher: (tid) => db.where('jobSubs', r => r.teacherId === tid),
-  find:      (id)  => db.getOne('jobSubs', id),
-  insert:    (r)   => db.insert('jobSubs', r),
-  update:    (id, p) => db.update('jobSubs', id, p),
-  delete:    (id)  => db.delete('jobSubs', id),
-}
-
-// ─── 학력관리 ─────────────────────────────────────────────────
-export const Educations = {
-  all:       ()    => db.get('educations'),
-  byTeacher: (tid) => db.where('educations', r => r.teacherId === tid),
-  find:      (id)  => db.getOne('educations', id),
-  insert:    (r)   => db.insert('educations', r),
-  update:    (id, p) => db.update('educations', id, p),
-  delete:    (id)  => db.delete('educations', id),
-}
-
-// ─── 수상경력 ─────────────────────────────────────────────────
-export const Awards = {
-  all:       ()    => db.get('awards'),
-  byTeacher: (tid) => db.where('awards', r => r.teacherId === tid),
-  find:      (id)  => db.getOne('awards', id),
-  insert:    (r)   => db.insert('awards', r),
-  update:    (id, p) => db.update('awards', id, p),
-  delete:    (id)  => db.delete('awards', id),
-}
-
-// ─── 교구 관리 ────────────────────────────────────────────────
+// ─── 교구 관리
 export const SupplySubjects = {
-  all:       ()    => db.get('supplySubjects'),
-  byTeacher: (tid) => db.where('supplySubjects', r => r.teacherId === tid),
-  find:      (id)  => db.getOne('supplySubjects', id),
-  insert:    (r)   => db.insert('supplySubjects', r),
-  update:    (id, p) => db.update('supplySubjects', id, p),
-  delete:    (id)  => db.delete('supplySubjects', id),
+  all:       ()         => db.get('supplySubjects'),
+  byTeacher: (tid)      => db.where('supplySubjects', r => r.teacherId === tid),
+  find:      (id)       => db.getOne('supplySubjects', id),
+  insert:    (r)        => db.insert('supplySubjects', r),
+  update:    (id, p)    => db.update('supplySubjects', id, p),
+  delete:    (id)       => db.delete('supplySubjects', id),
 }
 
 export const SupplyVendors = {
@@ -732,9 +421,7 @@ export const SupplyPromos = {
   delete:     (id)       => db.delete('supplyPromos', id),
 }
 
-// ─── 로봇 교구 진도 관리 ──────────────────────────────────────
-
-// 교구 목록 (업체별)
+// ─── 로봇 교구 진도 관리
 export const SupplyProducts = {
   all:          ()           => db.get('supplyProducts'),
   byTeacher:    (tid)        => db.where('supplyProducts', r => r.teacherId === tid),
@@ -745,7 +432,6 @@ export const SupplyProducts = {
   delete:       (id)         => db.delete('supplyProducts', id),
 }
 
-// 차시별 지도안 (교구 + 단계별)
 export const SupplyProductPlans = {
   all:          ()            => db.get('supplyProductPlans'),
   byTeacher:    (tid)         => db.where('supplyProductPlans', r => r.teacherId === tid),
@@ -757,7 +443,6 @@ export const SupplyProductPlans = {
   delete:       (id)          => db.delete('supplyProductPlans', id),
 }
 
-// 학생별 현재 진도 (단계/차시)
 export const SupplyStudentProgress = {
   all:          ()             => db.get('supplyStudentProgress'),
   byTeacher:    (tid)          => db.where('supplyStudentProgress', r => r.teacherId === tid),
@@ -776,7 +461,6 @@ export const SupplyStudentProgress = {
   },
 }
 
-// 진도 이력 로그
 export const SupplyProgressLogs = {
   all:          ()             => db.get('supplyProgressLogs'),
   byTeacher:    (tid)          => db.where('supplyProgressLogs', r => r.teacherId === tid),
@@ -787,7 +471,6 @@ export const SupplyProgressLogs = {
   delete:       (id)           => db.delete('supplyProgressLogs', id),
 }
 
-// 학생별 차시 완료 체크 (순서 무관)
 export const SupplySessionChecks = {
   all:          ()             => db.get('supplySessionChecks'),
   byTeacher:    (tid)          => db.where('supplySessionChecks', r => r.teacherId === tid),
@@ -809,7 +492,7 @@ export const SupplySessionChecks = {
   },
 }
 
-// ─── 안내 문구 ────────────────────────────────────────────────
+// ─── 안내 문구
 export const MessageGuides = {
   all:       ()      => db.get('messageGuides'),
   byTeacher: (tid)   => db.where('messageGuides', r => r.teacherId === tid),
@@ -827,7 +510,7 @@ export const MessageCategories = {
   delete:    (id)    => db.delete('messageCategories', id),
 }
 
-// ─── 방과후 서류 ──────────────────────────────────────────────
+// ─── 방과후 서류
 export const DocumentsDB = {
   all:       ()      => db.get('documents'),
   byTeacher: (tid)   => db.where('documents', r => r.teacherId === tid),
@@ -846,7 +529,7 @@ export const CustomCategoriesDB = {
   delete:    (id)    => db.delete('customCategories', id),
 }
 
-// ─── 선생님 프로필 (이름 / 닉네임) ───────────────────────────────
+// ─── 선생님 프로필
 export const TeacherProfiles = {
   byTeacher: (tid)   => db.where('teacherProfiles', r => r.teacherId === tid)[0] || null,
   save(tid, name, nickname) {
@@ -856,7 +539,7 @@ export const TeacherProfiles = {
   },
 }
 
-// ─── 수업 메모장 ──────────────────────────────────────────────
+// ─── 수업 메모장
 export const LessonMemos = {
   all:          ()                    => db.get('lessonMemos'),
   byClassDate:  (classId, date)       => db.where('lessonMemos', r => r.classId === classId && r.date === date),
@@ -864,4 +547,69 @@ export const LessonMemos = {
   insert:       (r)                   => db.insert('lessonMemos', r),
   update:       (id, p)               => db.update('lessonMemos', id, p),
   delete:       (id)                  => db.delete('lessonMemos', id),
+}
+
+// ─── 학교 담당자 포털
+export const SchoolAdmins = {
+  all:    ()      => db.get('schoolAdmins'),
+  find:   (id)    => db.getOne('schoolAdmins', id),
+  insert: (r)     => db.insert('schoolAdmins', r),
+  update: (id, p) => db.update('schoolAdmins', id, p),
+  delete: (id)    => db.delete('schoolAdmins', id),
+}
+
+export const SchoolAdminAccounts = {
+  all:    ()      => db.get('schoolAdminAccounts'),
+  find:   (id)    => db.getOne('schoolAdminAccounts', id),
+  insert: (r)     => db.insert('schoolAdminAccounts', r),
+  update: (id, p) => db.update('schoolAdminAccounts', id, p),
+  delete: (id)    => db.delete('schoolAdminAccounts', id),
+}
+
+export const SchoolAdminTeachers = {
+  all:          ()         => db.get('schoolAdminTeachers'),
+  byAdmin:      (aid)      => db.where('schoolAdminTeachers', r => r.adminId === aid),
+  byTeacher:    (tid)      => db.where('schoolAdminTeachers', r => r.teacherId === tid),
+  find:         (id)       => db.getOne('schoolAdminTeachers', id),
+  insert:       (r)        => db.insert('schoolAdminTeachers', r),
+  update:       (id, p)    => db.update('schoolAdminTeachers', id, p),
+  delete:       (id)       => db.delete('schoolAdminTeachers', id),
+}
+
+export const SchoolSubjects = {
+  all:       ()      => db.get('schoolSubjects'),
+  byAdmin:   (aid)   => db.where('schoolSubjects', r => r.adminId === aid),
+  find:      (id)    => db.getOne('schoolSubjects', id),
+  insert:    (r)     => db.insert('schoolSubjects', r),
+  update:    (id, p) => db.update('schoolSubjects', id, p),
+  delete:    (id)    => db.delete('schoolSubjects', id),
+}
+
+export const SchoolTeacherInvites = {
+  all:       ()      => db.get('schoolTeacherInvites'),
+  byAdmin:   (aid)   => db.where('schoolTeacherInvites', r => r.adminId === aid),
+  byTeacher: (tid)   => db.where('schoolTeacherInvites', r => r.teacherId === tid),
+  find:      (id)    => db.getOne('schoolTeacherInvites', id),
+  insert:    (r)     => db.insert('schoolTeacherInvites', r),
+  update:    (id, p) => db.update('schoolTeacherInvites', id, p),
+  delete:    (id)    => db.delete('schoolTeacherInvites', id),
+}
+
+export const SchoolNotices = {
+  all:       ()      => db.get('schoolNotices'),
+  byAdmin:   (aid)   => db.where('schoolNotices', r => r.adminId === aid),
+  find:      (id)    => db.getOne('schoolNotices', id),
+  insert:    (r)     => db.insert('schoolNotices', r),
+  update:    (id, p) => db.update('schoolNotices', id, p),
+  delete:    (id)    => db.delete('schoolNotices', id),
+}
+
+export const SchoolNoticeSubmits = {
+  all:        ()       => db.get('schoolNoticeSubmits'),
+  byNotice:   (nid)    => db.where('schoolNoticeSubmits', r => r.noticeId === nid),
+  byTeacher:  (tid)    => db.where('schoolNoticeSubmits', r => r.teacherId === tid),
+  find:       (id)     => db.getOne('schoolNoticeSubmits', id),
+  insert:     (r)      => db.insert('schoolNoticeSubmits', r),
+  update:     (id, p)  => db.update('schoolNoticeSubmits', id, p),
+  delete:     (id)     => db.delete('schoolNoticeSubmits', id),
 }
