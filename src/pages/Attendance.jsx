@@ -646,21 +646,21 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     onSaved && onSaved()
   }
 
-  const toggleCheck = (productId, stage, sessionNo) => {
+  const toggleCheck = async (productId, stage, sessionNo) => {
     const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
-    if (existing) SupplySessionChecks.delete(existing.id)
-    else SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
+    if (existing) await SupplySessionChecks.delete(existing.id)
+    else await SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
     const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
     const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
-    SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
-    if (si) SupplyItems.upsert({ ...si, productId, stage, remoteNo: si.remoteNo || '' })
+    await SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() })
+    if (si) await SupplyItems.upsert({ ...si, productId, stage, remoteNo: si.remoteNo || '' })
     onSaved && onSaved()
     setTick(t => t + 1)
   }
-  const updateCheckDate = (productId, stage, sessionNo, newDateStr) => {
+  const updateCheckDate = async (productId, stage, sessionNo, newDateStr) => {
     const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
     if (!existing) return
-    SupplySessionChecks.upsert({ ...existing, checkedAt: new Date(newDateStr).toISOString() })
+    await SupplySessionChecks.upsert({ ...existing, checkedAt: new Date(newDateStr).toISOString() })
     onSaved && onSaved()
     setTick(t => t + 1)
   }
