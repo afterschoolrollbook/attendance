@@ -1,23 +1,122 @@
 /**
- * DB 레이어 — 인메모리 캐시 + Supabase 동기화
+ * DB 레이어 — 인메모리 캐시 + Supabase JS 클라이언트 직접 접근
  *
  * 핵심 원칙:
+ *  - Edge Function 없음 → 콜드스타트 문제 없음
+ *  - Supabase JS 클라이언트로 DB 직접 접근
  *  - 모든 레코드에 updatedAt 자동 기록
  *  - 삭제는 _deleted: true 소프트딜리트
- *  - Supabase가 진실의 원천 — 페이지 로드 시 항상 Supabase에서 불러옴
  *  - localStorage 캐시 없음 → 5MB 한도 문제 없음
  *  - 멀티기기(PC/스마트폰) 항상 최신 데이터
  */
 
-import { dbCall, isConfigured } from './supabase.js'
+import { supabase, isConfigured } from './supabase.js'
 import { uid, now } from './utils.js'
+
+// ─── 실제 DB 테이블 이름 매핑 (논리명 → 실제 테이블명)
+const TABLE_MAP = {
+  users:                'users',
+  classes:              'classes',
+  students:             'students',
+  attendance:           'attendance',
+  notes:                'notes',
+  adSlots:              'ad_slots',
+  attendanceTemplates:  'attendance_templates',
+  settings:             'settings',
+  revenueFees:          'revenueFees',
+  revenuePayments:      'revenuePayments',
+  trainings:            'trainings',
+  careers:              'careers',
+  educations:           'educations',
+  certificates:         'certificates',
+  awards:               'awards',
+  jobSubs:              'jobSubs',
+  branches:             'branches',
+  points:               'points',
+  parentMembers:        'parent_members',
+  teacherParentLinks:   'teacher_parent_links',
+  teacherServiceConfigs:'teacher_service_configs',
+  supplySubjects:       'supplySubjects',
+  supplyVendors:        'supplyVendors',
+  supplyItems:          'supplyItems',
+  supplyPlans:          'supplyPlans',
+  supplyPromos:         'supplyPromos',
+  supplyProducts:       'supplyProducts',
+  supplyProductPlans:   'supplyProductPlans',
+  supplyStudentProgress:'supplyStudentProgress',
+  supplyProgressLogs:   'supplyProgressLogs',
+  supplySessionChecks:  'supplySessionChecks',
+  messageGuides:        'messageGuides',
+  messageCategories:    'messageCategories',
+  teacherProfiles:      'teacherProfiles',
+  documents:            'documents',
+  customCategories:     'custom_categories',
+  lessonMemos:          'lesson_memos',
+  schoolAdmins:         'schoolAdmins',
+  schoolAdminAccounts:  'schoolAdminAccounts',
+  schoolAdminTeachers:  'schoolAdminTeachers',
+  schoolSubjects:       'schoolSubjects',
+  schoolTeacherInvites: 'schoolTeacherInvites',
+  schoolNotices:        'schoolNotices',
+  schoolNoticeSubmits:  'schoolNoticeSubmits',
+  schoolCalendar:       'schoolCalendar',
+  schoolInfo:           'schoolInfo',
+  blogPosts:            'blog_posts',
+}
+
+// ─── camelCase 컬럼 테이블 (변환 없이 그대로 사용)
+const CAMEL_TABLES = new Set([
+  'revenueFees', 'revenuePayments',
+  'trainings', 'careers', 'educations', 'certificates', 'awards', 'jobSubs',
+  'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
+  'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress',
+  'supplyProgressLogs', 'supplySessionChecks',
+  'messageGuides', 'messageCategories', 'teacherProfiles',
+  'schoolAdmins', 'schoolAdminAccounts', 'schoolAdminTeachers',
+  'schoolSubjects', 'schoolTeacherInvites',
+  'schoolNotices', 'schoolNoticeSubmits',
+  'schoolCalendar', 'schoolInfo',
+  'documents',
+])
+
+// ─── camelCase → snake_case 변환
+function toSnake(obj) {
+  const result = {}
+  for (const [k, v] of Object.entries(obj)) {
+    const snake = k.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
+    result[snake] = v !== null && typeof v === 'object' && !Array.isArray(v)
+      ? toSnake(v) : v
+  }
+  return result
+}
+
+// ─── snake_case → camelCase 변환
+function toCamel(obj) {
+  const result = {}
+  for (const [k, v] of Object.entries(obj)) {
+    const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+    result[camel] = v !== null && typeof v === 'object' && !Array.isArray(v)
+      ? toCamel(v) : v
+  }
+  return result
+}
+
+// ─── 테이블별 변환 함수 반환
+function getConverters(table) {
+  const isCamel = CAMEL_TABLES.has(table)
+  return {
+    tbl:    TABLE_MAP[table] || table,
+    toDb:   (obj) => isCamel ? obj : toSnake(obj),
+    fromDb: (obj) => isCamel ? obj : toCamel(obj),
+  }
+}
 
 // ─── 전역 DB 변경 이벤트 시스템
 const _listeners = new Map()
 export function onDbChange(table, fn) {
   if (!_listeners.has(table)) _listeners.set(table, new Set())
   _listeners.get(table).add(fn)
-  return () => _listeners.get(table)?.delete(fn) // unsubscribe 반환
+  return () => _listeners.get(table)?.delete(fn)
 }
 function _emit(table) {
   _listeners.get(table)?.forEach(fn => fn())
@@ -31,71 +130,97 @@ const cache = {
   set(t, d) { _cache[t] = d },
 }
 
-// ─── Supabase 전송
-async function sync(action, table, payload) {
-  if (!isConfigured) return
-  try {
-    await dbCall(action, table, payload)
-  } catch (e) {
-    console.warn(`[Supabase sync 실패] ${action}/${table}:`, e.message)
-    throw e
-  }
+// ─── Supabase 직접 쓰기 함수들
+async function syncInsert(table, data) {
+  if (!supabase) return
+  const { tbl, toDb } = getConverters(table)
+  const { error } = await supabase.from(tbl).insert(toDb(data))
+  if (error) throw new Error(error.message)
+}
+
+async function syncUpsert(table, data) {
+  if (!supabase) return
+  const { tbl, toDb } = getConverters(table)
+  const { error } = await supabase.from(tbl).upsert(toDb(data))
+  if (error) throw new Error(error.message)
+}
+
+async function syncUpdate(table, id, patch) {
+  if (!supabase) return
+  const { tbl, toDb } = getConverters(table)
+  const { error } = await supabase.from(tbl).update(toDb(patch)).eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+async function syncDelete(table, id) {
+  if (!supabase) return
+  const { tbl } = getConverters(table)
+  const { error } = await supabase
+    .from(tbl)
+    .update({ _deleted: true, updatedAt: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+async function syncAttendanceUpsert(data) {
+  if (!supabase) return
+  const { error } = await supabase
+    .from('attendance')
+    .upsert(toSnake(data), { onConflict: 'class_id,student_id,date' })
+  if (error) throw new Error(error.message)
 }
 
 // ─── 동기화 대상 테이블 목록
 const SYNC_TABLES = [
-  // 기존
   'users', 'classes', 'students', 'attendance', 'notes',
   'adSlots', 'attendanceTemplates',
-  // 신규 — 내 관리 / 수익
   'revenueFees', 'revenuePayments',
   'trainings', 'careers', 'educations', 'certificates', 'awards', 'jobSubs',
-  // 교구 관리
   'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
-  // 로봇 교구 진도
   'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress', 'supplyProgressLogs', 'supplySessionChecks',
   'lessonMemos',
-  // 지사 / 학부모 회원 / 연결 정보
-  'branches', 'parentMembers', 'teacherParentLinks',
-  // 출결 서비스 설정
+  'branches', 'points', 'parentMembers', 'teacherParentLinks',
   'teacherServiceConfigs',
-  // 안내 문구
   'messageGuides', 'messageCategories',
-  // 선생님 프로필
   'teacherProfiles',
-  // 방과후 서류
   'documents', 'customCategories',
-  // 학교 담당자 포털
   'schoolAdmins', 'schoolAdminAccounts',
-  'schoolAdminTeachers',
-  'schoolSubjects',
-  'schoolTeacherInvites',
-  'schoolNotices',
-  'schoolNoticeSubmits',
+  'schoolAdminTeachers', 'schoolSubjects', 'schoolTeacherInvites',
+  'schoolNotices', 'schoolNoticeSubmits',
 ]
 
-// ─── 초기화: Supabase를 진실의 원천으로 — 항상 Supabase 우선
+// ─── 초기화: Supabase에서 데이터 로드
 export async function initFromSupabase() {
-  if (!isConfigured) return false
+  if (!supabase) return false
   try {
-    // Supabase → 인메모리 캐시로 로드
     await Promise.all(SYNC_TABLES.map(async (t) => {
       try {
-        const remote = await dbCall('getAll', t)
-        if (!Array.isArray(remote)) return
-        const normalized = remote
-          .map(r => ({ ...r, _deleted: r._deleted === true || r._deleted === 1 ? true : false }))
-          .filter(r => r._deleted !== true)
-        cache.set(t, normalized)
-        console.log(`[Supabase] ${t}: ${normalized.length}건 로드`)
+        const { tbl, fromDb } = getConverters(t)
+
+        let q = supabase.from(tbl).select('*')
+          .or('_deleted.is.null,_deleted.eq.false')
+
+        // attendance는 최근 90일치만 로드
+        if (t === 'attendance') {
+          const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+            .toISOString().slice(0, 10)
+          q = q.gte('date', since)
+        }
+
+        const { data: rows, error } = await q
+        if (error) throw new Error(error.message)
+        if (!Array.isArray(rows)) return
+
+        cache.set(t, rows.map(fromDb).filter(r => r._deleted !== true))
+        console.log(`[Supabase] ${t}: ${cache.get(t).length}건 로드`)
       } catch (e) {
         console.warn(`[Supabase] ${t} 로드 실패:`, e.message)
       }
     }))
 
-    // settings 동기화 (settings는 localStorage 유지 — 용량 작음)
+    // settings 동기화 (localStorage에 저장 — 용량 작음)
     try {
-      const settings = await dbCall('getAll', 'settings')
+      const { data: settings } = await supabase.from('settings').select('*')
       if (Array.isArray(settings)) {
         settings.forEach(row => {
           if (!row.key || !row.value) return
@@ -131,7 +256,12 @@ export const db = {
     rows.push(r)
     cache.set(t, rows)
     _emit(t)
-    await sync('insert', t, { data: r })
+    try {
+      await syncInsert(t, r)
+    } catch (e) {
+      console.warn(`[DB] insert/${t} 실패:`, e.message)
+      throw e
+    }
     return r
   },
 
@@ -140,7 +270,12 @@ export const db = {
     const rows = cache.get(t).map(r => r.id === id ? { ...r, ...updated } : r)
     cache.set(t, rows)
     _emit(t)
-    await sync('update', t, { id, patch: updated })
+    try {
+      await syncUpdate(t, id, updated)
+    } catch (e) {
+      console.warn(`[DB] update/${t} 실패:`, e.message)
+      throw e
+    }
     return rows.find(r => r.id === id)
   },
 
@@ -150,7 +285,12 @@ export const db = {
     )
     cache.set(t, rows)
     _emit(t)
-    await sync('delete', t, { id })
+    try {
+      await syncDelete(t, id)
+    } catch (e) {
+      console.warn(`[DB] delete/${t} 실패:`, e.message)
+      throw e
+    }
   },
 
   where:    (t, fn) => cache.get(t).filter(r => r._deleted !== true && fn(r)),
@@ -201,7 +341,13 @@ export const Attendance = {
     if (ex) {
       const updated = { ...ex, ...record, updatedAt: now() }
       cache.set('attendance', cache.get('attendance').map(r => r.id === ex.id ? updated : r))
-      await sync('attendanceUpsert', 'attendance', { data: updated })
+      _emit('attendance')
+      try {
+        await syncAttendanceUpsert(updated)
+      } catch (e) {
+        console.warn('[DB] attendanceUpsert 실패:', e.message)
+        throw e
+      }
       return updated
     }
     return db.insert('attendance', record)
@@ -238,8 +384,9 @@ export const Settings = {
   set(k, v) {
     const val = typeof v === 'object' && v !== null ? { ...v, _updatedAt: Date.now() } : v
     localStorage.setItem('asa_settings_' + k, JSON.stringify(val))
-    if (isConfigured) {
-      dbCall('settingSet', 'settings', { id: k, data: v })
+    if (supabase) {
+      supabase.from('settings')
+        .upsert({ key: k, value: v, updated_at: new Date().toISOString() })
         .then(() => console.log(`[Settings] "${k}" Supabase 저장 완료`))
         .catch(e => console.warn(`[Settings] "${k}" Supabase 저장 실패:`, e.message))
     }
@@ -273,10 +420,10 @@ export const ParentMembers = {
     return db.get('parentMembers').find(p => p.phone === clean) || null
   },
 
-  byTeacher:  (tid) => db.where('parentMembers', p => p.teacherId === tid),
-  insert:     (p)   => db.insert('parentMembers', p),
-  update:     (id, patch) => db.update('parentMembers', id, patch),
-  delete:     (id)  => db.delete('parentMembers', id),
+  byTeacher:  (tid)        => db.where('parentMembers', p => p.teacherId === tid),
+  insert:     (p)          => db.insert('parentMembers', p),
+  update:     (id, patch)  => db.update('parentMembers', id, patch),
+  delete:     (id)         => db.delete('parentMembers', id),
 
   join(phone, {
     marketingAgree   = false,
@@ -314,9 +461,13 @@ export const ParentMembers = {
     const clean = phone?.replace(/[^0-9]/g, '')
     const member = this.findByPhoneAndTeacher(clean, teacherId)
     if (!member) return
+    // 인메모리 캐시 업데이트
     db.update('parentMembers', member.id, { pushSubscription: subscriptionJson })
-    if (isConfigured) {
-      dbCall('update', 'parentMembers', { id: member.id, fields: { push_subscription: subscriptionJson } })
+    // Supabase 직접 업데이트 (snake_case 컬럼명)
+    if (supabase) {
+      supabase.from('parent_members')
+        .update({ push_subscription: subscriptionJson })
+        .eq('id', member.id)
         .catch(e => console.warn('[Push] 구독 저장 실패:', e.message))
     }
   },
@@ -389,6 +540,45 @@ export const TeacherServiceConfigs = {
   },
 }
 
+// ─── 포인트
+export const Points = {
+  all:       ()    => db.get('points'),
+  byTeacher: (tid) => db.where('points', p => p.teacherId === tid),
+
+  balance(tid) {
+    const now_ = new Date().toISOString()
+    return this.byTeacher(tid).reduce((sum, p) => {
+      if (p.type === 'earn') {
+        if (p.expiresAt && p.expiresAt < now_) return sum
+        return sum + (p.amount || 0)
+      }
+      return sum - (p.amount || 0)
+    }, 0)
+  },
+
+  earn(teacherId, amount, { source='shop', parentMemberId='', orderId='', memo='', expireDays=365 } = {}) {
+    const expiresAt = new Date(Date.now() + expireDays * 86400000).toISOString()
+    return db.insert('points', { id:uid(), teacherId, type:'earn', amount, source, parentMemberId, orderId, memo, expiresAt, createdAt:now() })
+  },
+
+  use(teacherId, amount, { memo='', orderId='' } = {}) {
+    if (this.balance(teacherId) < amount) throw new Error('포인트가 부족합니다.')
+    return db.insert('points', { id:uid(), teacherId, type:'use', amount, source:'use', memo, orderId, createdAt:now() })
+  },
+}
+
+// ─── 지사
+export const Branches = {
+  all:    ()      => db.get('branches'),
+  find:   (id)    => db.getOne('branches', id),
+  active: ()      => db.where('branches', b => b.active),
+  insert: (b)     => db.insert('branches', b),
+  update: (id, p) => db.update('branches', id, p),
+  delete: (id)    => db.delete('branches', id),
+  assignTeacher(branchId, teacherId)  { Users.update(teacherId, { branchId }) },
+  unassignTeacher(teacherId)          { Users.update(teacherId, { branchId: null }) },
+}
+
 // ─── 수익 관리
 export const RevenueFees = {
   all:       ()      => db.get('revenueFees'),
@@ -458,45 +648,6 @@ export const JobSubs = {
   delete:    (id)    => db.delete('jobSubs', id),
 }
 
-// ─── 포인트
-export const Points = {
-  all:       ()    => db.get('points'),
-  byTeacher: (tid) => db.where('points', p => p.teacherId === tid),
-
-  balance(tid) {
-    const now_ = new Date().toISOString()
-    return this.byTeacher(tid).reduce((sum, p) => {
-      if (p.type === 'earn') {
-        if (p.expiresAt && p.expiresAt < now_) return sum
-        return sum + (p.amount || 0)
-      }
-      return sum - (p.amount || 0)
-    }, 0)
-  },
-
-  earn(teacherId, amount, { source='shop', parentMemberId='', orderId='', memo='', expireDays=365 } = {}) {
-    const expiresAt = new Date(Date.now() + expireDays * 86400000).toISOString()
-    return db.insert('points', { id:uid(), teacherId, type:'earn', amount, source, parentMemberId, orderId, memo, expiresAt, createdAt:now() })
-  },
-
-  use(teacherId, amount, { memo='', orderId='' } = {}) {
-    if (this.balance(teacherId) < amount) throw new Error('포인트가 부족합니다.')
-    return db.insert('points', { id:uid(), teacherId, type:'use', amount, source:'use', memo, orderId, createdAt:now() })
-  },
-}
-
-// ─── 지사
-export const Branches = {
-  all:    ()      => db.get('branches'),
-  find:   (id)    => db.getOne('branches', id),
-  active: ()      => db.where('branches', b => b.active),
-  insert: (b)     => db.insert('branches', b),
-  update: (id, p) => db.update('branches', id, p),
-  delete: (id)    => db.delete('branches', id),
-  assignTeacher(branchId, teacherId)  { Users.update(teacherId, { branchId }) },
-  unassignTeacher(teacherId)          { Users.update(teacherId, { branchId: null }) },
-}
-
 // ─── 교구 관리
 export const SupplySubjects = {
   all:       ()         => db.get('supplySubjects'),
@@ -518,14 +669,14 @@ export const SupplyVendors = {
 }
 
 export const SupplyItems = {
-  all:           ()              => db.get('supplyItems'),
-  byTeacher:     (tid)           => db.where('supplyItems', r => r.teacherId === tid),
-  byClass:       (classId)       => db.where('supplyItems', r => r.classId === classId),
-  byClassStudent:(classId, sid)  => db.where('supplyItems', r => r.classId === classId && r.studentId === sid),
-  find:          (id)            => db.getOne('supplyItems', id),
-  insert:        (r)             => db.insert('supplyItems', r),
-  update:        (id, p)         => db.update('supplyItems', id, p),
-  delete:        (id)            => db.delete('supplyItems', id),
+  all:            ()             => db.get('supplyItems'),
+  byTeacher:      (tid)          => db.where('supplyItems', r => r.teacherId === tid),
+  byClass:        (classId)      => db.where('supplyItems', r => r.classId === classId),
+  byClassStudent: (classId, sid) => db.where('supplyItems', r => r.classId === classId && r.studentId === sid),
+  find:           (id)           => db.getOne('supplyItems', id),
+  insert:         (r)            => db.insert('supplyItems', r),
+  update:         (id, p)        => db.update('supplyItems', id, p),
+  delete:         (id)           => db.delete('supplyItems', id),
   async upsert(r) {
     const existing = db.where('supplyItems', x => x.classId === r.classId && x.studentId === r.studentId)[0]
     if (existing) return await db.update('supplyItems', existing.id, r)
@@ -534,58 +685,57 @@ export const SupplyItems = {
 }
 
 export const SupplyPlans = {
-  all:        ()              => db.get('supplyPlans'),
-  byTeacher:  (tid)           => db.where('supplyPlans', r => r.teacherId === tid),
-  bySubject:  (tid, sub)      => db.where('supplyPlans', r => r.teacherId === tid && r.subject === sub),
-  byProduct:  (productId)     => db.where('supplyPlans', r => r.productId === productId),
-  byVendor:   (vendorId)      => db.where('supplyPlans', r => r.vendorId === vendorId),
-  find:       (id)            => db.getOne('supplyPlans', id),
-  insert:     (r)             => db.insert('supplyPlans', r),
-  update:     (id, p)         => db.update('supplyPlans', id, p),
-  delete:     (id)            => db.delete('supplyPlans', id),
+  all:       ()           => db.get('supplyPlans'),
+  byTeacher: (tid)        => db.where('supplyPlans', r => r.teacherId === tid),
+  bySubject: (tid, sub)   => db.where('supplyPlans', r => r.teacherId === tid && r.subject === sub),
+  byProduct: (productId)  => db.where('supplyPlans', r => r.productId === productId),
+  byVendor:  (vendorId)   => db.where('supplyPlans', r => r.vendorId === vendorId),
+  find:      (id)         => db.getOne('supplyPlans', id),
+  insert:    (r)          => db.insert('supplyPlans', r),
+  update:    (id, p)      => db.update('supplyPlans', id, p),
+  delete:    (id)         => db.delete('supplyPlans', id),
 }
 
 export const SupplyPromos = {
-  all:        ()         => db.get('supplyPromos'),
-  byTeacher:  (tid)      => db.where('supplyPromos', r => r.teacherId === tid),
-  bySubject:  (tid, sub) => db.where('supplyPromos', r => r.teacherId === tid && r.subject === sub),
-  find:       (id)       => db.getOne('supplyPromos', id),
-  insert:     (r)        => db.insert('supplyPromos', r),
-  update:     (id, p)    => db.update('supplyPromos', id, p),
-  delete:     (id)       => db.delete('supplyPromos', id),
+  all:       ()         => db.get('supplyPromos'),
+  byTeacher: (tid)      => db.where('supplyPromos', r => r.teacherId === tid),
+  bySubject: (tid, sub) => db.where('supplyPromos', r => r.teacherId === tid && r.subject === sub),
+  find:      (id)       => db.getOne('supplyPromos', id),
+  insert:    (r)        => db.insert('supplyPromos', r),
+  update:    (id, p)    => db.update('supplyPromos', id, p),
+  delete:    (id)       => db.delete('supplyPromos', id),
 }
 
-// ─── 로봇 교구 진도 관리
 export const SupplyProducts = {
-  all:          ()           => db.get('supplyProducts'),
-  byTeacher:    (tid)        => db.where('supplyProducts', r => r.teacherId === tid),
-  byVendor:     (vendorId)   => db.where('supplyProducts', r => r.vendorId === vendorId),
-  find:         (id)         => db.getOne('supplyProducts', id),
-  insert:       (r)          => db.insert('supplyProducts', r),
-  update:       (id, p)      => db.update('supplyProducts', id, p),
-  delete:       (id)         => db.delete('supplyProducts', id),
+  all:       ()          => db.get('supplyProducts'),
+  byTeacher: (tid)       => db.where('supplyProducts', r => r.teacherId === tid),
+  byVendor:  (vendorId)  => db.where('supplyProducts', r => r.vendorId === vendorId),
+  find:      (id)        => db.getOne('supplyProducts', id),
+  insert:    (r)         => db.insert('supplyProducts', r),
+  update:    (id, p)     => db.update('supplyProducts', id, p),
+  delete:    (id)        => db.delete('supplyProducts', id),
 }
 
 export const SupplyProductPlans = {
-  all:          ()            => db.get('supplyProductPlans'),
-  byTeacher:    (tid)         => db.where('supplyProductPlans', r => r.teacherId === tid),
-  byProduct:    (productId)   => db.where('supplyProductPlans', r => r.productId === productId),
+  all:            ()                 => db.get('supplyProductPlans'),
+  byTeacher:      (tid)              => db.where('supplyProductPlans', r => r.teacherId === tid),
+  byProduct:      (productId)        => db.where('supplyProductPlans', r => r.productId === productId),
   byProductStage: (productId, stage) => db.where('supplyProductPlans', r => r.productId === productId && r.stage === stage),
-  find:         (id)          => db.getOne('supplyProductPlans', id),
-  insert:       (r)           => db.insert('supplyProductPlans', r),
-  update:       (id, p)       => db.update('supplyProductPlans', id, p),
-  delete:       (id)          => db.delete('supplyProductPlans', id),
+  find:           (id)               => db.getOne('supplyProductPlans', id),
+  insert:         (r)                => db.insert('supplyProductPlans', r),
+  update:         (id, p)            => db.update('supplyProductPlans', id, p),
+  delete:         (id)               => db.delete('supplyProductPlans', id),
 }
 
 export const SupplyStudentProgress = {
-  all:          ()             => db.get('supplyStudentProgress'),
-  byTeacher:    (tid)          => db.where('supplyStudentProgress', r => r.teacherId === tid),
-  byClass:      (classId)      => db.where('supplyStudentProgress', r => r.classId === classId),
-  byStudent:    (studentId, classId) => db.where('supplyStudentProgress', r => r.studentId === studentId && r.classId === classId),
-  find:         (id)           => db.getOne('supplyStudentProgress', id),
-  insert:       (r)            => db.insert('supplyStudentProgress', r),
-  update:       (id, p)        => db.update('supplyStudentProgress', id, p),
-  delete:       (id)           => db.delete('supplyStudentProgress', id),
+  all:       ()                   => db.get('supplyStudentProgress'),
+  byTeacher: (tid)                => db.where('supplyStudentProgress', r => r.teacherId === tid),
+  byClass:   (classId)            => db.where('supplyStudentProgress', r => r.classId === classId),
+  byStudent: (studentId, classId) => db.where('supplyStudentProgress', r => r.studentId === studentId && r.classId === classId),
+  find:      (id)                 => db.getOne('supplyStudentProgress', id),
+  insert:    (r)                  => db.insert('supplyStudentProgress', r),
+  update:    (id, p)              => db.update('supplyStudentProgress', id, p),
+  delete:    (id)                 => db.delete('supplyStudentProgress', id),
   async upsert(r) {
     const existing = db.where('supplyStudentProgress', x =>
       x.studentId === r.studentId && x.classId === r.classId && x.productId === r.productId
@@ -596,26 +746,25 @@ export const SupplyStudentProgress = {
 }
 
 export const SupplyProgressLogs = {
-  all:          ()             => db.get('supplyProgressLogs'),
-  byTeacher:    (tid)          => db.where('supplyProgressLogs', r => r.teacherId === tid),
-  byStudent:    (studentId, classId) => db.where('supplyProgressLogs', r => r.studentId === studentId && r.classId === classId),
-  byProduct:    (productId)    => db.where('supplyProgressLogs', r => r.productId === productId),
-  find:         (id)           => db.getOne('supplyProgressLogs', id),
-  insert:       (r)            => db.insert('supplyProgressLogs', r),
-  delete:       (id)           => db.delete('supplyProgressLogs', id),
+  all:       ()                   => db.get('supplyProgressLogs'),
+  byTeacher: (tid)                => db.where('supplyProgressLogs', r => r.teacherId === tid),
+  byStudent: (studentId, classId) => db.where('supplyProgressLogs', r => r.studentId === studentId && r.classId === classId),
+  byProduct: (productId)          => db.where('supplyProgressLogs', r => r.productId === productId),
+  find:      (id)                 => db.getOne('supplyProgressLogs', id),
+  insert:    (r)                  => db.insert('supplyProgressLogs', r),
+  delete:    (id)                 => db.delete('supplyProgressLogs', id),
 }
 
 export const SupplySessionChecks = {
-  all:          ()             => db.get('supplySessionChecks'),
-  byTeacher:    (tid)          => db.where('supplySessionChecks', r => r.teacherId === tid),
-  byStudent:    (studentId, classId) => db.where('supplySessionChecks', r => r.studentId === studentId && r.classId === classId),
-  byProduct:    (productId)    => db.where('supplySessionChecks', r => r.productId === productId),
-  byProductStudent: (productId, studentId, classId) =>
-    db.where('supplySessionChecks', r => r.productId === productId && r.studentId === studentId && r.classId === classId),
-  find:         (id)           => db.getOne('supplySessionChecks', id),
-  insert:       (r)            => db.insert('supplySessionChecks', r),
-  update:       (id, p)        => db.update('supplySessionChecks', id, p),
-  delete:       (id)           => db.delete('supplySessionChecks', id),
+  all:              ()                              => db.get('supplySessionChecks'),
+  byTeacher:        (tid)                           => db.where('supplySessionChecks', r => r.teacherId === tid),
+  byStudent:        (studentId, classId)            => db.where('supplySessionChecks', r => r.studentId === studentId && r.classId === classId),
+  byProduct:        (productId)                     => db.where('supplySessionChecks', r => r.productId === productId),
+  byProductStudent: (productId, studentId, classId) => db.where('supplySessionChecks', r => r.productId === productId && r.studentId === studentId && r.classId === classId),
+  find:             (id)                            => db.getOne('supplySessionChecks', id),
+  insert:           (r)                             => db.insert('supplySessionChecks', r),
+  update:           (id, p)                         => db.update('supplySessionChecks', id, p),
+  delete:           (id)                            => db.delete('supplySessionChecks', id),
   async upsert(r) {
     const existing = db.where('supplySessionChecks', x =>
       x.studentId === r.studentId && x.classId === r.classId &&
@@ -646,13 +795,13 @@ export const MessageCategories = {
 
 // ─── 방과후 서류
 export const DocumentsDB = {
-  all:       ()      => db.get('documents'),
-  byTeacher: (tid)   => db.where('documents', r => r.teacherId === tid),
-  byCategory:(tid, cat) => db.where('documents', r => r.teacherId === tid && r.category === cat),
-  find:      (id)    => db.getOne('documents', id),
-  insert:    (r)     => db.insert('documents', r),
-  update:    (id, p) => db.update('documents', id, p),
-  delete:    (id)    => db.delete('documents', id),
+  all:        ()         => db.get('documents'),
+  byTeacher:  (tid)      => db.where('documents', r => r.teacherId === tid),
+  byCategory: (tid, cat) => db.where('documents', r => r.teacherId === tid && r.category === cat),
+  find:       (id)       => db.getOne('documents', id),
+  insert:     (r)        => db.insert('documents', r),
+  update:     (id, p)    => db.update('documents', id, p),
+  delete:     (id)       => db.delete('documents', id),
 }
 
 export const CustomCategoriesDB = {
@@ -665,7 +814,7 @@ export const CustomCategoriesDB = {
 
 // ─── 선생님 프로필
 export const TeacherProfiles = {
-  byTeacher: (tid)   => db.where('teacherProfiles', r => r.teacherId === tid)[0] || null,
+  byTeacher: (tid) => db.where('teacherProfiles', r => r.teacherId === tid)[0] || null,
   save(tid, name, nickname) {
     const existing = this.byTeacher(tid)
     if (existing) return db.update('teacherProfiles', existing.id, { name, nickname })
@@ -675,12 +824,12 @@ export const TeacherProfiles = {
 
 // ─── 수업 메모장
 export const LessonMemos = {
-  all:          ()                    => db.get('lessonMemos'),
-  byClassDate:  (classId, date)       => db.where('lessonMemos', r => r.classId === classId && r.date === date),
-  byTeacher:    (tid)                 => db.where('lessonMemos', r => r.teacherId === tid),
-  insert:       (r)                   => db.insert('lessonMemos', r),
-  update:       (id, p)               => db.update('lessonMemos', id, p),
-  delete:       (id)                  => db.delete('lessonMemos', id),
+  all:         ()              => db.get('lessonMemos'),
+  byClassDate: (classId, date) => db.where('lessonMemos', r => r.classId === classId && r.date === date),
+  byTeacher:   (tid)           => db.where('lessonMemos', r => r.teacherId === tid),
+  insert:      (r)             => db.insert('lessonMemos', r),
+  update:      (id, p)         => db.update('lessonMemos', id, p),
+  delete:      (id)            => db.delete('lessonMemos', id),
 }
 
 // ─── 학교 담당자 포털
@@ -701,22 +850,22 @@ export const SchoolAdminAccounts = {
 }
 
 export const SchoolAdminTeachers = {
-  all:          ()         => db.get('schoolAdminTeachers'),
-  byAdmin:      (aid)      => db.where('schoolAdminTeachers', r => r.adminId === aid),
-  byTeacher:    (tid)      => db.where('schoolAdminTeachers', r => r.teacherId === tid),
-  find:         (id)       => db.getOne('schoolAdminTeachers', id),
-  insert:       (r)        => db.insert('schoolAdminTeachers', r),
-  update:       (id, p)    => db.update('schoolAdminTeachers', id, p),
-  delete:       (id)       => db.delete('schoolAdminTeachers', id),
+  all:       ()      => db.get('schoolAdminTeachers'),
+  byAdmin:   (aid)   => db.where('schoolAdminTeachers', r => r.adminId === aid),
+  byTeacher: (tid)   => db.where('schoolAdminTeachers', r => r.teacherId === tid),
+  find:      (id)    => db.getOne('schoolAdminTeachers', id),
+  insert:    (r)     => db.insert('schoolAdminTeachers', r),
+  update:    (id, p) => db.update('schoolAdminTeachers', id, p),
+  delete:    (id)    => db.delete('schoolAdminTeachers', id),
 }
 
 export const SchoolSubjects = {
-  all:       ()      => db.get('schoolSubjects'),
-  byAdmin:   (aid)   => db.where('schoolSubjects', r => r.adminId === aid),
-  find:      (id)    => db.getOne('schoolSubjects', id),
-  insert:    (r)     => db.insert('schoolSubjects', r),
-  update:    (id, p) => db.update('schoolSubjects', id, p),
-  delete:    (id)    => db.delete('schoolSubjects', id),
+  all:      ()      => db.get('schoolSubjects'),
+  byAdmin:  (aid)   => db.where('schoolSubjects', r => r.adminId === aid),
+  find:     (id)    => db.getOne('schoolSubjects', id),
+  insert:   (r)     => db.insert('schoolSubjects', r),
+  update:   (id, p) => db.update('schoolSubjects', id, p),
+  delete:   (id)    => db.delete('schoolSubjects', id),
 }
 
 export const SchoolTeacherInvites = {
@@ -730,20 +879,20 @@ export const SchoolTeacherInvites = {
 }
 
 export const SchoolNotices = {
-  all:       ()      => db.get('schoolNotices'),
-  byAdmin:   (aid)   => db.where('schoolNotices', r => r.adminId === aid),
-  find:      (id)    => db.getOne('schoolNotices', id),
-  insert:    (r)     => db.insert('schoolNotices', r),
-  update:    (id, p) => db.update('schoolNotices', id, p),
-  delete:    (id)    => db.delete('schoolNotices', id),
+  all:      ()      => db.get('schoolNotices'),
+  byAdmin:  (aid)   => db.where('schoolNotices', r => r.adminId === aid),
+  find:     (id)    => db.getOne('schoolNotices', id),
+  insert:   (r)     => db.insert('schoolNotices', r),
+  update:   (id, p) => db.update('schoolNotices', id, p),
+  delete:   (id)    => db.delete('schoolNotices', id),
 }
 
 export const SchoolNoticeSubmits = {
-  all:        ()       => db.get('schoolNoticeSubmits'),
-  byNotice:   (nid)    => db.where('schoolNoticeSubmits', r => r.noticeId === nid),
-  byTeacher:  (tid)    => db.where('schoolNoticeSubmits', r => r.teacherId === tid),
-  find:       (id)     => db.getOne('schoolNoticeSubmits', id),
-  insert:     (r)      => db.insert('schoolNoticeSubmits', r),
-  update:     (id, p)  => db.update('schoolNoticeSubmits', id, p),
-  delete:     (id)     => db.delete('schoolNoticeSubmits', id),
+  all:       ()      => db.get('schoolNoticeSubmits'),
+  byNotice:  (nid)   => db.where('schoolNoticeSubmits', r => r.noticeId === nid),
+  byTeacher: (tid)   => db.where('schoolNoticeSubmits', r => r.teacherId === tid),
+  find:      (id)    => db.getOne('schoolNoticeSubmits', id),
+  insert:    (r)     => db.insert('schoolNoticeSubmits', r),
+  update:    (id, p) => db.update('schoolNoticeSubmits', id, p),
+  delete:    (id)    => db.delete('schoolNoticeSubmits', id),
 }
