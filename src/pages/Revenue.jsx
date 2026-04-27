@@ -99,8 +99,7 @@ export function Revenue({ user }) {
 
   const [expandedClass, setExpandedClass] = useState(null)
   const { error: toastError, success } = useToast()
-  // ─── 로컬 confirm 다이얼로그 상태
-  const [localConfirm, setLocalConfirm] = useState(null) // { msg, onOk }
+  const [localConfirm, setLocalConfirm] = useState(null)
   const confirm = (msg, onOk) => setLocalConfirm({ msg, onOk })
 
   const reload = () => {
@@ -649,7 +648,7 @@ export function Revenue({ user }) {
                   💵 입금 내역
                   <span style={{ fontSize:'12px', fontWeight:500, color:C.muted, marginLeft:'6px' }}>({curDate.slice(5).replace('-','.')})</span>
                 </div>
-                <button onClick={() => openPayModal(curDate)}>
+                <button onClick={() => openPayModal(curDate)}
                   style={{ padding:'5px 12px', borderRadius:'8px', border:'none', background:C.success, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   + 입금 등록
                 </button>
@@ -1304,7 +1303,6 @@ export function Revenue({ user }) {
       )}
 
             {/* ── 미수금 상세 팝업 */}
-      {/* ─── 로컬 confirm 다이얼로그 */}
       {localConfirm && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
           onClick={() => setLocalConfirm(null)}>
