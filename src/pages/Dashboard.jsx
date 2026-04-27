@@ -2819,33 +2819,60 @@ export function Dashboard({ user, onNav }) {
               <span style={{ fontSize: '14px', fontWeight: 700, color: C.danger }}>교구 준비 필요 — 이번주 수업</span>
               <span style={{ fontSize: '11px', color: C.primary, fontWeight: 600 }}>바로가기 →</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {supplyAlerts.map(({ cls, nextDate, students, total }) => (
-                <div key={cls.id} style={{ background: '#fff', borderRadius: '8px', border: '1px solid #fca5a5', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#fef2f2', borderBottom: '1px solid #fca5a5' }}>
-                    <div style={{ fontSize: '13px', color: C.text }}>
-                      <span style={{ fontWeight: 700 }}>{cls.organization}</span>
-                      <span style={{ color: C.muted }}> · {cls.className}{cls.section ? ' ' + cls.section + '반' : ''}</span>
-                    </div>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: C.danger }}>{students.length}/{total}명</span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 12px' }}>
-                    {students.map(({ s, label, isDone, productId: pid }) => (
-                      <div key={s.id}
-                        onClick={e => { e.stopPropagation(); if(pid) setDashScModal({ studentId: s.id, classId: cls.id, productId: pid, alertLabel: label, studentName: s.name }) }}
-                        style={{ padding: '6px 10px', borderRadius: '8px', background: isDone ? '#f0fdf4' : '#fef2f2', border: `1px solid ${isDone ? '#86efac' : '#fca5a5'}`, marginBottom: '4px', cursor: 'pointer' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: isDone ? '#16a34a' : C.danger, marginBottom: '2px' }}>
-                          {isDone ? '✅' : '⚠️'} {label}
-                        </div>
-                        <div style={{ fontSize: '12px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 700, color: C.text }}>{s.name}</span>
-                          <span style={{ color: C.muted }}>{[s.school, s.grade ? s.grade+'학년' : null, s.classNum ? s.classNum+'반' : null, s.number ? s.number+'번' : null].filter(Boolean).join(' ')}</span>
-                        </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {(() => {
+                // 학교(organization)별로 묶기
+                const schoolMap = {}
+                supplyAlerts.forEach(({ cls, nextDate, students, total }) => {
+                  const school = cls.organization || '기타'
+                  if (!schoolMap[school]) schoolMap[school] = []
+                  schoolMap[school].push({ cls, nextDate, students, total })
+                })
+                return Object.entries(schoolMap).map(([school, items]) => {
+                  // 같은 학교 안에서 section 기준 A→B→C 정렬
+                  const sorted = [...items].sort((a, b) =>
+                    (a.cls.section || '').localeCompare(b.cls.section || '', 'ko')
+                  )
+                  const totalAlert = sorted.reduce((sum, i) => sum + i.students.length, 0)
+                  return (
+                    <div key={school} style={{ background: '#fff', borderRadius: '10px', border: '1px solid #fca5a5', overflow: 'hidden' }}>
+                      {/* 학교 헤더 */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', background: '#fef2f2', borderBottom: '1px solid #fca5a5' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>🏫 {school}</span>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: C.danger }}>{totalAlert}명 준비 필요</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                      {/* A반, B반 순서로 */}
+                      {sorted.map(({ cls, students, total }) => (
+                        <div key={cls.id} style={{ borderBottom: '1px solid #fee2e2' }}>
+                          {/* 반 서브헤더 */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 14px', background: '#fff7ed' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: C.primary }}>
+                              {cls.className}{cls.section ? ' ' + cls.section + '반' : ''}
+                            </span>
+                            <span style={{ fontSize: '11px', color: C.muted }}>{students.length}/{total}명</span>
+                          </div>
+                          {/* 학생 목록 */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 12px' }}>
+                            {students.map(({ s, label, isDone, productId: pid }) => (
+                              <div key={s.id}
+                                onClick={e => { e.stopPropagation(); if(pid) setDashScModal({ studentId: s.id, classId: cls.id, productId: pid, alertLabel: label, studentName: s.name }) }}
+                                style={{ padding: '6px 10px', borderRadius: '8px', background: isDone ? '#f0fdf4' : '#fef2f2', border: `1px solid ${isDone ? '#86efac' : '#fca5a5'}`, cursor: 'pointer' }}>
+                                <div style={{ fontSize: '11px', fontWeight: 700, color: isDone ? '#16a34a' : C.danger, marginBottom: '2px' }}>
+                                  {isDone ? '✅' : '⚠️'} {label}
+                                </div>
+                                <div style={{ fontSize: '12px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                  <span style={{ fontWeight: 700, color: C.text }}>{s.name}</span>
+                                  <span style={{ color: C.muted }}>{[s.school, s.grade ? s.grade+'학년' : null, s.classNum ? s.classNum+'반' : null, s.number ? s.number+'번' : null].filter(Boolean).join(' ')}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })
+              })()}
             </div>
           </div>
         </div>
