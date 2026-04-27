@@ -564,27 +564,30 @@ export function Revenue({ user }) {
               )
               return (
                 <>
-                  {/* 미수금 컬럼 */}
-                  <div style={{ background:'#fef2f2', borderRadius:'14px', border:'1.5px solid #fca5a5', padding:'14px 16px' }}>
-                    <div style={{ fontSize:'14px', fontWeight:700, color:C.danger, marginBottom:'10px' }}>
-                      ⚠️ 미수금 {unpaidItems.length}건 · {fmt(unpaidItems.reduce((s,r)=>s+r.unpaid,0))}원
-                    </div>
-                    <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                      {unpaidItems.length === 0
-                        ? <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'10px' }}>없음</div>
-                        : unpaidItems.map((item,idx) => renderItem(item,idx))
-                      }
-                    </div>
-                  </div>
-                  {/* 예정 컬럼 */}
-                  {upcomingItems.length > 0 && (
-                    <div style={{ background:C.card, borderRadius:'14px', border:'1.5px solid #bfdbfe', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'8px' }}>
-                      <div style={{ fontSize:'13px', fontWeight:700, color:C.blue, marginBottom:'2px' }}>
-                        📅 예정 {upcomingItems.length}건 · {fmt(upcomingItems.reduce((s,r)=>s+r.unpaid,0))}원
+                  {/* 미수금 + 예정 — 같은 칸에 세로로 */}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+                    <div style={{ background:'#fef2f2', borderRadius:'14px', border:'1.5px solid #fca5a5', padding:'14px 16px' }}>
+                      <div style={{ fontSize:'14px', fontWeight:700, color:C.danger, marginBottom:'10px' }}>
+                        ⚠️ 미수금 {unpaidItems.length}건 · {fmt(unpaidItems.reduce((s,r)=>s+r.unpaid,0))}원
                       </div>
-                      {upcomingItems.map((item,idx) => renderItem(item,idx))}
+                      <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                        {unpaidItems.length === 0
+                          ? <div style={{ fontSize:'13px', color:C.muted, textAlign:'center', padding:'10px' }}>없음</div>
+                          : unpaidItems.map((item,idx) => renderItem(item,idx))
+                        }
+                      </div>
                     </div>
-                  )}
+                    {upcomingItems.length > 0 && (
+                      <div style={{ background:'#eff6ff', borderRadius:'14px', border:'1.5px solid #bfdbfe', padding:'14px 16px' }}>
+                        <div style={{ fontSize:'14px', fontWeight:700, color:C.blue, marginBottom:'10px' }}>
+                          📅 예정 {upcomingItems.length}건 · {fmt(upcomingItems.reduce((s,r)=>s+r.unpaid,0))}원
+                        </div>
+                        <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                          {upcomingItems.map((item,idx) => renderItem(item,idx))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* 진행중 컬럼 */}
                   <div style={{ background:'#f0fdf4', borderRadius:'14px', border:'1.5px solid #86efac', padding:'14px 16px' }}>
