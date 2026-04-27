@@ -118,8 +118,11 @@ export async function dbCall(action, table, payload = {}) {
 
   switch (action) {
     case 'getAll': {
+      const NO_DELETED = new Set(['points', 'settings'])
       let q = supabase.from(tbl).select('*')
-        .or('_deleted.is.null,_deleted.eq.false')
+      if (!NO_DELETED.has(table)) {
+        q = q.or('_deleted.is.null,_deleted.eq.false')
+      }
       if (table === 'attendance') {
         const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
         q = q.gte('date', since)
