@@ -160,6 +160,11 @@ serve(async (req) => {
         if (!NO_DELETED_TABLES.has(table)) {
           q = q.or('_deleted.is.null,_deleted.eq.false')
         }
+        // attendance는 최근 90일치만 로드 (데이터 누적 시 속도 저하 방지)
+        if (table === 'attendance') {
+          const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+          q = q.gte('date', since)
+        }
         const { data: rows, error } = await q
         if (error) throw error
         result = rows.map(fromDb)
