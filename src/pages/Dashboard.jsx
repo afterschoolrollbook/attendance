@@ -2667,11 +2667,22 @@ export function Dashboard({ user, onNav }) {
         : `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — 교구 준비 필요`
       return [{ s, label, isDone, productId: item.productId }]
     })
-    return needAlert.length > 0 ? [{ cls, students: needAlert, total: confirmed.length }] : []
+    // cls.days 기준으로 오늘부터 가장 가까운 다음 수업 요일 인덱스 계산
+    const DAY_CHARS = ['일','월','화','수','목','금','토']
+    const todayIdx = new Date().getDay() // 0=일, 1=월...
+    const clsDayIdx = (() => {
+      const d = cls.days?.[0]
+      if (!d) return -1
+      const s = typeof d === 'string' ? d.replace('요일','').trim() : ''
+      return DAY_CHARS.indexOf(s)
+    })()
+    // 오늘 포함 앞으로 며칠 뒤인지 (0=오늘, 1=내일...)
+    const daysUntil = clsDayIdx < 0 ? 999 : (clsDayIdx - todayIdx + 7) % 7
+
+    return needAlert.length > 0 ? [{ cls, students: needAlert, total: confirmed.length, clsDayIdx, daysUntil }] : []
   }).sort((a, b) => {
-    const dayOrder = d => (new Date(d + 'T00:00:00').getDay() + 6) % 7
-    const dayCmp = dayOrder(a.nextDate) - dayOrder(b.nextDate)
-    if (dayCmp !== 0) return dayCmp
+    // 오늘부터 가까운 요일 순
+    if (a.daysUntil !== b.daysUntil) return a.daysUntil - b.daysUntil
     const secCmp = (a.cls.section || '').localeCompare(b.cls.section || '', 'ko')
     if (secCmp !== 0) return secCmp
     return (a.cls.time || '').localeCompare(b.cls.time || '')
@@ -2819,59 +2830,81 @@ export function Dashboard({ user, onNav }) {
               <span style={{ fontSize: '14px', fontWeight: 700, color: C.danger }}>교구 준비 필요 — 이번주 수업</span>
               <span style={{ fontSize: '11px', color: C.primary, fontWeight: 600 }}>바로가기 →</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {(() => {
-                // 학교(organization)별로 묶기
-                const schoolMap = {}
-                supplyAlerts.forEach(({ cls, nextDate, students, total }) => {
+                const DAY_NAMES = ['일','월','화','수','목','금','토']
+                const todayIdx = new Date().getDay()
+
+                // 요일별로 묶기 (daysUntil 기준 정렬된 상태)
+                const dayMap = {}
+                supplyAlerts.forEach(({ cls, students, total, clsDayIdx, daysUntil }) => {
+                  const dayKey = clsDayIdx >= 0 ? clsDayIdx : -1
+                  if (!dayMap[dayKey]) dayMap[dayKey] = { daysUntil, clsDayIdx, schools: {} }
                   const school = cls.organization || '기타'
-                  if (!schoolMap[school]) schoolMap[school] = []
-                  schoolMap[school].push({ cls, nextDate, students, total })
+                  if (!dayMap[dayKey].schools[school]) dayMap[dayKey].schools[school] = []
+                  dayMap[dayKey].schools[school].push({ cls, students, total })
                 })
-                return Object.entries(schoolMap).map(([school, items]) => {
-                  // 같은 학교 안에서 section 기준 A→B→C 정렬
-                  const sorted = [...items].sort((a, b) =>
-                    (a.cls.section || '').localeCompare(b.cls.section || '', 'ko')
-                  )
-                  const totalAlert = sorted.reduce((sum, i) => sum + i.students.length, 0)
-                  return (
-                    <div key={school} style={{ background: '#fff', borderRadius: '10px', border: '1px solid #fca5a5', overflow: 'hidden' }}>
-                      {/* 학교 헤더 */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', background: '#fef2f2', borderBottom: '1px solid #fca5a5' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>🏫 {school}</span>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: C.danger }}>{totalAlert}명 준비 필요</span>
-                      </div>
-                      {/* A반, B반 순서로 */}
-                      {sorted.map(({ cls, students, total }) => (
-                        <div key={cls.id} style={{ borderBottom: '1px solid #fee2e2' }}>
-                          {/* 반 서브헤더 */}
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 14px', background: '#fff7ed' }}>
-                            <span style={{ fontSize: '12px', fontWeight: 700, color: C.primary }}>
-                              {cls.className}{cls.section ? ' ' + cls.section + '반' : ''}
-                            </span>
-                            <span style={{ fontSize: '11px', color: C.muted }}>{students.length}/{total}명</span>
-                          </div>
-                          {/* 학생 목록 */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 12px' }}>
-                            {students.map(({ s, label, isDone, productId: pid }) => (
-                              <div key={s.id}
-                                onClick={e => { e.stopPropagation(); if(pid) setDashScModal({ studentId: s.id, classId: cls.id, productId: pid, alertLabel: label, studentName: s.name }) }}
-                                style={{ padding: '6px 10px', borderRadius: '8px', background: isDone ? '#f0fdf4' : '#fef2f2', border: `1px solid ${isDone ? '#86efac' : '#fca5a5'}`, cursor: 'pointer' }}>
-                                <div style={{ fontSize: '11px', fontWeight: 700, color: isDone ? '#16a34a' : C.danger, marginBottom: '2px' }}>
-                                  {isDone ? '✅' : '⚠️'} {label}
-                                </div>
-                                <div style={{ fontSize: '12px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                  <span style={{ fontWeight: 700, color: C.text }}>{s.name}</span>
-                                  <span style={{ color: C.muted }}>{[s.school, s.grade ? s.grade+'학년' : null, s.classNum ? s.classNum+'반' : null, s.number ? s.number+'번' : null].filter(Boolean).join(' ')}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+
+                // daysUntil 기준으로 요일 정렬
+                return Object.entries(dayMap)
+                  .sort((a, b) => a[1].daysUntil - b[1].daysUntil)
+                  .map(([dayKey, { daysUntil, clsDayIdx, schools }]) => {
+                    const dayLabel = clsDayIdx >= 0 ? DAY_NAMES[clsDayIdx] + '요일' : '요일 미설정'
+                    const dayBadge = daysUntil === 0 ? '오늘' : daysUntil === 1 ? '내일' : `${daysUntil}일 후`
+                    return (
+                      <div key={dayKey}>
+                        {/* 요일 헤더 */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>{dayLabel}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: daysUntil === 0 ? C.danger : C.primary, background: daysUntil === 0 ? '#fef2f2' : '#fff7ed', border: `1px solid ${daysUntil === 0 ? '#fca5a5' : '#fed7aa'}`, borderRadius: '20px', padding: '1px 8px' }}>{dayBadge}</span>
                         </div>
-                      ))}
-                    </div>
-                  )
-                })
+                        {/* 학교별 묶음 */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '8px' }}>
+                          {Object.entries(schools).map(([school, items]) => {
+                            const sorted = [...items].sort((a, b) =>
+                              (a.cls.section || '').localeCompare(b.cls.section || '', 'ko')
+                            )
+                            const totalAlert = sorted.reduce((sum, i) => sum + i.students.length, 0)
+                            return (
+                              <div key={school} style={{ background: '#fff', borderRadius: '10px', border: '1px solid #fca5a5', overflow: 'hidden' }}>
+                                {/* 학교 헤더 */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', background: '#fef2f2', borderBottom: '1px solid #fca5a5' }}>
+                                  <span style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>🏫 {school}</span>
+                                  <span style={{ fontSize: '12px', fontWeight: 700, color: C.danger }}>{totalAlert}명 준비 필요</span>
+                                </div>
+                                {/* A반, B반 순서로 */}
+                                {sorted.map(({ cls, students, total }) => (
+                                  <div key={cls.id} style={{ borderBottom: '1px solid #fee2e2' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 14px', background: '#fff7ed' }}>
+                                      <span style={{ fontSize: '12px', fontWeight: 700, color: C.primary }}>
+                                        {cls.className}{cls.section ? ' ' + cls.section + '반' : ''}
+                                      </span>
+                                      <span style={{ fontSize: '11px', color: C.muted }}>{students.length}/{total}명</span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 12px' }}>
+                                      {students.map(({ s, label, isDone, productId: pid }) => (
+                                        <div key={s.id}
+                                          onClick={e => { e.stopPropagation(); if(pid) setDashScModal({ studentId: s.id, classId: cls.id, productId: pid, alertLabel: label, studentName: s.name }) }}
+                                          style={{ padding: '6px 10px', borderRadius: '8px', background: isDone ? '#f0fdf4' : '#fef2f2', border: `1px solid ${isDone ? '#86efac' : '#fca5a5'}`, cursor: 'pointer' }}>
+                                          <div style={{ fontSize: '11px', fontWeight: 700, color: isDone ? '#16a34a' : C.danger, marginBottom: '2px' }}>
+                                            {isDone ? '✅' : '⚠️'} {label}
+                                          </div>
+                                          <div style={{ fontSize: '12px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                            <span style={{ fontWeight: 700, color: C.text }}>{s.name}</span>
+                                            <span style={{ color: C.muted }}>{[s.school, s.grade ? s.grade+'학년' : null, s.classNum ? s.classNum+'반' : null, s.number ? s.number+'번' : null].filter(Boolean).join(' ')}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })
               })()}
             </div>
           </div>
