@@ -264,16 +264,19 @@ export function Revenue({ user }) {
         const td = today()
         const termEnded = term.endDate && term.endDate < td
         const termCurrent = term.startDate <= td && term.endDate >= td
+        const termUpcoming = term.startDate > td
         // 이 수업에서 끝난 마지막 텀 번호
         const allTerms = getTerms(cls)
         const lastEndedTermNo = allTerms.filter(t => t.endDate && t.endDate < td).reduce((max, t) => Math.max(max, t.termNo), 0)
-        // 끝난 텀 다음 텀이 진행중
+        // 끝난 텀 바로 다음 텀
         const isNextTerm = term.termNo === lastEndedTermNo + 1
         if (unpaid > 0 && (termEnded || termCurrent || isNextTerm)) {
+          // 시작 전(예정)인 텀은 upcoming으로 분류
+          const status = termEnded ? 'unpaid' : termUpcoming ? 'upcoming' : 'current'
           list.push({
             cls, term, fee, cnt,
             expected, paid, unpaid,
-            termStatus: termEnded ? 'unpaid' : 'current',
+            termStatus: status,
             startApplied: appliedCount[cls.id] || cnt,
             cancelled: cancelledCount[cls.id] || 0,
             confirmed: cnt,
@@ -531,8 +534,9 @@ export function Revenue({ user }) {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'16px', alignItems:'start' }}>
             {/* ★ 미수금 알림 패널 — 과거 텀 포함 전체 미수금 */}
             {(() => {
-              const unpaidItems = allUnpaidList.filter(r=>r.termStatus==='unpaid')
-              const currentItems = allUnpaidList.filter(r=>r.termStatus==='current')
+              const unpaidItems   = allUnpaidList.filter(r=>r.termStatus==='unpaid')
+              const upcomingItems = allUnpaidList.filter(r=>r.termStatus==='upcoming')
+              const currentItems  = allUnpaidList.filter(r=>r.termStatus==='current')
               const renderItem = (item, idx) => (
                     <div key={idx}
                       onClick={() => setUnpaidDetail(item)}
@@ -543,6 +547,8 @@ export function Revenue({ user }) {
                             <span style={{ fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px', whiteSpace:'nowrap', flexShrink:0 }}>{item.term.label} {item.term.sessions.length}회</span>
                             {item.termStatus==='current'
                               ? <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'1px 6px', whiteSpace:'nowrap', flexShrink:0 }}>진행중</span>
+                              : item.termStatus==='upcoming'
+                              ? <span style={{ fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 6px', whiteSpace:'nowrap', flexShrink:0 }}>예정</span>
                               : <span style={{ fontSize:'11px', background:'#fef2f2', color:C.danger, border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 6px', whiteSpace:'nowrap', flexShrink:0 }}>미수금</span>
                             }
                           </div>
@@ -570,6 +576,16 @@ export function Revenue({ user }) {
                       }
                     </div>
                   </div>
+                  {/* 예정 컬럼 */}
+                  {upcomingItems.length > 0 && (
+                    <div style={{ background:C.card, borderRadius:'14px', border:'1.5px solid #bfdbfe', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'8px' }}>
+                      <div style={{ fontSize:'13px', fontWeight:700, color:C.blue, marginBottom:'2px' }}>
+                        📅 예정 {upcomingItems.length}건 · {fmt(upcomingItems.reduce((s,r)=>s+r.unpaid,0))}원
+                      </div>
+                      {upcomingItems.map((item,idx) => renderItem(item,idx))}
+                    </div>
+                  )}
+
                   {/* 진행중 컬럼 */}
                   <div style={{ background:'#f0fdf4', borderRadius:'14px', border:'1.5px solid #86efac', padding:'14px 16px' }}>
                     <div style={{ fontSize:'14px', fontWeight:700, color:C.success, marginBottom:'10px' }}>
@@ -1214,10 +1230,8 @@ export function Revenue({ user }) {
                     <input value={payForm.memo} onChange={e=>setPayForm(pf=>({...pf,memo:e.target.value}))}
                       placeholder="예: 1분기 수강료 전액, 분할납부 1회차 등" style={iStyle} autoFocus />
                     <div style={{ marginTop:'16px', padding:'12px 14px', background:'#f9fafb', borderRadius:'12px', display:'flex', flexDirection:'column', gap:'6px' }}>
-                      <div style={{ fontSize:'12px', color:C.muted, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                        <span>날짜</span>
-                        <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)}
-                          style={{ border:'none', background:'transparent', fontSize:'12px', fontWeight:600, color:C.text, cursor:'pointer', textAlign:'right', fontFamily:'Noto Sans KR, sans-serif' }} />
+                      <div style={{ fontSize:'12px', color:C.muted, display:'flex', justifyContent:'space-between' }}>
+                        <span>날짜</span><span style={{color:C.text,fontWeight:600}}>{payDate.replace(/-/g,'.')}</span>
                       </div>
                       {(payForm.classIds&&payForm.classIds.length>0?payForm.classIds:[payForm.classId]).filter(Boolean).map(cid=>{
                         const cls2=sorted.find(c=>c.id===cid)
