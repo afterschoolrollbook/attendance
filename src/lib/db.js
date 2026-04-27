@@ -184,12 +184,16 @@ export async function initFromSupabase() {
     // 0) 로컬 캐시 초기화 — Supabase가 정답이므로 앱 시작 시 항상 비우고 새로 불러옴
     db.clearAll()
 
-    // 1) 스키마 자동 마이그레이션
-    await Promise.allSettled([
-      ...SYNC_TABLES.map(t => addDeletedColumn(t)),
-      addColumnIfMissing('classes', 'periods', 'jsonb', "'[]'::jsonb"),
-      addColumnIfMissing('supplyItems', 'remoteNo', 'text', "''"),
-    ])
+    // 1) 스키마 자동 마이그레이션 — 최초 1번만 실행
+    const SCHEMA_DONE_KEY = 'asa__schema_migrated_v1'
+    if (!localStorage.getItem(SCHEMA_DONE_KEY)) {
+      await Promise.allSettled([
+        ...SYNC_TABLES.map(t => addDeletedColumn(t)),
+        addColumnIfMissing('classes', 'periods', 'jsonb', "'[]'::jsonb"),
+        addColumnIfMissing('supplyItems', 'remoteNo', 'text', "''"),
+      ])
+      localStorage.setItem(SCHEMA_DONE_KEY, '1')
+    }
 
     // 1) 로컬에만 있는 미전송 변경사항 먼저 올리기 (pending queue)
     await flushPending()
