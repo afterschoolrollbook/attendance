@@ -189,6 +189,9 @@ const SYNC_TABLES = [
   'schoolNotices', 'schoolNoticeSubmits',
 ]
 
+// _deleted 컬럼 없는 테이블 (소프트딜리트 미적용)
+const NO_DELETED_TABLES = new Set(['points', 'settings'])
+
 // ─── 초기화: Supabase에서 데이터 로드
 export async function initFromSupabase() {
   if (!supabase) return false
@@ -198,7 +201,11 @@ export async function initFromSupabase() {
         const { tbl, fromDb } = getConverters(t)
 
         let q = supabase.from(tbl).select('*')
-          .or('_deleted.is.null,_deleted.eq.false')
+
+        // _deleted 컬럼 있는 테이블만 필터 적용
+        if (!NO_DELETED_TABLES.has(t)) {
+          q = q.or('_deleted.is.null,_deleted.eq.false')
+        }
 
         // attendance는 최근 90일치만 로드
         if (t === 'attendance') {
