@@ -252,3 +252,61 @@ export async function sendPush(subscription, { title, body, url = '/parent-invit
     console.warn('[Push] 발송 실패:', e.message)
   }
 }
+
+// ─── Supabase Auth 함수
+// 이메일/비밀번호 로그인
+export async function authSignIn(email, password) {
+  if (!supabase) throw new Error('Supabase 미설정')
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) throw new Error(error.message)
+  return data
+}
+
+// 이메일/비밀번호 회원가입
+export async function authSignUp(email, password) {
+  if (!supabase) throw new Error('Supabase 미설정')
+  const { data, error } = await supabase.auth.signUp({ email, password })
+  if (error) throw new Error(error.message)
+  return data
+}
+
+// 로그아웃
+export async function authSignOut() {
+  if (!supabase) return
+  await supabase.auth.signOut()
+}
+
+// 현재 세션 조회
+export async function authGetSession() {
+  if (!supabase) return null
+  const { data: { session } } = await supabase.auth.getSession()
+  return session
+}
+
+// 현재 로그인 유저 조회
+export async function authGetUser() {
+  if (!supabase) return null
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
+}
+
+// 비밀번호 초기화 이메일 발송
+export async function authResetPassword(email) {
+  if (!supabase) throw new Error('Supabase 미설정')
+  const { error } = await supabase.auth.resetPasswordForEmail(email)
+  if (error) throw new Error(error.message)
+}
+
+// 비밀번호 변경 (로그인 상태에서)
+export async function authUpdatePassword(newPassword) {
+  if (!supabase) throw new Error('Supabase 미설정')
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw new Error(error.message)
+}
+
+// 인증 상태 변경 구독 (App.jsx에서 사용)
+export function authOnStateChange(callback) {
+  if (!supabase) return () => {}
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(callback)
+  return () => subscription.unsubscribe()
+}
