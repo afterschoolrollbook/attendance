@@ -33,6 +33,7 @@ export function NaverCallback() {
           name:       data.name  || '',
           avatar:     data.avatar || '',
           id:         data.providerId,
+          session:    data.session || null,
         }, window.location.origin)
       } catch (e) {
         window.opener?.postMessage({ type: 'naver_login_fail', error: e.message }, window.location.origin)
