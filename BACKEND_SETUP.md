@@ -32,6 +32,11 @@
 2. `supabase/migrations/001_initial.sql` 파일 전체 복사
 3. SQL Editor에 붙여넣기 → **Run** 클릭
 4. 하단에 `Success. No rows returned` 확인
+5. 이어서 `supabase/migrations/002_add_missing_columns.sql` 파일 전체 복사
+6. SQL Editor에 붙여넣기 → **Run** 클릭
+7. 하단에 `Success. No rows returned` 확인
+
+> ✅ **`node setup.js`를 실행하면 001, 002 마이그레이션이 자동으로 순서대로 적용됩니다.** 수동 실행이 필요한 경우에만 위 단계를 따르세요.
 
 ---
 
