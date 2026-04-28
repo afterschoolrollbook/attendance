@@ -5,6 +5,7 @@ import { Btn, Input } from '../components/Atoms.jsx'
 import { Settings } from '../lib/db.js'
 import { sendEmail, isConfigured } from '../lib/supabase.js'
 import { useToast } from '../hooks/useToast.js'
+import { hashPassword, verifyPassword } from '../lib/crypto.js'
 
 function getSocialConfig() {
   const saved = Settings.get('social') || {}
@@ -530,12 +531,14 @@ export function Auth({ onLogin }) {
   }
 
   // 비밀번호 초기화: 새 비밀번호 저장
-  const handleFpReset = () => {
-    if (fpNewPw.length < 4) { setError('비밀번호는 4자 이상이어야 합니다.'); return }
+  const handleFpReset = async () => {
+    if (fpNewPw.length < 8) { setError('비밀번호는 8자 이상이어야 합니다.'); return }
+    if (!/[a-zA-Z]/.test(fpNewPw) || !/[0-9]/.test(fpNewPw)) { setError('비밀번호는 영문과 숫자를 모두 포함해야 합니다.'); return }
     if (fpNewPw !== fpNewPw2) { setError('비밀번호가 일치하지 않습니다.'); return }
     const user = Users.all().find(u => u.email === fpEmail.trim().toLowerCase())
     if (!user) { setError('오류가 발생했습니다.'); return }
-    Users.update(user.id, { pw: fpNewPw })
+    const hashedPw = await hashPassword(fpNewPw)
+    Users.update(user.id, { pw: hashedPw })
     setFpDone(true); setError('')
   }
 
@@ -620,17 +623,20 @@ export function Auth({ onLogin }) {
       return
     }
 
-    // 신규 회원 생성
-    const user = {
-      id: uid(), name, phone,
-      email: email.toLowerCase(),
-      pw: uid(), role: 'teacher', level: 1,
-      verified: false, verifyImg: null, permissionOverrides: {},
-      provider: profile.provider, providerId: profile.providerId,
-      avatar: profile.avatar || '', createdAt: now(),
-    }
-    Users.insert(user)
-    onLogin(user)
+    // 신규 회원 생성 (소셜 로그인 — 비밀번호 자리는 해시된 랜덤값으로 저장)
+    const randomPw = uid() + uid() // 예측 불가능한 랜덤 문자열
+    hashPassword(randomPw).then(hashedPw => {
+      const user = {
+        id: uid(), name, phone,
+        email: email.toLowerCase(),
+        pw: hashedPw, role: 'teacher', level: 1,
+        verified: false, verifyImg: null, permissionOverrides: {},
+        provider: profile.provider, providerId: profile.providerId,
+        avatar: profile.avatar || '', createdAt: now(),
+      }
+      Users.insert(user)
+      onLogin(user)
+    })
   }
 
   const socialCfg = getSocialConfig()
@@ -644,10 +650,17 @@ export function Auth({ onLogin }) {
   // 탭 전환 시 Google 버튼 재렌더 (DOM이 바뀌므로)
   useEffect(() => { renderButtons() }, [mode, socialStep, fpVerified])
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError('')
     const user = Users.findByEmail(form.email.trim().toLowerCase())
-    if (!user || user.pw !== form.pw) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
+    if (!user) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
+    const ok = await verifyPassword(form.pw, user.pw)
+    if (!ok) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
+    // 레거시 평문 → 해시로 자동 업그레이드
+    if (!/^[0-9a-f]{64}$/i.test(user.pw)) {
+      const hashed = await hashPassword(form.pw)
+      Users.update(user.id, { pw: hashed })
+    }
     onLogin(user)
   }
 
@@ -655,7 +668,8 @@ export function Auth({ onLogin }) {
     setError('')
     if (!form.name.trim() || !form.email.trim() || !form.pw || !form.phone.trim()) { setError('필수 항목을 모두 입력해주세요.'); return }
     if (!emailChecked) { setError('이메일 중복 확인을 해주세요.'); return }
-    if (form.pw.length < 4) { setError('비밀번호는 4자 이상이어야 합니다.'); return }
+    if (form.pw.length < 8) { setError('비밀번호는 8자 이상이어야 합니다.'); return }
+    if (!/[a-zA-Z]/.test(form.pw) || !/[0-9]/.test(form.pw)) { setError('비밀번호는 영문과 숫자를 모두 포함해야 합니다.'); return }
     if (form.pw !== form.pw2) { setError('비밀번호가 일치하지 않습니다.'); return }
     if (!allRequired) { setError('필수 약관에 동의해주세요.'); return }
     setStep(2)
@@ -679,11 +693,12 @@ export function Auth({ onLogin }) {
     else setError('인증번호가 올바르지 않습니다.')
   }
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!verified) { setError('이메일 인증을 완료해주세요.'); return }
+    const hashedPw = await hashPassword(form.pw)
     const user = {
       id: uid(), name: form.name.trim(), email: form.email.trim().toLowerCase(),
-      pw: form.pw, phone: form.phone.trim(), role: 'teacher', level: 1,
+      pw: hashedPw, phone: form.phone.trim(), role: 'teacher', level: 1,
       verified: false, verifyImg: null, permissionOverrides: {},
       provider: 'email', createdAt: now(),
     }
@@ -908,7 +923,7 @@ export function Auth({ onLogin }) {
                     <Input label="이름" value={form.name} onChange={v => set('name', v)} placeholder="홍길동" required />
                     <EmailInputWithCheck value={form.email} onChange={v => { set('email', v); setEmailChecked(false) }} onChecked={ok => setEmailChecked(ok)} />
                     <Input label="연락처" value={form.phone} onChange={v => set('phone', v)} placeholder="010-0000-0000" required />
-                    <Input label="비밀번호 (4자 이상)" value={form.pw} onChange={v => set('pw', v)} type="password" placeholder="비밀번호" required />
+                    <Input label="비밀번호 (8자 이상, 영문+숫자)" value={form.pw} onChange={v => set('pw', v)} type="password" placeholder="비밀번호" required />
                     <Input label="비밀번호 확인" value={form.pw2} onChange={v => set('pw2', v)} type="password" placeholder="재입력" required />
 
                     {/* 약관 동의 */}

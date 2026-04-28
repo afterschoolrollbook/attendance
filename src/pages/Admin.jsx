@@ -3,6 +3,7 @@ import { Users, Classes, Students, Attendance, Branches, Settings } from '../lib
 import { uid, now } from '../lib/utils.js'                                      // ✅ 버그수정: uid 추가
 import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
+import { hashPassword } from '../lib/crypto.js'
 import { LEVEL_NAMES, FEATURES, LEVEL_PERMISSIONS } from '../constants/permissions.js'
 
 const FEATURE_LABELS = {
@@ -1015,8 +1016,9 @@ export function Admin({ user: currentUser }) {
                         <button onClick={() => {
                           if (!t.phone) { toastError('등록된 핸드폰 번호가 없어 초기화할 수 없습니다.'); return }
                           const normalized = t.phone.replace(/-/g, '').slice(0, 11)
-                          confirm(`${t.name} 선생님의 비밀번호를\n핸드폰 번호(${normalized})로 초기화하시겠습니까?`, () => {
-                            Users.update(t.id, { pw: normalized })
+                          confirm(`${t.name} 선생님의 비밀번호를\n핸드폰 번호(${normalized})로 초기화하시겠습니까?`, async () => {
+                            const hashedPw = await hashPassword(normalized)
+                            Users.update(t.id, { pw: hashedPw })
                             success(`비밀번호가 ${normalized}(으)로 초기화되었습니다.`)
                           })
                         }}
