@@ -3,7 +3,8 @@ import { Users, Classes, Students, Attendance, Branches, Settings } from '../lib
 import { uid, now } from '../lib/utils.js'                                      // ✅ 버그수정: uid 추가
 import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
-import { hashPassword } from '../lib/crypto.js'
+import { FUNCTIONS_BASE } from '../lib/supabase.js'
+import { supabase } from '../lib/supabase.js'
 import { LEVEL_NAMES, FEATURES, LEVEL_PERMISSIONS } from '../constants/permissions.js'
 
 const FEATURE_LABELS = {
@@ -1015,11 +1016,25 @@ export function Admin({ user: currentUser }) {
                         <Btn size="sm" variant="ghost" onClick={() => openPerm(t)}>권한 설정</Btn>
                         <button onClick={() => {
                           if (!t.phone) { toastError('등록된 핸드폰 번호가 없어 초기화할 수 없습니다.'); return }
+                          if (!t.authId) { toastError('Supabase Auth 계정이 없는 사용자입니다.'); return }
                           const normalized = t.phone.replace(/-/g, '').slice(0, 11)
                           confirm(`${t.name} 선생님의 비밀번호를\n핸드폰 번호(${normalized})로 초기화하시겠습니까?`, async () => {
-                            const hashedPw = await hashPassword(normalized)
-                            Users.update(t.id, { pw: hashedPw })
-                            success(`비밀번호가 ${normalized}(으)로 초기화되었습니다.`)
+                            try {
+                              const { data: { session } } = await supabase.auth.getSession()
+                              const res = await fetch(`${FUNCTIONS_BASE}/reset-user-password`, {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${session?.access_token}`,
+                                },
+                                body: JSON.stringify({ authId: t.authId, newPassword: normalized }),
+                              })
+                              const result = await res.json()
+                              if (!result.success) throw new Error(result.error)
+                              success(`비밀번호가 ${normalized}(으)로 초기화되었습니다.`)
+                            } catch (e) {
+                              toastError('비밀번호 초기화 실패: ' + e.message)
+                            }
                           })
                         }}
                           style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', color: '#b45309', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
