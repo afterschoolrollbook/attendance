@@ -6,6 +6,7 @@
 import React, { useState } from 'react'
 import { uid, now } from '../lib/utils.js'
 import { dbCall, isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
+import { hashPassword, verifyPassword, isHashed } from '../lib/crypto.js'
 
 const C = {
   primary: '#f97316', text: '#111827', muted: '#6b7280',
@@ -96,7 +97,12 @@ function LoginTab({ onLogin, onSwitch, onFindId, onResetPw }) {
     try {
       const acc = await VendorAccounts.byEmail(email.trim())
       if (!acc) { setErr('등록된 업체 계정이 없습니다.'); return }
-      if (acc.pw !== pw) { setErr('비밀번호가 올바르지 않습니다.'); return }
+      if (!(await verifyPassword(pw, acc.pw))) { setErr('비밀번호가 올바르지 않습니다.'); return }
+      if (!isHashed(acc.pw)) {
+        const hashedPw = await hashPassword(pw)
+        await VendorAccounts.save({ ...acc, pw: hashedPw })
+        acc.pw = hashedPw
+      }
       const vendors = await dbCall('getAll', 'hqVendors')
       const vendor = vendors?.find(v => v.id === acc.vendorId)
       if (!vendor) { setErr('연결된 업체 정보가 없습니다.'); return }
@@ -260,10 +266,11 @@ function ResetPwTab({ onBack }) {
   // Step 3: 새 비번 저장
   const handleReset = async () => {
     setErr('')
-    if (pw.length < 4) { setErr('비밀번호는 4자 이상이어야 합니다.'); return }
+    if (pw.length < 8) { setErr('비밀번호는 8자 이상이어야 합니다.'); return }
     if (pw !== pwConfirm) { setErr('비밀번호가 일치하지 않습니다.'); return }
     try {
-      await VendorAccounts.save({ ...targetAcc, pw })
+      const hashedPw = await hashPassword(pw)
+      await VendorAccounts.save({ ...targetAcc, pw: hashedPw })
       setDone(true)
     } catch { setErr('오류가 발생했습니다.') }
   }
@@ -361,11 +368,11 @@ function ResetPwTab({ onBack }) {
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'20px' }}>
             <div>
-              <label style={{ fontSize:'12px', color:C.muted, marginBottom:'4px', display:'block' }}>새 비밀번호 (4자 이상)</label>
+              <label style={{ fontSize:'12px', color:C.muted, marginBottom:'4px', display:'block' }}>새 비밀번호 (8자 이상)</label>
               <input style={iSt} type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="새 비밀번호 입력" />
               {pw && (
-                <div style={{ fontSize:'11px', marginTop:'4px', color: pw.length >= 8 ? C.success : pw.length >= 4 ? C.primary : C.danger }}>
-                  {pw.length >= 8 ? '✅ 안전한 비밀번호' : pw.length >= 4 ? '🟡 보통 (8자 이상 권장)' : '❌ 너무 짧습니다'}
+                <div style={{ fontSize:'11px', marginTop:'4px', color: pw.length >= 8 ? C.success : C.danger }}>
+                  {pw.length >= 8 ? '✅ 안전한 비밀번호' : '❌ 8자 이상 입력해주세요'}
                 </div>
               )}
             </div>
@@ -382,7 +389,7 @@ function ResetPwTab({ onBack }) {
             </div>
           </div>
           {err && <p style={{ color:C.danger, fontSize:'13px', margin:'0 0 12px' }}>⚠️ {err}</p>}
-          <BtnPrimary onClick={handleReset} disabled={!pw || !pwConfirm || pw !== pwConfirm || pw.length < 4}>
+          <BtnPrimary onClick={handleReset} disabled={!pw || !pwConfirm || pw !== pwConfirm || pw.length < 8}>
             🔑 비밀번호 변경 완료
           </BtnPrimary>
         </>
@@ -454,11 +461,12 @@ function RegisterTab({ onDone, onSwitch }) {
   const handleRegister = async () => {
     setErr('')
     if (!verified) { setErr('이메일 인증을 완료해주세요.'); return }
-    if (pw.length < 4) { setErr('비밀번호는 4자 이상이어야 합니다.'); return }
+    if (pw.length < 8) { setErr('비밀번호는 8자 이상이어야 합니다.'); return }
     if (pw !== pwConfirm) { setErr('비밀번호가 일치하지 않습니다.'); return }
     setLoading(true)
     try {
-      const acc = { id:uid(), vendorId:matchedVendor.id, email:regEmail, pw, name: name || matchedVendor.managerName || matchedVendor.name, createdAt:now() }
+      const hashedPw = await hashPassword(pw)
+      const acc = { id:uid(), vendorId:matchedVendor.id, email:regEmail, pw: hashedPw, name: name || matchedVendor.managerName || matchedVendor.name, createdAt:now() }
       await VendorAccounts.save(acc)
       await HQVendors.save({ ...matchedVendor, status:'joined', joinedAt: now() })
       localStorage.setItem(LS_SESSION, JSON.stringify({ ...acc, vendor: matchedVendor }))

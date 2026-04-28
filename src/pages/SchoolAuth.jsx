@@ -6,6 +6,7 @@
 import React, { useState } from 'react'
 import { dbCall, isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
+import { hashPassword, verifyPassword, isHashed } from '../lib/crypto.js'
 
 const C = {
   primary:'#3b82f6', text:'#111827', muted:'#6b7280',
@@ -66,7 +67,13 @@ function LoginForm({ onLogin }) {
     setLoading(true); setError('')
     try {
       const acc = await SAAccounts.byEmail(email.trim())
-      if (!acc || acc.pw !== pw) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
+      const pwMatch = acc && await verifyPassword(pw, acc.pw)
+      if (!pwMatch) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
+      if (!isHashed(acc.pw)) {
+        const hashedPw = await hashPassword(pw)
+        await SAAccounts.save({ ...acc, pw: hashedPw })
+        acc.pw = hashedPw
+      }
       const admin = await dbCall('getOne', 'schoolAdmins', { id: acc.adminId })
       if (!admin || admin.status === 'inactive') { setError('비활성화된 계정입니다.'); return }
       const session = { ...acc, admin, adminId: acc.adminId }
@@ -144,11 +151,12 @@ function JoinForm({ onLogin }) {
 
   const handleRegister = async () => {
     if (!name.trim()) { setError('이름을 입력해주세요.'); return }
-    if (pw.length < 4) { setError('비밀번호는 4자 이상이어야 합니다.'); return }
+    if (pw.length < 8) { setError('비밀번호는 8자 이상이어야 합니다.'); return }
     if (pw !== pw2) { setError('비밀번호가 일치하지 않습니다.'); return }
     setLoading(true); setError('')
     try {
-      const acc = { id:uid(), adminId:admin.id, email:admin.email, pw, name:name.trim(), active:true, createdAt:now() }
+      const hashedPw = await hashPassword(pw)
+      const acc = { id:uid(), adminId:admin.id, email:admin.email, pw: hashedPw, name:name.trim(), active:true, createdAt:now() }
       await SAAccounts.save(acc)
       await SA.save({ ...admin, status:'joined', adminName: name.trim() })
       const session = { ...acc, admin:{ ...admin, status:'joined' }, adminId:admin.id }
@@ -205,7 +213,7 @@ function JoinForm({ onLogin }) {
           <input style={iSt} value={name} onChange={e=>setName(e.target.value)} placeholder="담당자 이름" />
         </div>
         <div>
-          <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'5px' }}>비밀번호 (4자 이상)</label>
+          <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'5px' }}>비밀번호 (8자 이상)</label>
           <input style={iSt} type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="비밀번호" />
         </div>
         <div>
