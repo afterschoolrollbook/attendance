@@ -5,8 +5,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// CORS: 환경변수 ALLOWED_ORIGIN 으로 배포 도메인을 제한하세요.
+// 예) supabase secrets set ALLOWED_ORIGIN=https://your-domain.vercel.app
+const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') || ''
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOWED_ORIGIN || '*',  // 환경변수 미설정 시 개발 편의상 * 허용
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
