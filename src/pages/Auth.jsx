@@ -3,7 +3,7 @@ import { Users } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
 import { Btn, Input } from '../components/Atoms.jsx'
 import { Settings } from '../lib/db.js'
-import { sendEmail, isConfigured, authSignIn, authSignUp, authResetPassword } from '../lib/supabase.js'
+import { sendEmail, isConfigured, authSignIn, authSignUp, authResetPassword, supabase } from '../lib/supabase.js'
 import { useToast } from '../hooks/useToast.js'
 
 function getSocialConfig() {
@@ -150,6 +150,10 @@ function useKakaoAuth(onSuccess, restApiKey) {
         })
         const data = await res.json()
         if (!data.success) throw new Error(data.error || '카카오 로그인 실패')
+        // Supabase Auth 세션 설정
+        if (data.session && supabase) {
+          await supabase.auth.setSession(data.session)
+        }
         onSuccess({ provider: 'kakao', email: data.data.email || '', name: data.data.name || '', avatar: data.data.profile_image || '', providerId: String(data.data.id) })
       } catch(err) {
         console.error('카카오 토큰 교환 실패:', err)
@@ -176,7 +180,7 @@ function useNaverAuth(onSuccess, clientId) {
       + '&state=' + state
     window.open(naverAuthUrl, 'naverLogin', 'width=500,height=700,left=200,top=100')
 
-    const handleMessage = (e) => {
+    const handleMessage = async (e) => {
       if (e.origin !== window.location.origin) return
       if (e.data?.type !== 'naver_login_success' && e.data?.type !== 'naver_login_fail') return
       window.removeEventListener('message', handleMessage)
@@ -186,6 +190,10 @@ function useNaverAuth(onSuccess, clientId) {
         return
       }
 
+      // Supabase Auth 세션 설정
+      if (e.data.session && supabase) {
+        await supabase.auth.setSession(e.data.session)
+      }
       onSuccess({ provider: 'naver', email: e.data.email || '', name: e.data.name || '', avatar: e.data.avatar || '', providerId: String(e.data.id) })
     }
 
