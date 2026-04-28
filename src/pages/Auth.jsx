@@ -3,9 +3,8 @@ import { Users } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
 import { Btn, Input } from '../components/Atoms.jsx'
 import { Settings } from '../lib/db.js'
-import { sendEmail, isConfigured } from '../lib/supabase.js'
+import { sendEmail, isConfigured, authSignIn, authSignUp, authResetPassword } from '../lib/supabase.js'
 import { useToast } from '../hooks/useToast.js'
-import { hashPassword, verifyPassword } from '../lib/crypto.js'
 
 function getSocialConfig() {
   const saved = Settings.get('social') || {}
@@ -530,16 +529,17 @@ export function Auth({ onLogin }) {
     setFpVerified(true); setError('')
   }
 
-  // 비밀번호 초기화: 새 비밀번호 저장
+  // 비밀번호 초기화: Supabase Auth로 이메일 발송
   const handleFpReset = async () => {
     if (fpNewPw.length < 8) { setError('비밀번호는 8자 이상이어야 합니다.'); return }
     if (!/[a-zA-Z]/.test(fpNewPw) || !/[0-9]/.test(fpNewPw)) { setError('비밀번호는 영문과 숫자를 모두 포함해야 합니다.'); return }
     if (fpNewPw !== fpNewPw2) { setError('비밀번호가 일치하지 않습니다.'); return }
-    const user = Users.all().find(u => u.email === fpEmail.trim().toLowerCase())
-    if (!user) { setError('오류가 발생했습니다.'); return }
-    const hashedPw = await hashPassword(fpNewPw)
-    Users.update(user.id, { pw: hashedPw })
-    setFpDone(true); setError('')
+    try {
+      await authResetPassword(fpEmail.trim().toLowerCase())
+      setFpDone(true); setError('')
+    } catch (e) {
+      setError(e.message || '오류가 발생했습니다.')
+    }
   }
 
   // 이메일이 가짜(social.local)인지 확인
@@ -623,13 +623,24 @@ export function Auth({ onLogin }) {
       return
     }
 
-    // 신규 회원 생성 (소셜 로그인 — 비밀번호 자리는 해시된 랜덤값으로 저장)
-    const randomPw = uid() + uid() // 예측 불가능한 랜덤 문자열
-    hashPassword(randomPw).then(hashedPw => {
+    // 신규 회원 생성 (소셜 로그인)
+    authSignUp(email.toLowerCase(), uid() + uid()).then(({ user: authUser }) => {
       const user = {
         id: uid(), name, phone,
         email: email.toLowerCase(),
-        pw: hashedPw, role: 'teacher', level: 1,
+        pw: '', role: 'teacher', level: 1,
+        verified: false, verifyImg: null, permissionOverrides: {},
+        provider: profile.provider, providerId: profile.providerId,
+        avatar: profile.avatar || '', authId: authUser?.id || '', createdAt: now(),
+      }
+      Users.insert(user)
+      onLogin(user)
+    }).catch(() => {
+      // authSignUp 실패해도 users 테이블엔 저장 (소셜 로그인은 Auth 세션 별도 처리)
+      const user = {
+        id: uid(), name, phone,
+        email: email.toLowerCase(),
+        pw: '', role: 'teacher', level: 1,
         verified: false, verifyImg: null, permissionOverrides: {},
         provider: profile.provider, providerId: profile.providerId,
         avatar: profile.avatar || '', createdAt: now(),
@@ -652,16 +663,15 @@ export function Auth({ onLogin }) {
 
   const handleLogin = async () => {
     setError('')
-    const user = Users.findByEmail(form.email.trim().toLowerCase())
-    if (!user) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
-    const ok = await verifyPassword(form.pw, user.pw)
-    if (!ok) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
-    // 레거시 평문 → 해시로 자동 업그레이드
-    if (!/^[0-9a-f]{64}$/i.test(user.pw)) {
-      const hashed = await hashPassword(form.pw)
-      Users.update(user.id, { pw: hashed })
+    try {
+      const { user: authUser } = await authSignIn(form.email.trim().toLowerCase(), form.pw)
+      if (!authUser) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
+      const user = Users.findByEmail(form.email.trim().toLowerCase())
+      if (!user) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
+      onLogin(user)
+    } catch (e) {
+      setError('이메일 또는 비밀번호가 올바르지 않습니다.')
     }
-    onLogin(user)
   }
 
   const handleNext = () => {
@@ -695,15 +705,20 @@ export function Auth({ onLogin }) {
 
   const handleRegister = async () => {
     if (!verified) { setError('이메일 인증을 완료해주세요.'); return }
-    const hashedPw = await hashPassword(form.pw)
-    const user = {
-      id: uid(), name: form.name.trim(), email: form.email.trim().toLowerCase(),
-      pw: hashedPw, phone: form.phone.trim(), role: 'teacher', level: 1,
-      verified: false, verifyImg: null, permissionOverrides: {},
-      provider: 'email', createdAt: now(),
+    try {
+      const { user: authUser } = await authSignUp(form.email.trim().toLowerCase(), form.pw)
+      if (!authUser) { setError('회원가입에 실패했습니다.'); return }
+      const user = {
+        id: uid(), name: form.name.trim(), email: form.email.trim().toLowerCase(),
+        pw: '', phone: form.phone.trim(), role: 'teacher', level: 1,
+        verified: false, verifyImg: null, permissionOverrides: {},
+        provider: 'email', authId: authUser.id, createdAt: now(),
+      }
+      await Users.insert(user)
+      onLogin(user)
+    } catch (e) {
+      setError(e.message || '회원가입에 실패했습니다.')
     }
-    Users.insert(user)
-    onLogin(user)
   }
 
   const isMobile = window.innerWidth <= 768
