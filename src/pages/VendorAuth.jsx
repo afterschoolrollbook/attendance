@@ -267,6 +267,7 @@ function ResetPwTab({ onBack }) {
   const handleReset = async () => {
     setErr('')
     if (pw.length < 8) { setErr('비밀번호는 8자 이상이어야 합니다.'); return }
+    if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(pw)) { setErr('비밀번호는 영문+숫자를 조합해야 합니다.'); return }
     if (pw !== pwConfirm) { setErr('비밀번호가 일치하지 않습니다.'); return }
     try {
       const hashedPw = await hashPassword(pw)
@@ -462,6 +463,7 @@ function RegisterTab({ onDone, onSwitch }) {
     setErr('')
     if (!verified) { setErr('이메일 인증을 완료해주세요.'); return }
     if (pw.length < 8) { setErr('비밀번호는 8자 이상이어야 합니다.'); return }
+    if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(pw)) { setErr('비밀번호는 영문+숫자를 조합해야 합니다.'); return }
     if (pw !== pwConfirm) { setErr('비밀번호가 일치하지 않습니다.'); return }
     setLoading(true)
     try {
@@ -540,7 +542,7 @@ function RegisterTab({ onDone, onSwitch }) {
             )}
             {verified && <p style={{ color:C.success, fontSize:'12px', margin:0 }}>✅ 이메일이 인증되었습니다.</p>}
             <div>
-              <label style={{ fontSize:'12px', color:C.muted, marginBottom:'4px', display:'block' }}>비밀번호 (4자 이상)</label>
+              <label style={{ fontSize:'12px', color:C.muted, marginBottom:'4px', display:'block' }}>비밀번호 (8자 이상, 영문+숫자)</label>
               <input style={iSt} type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="비밀번호 설정" />
             </div>
             <div>

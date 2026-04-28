@@ -152,6 +152,7 @@ function JoinForm({ onLogin }) {
   const handleRegister = async () => {
     if (!name.trim()) { setError('이름을 입력해주세요.'); return }
     if (pw.length < 8) { setError('비밀번호는 8자 이상이어야 합니다.'); return }
+    if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(pw)) { setError('비밀번호는 영문+숫자를 조합해야 합니다.'); return }
     if (pw !== pw2) { setError('비밀번호가 일치하지 않습니다.'); return }
     setLoading(true); setError('')
     try {
