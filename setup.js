@@ -180,7 +180,7 @@ async function main() {
   console.log('')
   console.log('[ DEPLOY ] Edge Functions 배포 중...')
 
-  const functions = ['db-api', 'send-email', 'send-sms', 'naver-oauth', 'kakao-oauth', 'send-push', 'generate-vapid', 'reset-user-password']
+  const functions = ['db-api', 'send-email', 'send-sms', 'naver-oauth']
   for (const fn of functions) {
     process.stdout.write('  ' + fn + ' ... ')
     const fnPath = path.join(__dirname, 'supabase', 'functions', fn, 'index.ts')
@@ -201,13 +201,122 @@ async function main() {
     }
   }
 
+  // ─── Vercel 환경변수 자동 설정
+  console.log('')
+  console.log('[ VERCEL ] 환경변수 자동 설정')
+  console.log('')
+  console.log('  Vercel 토큰이 있으면 환경변수를 자동으로 설정합니다.')
+  console.log('  1. https://vercel.com/account/tokens 에서 토큰 생성')
+  console.log('  2. 없으면 엔터를 눌러 건너뜁니다.')
+  console.log('')
+
+  const vercelToken = await ask('  Vercel 토큰 (없으면 엔터): ')
+
+  if (vercelToken) {
+    const vercelProject = await ask('  Vercel 프로젝트 이름 (예: afterschool-attendance): ')
+
+    if (vercelProject) {
+      const vercelVars = [
+        { key: 'VITE_SUPABASE_URL',      value: env.VITE_SUPABASE_URL },
+        { key: 'VITE_SUPABASE_ANON_KEY', value: env.VITE_SUPABASE_ANON_KEY || '' },
+      ]
+
+      let vercelOk = true
+      for (const v of vercelVars) {
+        process.stdout.write('  ' + v.key + ' ... ')
+        try {
+          const res = await new Promise((resolve, reject) => {
+            const body = JSON.stringify({
+              key: v.key,
+              value: v.value,
+              type: 'plain',
+              target: ['production', 'preview', 'development'],
+            })
+            const opts = {
+              hostname: 'api.vercel.com',
+              path: `/v10/projects/${vercelProject}/env`,
+              method: 'POST',
+              headers: {
+                'Authorization': 'Bearer ' + vercelToken,
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body),
+              }
+            }
+            const req = https.request(opts, res => {
+              let buf = ''
+              res.on('data', d => buf += d)
+              res.on('end', () => {
+                try { resolve({ status: res.statusCode, body: JSON.parse(buf) }) }
+                catch { resolve({ status: res.statusCode, body: buf }) }
+              })
+            })
+            req.on('error', reject)
+            req.write(body)
+            req.end()
+          })
+
+          if (res.status === 200 || res.status === 201) {
+            console.log(G+'완료'+N)
+          } else if (res.status === 409) {
+            // 이미 존재하면 PATCH로 업데이트
+            process.stdout.write(Y+'이미 존재 → 업데이트 중...'+N+' ')
+            const existingId = res.body?.error?.existingEnvVarId || res.body?.existingEnvVarId
+            if (existingId) {
+              const patchRes = await new Promise((resolve, reject) => {
+                const body = JSON.stringify({ value: v.value })
+                const opts = {
+                  hostname: 'api.vercel.com',
+                  path: `/v10/projects/${vercelProject}/env/${existingId}`,
+                  method: 'PATCH',
+                  headers: {
+                    'Authorization': 'Bearer ' + vercelToken,
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(body),
+                  }
+                }
+                const req = https.request(opts, res => {
+                  let buf = ''
+                  res.on('data', d => buf += d)
+                  res.on('end', () => {
+                    try { resolve({ status: res.statusCode, body: JSON.parse(buf) }) }
+                    catch { resolve({ status: res.statusCode, body: buf }) }
+                  })
+                })
+                req.on('error', reject)
+                req.write(body)
+                req.end()
+              })
+              console.log(patchRes.status === 200 ? G+'완료'+N : R+'실패 ('+patchRes.status+')'+N)
+            } else {
+              console.log(Y+'건너뜀 (이미 존재)'+N)
+            }
+          } else {
+            console.log(R+'실패 ('+res.status+')'+N)
+            if (res.body) console.log('    ' + JSON.stringify(res.body).slice(0, 200))
+            vercelOk = false
+          }
+        } catch(e) {
+          console.log(R+'오류: '+e.message+N)
+          vercelOk = false
+        }
+      }
+
+      if (vercelOk) {
+        ok('Vercel 환경변수 설정 완료!')
+        warn('Vercel 대시보드에서 Redeploy를 실행해야 적용됩니다.')
+      }
+    } else {
+      warn('프로젝트 이름 없음 — Vercel 환경변수 건너뜀')
+    }
+  } else {
+    warn('Vercel 토큰 없음 — 아래 값을 Vercel 대시보드에서 직접 추가하세요:')
+    console.log('  VITE_SUPABASE_URL      = ' + env.VITE_SUPABASE_URL)
+    console.log('  VITE_SUPABASE_ANON_KEY = ' + (env.VITE_SUPABASE_ANON_KEY||'').slice(0,50)+'...')
+  }
+
   console.log('')
   console.log('====================================================')
   ok('백엔드 설정 완료!')
-  console.log('')
-  console.log('Vercel 환경변수 추가:')
-  console.log('  VITE_SUPABASE_URL      = ' + env.VITE_SUPABASE_URL)
-  console.log('  VITE_SUPABASE_ANON_KEY = ' + (env.VITE_SUPABASE_ANON_KEY||'').slice(0,50)+'...')
   console.log('')
   warn('이메일/SMS/소셜 키는 관리자 페이지에서 입력하세요')
   console.log('====================================================')
