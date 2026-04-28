@@ -674,8 +674,7 @@ export function Auth({ onLogin }) {
     try {
       const { user: authUser } = await authSignIn(form.email.trim().toLowerCase(), form.pw)
       if (!authUser) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
-      // onLogin에 이메일 전달 - App.jsx에서 initFromSupabase 후 findByEmail 처리
-      onLogin({ email: form.email.trim().toLowerCase() })
+      onLogin({ email: form.email.trim().toLowerCase(), _authDone: true })
     } catch (e) {
       setError('이메일 또는 비밀번호가 올바르지 않습니다.')
     }
