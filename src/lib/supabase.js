@@ -241,7 +241,16 @@ export async function sendSMS(to, text, type = 'SMS') {
 }
 
 export async function naverOAuth(code, state) {
-  return callFunction('naver-oauth', { code, state })
+  if (!FUNCTIONS_BASE) throw new Error('Supabase URL이 설정되지 않았습니다.')
+  const res = await fetch(`${FUNCTIONS_BASE}/naver-oauth`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+    body: JSON.stringify({ code, state }),
+  })
+  const data = await res.json()
+  if (!data.success) throw new Error(data.error || 'naver-oauth 호출 실패')
+  // data.data (사용자 정보) + data.session (Auth 세션) 함께 반환
+  return { ...data.data, session: data.session || null }
 }
 
 export async function sendPush(subscription, { title, body, url = '/parent-invite', tag = 'attendance' }) {
