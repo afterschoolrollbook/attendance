@@ -527,3 +527,119 @@ alter table careers                 add column if not exists "updatedAt" text;
 alter table educations              add column if not exists "updatedAt" text;
 alter table certificates            add column if not exists "updatedAt" text;
 alter table "jobSubs"               add column if not exists "updatedAt" text;
+
+-- ════════════════════════════════════════════
+-- Supabase Auth 연동
+-- ════════════════════════════════════════════
+
+-- users 테이블에 auth_id 컬럼 추가 (Supabase Auth UUID 연동)
+alter table users add column if not exists auth_id uuid references auth.users(id) on delete cascade;
+create unique index if not exists idx_users_auth_id on users(auth_id);
+
+-- ════════════════════════════════════════════
+-- RLS 정책
+-- ════════════════════════════════════════════
+
+-- ── 헬퍼 함수: auth_id로 users.id 조회
+create or replace function get_my_user_id()
+returns text language sql security definer stable as $$
+  select id from users where auth_id = auth.uid() limit 1;
+$$;
+
+-- ── 헬퍼 함수: 현재 유저가 admin(level=5)인지 확인
+create or replace function is_admin()
+returns boolean language sql security definer stable as $$
+  select exists (
+    select 1 from users where auth_id = auth.uid() and level = 5
+  );
+$$;
+
+-- ── users
+create policy "users_select" on users for select using (auth_id = auth.uid() or is_admin());
+create policy "users_insert" on users for insert with check (auth_id = auth.uid());
+create policy "users_update" on users for update using (auth_id = auth.uid() or is_admin());
+
+-- ── classes (teacher_id = 본인)
+create policy "classes_all" on classes for all using (teacher_id = get_my_user_id() or is_admin());
+
+-- ── students (teacher_id = 본인)
+create policy "students_all" on students for all using (teacher_id = get_my_user_id() or is_admin());
+
+-- ── attendance (class_id → classes.teacher_id = 본인)
+create policy "attendance_all" on attendance for all using (
+  exists (select 1 from classes where classes.id = attendance.class_id and classes.teacher_id = get_my_user_id())
+  or is_admin()
+);
+
+-- ── notes (teacher_id = 본인)
+create policy "notes_all" on notes for all using (teacher_id = get_my_user_id() or is_admin());
+
+-- ── attendance_templates (공개 읽기, 본인 쓰기)
+create policy "templates_select" on attendance_templates for select using (true);
+create policy "templates_write"  on attendance_templates for all using (teacher_id = get_my_user_id() or is_admin());
+
+-- ── branches (admin 전용)
+create policy "branches_all" on branches for all using (is_admin());
+
+-- ── parent_members (teacher_id = 본인)
+create policy "parent_members_all" on parent_members for all using (teacher_id = get_my_user_id() or is_admin());
+
+-- ── teacher_parent_links (teacher_id = 본인)
+create policy "teacher_parent_links_all" on teacher_parent_links for all using (teacher_id = get_my_user_id() or is_admin());
+
+-- ── points (teacher_id = 본인)
+create policy "points_all" on points for all using (teacher_id = get_my_user_id() or is_admin());
+
+-- ── revenueFees (teacherId = 본인)
+create policy "revenueFees_all" on "revenueFees" for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── revenuePayments (teacherId = 본인)
+create policy "revenuePayments_all" on "revenuePayments" for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── trainings (teacherId = 본인)
+create policy "trainings_all" on trainings for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── careers (teacherId = 본인)
+create policy "careers_all" on careers for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── educations (teacherId = 본인)
+create policy "educations_all" on educations for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── certificates (teacherId = 본인)
+create policy "certificates_all" on certificates for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── awards (teacherId = 본인)
+create policy "awards_all" on awards for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── jobSubs (teacherId = 본인)
+create policy "jobSubs_all" on "jobSubs" for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── supplySubjects (teacherId = 본인)
+create policy "supplySubjects_all" on "supplySubjects" for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── supplyVendors (teacherId = 본인)
+create policy "supplyVendors_all" on "supplyVendors" for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── supplyItems (teacherId = 본인)
+create policy "supplyItems_all" on "supplyItems" for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── supplyPlans (teacherId = 본인)
+create policy "supplyPlans_all" on "supplyPlans" for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── supplyPromos (teacherId = 본인)
+create policy "supplyPromos_all" on "supplyPromos" for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── supplyProducts (teacherId = 본인)
+create policy "supplyProducts_all" on "supplyProducts" for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── supplyProductPlans (teacherId = 본인)
+create policy "supplyProductPlans_all" on "supplyProductPlans" for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── supplyStudentProgress (teacherId = 본인)
+create policy "supplyStudentProgress_all" on "supplyStudentProgress" for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── supplyProgressLogs (teacherId = 본인)
+create policy "supplyProgressLogs_all" on "supplyProgressLogs" for all using ("teacherId" = get_my_user_id() or is_admin());
+
+-- ── supplySessionChecks (teacherId = 본인)
+create policy "supplySessionChecks_all" on "supplySessionChecks" for all using ("teacherId" = get_my_user_id() or is_admin());
