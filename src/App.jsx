@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { seedIfEmpty } from './lib/seed.js'
 import { Users } from './lib/db.js'
 import { initFromSupabase } from './lib/db.js'
-import { isConfigured } from './lib/supabase.js'
+import { isConfigured, authSignOut, authOnStateChange, authGetSession } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
 import { Dashboard } from './pages/Dashboard.jsx'
 import { Classes } from './pages/Classes.jsx'
@@ -165,29 +164,36 @@ export default function App() {
 
   useEffect(() => {
     async function init() {
-      if (isConfigured) {
+      // 먼저 세션 확인
+      const session = await authGetSession()
+
+      // 로그인 상태면 데이터 로드 (RLS가 본인 데이터만 반환)
+      if (session?.user) {
         await initFromSupabase()
-      } else {
-        seedIfEmpty()
+        const fresh = Users.findByEmail(session.user.email)
+        if (fresh) {
+          setUser(fresh)
+          const pageParam = new URLSearchParams(window.location.search).get('page')
+          if (pageParam) setPage(pageParam)
+        }
       }
+
       setDbReady(true)
-      const saved = sessionStorage.getItem('asa_user')
-      if (saved) {
-        try {
-          const u = JSON.parse(saved)
-          const fresh = Users.find(u.id)
-          if (fresh) {
-            setUser(fresh)
-            const pageParam = new URLSearchParams(window.location.search).get('page')
-            if (pageParam) setPage(pageParam)
-          }
-        } catch {}
-      }
     }
     init()
+
+    // 인증 상태 변경 감지 (다른 탭 로그아웃 등)
+    const unsubscribe = authOnStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        sessionStorage.removeItem('asa_user')
+      }
+    })
+    return unsubscribe
   }, [])
 
-  const handleLogin = (u) => {
+  const handleLogin = async (u) => {
+    await initFromSupabase()
     setUser(u)
     sessionStorage.setItem('asa_user', JSON.stringify(u))
     const pageParam = new URLSearchParams(window.location.search).get('page')
@@ -200,7 +206,8 @@ export default function App() {
     sessionStorage.setItem('asa_user', JSON.stringify(updatedUser))
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (isConfigured) await authSignOut()
     setUser(null)
     sessionStorage.removeItem('asa_user')
   }
