@@ -124,56 +124,47 @@ export default function App() {
     catch { return null }
   })
 
+  // ─── 현재 경로 판별 (조건부 return 전에 미리 계산) ───────────────
+  const pathname = window.location.pathname
+  const search   = window.location.search
+
+  const isStaticPath =
+    pathname.startsWith('/blog') ||
+    pathname.startsWith('/docs') ||
+    pathname === '/naver-callback' ||
+    pathname === '/kakao-callback' ||
+    pathname === '/terms' ||
+    pathname === '/privacy'
+
+  const isVendorPath =
+    search.includes('vendor') ||
+    pathname.includes('vendor-login')
+
+  const isSchoolPath =
+    search.includes('school') ||
+    pathname === '/school'
+
+  // ─── 모든 useEffect를 조건부 return 전에 선언 ─────────────────────
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768)
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // 블로그 — 공개 페이지 (로그인 불필요, SEO용)
-  if (window.location.pathname.startsWith('/blog')) return <Blog />
-  if (window.location.pathname.startsWith('/docs')) return <Blog />
-
-  // 네이버/카카오 콜백 — DB 불필요, 바로 렌더
-  if (window.location.pathname === '/naver-callback')  return <NaverCallback />
-  if (window.location.pathname === '/kakao-callback')  return <KakaoCallback />
-
-  // 공개 약관 페이지 — 로그인 불필요
-  if (window.location.pathname === '/terms')   return <TermsPage />
-  if (window.location.pathname === '/privacy') return <PrivacyPage />
-
-  // ✅ 업체 포털 분기 (?vendor=1 또는 /vendor-login 접속 시)
-  const isVendorPath =
-    window.location.search.includes('vendor') ||
-    window.location.pathname.includes('vendor-login')
-
-  if (isVendorPath) {
-    if (vendorSession) {
-      return (
-        <VendorApp
-          vendorSession={vendorSession}
-          onLogout={() => {
-            localStorage.removeItem('asa_vendor_session')
-            setVendorSession(null)
-          }}
-        />
-      )
-    }
-    return <VendorAuth onLogin={(session) => setVendorSession(session)} />
-  }
-
   useEffect(() => {
+    // 정적 경로·업체·학교 포털은 DB 초기화 불필요
+    if (isStaticPath || isVendorPath || isSchoolPath) return
+
     async function init() {
-      // 먼저 세션 확인
       const session = await authGetSession()
 
-      // 로그인 상태면 데이터 로드 (RLS가 본인 데이터만 반환)
       if (session?.user) {
         await initFromSupabase()
         const fresh = Users.findByEmail(session.user.email)
         if (fresh) {
           setUser(fresh)
-          const pageParam = new URLSearchParams(window.location.search).get('page')
+          const pageParam = new URLSearchParams(search).get('page')
           if (pageParam) setPage(pageParam)
         }
       }
@@ -192,51 +183,6 @@ export default function App() {
     return unsubscribe
   }, [])
 
-  const handleLogin = async (u) => {
-    // 전체 user 객체가 넘어온 경우 (소셜로그인, 회원가입)
-    if (u.id) {
-      setUser(u)
-      sessionStorage.setItem('asa_user', JSON.stringify(u))
-      const pageParam = new URLSearchParams(window.location.search).get('page')
-      setPage(pageParam || 'dashboard')
-      setPageParams({})
-      return
-    }
-    // 이메일/비밀번호 로그인 — authSignIn 완료 후 세션이 있으므로 initFromSupabase 실행
-    await initFromSupabase()
-    const fullUser = Users.findByEmail(u.email)
-    if (!fullUser) return
-    setUser(fullUser)
-    sessionStorage.setItem('asa_user', JSON.stringify(fullUser))
-    const pageParam = new URLSearchParams(window.location.search).get('page')
-    setPage(pageParam || 'dashboard')
-    setPageParams({})
-  }
-
-  const handleUserUpdate = (updatedUser) => {
-    setUser(updatedUser)
-    sessionStorage.setItem('asa_user', JSON.stringify(updatedUser))
-  }
-
-  const handleLogout = async () => {
-    if (isConfigured) await authSignOut()
-    setUser(null)
-    sessionStorage.removeItem('asa_user')
-  }
-
-  const handleNav = (p, params = {}) => {
-    if (p === '__more__') { setSidebarOpen(true); return }
-    if (user) {
-      const fresh = Users.find(user.id)
-      if (fresh) setUser(fresh)
-    }
-    setPage(p)
-    setPageParams(params)
-    setSidebarOpen(false)
-    // 브라우저 히스토리에 쌓기
-    window.history.pushState({ page: p, params }, '', window.location.pathname)
-  }
-
   // 뒤로가기/앞으로가기 감지
   useEffect(() => {
     const handlePopState = (e) => {
@@ -252,6 +198,37 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
+  // ─── 조건부 렌더링 (모든 훅 선언 완료 후) ────────────────────────
+
+  // 블로그 — 공개 페이지 (로그인 불필요, SEO용)
+  if (pathname.startsWith('/blog')) return <Blog />
+  if (pathname.startsWith('/docs')) return <Blog />
+
+  // 네이버/카카오 콜백 — DB 불필요, 바로 렌더
+  if (pathname === '/naver-callback') return <NaverCallback />
+  if (pathname === '/kakao-callback') return <KakaoCallback />
+
+  // 공개 약관 페이지 — 로그인 불필요
+  if (pathname === '/terms')   return <TermsPage />
+  if (pathname === '/privacy') return <PrivacyPage />
+
+  // ✅ 업체 포털 분기
+  if (isVendorPath) {
+    if (vendorSession) {
+      return (
+        <VendorApp
+          vendorSession={vendorSession}
+          onLogout={() => {
+            localStorage.removeItem('asa_vendor_session')
+            setVendorSession(null)
+          }}
+        />
+      )
+    }
+    return <VendorAuth onLogin={(session) => setVendorSession(session)} />
+  }
+
+  // DB 초기화 대기
   if (!dbReady) return (
     <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#fff7ed', flexDirection:'column', gap:'16px' }}>
       <div style={{ fontSize:'48px' }}>📋</div>
@@ -260,11 +237,7 @@ export default function App() {
     </div>
   )
 
-  // ✅ 학교 담당자 포털 분기 (?school=1 또는 /school 접속 시)
-  const isSchoolPath =
-    window.location.search.includes('school') ||
-    window.location.pathname === '/school'
-
+  // ✅ 학교 담당자 포털 분기
   if (isSchoolPath) {
     if (schoolSession) {
       return (
@@ -282,8 +255,8 @@ export default function App() {
   }
 
   // DB 준비 완료 후 학부모 페이지 렌더
-  if (window.location.pathname === '/parent-invite') return <ParentInvite />
-  if (window.location.pathname === '/parent-login')  return <ParentLogin />
+  if (pathname === '/parent-invite') return <ParentInvite />
+  if (pathname === '/parent-login')  return <ParentLogin />
 
   if (!user) return <Auth onLogin={handleLogin} />
 
@@ -320,6 +293,56 @@ export default function App() {
       case 'school_manage':   return <SchoolAdminManage user={user} />
       default:                return <Dashboard {...pageProps} />
     }
+  }
+
+  // ─── 핸들러 (렌더링 직전에 정의) ─────────────────────────────────
+
+  function handleLogin(u) {
+    // 소셜 로그인 / 회원가입: id가 있는 완전한 user 객체
+    if (u.id) {
+      setUser(u)
+      sessionStorage.setItem('asa_user', JSON.stringify(u))
+      const pageParam = new URLSearchParams(search).get('page')
+      setPage(pageParam || 'dashboard')
+      setPageParams({})
+      return
+    }
+    // 이메일/비밀번호 로그인: authSignIn 완료 후 DB에서 유저 조회
+    initFromSupabase().then(() => {
+      const fullUser = Users.findByEmail(u.email)
+      if (!fullUser) {
+        console.error('[로그인 실패] DB에서 유저를 찾을 수 없음:', u.email)
+        return
+      }
+      setUser(fullUser)
+      sessionStorage.setItem('asa_user', JSON.stringify(fullUser))
+      const pageParam = new URLSearchParams(search).get('page')
+      setPage(pageParam || 'dashboard')
+      setPageParams({})
+    })
+  }
+
+  function handleUserUpdate(updatedUser) {
+    setUser(updatedUser)
+    sessionStorage.setItem('asa_user', JSON.stringify(updatedUser))
+  }
+
+  async function handleLogout() {
+    if (isConfigured) await authSignOut()
+    setUser(null)
+    sessionStorage.removeItem('asa_user')
+  }
+
+  function handleNav(p, params = {}) {
+    if (p === '__more__') { setSidebarOpen(true); return }
+    if (user) {
+      const fresh = Users.find(user.id)
+      if (fresh) setUser(fresh)
+    }
+    setPage(p)
+    setPageParams(params)
+    setSidebarOpen(false)
+    window.history.pushState({ page: p, params }, '', pathname)
   }
 
   return (
