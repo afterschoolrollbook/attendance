@@ -178,6 +178,28 @@ async function main() {
   }
 
   console.log('')
+  console.log('[ STORAGE ] 버킷 생성 중...')
+
+  process.stdout.write('  teacher-files ... ')
+  try {
+    const bucketRes = await apiCall('POST', `/v1/projects/${projectRef}/storage/buckets`, token, {
+      id: 'teacher-files',
+      name: 'teacher-files',
+      public: true,
+    })
+    if (bucketRes.status === 200 || bucketRes.status === 201) {
+      console.log(G+'완료'+N)
+    } else if (bucketRes.status === 409 || JSON.stringify(bucketRes.body).includes('already exists')) {
+      console.log(Y+'이미 존재 (건너뜀)'+N)
+    } else {
+      console.log(R+'실패 ('+bucketRes.status+')'+N)
+      if (bucketRes.body) console.log('    ' + JSON.stringify(bucketRes.body).slice(0, 200))
+    }
+  } catch(e) {
+    console.log(R+'오류: '+e.message+N)
+  }
+
+  console.log('')
   console.log('[ DEPLOY ] Edge Functions 배포 중...')
 
   const functions = ['db-api', 'send-email', 'send-sms', 'naver-oauth']
