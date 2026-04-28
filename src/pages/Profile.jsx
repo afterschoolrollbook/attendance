@@ -3,7 +3,7 @@ import { Users } from '../lib/db.js'
 import { now } from '../lib/utils.js'
 import { sendEmail, isConfigured } from '../lib/supabase.js'
 import { Btn, Input, Card, PageHeader } from '../components/Atoms.jsx'
-import { hashPassword, verifyPassword } from '../lib/crypto.js'
+import { authSignIn, authUpdatePassword } from '../lib/supabase.js'
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316', success:'#16a34a', danger:'#ef4444' }
 
@@ -54,9 +54,12 @@ function VerifyModal({ user, onVerified, onClose }) {
   const verify = async () => {
     setError('')
     if (!isSocial) {
-      const ok = await verifyPassword(pwInput, user.pw)
-      if (!ok) { setError('비밀번호가 올바르지 않습니다.'); return }
-      onVerified()
+      try {
+        await authSignIn(user.email, pwInput)
+        onVerified()
+      } catch {
+        setError('비밀번호가 올바르지 않습니다.')
+      }
     } else {
       if (code.trim() !== sentCode) { setError('인증번호가 올바르지 않습니다.'); return }
       onVerified()
@@ -209,8 +212,8 @@ export function Profile({ user, onUserUpdate, onNav }) {
       if (pw.next.length < 8) { flash(setPwMsg, false, '새 비밀번호는 8자 이상이어야 합니다.'); return }
       if (!/[a-zA-Z]/.test(pw.next) || !/[0-9]/.test(pw.next)) { flash(setPwMsg, false, '비밀번호는 영문과 숫자를 모두 포함해야 합니다.'); return }
       if (pw.next !== pw.next2) { flash(setPwMsg, false, '새 비밀번호가 일치하지 않습니다.'); return }
-      const hashedPw = await hashPassword(pw.next)
-      const updated = Users.update(user.id, { pw: hashedPw })
+      await authUpdatePassword(pw.next)
+      const updated = await Users.update(user.id, { pw: '' })
       onUserUpdate(updated)
       setPw({ next:'', next2:'' })
       flash(setPwMsg, true, '비밀번호가 변경되었습니다.')
