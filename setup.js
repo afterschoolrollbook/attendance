@@ -180,7 +180,7 @@ async function main() {
   console.log('')
   console.log('[ DEPLOY ] Edge Functions 배포 중...')
 
-  const functions = ['db-api', 'send-email', 'send-sms', 'naver-oauth']
+  const functions = ['db-api', 'send-email', 'send-sms', 'naver-oauth', 'kakao-oauth', 'send-push', 'generate-vapid', 'reset-user-password']
   for (const fn of functions) {
     process.stdout.write('  ' + fn + ' ... ')
     const fnPath = path.join(__dirname, 'supabase', 'functions', fn, 'index.ts')
