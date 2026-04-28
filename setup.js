@@ -153,6 +153,31 @@ async function main() {
   }
 
   console.log('')
+  console.log('[ MIGRATION ] DB 스키마 적용 중...')
+
+  const migrations = [
+    '001_initial.sql',
+    '002_add_missing_columns.sql',
+  ]
+  for (const filename of migrations) {
+    process.stdout.write('  ' + filename + ' ... ')
+    const sqlPath = path.join(__dirname, 'supabase', 'migrations', filename)
+    if (!fs.existsSync(sqlPath)) { console.log(R+'파일 없음'+N); continue }
+    const sql = fs.readFileSync(sqlPath, 'utf8')
+    try {
+      const res = await apiCall('POST', `/v1/projects/${projectRef}/database/query`, token, { query: sql })
+      if (res.status === 200 || res.status === 201) {
+        console.log(G+'완료'+N)
+      } else {
+        console.log(R+'실패 ('+res.status+')'+N)
+        if (res.body) console.log('    ' + JSON.stringify(res.body).slice(0, 300))
+      }
+    } catch(e) {
+      console.log(R+'오류: '+e.message+N)
+    }
+  }
+
+  console.log('')
   console.log('[ DEPLOY ] Edge Functions 배포 중...')
 
   const functions = ['db-api', 'send-email', 'send-sms', 'naver-oauth']
