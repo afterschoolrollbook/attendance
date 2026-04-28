@@ -193,9 +193,18 @@ export default function App() {
   }, [])
 
   const handleLogin = async (u) => {
+    // 전체 user 객체가 넘어온 경우 (소셜로그인, 회원가입)
+    if (u.id) {
+      setUser(u)
+      sessionStorage.setItem('asa_user', JSON.stringify(u))
+      const pageParam = new URLSearchParams(window.location.search).get('page')
+      setPage(pageParam || 'dashboard')
+      setPageParams({})
+      return
+    }
+    // 이메일/비밀번호 로그인 — authSignIn 완료 후 세션이 있으므로 initFromSupabase 실행
     await initFromSupabase()
-    // email만 넘어온 경우 findByEmail로 전체 user 객체 조회
-    const fullUser = u.id ? u : Users.findByEmail(u.email)
+    const fullUser = Users.findByEmail(u.email)
     if (!fullUser) return
     setUser(fullUser)
     sessionStorage.setItem('asa_user', JSON.stringify(fullUser))
