@@ -194,8 +194,11 @@ export default function App() {
 
   const handleLogin = async (u) => {
     await initFromSupabase()
-    setUser(u)
-    sessionStorage.setItem('asa_user', JSON.stringify(u))
+    // email만 넘어온 경우 findByEmail로 전체 user 객체 조회
+    const fullUser = u.id ? u : Users.findByEmail(u.email)
+    if (!fullUser) return
+    setUser(fullUser)
+    sessionStorage.setItem('asa_user', JSON.stringify(fullUser))
     const pageParam = new URLSearchParams(window.location.search).get('page')
     setPage(pageParam || 'dashboard')
     setPageParams({})
