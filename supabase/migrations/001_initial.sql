@@ -464,13 +464,8 @@ alter table "supplySessionChecks"    enable row level security;
 -- ════════════════════════════════════════════
 -- 초기 데이터
 -- ════════════════════════════════════════════
-insert into users (id, name, email, pw, role, level, verified, created_at)
-values ('admin1', '관리자', 'admin@test.com', 'admin1234', 'admin', 5, true, now())
-on conflict (id) do nothing;
-
-insert into users (id, name, email, pw, phone, role, level, verified, created_at)
-values ('teacher1', '김선생', 'teacher@test.com', '1234', '010-1234-5678', 'teacher', 2, true, now())
-on conflict (id) do nothing;
+-- ⚠️ 초기 테스트 계정 제거 (평문 비밀번호 보안 이슈)
+-- 배포 후 앱에서 직접 회원가입 → Supabase Dashboard에서 role=admin, level=5 로 수동 변경하세요.
 
 insert into ad_slots (id, name, position, active, w, h) values
   ('dashboard_top',  '대시보드 상단',  'dashboard_top',  false, '100%', 90),
