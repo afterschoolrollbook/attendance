@@ -77,6 +77,8 @@ const CAMEL_TABLES = new Set([
   'schoolNotices', 'schoolNoticeSubmits',
   'schoolCalendar', 'schoolInfo',
   'documents',
+  'customCategories',  // ✅ teacherId, sortOrder, createdAt, updatedAt (camelCase)
+  'lessonMemos',       // ✅ teacherId, classId, createdAt, updatedAt (camelCase)
 ])
 
 // ─── camelCase → snake_case 변환
