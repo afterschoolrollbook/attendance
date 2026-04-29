@@ -794,18 +794,11 @@ export const SupplyGiven = {
   byStudent:    (studentId)     => db.where('supplyGiven', r => r.studentId === studentId),
   byClass:      (classId)       => db.where('supplyGiven', r => r.classId === classId),
   bySchool:     (schoolName)    => db.where('supplyGiven', r => r.schoolName === schoolName),
-  byStudentProduct: (studentId, productId) => db.where('supplyGiven', r => r.studentId === studentId && r.productId === productId),
+  byStudentClass: (studentId, classId) => db.where('supplyGiven', r => r.studentId === studentId && r.classId === classId),
   find:         (id)            => db.getOne('supplyGiven', id),
-  insert:       (r)             => db.insert('supplyGiven', r),
+  insert:       (r)             => db.insert('supplyGiven', { ...r, id: r.id || uid() }),
   update:       (id, p)         => db.update('supplyGiven', id, p),
   delete:       (id)            => db.delete('supplyGiven', id),
-  async upsert(r) {
-    const existing = db.where('supplyGiven', x =>
-      x.studentId === r.studentId && x.classId === r.classId && x.productId === r.productId
-    )[0]
-    if (existing) return await db.update('supplyGiven', existing.id, { ...r })
-    return await db.insert('supplyGiven', { ...r, id: r.id || uid() })
-  },
 }
 
 // ─── 안내 문구
