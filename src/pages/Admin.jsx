@@ -894,17 +894,10 @@ export function Admin({ user: currentUser }) {
   }
 
   const openDetail = (u) => {
-    // 기존 만료일로 빠른설정 버튼 역산
-    let initQuick = null
-    if (!u.accessExpiredAt) {
-      initQuick = 'unlimited'
-    } else if (u.accessStartAt && u.accessExpiredAt) {
-      const diff = Math.round((new Date(u.accessExpiredAt) - new Date(u.accessStartAt)) / (1000 * 60 * 60 * 24))
-      if ([7, 30, 90, 180, 365].includes(diff)) initQuick = diff
-    }
+    // 만료일 없으면 무제한, 있으면 버튼 활성화 없음 (직접 누를 때만 활성화)
     setSelectedUser({ ...u })
     setDetailTab('period')
-    setActiveQuickDays(initQuick)
+    setActiveQuickDays(!u.accessExpiredAt ? 'unlimited' : null)
     setShowDetailModal(true)
   }
   const openPerm = (u) => { setSelectedUser({ ...u }); setShowPermModal(true) }
@@ -1224,27 +1217,36 @@ export function Admin({ user: currentUser }) {
               {/* ── 학생 목록 ── */}
               {detailTab === 'students' && (() => {
                 const DAY_ORDER = {'월':0,'화':1,'수':2,'목':3,'금':4,'토':5,'일':6}
+                const SEC_ORDER = (sec) => sec === 'A' ? 0 : sec === 'B' ? 1 : sec === 'C' ? 2 : 99
                 const getMainClass = s => teacherClasses.find(c => (s.classIds||[]).includes(c.id))
-                const getOrg  = s => getMainClass(s)?.organization || s.school || '학교 미지정'
-                const getDay  = s => DAY_ORDER[getMainClass(s)?.days?.[0]] ?? 99
+                const getOrg      = s => getMainClass(s)?.organization || s.school || '학교 미지정'
+                const getDay      = s => DAY_ORDER[getMainClass(s)?.days?.[0]] ?? 99
                 const getDayLabel = s => getMainClass(s)?.days?.[0] || ''
+                const getSec      = s => getMainClass(s)?.section || ''
 
                 const sorted = [...teacherStudents].sort((a, b) => {
-                  const dayCmp = getDay(a) - getDay(b);                    if (dayCmp !== 0) return dayCmp
-                  const grdCmp = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (grdCmp !== 0) return grdCmp
+                  // 1. 요일순
+                  const dayCmp = getDay(a) - getDay(b);                              if (dayCmp !== 0) return dayCmp
+                  // 2. 반(A→B→C)
+                  const secCmp = SEC_ORDER(getSec(a)) - SEC_ORDER(getSec(b));        if (secCmp !== 0) return secCmp
+                  // 3. 학년
+                  const grdCmp = parseInt(a.grade||'0') - parseInt(b.grade||'0');    if (grdCmp !== 0) return grdCmp
+                  // 4. 반번호
                   const clsCmp = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (clsCmp !== 0) return clsCmp
+                  // 5. 번호
                   return parseInt(a.number||'0') - parseInt(b.number||'0')
                 })
 
-                // 학교+요일 그룹핑
+                // 요일+학교+반 그룹핑
                 const groups = []
                 sorted.forEach(s => {
                   const org = getOrg(s)
                   const day = getDayLabel(s)
-                  const key = `${org}__${day}`
+                  const sec = getSec(s)
+                  const key = `${day}__${org}__${sec}`
                   const last = groups[groups.length - 1]
                   if (last && last.key === key) last.items.push(s)
-                  else groups.push({ key, org, day, items: [s] })
+                  else groups.push({ key, org, day, sec, items: [s] })
                 })
 
                 return (
@@ -1253,10 +1255,11 @@ export function Admin({ user: currentUser }) {
                       ? <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>등록된 학생이 없습니다</div>
                       : groups.map(g => (
                           <div key={g.key} style={{ marginBottom: '12px' }}>
-                            {/* 학교(요일) 헤더 */}
+                            {/* 학교(요일) 반 헤더 */}
                             <div style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280', background: '#f3f4f6', padding: '5px 12px', borderRadius: '6px', marginBottom: '6px', display: 'flex', gap: '8px', alignItems: 'center' }}>
                               <span>🏫 {g.org}</span>
                               {g.day && <span style={{ color: '#f97316' }}>({g.day}요일)</span>}
+                              {g.sec && <span style={{ color: '#fff', background: '#8b5cf6', padding: '1px 7px', borderRadius: '10px', fontSize: '11px' }}>{g.sec}반</span>}
                               <span style={{ marginLeft: 'auto', color: '#9ca3af', fontWeight: 400 }}>{g.items.length}명</span>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
