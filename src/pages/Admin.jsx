@@ -902,7 +902,7 @@ export function Admin({ user: currentUser }) {
       const match = [7, 30, 90, 180, 365].find(d => Math.abs(diff - d) <= 1)
       if (match) initQuick = match
     }
-    setSelectedUser({ ...u })
+    setSelectedUser({ ...u, _quickDays: initQuick })
     setDetailTab('period')
     setActiveQuickDays(initQuick)
     setShowDetailModal(true)
@@ -1317,13 +1317,14 @@ export function Admin({ user: currentUser }) {
                 const setQuick = (days) => {
                   const start  = new Date().toISOString().slice(0,10)
                   const expire = new Date(Date.now() + days * 86400000).toISOString().slice(0,10)
-                  setSelectedUser(p => ({ ...p, accessStartAt: start, accessExpiredAt: expire }))
+                  setSelectedUser(p => ({ ...p, accessStartAt: start, accessExpiredAt: expire, _quickDays: days }))
                   setActiveQuickDays(days)
                 }
                 const setUnlimited = () => {
-                  setSelectedUser(p => ({ ...p, accessStartAt: null, accessExpiredAt: null }))
+                  setSelectedUser(p => ({ ...p, accessStartAt: null, accessExpiredAt: null, _quickDays: 'unlimited' }))
                   setActiveQuickDays('unlimited')
                 }
+                const quickDays = selectedUser._quickDays
 
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -1355,12 +1356,12 @@ export function Admin({ user: currentUser }) {
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         {[{label:'7일', days:7},{label:'30일', days:30},{label:'90일', days:90},{label:'180일', days:180},{label:'1년', days:365}].map(({label, days}) => (
                           <button key={label} onClick={() => setQuick(days)}
-                            style={{ padding: '7px 16px', borderRadius: '8px', border: `1.5px solid ${activeQuickDays === days ? '#f97316' : '#e5e7eb'}`, background: activeQuickDays === days ? '#f97316' : '#fff', color: activeQuickDays === days ? '#fff' : '#374151', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 500 }}>
+                            style={{ padding: '7px 16px', borderRadius: '8px', border: `1.5px solid ${quickDays === days ? '#f97316' : '#e5e7eb'}`, background: quickDays === days ? '#f97316' : '#fff', color: quickDays === days ? '#fff' : '#374151', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 500 }}>
                             {label}
                           </button>
                         ))}
                         <button onClick={setUnlimited}
-                          style={{ padding: '7px 16px', borderRadius: '8px', border: `1.5px solid ${activeQuickDays === 'unlimited' ? '#16a34a' : '#86efac'}`, background: activeQuickDays === 'unlimited' ? '#16a34a' : '#f0fdf4', color: activeQuickDays === 'unlimited' ? '#fff' : '#16a34a', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 500 }}>
+                          style={{ padding: '7px 16px', borderRadius: '8px', border: `1.5px solid ${quickDays === 'unlimited' ? '#16a34a' : '#86efac'}`, background: quickDays === 'unlimited' ? '#16a34a' : '#f0fdf4', color: quickDays === 'unlimited' ? '#fff' : '#16a34a', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 500 }}>
                           무제한
                         </button>
                       </div>
