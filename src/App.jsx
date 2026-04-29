@@ -298,11 +298,8 @@ export default function App() {
   // ─── 핸들러 (렌더링 직전에 정의) ─────────────────────────────────
 
   function handleLogin(u) {
-    console.log('[handleLogin] 호출됨, u =', u)
-
     // 소셜 로그인 / 회원가입: id가 있는 완전한 user 객체
     if (u.id) {
-      console.log('[handleLogin] id 있음 → 바로 로그인')
       setUser(u)
       sessionStorage.setItem('asa_user', JSON.stringify(u))
       const pageParam = new URLSearchParams(search).get('page')
@@ -311,21 +308,25 @@ export default function App() {
       return
     }
 
-    // 이메일/비밀번호 로그인: authSignIn 완료 후 DB에서 유저 조회
-    console.log('[handleLogin] 이메일 로그인 → initFromSupabase 시작')
+    // 이메일/비밀번호 로그인: 캐시 먼저 확인 후 바로 로그인, 백그라운드 sync
+    const cached = Users.findByEmail(u.email)
+    if (cached) {
+      setUser(cached)
+      sessionStorage.setItem('asa_user', JSON.stringify(cached))
+      const pageParam = new URLSearchParams(search).get('page')
+      setPage(pageParam || 'dashboard')
+      setPageParams({})
+      initFromSupabase().then(() => {
+        const fresh = Users.findByEmail(u.email)
+        if (fresh) setUser(fresh)
+      })
+      return
+    }
+
+    // 캐시에 없으면 sync 후 조회
     initFromSupabase().then(() => {
-      console.log('[handleLogin] initFromSupabase 완료, 이메일로 유저 조회:', u.email)
-      const allUsers = Users.all()
-      console.log('[handleLogin] 전체 유저 목록:', allUsers.map(x => x.email))
-
       const fullUser = Users.findByEmail(u.email)
-      console.log('[handleLogin] findByEmail 결과:', fullUser)
-
-      if (!fullUser) {
-        console.error('[handleLogin] ❌ 유저를 찾을 수 없음:', u.email)
-        return
-      }
-      console.log('[handleLogin] ✅ 로그인 성공:', fullUser.email)
+      if (!fullUser) return
       setUser(fullUser)
       sessionStorage.setItem('asa_user', JSON.stringify(fullUser))
       const pageParam = new URLSearchParams(search).get('page')
