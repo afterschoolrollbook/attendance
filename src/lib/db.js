@@ -10,7 +10,7 @@
  *  - 멀티기기(PC/스마트폰) 항상 최신 데이터
  */
 
-import { supabase, isConfigured } from './supabase.js'
+import { supabase, isConfigured } from './supabase.js' // 로컬 전용 모드 제거됨 — 항상 Supabase 직접 연결 (isConfigured 분기 없음)
 import { uid, now } from './utils.js'
 
 // ─── 실제 DB 테이블 이름 매핑 (논리명 → 실제 테이블명)
