@@ -893,7 +893,20 @@ export function Admin({ user: currentUser }) {
     refresh()  // ✅ 즉시 반영
   }
 
-  const openDetail = (u) => { setSelectedUser({ ...u }); setDetailTab('period'); setActiveQuickDays(null); setShowDetailModal(true) }
+  const openDetail = (u) => {
+    // 기존 만료일로 빠른설정 버튼 역산
+    let initQuick = null
+    if (!u.accessExpiredAt) {
+      initQuick = 'unlimited'
+    } else if (u.accessStartAt && u.accessExpiredAt) {
+      const diff = Math.round((new Date(u.accessExpiredAt) - new Date(u.accessStartAt)) / (1000 * 60 * 60 * 24))
+      if ([7, 30, 90, 180, 365].includes(diff)) initQuick = diff
+    }
+    setSelectedUser({ ...u })
+    setDetailTab('period')
+    setActiveQuickDays(initQuick)
+    setShowDetailModal(true)
+  }
   const openPerm = (u) => { setSelectedUser({ ...u }); setShowPermModal(true) }
 
   const setOverride = (feature, value) => {
@@ -1162,29 +1175,30 @@ export function Admin({ user: currentUser }) {
               {detailTab === 'classes' && (() => {
                 const DAY_ORDER = {'월':0,'화':1,'수':2,'목':3,'금':4,'토':5,'일':6}
                 const sorted = [...teacherClasses].sort((a, b) => {
-                  const orgCmp = (a.organization||'').localeCompare(b.organization||'', 'ko')
-                  if (orgCmp !== 0) return orgCmp
-                  const secCmp = (a.section||'').localeCompare(b.section||'', 'ko')
-                  if (secCmp !== 0) return secCmp
-                  return (DAY_ORDER[a.days?.[0]] ?? 99) - (DAY_ORDER[b.days?.[0]] ?? 99)
+                  const dayCmp = (DAY_ORDER[a.days?.[0]] ?? 99) - (DAY_ORDER[b.days?.[0]] ?? 99)
+                  if (dayCmp !== 0) return dayCmp
+                  return (a.section||'').localeCompare(b.section||'', 'ko')
                 })
-                // 학교별 그룹핑
+                // 요일+학교별 그룹핑
                 const groups = []
                 sorted.forEach(c => {
+                  const day = c.days?.[0] || ''
                   const org = c.organization || '학교 미지정'
+                  const key = `${day}__${org}`
                   const last = groups[groups.length - 1]
-                  if (last && last.org === org) last.items.push(c)
-                  else groups.push({ org, items: [c] })
+                  if (last && last.key === key) last.items.push(c)
+                  else groups.push({ key, day, org, items: [c] })
                 })
                 return (
                   <div style={{ minHeight: 200, maxHeight: 360, overflowY: 'auto' }}>
                     {sorted.length === 0
                       ? <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>등록된 수업이 없습니다</div>
                       : groups.map(g => (
-                          <div key={g.org} style={{ marginBottom: '12px' }}>
-                            {/* 학교 헤더 */}
-                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280', background: '#f3f4f6', padding: '5px 12px', borderRadius: '6px', marginBottom: '6px' }}>
-                              🏫 {g.org}
+                          <div key={g.key} style={{ marginBottom: '12px' }}>
+                            {/* 학교+요일 헤더 */}
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280', background: '#f3f4f6', padding: '5px 12px', borderRadius: '6px', marginBottom: '6px', display: 'flex', gap: '8px' }}>
+                              <span>🏫 {g.org}</span>
+                              {g.day && <span style={{ color: '#f97316' }}>({g.day}요일)</span>}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                               {g.items.map(c => (
@@ -1216,7 +1230,6 @@ export function Admin({ user: currentUser }) {
                 const getDayLabel = s => getMainClass(s)?.days?.[0] || ''
 
                 const sorted = [...teacherStudents].sort((a, b) => {
-                  const orgCmp = getOrg(a).localeCompare(getOrg(b), 'ko'); if (orgCmp !== 0) return orgCmp
                   const dayCmp = getDay(a) - getDay(b);                    if (dayCmp !== 0) return dayCmp
                   const grdCmp = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (grdCmp !== 0) return grdCmp
                   const clsCmp = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (clsCmp !== 0) return clsCmp
