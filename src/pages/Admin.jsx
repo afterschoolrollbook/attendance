@@ -1020,12 +1020,14 @@ export function Admin({ user: currentUser }) {
                     refresh()
                   })
                 }
-                // 접속기간 상태 계산
+                // 접속기간 상태 계산 (관리자 제외)
                 const now2 = new Date()
                 const expDate = t.accessExpiredAt ? new Date(t.accessExpiredAt) : null
                 const daysLeft = expDate ? Math.ceil((expDate - now2) / (1000 * 60 * 60 * 24)) : null
                 let periodTag = null
-                if (!expDate) {
+                if (t.role === 'admin') {
+                  periodTag = <span style={{ fontSize: '12px', color: '#9ca3af' }}>-</span>
+                } else if (!expDate) {
                   periodTag = <Tag color="#6b7280" bg="#f3f4f6">무제한</Tag>
                 } else if (daysLeft < 0) {
                   periodTag = <Tag color="#ef4444" bg="#fef2f2">만료됨</Tag>
@@ -1166,25 +1168,40 @@ export function Admin({ user: currentUser }) {
                   if (secCmp !== 0) return secCmp
                   return (DAY_ORDER[a.days?.[0]] ?? 99) - (DAY_ORDER[b.days?.[0]] ?? 99)
                 })
+                // 학교별 그룹핑
+                const groups = []
+                sorted.forEach(c => {
+                  const org = c.organization || '학교 미지정'
+                  const last = groups[groups.length - 1]
+                  if (last && last.org === org) last.items.push(c)
+                  else groups.push({ org, items: [c] })
+                })
                 return (
-                  <div style={{ minHeight: 200 }}>
+                  <div style={{ minHeight: 200, maxHeight: 360, overflowY: 'auto' }}>
                     {sorted.length === 0
                       ? <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>등록된 수업이 없습니다</div>
-                      : <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 360, overflowY: 'auto' }}>
-                          {sorted.map(c => (
-                            <div key={c.id} style={{ padding: '12px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{c.className || '수업명 미설정'}</span>
-                                {c.section && <span style={{ fontSize: '12px', color: '#fff', background: '#8b5cf6', padding: '1px 7px', borderRadius: '10px' }}>{c.section}반</span>}
-                              </div>
-                              <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                {c.organization && <span>🏫 {c.organization}</span>}
-                                {c.days?.length > 0 && <span>📅 {c.days.join(', ')}</span>}
-                                {c.time && <span>🕐 {c.time}{c.timeEnd ? ' ~ ' + c.timeEnd : ''}</span>}
-                              </div>
+                      : groups.map(g => (
+                          <div key={g.org} style={{ marginBottom: '12px' }}>
+                            {/* 학교 헤더 */}
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280', background: '#f3f4f6', padding: '5px 12px', borderRadius: '6px', marginBottom: '6px' }}>
+                              🏫 {g.org}
                             </div>
-                          ))}
-                        </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {g.items.map(c => (
+                                <div key={c.id} style={{ padding: '10px 14px', borderRadius: '8px', background: '#fff', border: '1px solid #e5e7eb' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                                    <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{c.className || '수업명 미설정'}</span>
+                                    {c.section && <span style={{ fontSize: '11px', color: '#fff', background: '#8b5cf6', padding: '1px 7px', borderRadius: '10px' }}>{c.section}반</span>}
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', gap: '10px' }}>
+                                    {c.days?.length > 0 && <span>📅 {c.days.join(', ')}</span>}
+                                    {c.time && <span>🕐 {c.time}{c.timeEnd ? ' ~ ' + c.timeEnd : ''}</span>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))
                     }
                   </div>
                 )
@@ -1193,52 +1210,74 @@ export function Admin({ user: currentUser }) {
               {/* ── 학생 목록 ── */}
               {detailTab === 'students' && (() => {
                 const DAY_ORDER = {'월':0,'화':1,'수':2,'목':3,'금':4,'토':5,'일':6}
-                const getOrg  = s => teacherClasses.find(c => (s.classIds||[]).includes(c.id))?.organization || s.school || ''
-                const getSec  = s => teacherClasses.find(c => (s.classIds||[]).includes(c.id))?.section || ''
-                const getDay  = s => DAY_ORDER[teacherClasses.find(c => (s.classIds||[]).includes(c.id))?.days?.[0]] ?? 99
+                const getMainClass = s => teacherClasses.find(c => (s.classIds||[]).includes(c.id))
+                const getOrg  = s => getMainClass(s)?.organization || s.school || '학교 미지정'
+                const getDay  = s => DAY_ORDER[getMainClass(s)?.days?.[0]] ?? 99
+                const getDayLabel = s => getMainClass(s)?.days?.[0] || ''
+
                 const sorted = [...teacherStudents].sort((a, b) => {
-                  const orgCmp  = getOrg(a).localeCompare(getOrg(b), 'ko');  if (orgCmp  !== 0) return orgCmp
-                  const secCmp  = getSec(a).localeCompare(getSec(b), 'ko');  if (secCmp  !== 0) return secCmp
-                  const dayCmp  = getDay(a) - getDay(b);                      if (dayCmp  !== 0) return dayCmp
-                  const grdCmp  = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (grdCmp !== 0) return grdCmp
-                  const clsCmp  = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (clsCmp !== 0) return clsCmp
+                  const orgCmp = getOrg(a).localeCompare(getOrg(b), 'ko'); if (orgCmp !== 0) return orgCmp
+                  const dayCmp = getDay(a) - getDay(b);                    if (dayCmp !== 0) return dayCmp
+                  const grdCmp = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (grdCmp !== 0) return grdCmp
+                  const clsCmp = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (clsCmp !== 0) return clsCmp
                   return parseInt(a.number||'0') - parseInt(b.number||'0')
                 })
+
+                // 학교+요일 그룹핑
+                const groups = []
+                sorted.forEach(s => {
+                  const org = getOrg(s)
+                  const day = getDayLabel(s)
+                  const key = `${org}__${day}`
+                  const last = groups[groups.length - 1]
+                  if (last && last.key === key) last.items.push(s)
+                  else groups.push({ key, org, day, items: [s] })
+                })
+
                 return (
-                  <div style={{ minHeight: 200 }}>
+                  <div style={{ minHeight: 200, maxHeight: 360, overflowY: 'auto' }}>
                     {sorted.length === 0
                       ? <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>등록된 학생이 없습니다</div>
-                      : <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 360, overflowY: 'auto' }}>
-                          {sorted.map(s => {
-                            const studentClasses = (s.classIds||[]).map(cid => teacherClasses.find(c => c.id === cid)).filter(Boolean)
-                            return (
-                              <div key={s.id} style={{ padding: '12px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                  <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                                      <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{s.name}</span>
-                                      {s.grade && <span style={{ fontSize: '11px', color: '#fff', background: '#f97316', padding: '1px 6px', borderRadius: '10px' }}>{s.grade}학년</span>}
-                                      {s.classNum && <span style={{ fontSize: '12px', color: '#6b7280' }}>{s.classNum}반</span>}
-                                      {s.number && <span style={{ fontSize: '12px', color: '#9ca3af' }}>{s.number}번</span>}
-                                    </div>
-                                    <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                      {s.school && <span>🏫 {s.school}</span>}
-                                      {s.parentPhone && <span>👨‍👩‍👧 {s.parentPhone}</span>}
-                                      {s.studentPhone && <span>📱 {s.studentPhone}</span>}
+                      : groups.map(g => (
+                          <div key={g.key} style={{ marginBottom: '12px' }}>
+                            {/* 학교(요일) 헤더 */}
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280', background: '#f3f4f6', padding: '5px 12px', borderRadius: '6px', marginBottom: '6px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <span>🏫 {g.org}</span>
+                              {g.day && <span style={{ color: '#f97316' }}>({g.day}요일)</span>}
+                              <span style={{ marginLeft: 'auto', color: '#9ca3af', fontWeight: 400 }}>{g.items.length}명</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {g.items.map(s => {
+                                const studentClasses = (s.classIds||[]).map(cid => teacherClasses.find(c => c.id === cid)).filter(Boolean)
+                                return (
+                                  <div key={s.id} style={{ padding: '10px 14px', borderRadius: '8px', background: '#fff', border: '1px solid #e5e7eb' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                      <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                                          <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{s.name}</span>
+                                          {s.grade && <span style={{ fontSize: '11px', color: '#fff', background: '#f97316', padding: '1px 6px', borderRadius: '10px' }}>{s.grade}학년</span>}
+                                          {s.classNum && <span style={{ fontSize: '12px', color: '#6b7280' }}>{s.classNum}반</span>}
+                                          {s.number && <span style={{ fontSize: '12px', color: '#9ca3af' }}>{s.number}번</span>}
+                                        </div>
+                                        <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                          {s.parentPhone && <span>👨‍👩‍👧 {s.parentPhone}</span>}
+                                          {s.studentPhone && <span>📱 {s.studentPhone}</span>}
+                                        </div>
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
+                                        {studentClasses.map(c => (
+                                          <span key={c.id} style={{ fontSize: '11px', color: '#3b82f6', background: '#eff6ff', padding: '2px 8px', borderRadius: '8px', whiteSpace: 'nowrap' }}>
+                                            {c.className}{c.section ? ` ${c.section}반` : ''}
+                                          </span>
+                                        ))}
+                                      </div>
                                     </div>
                                   </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
-                                    {studentClasses.map(c => (
-                                      <span key={c.id} style={{ fontSize: '11px', color: '#3b82f6', background: '#eff6ff', padding: '2px 8px', borderRadius: '8px', whiteSpace: 'nowrap' }}>
-                                        {c.className}{c.section ? ` ${c.section}반` : ''}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))
                     }
                   </div>
                 )
