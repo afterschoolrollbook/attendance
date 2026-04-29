@@ -1700,7 +1700,9 @@ export function Supplies({ user }) {
                                 onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
                                 onUpdate={async (itemName, givenAt) => { await SupplyGiven.update(r.id, { itemName, givenAt }); reload() }} />
                             ))}
-                            {/* 입력 영역 */}
+                            {/* 공간 밀어내기 */}
+                            <div style={{ flex:1 }} />
+                            {/* 입력 영역 - 오른쪽 끝 */}
                             <input value={itemVal} onChange={e => setGivenInputs(p => ({ ...p, [itemKey]: e.target.value }))}
                               placeholder="교구명"
                               onKeyDown={e => e.key === 'Enter' && handleAdd()}
