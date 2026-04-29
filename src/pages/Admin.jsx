@@ -1360,33 +1360,9 @@ export function Admin({ user: currentUser }) {
               </select>
             </div>
 
-            {/* 접속 기간 설정 */}
-            <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '14px 16px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '10px' }}>📅 접속 기간 설정</div>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>시작일</div>
-                  <input type="date"
-                    value={selectedUser.accessStartAt?.slice(0,10) || ''}
-                    onChange={e => setSelectedUser(p => ({ ...p, accessStartAt: e.target.value || null }))}
-                    style={{ width: '100%', padding: '7px 10px', border: '1.5px solid #e5e7eb', borderRadius: '8px', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>만료일</div>
-                  <input type="date"
-                    value={selectedUser.accessExpiredAt?.slice(0,10) || ''}
-                    onChange={e => setSelectedUser(p => ({ ...p, accessExpiredAt: e.target.value || null }))}
-                    style={{ width: '100%', padding: '7px 10px', border: '1.5px solid #e5e7eb', borderRadius: '8px', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
-              </div>
-              {/* 빠른 설정 버튼 */}
-              <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
-                {[
-                  { label: '30일', days: 30 },
-                  { label: '90일', days: 90 },
-                  { label: '180일', days: 180 },
+            <div style={{ fontSize: '13px', color: '#6b7280', background: '#f9fafb', padding: '10px 14px', borderRadius: '8px' }}>
+              회색 = 등급 기본값 · 초록 = 개별 허용 · 빨강 = 개별 차단
+            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '360px', overflow: 'auto' }}>
               {Object.entries(FEATURE_LABELS).map(([feature, label]) => {
