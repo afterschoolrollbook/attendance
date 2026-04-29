@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Users } from '../lib/db.js'
+import { Users, initFromSupabase } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
 import { Btn, Input } from '../components/Atoms.jsx'
 import { Settings } from '../lib/db.js'
@@ -194,6 +194,8 @@ function useNaverAuth(onSuccess, clientId) {
       if (e.data.session && supabase) {
         await supabase.auth.setSession(e.data.session)
       }
+      // 캐시가 비어있을 수 있으므로 기존 회원 조회 전 DB 동기화
+      await initFromSupabase()
       onSuccess({ provider: 'naver', email: e.data.email || '', name: e.data.name || '', avatar: e.data.avatar || '', providerId: String(e.data.id) })
     }
 
