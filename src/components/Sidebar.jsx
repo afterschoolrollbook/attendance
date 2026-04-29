@@ -100,7 +100,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
           <div style={{ fontSize:'11px', color:'#52525b', padding:'10px 16px 4px', fontWeight:600 }}>선생님 커리어</div>
           {MY_NAV_FIXED.map(item => <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />)}
           {visibleMyNav.map(item => <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />)}
-          {user?.role === 'admin' && (
+          {(user?.role === 'admin' || isSuperAdmin) && (
             <>
               <div style={{ fontSize:'11px', color:'#52525b', padding:'10px 16px 4px', fontWeight:600 }}>관리자</div>
               {ADMIN_NAV.map(item => <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />)}
@@ -168,7 +168,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
           <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} />
         ))}
 
-        {user?.role === 'admin' && (
+        {(user?.role === 'admin' || isSuperAdmin) && (
           <>
             <div style={{ fontSize:'11px', color:'#52525b', padding:'12px 20px 4px', fontWeight:600, letterSpacing:'0.05em' }}>
               관리자
