@@ -812,7 +812,7 @@ export function Supplies({ user }) {
     { key:'plan',   label:`📋 지도안(${selSubject||''})` },
     { key:'promo',  label:`🖼 홍보물(${selSubject||''})` },
     { key:'vendor', label:`🏢 교구업체(${selSubject||''})` },
-    { key:'given',  label:`📦 지급기록` },
+    ...(isRobot ? [{ key:'given', label:`📦 지급기록` }] : []),
   ]
 
   const FILE_TYPE_OPTIONS =
