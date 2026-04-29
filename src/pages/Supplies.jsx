@@ -1632,9 +1632,11 @@ export function Supplies({ user }) {
                       const itemVal = givenInputs[itemKey] || ''
                       const dateVal = givenInputs[dateKey] || ''
                       const clsLabel = `${cls.className||''}${cls.section ? ' '+cls.section : ''}`
+                      const stuLabel = [stu.grade ? `${stu.grade}학년` : '', stu.classNum ? `${stu.classNum}반` : '', stu.number ? `${stu.number}번` : ''].filter(Boolean).join(' ')
 
-                      const handleAdd = async () => {
-                        if (!itemVal.trim() || !dateVal) return
+                      const handleAdd = async (overrideDate) => {
+                        const d = overrideDate || dateVal
+                        if (!itemVal.trim() || !d) return
                         await SupplyGiven.insert({
                           teacherId: user.id,
                           studentId: stu.id,
@@ -1642,10 +1644,9 @@ export function Supplies({ user }) {
                           classId: cls.id,
                           className: clsLabel,
                           schoolName: cls.organization || '',
-                          productId: '',
-                          productName: '',
+                          productId: '', productName: '',
                           itemName: itemVal.trim(),
-                          givenAt: dateVal,
+                          givenAt: d,
                           createdAt: now(),
                         })
                         setGivenInputs(p => ({ ...p, [itemKey]: '', [dateKey]: '' }))
@@ -1654,32 +1655,30 @@ export function Supplies({ user }) {
                       }
 
                       return (
-                        <div key={`${stu.id}_${cls.id}`} style={{ background:'#fff', borderRadius:'8px', border:`1px solid ${C.border}`, padding:'8px 12px' }}>
-                          {/* 지급 입력 한 줄 */}
+                        <div key={`${stu.id}_${cls.id}`} style={{ background:'#fff', borderRadius:'8px', border:`1px solid ${C.border}`, padding:'7px 12px' }}>
                           <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-                            <span style={{ fontSize:'12px', color:C.muted, whiteSpace:'nowrap', minWidth:'60px' }}>{cls.organization}</span>
-                            <span style={{ fontSize:'12px', color:C.muted, whiteSpace:'nowrap' }}>{clsLabel}</span>
+                            <span style={{ fontSize:'12px', color:C.muted, whiteSpace:'nowrap', minWidth:'70px' }}>{stuLabel}</span>
                             <span style={{ fontSize:'13px', fontWeight:700, color:C.text, whiteSpace:'nowrap', minWidth:'50px' }}>{stu.name}</span>
                             <input value={itemVal} onChange={e => setGivenInputs(p => ({ ...p, [itemKey]: e.target.value }))}
                               placeholder="교구명 (예: 큐보 1단계)"
                               onKeyDown={e => e.key === 'Enter' && handleAdd()}
                               style={{ flex:1, padding:'5px 8px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-                            <input type="date" value={dateVal} onChange={e => setGivenInputs(p => ({ ...p, [dateKey]: e.target.value }))}
+                            <input type="date" value={dateVal}
+                              onChange={async e => {
+                                const d = e.target.value
+                                setGivenInputs(p => ({ ...p, [dateKey]: d }))
+                                if (itemVal.trim() && d) await handleAdd(d)
+                              }}
                               style={{ padding:'5px 6px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
-                            <button onClick={handleAdd} disabled={!itemVal.trim() || !dateVal}
-                              style={{ padding:'5px 12px', borderRadius:'6px', border:'none', background: itemVal.trim() && dateVal ? C.success : '#e5e7eb', color: itemVal.trim() && dateVal ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: itemVal.trim() && dateVal ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                              + 추가
-                            </button>
                           </div>
-                          {/* 기존 지급 기록 */}
                           {records.length > 0 && (
-                            <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', marginTop:'6px', paddingLeft:'4px' }}>
+                            <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', marginTop:'5px' }}>
                               {records.map(r => (
-                                <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'4px', padding:'3px 8px', background:'#f0fdf4', borderRadius:'5px', border:'1px solid #86efac' }}>
+                                <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'4px', padding:'2px 7px', background:'#f0fdf4', borderRadius:'5px', border:'1px solid #86efac' }}>
                                   <span style={{ fontSize:'12px', fontWeight:600, color:'#16a34a' }}>{r.itemName}</span>
                                   <span style={{ fontSize:'11px', color:'#6b7280' }}>{r.givenAt}</span>
                                   <button onClick={async () => { await SupplyGiven.delete(r.id); reload() }}
-                                    style={{ padding:'0 4px', borderRadius:'3px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer', lineHeight:'1' }}>✕</button>
+                                    style={{ padding:'0 4px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer' }}>✕</button>
                                 </div>
                               ))}
                             </div>
