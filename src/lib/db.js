@@ -62,6 +62,7 @@ const TABLE_MAP = {
   schoolCalendar:       'schoolCalendar',
   schoolInfo:           'schoolInfo',
   blogPosts:            'blog_posts',
+  supplyGiven:          'supplyGiven',
 }
 
 // ─── camelCase 컬럼 테이블 (변환 없이 그대로 사용)
@@ -79,6 +80,7 @@ const CAMEL_TABLES = new Set([
   'documents',
   'customCategories',  // ✅ teacherId, sortOrder, createdAt, updatedAt (camelCase)
   'lessonMemos',       // ✅ teacherId, classId, createdAt, updatedAt (camelCase)
+  'supplyGiven',       // ✅ 교구 지급 기록
 ])
 
 // ─── camelCase → snake_case 변환
@@ -189,6 +191,7 @@ const SYNC_TABLES = [
   'schoolAdmins', 'schoolAdminAccounts',
   'schoolAdminTeachers', 'schoolSubjects', 'schoolTeacherInvites',
   'schoolNotices', 'schoolNoticeSubmits',
+  'supplyGiven',
 ]
 
 // _deleted 컬럼 없는 테이블 (소프트딜리트 미적용)
@@ -781,6 +784,27 @@ export const SupplySessionChecks = {
     )[0]
     if (existing) return await db.update('supplySessionChecks', existing.id, { ...r })
     return await db.insert('supplySessionChecks', { ...r, id: r.id || uid() })
+  },
+}
+
+// ─── 교구 지급 기록
+export const SupplyGiven = {
+  all:          ()              => db.get('supplyGiven'),
+  byTeacher:    (tid)           => db.where('supplyGiven', r => r.teacherId === tid),
+  byStudent:    (studentId)     => db.where('supplyGiven', r => r.studentId === studentId),
+  byClass:      (classId)       => db.where('supplyGiven', r => r.classId === classId),
+  bySchool:     (schoolName)    => db.where('supplyGiven', r => r.schoolName === schoolName),
+  byStudentProduct: (studentId, productId) => db.where('supplyGiven', r => r.studentId === studentId && r.productId === productId),
+  find:         (id)            => db.getOne('supplyGiven', id),
+  insert:       (r)             => db.insert('supplyGiven', r),
+  update:       (id, p)         => db.update('supplyGiven', id, p),
+  delete:       (id)            => db.delete('supplyGiven', id),
+  async upsert(r) {
+    const existing = db.where('supplyGiven', x =>
+      x.studentId === r.studentId && x.classId === r.classId && x.productId === r.productId
+    )[0]
+    if (existing) return await db.update('supplyGiven', existing.id, { ...r })
+    return await db.insert('supplyGiven', { ...r, id: r.id || uid() })
   },
 }
 
