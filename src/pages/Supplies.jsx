@@ -54,6 +54,17 @@ const C = {
   blue: '#3b82f6', purple: '#8b5cf6', warning: '#f59e0b',
 }
 
+// ── 반 표시 레이블 생성
+function getClassLabel(cls) {
+  if (!cls) return ''
+  const year = cls.startDate ? new Date(cls.startDate + 'T00:00:00').getFullYear() : ''
+  const termLabel = cls.periods?.length > 0
+    ? cls.periods.map(p => p.label).join('/')
+    : ''
+  const base = `${cls.organization || ''} ${cls.className || ''}${cls.section ? ' ' + cls.section : ''}`
+  return year && termLabel ? `${base} · ${year}년 ${termLabel}` : base
+}
+
 const DEFAULT_SUBJECTS = ['일반', '로봇', '항공', '보드게임']
 const STAGES = Array.from({ length: 10 }, (_, i) => i + 1)
 
@@ -205,6 +216,7 @@ export function Supplies({ user }) {
   // 교구 지급 기록
   const [givenList, setGivenList]       = useState([])
   const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'' })
+  const [givenTermFilter, setGivenTermFilter] = useState('current')
   const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
   const { error: toastError, success } = useToast()
 
@@ -1514,50 +1526,95 @@ export function Supplies({ user }) {
           )}
 
           {/* ── 지급기록 탭 */}
-          {innerTab === 'given' && (
-            <div>
-              <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>학생별 교구 지급 기록을 관리합니다.</div>
+          {innerTab === 'given' && (() => {
+            const today = new Date().toISOString().slice(0, 10)
 
-              {/* 필터 */}
-              <div style={{ display:'flex', gap:'10px', marginBottom:'20px', flexWrap:'wrap' }}>
-                <select value={givenFilter.school} onChange={e => setGivenFilter(f => ({ ...f, school: e.target.value, classId: '' }))}
-                  style={{ ...iStyle, maxWidth:'180px', background:'#fff' }}>
-                  <option value=''>전체 학교</option>
-                  {[...new Set(classes.map(c => c.organization).filter(Boolean))].map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                <select value={givenFilter.classId} onChange={e => setGivenFilter(f => ({ ...f, classId: e.target.value }))}
-                  style={{ ...iStyle, maxWidth:'200px', background:'#fff' }}>
-                  <option value=''>전체 반</option>
-                  {classes
-                    .filter(c => !givenFilter.school || c.organization === givenFilter.school)
-                    .map(c => <option key={c.id} value={c.id}>{c.organization} {c.className}{c.section ? ' ' + c.section : ''}</option>)}
-                </select>
-              </div>
+            // 학기 레이블 헬퍼
+            const getTermLabel = (cls) => {
+              const year = cls.startDate?.slice(0, 4) || ''
+              if (cls.termType === 'quarter') {
+                const m = parseInt(cls.startDate?.slice(5, 7) || '1')
+                const q = m <= 3 ? 1 : m <= 6 ? 2 : m <= 9 ? 3 : 4
+                return `${year}년 ${q}분기`
+              } else {
+                const m = parseInt(cls.startDate?.slice(5, 7) || '3')
+                const s = m >= 3 && m <= 8 ? 1 : 2
+                return `${year}년 ${s}학기`
+              }
+            }
 
-              {/* 학생별 지급 기록 */}
-              {(() => {
-                const filteredClasses = classes.filter(c =>
+            // 현재 진행 중인 수업 (기본)
+            const activeClasses = classes.filter(c => (c.startDate || '') <= today && (c.endDate || '') >= today)
+
+            // 필터용 년도/학기 목록 (전체 classes 기준)
+            const termOptions = [...new Map(
+              classes.map(c => [getTermLabel(c), getTermLabel(c)])
+            ).values()].sort().reverse()
+
+            const filteredClasses = givenTermFilter === 'current'
+              ? activeClasses.filter(c =>
+                  (!givenFilter.school || c.organization === givenFilter.school) &&
+                  (!givenFilter.classId || c.id === givenFilter.classId)
+                )
+              : classes.filter(c =>
+                  getTermLabel(c) === givenTermFilter &&
                   (!givenFilter.school || c.organization === givenFilter.school) &&
                   (!givenFilter.classId || c.id === givenFilter.classId)
                 )
 
-                const stuList = []
-                filteredClasses.forEach(cls => {
-                  students.filter(s => s.classIds?.includes(cls.id) && s.status === 'confirmed').forEach(stu => {
-                    stuList.push({ cls, stu })
-                  })
+            const stuList = []
+            filteredClasses.forEach(cls => {
+              const clsStudents = students
+                .filter(s => s.classIds?.includes(cls.id) && s.status === 'confirmed')
+                .sort((a, b) => {
+                  const gradeCmp = parseInt(a.grade||'0') - parseInt(b.grade||'0')
+                  if (gradeCmp !== 0) return gradeCmp
+                  const classCmp = parseInt(a.classNum||'0') - parseInt(b.classNum||'0')
+                  if (classCmp !== 0) return classCmp
+                  const numCmp = parseInt(a.number||'0') - parseInt(b.number||'0')
+                  if (numCmp !== 0) return numCmp
+                  return (a.name||'').localeCompare(b.name||'', 'ko')
                 })
+              clsStudents.forEach(stu => stuList.push({ cls, stu }))
+            })
 
-                if (stuList.length === 0) return (
+            return (
+              <div>
+                <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>학생별 교구 지급 기록을 관리합니다.</div>
+
+                {/* 필터 */}
+                <div style={{ display:'flex', gap:'10px', marginBottom:'20px', flexWrap:'wrap', alignItems:'center' }}>
+                  {/* 기간 필터 */}
+                  <select value={givenTermFilter} onChange={e => { setGivenTermFilter(e.target.value); setGivenFilter(f => ({ ...f, classId: '' })) }}
+                    style={{ ...iStyle, maxWidth:'180px', background:'#fff' }}>
+                    <option value='current'>현재 진행 중</option>
+                    {termOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  {/* 학교 필터 */}
+                  <select value={givenFilter.school} onChange={e => setGivenFilter(f => ({ ...f, school: e.target.value, classId: '' }))}
+                    style={{ ...iStyle, maxWidth:'160px', background:'#fff' }}>
+                    <option value=''>전체 학교</option>
+                    {[...new Set(filteredClasses.map(c => c.organization).filter(Boolean))].map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  {/* 반 필터 */}
+                  <select value={givenFilter.classId} onChange={e => setGivenFilter(f => ({ ...f, classId: e.target.value }))}
+                    style={{ ...iStyle, maxWidth:'220px', background:'#fff' }}>
+                    <option value=''>전체 반</option>
+                    {filteredClasses
+                      .filter(c => !givenFilter.school || c.organization === givenFilter.school)
+                      .map(c => <option key={c.id} value={c.id}>{c.organization} {c.className}{c.section ? ' ' + c.section : ''} · {getTermLabel(c)}</option>)}
+                  </select>
+                </div>
+
+                {/* 학생별 카드 */}
+                {stuList.length === 0 ? (
                   <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>해당 조건의 학생이 없습니다.</div>
-                )
-
-                return (
+                ) : (
                   <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
                     {stuList.map(({ cls, stu }) => {
-                      const clsLabel = `${cls.organization || ''} ${cls.className || ''}${cls.section ? ' ' + cls.section : ''}`
+                      const clsLabel = `${cls.organization || ''} · ${cls.className || ''}${cls.section ? ' ' + cls.section : ''} · ${getTermLabel(cls)}`
                       const records = givenList.filter(g => g.studentId === stu.id && g.classId === cls.id)
                       const itemKey = `item_${stu.id}_${cls.id}`
                       const dateKey = `date_${stu.id}_${cls.id}`
@@ -1586,11 +1643,10 @@ export function Supplies({ user }) {
 
                       return (
                         <div key={`${stu.id}_${cls.id}`} style={{ background:'#fff', borderRadius:'10px', border:`1.5px solid ${C.border}`, padding:'14px 16px' }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px', flexWrap:'wrap' }}>
                             <span style={{ fontSize:'12px', color:C.muted }}>{clsLabel}</span>
                             <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{stu.name}</span>
                           </div>
-                          {/* 기존 기록 */}
                           {records.length > 0 && (
                             <div style={{ display:'flex', flexDirection:'column', gap:'5px', marginBottom:'10px' }}>
                               {records.map(r => (
@@ -1605,7 +1661,6 @@ export function Supplies({ user }) {
                               ))}
                             </div>
                           )}
-                          {/* 새 기록 입력 */}
                           <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
                             <input value={itemVal} onChange={e => setGivenInputs(p => ({ ...p, [itemKey]: e.target.value }))}
                               placeholder="교구명 (예: 큐보 1단계)"
@@ -1621,10 +1676,10 @@ export function Supplies({ user }) {
                       )
                     })}
                   </div>
-                )
-              })()}
-            </div>
-          )}
+                )}
+              </div>
+            )
+          })()}
         </>
       )}
 
