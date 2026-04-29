@@ -82,7 +82,10 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
       c.stage === curStage && c.checkedAt && c.checkedAt.startsWith(date)
     )
     const allChecks = spChecks.filter(c => c.studentId === s.id && c.productId === si.productId && c.stage === curStage)
-    return { s, si, prod, curStage, todayChecks, allChecks }
+    const lastCheck = allChecks.length > 0 ? allChecks.reduce((a, b) => a.sessionNo > b.sessionNo ? a : b) : null
+    const stagePlans = lastCheck ? SupplyProductPlans.byProductStage(si.productId, curStage) : []
+    const lastModelTitle = lastCheck ? (stagePlans.find(p => p.sessionNo === lastCheck.sessionNo)?.title || null) : null
+    return { s, si, prod, curStage, todayChecks, allChecks, lastModelTitle }
   }).filter(Boolean)
 
   const checkedToday = studentProgList.filter(p => p.todayChecks.length > 0).sort((a, b) => a.s.name.localeCompare(b.s.name, 'ko'))
@@ -98,12 +101,13 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
           {checkedToday.length > 0 && (
             <div>
               <div style={{ fontSize:'11px', fontWeight:700, color:'#16a34a', marginBottom:'5px' }}>✅ 진도체크 완료 ({checkedToday.length}명)</div>
-              {checkedToday.map(({ s, prod, curStage, todayChecks, allChecks }) => (
+              {checkedToday.map(({ s, prod, curStage, todayChecks, allChecks, lastModelTitle }) => (
                 <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
                   style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f0fdf4', border:'1px solid #86efac', marginBottom:'4px', cursor:'pointer' }}>
                   <span style={{ fontSize:'13px', fontWeight:700, color:'#16a34a' }}>{s.name}</span>
                   <span style={{ fontSize:'11px', color:'#6b7280' }}>{prod?.name} {curStage}단계</span>
                   <span style={{ marginLeft:'auto', fontSize:'11px', fontWeight:700, color:'#16a34a' }}>+{todayChecks.length}차시 ({allChecks.length}차시)</span>
+                  {lastModelTitle && <span style={{ fontSize:'11px', color:'#6b7280' }}>{lastModelTitle}</span>}
                   {todayChecks.length >= 2 && <span style={{ fontSize:'10px', background:'#fef2f2', color:'#ef4444', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 5px' }}>최대</span>}
                 </div>
               ))}
@@ -112,11 +116,12 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
           {notCheckedToday.length > 0 && (
             <div>
               <div style={{ fontSize:'11px', fontWeight:700, color:'#9ca3af', marginBottom:'5px' }}>⬜ 미체크 ({notCheckedToday.length}명)</div>
-              {notCheckedToday.map(({ s, prod, curStage }) => (
+              {notCheckedToday.map(({ s, prod, curStage, lastModelTitle }) => (
                 <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
                   style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f9fafb', border:'1px solid #e5e7eb', marginBottom:'4px', cursor:'pointer' }}>
                   <span style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>{s.name}</span>
                   <span style={{ fontSize:'11px', color:'#9ca3af' }}>{prod?.name} {curStage}단계</span>
+                  {lastModelTitle && <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{lastModelTitle}</span>}
                 </div>
               ))}
             </div>
