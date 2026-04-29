@@ -1579,48 +1579,56 @@ export function Supplies({ user }) {
               clsStudents.forEach(stu => stuList.push({ cls, stu }))
             })
 
+            // 학교 목록 (전체 filteredClasses 기준, 학교 필터 적용 전)
+            const allSchools = [...new Set(
+              (givenTermFilter === 'current' ? activeClasses : classes.filter(c => getTermLabel(c) === givenTermFilter))
+                .map(c => c.organization).filter(Boolean)
+            )].sort((a, b) => a.localeCompare(b, 'ko'))
+
+            // 반 목록 (학교 선택 후)
+            const schoolFilteredClasses = (givenTermFilter === 'current' ? activeClasses : classes.filter(c => getTermLabel(c) === givenTermFilter))
+              .filter(c => !givenFilter.school || c.organization === givenFilter.school)
+
+            // 기간 목록 (학교+반 선택 후)
+            const termOptionsForClass = givenFilter.classId
+              ? [...new Map(classes.filter(c => c.id === givenFilter.classId).map(c => [getTermLabel(c), getTermLabel(c)])).values()]
+              : [...new Map(schoolFilteredClasses.map(c => [getTermLabel(c), getTermLabel(c)])).values()].sort().reverse()
+
             return (
               <div>
-                <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>학생별 교구 지급 기록을 관리합니다.</div>
-
-                {/* 필터 */}
-                <div style={{ display:'flex', gap:'10px', marginBottom:'20px', flexWrap:'wrap', alignItems:'center' }}>
-                  {/* 기간 필터 */}
+                {/* 필터: 학교 → 반 → 기간 순 */}
+                <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center' }}>
+                  <select value={givenFilter.school} onChange={e => setGivenFilter(f => ({ ...f, school: e.target.value, classId: '' }))}
+                    style={{ ...iStyle, background:'#fff' }}>
+                    <option value=''>전체 학교</option>
+                    {allSchools.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <select value={givenFilter.classId} onChange={e => setGivenFilter(f => ({ ...f, classId: e.target.value }))}
+                    style={{ ...iStyle, background:'#fff' }}>
+                    <option value=''>전체 반</option>
+                    {schoolFilteredClasses.map(c => (
+                      <option key={c.id} value={c.id}>{c.className}{c.section ? ' ' + c.section : ''}</option>
+                    ))}
+                  </select>
                   <select value={givenTermFilter} onChange={e => { setGivenTermFilter(e.target.value); setGivenFilter(f => ({ ...f, classId: '' })) }}
-                    style={{ ...iStyle, maxWidth:'180px', background:'#fff' }}>
+                    style={{ ...iStyle, background:'#fff' }}>
                     <option value='current'>현재 진행 중</option>
                     {termOptions.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
-                  {/* 학교 필터 */}
-                  <select value={givenFilter.school} onChange={e => setGivenFilter(f => ({ ...f, school: e.target.value, classId: '' }))}
-                    style={{ ...iStyle, maxWidth:'160px', background:'#fff' }}>
-                    <option value=''>전체 학교</option>
-                    {[...new Set(filteredClasses.map(c => c.organization).filter(Boolean))].map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                  {/* 반 필터 */}
-                  <select value={givenFilter.classId} onChange={e => setGivenFilter(f => ({ ...f, classId: e.target.value }))}
-                    style={{ ...iStyle, maxWidth:'220px', background:'#fff' }}>
-                    <option value=''>전체 반</option>
-                    {filteredClasses
-                      .filter(c => !givenFilter.school || c.organization === givenFilter.school)
-                      .map(c => <option key={c.id} value={c.id}>{c.organization} {c.className}{c.section ? ' ' + c.section : ''} · {getTermLabel(c)}</option>)}
-                  </select>
                 </div>
 
-                {/* 학생별 카드 */}
+                {/* 학생 목록 - 한 줄 테이블 형태 */}
                 {stuList.length === 0 ? (
                   <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>해당 조건의 학생이 없습니다.</div>
                 ) : (
-                  <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
                     {stuList.map(({ cls, stu }) => {
-                      const clsLabel = `${cls.organization || ''} · ${cls.className || ''}${cls.section ? ' ' + cls.section : ''} · ${getTermLabel(cls)}`
                       const records = givenList.filter(g => g.studentId === stu.id && g.classId === cls.id)
                       const itemKey = `item_${stu.id}_${cls.id}`
                       const dateKey = `date_${stu.id}_${cls.id}`
                       const itemVal = givenInputs[itemKey] || ''
                       const dateVal = givenInputs[dateKey] || ''
+                      const clsLabel = `${cls.className||''}${cls.section ? ' '+cls.section : ''}`
 
                       const handleAdd = async () => {
                         if (!itemVal.trim() || !dateVal) return
@@ -1629,7 +1637,7 @@ export function Supplies({ user }) {
                           studentId: stu.id,
                           studentName: stu.name,
                           classId: cls.id,
-                          className: `${cls.className||''}${cls.section ? ' ' + cls.section : ''}`,
+                          className: clsLabel,
                           schoolName: cls.organization || '',
                           productId: '',
                           productName: '',
@@ -1643,36 +1651,36 @@ export function Supplies({ user }) {
                       }
 
                       return (
-                        <div key={`${stu.id}_${cls.id}`} style={{ background:'#fff', borderRadius:'10px', border:`1.5px solid ${C.border}`, padding:'14px 16px' }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px', flexWrap:'wrap' }}>
-                            <span style={{ fontSize:'12px', color:C.muted }}>{clsLabel}</span>
-                            <span style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{stu.name}</span>
+                        <div key={`${stu.id}_${cls.id}`} style={{ background:'#fff', borderRadius:'8px', border:`1px solid ${C.border}`, padding:'8px 12px' }}>
+                          {/* 지급 입력 한 줄 */}
+                          <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                            <span style={{ fontSize:'12px', color:C.muted, whiteSpace:'nowrap', minWidth:'60px' }}>{cls.organization}</span>
+                            <span style={{ fontSize:'12px', color:C.muted, whiteSpace:'nowrap' }}>{clsLabel}</span>
+                            <span style={{ fontSize:'13px', fontWeight:700, color:C.text, whiteSpace:'nowrap', minWidth:'50px' }}>{stu.name}</span>
+                            <input value={itemVal} onChange={e => setGivenInputs(p => ({ ...p, [itemKey]: e.target.value }))}
+                              placeholder="교구명 (예: 큐보 1단계)"
+                              onKeyDown={e => e.key === 'Enter' && handleAdd()}
+                              style={{ flex:1, padding:'5px 8px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                            <input type="date" value={dateVal} onChange={e => setGivenInputs(p => ({ ...p, [dateKey]: e.target.value }))}
+                              style={{ padding:'5px 6px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
+                            <button onClick={handleAdd} disabled={!itemVal.trim() || !dateVal}
+                              style={{ padding:'5px 12px', borderRadius:'6px', border:'none', background: itemVal.trim() && dateVal ? C.success : '#e5e7eb', color: itemVal.trim() && dateVal ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: itemVal.trim() && dateVal ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                              + 추가
+                            </button>
                           </div>
+                          {/* 기존 지급 기록 */}
                           {records.length > 0 && (
-                            <div style={{ display:'flex', flexDirection:'column', gap:'5px', marginBottom:'10px' }}>
+                            <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', marginTop:'6px', paddingLeft:'4px' }}>
                               {records.map(r => (
-                                <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#f0fdf4', borderRadius:'7px', border:'1px solid #86efac' }}>
-                                  <span style={{ fontSize:'13px', fontWeight:600, color:'#16a34a', flex:1 }}>{r.itemName}</span>
-                                  <span style={{ fontSize:'12px', color:'#6b7280' }}>
-                                    {(() => { const d = new Date(r.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일` })()}
-                                  </span>
+                                <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'4px', padding:'3px 8px', background:'#f0fdf4', borderRadius:'5px', border:'1px solid #86efac' }}>
+                                  <span style={{ fontSize:'12px', fontWeight:600, color:'#16a34a' }}>{r.itemName}</span>
+                                  <span style={{ fontSize:'11px', color:'#6b7280' }}>{r.givenAt}</span>
                                   <button onClick={async () => { await SupplyGiven.delete(r.id); reload() }}
-                                    style={{ padding:'2px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                                    style={{ padding:'0 4px', borderRadius:'3px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer', lineHeight:'1' }}>✕</button>
                                 </div>
                               ))}
                             </div>
                           )}
-                          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
-                            <input value={itemVal} onChange={e => setGivenInputs(p => ({ ...p, [itemKey]: e.target.value }))}
-                              placeholder="교구명 (예: 큐보 1단계)"
-                              style={{ flex:1, minWidth:'120px', padding:'6px 10px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-                            <input type="date" value={dateVal} onChange={e => setGivenInputs(p => ({ ...p, [dateKey]: e.target.value }))}
-                              style={{ padding:'6px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
-                            <button onClick={handleAdd} disabled={!itemVal.trim() || !dateVal}
-                              style={{ padding:'6px 14px', borderRadius:'7px', border:'none', background: itemVal.trim() && dateVal ? C.success : '#e5e7eb', color: itemVal.trim() && dateVal ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: itemVal.trim() && dateVal ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                              + 추가
-                            </button>
-                          </div>
                         </div>
                       )
                     })}
