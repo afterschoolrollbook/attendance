@@ -894,9 +894,17 @@ export function Admin({ user: currentUser }) {
   }
 
   const openDetail = (u) => {
+    let initQuick = null
+    if (!u.accessExpiredAt) {
+      initQuick = 'unlimited'
+    } else if (u.accessStartAt && u.accessExpiredAt) {
+      const diff = Math.round((new Date(u.accessExpiredAt) - new Date(u.accessStartAt)) / (1000 * 60 * 60 * 24))
+      const match = [7, 30, 90, 180, 365].find(d => Math.abs(diff - d) <= 1)
+      if (match) initQuick = match
+    }
     setSelectedUser({ ...u })
     setDetailTab('period')
-    setActiveQuickDays(null)
+    setActiveQuickDays(initQuick)
     setShowDetailModal(true)
   }
   const openPerm = (u) => { setSelectedUser({ ...u }); setShowPermModal(true) }
