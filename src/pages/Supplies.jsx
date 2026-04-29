@@ -146,6 +146,39 @@ function ProgressBadge({ checkedCount, totalCount, alertSession, sessionsPerStag
   )
 }
 
+// 교구 지급 기록 한 줄 (수정/삭제)
+function GivenRecord({ record, onDelete, onUpdate }) {
+  const [editing, setEditing] = React.useState(false)
+  const [item, setItem] = React.useState(record.itemName)
+  const [date, setDate] = React.useState(record.givenAt)
+  const handleSave = async () => {
+    if (!item.trim() || !date) return
+    await onUpdate(item.trim(), date)
+    setEditing(false)
+  }
+  if (editing) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+        <input value={item} onChange={e => setItem(e.target.value)}
+          style={{ flex:1, padding:'3px 6px', borderRadius:'5px', border:'1px solid #86efac', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+        <input type="date" value={date} onChange={e => setDate(e.target.value)}
+          style={{ padding:'3px 5px', borderRadius:'5px', border:'1px solid #86efac', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+        <button onClick={handleSave} style={{ padding:'2px 8px', borderRadius:'5px', border:'none', background:'#16a34a', color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+        <button onClick={() => { setItem(record.itemName); setDate(record.givenAt); setEditing(false) }}
+          style={{ padding:'2px 6px', borderRadius:'5px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'11px', cursor:'pointer' }}>취소</button>
+      </div>
+    )
+  }
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:'4px', padding:'2px 7px', background:'#f0fdf4', borderRadius:'5px', border:'1px solid #86efac' }}>
+      <span style={{ fontSize:'12px', fontWeight:600, color:'#16a34a', flex:1 }}>{record.itemName}</span>
+      <span style={{ fontSize:'11px', color:'#6b7280' }}>{record.givenAt}</span>
+      <button onClick={() => setEditing(true)} style={{ padding:'0 5px', border:'none', background:'none', color:'#6b7280', fontSize:'11px', cursor:'pointer' }}>✏️</button>
+      <button onClick={onDelete} style={{ padding:'0 4px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer' }}>✕</button>
+    </div>
+  )
+}
+
 export function Supplies({ user }) {
   // ── 기본 상태
   const [subjects, setSubjects]       = useState([])
@@ -1634,9 +1667,8 @@ export function Supplies({ user }) {
                       const clsLabel = `${cls.className||''}${cls.section ? ' '+cls.section : ''}`
                       const stuLabel = [stu.grade ? `${stu.grade}학년` : '', stu.classNum ? `${stu.classNum}반` : '', stu.number ? `${stu.number}번` : ''].filter(Boolean).join(' ')
 
-                      const handleAdd = async (overrideDate) => {
-                        const d = overrideDate || dateVal
-                        if (!itemVal.trim() || !d) return
+                      const handleAdd = async () => {
+                        if (!itemVal.trim() || !dateVal) return
                         await SupplyGiven.insert({
                           teacherId: user.id,
                           studentId: stu.id,
@@ -1646,7 +1678,7 @@ export function Supplies({ user }) {
                           schoolName: cls.organization || '',
                           productId: '', productName: '',
                           itemName: itemVal.trim(),
-                          givenAt: d,
+                          givenAt: dateVal,
                           createdAt: now(),
                         })
                         setGivenInputs(p => ({ ...p, [itemKey]: '', [dateKey]: '' }))
@@ -1654,35 +1686,32 @@ export function Supplies({ user }) {
                         success(`${stu.name} 지급 기록 추가됨`)
                       }
 
+                      const canAdd = itemVal.trim() && dateVal
+
                       return (
                         <div key={`${stu.id}_${cls.id}`} style={{ background:'#fff', borderRadius:'8px', border:`1px solid ${C.border}`, padding:'7px 12px' }}>
                           <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-                            <span style={{ fontSize:'12px', color:C.muted, whiteSpace:'nowrap', minWidth:'70px' }}>{stuLabel}</span>
-                            <span style={{ fontSize:'13px', fontWeight:700, color:C.text, whiteSpace:'nowrap', minWidth:'50px' }}>{stu.name}</span>
+                            {/* 학번+이름 */}
+                            <span style={{ fontSize:'12px', color:C.muted, whiteSpace:'nowrap' }}>{stuLabel}</span>
+                            <span style={{ fontSize:'13px', fontWeight:700, color:C.text, whiteSpace:'nowrap' }}>{stu.name}</span>
+                            {/* 기존 지급 기록 - 이름 바로 옆 */}
+                            {records.map(r => (
+                              <GivenRecord key={r.id} record={r}
+                                onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
+                                onUpdate={async (itemName, givenAt) => { await SupplyGiven.update(r.id, { itemName, givenAt }); reload() }} />
+                            ))}
+                            {/* 입력 영역 */}
                             <input value={itemVal} onChange={e => setGivenInputs(p => ({ ...p, [itemKey]: e.target.value }))}
-                              placeholder="교구명 (예: 큐보 1단계)"
+                              placeholder="교구명"
                               onKeyDown={e => e.key === 'Enter' && handleAdd()}
-                              style={{ flex:1, padding:'5px 8px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-                            <input type="date" value={dateVal}
-                              onChange={async e => {
-                                const d = e.target.value
-                                setGivenInputs(p => ({ ...p, [dateKey]: d }))
-                                if (itemVal.trim() && d) await handleAdd(d)
-                              }}
-                              style={{ padding:'5px 6px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
+                              style={{ width:'120px', padding:'4px 7px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                            <input type="date" value={dateVal} onChange={e => setGivenInputs(p => ({ ...p, [dateKey]: e.target.value }))}
+                              style={{ padding:'4px 5px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
+                            <button onClick={handleAdd} disabled={!canAdd}
+                              style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background: canAdd ? C.success : '#e5e7eb', color: canAdd ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: canAdd ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                              + 추가
+                            </button>
                           </div>
-                          {records.length > 0 && (
-                            <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', marginTop:'5px' }}>
-                              {records.map(r => (
-                                <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'4px', padding:'2px 7px', background:'#f0fdf4', borderRadius:'5px', border:'1px solid #86efac' }}>
-                                  <span style={{ fontSize:'12px', fontWeight:600, color:'#16a34a' }}>{r.itemName}</span>
-                                  <span style={{ fontSize:'11px', color:'#6b7280' }}>{r.givenAt}</span>
-                                  <button onClick={async () => { await SupplyGiven.delete(r.id); reload() }}
-                                    style={{ padding:'0 4px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer' }}>✕</button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       )
                     })}
