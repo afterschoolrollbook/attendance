@@ -3,7 +3,7 @@ import { Users, Classes, Students, Attendance, Branches, Settings } from '../lib
 import { uid, now } from '../lib/utils.js'                                      // ✅ 버그수정: uid 추가
 import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
-import { FUNCTIONS_BASE } from '../lib/supabase.js'
+import { FUNCTIONS_BASE, sendEmail } from '../lib/supabase.js'
 import { supabase } from '../lib/supabase.js'
 import { LEVEL_NAMES, FEATURES, LEVEL_PERMISSIONS } from '../constants/permissions.js'
 
@@ -870,6 +870,8 @@ export function Admin({ user: currentUser }) {
   const [tab, setTab] = useState('pending')
   const [branches, setBranches] = useState(() => Branches.all())
   const [selectedUser, setSelectedUser] = useState(null)
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [detailTab, setDetailTab] = useState('period') // 'classes' | 'students' | 'period' | 'level'
   const [showPermModal, setShowPermModal] = useState(false)
   const [lightboxImg, setLightboxImg] = useState(null)
   const [, forceUpdate] = useState(0)  // ✅ 강제 리렌더용
@@ -890,6 +892,7 @@ export function Admin({ user: currentUser }) {
     refresh()  // ✅ 즉시 반영
   }
 
+  const openDetail = (u) => { setSelectedUser({ ...u }); setDetailTab('period'); setShowDetailModal(true) }
   const openPerm = (u) => { setSelectedUser({ ...u }); setShowPermModal(true) }
 
   const setOverride = (feature, value) => {
@@ -907,10 +910,24 @@ export function Admin({ user: currentUser }) {
     })
   }
 
+  const saveDetail = () => {
+    Users.update(selectedUser.id, {
+      level:               selectedUser.level,
+      permissionOverrides: selectedUser.permissionOverrides,
+      accessStartAt:       selectedUser.accessStartAt   || null,
+      accessExpiredAt:     selectedUser.accessExpiredAt || null,
+    })
+    setShowDetailModal(false)
+    refresh()
+    success('저장되었습니다.')
+  }
+
   const savePerms = () => {
     Users.update(selectedUser.id, {
       level: selectedUser.level,
       permissionOverrides: selectedUser.permissionOverrides,
+      accessStartAt:   selectedUser.accessStartAt   || null,
+      accessExpiredAt: selectedUser.accessExpiredAt || null,
     })
     setShowPermModal(false)
     refresh()  // ✅ 즉시 반영
@@ -988,7 +1005,7 @@ export function Admin({ user: currentUser }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['이름', '이메일', '연락처', '등급', '가입일', '관리'].map(h => (
+                {['이름', '이메일', '연락처', '등급', '접속기간', '가입일', '관리'].map(h => (
                   <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>{h}</th>
                 ))}
               </tr>
@@ -1002,6 +1019,20 @@ export function Admin({ user: currentUser }) {
                     refresh()
                   })
                 }
+                // 접속기간 상태 계산
+                const now2 = new Date()
+                const expDate = t.accessExpiredAt ? new Date(t.accessExpiredAt) : null
+                const daysLeft = expDate ? Math.ceil((expDate - now2) / (1000 * 60 * 60 * 24)) : null
+                let periodTag = null
+                if (!expDate) {
+                  periodTag = <Tag color="#6b7280" bg="#f3f4f6">무제한</Tag>
+                } else if (daysLeft < 0) {
+                  periodTag = <Tag color="#ef4444" bg="#fef2f2">만료됨</Tag>
+                } else if (daysLeft <= 7) {
+                  periodTag = <Tag color="#f97316" bg="#fff7ed">D-{daysLeft}</Tag>
+                } else {
+                  periodTag = <Tag color="#16a34a" bg="#f0fdf4">~{t.accessExpiredAt?.slice(0,10)}</Tag>
+                }
                 return (
                   <tr key={t.id} style={{ borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                     <td style={{ padding: '12px 16px', fontWeight: 600, color: '#111827', fontSize: '14px' }}>{t.name}</td>
@@ -1010,10 +1041,11 @@ export function Admin({ user: currentUser }) {
                     <td style={{ padding: '12px 16px' }}>
                       <Tag color={levelColors[t.level]} bg={`${levelColors[t.level]}18`}>{LEVEL_NAMES[t.level] || 'Lv.' + t.level}</Tag>
                     </td>
+                    <td style={{ padding: '12px 16px' }}>{periodTag}</td>
                     <td style={{ padding: '12px 16px', fontSize: '13px', color: '#9ca3af' }}>{t.createdAt?.slice(0, 10)}</td>
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <Btn size="sm" variant="ghost" onClick={() => openPerm(t)}>권한 설정</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => openDetail(t)}>상세보기</Btn>
                         <button onClick={() => {
                           if (!t.phone) { toastError('등록된 핸드폰 번호가 없어 초기화할 수 없습니다.'); return }
                           if (!t.authId) { toastError('Supabase Auth 계정이 없는 사용자입니다.'); return }
@@ -1095,6 +1127,227 @@ export function Admin({ user: currentUser }) {
         </div>
       )}
 
+      {/* ───────────────────────────────────────────
+          선생님 상세보기 모달
+      ─────────────────────────────────────────── */}
+      <Modal open={showDetailModal} onClose={() => setShowDetailModal(false)} title={`👤 ${selectedUser?.name} 선생님 상세`} width={600}>
+        {selectedUser && (() => {
+          const teacherClasses   = Classes.byTeacher(selectedUser.id)
+          const teacherStudents  = Students.byTeacher(selectedUser.id).filter(s => s.status === 'confirmed')
+          const levelColors      = { 1: '#9ca3af', 2: '#f97316', 3: '#16a34a', 4: '#8b5cf6', 5: '#ef4444' }
+
+          // 탭 스타일
+          const tabStyle = (key) => ({
+            padding: '8px 16px', border: 'none', cursor: 'pointer', background: 'none',
+            color: detailTab === key ? '#f97316' : '#9ca3af',
+            fontWeight: detailTab === key ? 700 : 400, fontSize: '13px',
+            borderBottom: detailTab === key ? '2px solid #f97316' : '2px solid transparent',
+            fontFamily: 'Noto Sans KR, sans-serif', marginBottom: '-1px',
+          })
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+              {/* 탭 */}
+              <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', marginBottom: '16px' }}>
+                <button style={tabStyle('classes')}  onClick={() => setDetailTab('classes')}>📚 수업 목록 ({teacherClasses.length})</button>
+                <button style={tabStyle('students')} onClick={() => setDetailTab('students')}>👥 학생 목록 ({teacherStudents.length})</button>
+                <button style={tabStyle('period')}   onClick={() => setDetailTab('period')}>📅 기간 설정</button>
+                <button style={tabStyle('level')}    onClick={() => setDetailTab('level')}>⭐ 레벨/권한</button>
+              </div>
+
+              {/* ── 수업 목록 ── */}
+              {detailTab === 'classes' && (
+                <div style={{ minHeight: 200 }}>
+                  {teacherClasses.length === 0
+                    ? <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>등록된 수업이 없습니다</div>
+                    : <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 360, overflowY: 'auto' }}>
+                        {teacherClasses.map(c => (
+                          <div key={c.id} style={{ padding: '10px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb', fontSize: '13px' }}>
+                            <div style={{ fontWeight: 600, color: '#111827' }}>{c.name}</div>
+                            <div style={{ color: '#9ca3af', marginTop: '2px' }}>{c.subject || '과목 미지정'} · {c.schedule || '일정 미지정'}</div>
+                          </div>
+                        ))}
+                      </div>
+                  }
+                </div>
+              )}
+
+              {/* ── 학생 목록 ── */}
+              {detailTab === 'students' && (
+                <div style={{ minHeight: 200 }}>
+                  {teacherStudents.length === 0
+                    ? <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>등록된 학생이 없습니다</div>
+                    : <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 360, overflowY: 'auto' }}>
+                        {teacherStudents.map(s => (
+                          <div key={s.id} style={{ padding: '10px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                              <span style={{ fontWeight: 600, color: '#111827', fontSize: '13px' }}>{s.name}</span>
+                              <span style={{ color: '#9ca3af', fontSize: '12px', marginLeft: '8px' }}>{s.grade || ''}</span>
+                            </div>
+                            <span style={{ fontSize: '12px', color: '#6b7280' }}>{s.phone || ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                  }
+                </div>
+              )}
+
+              {/* ── 기간 설정 ── */}
+              {detailTab === 'period' && (() => {
+                const now2    = new Date()
+                const expDate = selectedUser.accessExpiredAt ? new Date(selectedUser.accessExpiredAt) : null
+                const daysLeft = expDate ? Math.ceil((expDate - now2) / (1000 * 60 * 60 * 24)) : null
+
+                const setQuick = (days) => {
+                  const start  = new Date().toISOString().slice(0,10)
+                  const expire = new Date(Date.now() + days * 86400000).toISOString().slice(0,10)
+                  setSelectedUser(p => ({ ...p, accessStartAt: start, accessExpiredAt: expire }))
+                }
+                const setUnlimited = () => setSelectedUser(p => ({ ...p, accessStartAt: null, accessExpiredAt: null }))
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {/* 현재 상태 배너 */}
+                    <div style={{
+                      padding: '12px 16px', borderRadius: '10px',
+                      background: !expDate ? '#f0fdf4' : daysLeft < 0 ? '#fef2f2' : daysLeft <= 7 ? '#fff7ed' : '#f0fdf4',
+                      border: `1px solid ${!expDate ? '#86efac' : daysLeft < 0 ? '#fca5a5' : daysLeft <= 7 ? '#fed7aa' : '#86efac'}`,
+                      display: 'flex', alignItems: 'center', gap: '10px',
+                    }}>
+                      <span style={{ fontSize: '20px' }}>{!expDate ? '♾️' : daysLeft < 0 ? '🔴' : daysLeft <= 7 ? '⚠️' : '✅'}</span>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#111827' }}>
+                          {!expDate ? '무제한 접속 중'
+                            : daysLeft < 0 ? '접속 기간 만료됨'
+                            : daysLeft <= 7 ? `접속 기간 ${daysLeft}일 남음`
+                            : `접속 기간 ${daysLeft}일 남음`}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                          {selectedUser.accessStartAt ? `${selectedUser.accessStartAt?.slice(0,10)} ~ ` : ''}
+                          {selectedUser.accessExpiredAt ? selectedUser.accessExpiredAt?.slice(0,10) : '만료일 없음'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 빠른 설정 버튼 */}
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>빠른 설정</div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {[{label:'30일', days:30},{label:'90일', days:90},{label:'180일', days:180},{label:'1년', days:365}].map(({label, days}) => (
+                          <button key={label} onClick={() => setQuick(days)}
+                            style={{ padding: '7px 16px', borderRadius: '8px', border: '1.5px solid #e5e7eb', background: '#fff', color: '#374151', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 500 }}>
+                            {label}
+                          </button>
+                        ))}
+                        <button onClick={setUnlimited}
+                          style={{ padding: '7px 16px', borderRadius: '8px', border: '1.5px solid #86efac', background: '#f0fdf4', color: '#16a34a', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 500 }}>
+                          무제한
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 직접 날짜 입력 */}
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>직접 설정</div>
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>시작일</div>
+                          <input type="date"
+                            value={selectedUser.accessStartAt?.slice(0,10) || ''}
+                            onChange={e => setSelectedUser(p => ({ ...p, accessStartAt: e.target.value || null }))}
+                            style={{ width: '100%', padding: '8px 10px', border: '1.5px solid #e5e7eb', borderRadius: '8px', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>만료일</div>
+                          <input type="date"
+                            value={selectedUser.accessExpiredAt?.slice(0,10) || ''}
+                            onChange={e => setSelectedUser(p => ({ ...p, accessExpiredAt: e.target.value || null }))}
+                            style={{ width: '100%', padding: '8px 10px', border: '1.5px solid #e5e7eb', borderRadius: '8px', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 이메일 안내 발송 */}
+                    {selectedUser.email && (
+                      <div style={{ padding: '12px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 500, color: '#374151' }}>📧 기간 안내 이메일 발송</div>
+                          <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>{selectedUser.email}</div>
+                        </div>
+                        <Btn size="sm" variant="ghost" onClick={async () => {
+                          try {
+                            const expStr = selectedUser.accessExpiredAt?.slice(0,10) || '무제한'
+                            await sendEmail(selectedUser.email, `접속 기간 안내: ${expStr}까지`)
+                            success('이메일을 발송했습니다.')
+                          } catch(e) {
+                            toastError('이메일 발송 실패: ' + e.message)
+                          }
+                        }}>발송</Btn>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* ── 레벨/권한 ── */}
+              {detailTab === 'level' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>등급 변경</span>
+                    <select value={selectedUser.level} onChange={e => setSelectedUser(p => ({ ...p, level: parseInt(e.target.value) }))}
+                      style={{ padding: '7px 12px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }}>
+                      {[1, 2, 3, 4].map(l => <option key={l} value={l}>{LEVEL_NAMES[l]}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6b7280', background: '#f9fafb', padding: '10px 14px', borderRadius: '8px' }}>
+                    회색 = 등급 기본값 · 초록 = 개별 허용 · 빨강 = 개별 차단
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+                    {Object.entries(FEATURE_LABELS).map(([feature, label]) => {
+                      const base        = LEVEL_PERMISSIONS[selectedUser.level]?.[feature] ?? false
+                      const override    = selectedUser.permissionOverrides?.[feature]
+                      const hasOverride = feature in (selectedUser.permissionOverrides || {})
+                      let indColor = '#9ca3af'
+                      if (hasOverride && override === true)  indColor = '#16a34a'
+                      if (hasOverride && override === false) indColor = '#ef4444'
+                      return (
+                        <div key={feature} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '8px', background: '#f9fafb', border: `1px solid ${hasOverride ? indColor + '40' : '#e5e7eb'}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: indColor, flexShrink: 0 }} />
+                            <div>
+                              <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{label}</div>
+                              <div style={{ fontSize: '11px', color: '#9ca3af' }}>기본: {base ? '허용' : '차단'}{hasOverride ? ` → 예외: ${override ? '허용' : '차단'}` : ''}</div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={() => setOverride(feature, true)}
+                              style={{ padding: '4px 10px', borderRadius: '6px', border: '1.5px solid #16a34a', background: hasOverride && override ? '#16a34a' : '#fff', color: hasOverride && override ? '#fff' : '#16a34a', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>허용</button>
+                            <button onClick={() => setOverride(feature, false)}
+                              style={{ padding: '4px 10px', borderRadius: '6px', border: '1.5px solid #ef4444', background: hasOverride && !override ? '#ef4444' : '#fff', color: hasOverride && !override ? '#fff' : '#ef4444', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>차단</button>
+                            {hasOverride && (
+                              <button onClick={() => clearOverride(feature)}
+                                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', background: '#fff', color: '#9ca3af', fontSize: '12px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>초기화</button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 하단 버튼 */}
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', paddingTop: '16px', marginTop: '8px', borderTop: '1px solid #e5e7eb' }}>
+                <Btn variant="ghost" onClick={() => setShowDetailModal(false)}>취소</Btn>
+                <Btn onClick={saveDetail}>저장</Btn>
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
+
       {/* 권한 설정 모달 */}
       <Modal open={showPermModal} onClose={() => setShowPermModal(false)} title={`권한 설정 — ${selectedUser?.name}`} width={560}>
         {selectedUser && (
@@ -1107,9 +1360,33 @@ export function Admin({ user: currentUser }) {
               </select>
             </div>
 
-            <div style={{ fontSize: '13px', color: '#6b7280', background: '#f9fafb', padding: '10px 14px', borderRadius: '8px' }}>
-              회색 = 등급 기본값 · 초록 = 개별 허용 · 빨강 = 개별 차단
-            </div>
+            {/* 접속 기간 설정 */}
+            <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '14px 16px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '10px' }}>📅 접속 기간 설정</div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>시작일</div>
+                  <input type="date"
+                    value={selectedUser.accessStartAt?.slice(0,10) || ''}
+                    onChange={e => setSelectedUser(p => ({ ...p, accessStartAt: e.target.value || null }))}
+                    style={{ width: '100%', padding: '7px 10px', border: '1.5px solid #e5e7eb', borderRadius: '8px', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>만료일</div>
+                  <input type="date"
+                    value={selectedUser.accessExpiredAt?.slice(0,10) || ''}
+                    onChange={e => setSelectedUser(p => ({ ...p, accessExpiredAt: e.target.value || null }))}
+                    style={{ width: '100%', padding: '7px 10px', border: '1.5px solid #e5e7eb', borderRadius: '8px', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+              {/* 빠른 설정 버튼 */}
+              <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
+                {[
+                  { label: '30일', days: 30 },
+                  { label: '90일', days: 90 },
+                  { label: '180일', days: 180 },
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '360px', overflow: 'auto' }}>
               {Object.entries(FEATURE_LABELS).map(([feature, label]) => {

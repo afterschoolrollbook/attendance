@@ -2273,6 +2273,21 @@ function MobileDashboard({ user, onNav }) {
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>안녕하세요, {name} 선생님 👋</div>
           <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px' }}>{formatDateKo(today)}</div>
+          {/* 접속 기간 표시 */}
+          {user.accessExpiredAt && (() => {
+            const expDate  = new Date(user.accessExpiredAt)
+            const daysLeft = Math.ceil((expDate - new Date()) / (1000 * 60 * 60 * 24))
+            const isWarn   = daysLeft >= 0 && daysLeft <= 7
+            if (!isWarn) return null
+            return (
+              <div style={{ display:'inline-flex', alignItems:'center', gap:'6px', marginTop:'6px', padding:'5px 12px', borderRadius:'8px', background:'#fff7ed', border:'1px solid #fed7aa' }}>
+                <span>⚠️</span>
+                <span style={{ fontSize:'12px', color:'#b45309', fontWeight:600 }}>
+                  접속 기간이 {daysLeft}일 남았습니다 ({user.accessExpiredAt.slice(0,10)} 만료)
+                </span>
+              </div>
+            )
+          })()}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
           {/* 날씨 */}

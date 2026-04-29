@@ -163,6 +163,16 @@ export default function App() {
         await initFromSupabase()
         const fresh = Users.findByEmail(session.user.email)
         if (fresh) {
+          // 접속 기간 만료 체크
+          if (fresh.role === 'teacher' && fresh.accessExpiredAt) {
+            const expired = new Date() > new Date(fresh.accessExpiredAt)
+            if (expired) {
+              await authSignOut()
+              setDbReady(true)
+              alert('접속 기간이 만료되었습니다.\n서비스 이용을 원하시면 관리자에게 문의해 주세요.')
+              return
+            }
+          }
           setUser(fresh)
           const pageParam = new URLSearchParams(search).get('page')
           if (pageParam) setPage(pageParam)
