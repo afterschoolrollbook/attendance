@@ -872,6 +872,7 @@ export function Admin({ user: currentUser }) {
   const [selectedUser, setSelectedUser] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [detailTab, setDetailTab] = useState('period') // 'classes' | 'students' | 'period' | 'level'
+  const [activeQuickDays, setActiveQuickDays] = useState(null) // 빠른설정 선택 상태
   const [showPermModal, setShowPermModal] = useState(false)
   const [lightboxImg, setLightboxImg] = useState(null)
   const [, forceUpdate] = useState(0)  // ✅ 강제 리렌더용
@@ -892,7 +893,7 @@ export function Admin({ user: currentUser }) {
     refresh()  // ✅ 즉시 반영
   }
 
-  const openDetail = (u) => { setSelectedUser({ ...u }); setDetailTab('period'); setShowDetailModal(true) }
+  const openDetail = (u) => { setSelectedUser({ ...u }); setDetailTab('period'); setActiveQuickDays(null); setShowDetailModal(true) }
   const openPerm = (u) => { setSelectedUser({ ...u }); setShowPermModal(true) }
 
   const setOverride = (feature, value) => {
@@ -1156,72 +1157,92 @@ export function Admin({ user: currentUser }) {
               </div>
 
               {/* ── 수업 목록 ── */}
-              {detailTab === 'classes' && (
-                <div style={{ minHeight: 200 }}>
-                  {teacherClasses.length === 0
-                    ? <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>등록된 수업이 없습니다</div>
-                    : <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 360, overflowY: 'auto' }}>
-                        {teacherClasses.map(c => (
-                          <div key={c.id} style={{ padding: '12px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                              <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{c.className || '수업명 미설정'}</span>
-                              {c.section && <span style={{ fontSize: '12px', color: '#6b7280', background: '#e5e7eb', padding: '1px 7px', borderRadius: '10px' }}>{c.section}반</span>}
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                              {c.organization && <span>🏫 {c.organization}</span>}
-                              {c.days?.length > 0 && <span>📅 {c.days.join(', ')}</span>}
-                              {c.time && <span>🕐 {c.time}{c.timeEnd ? ' ~ ' + c.timeEnd : ''}</span>}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                  }
-                </div>
-              )}
-
-              {/* ── 학생 목록 ── */}
-              {detailTab === 'students' && (
-                <div style={{ minHeight: 200 }}>
-                  {teacherStudents.length === 0
-                    ? <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>등록된 학생이 없습니다</div>
-                    : <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 360, overflowY: 'auto' }}>
-                        {teacherStudents.map(s => {
-                          const studentClasses = (s.classIds || [])
-                            .map(cid => teacherClasses.find(c => c.id === cid))
-                            .filter(Boolean)
-                          return (
-                            <div key={s.id} style={{ padding: '12px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                {/* 이름 + 학교/학년/반/번호 */}
-                                <div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                    <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{s.name}</span>
-                                    {s.grade && <span style={{ fontSize: '12px', color: '#fff', background: '#f97316', padding: '1px 7px', borderRadius: '10px' }}>{s.grade}학년</span>}
-                                    {s.classNum && <span style={{ fontSize: '12px', color: '#6b7280' }}>{s.classNum}반</span>}
-                                    {s.number && <span style={{ fontSize: '12px', color: '#9ca3af' }}>{s.number}번</span>}
-                                  </div>
-                                  <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                    {s.school && <span>🏫 {s.school}</span>}
-                                    {s.parentPhone && <span>👨‍👩‍👧 {s.parentPhone}</span>}
-                                    {s.studentPhone && <span>📱 {s.studentPhone}</span>}
-                                  </div>
-                                </div>
-                                {/* 수강 수업 */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
-                                  {studentClasses.map(c => (
-                                    <span key={c.id} style={{ fontSize: '11px', color: '#3b82f6', background: '#eff6ff', padding: '2px 8px', borderRadius: '8px', whiteSpace: 'nowrap' }}>
-                                      {c.className}{c.section ? ` ${c.section}반` : ''}
-                                    </span>
-                                  ))}
-                                </div>
+              {detailTab === 'classes' && (() => {
+                const DAY_ORDER = {'월':0,'화':1,'수':2,'목':3,'금':4,'토':5,'일':6}
+                const sorted = [...teacherClasses].sort((a, b) => {
+                  const orgCmp = (a.organization||'').localeCompare(b.organization||'', 'ko')
+                  if (orgCmp !== 0) return orgCmp
+                  const secCmp = (a.section||'').localeCompare(b.section||'', 'ko')
+                  if (secCmp !== 0) return secCmp
+                  return (DAY_ORDER[a.days?.[0]] ?? 99) - (DAY_ORDER[b.days?.[0]] ?? 99)
+                })
+                return (
+                  <div style={{ minHeight: 200 }}>
+                    {sorted.length === 0
+                      ? <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>등록된 수업이 없습니다</div>
+                      : <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 360, overflowY: 'auto' }}>
+                          {sorted.map(c => (
+                            <div key={c.id} style={{ padding: '12px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{c.className || '수업명 미설정'}</span>
+                                {c.section && <span style={{ fontSize: '12px', color: '#fff', background: '#8b5cf6', padding: '1px 7px', borderRadius: '10px' }}>{c.section}반</span>}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                {c.organization && <span>🏫 {c.organization}</span>}
+                                {c.days?.length > 0 && <span>📅 {c.days.join(', ')}</span>}
+                                {c.time && <span>🕐 {c.time}{c.timeEnd ? ' ~ ' + c.timeEnd : ''}</span>}
                               </div>
                             </div>
-                          )
-                        })}
-                      </div>
-                  }
-                </div>
-              )}
+                          ))}
+                        </div>
+                    }
+                  </div>
+                )
+              })()}
+
+              {/* ── 학생 목록 ── */}
+              {detailTab === 'students' && (() => {
+                const DAY_ORDER = {'월':0,'화':1,'수':2,'목':3,'금':4,'토':5,'일':6}
+                const getOrg  = s => teacherClasses.find(c => (s.classIds||[]).includes(c.id))?.organization || s.school || ''
+                const getSec  = s => teacherClasses.find(c => (s.classIds||[]).includes(c.id))?.section || ''
+                const getDay  = s => DAY_ORDER[teacherClasses.find(c => (s.classIds||[]).includes(c.id))?.days?.[0]] ?? 99
+                const sorted = [...teacherStudents].sort((a, b) => {
+                  const orgCmp  = getOrg(a).localeCompare(getOrg(b), 'ko');  if (orgCmp  !== 0) return orgCmp
+                  const secCmp  = getSec(a).localeCompare(getSec(b), 'ko');  if (secCmp  !== 0) return secCmp
+                  const dayCmp  = getDay(a) - getDay(b);                      if (dayCmp  !== 0) return dayCmp
+                  const grdCmp  = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (grdCmp !== 0) return grdCmp
+                  const clsCmp  = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (clsCmp !== 0) return clsCmp
+                  return parseInt(a.number||'0') - parseInt(b.number||'0')
+                })
+                return (
+                  <div style={{ minHeight: 200 }}>
+                    {sorted.length === 0
+                      ? <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>등록된 학생이 없습니다</div>
+                      : <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 360, overflowY: 'auto' }}>
+                          {sorted.map(s => {
+                            const studentClasses = (s.classIds||[]).map(cid => teacherClasses.find(c => c.id === cid)).filter(Boolean)
+                            return (
+                              <div key={s.id} style={{ padding: '12px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                  <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                                      <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{s.name}</span>
+                                      {s.grade && <span style={{ fontSize: '11px', color: '#fff', background: '#f97316', padding: '1px 6px', borderRadius: '10px' }}>{s.grade}학년</span>}
+                                      {s.classNum && <span style={{ fontSize: '12px', color: '#6b7280' }}>{s.classNum}반</span>}
+                                      {s.number && <span style={{ fontSize: '12px', color: '#9ca3af' }}>{s.number}번</span>}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                      {s.school && <span>🏫 {s.school}</span>}
+                                      {s.parentPhone && <span>👨‍👩‍👧 {s.parentPhone}</span>}
+                                      {s.studentPhone && <span>📱 {s.studentPhone}</span>}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
+                                    {studentClasses.map(c => (
+                                      <span key={c.id} style={{ fontSize: '11px', color: '#3b82f6', background: '#eff6ff', padding: '2px 8px', borderRadius: '8px', whiteSpace: 'nowrap' }}>
+                                        {c.className}{c.section ? ` ${c.section}반` : ''}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                    }
+                  </div>
+                )
+              })()}
 
               {/* ── 기간 설정 ── */}
               {detailTab === 'period' && (() => {
@@ -1233,8 +1254,12 @@ export function Admin({ user: currentUser }) {
                   const start  = new Date().toISOString().slice(0,10)
                   const expire = new Date(Date.now() + days * 86400000).toISOString().slice(0,10)
                   setSelectedUser(p => ({ ...p, accessStartAt: start, accessExpiredAt: expire }))
+                  setActiveQuickDays(days)
                 }
-                const setUnlimited = () => setSelectedUser(p => ({ ...p, accessStartAt: null, accessExpiredAt: null }))
+                const setUnlimited = () => {
+                  setSelectedUser(p => ({ ...p, accessStartAt: null, accessExpiredAt: null }))
+                  setActiveQuickDays('unlimited')
+                }
 
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -1266,12 +1291,12 @@ export function Admin({ user: currentUser }) {
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         {[{label:'7일', days:7},{label:'30일', days:30},{label:'90일', days:90},{label:'180일', days:180},{label:'1년', days:365}].map(({label, days}) => (
                           <button key={label} onClick={() => setQuick(days)}
-                            style={{ padding: '7px 16px', borderRadius: '8px', border: '1.5px solid #e5e7eb', background: '#fff', color: '#374151', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 500 }}>
+                            style={{ padding: '7px 16px', borderRadius: '8px', border: `1.5px solid ${activeQuickDays === days ? '#f97316' : '#e5e7eb'}`, background: activeQuickDays === days ? '#f97316' : '#fff', color: activeQuickDays === days ? '#fff' : '#374151', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 500 }}>
                             {label}
                           </button>
                         ))}
                         <button onClick={setUnlimited}
-                          style={{ padding: '7px 16px', borderRadius: '8px', border: '1.5px solid #86efac', background: '#f0fdf4', color: '#16a34a', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 500 }}>
+                          style={{ padding: '7px 16px', borderRadius: '8px', border: `1.5px solid ${activeQuickDays === 'unlimited' ? '#16a34a' : '#86efac'}`, background: activeQuickDays === 'unlimited' ? '#16a34a' : '#f0fdf4', color: activeQuickDays === 'unlimited' ? '#fff' : '#16a34a', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 500 }}>
                           무제한
                         </button>
                       </div>
