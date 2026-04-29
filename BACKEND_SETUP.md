@@ -103,7 +103,7 @@ Vercel Dashboard → 프로젝트 → **Settings → Environment Variables**
 
 ## 6. 관리자 페이지에서 API 키 등록
 
-배포된 사이트에서 `admin@test.com / admin1234` 로그인 후:  
+배포된 사이트에서 관리자 계정으로 로그인 후:  
 **사이드바 → 🔧 서비스 설정**
 
 ### 📧 이메일 발송 탭 (Resend)
@@ -152,7 +152,7 @@ localStorage에 캐시           (오프라인 모드)
 
 ### 기본 연동
 - [ ] Supabase Dashboard → Table Editor → `users` 테이블에 admin/teacher 데이터 확인
-- [ ] 사이트 접속 → `admin@test.com / admin1234` 로그인 확인
+- [ ] 사이트 접속 → 관리자 계정으로 로그인 확인
 - [ ] 다른 기기/브라우저에서 접속 → 동일 데이터 확인 (진짜 DB 테스트)
 
 ### 이메일 인증
