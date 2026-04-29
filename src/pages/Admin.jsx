@@ -1241,7 +1241,9 @@ export function Admin({ user: currentUser }) {
                   // 4. 반번호
                   const clsCmp = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (clsCmp !== 0) return clsCmp
                   // 5. 번호
-                  return parseInt(a.number||'0') - parseInt(b.number||'0')
+                  const numCmp = parseInt(a.number||'0') - parseInt(b.number||'0'); if (numCmp !== 0) return numCmp
+                  // 6. 이름 가나다순
+                  return (a.name||'').localeCompare(b.name||'', 'ko')
                 })
 
                 // 요일+학교+반 그룹핑
