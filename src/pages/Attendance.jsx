@@ -618,28 +618,32 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const isNextChanged = nextProductId !== origNextProductId || Number(nextStage) !== Number(origNextStage)
 
   // 교구 지급일 state
-  const givenRecord = SupplyGiven.byStudentProduct(student.id, selProductId)[0]
-  const [givenAt, setGivenAt] = React.useState(givenRecord?.givenAt || '')
-  const [givenSaved, setGivenSaved] = React.useState(false)
+  const givenRecords = SupplyGiven.byStudentClass(student.id, classId)
+  const [givenNewItem, setGivenNewItem] = React.useState('')
+  const [givenNewDate, setGivenNewDate] = React.useState('')
+  const [givenSaving, setGivenSaving] = React.useState(false)
 
-  const handleSaveGivenAt = async () => {
-    if (!givenAt) return
+  const handleAddGiven = async () => {
+    if (!givenNewItem.trim() || !givenNewDate) return
     const classInfo = ClassesDB.find(classId)
-    await SupplyGiven.upsert({
-      id: givenRecord?.id || uid(),
+    const className = classInfo ? ((classInfo.className || '') + (classInfo.section ? ' ' + classInfo.section : '')) : ''
+    setGivenSaving(true)
+    await SupplyGiven.insert({
       teacherId: teacherId || '',
       studentId: student.id,
       studentName: student.name,
       classId,
-      className: classInfo?.name || '',
-      schoolName: classInfo?.school || '',
+      className,
+      schoolName: classInfo?.organization || '',
       productId: selProductId,
       productName: product.name,
-      givenAt,
-      createdAt: givenRecord?.createdAt || now(),
+      itemName: givenNewItem.trim(),
+      givenAt: givenNewDate,
+      createdAt: now(),
     })
-    setGivenSaved(true)
-    setTimeout(() => setGivenSaved(false), 2000)
+    setGivenNewItem('')
+    setGivenNewDate('')
+    setGivenSaving(false)
     onSaved && onSaved()
   }
 
@@ -812,24 +816,6 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           )
         })()}
       </div>
-      {/* 교구 지급일 */}
-      <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb', background:'#f0fdf4' }}>
-        <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'8px' }}>📦 교구 지급일</div>
-        <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
-          <span style={{ fontSize:'12px', color:'#6b7280', whiteSpace:'nowrap' }}>{product.name}</span>
-          <input type="date" value={givenAt} onChange={e => setGivenAt(e.target.value)}
-            style={{ padding:'6px 10px', borderRadius:'7px', border:'1.5px solid #86efac', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
-          <button onClick={handleSaveGivenAt} disabled={!givenAt}
-            style={{ padding:'6px 14px', borderRadius:'7px', border:'none', background: givenSaved ? '#16a34a' : (givenAt ? '#16a34a' : '#e5e7eb'), color: givenAt ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenAt ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', transition:'all .2s' }}>
-            {givenSaved ? '✅ 저장됨' : '저장'}
-          </button>
-          {givenRecord?.givenAt && !givenSaved && (
-            <span style={{ fontSize:'12px', color:'#16a34a', fontWeight:600 }}>
-              {(() => { const d = new Date(givenRecord.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 지급` })()}
-            </span>
-          )}
-        </div>
-      </div>
       {/* 다음 진도 준비 */}
       <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#fafafa' }}>
         <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📌 다음 진도 준비</div>
@@ -863,6 +849,37 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             → {nextProduct.name} {nextStage}단계로 이어집니다
           </div>
         )}
+      </div>
+      {/* 교구 지급일 */}
+      <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#f8fafc' }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📦 교구 지급 기록</div>
+        {/* 기존 기록 목록 */}
+        {givenRecords.length > 0 && (
+          <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'10px' }}>
+            {givenRecords.map(r => (
+              <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:'#f0fdf4', borderRadius:'8px', border:'1px solid #86efac' }}>
+                <span style={{ fontSize:'13px', fontWeight:600, color:'#16a34a', flex:1 }}>{r.itemName}</span>
+                <span style={{ fontSize:'12px', color:'#6b7280' }}>
+                  {(() => { const d = new Date(r.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일` })()}
+                </span>
+                <button onClick={async () => { await SupplyGiven.delete(r.id); onSaved && onSaved() }}
+                  style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* 새 기록 입력 */}
+        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
+          <input value={givenNewItem} onChange={e => setGivenNewItem(e.target.value)}
+            placeholder="교구명 입력 (예: 큐보 1단계)"
+            style={{ flex:1, minWidth:'140px', padding:'7px 10px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+          <input type="date" value={givenNewDate} onChange={e => setGivenNewDate(e.target.value)}
+            style={{ padding:'7px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
+          <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || !givenNewDate || givenSaving}
+            style={{ padding:'7px 14px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && givenNewDate ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && givenNewDate ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && givenNewDate ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            + 추가
+          </button>
+        </div>
       </div>
       <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
         <button onClick={onClose}
