@@ -1162,9 +1162,16 @@ export function Admin({ user: currentUser }) {
                     ? <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>등록된 수업이 없습니다</div>
                     : <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 360, overflowY: 'auto' }}>
                         {teacherClasses.map(c => (
-                          <div key={c.id} style={{ padding: '10px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb', fontSize: '13px' }}>
-                            <div style={{ fontWeight: 600, color: '#111827' }}>{c.name}</div>
-                            <div style={{ color: '#9ca3af', marginTop: '2px' }}>{c.subject || '과목 미지정'} · {c.schedule || '일정 미지정'}</div>
+                          <div key={c.id} style={{ padding: '12px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                              <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{c.className || '수업명 미설정'}</span>
+                              {c.section && <span style={{ fontSize: '12px', color: '#6b7280', background: '#e5e7eb', padding: '1px 7px', borderRadius: '10px' }}>{c.section}반</span>}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                              {c.organization && <span>🏫 {c.organization}</span>}
+                              {c.days?.length > 0 && <span>📅 {c.days.join(', ')}</span>}
+                              {c.time && <span>🕐 {c.time}{c.timeEnd ? ' ~ ' + c.timeEnd : ''}</span>}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1178,15 +1185,39 @@ export function Admin({ user: currentUser }) {
                   {teacherStudents.length === 0
                     ? <div style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>등록된 학생이 없습니다</div>
                     : <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 360, overflowY: 'auto' }}>
-                        {teacherStudents.map(s => (
-                          <div key={s.id} style={{ padding: '10px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                              <span style={{ fontWeight: 600, color: '#111827', fontSize: '13px' }}>{s.name}</span>
-                              <span style={{ color: '#9ca3af', fontSize: '12px', marginLeft: '8px' }}>{s.grade || ''}</span>
+                        {teacherStudents.map(s => {
+                          const studentClasses = (s.classIds || [])
+                            .map(cid => teacherClasses.find(c => c.id === cid))
+                            .filter(Boolean)
+                          return (
+                            <div key={s.id} style={{ padding: '12px 14px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                {/* 이름 + 학교/학년/반/번호 */}
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                    <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{s.name}</span>
+                                    {s.grade && <span style={{ fontSize: '12px', color: '#fff', background: '#f97316', padding: '1px 7px', borderRadius: '10px' }}>{s.grade}학년</span>}
+                                    {s.classNum && <span style={{ fontSize: '12px', color: '#6b7280' }}>{s.classNum}반</span>}
+                                    {s.number && <span style={{ fontSize: '12px', color: '#9ca3af' }}>{s.number}번</span>}
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                    {s.school && <span>🏫 {s.school}</span>}
+                                    {s.parentPhone && <span>👨‍👩‍👧 {s.parentPhone}</span>}
+                                    {s.studentPhone && <span>📱 {s.studentPhone}</span>}
+                                  </div>
+                                </div>
+                                {/* 수강 수업 */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
+                                  {studentClasses.map(c => (
+                                    <span key={c.id} style={{ fontSize: '11px', color: '#3b82f6', background: '#eff6ff', padding: '2px 8px', borderRadius: '8px', whiteSpace: 'nowrap' }}>
+                                      {c.className}{c.section ? ` ${c.section}반` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
-                            <span style={{ fontSize: '12px', color: '#6b7280' }}>{s.phone || ''}</span>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                   }
                 </div>
@@ -1233,7 +1264,7 @@ export function Admin({ user: currentUser }) {
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>빠른 설정</div>
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        {[{label:'30일', days:30},{label:'90일', days:90},{label:'180일', days:180},{label:'1년', days:365}].map(({label, days}) => (
+                        {[{label:'7일', days:7},{label:'30일', days:30},{label:'90일', days:90},{label:'180일', days:180},{label:'1년', days:365}].map(({label, days}) => (
                           <button key={label} onClick={() => setQuick(days)}
                             style={{ padding: '7px 16px', borderRadius: '8px', border: '1.5px solid #e5e7eb', background: '#fff', color: '#374151', fontSize: '13px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 500 }}>
                             {label}
