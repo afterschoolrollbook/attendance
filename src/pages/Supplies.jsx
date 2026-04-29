@@ -1589,31 +1589,34 @@ export function Supplies({ user }) {
             const schoolFilteredClasses = (givenTermFilter === 'current' ? activeClasses : classes.filter(c => getTermLabel(c) === givenTermFilter))
               .filter(c => !givenFilter.school || c.organization === givenFilter.school)
 
-            // 기간 목록 (학교+반 선택 후)
-            const termOptionsForClass = givenFilter.classId
-              ? [...new Map(classes.filter(c => c.id === givenFilter.classId).map(c => [getTermLabel(c), getTermLabel(c)])).values()]
-              : [...new Map(schoolFilteredClasses.map(c => [getTermLabel(c), getTermLabel(c)])).values()].sort().reverse()
+            // 기간 목록 — 학교 선택 시 해당 학교 수업 기준, 미선택 시 전체
+            const termBaseClasses = givenFilter.school
+              ? classes.filter(c => c.organization === givenFilter.school)
+              : classes
+            const termOptionsForClass = [...new Map(
+              termBaseClasses.map(c => [getTermLabel(c), getTermLabel(c)])
+            ).values()].sort().reverse()
 
             return (
               <div>
-                {/* 필터: 학교 → 반 → 기간 순 */}
-                <div style={{ display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center' }}>
+                {/* 필터: 한 줄 */}
+                <div style={{ display:'flex', gap:'8px', marginBottom:'16px', alignItems:'center' }}>
                   <select value={givenFilter.school} onChange={e => setGivenFilter(f => ({ ...f, school: e.target.value, classId: '' }))}
-                    style={{ ...iStyle, background:'#fff' }}>
+                    style={{ flex:1, padding:'7px 10px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
                     <option value=''>전체 학교</option>
                     {allSchools.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                   <select value={givenFilter.classId} onChange={e => setGivenFilter(f => ({ ...f, classId: e.target.value }))}
-                    style={{ ...iStyle, background:'#fff' }}>
+                    style={{ flex:1, padding:'7px 10px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
                     <option value=''>전체 반</option>
                     {schoolFilteredClasses.map(c => (
                       <option key={c.id} value={c.id}>{c.className}{c.section ? ' ' + c.section : ''}</option>
                     ))}
                   </select>
                   <select value={givenTermFilter} onChange={e => { setGivenTermFilter(e.target.value); setGivenFilter(f => ({ ...f, classId: '' })) }}
-                    style={{ ...iStyle, background:'#fff' }}>
+                    style={{ flex:1, padding:'7px 10px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
                     <option value='current'>현재 진행 중</option>
-                    {termOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                    {termOptionsForClass.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
 
