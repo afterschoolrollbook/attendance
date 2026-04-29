@@ -146,35 +146,56 @@ function ProgressBadge({ checkedCount, totalCount, alertSession, sessionsPerStag
   )
 }
 
-// 교구 지급 기록 한 줄 (수정/삭제)
+// 교구 지급 기록 한 줄 (상태 순환 + 수정/삭제)
 function GivenRecord({ record, onDelete, onUpdate }) {
   const [editing, setEditing] = React.useState(false)
   const [item, setItem] = React.useState(record.itemName)
   const [date, setDate] = React.useState(record.givenAt)
+
+  const STATUS_CYCLE = ['given', 'billed', 'paid']
+  const STATUS_STYLE = {
+    given:  { bg:'#dbeafe', color:'#1d4ed8', border:'#93c5fd', label:'지급' },
+    billed: { bg:'#fef9c3', color:'#a16207', border:'#fde047', label:'청' },
+    paid:   { bg:'#dcfce7', color:'#15803d', border:'#86efac', label:'입' },
+  }
+  const status = record.status || 'given'
+  const st = STATUS_STYLE[status] || STATUS_STYLE.given
+
+  const handleCycle = async () => {
+    const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(status) + 1) % STATUS_CYCLE.length]
+    await onUpdate(record.itemName, record.givenAt, next)
+  }
+
   const handleSave = async () => {
     if (!item.trim() || !date) return
-    await onUpdate(item.trim(), date)
+    await onUpdate(item.trim(), date, status)
     setEditing(false)
   }
+
   if (editing) {
     return (
       <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
         <input value={item} onChange={e => setItem(e.target.value)}
-          style={{ flex:1, padding:'3px 6px', borderRadius:'5px', border:'1px solid #86efac', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+          style={{ width:'100px', padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
         <input type="date" value={date} onChange={e => setDate(e.target.value)}
-          style={{ padding:'3px 5px', borderRadius:'5px', border:'1px solid #86efac', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+          style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
         <button onClick={handleSave} style={{ padding:'2px 8px', borderRadius:'5px', border:'none', background:'#16a34a', color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
         <button onClick={() => { setItem(record.itemName); setDate(record.givenAt); setEditing(false) }}
           style={{ padding:'2px 6px', borderRadius:'5px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'11px', cursor:'pointer' }}>취소</button>
       </div>
     )
   }
+
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'4px', padding:'2px 7px', background:'#f0fdf4', borderRadius:'5px', border:'1px solid #86efac' }}>
-      <span style={{ fontSize:'12px', fontWeight:600, color:'#16a34a', flex:1 }}>{record.itemName}</span>
-      <span style={{ fontSize:'11px', color:'#6b7280' }}>{record.givenAt}</span>
-      <button onClick={() => setEditing(true)} style={{ padding:'0 5px', border:'none', background:'none', color:'#6b7280', fontSize:'11px', cursor:'pointer' }}>✏️</button>
-      <button onClick={onDelete} style={{ padding:'0 4px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer' }}>✕</button>
+    <div style={{ display:'flex', alignItems:'center', gap:'3px', padding:'2px 7px', background:st.bg, borderRadius:'5px', border:`1px solid ${st.border}`, cursor:'pointer' }}
+      title="클릭하면 상태 변경 (지급→청구→입금)">
+      <span style={{ fontSize:'12px', fontWeight:600, color:st.color }} onClick={handleCycle}>
+        {status !== 'given' && <span style={{ fontSize:'10px', marginRight:'2px' }}>({st.label})</span>}
+        {record.itemName}
+      </span>
+      <span style={{ fontSize:'11px', color:st.color, opacity:0.8 }} onClick={handleCycle}>{record.givenAt}</span>
+      <button onClick={() => setEditing(true)} style={{ padding:'0 3px', border:'none', background:'none', color:st.color, fontSize:'11px', cursor:'pointer', opacity:0.7 }}>✏️</button>
+      <button onClick={onDelete} style={{ padding:'0 3px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer' }}>✕</button>
     </div>
   )
 }
@@ -1722,7 +1743,7 @@ export function Supplies({ user }) {
                                     {records.map(r => (
                                       <GivenRecord key={r.id} record={r}
                                         onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
-                                        onUpdate={async (itemName, givenAt) => { await SupplyGiven.update(r.id, { itemName, givenAt }); reload() }} />
+                                        onUpdate={async (itemName, givenAt, status) => { await SupplyGiven.update(r.id, { itemName, givenAt, status }); reload() }} />
                                     ))}
                                     <div style={{ flex:1 }} />
                                     <input value={itemVal} onChange={e => setGivenInputs(p => ({ ...p, [itemKey]: e.target.value }))}
