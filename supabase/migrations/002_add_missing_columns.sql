@@ -35,3 +35,21 @@ drop trigger if exists trg_classes_updated_at on classes;
 create trigger trg_classes_updated_at
   before update on classes
   for each row execute function set_updated_at();
+
+-- ─── supplyGiven (교구 지급 기록) ────────────────────────────
+create table if not exists "supplyGiven" (
+  id            text primary key,
+  teacher_id    text references users(id) on delete cascade,
+  student_id    text,
+  student_name  text default '',
+  class_id      text,
+  class_name    text default '',
+  school_name   text default '',
+  product_id    text default '',
+  product_name  text default '',
+  item_name     text default '',
+  given_at      text default '',
+  _deleted      boolean default false,
+  created_at    timestamptz default now(),
+  updated_at    timestamptz default now()
+);
