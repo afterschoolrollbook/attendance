@@ -256,7 +256,8 @@ export function Supplies({ user }) {
     const u1 = onDbChange('supplyStudentProgress', reload)
     const u2 = onDbChange('supplyItems',           reload)
     const u3 = onDbChange('supplySessionChecks',   reload)
-    return () => { u1(); u2(); u3() }
+    const u4 = onDbChange('supplyGiven',           reload)
+    return () => { u1(); u2(); u3(); u4() }
   }, [])
   useEffect(() => { if (subjects.length > 0 && !selSubject) setSelSubject(subjects[0]) }, [subjects])
   useEffect(() => { setCheckedStudents([]) }, [selClassId, selSubject])
