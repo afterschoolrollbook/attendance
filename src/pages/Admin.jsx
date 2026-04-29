@@ -894,10 +894,9 @@ export function Admin({ user: currentUser }) {
   }
 
   const openDetail = (u) => {
-    // 만료일 없으면 무제한, 있으면 버튼 활성화 없음 (직접 누를 때만 활성화)
     setSelectedUser({ ...u })
     setDetailTab('period')
-    setActiveQuickDays(!u.accessExpiredAt ? 'unlimited' : null)
+    setActiveQuickDays(null)
     setShowDetailModal(true)
   }
   const openPerm = (u) => { setSelectedUser({ ...u }); setShowPermModal(true) }
