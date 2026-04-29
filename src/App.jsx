@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Users } from './lib/db.js'
 import { initFromSupabase } from './lib/db.js'
-import { isConfigured, authSignOut, authOnStateChange, authGetSession } from './lib/supabase.js'
+import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
 import { Dashboard } from './pages/Dashboard.jsx'
 import { Classes } from './pages/Classes.jsx'
@@ -165,12 +165,34 @@ export default function App() {
         if (fresh) {
           // 접속 기간 만료 체크
           if (fresh.role === 'teacher' && fresh.accessExpiredAt) {
-            const expired = new Date() > new Date(fresh.accessExpiredAt)
-            if (expired) {
+            const now       = new Date()
+            const expDate   = new Date(fresh.accessExpiredAt)
+            const daysLeft  = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24))
+
+            // 만료된 경우 → 로그아웃 + 안내
+            if (daysLeft < 0) {
               await authSignOut()
               setDbReady(true)
               alert('접속 기간이 만료되었습니다.\n서비스 이용을 원하시면 관리자에게 문의해 주세요.')
               return
+            }
+
+            // 7일 이내 → 자동 이메일 발송 (오늘 이미 보냈으면 스킵)
+            if (daysLeft <= 7 && fresh.email) {
+              const storageKey  = `access_warn_sent_${fresh.id}`
+              const lastSentDay = localStorage.getItem(storageKey)
+              const todayStr    = now.toISOString().slice(0, 10)
+              if (lastSentDay !== todayStr) {
+                try {
+                  await sendEmail(
+                    fresh.email,
+                    `[출석부] 접속 기간 만료 ${daysLeft}일 전 안내 — ${fresh.accessExpiredAt.slice(0,10)} 까지`
+                  )
+                  localStorage.setItem(storageKey, todayStr)
+                } catch (e) {
+                  console.warn('[접속기간 안내 메일 발송 실패]', e.message)
+                }
+              }
             }
           }
           setUser(fresh)
