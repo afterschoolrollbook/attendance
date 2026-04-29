@@ -4,6 +4,7 @@ import {
   Classes, Students,
   SupplySubjects, SupplyVendors, SupplyItems, SupplyPlans,
   SupplyProducts, SupplyProductPlans, SupplyStudentProgress, SupplySessionChecks,
+  SupplyGiven,
   onDbChange,
 } from '../lib/db.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -201,6 +202,10 @@ export function Supplies({ user }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   // 교구 준비/지급 체크 모달
   const [supplyCheckModal, setSupplyCheckModal] = useState(null) // { studentId, classId, productId, alertLabel, studentName }
+  // 교구 지급 기록
+  const [givenList, setGivenList]       = useState([])
+  const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'' })
+  const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
   const { error: toastError, success } = useToast()
 
   const schoolList = [...new Set(classes.map(c => c.organization).filter(Boolean))]
@@ -231,6 +236,7 @@ export function Supplies({ user }) {
     setCheckList(SupplySessionChecks.byTeacher(user.id))
     setClasses(sortClasses(Classes.byTeacher(user.id)))
     setStudents(Students.byTeacher(user.id))
+    setGivenList(SupplyGiven.byTeacher(user.id))
   }
 
   useEffect(() => {
@@ -793,6 +799,7 @@ export function Supplies({ user }) {
     { key:'plan',   label:`📋 지도안(${selSubject||''})` },
     { key:'promo',  label:`🖼 홍보물(${selSubject||''})` },
     { key:'vendor', label:`🏢 교구업체(${selSubject||''})` },
+    { key:'given',  label:`📦 지급기록` },
   ]
 
   const FILE_TYPE_OPTIONS =
@@ -1505,6 +1512,113 @@ export function Supplies({ user }) {
               )}
             </div>
           )}
+
+          {/* ── 지급기록 탭 */}
+          {innerTab === 'given' && (
+            <div>
+              <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>학생별 교구 지급일을 기록하고 조회합니다.</div>
+
+              {/* 필터 */}
+              <div style={{ display:'flex', gap:'10px', marginBottom:'20px', flexWrap:'wrap' }}>
+                <select value={givenFilter.school} onChange={e => setGivenFilter(f => ({ ...f, school: e.target.value, classId: '' }))}
+                  style={{ ...iStyle, maxWidth:'180px', background:'#fff' }}>
+                  <option value=''>전체 학교</option>
+                  {[...new Set(classes.map(c => c.organization).filter(Boolean))].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <select value={givenFilter.classId} onChange={e => setGivenFilter(f => ({ ...f, classId: e.target.value }))}
+                  style={{ ...iStyle, maxWidth:'180px', background:'#fff' }}>
+                  <option value=''>전체 반</option>
+                  {classes
+                    .filter(c => !givenFilter.school || c.organization === givenFilter.school)
+                    .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              {/* 학생별 지급 입력/조회 테이블 */}
+              {(() => {
+                const filteredClasses = classes.filter(c =>
+                  (!givenFilter.school || c.organization === givenFilter.school) &&
+                  (!givenFilter.classId || c.id === givenFilter.classId)
+                )
+                const rows = []
+                filteredClasses.forEach(cls => {
+                  const clsStudents = students.filter(s => s.classIds?.includes(cls.id) && s.status === 'confirmed')
+                  clsStudents.forEach(stu => {
+                    const stuItems = itemList.filter(i => i.classId === cls.id && i.studentId === stu.id)
+                    if (stuItems.length === 0) {
+                      rows.push({ cls, stu, productId: '', productName: '(교구 미배정)', givenRecord: null })
+                    } else {
+                      stuItems.forEach(item => {
+                        const prod = productList.find(p => p.id === item.productId)
+                        const productName = prod?.name || item.name || ''
+                        const givenRecord = givenList.find(g => g.studentId === stu.id && g.classId === cls.id && g.productId === item.productId)
+                        rows.push({ cls, stu, productId: item.productId || '', productName, givenRecord })
+                      })
+                    }
+                  })
+                })
+
+                if (rows.length === 0) return (
+                  <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>
+                    해당 조건의 학생이 없습니다.
+                  </div>
+                )
+
+                return (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                    {rows.map((row, idx) => {
+                      const key = `${row.stu.id}_${row.productId}`
+                      const inputVal = givenInputs[key] !== undefined ? givenInputs[key] : (row.givenRecord?.givenAt || '')
+                      const isSaved = !!row.givenRecord?.givenAt && inputVal === row.givenRecord.givenAt
+
+                      const handleSave = async () => {
+                        if (!inputVal || !row.productId) return
+                        await SupplyGiven.upsert({
+                          id: row.givenRecord?.id || uid(),
+                          teacherId: user.id,
+                          studentId: row.stu.id,
+                          studentName: row.stu.name,
+                          classId: row.cls.id,
+                          className: row.cls.name,
+                          schoolName: row.cls.organization || '',
+                          productId: row.productId,
+                          productName: row.productName,
+                          givenAt: inputVal,
+                          createdAt: row.givenRecord?.createdAt || now(),
+                        })
+                        reload()
+                        success(`${row.stu.name} 교구 지급일 저장됨`)
+                      }
+
+                      return (
+                        <div key={`${idx}_${key}`} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:isSaved?'#f0fdf4':'#fff', borderRadius:'9px', border:`1.5px solid ${isSaved?'#86efac':C.border}`, flexWrap:'wrap' }}>
+                          <div style={{ minWidth:'80px', fontSize:'12px', color:C.muted, whiteSpace:'nowrap' }}>{row.cls.organization || ''}</div>
+                          <div style={{ minWidth:'80px', fontSize:'12px', color:C.muted, whiteSpace:'nowrap' }}>{row.cls.name}</div>
+                          <div style={{ minWidth:'70px', fontSize:'13px', fontWeight:600, color:C.text }}>{row.stu.name}</div>
+                          <div style={{ flex:1, fontSize:'13px', color:C.primary, minWidth:'80px' }}>{row.productName}</div>
+                          {row.productId ? (
+                            <>
+                              <input type="date" value={inputVal}
+                                onChange={e => setGivenInputs(p => ({ ...p, [key]: e.target.value }))}
+                                style={{ padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
+                              <button onClick={handleSave} disabled={!inputVal || isSaved}
+                                style={{ padding:'5px 12px', borderRadius:'7px', border:'none', background: isSaved ? '#86efac' : (inputVal ? C.success : '#e5e7eb'), color: inputVal ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: inputVal && !isSaved ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                                {isSaved ? '✅ 완료' : '저장'}
+                              </button>
+                            </>
+                          ) : (
+                            <span style={{ fontSize:'11px', color:C.muted }}>교구 배정 후 입력 가능</span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
         </>
       )}
 
@@ -1743,6 +1857,54 @@ export function Supplies({ user }) {
                 )
               })()}
             </div>
+
+            {/* 교구 지급일 */}
+            {progressStudent && progressProductId && (() => {
+              const givenRec = givenList.find(g => g.studentId === progressStudent.id && g.productId === progressProductId)
+              const key = `modal_${progressStudent.id}_${progressProductId}`
+              const inputVal = givenInputs[key] !== undefined ? givenInputs[key] : (givenRec?.givenAt || '')
+              const product = productList.find(p => p.id === progressProductId)
+              const isSaved = !!givenRec?.givenAt && inputVal === givenRec.givenAt
+              const handleSave = async () => {
+                if (!inputVal) return
+                const cls = classes.find(c => c.id === selClassId)
+                await SupplyGiven.upsert({
+                  id: givenRec?.id || uid(),
+                  teacherId: user.id,
+                  studentId: progressStudent.id,
+                  studentName: progressStudent.name,
+                  classId: selClassId,
+                  className: cls?.name || '',
+                  schoolName: cls?.organization || '',
+                  productId: progressProductId,
+                  productName: product?.name || '',
+                  givenAt: inputVal,
+                  createdAt: givenRec?.createdAt || now(),
+                })
+                reload()
+                setGivenInputs(p => ({ ...p, [key]: inputVal }))
+                success('교구 지급일 저장됨')
+              }
+              return (
+                <div style={{ padding:'12px 20px', borderTop:`1px solid ${C.border}`, background:'#f0fdf4' }}>
+                  <div style={{ fontSize:'12px', fontWeight:700, color:'#374151', marginBottom:'8px' }}>📦 교구 지급일 — {product?.name || ''}</div>
+                  <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
+                    <input type="date" value={inputVal}
+                      onChange={e => setGivenInputs(p => ({ ...p, [key]: e.target.value }))}
+                      style={{ padding:'6px 10px', borderRadius:'7px', border:'1.5px solid #86efac', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
+                    <button onClick={handleSave} disabled={!inputVal || isSaved}
+                      style={{ padding:'6px 14px', borderRadius:'7px', border:'none', background: isSaved ? '#86efac' : (inputVal ? C.success : '#e5e7eb'), color: inputVal ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: inputVal && !isSaved ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      {isSaved ? '✅ 저장됨' : '저장'}
+                    </button>
+                    {givenRec?.givenAt && (
+                      <span style={{ fontSize:'12px', color:'#16a34a', fontWeight:600 }}>
+                        {(() => { const d = new Date(givenRec.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 지급` })()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* footer 고정 버튼 */}
             <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, flexShrink:0, display:'flex', gap:'10px' }}>
