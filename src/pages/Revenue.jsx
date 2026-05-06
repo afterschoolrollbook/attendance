@@ -367,7 +367,7 @@ export function Revenue({ user }) {
     }
   }
 
-  const openPayModal = (date, classId = '', termNo = '') => {
+  const openPayModal = (date, classId = '', termNo = '', startFromDate = false) => {
     let autoTermNo = termNo
     if (classId && !termNo) {
       const cls = sorted.find(c => c.id === classId)
@@ -380,7 +380,8 @@ export function Revenue({ user }) {
     setPayDate(date)
     setPayForm({ classId: classId || '', classIds: classId ? [classId] : [], termNo: String(autoTermNo), amount: '', memo: '' })
     // 진입 시작 스텝 결정
-    if (classId && autoTermNo) setPayStep(4)
+    if (startFromDate) setPayStep(1)
+    else if (classId && autoTermNo) setPayStep(4)
     else if (classId) setPayStep(3)
     else setPayStep(2)
     setPayWizard(true)
@@ -847,7 +848,7 @@ export function Revenue({ user }) {
                                     {unpaid>0&&termSt!=='upcoming'&&<span style={{ fontSize:'12px', fontWeight:700, color:C.danger }}>미수 {fmt(unpaid)}원</span>}
                                   </>}
                                   {!fee&&<span style={{ fontSize:'11px', color:C.muted }}>수강료 미설정</span>}
-                                  {termSt!=='upcoming'&&<button onClick={e=>{e.stopPropagation();openPayModal(today(),cls.id,term.termNo)}}
+                                  {termSt!=='upcoming'&&<button onClick={e=>{e.stopPropagation();openPayModal(today(),cls.id,term.termNo,true)}}
                                     style={{ padding:'4px 10px', borderRadius:'7px', border:'none', background:C.primary, color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                     + 입금
                                   </button>}
@@ -1064,11 +1065,17 @@ export function Revenue({ user }) {
             if (terms.length===1) { setPayForm(f=>({...f,termNo:String(terms[0].termNo)})) }
             else { toastError('텀을 선택해주세요'); return }
           }
+          // step1(날짜) 완료 후: classId+termNo 이미 세팅 시 금액(4)으로 점프
+          if (payStep === 1 && payForm.classIds?.length > 0 && payForm.termNo) { setPayStep(4); return }
+          if (payStep === 1 && payForm.classIds?.length > 0 && !hasTerm) { setPayStep(4); return }
           const nextStep = (!hasTerm && payStep === 2) ? 4 : payStep + 1
           if (nextStep > totalSteps) { savePayForm(); return }
           setPayStep(nextStep)
         }
         const goBack = () => {
+          // step4에서 뒤로: classId+termNo 이미 세팅 시 날짜(1)로 점프
+          if (payStep === 4 && payForm.classIds?.length > 0 && payForm.termNo) { setPayStep(1); return }
+          if (payStep === 4 && payForm.classIds?.length > 0 && !hasTerm) { setPayStep(1); return }
           const prevStep = (!hasTerm && payStep === 4) ? 2 : payStep - 1
           setPayStep(Math.max(1, prevStep))
         }
@@ -1360,7 +1367,7 @@ export function Revenue({ user }) {
                 ))}
               </div>
               <div style={{ display:'flex', gap:'8px' }}>
-                <button onClick={()=>{ openPayModal(today(), unpaidDetail.cls.id, unpaidDetail.term.termNo); setUnpaidDetail(null) }}
+                <button onClick={()=>{ openPayModal(today(), unpaidDetail.cls.id, unpaidDetail.term.termNo, true); setUnpaidDetail(null) }}
                   style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   입금 등록
                 </button>
