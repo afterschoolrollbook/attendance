@@ -181,7 +181,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
 }
 
 // ─── 진도 수업 화면 (별도 창 전용 — DB 직접 연결 + 실시간 양방향 동기화)
-function ProgressWindow() {
+export function ProgressWindow() {
   // 메인 창에서 보낸 cls/date 메타 수신
   const [meta, setMeta] = useState(null)
   const [tick, setTick] = useState(0)
@@ -2769,10 +2769,6 @@ function MobileAttendance({ user, pageParams = {} }) {
 }
 
 export function Attendance({ user, pageParams = {} }) {
-  // 별도 창(수업 화면) 모드
-  if (new URLSearchParams(window.location.search).get('progress_screen') === '1') {
-    return <ProgressWindow />
-  }
   const isMobile = window.innerWidth <= 768
   if (isMobile) return <MobileAttendance user={user} pageParams={pageParams} />
   const today = todayStr()
