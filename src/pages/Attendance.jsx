@@ -79,7 +79,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
     const prod = spProds.find(p => p.id === si.productId)
     const todayChecks = spChecks.filter(c =>
       c.studentId === s.id && c.productId === si.productId &&
-      c.stage === curStage && c.checkedAt && c.checkedAt.startsWith(date)
+      c.stage === curStage && c.checkedAt && localDateStr(new Date(c.checkedAt)) === date
     )
     const allChecks = spChecks.filter(c => c.studentId === s.id && c.productId === si.productId && c.stage === curStage)
     const lastCheck = allChecks.length > 0 ? allChecks.reduce((a, b) => a.sessionNo > b.sessionNo ? a : b) : null
@@ -96,7 +96,18 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
     <div style={{ marginTop:'16px', borderTop:`1px solid ${C.border}`, paddingTop:'14px' }}>
       {/* 진도 섹션 — 항상 표시 */}
       <div style={{ marginBottom:'14px' }}>
-        <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📋 진도</div>
+        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px' }}>
+          <div style={{ fontSize:'11px', fontWeight:700, color:C.muted }}>📋 진도</div>
+          {studentProgList.length > 0 && (
+            <button
+              onClick={() => {
+                document.dispatchEvent(new CustomEvent('openProgressPopup', { detail: { checkedToday, notCheckedToday, cls, date } }))
+              }}
+              style={{ fontSize:'11px', fontWeight:700, color:C.primary, background:'#fff7ed', border:`1px solid ${C.primary}`, borderRadius:'8px', padding:'2px 8px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              🖥️ 수업 화면
+            </button>
+          )}
+        </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
           {checkedToday.length > 0 && (
             <div>
@@ -158,6 +169,101 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   )
 }
 
+// ─── 진도 수업 화면 팝업
+function ProgressClassPopup({ checkedToday, notCheckedToday, cls, date, onClose }) {
+  const DAYS_KO2 = ['일','월','화','수','목','금','토']
+  const d = new Date(date + 'T00:00:00')
+  const dateLabel = `${d.getMonth()+1}월 ${d.getDate()}일 (${DAYS_KO2[d.getDay()]})`
+  const clsName = (cls?.className||'') + (cls?.section ? ' '+cls.section+'반' : '')
+
+  return ReactDOM.createPortal(
+    <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'#fff', borderRadius:'20px', width:'480px', maxWidth:'95vw', maxHeight:'85vh', display:'flex', flexDirection:'column', overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
+        {/* 헤더 */}
+        <div style={{ padding:'18px 22px 14px', background:'linear-gradient(135deg,#f97316 0%,#fb923c 100%)', borderRadius:'20px 20px 0 0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <div style={{ fontSize:'17px', fontWeight:800, color:'#fff' }}>{clsName}</div>
+            <div style={{ fontSize:'12px', color:'#fff9', marginTop:'2px' }}>📅 {dateLabel} 진도 현황</div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+            <div style={{ background:'rgba(255,255,255,0.2)', borderRadius:'10px', padding:'6px 12px', textAlign:'center' }}>
+              <div style={{ fontSize:'20px', fontWeight:800, color:'#fff' }}>{checkedToday.length}</div>
+              <div style={{ fontSize:'10px', color:'#fff9' }}>완료</div>
+            </div>
+            <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:'10px', padding:'6px 12px', textAlign:'center' }}>
+              <div style={{ fontSize:'20px', fontWeight:800, color:'#fff' }}>{notCheckedToday.length}</div>
+              <div style={{ fontSize:'10px', color:'#fff9' }}>미체크</div>
+            </div>
+            <button onClick={onClose}
+              style={{ marginLeft:'4px', width:'30px', height:'30px', borderRadius:'50%', border:'none', background:'rgba(255,255,255,0.25)', color:'#fff', fontSize:'16px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* 본문 */}
+        <div style={{ overflowY:'auto', padding:'16px 20px', display:'flex', flexDirection:'column', gap:'14px' }}>
+          {/* 완료 */}
+          {checkedToday.length > 0 && (
+            <div>
+              <div style={{ fontSize:'12px', fontWeight:700, color:'#16a34a', marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px' }}>
+                ✅ 진도체크 완료 <span style={{ background:'#dcfce7', borderRadius:'10px', padding:'1px 8px', fontSize:'11px' }}>{checkedToday.length}명</span>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                {checkedToday.map(({ s, prod, curStage, todayChecks, allChecks, lastModelTitle, isMax }) => (
+                  <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 14px', borderRadius:'10px', background:'#f0fdf4', border:'1.5px solid #86efac' }}>
+                    <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:'#16a34a', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <span style={{ fontSize:'14px', color:'#fff', fontWeight:800 }}>{(s.name||'?')[0]}</span>
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:'14px', fontWeight:700, color:'#15803d' }}>{s.name}</div>
+                      <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'1px' }}>{prod?.name} {curStage}단계{lastModelTitle ? ` · ${lastModelTitle}` : ''}</div>
+                    </div>
+                    <div style={{ textAlign:'right' }}>
+                      <div style={{ fontSize:'13px', fontWeight:700, color:'#16a34a' }}>+{todayChecks.length}차시</div>
+                      <div style={{ fontSize:'11px', color:'#6b7280' }}>총 {allChecks.length}차시</div>
+                    </div>
+                    {isMax && <span style={{ fontSize:'10px', background:'#fef2f2', color:'#ef4444', border:'1px solid #fca5a5', borderRadius:'4px', padding:'2px 6px', fontWeight:700 }}>최대</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 미체크 */}
+          {notCheckedToday.length > 0 && (
+            <div>
+              <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px' }}>
+                ⬜ 미체크 <span style={{ background:'#f3f4f6', borderRadius:'10px', padding:'1px 8px', fontSize:'11px' }}>{notCheckedToday.length}명</span>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                {notCheckedToday.map(({ s, prod, curStage, lastModelTitle }) => (
+                  <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 14px', borderRadius:'10px', background:'#f9fafb', border:'1.5px solid #e5e7eb' }}>
+                    <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:'#e5e7eb', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <span style={{ fontSize:'14px', color:'#9ca3af', fontWeight:800 }}>{(s.name||'?')[0]}</span>
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:'14px', fontWeight:600, color:'#374151' }}>{s.name}</div>
+                      <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'1px' }}>{prod?.name} {curStage}단계{lastModelTitle ? ` · ${lastModelTitle}` : ''}</div>
+                    </div>
+                    <div style={{ fontSize:'12px', color:'#d1d5db', fontWeight:600 }}>미체크</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {checkedToday.length === 0 && notCheckedToday.length === 0 && (
+            <div style={{ textAlign:'center', padding:'40px 0', color:'#d1d5db', fontSize:'14px' }}>진도 데이터가 없습니다</div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 // ─── 수업 메모장 래퍼
 function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
   const [spItems,  setSpItems]  = useState(() => cls ? SupplyItems.byTeacher(cls.teacherId||'') : [])
@@ -167,6 +273,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
   const [progStudent, setProgStudent] = useState(null)
   const [progProductId, setProgProductId] = useState('')
   const [tick, setTick] = useState(0)
+  const [progPopup, setProgPopup] = useState(null)
 
   useEffect(() => {
     if (!cls) return
@@ -175,6 +282,12 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
     setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
   }, [cls?.id, date, tick])
+
+  useEffect(() => {
+    const handler = (e) => setProgPopup(e.detail)
+    document.addEventListener('openProgressPopup', handler)
+    return () => document.removeEventListener('openProgressPopup', handler)
+  }, [])
 
   const students = cls ? StudentsDB.byClass(cls.id) : []
   if (!cls || !classId) return null
@@ -199,6 +312,15 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
           }}
         />,
         document.body
+      )}
+      {progPopup && (
+        <ProgressClassPopup
+          checkedToday={progPopup.checkedToday}
+          notCheckedToday={progPopup.notCheckedToday}
+          cls={progPopup.cls}
+          date={progPopup.date}
+          onClose={() => setProgPopup(null)}
+        />
       )}
     </>
   )
