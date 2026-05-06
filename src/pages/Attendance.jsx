@@ -58,7 +58,7 @@ function localDateStr(d) {
 
 
 // ─── 수업 메모장 패널
-function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, onProgOpen }) {
+function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, onProgOpen, onOpenScreen }) {
   const [memos, setMemos] = useState(() => cls ? LessonMemos.byClassDate(cls.id, date) : [])
   const [memoText, setMemoText] = useState('')
 
@@ -101,7 +101,18 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
           {studentProgList.length > 0 && (
             <button
               onClick={() => {
-                document.dispatchEvent(new CustomEvent('openProgressPopup', { detail: { checkedToday, notCheckedToday, cls, date } }))
+                const payload = { cls, date }
+                onOpenScreen && onOpenScreen(payload)
+                const ch = new BroadcastChannel('progress_screen')
+                ch.postMessage(payload)
+                ch.close()
+                const url = window.location.origin + window.location.pathname + '?progress_screen=1'
+                const existing = window._progressWindow
+                if (existing && !existing.closed) {
+                  existing.focus()
+                } else {
+                  window._progressWindow = window.open(url, 'progress_screen', 'width=640,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes')
+                }
               }}
               style={{ fontSize:'11px', fontWeight:700, color:C.primary, background:'#fff7ed', border:`1px solid ${C.primary}`, borderRadius:'8px', padding:'2px 8px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
               🖥️ 수업 화면
@@ -169,98 +180,205 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   )
 }
 
-// ─── 진도 수업 화면 팝업
-function ProgressClassPopup({ checkedToday, notCheckedToday, cls, date, onClose }) {
+// ─── 진도 수업 화면 (별도 창 전용 — DB 직접 연결 + 실시간 양방향 동기화)
+function ProgressWindow() {
+  // 메인 창에서 보낸 cls/date 메타 수신
+  const [meta, setMeta] = useState(null)
+  const [tick, setTick] = useState(0)
+  const [progStudent, setProgStudent] = useState(null)
+  const [progProductId, setProgProductId] = useState('')
+  const [lastUpdated, setLastUpdated] = useState(null)
+
+  // BroadcastChannel: 메인→별도창 메타 수신 / 별도창→메인 갱신 신호 송신
+  useEffect(() => {
+    const ch = new BroadcastChannel('progress_screen')
+    ch.onmessage = (e) => {
+      if (e.data.type === 'refresh') {
+        // 메인 창이 갱신됐을 때 → 별도 창도 재계산
+        setTick(t => t + 1)
+        setLastUpdated(new Date())
+      } else {
+        // 최초 메타(cls, date) 수신
+        setMeta({ cls: e.data.cls, date: e.data.date })
+        setLastUpdated(new Date())
+      }
+    }
+    // 창 열리자마자 준비 신호 → 메인이 즉시 메타 재전송
+    const ready = new BroadcastChannel('progress_screen_ready')
+    ready.postMessage('ready')
+    ready.close()
+    return () => ch.close()
+  }, [])
+
+  if (!meta) return (
+    <div style={{ height:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#f9fafb', fontFamily:'Noto Sans KR, sans-serif' }}>
+      <div style={{ fontSize:'48px', marginBottom:'16px' }}>🖥️</div>
+      <div style={{ fontSize:'18px', fontWeight:700, color:'#374151', marginBottom:'8px' }}>수업 화면 대기 중</div>
+      <div style={{ fontSize:'13px', color:'#9ca3af' }}>출석부에서 <b>🖥️ 수업 화면</b> 버튼을 눌러주세요</div>
+    </div>
+  )
+
+  const { cls, date } = meta
+
+  // DB 직접 조회 (tick 변경 시 재계산)
+  const spItems  = SupplyItems.byTeacher(cls.teacherId||'')
+  const spProds  = SupplyProducts.byTeacher(cls.teacherId||'')
+  const spProg   = SupplyStudentProgress.byTeacher(cls.teacherId||'')
+  const spChecks = SupplySessionChecks.byTeacher(cls.teacherId||'')
+  const students = StudentsDB.byClass(cls.id)
+  const activeStudents = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
+
+  const studentProgList = activeStudents.map(s => {
+    const si = spItems.find(i => i.studentId === s.id && i.classId === cls.id)
+    if (!si?.productId) return null
+    const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
+    const curStage = prog?.curStage || si.stage || 1
+    const prod = spProds.find(p => p.id === si.productId)
+    const todayChecks = spChecks.filter(c =>
+      c.studentId === s.id && c.productId === si.productId &&
+      c.stage === curStage && c.checkedAt && localDateStr(new Date(c.checkedAt)) === date
+    )
+    const allChecks = spChecks.filter(c => c.studentId === s.id && c.productId === si.productId && c.stage === curStage)
+    const lastCheck = allChecks.length > 0 ? allChecks.reduce((a, b) => a.sessionNo > b.sessionNo ? a : b) : null
+    const stagePlans = lastCheck ? SupplyProductPlans.byProductStage(si.productId, curStage) : []
+    const lastModelTitle = lastCheck ? (stagePlans.find(p => p.sessionNo === lastCheck.sessionNo)?.title || null) : null
+    return { s, si, prod, curStage, todayChecks, allChecks, lastModelTitle, isMax: todayChecks.length >= 2 }
+  }).filter(Boolean)
+
+  const checkedToday   = studentProgList.filter(p => p.todayChecks.length > 0).sort((a,b) => a.s.name.localeCompare(b.s.name,'ko'))
+  const notCheckedToday = studentProgList.filter(p => p.todayChecks.length === 0).sort((a,b) => a.s.name.localeCompare(b.s.name,'ko'))
+  const total = checkedToday.length + notCheckedToday.length
+  const pct = total > 0 ? Math.round(checkedToday.length / total * 100) : 0
+
   const DAYS_KO2 = ['일','월','화','수','목','금','토']
   const d = new Date(date + 'T00:00:00')
   const dateLabel = `${d.getMonth()+1}월 ${d.getDate()}일 (${DAYS_KO2[d.getDay()]})`
   const clsName = (cls?.className||'') + (cls?.section ? ' '+cls.section+'반' : '')
 
-  return ReactDOM.createPortal(
-    <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background:'#fff', borderRadius:'20px', width:'480px', maxWidth:'95vw', maxHeight:'85vh', display:'flex', flexDirection:'column', overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
-        {/* 헤더 */}
-        <div style={{ padding:'18px 22px 14px', background:'linear-gradient(135deg,#f97316 0%,#fb923c 100%)', borderRadius:'20px 20px 0 0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <div>
-            <div style={{ fontSize:'17px', fontWeight:800, color:'#fff' }}>{clsName}</div>
-            <div style={{ fontSize:'12px', color:'#fff9', marginTop:'2px' }}>📅 {dateLabel} 진도 현황</div>
-          </div>
-          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-            <div style={{ background:'rgba(255,255,255,0.2)', borderRadius:'10px', padding:'6px 12px', textAlign:'center' }}>
-              <div style={{ fontSize:'20px', fontWeight:800, color:'#fff' }}>{checkedToday.length}</div>
-              <div style={{ fontSize:'10px', color:'#fff9' }}>완료</div>
-            </div>
-            <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:'10px', padding:'6px 12px', textAlign:'center' }}>
-              <div style={{ fontSize:'20px', fontWeight:800, color:'#fff' }}>{notCheckedToday.length}</div>
-              <div style={{ fontSize:'10px', color:'#fff9' }}>미체크</div>
-            </div>
-            <button onClick={onClose}
-              style={{ marginLeft:'4px', width:'30px', height:'30px', borderRadius:'50%', border:'none', background:'rgba(255,255,255,0.25)', color:'#fff', fontSize:'16px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>
-              ✕
-            </button>
-          </div>
+  // 진도체크 완료 후 → DB 재계산 + 메인 창에 갱신 신호
+  const handleSaved = () => {
+    setTick(t => t + 1)
+    setLastUpdated(new Date())
+    const ch = new BroadcastChannel('progress_screen')
+    ch.postMessage({ type: 'refresh' })
+    ch.close()
+  }
+
+  const openProgCheck = (s, productId) => {
+    setProgStudent({ ...s, _clsId: cls.id })
+    setProgProductId(productId || spItems.find(i => i.studentId===s.id && i.classId===cls.id)?.productId || '')
+  }
+
+  return (
+    <div style={{ minHeight:'100vh', background:'#f8fafc', fontFamily:'Noto Sans KR, sans-serif', display:'flex', flexDirection:'column' }}>
+      {/* 헤더 */}
+      <div style={{ background:'linear-gradient(135deg,#f97316 0%,#fb923c 100%)', padding:'20px 28px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div>
+          <div style={{ fontSize:'22px', fontWeight:800, color:'#fff' }}>{clsName}</div>
+          <div style={{ fontSize:'13px', color:'rgba(255,255,255,0.8)', marginTop:'3px' }}>📅 {dateLabel} 진도 현황</div>
         </div>
-
-        {/* 본문 */}
-        <div style={{ overflowY:'auto', padding:'16px 20px', display:'flex', flexDirection:'column', gap:'14px' }}>
-          {/* 완료 */}
-          {checkedToday.length > 0 && (
-            <div>
-              <div style={{ fontSize:'12px', fontWeight:700, color:'#16a34a', marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px' }}>
-                ✅ 진도체크 완료 <span style={{ background:'#dcfce7', borderRadius:'10px', padding:'1px 8px', fontSize:'11px' }}>{checkedToday.length}명</span>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                {checkedToday.map(({ s, prod, curStage, todayChecks, allChecks, lastModelTitle, isMax }) => (
-                  <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 14px', borderRadius:'10px', background:'#f0fdf4', border:'1.5px solid #86efac' }}>
-                    <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:'#16a34a', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      <span style={{ fontSize:'14px', color:'#fff', fontWeight:800 }}>{(s.name||'?')[0]}</span>
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:'14px', fontWeight:700, color:'#15803d' }}>{s.name}</div>
-                      <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'1px' }}>{prod?.name} {curStage}단계{lastModelTitle ? ` · ${lastModelTitle}` : ''}</div>
-                    </div>
-                    <div style={{ textAlign:'right' }}>
-                      <div style={{ fontSize:'13px', fontWeight:700, color:'#16a34a' }}>+{todayChecks.length}차시</div>
-                      <div style={{ fontSize:'11px', color:'#6b7280' }}>총 {allChecks.length}차시</div>
-                    </div>
-                    {isMax && <span style={{ fontSize:'10px', background:'#fef2f2', color:'#ef4444', border:'1px solid #fca5a5', borderRadius:'4px', padding:'2px 6px', fontWeight:700 }}>최대</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 미체크 */}
-          {notCheckedToday.length > 0 && (
-            <div>
-              <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px' }}>
-                ⬜ 미체크 <span style={{ background:'#f3f4f6', borderRadius:'10px', padding:'1px 8px', fontSize:'11px' }}>{notCheckedToday.length}명</span>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                {notCheckedToday.map(({ s, prod, curStage, lastModelTitle }) => (
-                  <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 14px', borderRadius:'10px', background:'#f9fafb', border:'1.5px solid #e5e7eb' }}>
-                    <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:'#e5e7eb', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      <span style={{ fontSize:'14px', color:'#9ca3af', fontWeight:800 }}>{(s.name||'?')[0]}</span>
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:'14px', fontWeight:600, color:'#374151' }}>{s.name}</div>
-                      <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'1px' }}>{prod?.name} {curStage}단계{lastModelTitle ? ` · ${lastModelTitle}` : ''}</div>
-                    </div>
-                    <div style={{ fontSize:'12px', color:'#d1d5db', fontWeight:600 }}>미체크</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {checkedToday.length === 0 && notCheckedToday.length === 0 && (
-            <div style={{ textAlign:'center', padding:'40px 0', color:'#d1d5db', fontSize:'14px' }}>진도 데이터가 없습니다</div>
-          )}
+        <div style={{ display:'flex', gap:'12px', alignItems:'center' }}>
+          <div style={{ background:'rgba(255,255,255,0.2)', borderRadius:'14px', padding:'10px 18px', textAlign:'center', minWidth:'64px' }}>
+            <div style={{ fontSize:'28px', fontWeight:800, color:'#fff', lineHeight:1 }}>{checkedToday.length}</div>
+            <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.8)', marginTop:'3px' }}>완료</div>
+          </div>
+          <div style={{ background:'rgba(255,255,255,0.12)', borderRadius:'14px', padding:'10px 18px', textAlign:'center', minWidth:'64px' }}>
+            <div style={{ fontSize:'28px', fontWeight:800, color:'#fff', lineHeight:1 }}>{notCheckedToday.length}</div>
+            <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.8)', marginTop:'3px' }}>미체크</div>
+          </div>
+          <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:'14px', padding:'10px 18px', textAlign:'center', minWidth:'64px' }}>
+            <div style={{ fontSize:'28px', fontWeight:800, color:'#fff', lineHeight:1 }}>{pct}%</div>
+            <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.8)', marginTop:'3px' }}>달성률</div>
+          </div>
         </div>
       </div>
-    </div>,
-    document.body
+
+      {/* 진행바 */}
+      <div style={{ height:'6px', background:'#e5e7eb' }}>
+        <div style={{ height:'100%', width:`${pct}%`, background:'#16a34a', transition:'width 0.5s ease' }} />
+      </div>
+
+      {/* 본문 */}
+      <div style={{ flex:1, padding:'20px 24px', display:'grid', gridTemplateColumns: notCheckedToday.length > 0 && checkedToday.length > 0 ? '1fr 1fr' : '1fr', gap:'20px', alignItems:'start' }}>
+        {/* 완료 */}
+        {checkedToday.length > 0 && (
+          <div>
+            <div style={{ fontSize:'13px', fontWeight:700, color:'#16a34a', marginBottom:'10px', display:'flex', alignItems:'center', gap:'6px' }}>
+              ✅ 진도체크 완료
+              <span style={{ background:'#dcfce7', borderRadius:'20px', padding:'2px 10px', fontSize:'12px' }}>{checkedToday.length}명</span>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              {checkedToday.map(({ s, prod, curStage, todayChecks, allChecks, lastModelTitle, isMax }) => (
+                <div key={s.id} onClick={() => openProgCheck(s, spItems.find(i=>i.studentId===s.id&&i.classId===cls.id)?.productId)}
+                  style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'12px', background:'#f0fdf4', border:'2px solid #86efac', cursor:'pointer' }}>
+                  <div style={{ width:'38px', height:'38px', borderRadius:'50%', background:'#16a34a', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style={{ fontSize:'16px', color:'#fff', fontWeight:800 }}>{(s.name||'?')[0]}</span>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:'15px', fontWeight:700, color:'#15803d' }}>{s.name}</div>
+                    <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'2px' }}>{prod?.name} {curStage}단계{lastModelTitle ? ` · ${lastModelTitle}` : ''}</div>
+                  </div>
+                  <div style={{ textAlign:'right', flexShrink:0 }}>
+                    <div style={{ fontSize:'14px', fontWeight:700, color:'#16a34a' }}>+{todayChecks.length}차시</div>
+                    <div style={{ fontSize:'11px', color:'#9ca3af' }}>누적 {allChecks.length}차시</div>
+                  </div>
+                  {isMax && <span style={{ fontSize:'10px', background:'#fef2f2', color:'#ef4444', border:'1px solid #fca5a5', borderRadius:'4px', padding:'2px 6px', fontWeight:700 }}>최대</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 미체크 */}
+        {notCheckedToday.length > 0 && (
+          <div>
+            <div style={{ fontSize:'13px', fontWeight:700, color:'#9ca3af', marginBottom:'10px', display:'flex', alignItems:'center', gap:'6px' }}>
+              ⬜ 미체크
+              <span style={{ background:'#f3f4f6', borderRadius:'20px', padding:'2px 10px', fontSize:'12px' }}>{notCheckedToday.length}명</span>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              {notCheckedToday.map(({ s, prod, curStage, lastModelTitle }) => (
+                <div key={s.id} onClick={() => openProgCheck(s, spItems.find(i=>i.studentId===s.id&&i.classId===cls.id)?.productId)}
+                  style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'12px', background:'#f9fafb', border:'2px solid #e5e7eb', cursor:'pointer' }}>
+                  <div style={{ width:'38px', height:'38px', borderRadius:'50%', background:'#e5e7eb', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style={{ fontSize:'16px', color:'#9ca3af', fontWeight:800 }}>{(s.name||'?')[0]}</span>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>{s.name}</div>
+                    <div style={{ fontSize:'12px', color:'#9ca3af', marginTop:'2px' }}>{prod?.name} {curStage}단계{lastModelTitle ? ` · ${lastModelTitle}` : ''}</div>
+                  </div>
+                  <div style={{ fontSize:'12px', color:'#f97316', fontWeight:700 }}>체크하기 ›</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {studentProgList.length === 0 && (
+          <div style={{ textAlign:'center', padding:'60px 0', color:'#d1d5db', fontSize:'14px' }}>교구 배정된 학생이 없습니다</div>
+        )}
+      </div>
+
+      {/* 하단 업데이트 시각 */}
+      {lastUpdated && (
+        <div style={{ padding:'8px 24px 14px', textAlign:'right', fontSize:'11px', color:'#d1d5db' }}>
+          마지막 업데이트: {lastUpdated.toLocaleTimeString('ko-KR')}
+        </div>
+      )}
+
+      {/* 별도 창 내 ProgCheckModal */}
+      {progStudent && ReactDOM.createPortal(
+        <ProgCheckModal
+          student={progStudent}
+          initialProductId={progProductId}
+          spProds={spProds}
+          teacherId={cls.teacherId}
+          onClose={() => setProgStudent(null)}
+          onSaved={handleSaved}
+        />,
+        document.body
+      )}
+    </div>
   )
 }
 
@@ -273,7 +391,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
   const [progStudent, setProgStudent] = useState(null)
   const [progProductId, setProgProductId] = useState('')
   const [tick, setTick] = useState(0)
-  const [progPopup, setProgPopup] = useState(null)
+  const lastPayloadRef = useRef(null)
 
   useEffect(() => {
     if (!cls) return
@@ -283,10 +401,26 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
   }, [cls?.id, date, tick])
 
+  // 별도 창이 열리면 즉시 최신 메타 재전송
   useEffect(() => {
-    const handler = (e) => setProgPopup(e.detail)
-    document.addEventListener('openProgressPopup', handler)
-    return () => document.removeEventListener('openProgressPopup', handler)
+    const ready = new BroadcastChannel('progress_screen_ready')
+    ready.onmessage = () => {
+      if (lastPayloadRef.current) {
+        const ch = new BroadcastChannel('progress_screen')
+        ch.postMessage(lastPayloadRef.current)
+        ch.close()
+      }
+    }
+    return () => ready.close()
+  }, [])
+
+  // 별도 창에서 갱신 신호 수신 → 메인 창도 재계산
+  useEffect(() => {
+    const ch = new BroadcastChannel('progress_screen')
+    ch.onmessage = (e) => {
+      if (e.data?.type === 'refresh') setTick(t => t + 1)
+    }
+    return () => ch.close()
   }, [])
 
   const students = cls ? StudentsDB.byClass(cls.id) : []
@@ -298,6 +432,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
         cls={cls} date={date} students={students}
         spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks}
         onProgOpen={(s, pid) => { setProgStudent({...s, _clsId: cls.id}); setProgProductId(pid) }}
+        onOpenScreen={(payload) => { lastPayloadRef.current = payload }}
       />
       {progStudent && ReactDOM.createPortal(
         <ProgCheckModal
@@ -309,18 +444,13 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
             setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
             setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
             setTick(t => t+1)
+            // 별도 창에 갱신 신호 전송
+            const ch = new BroadcastChannel('progress_screen')
+            ch.postMessage({ type: 'refresh' })
+            ch.close()
           }}
         />,
         document.body
-      )}
-      {progPopup && (
-        <ProgressClassPopup
-          checkedToday={progPopup.checkedToday}
-          notCheckedToday={progPopup.notCheckedToday}
-          cls={progPopup.cls}
-          date={progPopup.date}
-          onClose={() => setProgPopup(null)}
-        />
       )}
     </>
   )
@@ -2639,6 +2769,10 @@ function MobileAttendance({ user, pageParams = {} }) {
 }
 
 export function Attendance({ user, pageParams = {} }) {
+  // 별도 창(수업 화면) 모드
+  if (new URLSearchParams(window.location.search).get('progress_screen') === '1') {
+    return <ProgressWindow />
+  }
   const isMobile = window.innerWidth <= 768
   if (isMobile) return <MobileAttendance user={user} pageParams={pageParams} />
   const today = todayStr()
