@@ -414,15 +414,6 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
     return () => ready.close()
   }, [])
 
-  // 별도 창에서 갱신 신호 수신 → 메인 창도 재계산
-  useEffect(() => {
-    const ch = new BroadcastChannel('progress_screen')
-    ch.onmessage = (e) => {
-      if (e.data?.type === 'refresh') setTick(t => t + 1)
-    }
-    return () => ch.close()
-  }, [])
-
   const students = cls ? StudentsDB.byClass(cls.id) : []
   if (!cls || !classId) return null
 
@@ -2981,6 +2972,15 @@ export function Attendance({ user, pageParams = {} }) {
   const prevMonth = () => { if (calMonth===0){setCalYear(y=>y-1);setCalMonth(11)}else setCalMonth(m=>m-1) }
   const nextMonth = () => { if (calMonth===11){setCalYear(y=>y+1);setCalMonth(0)}else setCalMonth(m=>m+1) }
   const goToday   = () => { const d=new Date(); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); setSelDate(today) }
+
+  // 별도 창(ProgressWindow)에서 진도체크 시 메인 창 강제 갱신
+  useEffect(() => {
+    const ch = new BroadcastChannel('progress_screen')
+    ch.onmessage = (e) => {
+      if (e.data?.type === 'refresh') setRightPanelTick(t => t + 1)
+    }
+    return () => ch.close()
+  }, [])
 
   const isSessionDate = sessionDates.includes(selDate)  // 달력에서 수업일 클릭 시에만 출석체크 패널
   const isPast = selDate <= today
