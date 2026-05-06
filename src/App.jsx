@@ -7,7 +7,7 @@ import { Dashboard } from './pages/Dashboard.jsx'
 import { Classes } from './pages/Classes.jsx'
 import { Students } from './pages/Students.jsx'
 import { StudentConfirm } from './pages/StudentConfirm.jsx'
-import { Attendance } from './pages/Attendance.jsx'
+import { Attendance, ProgressWindow } from './pages/Attendance.jsx'
 import { Reports } from './pages/Reports.jsx'
 import { Templates } from './pages/Templates.jsx'
 import { PrintSetup } from './pages/PrintSetup.jsx'
@@ -231,6 +231,9 @@ export default function App() {
   }, [])
 
   // ─── 조건부 렌더링 (모든 훅 선언 완료 후) ────────────────────────
+
+  // 진도 수업 화면 별도 창
+  if (new URLSearchParams(search).get('progress_screen') === '1') return <ProgressWindow />
 
   // 블로그 — 공개 페이지 (로그인 불필요, SEO용)
   if (pathname.startsWith('/blog')) return <Blog />
