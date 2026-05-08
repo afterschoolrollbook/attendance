@@ -851,16 +851,12 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const [givenNewDate, setGivenNewDate] = React.useState('')
   const [givenSaving, setGivenSaving] = React.useState(false)
 
-  // ref로 si/product 캐싱 → onSaved 후 리렌더링돼도 모달 절대 안 닫힘
-  const _siRef = React.useRef(SupplyItems.byClassStudent(classId, student.id)[0] || null)
-  const _productRef = React.useRef(SupplyProducts.byTeacher(teacherId || '').find(p => p.id === selProductId) || null)
+  // 렌더링마다 DB 직접 조회 (teacherId로 직접 읽어서 prop 교체 영향 없음)
   const _freshSi = SupplyItems.byClassStudent(classId, student.id)[0]
   const _freshProds = SupplyProducts.byTeacher(teacherId || '')
   const _freshProduct = _freshProds.find(p => p.id === selProductId)
-  if (_freshSi) _siRef.current = _freshSi
-  if (_freshProduct) _productRef.current = _freshProduct
-  const si = _siRef.current
-  const product = _productRef.current
+  const si = _freshSi
+  const product = _freshProduct
 
   // si/product 없어도 모달 유지 (닫기 버튼으로만 닫힘)
   if (!si || !product) return (
@@ -1851,7 +1847,7 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
             spProds={spProds}
             teacherId={cls.teacherId||''}
             onClose={() => setProgStudent(null)}
-            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls.teacherId||'')); setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||'')); setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||'')); setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type: 'refresh' }); ch.close() }}
+            onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type: 'refresh' }); ch.close() }}
           />
         )
       })()}
@@ -2167,7 +2163,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
             spProds={spProds}
             teacherId={cls?.teacherId||''}
             onClose={() => setProgStudent(null)}
-            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls?.teacherId||'')); setSpProg(SupplyStudentProgress.byTeacher(cls?.teacherId||'')); setSpChecks(SupplySessionChecks.byTeacher(cls?.teacherId||'')); setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type: 'refresh' }); ch.close() }}
+            onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type: 'refresh' }); ch.close() }}
           />
         )
       })()}
