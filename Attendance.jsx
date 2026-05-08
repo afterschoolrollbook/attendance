@@ -1843,29 +1843,24 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
       </div>
       {msgStudent && <MsgModal student={msgStudent} cls={cls} user={user} onClose={() => setMsgStudent(null)} />}
       {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
-      {progStudent && (() => {
-        const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
-        if (!si?.productId) return null
-        return (
-          <ProgCheckModal
-            student={progStudent}
-            initialProductId={progProductId}
-            spProds={spProds}
-            teacherId={cls.teacherId||''}
-            onClose={() => setProgStudent(null)}
-            onSaved={() => {
-              setSpItems(SupplyItems.byTeacher(cls.teacherId||''));
-              setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''));
-              setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''));
-              setProgTick(t => t+1);
-              // ✅ 왼쪽 패널(LessonMemoPanel)에도 갱신 신호 전송
-              const ch = new BroadcastChannel('progress_screen');
-              ch.postMessage({ type: 'refresh' });
-              ch.close();
-            }}
-          />
-        )
-      })()}
+      {progStudent && progProductId && (
+        <ProgCheckModal
+          student={progStudent}
+          initialProductId={progProductId}
+          spProds={spProds}
+          teacherId={cls.teacherId||''}
+          onClose={() => setProgStudent(null)}
+          onSaved={() => {
+            setSpItems(SupplyItems.byTeacher(cls.teacherId||''));
+            setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''));
+            setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''));
+            setProgTick(t => t+1);
+            const ch = new BroadcastChannel('progress_screen');
+            ch.postMessage({ type: 'refresh' });
+            ch.close();
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -2168,29 +2163,24 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
 
       {msgStudent  && <MsgModal student={msgStudent} cls={cls} user={user} onClose={() => setMsgStudent(null)} />}
       {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
-      {progStudent && (() => {
-        const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
-        if (!si?.productId) return null
-        return (
-          <ProgCheckModal
-            student={progStudent}
-            initialProductId={progProductId}
-            spProds={spProds}
-            teacherId={cls?.teacherId||''}
-            onClose={() => setProgStudent(null)}
-            onSaved={() => {
-              setSpItems(SupplyItems.byTeacher(cls?.teacherId||''));
-              setSpProg(SupplyStudentProgress.byTeacher(cls?.teacherId||''));
-              setSpChecks(SupplySessionChecks.byTeacher(cls?.teacherId||''));
-              setProgTick(t => t+1);
-              // ✅ 왼쪽 패널(LessonMemoPanel)에도 갱신 신호 전송
-              const ch = new BroadcastChannel('progress_screen');
-              ch.postMessage({ type: 'refresh' });
-              ch.close();
-            }}
-          />
-        )
-      })()}
+      {progStudent && progProductId && (
+        <ProgCheckModal
+          student={progStudent}
+          initialProductId={progProductId}
+          spProds={spProds}
+          teacherId={cls?.teacherId||''}
+          onClose={() => setProgStudent(null)}
+          onSaved={() => {
+            setSpItems(SupplyItems.byTeacher(cls?.teacherId||''));
+            setSpProg(SupplyStudentProgress.byTeacher(cls?.teacherId||''));
+            setSpChecks(SupplySessionChecks.byTeacher(cls?.teacherId||''));
+            setProgTick(t => t+1);
+            const ch = new BroadcastChannel('progress_screen');
+            ch.postMessage({ type: 'refresh' });
+            ch.close();
+          }}
+        />
+      )}
     </div>
   )
 }
