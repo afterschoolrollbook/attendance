@@ -401,6 +401,22 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
   }, [cls?.id, date, tick])
 
+  // 수업화면(별도 창)에서 진도체크 시 왼쪽 패널 갱신
+  useEffect(() => {
+    const ch = new BroadcastChannel('progress_screen')
+    ch.onmessage = (e) => {
+      if (e.data?.type === 'refresh') {
+        if (!cls) return
+        setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
+        setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
+        setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
+        setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+        setTick(t => t+1)
+      }
+    }
+    return () => ch.close()
+  }, [cls?.id])
+
   // 별도 창이 열리면 즉시 최신 메타 재전송
   useEffect(() => {
     const ready = new BroadcastChannel('progress_screen_ready')
@@ -437,7 +453,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
             setTick(t => t+1)
             // 별도 창에 갱신 신호 전송
             const ch = new BroadcastChannel('progress_screen')
-            ch.postMessage({ type: 'refresh' })
+            ch.postMessage({ type: 'refresh', source: 'main' })
             ch.close()
           }}
         />,
@@ -1842,7 +1858,7 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
           spProds={spProds}
           teacherId={cls.teacherId||''}
           onClose={() => setProgStudent(null)}
-          onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type:'refresh' }); ch.close() }}
+          onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type:'refresh', source:'main' }); ch.close() }}
         />
       )}
     </div>
@@ -1928,7 +1944,16 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
   }, [progTick])
 
-  // 수업 준비 메모 (미래 수업일 때만 사용)
+  // 수업화면(별도 창) 및 왼쪽 패널 진도체크 시 오른쪽 패널 갱신
+  // setProgTick만 호출 → 리마운트 없이 데이터만 갱신 (모달 유지됨)
+  useEffect(() => {
+    if (!cls) return
+    const ch = new BroadcastChannel('progress_screen')
+    ch.onmessage = (e) => {
+      if (e.data?.type === 'refresh') setProgTick(t => t+1)
+    }
+    return () => ch.close()
+  }, [cls?.id])
   const noteKey = cls ? date+'_'+cls.id : null
   const [notes,   setNotes]   = useState(() => noteKey ? Notes.byTeacherDate(cls.teacherId, noteKey) : [])
   const [newNote, setNewNote] = useState('')
@@ -2154,7 +2179,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
           spProds={spProds}
           teacherId={cls?.teacherId||''}
           onClose={() => setProgStudent(null)}
-          onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type:'refresh' }); ch.close() }}
+          onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type:'refresh', source:'main' }); ch.close() }}
         />
       )}
     </div>
@@ -2748,7 +2773,7 @@ function MobileAttendance({ user, pageParams = {} }) {
           spProds={spProds}
           teacherId={selClass?.teacherId||''}
           onClose={() => setProgStudent(null)}
-          onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type:'refresh' }); ch.close() }}
+          onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type:'refresh', source:'main' }); ch.close() }}
         />
       )}
 
@@ -2983,7 +3008,7 @@ export function Attendance({ user, pageParams = {} }) {
   useEffect(() => {
     const ch = new BroadcastChannel('progress_screen')
     ch.onmessage = (e) => {
-      if (e.data?.type === 'refresh') setRightPanelTick(t => t + 1)
+      if (e.data?.type === 'refresh' && e.data?.source !== 'main') { /* 각 패널 자체 리스너가 처리 */ }
     }
     return () => ch.close()
   }, [])
