@@ -1146,7 +1146,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
   const note = s.memo || ''
   const [showInfo, setShowInfo] = useState(false)
   const [memoOpen, setMemoOpen] = useState(false)
-  const [memo, setMemo] = useState('')
+  const [memo, setMemo] = useState(s.memo || '')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteSent, setInviteSent] = useState(!!s.parentInviteSentAt)
   const [fscOpen, setFscOpen] = useState(false)
@@ -1363,8 +1363,8 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteSent, setInviteSent] = useState(!!s.parentInviteSentAt)
   const [localMemo, setLocalMemo] = useState(s.memo || '')
-
-  // ── 교구 준비 알림 사전 계산 (이름 위 뱃지용)
+  const { success } = useToast()
+  useEffect(() => { setLocalMemo(s.memo || '') }, [s.memo])
   const _cid = classId || s.classIds?.[0] || ''
   const _si = spItems.find(i => i.studentId === s.id && i.classId === _cid)
   const _prod = _si?.productId ? spProds.find(p => p.id === _si.productId) : null
@@ -1514,7 +1514,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
           {localMemo && (
             <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
               👤 {localMemo}
-              <button onClick={() => { StudentsDB.update(s.id, { memo: '' }); setLocalMemo('') }}
+              <button onClick={() => { StudentsDB.update(s.id, { memo: '' }); setLocalMemo(''); success('메모가 삭제되었습니다.'); onMark(s.id, status, {}) }}
                 style={{ fontSize: '10px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', padding: '0', lineHeight: 1 }}>✕</button>
             </div>
           )}
