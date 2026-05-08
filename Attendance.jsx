@@ -194,7 +194,7 @@ export function ProgressWindow() {
     const ch = new BroadcastChannel('progress_screen')
     ch.onmessage = (e) => {
       if (e.data.type === 'refresh') {
-        // 메인 창이 갱신됐을 때 → 별도 창도 재계산 (모달은 닫지 않음)
+        // 메인 창이 갱신됐을 때 → 별도 창도 재계산
         setTick(t => t + 1)
         setLastUpdated(new Date())
       } else {
@@ -383,7 +383,7 @@ export function ProgressWindow() {
 }
 
 // ─── 수업 메모장 래퍼
-function LessonMemoPanelWrapper({ cls, date, classId, tick: externalTick, onProgClose }) {
+function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
   const [spItems,  setSpItems]  = useState(() => cls ? SupplyItems.byTeacher(cls.teacherId||'') : [])
   const [spProds,  setSpProds]  = useState(() => cls ? SupplyProducts.byTeacher(cls.teacherId||'') : [])
   const [spProg,   setSpProg]   = useState(() => cls ? SupplyStudentProgress.byTeacher(cls.teacherId||'') : [])
@@ -399,15 +399,13 @@ function LessonMemoPanelWrapper({ cls, date, classId, tick: externalTick, onProg
     setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
     setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
-  }, [cls?.id, date, tick, externalTick])
+  }, [cls?.id, date, tick])
 
-  // 별도 창(ProgressWindow)에서 체크 시 → 왼쪽 패널 갱신
+  // 오른쪽 진도창/왼쪽 진도체크 체크 시 → 즉시 갱신
   useEffect(() => {
     const ch = new BroadcastChannel('progress_screen')
     ch.onmessage = (e) => {
-      if (e.data.type === 'refresh') {
-        setTick(t => t + 1)
-      }
+      if (e.data?.type === 'refresh') setTick(t => t + 1)
     }
     return () => ch.close()
   }, [])
@@ -849,21 +847,14 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   })
   const [remoteNoSaved, setRemoteNoSaved] = React.useState(false)
   const [tick, setTick] = React.useState(0)
-  const [nextProductId, setNextProductId] = React.useState(prog?.nextProductId || '')
-  const [nextStage, setNextStage] = React.useState(prog?.nextStage || 1)
-  const [nextSaved, setNextSaved] = React.useState(false)
-  const [givenNewItem, setGivenNewItem] = React.useState('')
-  const [givenNewDate, setGivenNewDate] = React.useState('')
-  const [givenSaving, setGivenSaving] = React.useState(false)
 
-  // tick 변경 시 최신 DB값 반영 (모달은 절대 닫히지 않음)
   const si = SupplyItems.byClassStudent(classId, student.id)[0]
-  const allProds = SupplyProducts.byTeacher(teacherId || '')
-  const product = allProds.find(p => p.id === selProductId) || allProds[0]
-  const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === selProductId)
+  const product = spProds.find(p => p.id === selProductId)
+  if (!si || !product) return null
 
   const spp = product.sessionsPerStage || 12
   const alertSess = product.alertSession || 3
+  const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === selProductId)
   const curStage = prog?.curStage || selStage || 1
   const maxShowStage = Math.max(selStage, curStage)
   const STAGES = Array.from({ length: maxShowStage }, (_, i) => i + 1)
@@ -873,13 +864,21 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const origStage = si?.stage ? Number(si.stage) : 1
   const isChanged = selProductId !== origProductId || selStage !== origStage
 
+  // 다음 진도 state
+  const [nextProductId, setNextProductId] = React.useState(prog?.nextProductId || '')
+  const [nextStage, setNextStage] = React.useState(prog?.nextStage || 1)
+  const [nextSaved, setNextSaved] = React.useState(false)
   const nextProduct = spProds.find(p => p.id === nextProductId)
   const nextMaxStage = nextProduct?.maxStage || 10
   const origNextProductId = prog?.nextProductId || ''
   const origNextStage = prog?.nextStage || 1
   const isNextChanged = nextProductId !== origNextProductId || Number(nextStage) !== Number(origNextStage)
 
+  // 교구 지급일 state
   const givenRecords = SupplyGiven.byStudentClass(student.id, classId)
+  const [givenNewItem, setGivenNewItem] = React.useState('')
+  const [givenNewDate, setGivenNewDate] = React.useState('')
+  const [givenSaving, setGivenSaving] = React.useState(false)
 
   const handleAddGiven = async () => {
     if (!givenNewItem.trim() || !givenNewDate) return
@@ -958,9 +957,6 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
 
   return (
     <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
-      {(!si || !product) ? (
-        <div style={{ padding:'40px', textAlign:'center', color:'#9ca3af' }}>불러오는 중...</div>
-      ) : (
       <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
         {/* 교구 시리즈 / 단계 변경 */}
         <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', marginBottom:'16px' }}>
@@ -1151,7 +1147,6 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           닫기
         </button>
       </div>
-      )}
     </Modal>
   )
 }
@@ -1160,7 +1155,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
   const note = s.memo || ''
   const [showInfo, setShowInfo] = useState(false)
   const [memoOpen, setMemoOpen] = useState(false)
-  const [memo, setMemo] = useState(s.memo || '')
+  const [memo, setMemo] = useState('')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteSent, setInviteSent] = useState(!!s.parentInviteSentAt)
   const [fscOpen, setFscOpen] = useState(false)
@@ -1306,11 +1301,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
         {/* 특이사항·메모 */}
         <div>
           {s.memo && (
-            <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '5px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-              👤 {s.memo}
-              <button onClick={() => { setMemo(''); StudentsDB.update(s.id, { memo: '' }) }}
-                style={{ fontSize: '10px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', padding: '0', lineHeight: 1 }}>✕</button>
-            </div>
+            <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '5px', display: 'inline-block' }}>👤 {s.memo}</div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
             {memo
@@ -1376,9 +1367,8 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
   const appendNote = (text) => setField('note', note ? note + ' / ' + text : text)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteSent, setInviteSent] = useState(!!s.parentInviteSentAt)
-  const [localMemo, setLocalMemo] = useState(s.memo || '')
-  const { success } = useToast()
-  useEffect(() => { setLocalMemo(s.memo || '') }, [s.memo])
+
+  // ── 교구 준비 알림 사전 계산 (이름 위 뱃지용)
   const _cid = classId || s.classIds?.[0] || ''
   const _si = spItems.find(i => i.studentId === s.id && i.classId === _cid)
   const _prod = _si?.productId ? spProds.find(p => p.id === _si.productId) : null
@@ -1525,12 +1515,8 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
 
         {/* 특이사항·메모 (귀가방법 배지 포함) */}
         <div>
-          {localMemo && (
-            <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-              👤 {localMemo}
-              <button onClick={() => { StudentsDB.update(s.id, { memo: '' }); setLocalMemo(''); success('메모가 삭제되었습니다.'); onMark(s.id, status, {}) }}
-                style={{ fontSize: '10px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', padding: '0', lineHeight: 1 }}>✕</button>
-            </div>
+          {s.memo && (
+            <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-block' }}>👤 {s.memo}</div>
           )}
           {s.homeReturn && (
             <div style={{ fontSize: '11px', color: '#1d4ed8', background: '#eff6ff', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-block', marginLeft: s.memo ? '4px' : 0 }}>🚌 {s.homeReturn}</div>
@@ -1662,7 +1648,7 @@ function NoteInline({ note, onSave, studentMemo, placeholder = '특이사항 메
             style={{ fontSize:'11px', color:C.muted, background:'none', border:'none', cursor:'pointer', textDecoration:'underline', fontFamily:'Noto Sans KR, sans-serif' }}>
             {note ? '편집' : '+ 메모'}
           </button>
-          {note && <button onClick={() => { onSave(''); success('메모가 삭제되었습니다.') }} style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>}
+          {note && <button onClick={() => onSave('')} style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>}
         </div>
       )}
     </div>
@@ -1843,24 +1829,25 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
       </div>
       {msgStudent && <MsgModal student={msgStudent} cls={cls} user={user} onClose={() => setMsgStudent(null)} />}
       {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
-      {progStudent && progProductId && (
-        <ProgCheckModal
-          student={progStudent}
-          initialProductId={progProductId}
-          spProds={spProds}
-          teacherId={cls.teacherId||''}
-          onClose={() => setProgStudent(null)}
-          onSaved={() => {
-            setSpItems(SupplyItems.byTeacher(cls.teacherId||''));
-            setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''));
-            setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''));
-            setProgTick(t => t+1);
-            const ch = new BroadcastChannel('progress_screen');
-            ch.postMessage({ type: 'refresh' });
-            ch.close();
-          }}
-        />
-      )}
+      {progStudent && (() => {
+        const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
+        if (!si?.productId && !progProductId) return null
+        return (
+          <ProgCheckModal
+            student={progStudent}
+            initialProductId={progProductId}
+            spProds={spProds}
+            teacherId={cls.teacherId||''}
+            onClose={() => setProgStudent(null)}
+            onSaved={() => {
+              setProgTick(t => t+1)
+              const ch = new BroadcastChannel('progress_screen')
+              ch.postMessage({ type: 'refresh' })
+              ch.close()
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }
@@ -2163,24 +2150,25 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
 
       {msgStudent  && <MsgModal student={msgStudent} cls={cls} user={user} onClose={() => setMsgStudent(null)} />}
       {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
-      {progStudent && progProductId && (
-        <ProgCheckModal
-          student={progStudent}
-          initialProductId={progProductId}
-          spProds={spProds}
-          teacherId={cls?.teacherId||''}
-          onClose={() => setProgStudent(null)}
-          onSaved={() => {
-            setSpItems(SupplyItems.byTeacher(cls?.teacherId||''));
-            setSpProg(SupplyStudentProgress.byTeacher(cls?.teacherId||''));
-            setSpChecks(SupplySessionChecks.byTeacher(cls?.teacherId||''));
-            setProgTick(t => t+1);
-            const ch = new BroadcastChannel('progress_screen');
-            ch.postMessage({ type: 'refresh' });
-            ch.close();
-          }}
-        />
-      )}
+      {progStudent && (() => {
+        const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
+        if (!si?.productId && !progProductId) return null
+        return (
+          <ProgCheckModal
+            student={progStudent}
+            initialProductId={progProductId}
+            spProds={spProds}
+            teacherId={cls?.teacherId||''}
+            onClose={() => setProgStudent(null)}
+            onSaved={() => {
+              setProgTick(t => t+1)
+              const ch = new BroadcastChannel('progress_screen')
+              ch.postMessage({ type: 'refresh' })
+              ch.close()
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }
@@ -2767,7 +2755,7 @@ function MobileAttendance({ user, pageParams = {} }) {
       {/* 진도 체크 모달 */}
       {progStudent && progProductId && (() => {
         const si = SupplyItems.byClassStudent(progStudent._clsId || '', progStudent.id)[0]
-        if (!si?.productId) return null
+        if (!si?.productId && !progProductId) return null
         return (
           <ProgCheckModal
             student={progStudent}
@@ -2775,7 +2763,12 @@ function MobileAttendance({ user, pageParams = {} }) {
             spProds={spProds}
             teacherId={selClass?.teacherId||''}
             onClose={() => setProgStudent(null)}
-            onSaved={() => setProgTick(t => t+1)}
+            onSaved={() => {
+              setProgTick(t => t+1)
+              const ch = new BroadcastChannel('progress_screen')
+              ch.postMessage({ type: 'refresh' })
+              ch.close()
+            }}
           />
         )
       })()}
@@ -3210,7 +3203,7 @@ export function Attendance({ user, pageParams = {} }) {
               })}
             </div>
           )}
-          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} key={selDate+selClassId} tick={rightPanelTick} onProgClose={() => setRightPanelTick(t => t+1)} />
+          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} key={selDate+selClassId+rightPanelTick} onProgClose={() => setRightPanelTick(t => t+1)} />
         </div>
 
         {/* 오른쪽 패널 */}
