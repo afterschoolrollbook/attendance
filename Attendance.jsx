@@ -851,9 +851,8 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const [tick, setTick] = React.useState(0)
 
   const si = SupplyItems.byClassStudent(classId, student.id)[0]
-  const [localProds, setLocalProds] = React.useState(() => spProds)
-  React.useEffect(() => { if (spProds.length > 0) setLocalProds(spProds) }, [spProds])
-  const product = localProds.find(p => p.id === selProductId)
+  const internalProds = SupplyProducts.byTeacher(teacherId || '')
+  const product = internalProds.find(p => p.id === selProductId)
   if (!si || !product) return null
 
   const spp = product.sessionsPerStage || 12
