@@ -401,15 +401,6 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
   }, [cls?.id, date, tick])
 
-  // 오른쪽 진도창/왼쪽 진도체크 체크 시 → 즉시 갱신
-  useEffect(() => {
-    const ch = new BroadcastChannel('progress_screen')
-    ch.onmessage = (e) => {
-      if (e.data?.type === 'refresh') setTick(t => t + 1)
-    }
-    return () => ch.close()
-  }, [])
-
   // 별도 창이 열리면 즉시 최신 메타 재전송
   useEffect(() => {
     const ready = new BroadcastChannel('progress_screen_ready')
@@ -956,7 +947,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   }
 
   return (
-    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+    <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={600}>
       <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
         {/* 교구 시리즈 / 단계 변경 */}
         <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', marginBottom:'16px' }}>
