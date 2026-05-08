@@ -194,7 +194,7 @@ export function ProgressWindow() {
     const ch = new BroadcastChannel('progress_screen')
     ch.onmessage = (e) => {
       if (e.data.type === 'refresh') {
-        // 메인 창이 갱신됐을 때 → 별도 창도 재계산
+        // 메인 창이 갱신됐을 때 → 별도 창도 재계산 (모달은 닫지 않음)
         setTick(t => t + 1)
         setLastUpdated(new Date())
       } else {
@@ -400,6 +400,17 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
     setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
   }, [cls?.id, date, tick])
+
+  // 별도 창(ProgressWindow)에서 체크 시 → 왼쪽 패널 갱신
+  useEffect(() => {
+    const ch = new BroadcastChannel('progress_screen')
+    ch.onmessage = (e) => {
+      if (e.data.type === 'refresh') {
+        setTick(t => t + 1)
+      }
+    }
+    return () => ch.close()
+  }, [])
 
   // 별도 창이 열리면 즉시 최신 메타 재전송
   useEffect(() => {
@@ -840,7 +851,9 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const [tick, setTick] = React.useState(0)
 
   const si = SupplyItems.byClassStudent(classId, student.id)[0]
-  const product = spProds.find(p => p.id === selProductId)
+  const [localProds, setLocalProds] = React.useState(() => spProds)
+  React.useEffect(() => { if (spProds.length > 0) setLocalProds(spProds) }, [spProds])
+  const product = localProds.find(p => p.id === selProductId)
   if (!si || !product) return null
 
   const spp = product.sessionsPerStage || 12
