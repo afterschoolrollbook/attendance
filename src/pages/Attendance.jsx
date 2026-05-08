@@ -839,9 +839,38 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const [remoteNoSaved, setRemoteNoSaved] = React.useState(false)
   const [tick, setTick] = React.useState(0)
 
-  const si = SupplyItems.byClassStudent(classId, student.id)[0]
-  const product = spProds.find(p => p.id === selProductId)
-  if (!si || !product) return null
+  // 반드시 return null 전에 모든 hooks 선언
+  const [nextProductId, setNextProductId] = React.useState(initialProductId
+    ? (SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === initialProductId)?.nextProductId || '')
+    : '')
+  const [nextStage, setNextStage] = React.useState(initialProductId
+    ? (SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === initialProductId)?.nextStage || 1)
+    : 1)
+  const [nextSaved, setNextSaved] = React.useState(false)
+  const [givenNewItem, setGivenNewItem] = React.useState('')
+  const [givenNewDate, setGivenNewDate] = React.useState('')
+  const [givenSaving, setGivenSaving] = React.useState(false)
+
+  // ref로 si/product 캐싱 → onSaved 후 리렌더링돼도 모달 절대 안 닫힘
+  const _siRef = React.useRef(SupplyItems.byClassStudent(classId, student.id)[0] || null)
+  const _productRef = React.useRef(SupplyProducts.byTeacher(teacherId || '').find(p => p.id === selProductId) || null)
+  const _freshSi = SupplyItems.byClassStudent(classId, student.id)[0]
+  const _freshProds = SupplyProducts.byTeacher(teacherId || '')
+  const _freshProduct = _freshProds.find(p => p.id === selProductId)
+  if (_freshSi) _siRef.current = _freshSi
+  if (_freshProduct) _productRef.current = _freshProduct
+  const si = _siRef.current
+  const product = _productRef.current
+
+  // si/product 없어도 모달 유지 (닫기 버튼으로만 닫힘)
+  if (!si || !product) return (
+    <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={600}>
+      <div style={{ padding:'60px', textAlign:'center', color:'#9ca3af', fontSize:'14px' }}>불러오는 중...</div>
+      <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb' }}>
+        <button onClick={onClose} style={{ width:'100%', padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>닫기</button>
+      </div>
+    </Modal>
+  )
 
   const spp = product.sessionsPerStage || 12
   const alertSess = product.alertSession || 3
@@ -855,21 +884,13 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const origStage = si?.stage ? Number(si.stage) : 1
   const isChanged = selProductId !== origProductId || selStage !== origStage
 
-  // 다음 진도 state
-  const [nextProductId, setNextProductId] = React.useState(prog?.nextProductId || '')
-  const [nextStage, setNextStage] = React.useState(prog?.nextStage || 1)
-  const [nextSaved, setNextSaved] = React.useState(false)
-  const nextProduct = spProds.find(p => p.id === nextProductId)
+  const nextProduct = _freshProds.find(p => p.id === nextProductId)
   const nextMaxStage = nextProduct?.maxStage || 10
   const origNextProductId = prog?.nextProductId || ''
   const origNextStage = prog?.nextStage || 1
   const isNextChanged = nextProductId !== origNextProductId || Number(nextStage) !== Number(origNextStage)
 
-  // 교구 지급일 state
   const givenRecords = SupplyGiven.byStudentClass(student.id, classId)
-  const [givenNewItem, setGivenNewItem] = React.useState('')
-  const [givenNewDate, setGivenNewDate] = React.useState('')
-  const [givenSaving, setGivenSaving] = React.useState(false)
 
   const handleAddGiven = async () => {
     if (!givenNewItem.trim() || !givenNewDate) return
@@ -947,7 +968,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   }
 
   return (
-    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+    <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={600}>
       <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
         {/* 교구 시리즈 / 단계 변경 */}
         <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', marginBottom:'16px' }}>
@@ -1830,7 +1851,7 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
             spProds={spProds}
             teacherId={cls.teacherId||''}
             onClose={() => setProgStudent(null)}
-            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls.teacherId||'')); setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||'')); setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||'')); setProgTick(t => t+1) }}
+            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls.teacherId||'')); setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||'')); setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||'')); setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type: 'refresh' }); ch.close() }}
           />
         )
       })()}
@@ -2146,7 +2167,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
             spProds={spProds}
             teacherId={cls?.teacherId||''}
             onClose={() => setProgStudent(null)}
-            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls?.teacherId||'')); setSpProg(SupplyStudentProgress.byTeacher(cls?.teacherId||'')); setSpChecks(SupplySessionChecks.byTeacher(cls?.teacherId||'')); setProgTick(t => t+1) }}
+            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls?.teacherId||'')); setSpProg(SupplyStudentProgress.byTeacher(cls?.teacherId||'')); setSpChecks(SupplySessionChecks.byTeacher(cls?.teacherId||'')); setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type: 'refresh' }); ch.close() }}
           />
         )
       })()}
@@ -2744,7 +2765,7 @@ function MobileAttendance({ user, pageParams = {} }) {
             spProds={spProds}
             teacherId={selClass?.teacherId||''}
             onClose={() => setProgStudent(null)}
-            onSaved={() => setProgTick(t => t+1)}
+            onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type: 'refresh' }); ch.close() }}
           />
         )
       })()}
