@@ -849,27 +849,6 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   })
   const [remoteNoSaved, setRemoteNoSaved] = React.useState(false)
   const [tick, setTick] = React.useState(0)
-
-  // si, product를 state로 캐싱 → tick 변경 시 리렌더링돼도 절대 null 반환 안 함
-  const [cachedSi, setCachedSi] = React.useState(() => SupplyItems.byClassStudent(classId, student.id)[0])
-  const [cachedProduct, setCachedProduct] = React.useState(() => {
-    const prods = SupplyProducts.byTeacher(teacherId || '')
-    return prods.find(p => p.id === (initialProductId || ''))
-  })
-
-  React.useEffect(() => {
-    const si = SupplyItems.byClassStudent(classId, student.id)[0]
-    if (si) setCachedSi(si)
-    const prods = SupplyProducts.byTeacher(teacherId || '')
-    const prod = prods.find(p => p.id === selProductId)
-    if (prod) setCachedProduct(prod)
-  }, [tick, selProductId])
-
-  const si = cachedSi
-  const product = cachedProduct
-
-  // ── 모든 hooks를 return null 이전에 선언 (React rules of hooks)
-  const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === selProductId)
   const [nextProductId, setNextProductId] = React.useState(prog?.nextProductId || '')
   const [nextStage, setNextStage] = React.useState(prog?.nextStage || 1)
   const [nextSaved, setNextSaved] = React.useState(false)
@@ -877,7 +856,11 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const [givenNewDate, setGivenNewDate] = React.useState('')
   const [givenSaving, setGivenSaving] = React.useState(false)
 
-  if (!si || !product) return null
+  // tick 변경 시 최신 DB값 반영 (모달은 절대 닫히지 않음)
+  const si = SupplyItems.byClassStudent(classId, student.id)[0]
+  const allProds = SupplyProducts.byTeacher(teacherId || '')
+  const product = allProds.find(p => p.id === selProductId) || allProds[0]
+  const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === selProductId)
 
   const spp = product.sessionsPerStage || 12
   const alertSess = product.alertSession || 3
@@ -975,6 +958,9 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
 
   return (
     <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+      {(!si || !product) ? (
+        <div style={{ padding:'40px', textAlign:'center', color:'#9ca3af' }}>불러오는 중...</div>
+      ) : (
       <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
         {/* 교구 시리즈 / 단계 변경 */}
         <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', marginBottom:'16px' }}>
@@ -1165,6 +1151,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           닫기
         </button>
       </div>
+      )}
     </Modal>
   )
 }
