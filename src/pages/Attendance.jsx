@@ -838,30 +838,28 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   })
   const [remoteNoSaved, setRemoteNoSaved] = React.useState(false)
   const [tick, setTick] = React.useState(0)
-
-  // 반드시 return null 전에 모든 hooks 선언
-  const [nextProductId, setNextProductId] = React.useState(initialProductId
-    ? (SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === initialProductId)?.nextProductId || '')
-    : '')
-  const [nextStage, setNextStage] = React.useState(initialProductId
-    ? (SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === initialProductId)?.nextStage || 1)
-    : 1)
+  const [nextProductId, setNextProductId] = React.useState(() => {
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || ''))
+    return prog?.nextProductId || ''
+  })
+  const [nextStage, setNextStage] = React.useState(() => {
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || ''))
+    return prog?.nextStage || 1
+  })
   const [nextSaved, setNextSaved] = React.useState(false)
   const [givenNewItem, setGivenNewItem] = React.useState('')
   const [givenNewDate, setGivenNewDate] = React.useState('')
   const [givenSaving, setGivenSaving] = React.useState(false)
 
-  // 렌더링마다 DB 직접 조회 (teacherId로 직접 읽어서 prop 교체 영향 없음)
-  const _freshSi = SupplyItems.byClassStudent(classId, student.id)[0]
-  const _freshProds = SupplyProducts.byTeacher(teacherId || '')
-  const _freshProduct = _freshProds.find(p => p.id === selProductId)
-  const si = _freshSi
-  const product = _freshProduct
+  // 매 렌더링마다 DB 직접 조회 — prop 교체와 무관하게 항상 최신값
+  const si = SupplyItems.byClassStudent(classId, student.id)[0]
+  const allProds = SupplyProducts.byTeacher(teacherId || '')
+  const product = allProds.find(p => p.id === selProductId)
 
-  // si/product 없어도 모달 유지 (닫기 버튼으로만 닫힘)
+  // si/product 없어도 모달은 절대 닫히지 않음 — 닫기 버튼으로만 닫힘
   if (!si || !product) return (
     <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={600}>
-      <div style={{ padding:'60px', textAlign:'center', color:'#9ca3af', fontSize:'14px' }}>불러오는 중...</div>
+      <div style={{ padding:'60px', textAlign:'center', color:'#9ca3af' }}>불러오는 중...</div>
       <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb' }}>
         <button onClick={onClose} style={{ width:'100%', padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>닫기</button>
       </div>
@@ -880,7 +878,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const origStage = si?.stage ? Number(si.stage) : 1
   const isChanged = selProductId !== origProductId || selStage !== origStage
 
-  const nextProduct = _freshProds.find(p => p.id === nextProductId)
+  const nextProduct = allProds.find(p => p.id === nextProductId)
   const nextMaxStage = nextProduct?.maxStage || 10
   const origNextProductId = prog?.nextProductId || ''
   const origNextStage = prog?.nextStage || 1
@@ -1837,20 +1835,16 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
       </div>
       {msgStudent && <MsgModal student={msgStudent} cls={cls} user={user} onClose={() => setMsgStudent(null)} />}
       {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
-      {progStudent && (() => {
-        const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
-        if (!si?.productId) return null
-        return (
-          <ProgCheckModal
-            student={progStudent}
-            initialProductId={progProductId}
-            spProds={spProds}
-            teacherId={cls.teacherId||''}
-            onClose={() => setProgStudent(null)}
-            onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type: 'refresh' }); ch.close() }}
-          />
-        )
-      })()}
+      {progStudent && progProductId && (
+        <ProgCheckModal
+          student={progStudent}
+          initialProductId={progProductId}
+          spProds={spProds}
+          teacherId={cls.teacherId||''}
+          onClose={() => setProgStudent(null)}
+          onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type:'refresh' }); ch.close() }}
+        />
+      )}
     </div>
   )
 }
@@ -2153,20 +2147,16 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
 
       {msgStudent  && <MsgModal student={msgStudent} cls={cls} user={user} onClose={() => setMsgStudent(null)} />}
       {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
-      {progStudent && (() => {
-        const si = SupplyItems.byClassStudent(progStudent._clsId || progStudent.classIds?.[0]||'', progStudent.id)[0]
-        if (!si?.productId) return null
-        return (
-          <ProgCheckModal
-            student={progStudent}
-            initialProductId={progProductId}
-            spProds={spProds}
-            teacherId={cls?.teacherId||''}
-            onClose={() => setProgStudent(null)}
-            onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type: 'refresh' }); ch.close() }}
-          />
-        )
-      })()}
+      {progStudent && progProductId && (
+        <ProgCheckModal
+          student={progStudent}
+          initialProductId={progProductId}
+          spProds={spProds}
+          teacherId={cls?.teacherId||''}
+          onClose={() => setProgStudent(null)}
+          onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type:'refresh' }); ch.close() }}
+        />
+      )}
     </div>
   )
 }
@@ -2751,20 +2741,16 @@ function MobileAttendance({ user, pageParams = {} }) {
       {msgStudent && <MsgModal student={msgStudent} cls={selClass} user={user} onClose={() => setMsgStudent(null)} />}
 
       {/* 진도 체크 모달 */}
-      {progStudent && progProductId && (() => {
-        const si = SupplyItems.byClassStudent(progStudent._clsId || '', progStudent.id)[0]
-        if (!si?.productId) return null
-        return (
-          <ProgCheckModal
-            student={progStudent}
-            initialProductId={progProductId}
-            spProds={spProds}
-            teacherId={selClass?.teacherId||''}
-            onClose={() => setProgStudent(null)}
-            onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type: 'refresh' }); ch.close() }}
-          />
-        )
-      })()}
+      {progStudent && progProductId && (
+        <ProgCheckModal
+          student={progStudent}
+          initialProductId={progProductId}
+          spProds={spProds}
+          teacherId={selClass?.teacherId||''}
+          onClose={() => setProgStudent(null)}
+          onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type:'refresh' }); ch.close() }}
+        />
+      )}
 
       {/* 일괄 메시지 모달 */}
       {bulkModal && (
