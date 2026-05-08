@@ -383,7 +383,7 @@ export function ProgressWindow() {
 }
 
 // ─── 수업 메모장 래퍼
-function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
+function LessonMemoPanelWrapper({ cls, date, classId, tick: externalTick, onProgClose }) {
   const [spItems,  setSpItems]  = useState(() => cls ? SupplyItems.byTeacher(cls.teacherId||'') : [])
   const [spProds,  setSpProds]  = useState(() => cls ? SupplyProducts.byTeacher(cls.teacherId||'') : [])
   const [spProg,   setSpProg]   = useState(() => cls ? SupplyStudentProgress.byTeacher(cls.teacherId||'') : [])
@@ -399,7 +399,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
     setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
     setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
-  }, [cls?.id, date, tick])
+  }, [cls?.id, date, tick, externalTick])
 
   // 별도 창(ProgressWindow)에서 체크 시 → 왼쪽 패널 갱신
   useEffect(() => {
@@ -850,14 +850,37 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const [remoteNoSaved, setRemoteNoSaved] = React.useState(false)
   const [tick, setTick] = React.useState(0)
 
-  const si = SupplyItems.byClassStudent(classId, student.id)[0]
-  const internalProds = SupplyProducts.byTeacher(teacherId || '')
-  const product = internalProds.find(p => p.id === selProductId)
+  // si, product를 state로 캐싱 → tick 변경 시 리렌더링돼도 절대 null 반환 안 함
+  const [cachedSi, setCachedSi] = React.useState(() => SupplyItems.byClassStudent(classId, student.id)[0])
+  const [cachedProduct, setCachedProduct] = React.useState(() => {
+    const prods = SupplyProducts.byTeacher(teacherId || '')
+    return prods.find(p => p.id === (initialProductId || ''))
+  })
+
+  React.useEffect(() => {
+    const si = SupplyItems.byClassStudent(classId, student.id)[0]
+    if (si) setCachedSi(si)
+    const prods = SupplyProducts.byTeacher(teacherId || '')
+    const prod = prods.find(p => p.id === selProductId)
+    if (prod) setCachedProduct(prod)
+  }, [tick, selProductId])
+
+  const si = cachedSi
+  const product = cachedProduct
+
+  // ── 모든 hooks를 return null 이전에 선언 (React rules of hooks)
+  const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === selProductId)
+  const [nextProductId, setNextProductId] = React.useState(prog?.nextProductId || '')
+  const [nextStage, setNextStage] = React.useState(prog?.nextStage || 1)
+  const [nextSaved, setNextSaved] = React.useState(false)
+  const [givenNewItem, setGivenNewItem] = React.useState('')
+  const [givenNewDate, setGivenNewDate] = React.useState('')
+  const [givenSaving, setGivenSaving] = React.useState(false)
+
   if (!si || !product) return null
 
   const spp = product.sessionsPerStage || 12
   const alertSess = product.alertSession || 3
-  const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === selProductId)
   const curStage = prog?.curStage || selStage || 1
   const maxShowStage = Math.max(selStage, curStage)
   const STAGES = Array.from({ length: maxShowStage }, (_, i) => i + 1)
@@ -867,21 +890,13 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const origStage = si?.stage ? Number(si.stage) : 1
   const isChanged = selProductId !== origProductId || selStage !== origStage
 
-  // 다음 진도 state
-  const [nextProductId, setNextProductId] = React.useState(prog?.nextProductId || '')
-  const [nextStage, setNextStage] = React.useState(prog?.nextStage || 1)
-  const [nextSaved, setNextSaved] = React.useState(false)
   const nextProduct = spProds.find(p => p.id === nextProductId)
   const nextMaxStage = nextProduct?.maxStage || 10
   const origNextProductId = prog?.nextProductId || ''
   const origNextStage = prog?.nextStage || 1
   const isNextChanged = nextProductId !== origNextProductId || Number(nextStage) !== Number(origNextStage)
 
-  // 교구 지급일 state
   const givenRecords = SupplyGiven.byStudentClass(student.id, classId)
-  const [givenNewItem, setGivenNewItem] = React.useState('')
-  const [givenNewDate, setGivenNewDate] = React.useState('')
-  const [givenSaving, setGivenSaving] = React.useState(false)
 
   const handleAddGiven = async () => {
     if (!givenNewItem.trim() || !givenNewDate) return
@@ -3218,7 +3233,7 @@ export function Attendance({ user, pageParams = {} }) {
               })}
             </div>
           )}
-          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} key={selDate+selClassId} onProgClose={() => setRightPanelTick(t => t+1)} />
+          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} key={selDate+selClassId} tick={rightPanelTick} onProgClose={() => setRightPanelTick(t => t+1)} />
         </div>
 
         {/* 오른쪽 패널 */}
