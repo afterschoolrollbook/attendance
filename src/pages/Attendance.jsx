@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers, SupplyGiven } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers, SupplyGiven, refreshTablesFromSupabase } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -192,9 +192,10 @@ export function ProgressWindow() {
   // BroadcastChannel: 메인→별도창 메타 수신 / 별도창→메인 갱신 신호 송신
   useEffect(() => {
     const ch = new BroadcastChannel('progress_screen')
-    ch.onmessage = (e) => {
+    ch.onmessage = async (e) => {
       if (e.data.type === 'refresh') {
-        // 메인 창이 갱신됐을 때 → 별도 창도 재계산
+        // 별도 창은 인메모리 캐시가 독립적 → Supabase에서 직접 재조회 후 리렌더
+        await refreshTablesFromSupabase('supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
         setTick(t => t + 1)
         setLastUpdated(new Date())
       } else {
