@@ -1292,7 +1292,11 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
         {/* 특이사항·메모 */}
         <div>
           {s.memo && (
-            <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '5px', display: 'inline-block' }}>👤 {s.memo}</div>
+            <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '5px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              👤 {s.memo}
+              <button onClick={() => { setMemo(''); StudentsDB.update(s.id, { memo: '' }) }}
+                style={{ fontSize: '10px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', padding: '0', lineHeight: 1 }}>✕</button>
+            </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
             {memo
@@ -1507,7 +1511,11 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         {/* 특이사항·메모 (귀가방법 배지 포함) */}
         <div>
           {s.memo && (
-            <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-block' }}>👤 {s.memo}</div>
+            <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              👤 {s.memo}
+              <button onClick={() => StudentsDB.update(s.id, { memo: '' })}
+                style={{ fontSize: '10px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', padding: '0', lineHeight: 1 }}>✕</button>
+            </div>
           )}
           {s.homeReturn && (
             <div style={{ fontSize: '11px', color: '#1d4ed8', background: '#eff6ff', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-block', marginLeft: s.memo ? '4px' : 0 }}>🚌 {s.homeReturn}</div>
@@ -1639,7 +1647,7 @@ function NoteInline({ note, onSave, studentMemo, placeholder = '특이사항 메
             style={{ fontSize:'11px', color:C.muted, background:'none', border:'none', cursor:'pointer', textDecoration:'underline', fontFamily:'Noto Sans KR, sans-serif' }}>
             {note ? '편집' : '+ 메모'}
           </button>
-          {note && <button onClick={() => onSave('')} style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>}
+          {note && <button onClick={() => { onSave(''); success('메모가 삭제되었습니다.') }} style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>}
         </div>
       )}
     </div>
@@ -1830,7 +1838,16 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
             spProds={spProds}
             teacherId={cls.teacherId||''}
             onClose={() => setProgStudent(null)}
-            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls.teacherId||'')); setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||'')); setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||'')); setProgTick(t => t+1) }}
+            onSaved={() => {
+              setSpItems(SupplyItems.byTeacher(cls.teacherId||''));
+              setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''));
+              setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''));
+              setProgTick(t => t+1);
+              // ✅ 왼쪽 패널(LessonMemoPanel)에도 갱신 신호 전송
+              const ch = new BroadcastChannel('progress_screen');
+              ch.postMessage({ type: 'refresh' });
+              ch.close();
+            }}
           />
         )
       })()}
@@ -2146,7 +2163,16 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
             spProds={spProds}
             teacherId={cls?.teacherId||''}
             onClose={() => setProgStudent(null)}
-            onSaved={() => { setSpItems(SupplyItems.byTeacher(cls?.teacherId||'')); setSpProg(SupplyStudentProgress.byTeacher(cls?.teacherId||'')); setSpChecks(SupplySessionChecks.byTeacher(cls?.teacherId||'')); setProgTick(t => t+1) }}
+            onSaved={() => {
+              setSpItems(SupplyItems.byTeacher(cls?.teacherId||''));
+              setSpProg(SupplyStudentProgress.byTeacher(cls?.teacherId||''));
+              setSpChecks(SupplySessionChecks.byTeacher(cls?.teacherId||''));
+              setProgTick(t => t+1);
+              // ✅ 왼쪽 패널(LessonMemoPanel)에도 갱신 신호 전송
+              const ch = new BroadcastChannel('progress_screen');
+              ch.postMessage({ type: 'refresh' });
+              ch.close();
+            }}
           />
         )
       })()}
