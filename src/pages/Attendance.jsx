@@ -1389,6 +1389,8 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
   const [inviteSent, setInviteSent] = useState(!!s.parentInviteSentAt)
   const [sMemo, setSMemo] = useState(s.memo || '')
   const [sMemoOpen, setSMemoOpen] = useState(false)
+  const [hrType, setHrType] = useState(() => s.homeReturn?.startsWith('학원') ? '학원' : (s.homeReturn || ''))
+  const [hrMemo, setHrMemo] = useState(() => s.homeReturn?.startsWith('학원-') ? s.homeReturn.slice(3) : '')
 
   // ── 교구 준비 알림 사전 계산 (이름 위 뱃지용)
   const _cid = classId || s.classIds?.[0] || ''
@@ -1535,24 +1537,47 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
           {inviteOpen && <InviteModal student={s} user={user} onClose={() => setInviteOpen(false)} onSent={() => setInviteSent(true)} />}
         </div>
 
-        {/* 특이사항·메모 (귀가방법 배지 포함) */}
+        {/* 특이사항·메모 */}
         <div>
-          {sMemo && (
+          {/* 학생 영구 메모 — 편집/삭제 */}
+          {sMemo ? (
             <div style={{ display:'flex', alignItems:'center', gap:'4px', marginBottom:'4px', flexWrap:'wrap' }}>
-              <span style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px' }}>👤 {sMemo}</span>
+              <span style={{ fontSize:'11px', color:'#92400e', background:'#fffbeb', padding:'3px 8px', borderRadius:'5px' }}>👤 {sMemo}</span>
               <button onClick={() => setSMemoOpen(true)} style={{ fontSize:'11px', color:C.muted, background:'none', border:'none', cursor:'pointer', textDecoration:'underline', fontFamily:'Noto Sans KR, sans-serif' }}>편집</button>
               <button onClick={() => { setSMemo(''); StudentsDB.update(s.id, { memo: '' }) }} style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
             </div>
-          )}
-          {!sMemo && (
+          ) : (
             <button onClick={() => setSMemoOpen(true)} style={{ fontSize:'11px', color:C.muted, background:'none', border:'none', cursor:'pointer', textDecoration:'underline', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'4px', display:'block' }}>+ 학생메모</button>
           )}
           {sMemoOpen && (
             <StudentMemoModal student={{ ...s, memo: sMemo }} onClose={() => setSMemoOpen(false)} onSave={v => setSMemo(v)} />
           )}
-          {s.homeReturn && (
-            <div style={{ fontSize: '11px', color: '#1d4ed8', background: '#eff6ff', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-block' }}>🚌 {s.homeReturn}</div>
-          )}
+          {/* 귀가방법 드롭다운 */}
+          <div style={{ display:'flex', alignItems:'center', gap:'4px', marginBottom:'4px', flexWrap:'wrap' }}>
+            <span style={{ fontSize:'11px', color:'#1d4ed8', flexShrink:0 }}>🚌</span>
+            <select value={hrType} onChange={e => {
+              const v = e.target.value
+              setHrType(v)
+              if (v !== '학원') { setHrMemo(''); StudentsDB.update(s.id, { homeReturn: v }) }
+            }} style={{ fontSize:'11px', padding:'2px 6px', borderRadius:'5px', border:`1px solid ${C.border}`, background:'#fff', color: hrType ? '#1d4ed8' : '#9ca3af', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              <option value="">귀가방법</option>
+              <option value="학원">학원</option>
+              <option value="돌봄">돌봄</option>
+              <option value="늘봄">늘봄</option>
+              <option value="픽업">픽업</option>
+              <option value="직접귀가">직접귀가</option>
+            </select>
+            {hrType === '학원' && (
+              <input value={hrMemo} onChange={e => setHrMemo(e.target.value)}
+                onBlur={e => StudentsDB.update(s.id, { homeReturn: e.target.value.trim() ? `학원-${e.target.value.trim()}` : '학원' })}
+                placeholder="학원명"
+                style={{ fontSize:'11px', width:'70px', padding:'2px 6px', borderRadius:'5px', border:`1.5px solid ${C.primary}`, fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+            )}
+            {hrType && (
+              <button onClick={() => { setHrType(''); setHrMemo(''); StudentsDB.update(s.id, { homeReturn: '' }) }}
+                style={{ fontSize:'10px', color:'#9ca3af', background:'none', border:'none', cursor:'pointer', padding:0 }}>✕</button>
+            )}
+          </div>
           <NoteInline note={note} onSave={v => setField('note', v)} placeholder="연락 내역 메모" />
         </div>
       </div>
