@@ -1178,7 +1178,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
   const note = s.memo || ''
   const [showInfo, setShowInfo] = useState(false)
   const [memoOpen, setMemoOpen] = useState(false)
-  const [memo, setMemo] = useState('')
+  const [memo, setMemo] = useState(s.memo || '')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteSent, setInviteSent] = useState(!!s.parentInviteSentAt)
   const [fscOpen, setFscOpen] = useState(false)
@@ -1323,9 +1323,6 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
 
         {/* 특이사항·메모 */}
         <div>
-          {s.memo && (
-            <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '5px', display: 'inline-block' }}>👤 {s.memo}</div>
-          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
             {memo
               ? <span style={{ fontSize: '12px', color: '#374151', background: '#fffbeb', padding: '3px 9px', borderRadius: '6px', border: '1px solid #fde68a' }}>📌 {memo}</span>
@@ -1390,6 +1387,8 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
   const appendNote = (text) => setField('note', note ? note + ' / ' + text : text)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteSent, setInviteSent] = useState(!!s.parentInviteSentAt)
+  const [sMemo, setSMemo] = useState(s.memo || '')
+  const [sMemoOpen, setSMemoOpen] = useState(false)
 
   // ── 교구 준비 알림 사전 계산 (이름 위 뱃지용)
   const _cid = classId || s.classIds?.[0] || ''
@@ -1538,11 +1537,21 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
 
         {/* 특이사항·메모 (귀가방법 배지 포함) */}
         <div>
-          {s.memo && (
-            <div style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-block' }}>👤 {s.memo}</div>
+          {sMemo && (
+            <div style={{ display:'flex', alignItems:'center', gap:'4px', marginBottom:'4px', flexWrap:'wrap' }}>
+              <span style={{ fontSize: '11px', color: '#92400e', background: '#fffbeb', padding: '3px 8px', borderRadius: '5px' }}>👤 {sMemo}</span>
+              <button onClick={() => setSMemoOpen(true)} style={{ fontSize:'11px', color:C.muted, background:'none', border:'none', cursor:'pointer', textDecoration:'underline', fontFamily:'Noto Sans KR, sans-serif' }}>편집</button>
+              <button onClick={() => { setSMemo(''); StudentsDB.update(s.id, { memo: '' }) }} style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+            </div>
+          )}
+          {!sMemo && (
+            <button onClick={() => setSMemoOpen(true)} style={{ fontSize:'11px', color:C.muted, background:'none', border:'none', cursor:'pointer', textDecoration:'underline', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'4px', display:'block' }}>+ 학생메모</button>
+          )}
+          {sMemoOpen && (
+            <StudentMemoModal student={{ ...s, memo: sMemo }} onClose={() => setSMemoOpen(false)} onSave={v => setSMemo(v)} />
           )}
           {s.homeReturn && (
-            <div style={{ fontSize: '11px', color: '#1d4ed8', background: '#eff6ff', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-block', marginLeft: s.memo ? '4px' : 0 }}>🚌 {s.homeReturn}</div>
+            <div style={{ fontSize: '11px', color: '#1d4ed8', background: '#eff6ff', padding: '3px 8px', borderRadius: '5px', marginBottom: '4px', display: 'inline-block' }}>🚌 {s.homeReturn}</div>
           )}
           <NoteInline note={note} onSave={v => setField('note', v)} placeholder="연락 내역 메모" />
         </div>
