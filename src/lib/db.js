@@ -252,6 +252,24 @@ export async function initFromSupabase() {
   }
 }
 
+// ─── 특정 테이블만 Supabase에서 재로드 (cross-window 캐시 동기화용)
+// ProgressWindow처럼 별도 창은 인메모리 캐시가 독립적 → BroadcastChannel 수신 시 호출
+export async function refreshTablesFromSupabase(...tables) {
+  if (!supabase) return
+  await Promise.all(tables.map(async (t) => {
+    try {
+      const { tbl, fromDb } = getConverters(t)
+      let q = supabase.from(tbl).select('*')
+      if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
+      const { data: rows, error } = await q
+      if (error || !Array.isArray(rows)) return
+      cache.set(t, rows.map(fromDb).filter(r => r._deleted !== true))
+    } catch (e) {
+      console.warn(`[DB] refreshTables/${t} 실패:`, e.message)
+    }
+  }))
+}
+
 // 호환성 유지용 빈 함수 (기존 코드에서 호출해도 에러 안 남)
 export function startSyncRetry() {}
 export function stopSyncRetry() {}
