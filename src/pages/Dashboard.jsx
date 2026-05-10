@@ -2675,16 +2675,16 @@ export function Dashboard({ user, onNav }) {
       const isAlert = chk >= (actualSessions - alertSess) && !isDone
       if (!isDone && !isAlert) return []
       if (prog?.supplyDelivered) return []  // 지급완료는 알림에서 제외
-      const nextProd = isDone && prog?.nextProductId ? supplyProds.find(p => p.id === prog.nextProductId) : null
+      // DB에 저장된 nextProductId/nextStage 읽기, 없으면 "진도확인 바람" 표시
+      const nextProd = prog?.nextProductId ? supplyProds.find(p => p.id === prog.nextProductId) : null
       const nextStage = prog?.nextStage || 1
+      const noNextInfo = !nextProd  // 다음 교구 미등록
       const label = isDone
-        ? (nextProd ? `${nextProd.name} ${nextStage}단계 준비 필요` : `${prod.name} ${curStage + 1}단계 준비 필요`)
-        : `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — ${prod.name} ${curStage}단계 준비 필요`
-      // 헤더 집계용 교구명 (짧게)
-      const supplyLabel = isDone
-        ? (nextProd ? `${nextProd.name} ${nextStage}단계` : `${prod.name} ${curStage + 1}단계`)
-        : `${prod.name} ${curStage}단계`
-      return [{ s, label, supplyLabel, isDone, productId: item.productId }]
+        ? (nextProd ? `${nextProd.name} ${nextStage}단계 준비 필요` : `진도확인 바람`)
+        : (nextProd ? `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — ${nextProd.name} ${nextStage}단계 준비 필요` : `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — 진도확인 바람`)
+      // 헤더 집계용 교구명
+      const supplyLabel = nextProd ? `${nextProd.name} ${nextStage}단계` : `진도확인 바람`
+      return [{ s, label, supplyLabel, isDone, noNextInfo, productId: item.productId }]
     })
     // cls.days 기준으로 오늘부터 가장 가까운 다음 수업 요일 인덱스 계산
     const DAY_CHARS = ['일','월','화','수','목','금','토']
@@ -2923,12 +2923,12 @@ export function Dashboard({ user, onNav }) {
                                       <span style={{ fontSize: '11px', color: C.muted }}>{students.length}/{total}명</span>
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 12px' }}>
-                                      {students.map(({ s, label, isDone, productId: pid }) => (
+                                      {students.map(({ s, label, isDone, noNextInfo, productId: pid }) => (
                                         <div key={s.id}
                                           onClick={e => { e.stopPropagation(); if(pid) setDashScModal({ studentId: s.id, classId: cls.id, productId: pid, alertLabel: label, studentName: s.name }) }}
-                                          style={{ padding: '6px 10px', borderRadius: '8px', background: isDone ? '#f0fdf4' : '#fef2f2', border: `1px solid ${isDone ? '#86efac' : '#fca5a5'}`, cursor: 'pointer' }}>
-                                          <div style={{ fontSize: '11px', fontWeight: 700, color: isDone ? '#16a34a' : C.danger, marginBottom: '2px' }}>
-                                            {isDone ? '✅' : '⚠️'} {label}
+                                          style={{ padding: '6px 10px', borderRadius: '8px', background: noNextInfo ? '#fefce8' : isDone ? '#f0fdf4' : '#fef2f2', border: `1px solid ${noNextInfo ? '#fde047' : isDone ? '#86efac' : '#fca5a5'}`, cursor: 'pointer' }}>
+                                          <div style={{ fontSize: '11px', fontWeight: 700, color: noNextInfo ? '#854d0e' : isDone ? '#16a34a' : C.danger, marginBottom: '2px' }}>
+                                            {noNextInfo ? '📋' : isDone ? '✅' : '⚠️'} {label}
                                           </div>
                                           <div style={{ fontSize: '12px', display: 'flex', gap: '6px', alignItems: 'center' }}>
                                             <span style={{ fontWeight: 700, color: C.text }}>{s.name}</span>
