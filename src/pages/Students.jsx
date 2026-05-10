@@ -958,7 +958,7 @@ export function Students({ user, onNav }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                {['', '순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '상태', '진도', '메모', '작업'].map(h => (
+                {['', '순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '귀가방법', '상태', '진도', '메모', '작업'].map(h => (
                   <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6b7280', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -1062,6 +1062,25 @@ export function Students({ user, onNav }) {
                           )
                         })()}
                       </div>
+                    </td>
+                    <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
+                      {(() => {
+                        const hr = s.homeReturn || ''
+                        const isAcademy = hr.startsWith('학원')
+                        const hrLabel = isAcademy
+                          ? (hr.startsWith('학원-') ? `🏫 ${hr.slice(3)}` : '🏫 학원')
+                          : hr === '돌봄'      ? '🏠 돌봄'
+                          : hr === '늘봄'      ? '🌅 늘봄'
+                          : hr === '픽업'      ? '🚗 픽업'
+                          : hr === '직접귀가'  ? '🚶 직접귀가'
+                          : null
+                        if (!hrLabel) return <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>
+                        return (
+                          <span style={{ fontSize:'11px', fontWeight:700, background:'#eff6ff', color:'#1d4ed8', border:'1px solid #bfdbfe', borderRadius:'6px', padding:'2px 8px' }}>
+                            {hrLabel}
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ display: 'flex', flexDirection:'column', gap: '6px' }}>
@@ -1509,6 +1528,39 @@ export function Students({ user, onNav }) {
                   { value: 'off', label: '⭕ 출결 OFF (미가입)' },
                   { value: 'on',  label: '✅ 출결 ON (가입)' },
                 ]} />
+            </div>
+            {/* 귀가방법 */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px' }}>🚌 귀가방법</label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <select
+                  value={form.homeReturn?.startsWith('학원') ? '학원' : (form.homeReturn || '')}
+                  onChange={e => {
+                    const v = e.target.value
+                    if (v !== '학원') set('homeReturn', v)
+                    else set('homeReturn', '학원')
+                  }}
+                  style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', background: '#fff', outline: 'none', cursor: 'pointer' }}>
+                  <option value="">미설정</option>
+                  <option value="학원">🏫 학원</option>
+                  <option value="돌봄">🏠 돌봄</option>
+                  <option value="늘봄">🌅 늘봄</option>
+                  <option value="픽업">🚗 픽업</option>
+                  <option value="직접귀가">🚶 직접귀가</option>
+                </select>
+                {(form.homeReturn?.startsWith('학원')) && (
+                  <input
+                    value={form.homeReturn?.startsWith('학원-') ? form.homeReturn.slice(3) : ''}
+                    onChange={e => set('homeReturn', e.target.value.trim() ? `학원-${e.target.value}` : '학원')}
+                    placeholder="학원명 입력"
+                    style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #bfdbfe', fontSize: '13px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }}
+                  />
+                )}
+                {form.homeReturn && (
+                  <button onClick={() => set('homeReturn', '')}
+                    style={{ fontSize: '11px', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}>✕</button>
+                )}
+              </div>
             </div>
             <Textarea label="📌 특이사항 메모" value={form.memo} onChange={v => set('memo', v)} rows={2} />
 
