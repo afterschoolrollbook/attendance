@@ -257,6 +257,7 @@ export function Students({ user, onNav }) {
   const [promotedName, setPromotedName] = useState(null)
   // ✅ 실시간 반영용 강제 리렌더 트리거
   const [tick, setTick] = useState(0)
+  const [allStudents, setAllStudents] = useState(() => StudentsDB.byTeacher(user.id))
   const [supplyItems,    setSupplyItems]    = useState([])
   const [supplyProducts, setSupplyProducts] = useState([])
   const [supplyProgress, setSupplyProgress] = useState([])
@@ -282,6 +283,7 @@ export function Students({ user, onNav }) {
   }
 
   React.useEffect(() => {
+    setAllStudents(StudentsDB.byTeacher(user.id))
     setSupplyItems(SupplyItems.byTeacher(user.id))
     setSupplyProducts(SupplyProducts.byTeacher(user.id))
     setSupplyProgress(SupplyStudentProgress.byTeacher(user.id))
@@ -386,7 +388,6 @@ export function Students({ user, onNav }) {
     ? [...new Set(classes.filter(c => c.id === ctxClass).map(c => c.section).filter(Boolean))]
     : []
 
-  const allStudents = StudentsDB.byTeacher(user.id)
   // movedToManage: false → 학생등록탭, true 또는 undefined(구버전) → 학생관리탭
   const managedStudents = allStudents.filter(s => s.movedToManage !== false)
   const registerStudents = allStudents.filter(s => s.movedToManage === false)
@@ -1126,7 +1127,7 @@ export function Students({ user, onNav }) {
                       </div>
                     </td>
                     <td style={{ padding: '8px 14px', whiteSpace: 'nowrap' }}>
-                      <HomeReturnCell studentId={s.id} homeReturn={s.homeReturn || ''} onUpdate={refresh} />
+                      <HomeReturnCell key={s.id + (s.homeReturn || '')} studentId={s.id} homeReturn={s.homeReturn || ''} onUpdate={refresh} />
                     </td>
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ display: 'flex', flexDirection:'column', gap: '6px' }}>
