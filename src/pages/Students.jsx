@@ -6,6 +6,24 @@ import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox,
 import { STUDENT_STATUS, GRADES, DAYS } from '../constants/config.js'
 import { useToast } from '../hooks/useToast.js'
 
+// ── 상단+하단 동기화 스크롤 테이블 래퍼
+function SyncScrollTable({ children }) {
+  const topRef = React.useRef(null)
+  const botRef = React.useRef(null)
+  const syncFromTop = () => { if(botRef.current) botRef.current.scrollLeft = topRef.current.scrollLeft }
+  const syncFromBot = () => { if(topRef.current) topRef.current.scrollLeft = botRef.current.scrollLeft }
+  return (
+    <>
+      <div ref={topRef} onScroll={syncFromTop} style={{ overflowX: 'auto', overflowY: 'hidden', height: '12px', borderBottom: '1px solid #f3f4f6' }}>
+        <div style={{ minWidth: '1300px', height: '1px' }} />
+      </div>
+      <div ref={botRef} onScroll={syncFromBot} style={{ overflowX: 'auto' }}>
+        {children}
+      </div>
+    </>
+  )
+}
+
 // ── 귀가방법 인라인 편집 셀 (출석부와 동일한 UX)
 function HomeReturnCell({ studentId, homeReturn, onUpdate }) {
   const [hrType, setHrType] = React.useState(() => homeReturn.startsWith('학원') ? '학원' : homeReturn)
@@ -998,8 +1016,8 @@ export function Students({ user, onNav }) {
         <EmptyState icon="👥" title="학생이 없습니다" desc="학생을 등록하거나 필터를 변경하세요." />
       ) : (
         <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', minWidth: '1300px', borderCollapse: 'collapse' }}>
+          <SyncScrollTable>
+                <table style={{ width: '100%', minWidth: '1300px', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
                 {['', '순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '귀가방법', '상태', '진도', '메모', '작업'].map(h => (
@@ -1206,8 +1224,8 @@ export function Students({ user, onNav }) {
                 )
               })}
             </tbody>
-          </table>
-          </div>
+                </table>
+          </SyncScrollTable>
         </div>
       )}
 
