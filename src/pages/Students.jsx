@@ -6,6 +6,49 @@ import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox,
 import { STUDENT_STATUS, GRADES, DAYS } from '../constants/config.js'
 import { useToast } from '../hooks/useToast.js'
 
+// ── 귀가방법 인라인 편집 셀 (출석부와 동일한 UX)
+function HomeReturnCell({ studentId, homeReturn, onUpdate }) {
+  const [hrType, setHrType] = React.useState(() => homeReturn.startsWith('학원') ? '학원' : homeReturn)
+  const [hrMemo, setHrMemo] = React.useState(() => homeReturn.startsWith('학원-') ? homeReturn.slice(3) : '')
+
+  const save = (type, memo) => {
+    let val = ''
+    if (type === '학원') val = memo.trim() ? `학원-${memo.trim()}` : '학원'
+    else val = type
+    StudentsDB.update(studentId, { homeReturn: val })
+    onUpdate && onUpdate()
+  }
+
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap' }}>
+      <span style={{ fontSize:'11px', color:'#1d4ed8', flexShrink:0 }}>🚌</span>
+      <select value={hrType} onChange={e => {
+        const v = e.target.value
+        setHrType(v)
+        if (v !== '학원') { setHrMemo(''); save(v, '') }
+        else save('학원', hrMemo)
+      }} style={{ fontSize:'11px', padding:'2px 6px', borderRadius:'5px', border:'1px solid #e5e7eb', background:'#fff', color: hrType ? '#1d4ed8' : '#9ca3af', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+        <option value="">귀가방법</option>
+        <option value="학원">학원</option>
+        <option value="돌봄">돌봄</option>
+        <option value="늘봄">늘봄</option>
+        <option value="픽업">픽업</option>
+        <option value="직접귀가">직접귀가</option>
+      </select>
+      {hrType === '학원' && (
+        <input value={hrMemo} onChange={e => setHrMemo(e.target.value)}
+          onBlur={e => save('학원', e.target.value)}
+          placeholder="학원명"
+          style={{ fontSize:'11px', width:'60px', padding:'2px 6px', borderRadius:'5px', border:'1.5px solid #bfdbfe', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+      )}
+      {hrType && (
+        <button onClick={() => { setHrType(''); setHrMemo(''); save('', '') }}
+          style={{ fontSize:'10px', color:'#9ca3af', background:'none', border:'none', cursor:'pointer', padding:0 }}>✕</button>
+      )}
+    </div>
+  )
+}
+
 function emptyStudent() {
   return {
     school: '', grade: '1', classNum: '', number: '', name: '',
@@ -955,7 +998,8 @@ export function Students({ user, onNav }) {
         <EmptyState icon="👥" title="학생이 없습니다" desc="학생을 등록하거나 필터를 변경하세요." />
       ) : (
         <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: '1300px', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
                 {['', '순번', '학교', '수업 · 반', '학년 / 반 / 번호', '이름', '학부모 전화', '귀가방법', '상태', '진도', '메모', '작업'].map(h => (
@@ -1063,24 +1107,8 @@ export function Students({ user, onNav }) {
                         })()}
                       </div>
                     </td>
-                    <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
-                      {(() => {
-                        const hr = s.homeReturn || ''
-                        const isAcademy = hr.startsWith('학원')
-                        const hrLabel = isAcademy
-                          ? (hr.startsWith('학원-') ? `🏫 ${hr.slice(3)}` : '🏫 학원')
-                          : hr === '돌봄'      ? '🏠 돌봄'
-                          : hr === '늘봄'      ? '🌅 늘봄'
-                          : hr === '픽업'      ? '🚗 픽업'
-                          : hr === '직접귀가'  ? '🚶 직접귀가'
-                          : null
-                        if (!hrLabel) return <span style={{ fontSize:'12px', color:'#d1d5db' }}>-</span>
-                        return (
-                          <span style={{ fontSize:'11px', fontWeight:700, background:'#eff6ff', color:'#1d4ed8', border:'1px solid #bfdbfe', borderRadius:'6px', padding:'2px 8px' }}>
-                            {hrLabel}
-                          </span>
-                        )
-                      })()}
+                    <td style={{ padding: '8px 14px', whiteSpace: 'nowrap' }}>
+                      <HomeReturnCell studentId={s.id} homeReturn={s.homeReturn || ''} onUpdate={refresh} />
                     </td>
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ display: 'flex', flexDirection:'column', gap: '6px' }}>
@@ -1179,6 +1207,7 @@ export function Students({ user, onNav }) {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
