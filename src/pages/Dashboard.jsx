@@ -2678,9 +2678,13 @@ export function Dashboard({ user, onNav }) {
       const nextProd = isDone && prog?.nextProductId ? supplyProds.find(p => p.id === prog.nextProductId) : null
       const nextStage = prog?.nextStage || 1
       const label = isDone
-        ? (nextProd ? `${nextProd.name} ${nextStage}단계 준비` : `${prod.name} ${curStage + 1}단계 준비`)
-        : `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — 교구 준비 필요`
-      return [{ s, label, isDone, productId: item.productId }]
+        ? (nextProd ? `${nextProd.name} ${nextStage}단계 준비 필요` : `${prod.name} ${curStage + 1}단계 준비 필요`)
+        : `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — ${prod.name} ${curStage}단계 준비 필요`
+      // 헤더 집계용 교구명 (짧게)
+      const supplyLabel = isDone
+        ? (nextProd ? `${nextProd.name} ${nextStage}단계` : `${prod.name} ${curStage + 1}단계`)
+        : `${prod.name} ${curStage}단계`
+      return [{ s, label, supplyLabel, isDone, productId: item.productId }]
     })
     // cls.days 기준으로 오늘부터 가장 가까운 다음 수업 요일 인덱스 계산
     const DAY_CHARS = ['일','월','화','수','목','금','토']
@@ -2883,10 +2887,32 @@ export function Dashboard({ user, onNav }) {
                             return (
                               <div key={school} style={{ background: '#fff', borderRadius: '10px', border: '1px solid #fca5a5', overflow: 'hidden' }}>
                                 {/* 학교 헤더 */}
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', background: '#fef2f2', borderBottom: '1px solid #fca5a5' }}>
-                                  <span style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>🏫 {school}</span>
-                                  <span style={{ fontSize: '12px', fontWeight: 700, color: C.danger }}>{totalAlert}명 준비 필요</span>
-                                </div>
+                                {(() => {
+                                  // 교구별 카운트 집계
+                                  const prodCount = {}
+                                  sorted.forEach(({ students }) => {
+                                    students.forEach(({ supplyLabel }) => {
+                                      if (!supplyLabel) return
+                                      prodCount[supplyLabel] = (prodCount[supplyLabel] || 0) + 1
+                                    })
+                                  })
+                                  const prodSummary = Object.entries(prodCount)
+                                    .map(([name, cnt]) => `${name} ${cnt}명`)
+                                    .join(' / ')
+                                  return (
+                                    <div style={{ padding: '8px 14px', background: '#fef2f2', borderBottom: '1px solid #fca5a5' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: prodSummary ? '3px' : 0 }}>
+                                        <span style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>🏫 {school}</span>
+                                        <span style={{ fontSize: '12px', fontWeight: 700, color: C.danger }}>{totalAlert}명 준비 필요</span>
+                                      </div>
+                                      {prodSummary && (
+                                        <div style={{ fontSize: '11px', color: '#92400e', fontWeight: 600 }}>
+                                          {prodSummary}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )
+                                })()}
                                 {/* A반, B반 순서로 */}
                                 {sorted.map(({ cls, students, total }) => (
                                   <div key={cls.id} style={{ borderBottom: '1px solid #fee2e2' }}>
