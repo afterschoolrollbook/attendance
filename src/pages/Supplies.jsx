@@ -5,6 +5,7 @@ import {
   SupplySubjects, SupplyVendors, SupplyItems, SupplyPlans,
   SupplyProducts, SupplyProductPlans, SupplyStudentProgress, SupplySessionChecks,
   SupplyGiven,
+  SupplySchoolPrices,
   onDbChange,
 } from '../lib/db.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -234,6 +235,157 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
   )
 }
 
+// ── 교구 가격 모달
+function PriceModal({ product, teacherId, allSchools, onClose }) {
+  const [form, setForm] = useState({
+    consumerPrice: product.consumerPrice || 0,
+    schoolPrice:   product.schoolPrice   || 0,
+    branchPrice:   product.branchPrice   || 0,
+    teacherPrice:  product.teacherPrice  || 0,
+    purchasePrice: product.purchasePrice || 0,
+  })
+  const [schoolPrices, setSchoolPrices] = useState([])
+  const [newSchool, setNewSchool]       = useState('')
+  const [newPrice, setNewPrice]         = useState('')
+  const [newMemo, setNewMemo]           = useState('')
+  const [saving, setSaving]             = useState(false)
+  const fmt = (n) => Number(n||0).toLocaleString('ko-KR')
+
+  useEffect(() => {
+    setSchoolPrices(SupplySchoolPrices.byProduct(product.id))
+  }, [product.id])
+
+  const handleSaveBase = async () => {
+    setSaving(true)
+    await SupplyProducts.update(product.id, form)
+    setSaving(false)
+  }
+
+  const handleAddSchool = async () => {
+    if (!newSchool.trim() || !newPrice) return
+    await SupplySchoolPrices.insert({
+      teacherId, productId: product.id, productName: product.name,
+      schoolName: newSchool.trim(), price: Number(newPrice), memo: newMemo.trim(),
+      createdAt: now(),
+    })
+    setSchoolPrices(SupplySchoolPrices.byProduct(product.id))
+    setNewSchool(''); setNewPrice(''); setNewMemo('')
+  }
+
+  const handleDeleteSchool = async (id) => {
+    await SupplySchoolPrices.delete(id)
+    setSchoolPrices(SupplySchoolPrices.byProduct(product.id))
+  }
+
+  const handleUpdateSchool = async (id, patch) => {
+    await SupplySchoolPrices.update(id, patch)
+    setSchoolPrices(SupplySchoolPrices.byProduct(product.id))
+  }
+
+  const BASE_PRICES = [
+    { key:'consumerPrice', label:'소비자가' },
+    { key:'schoolPrice',   label:'학교공급가 (기준)' },
+    { key:'branchPrice',   label:'지사가' },
+    { key:'teacherPrice',  label:'선생님가' },
+    { key:'purchasePrice', label:'매입가' },
+  ]
+
+  return (
+    <Modal title={`💰 ${product.name} 가격 설정`} onClose={onClose} width="560px">
+      {/* 기준 가격 */}
+      <div style={{ marginBottom:'20px' }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📋 기준 가격</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+          {BASE_PRICES.map(({ key, label }) => (
+            <div key={key} style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+              <span style={{ fontSize:'12px', color:'#6b7280', width:'120px', flexShrink:0 }}>{label}</span>
+              <input type="number" min={0} value={form[key]}
+                onChange={e => setForm(p => ({ ...p, [key]: Number(e.target.value) }))}
+                style={{ width:'130px', padding:'5px 8px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'right' }} />
+              <span style={{ fontSize:'12px', color:'#9ca3af' }}>원</span>
+              <span style={{ fontSize:'11px', color:'#d1d5db' }}>({fmt(form[key])})</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'10px' }}>
+          <button onClick={handleSaveBase} disabled={saving}
+            style={{ padding:'6px 16px', borderRadius:'7px', border:'none', background:'#3b82f6', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            {saving ? '저장 중...' : '기준가 저장'}
+          </button>
+        </div>
+      </div>
+
+      <hr style={{ border:'none', borderTop:'1px solid #f3f4f6', margin:'4px 0 16px' }} />
+
+      {/* 학교별 공급가 */}
+      <div>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>🏫 학교별 공급가</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'4px', marginBottom:'10px' }}>
+          {schoolPrices.length === 0 && (
+            <div style={{ fontSize:'12px', color:'#9ca3af', textAlign:'center', padding:'10px 0' }}>등록된 학교별 공급가가 없습니다</div>
+          )}
+          {schoolPrices.map(sp => (
+            <SchoolPriceRow key={sp.id} sp={sp} allSchools={allSchools}
+              onUpdate={patch => handleUpdateSchool(sp.id, patch)}
+              onDelete={() => handleDeleteSchool(sp.id)} />
+          ))}
+        </div>
+        {/* 추가 폼 */}
+        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center', padding:'8px', background:'#f9fafb', borderRadius:'8px', border:'1px solid #e5e7eb' }}>
+          <select value={newSchool} onChange={e => setNewSchool(e.target.value)}
+            style={{ flex:1, minWidth:'120px', padding:'5px 7px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}>
+            <option value="">학교 선택</option>
+            {allSchools.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <input type="number" min={0} value={newPrice} onChange={e => setNewPrice(e.target.value)}
+            placeholder="공급가"
+            style={{ width:'100px', padding:'5px 7px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'right' }} />
+          <input value={newMemo} onChange={e => setNewMemo(e.target.value)}
+            placeholder="메모 (선택)"
+            style={{ width:'100px', padding:'5px 7px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+          <button onClick={handleAddSchool} disabled={!newSchool || !newPrice}
+            style={{ padding:'5px 12px', borderRadius:'6px', border:'none', background: newSchool && newPrice ? '#16a34a' : '#e5e7eb', color: newSchool && newPrice ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: newSchool && newPrice ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            + 추가
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function SchoolPriceRow({ sp, allSchools, onUpdate, onDelete }) {
+  const [editing, setEditing] = useState(false)
+  const [price, setPrice]     = useState(sp.price)
+  const [memo, setMemo]       = useState(sp.memo || '')
+  const fmt = (n) => Number(n||0).toLocaleString('ko-KR')
+
+  if (editing) return (
+    <div style={{ display:'flex', gap:'6px', alignItems:'center', flexWrap:'wrap', padding:'6px 8px', background:'#fffbeb', borderRadius:'7px', border:'1px solid #fde68a' }}>
+      <span style={{ fontSize:'12px', fontWeight:600, color:'#374151', minWidth:'80px' }}>{sp.schoolName}</span>
+      <input type="number" min={0} value={price} onChange={e => setPrice(Number(e.target.value))}
+        style={{ width:'100px', padding:'4px 7px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'right' }} />
+      <input value={memo} onChange={e => setMemo(e.target.value)} placeholder="메모"
+        style={{ width:'100px', padding:'4px 7px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+      <button onClick={async () => { await onUpdate({ price, memo }); setEditing(false) }}
+        style={{ padding:'3px 10px', borderRadius:'5px', border:'none', background:'#16a34a', color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+      <button onClick={() => setEditing(false)}
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
+    </div>
+  )
+
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'6px 10px', background:'#f0fdf4', borderRadius:'7px', border:'1px solid #86efac' }}>
+      <span style={{ fontSize:'12px', fontWeight:600, color:'#15803d', flex:1 }}>{sp.schoolName}</span>
+      {sp.memo && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{sp.memo}</span>}
+      <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>{fmt(sp.price)}원</span>
+      <button onClick={() => setEditing(true)}
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fed7aa', background:'#fff7ed', color:'#f97316', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+      <button onClick={onDelete}
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+    </div>
+  )
+}
+
 export function Supplies({ user }) {
   // ── 기본 상태
   const [subjects, setSubjects]       = useState([])
@@ -284,6 +436,7 @@ export function Supplies({ user }) {
 
   // 교구 등록/수정 모달
   const [productModal, setProductModal] = useState(false)
+  const [priceModal, setPriceModal]     = useState(null) // product object
   const [productVendorId, setProductVendorId] = useState(null)
   const [productForm, setProductForm] = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:3, subject:'', price:0 })
   const [productStageTab, setProductStageTab] = useState(1)
@@ -1430,6 +1583,8 @@ export function Supplies({ user }) {
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>수정</button>
                                           <button onClick={() => deleteProduct(p.id)}
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
+                                          <button onClick={() => setPriceModal(p)}
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #f59e0b', background:'#fffbeb', color:'#d97706', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>💰 가격</button>
                                           <button onClick={() => downloadProductsExcel(v, [p], productPlanList)}
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>⬇ 다운</button>
                                           <button onClick={() => downloadSampleExcel()}
@@ -2963,6 +3118,15 @@ export function Supplies({ user }) {
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div style={{ background:'#fff', borderRadius:'12px', padding:'24px 36px', fontSize:'14px', fontWeight:600 }}>📤 저장 중...</div>
         </div>
+      )}
+
+      {priceModal && (
+        <PriceModal
+          product={priceModal}
+          teacherId={user?.id}
+          allSchools={[...new Set(classes.map(c => c.organization).filter(Boolean))].sort()}
+          onClose={() => setPriceModal(null)}
+        />
       )}
     </div>
   )
