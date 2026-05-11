@@ -44,6 +44,17 @@ import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer, ConfirmDialog, useConfirmDialog } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
 
+// ─── 구 버전 localStorage 캐시 정리 (Supabase 토큰 + 앱 데이터만 보존)
+;(function cleanOldCache() {
+  try {
+    Object.keys(localStorage).forEach(key => {
+      if (!key.startsWith('sb-') && !key.startsWith('asa_') && !key.startsWith('access_warn_sent_')) {
+        localStorage.removeItem(key)
+      }
+    })
+  } catch (e) {}
+})()
+
 // ─── 모바일 하단 네비게이션 ───────────────────────────────────────
 const MOBILE_NAV = [
   { path: 'dashboard',    label: '홈',     icon: '🏠' },
