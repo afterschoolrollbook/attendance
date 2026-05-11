@@ -469,7 +469,7 @@ export function Supplies({ user }) {
   // 교구 지급 기록
   const [givenList, setGivenList]           = useState([])
   const [schoolPriceList, setSchoolPriceList] = useState([])
-  const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'' })
+  const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'', priceSchool:'' })
   const [givenTermFilter, setGivenTermFilter]       = useState('current')
   const [summaryDetailModal, setSummaryDetailModal] = useState(null) // { label, recs, color }
   const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
@@ -2043,25 +2043,65 @@ export function Supplies({ user }) {
                   {(() => {
                     const priceSchools = [...new Set(summaryRecords.map(r => r.schoolName).filter(Boolean))]
                     if (priceSchools.length === 0) return null
-                    const visibleSchools = givenFilter.school ? priceSchools.filter(s => s === givenFilter.school) : priceSchools
+                    const selPS = givenFilter.priceSchool
+                    const visibleSchools = selPS ? priceSchools.filter(s => s === selPS) : priceSchools
                     return (
                       <div style={{ marginBottom:'12px' }}>
-                        <div style={{ fontSize:'12px', fontWeight:700, color:'#374151', marginBottom:'6px' }}>🏫 학교별 교구비</div>
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px', flexWrap:'wrap' }}>
+                          <span style={{ fontSize:'12px', fontWeight:700, color:'#374151', flexShrink:0 }}>🏫 학교별 교구비</span>
+                          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
+                            <button onClick={() => setGivenFilter(f => ({ ...f, priceSchool:'' }))}
+                              style={{ padding:'2px 8px', borderRadius:'12px', border:`1px solid ${selPS==='' ? '#374151' : '#d1d5db'}`, background: selPS==='' ? '#374151' : '#fff', color: selPS==='' ? '#fff' : '#6b7280', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: selPS==='' ? 700 : 400 }}>
+                              전체
+                            </button>
+                            {priceSchools.map(s => (
+                              <button key={s} onClick={() => setGivenFilter(f => ({ ...f, priceSchool: f.priceSchool===s ? '' : s }))}
+                                style={{ padding:'2px 8px', borderRadius:'12px', border:`1px solid ${selPS===s ? '#374151' : '#d1d5db'}`, background: selPS===s ? '#374151' : '#fff', color: selPS===s ? '#fff' : '#6b7280', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: selPS===s ? 700 : 400 }}>
+                                {getSchoolDayLabel(s)}{s}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                         <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
                           {visibleSchools.map(school => {
                             const schoolRecs = summaryRecords.filter(r => r.schoolName === school)
+                            // itemName → 단가 맵
                             const itemMap = {}
                             schoolRecs.forEach(r => {
                               if (!itemMap[r.itemName]) itemMap[r.itemName] = getPrice(r)
+                            })
+                            // productList의 name 기준으로 시리즈 묶기
+                            // 같은 productName 그룹 + 단가 동일하면 하나로 표시
+                            const productNames = [...new Set(productList.map(p => p.name).filter(Boolean))]
+                            const grouped = [] // { label, price }
+                            const handled = new Set()
+                            Object.entries(itemMap).forEach(([iName, price]) => {
+                              if (handled.has(iName)) return
+                              // 이 itemName이 속한 productName 찾기
+                              const matchedPName = productNames.find(pn => iName === pn || iName.startsWith(pn))
+                              if (matchedPName) {
+                                // 같은 시리즈(같은 productName) + 같은 단가인 것들 모두 묶기
+                                const siblings = Object.entries(itemMap)
+                                  .filter(([n, p]) => (n === matchedPName || n.startsWith(matchedPName)) && p === price)
+                                  .map(([n]) => n)
+                                siblings.forEach(n => handled.add(n))
+                                const label = siblings.length > 1
+                                  ? matchedPName + ' (' + siblings.map(n => n.slice(matchedPName.length).trim() || '기본').join(', ') + ')'
+                                  : iName
+                                grouped.push({ label, price })
+                              } else {
+                                handled.add(iName)
+                                grouped.push({ label: iName, price })
+                              }
                             })
                             return (
                               <div key={school} style={{ background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb', overflow:'hidden' }}>
                                 <div style={{ padding:'6px 10px', background:'#f3f4f6', borderBottom:'1px solid #e5e7eb' }}>
                                   <span style={{ fontSize:'12px', fontWeight:700, color:'#374151' }}>{getSchoolDayLabel(school)}{school}</span>
                                 </div>
-                                {Object.entries(itemMap).map(([name, price]) => (
-                                  <div key={name} style={{ display:'flex', alignItems:'center', padding:'5px 10px', background:'#fff', borderBottom:'1px solid #f3f4f6' }}>
-                                    <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{name}</span>
+                                {grouped.map(({ label, price }) => (
+                                  <div key={label} style={{ display:'flex', alignItems:'center', padding:'5px 10px', background:'#fff', borderBottom:'1px solid #f3f4f6' }}>
+                                    <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{label}</span>
                                     <span style={{ fontSize:'12px', fontWeight:700, color: price > 0 ? '#374151' : '#9ca3af' }}>
                                       {price > 0 ? `${fmt(price)}원` : '단가 미등록'}
                                     </span>
