@@ -1880,8 +1880,7 @@ export function Supplies({ user }) {
             }
             // 학교 목록 (전체 filteredClasses 기준, 학교 필터 적용 전)
             const allSchools = [...new Set(
-              (givenTermFilter === 'current' ? activeClasses : classes.filter(c => getTermLabel(c) === givenTermFilter))
-                .map(c => c.organization).filter(Boolean)
+              classes.map(c => c.organization).filter(Boolean)
             )].sort((a, b) => {
               const DO = ['월','화','수','목','금','토','일']
               const aDay = DO.findIndex(d => (schoolDaysMap[a]||new Set()).has(d))
@@ -2209,7 +2208,7 @@ export function Supplies({ user }) {
 
                 {/* 필터: 한 줄 */}
                 <div style={{ display:'flex', gap:'8px', marginBottom:'16px', alignItems:'center' }}>
-                  <select value={givenFilter.school} onChange={e => { setGivenFilter(f => ({ ...f, school: e.target.value, classId: '' })); setGivenTermFilter('') }}
+                  <select value={givenFilter.school} onChange={e => setGivenFilter(f => ({ ...f, school: e.target.value, classId: '' }))}
                     style={{ flex:1, padding:'7px 10px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
                     <option value=''>전체 학교</option>
                     {allSchools.map(s => <option key={s} value={s}>{getSchoolDayLabel(s)}{s}</option>)}
