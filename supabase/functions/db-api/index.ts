@@ -89,6 +89,8 @@ const TABLE_MAP: Record<string, string> = {
   customCategories:       'custom_categories',       // ← 커스텀 카테고리
   lessonMemos:            'lesson_memos',            // ← 수업 메모장
   blogPosts:              'blog_posts',              // ← SEO 블로그
+  supplyGiven:            'supplyGiven',             // ← 교구 지급 기록
+  supplySchoolPrices:     'supplySchoolPrices',      // ← 학교별 교구 공급가
 }
 
 // 컬럼이 camelCase로 저장된 테이블 — snake 변환 없이 그대로 사용
@@ -111,6 +113,8 @@ const CAMEL_TABLES = new Set([
   'customCategories',                        // ← 커스텀 카테고리
   'lessonMemos',                             // ← 수업 메모장
   'blogPosts',                               // ← SEO 블로그
+  'supplyGiven',                             // ← 교구 지급 기록
+  'supplySchoolPrices',                      // ← 학교별 교구 공급가
 ])
 
 // camelCase → snake_case 변환
