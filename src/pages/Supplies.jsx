@@ -204,14 +204,20 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
   }
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'3px', padding:'2px 7px', background:st.bg, borderRadius:'5px', border:`1px solid ${st.border}`, cursor:'pointer' }}
-      title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
-      <span style={{ fontSize:'12px', fontWeight:600, color:st.color }} onClick={handleCycle}>
+    <div style={{ display:'flex', alignItems:'center', gap:'3px', padding:'2px 7px', background:st.bg, borderRadius:'5px', border:`1px solid ${st.border}` }}>
+      <span style={{ fontSize:'12px', fontWeight:600, color:st.color, cursor:'pointer' }} onClick={handleCycle}
+        title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
         {status !== 'given' && <span style={{ fontSize:'10px', marginRight:'2px' }}>({st.label})</span>}
         {record.itemName}
       </span>
-      <span style={{ fontSize:'11px', color:st.color, opacity:0.8 }} onClick={handleCycle}>{record.givenAt}</span>
-
+      <span style={{ fontSize:'11px', color:st.color, opacity:0.8, cursor:'pointer' }} onClick={handleCycle}>
+        {record.givenAt ? record.givenAt.slice(5) : ''}
+      </span>
+      <select value={quarter} onChange={async e => { setQuarter(e.target.value); await onUpdate(record.itemName, record.givenAt, e.target.value || null, status) }}
+        style={{ padding:'1px 3px', borderRadius:'4px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:st.bg, color:st.color, cursor:'pointer' }}>
+        <option value="">학기</option>
+        {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
       <button onClick={() => setEditing(true)} style={{ padding:'0 3px', border:'none', background:'none', color:st.color, fontSize:'11px', cursor:'pointer', opacity:0.7 }}>✏️</button>
       <button onClick={onDelete} style={{ padding:'0 3px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer' }}>✕</button>
     </div>
@@ -1937,20 +1943,16 @@ export function Supplies({ user }) {
 
                               const canAdd = itemVal.trim() && dateVal
 
-                              // quarter 기준 그룹핑
-                              const grouped = {}
-                              records.forEach(r => {
-                                const k = r.quarter || '미분류'
-                                if (!grouped[k]) grouped[k] = []
-                                grouped[k].push(r)
-                              })
-                              const groupEntries = Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b))
-
                               return (
                                 <div key={`${stu.id}_${cls.id}`} style={{ background:'#fff', borderRadius:'8px', border:`1px solid ${C.border}`, padding:'6px 12px' }}>
                                   <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom: records.length > 0 ? '6px' : 0 }}>
                                     <span style={{ fontSize:'12px', color:C.muted, whiteSpace:'nowrap' }}>{stuLabel}</span>
                                     <span style={{ fontSize:'13px', fontWeight:700, color:C.text, whiteSpace:'nowrap' }}>{stu.name}</span>
+                                    <select value={termVal} onChange={e => setGivenInputs(p => ({ ...p, [termKey]: e.target.value }))}
+                                      style={{ padding:'3px 5px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', color:'#374151' }}>
+                                      <option value="">{termUnit} 선택</option>
+                                      {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
+                                    </select>
                                     <div style={{ flex:1 }} />
                                     <input value={itemVal} onChange={e => setGivenInputs(p => ({ ...p, [itemKey]: e.target.value }))}
                                       placeholder="교구명"
@@ -1958,28 +1960,20 @@ export function Supplies({ user }) {
                                       style={{ width:'100px', padding:'4px 7px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
                                     <input type="date" value={dateVal} onChange={e => setGivenInputs(p => ({ ...p, [dateKey]: e.target.value }))}
                                       style={{ padding:'4px 5px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
-                                    <select value={termVal} onChange={e => setGivenInputs(p => ({ ...p, [termKey]: e.target.value }))}
-                                      style={{ padding:'4px 5px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
-                                      <option value="">{termUnit} 선택</option>
-                                      {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
-                                    </select>
                                     <button onClick={handleAdd} disabled={!canAdd}
                                       style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background: canAdd ? C.success : '#e5e7eb', color: canAdd ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: canAdd ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
                                       + 추가
                                     </button>
                                   </div>
-                                  {groupEntries.map(([qKey, qRecords]) => (
-                                    <div key={qKey} style={{ marginBottom:'4px' }}>
-                                      <div style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', marginBottom:'3px' }}>{qKey}</div>
-                                      <div style={{ display:'flex', flexWrap:'wrap', gap:'3px', paddingLeft:'8px' }}>
-                                        {qRecords.map(r => (
-                                          <GivenRecord key={r.id} record={r} termType={cls.termType}
-                                            onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
-                                            onUpdate={async (itemName, givenAt, quarter, status) => { await SupplyGiven.update(r.id, { itemName, givenAt, quarter, status }); reload() }} />
-                                        ))}
-                                      </div>
+                                  {records.length > 0 && (
+                                    <div style={{ display:'flex', flexWrap:'wrap', gap:'3px' }}>
+                                      {records.map(r => (
+                                        <GivenRecord key={r.id} record={r} termType={cls.termType}
+                                          onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
+                                          onUpdate={async (itemName, givenAt, quarter, status) => { await SupplyGiven.update(r.id, { itemName, givenAt, quarter, status }); reload() }} />
+                                      ))}
                                     </div>
-                                  ))}
+                                  )}
                                 </div>
                               )
                             })}
