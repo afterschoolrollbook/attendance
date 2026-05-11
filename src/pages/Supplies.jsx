@@ -204,15 +204,14 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
   }
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'3px', padding:'2px 7px', background:st.bg, borderRadius:'5px', border:`1px solid ${st.border}` }}>
-      <span style={{ fontSize:'12px', fontWeight:600, color:st.color, cursor:'pointer' }} onClick={handleCycle}
-        title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
+    <div style={{ display:'flex', alignItems:'center', gap:'3px', padding:'2px 7px', background:st.bg, borderRadius:'5px', border:`1px solid ${st.border}`, cursor:'pointer' }}
+      title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
+      <span style={{ fontSize:'12px', fontWeight:600, color:st.color }} onClick={handleCycle}>
         {status !== 'given' && <span style={{ fontSize:'10px', marginRight:'2px' }}>({st.label})</span>}
         {record.itemName}
       </span>
-      <span style={{ fontSize:'11px', color:st.color, opacity:0.8, cursor:'pointer' }} onClick={handleCycle}>
-        {record.givenAt ? record.givenAt.slice(5) : ''}
-      </span>
+      <span style={{ fontSize:'11px', color:st.color, opacity:0.8 }} onClick={handleCycle}>{record.givenAt}</span>
+
       <button onClick={() => setEditing(true)} style={{ padding:'0 3px', border:'none', background:'none', color:st.color, fontSize:'11px', cursor:'pointer', opacity:0.7 }}>✏️</button>
       <button onClick={onDelete} style={{ padding:'0 3px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer' }}>✕</button>
     </div>
@@ -1952,16 +1951,16 @@ export function Supplies({ user }) {
                                   <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom: records.length > 0 ? '6px' : 0 }}>
                                     <span style={{ fontSize:'12px', color:C.muted, whiteSpace:'nowrap' }}>{stuLabel}</span>
                                     <span style={{ fontSize:'13px', fontWeight:700, color:C.text, whiteSpace:'nowrap' }}>{stu.name}</span>
-                                    <select value={termVal} onChange={e => setGivenInputs(p => ({ ...p, [termKey]: e.target.value }))}
-                                      style={{ padding:'3px 5px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', color:'#374151' }}>
-                                      <option value="">{termUnit} 선택</option>
-                                      {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
-                                    </select>
                                     <div style={{ flex:1 }} />
                                     <input value={itemVal} onChange={e => setGivenInputs(p => ({ ...p, [itemKey]: e.target.value }))}
                                       placeholder="교구명"
                                       onKeyDown={e => e.key === 'Enter' && handleAdd()}
                                       style={{ width:'100px', padding:'4px 7px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                                    <select value={termVal} onChange={e => setGivenInputs(p => ({ ...p, [termKey]: e.target.value }))}
+                                      style={{ padding:'4px 5px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
+                                      <option value="">{termUnit} 선택</option>
+                                      {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
+                                    </select>
                                     <input type="date" value={dateVal} onChange={e => setGivenInputs(p => ({ ...p, [dateKey]: e.target.value }))}
                                       style={{ padding:'4px 5px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
                                     <button onClick={handleAdd} disabled={!canAdd}
