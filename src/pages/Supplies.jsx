@@ -2055,18 +2055,35 @@ export function Supplies({ user }) {
                             const paidAmt     = paidRecs.reduce((s,r) => s+getPrice(r), 0)
                             const paidDates   = [...new Set(paidRecs.filter(r => r.paidAt).map(r => r.paidAt))].sort()
                             const hasPrice    = schoolRecs.some(r => getPrice(r) > 0)
+                            const itemMap = {}
+                            schoolRecs.forEach(r => {
+                              if (!itemMap[r.itemName]) itemMap[r.itemName] = { cnt:0, price: getPrice(r) }
+                              itemMap[r.itemName].cnt++
+                            })
                             return (
-                              <div key={school} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb', flexWrap:'wrap' }}>
-                                <span style={{ fontSize:'12px', fontWeight:700, color:'#374151', minWidth:'80px' }}>{school}</span>
-                                {!hasPrice
-                                  ? <span style={{ fontSize:'11px', color:'#f97316' }}>⚠️ 단가 미등록 (💰가격 버튼에서 설정)</span>
-                                  : <>
-                                      <span style={{ fontSize:'12px', color:'#a16207' }}>청구 <b>{fmt(billedAmt)}</b>원</span>
-                                      <span style={{ fontSize:'12px', color:'#15803d' }}>입금 <b>{fmt(paidAmt)}</b>원</span>
-                                      {billedAmt > 0 && <span style={{ fontSize:'11px', color:'#b91c1c', fontWeight:600 }}>미수 {fmt(billedAmt)}원</span>}
-                                      {paidDates.length > 0 && <span style={{ fontSize:'10px', color:'#9ca3af' }}>입금일: {paidDates.join(', ')}</span>}
-                                    </>
-                                }
+                              <div key={school} style={{ padding:'8px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
+                                <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap', marginBottom:'6px' }}>
+                                  <span style={{ fontSize:'12px', fontWeight:700, color:'#374151', minWidth:'80px' }}>{school}</span>
+                                  {!hasPrice
+                                    ? <span style={{ fontSize:'11px', color:'#f97316' }}>⚠️ 단가 미등록 (💰가격 버튼에서 설정)</span>
+                                    : <>
+                                        <span style={{ fontSize:'12px', color:'#a16207' }}>청구 <b>{fmt(billedAmt)}</b>원</span>
+                                        <span style={{ fontSize:'12px', color:'#15803d' }}>입금 <b>{fmt(paidAmt)}</b>원</span>
+                                        {billedAmt > 0 && <span style={{ fontSize:'11px', color:'#b91c1c', fontWeight:600 }}>미수 {fmt(billedAmt)}원</span>}
+                                        {paidDates.length > 0 && <span style={{ fontSize:'10px', color:'#9ca3af' }}>입금일: {paidDates.join(', ')}</span>}
+                                      </>
+                                  }
+                                </div>
+                                {Object.entries(itemMap).map(([name, { cnt, price }]) => (
+                                  <div key={name} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'3px 8px', background:'#fff', borderRadius:'5px', border:'1px solid #e5e7eb', marginBottom:'2px' }}>
+                                    <span style={{ fontSize:'12px', fontWeight:600, color:'#374151', flex:1 }}>{name}</span>
+                                    <span style={{ fontSize:'11px', color:'#6b7280' }}>{cnt}명</span>
+                                    <span style={{ fontSize:'11px', color:'#9ca3af' }}>×</span>
+                                    <span style={{ fontSize:'12px', color:'#374151' }}>{price > 0 ? `${fmt(price)}원` : '단가미등록'}</span>
+                                    <span style={{ fontSize:'11px', color:'#9ca3af' }}>=</span>
+                                    <span style={{ fontSize:'12px', fontWeight:700, color:'#1d4ed8' }}>{price > 0 ? `${fmt(cnt*price)}원` : '-'}</span>
+                                  </div>
+                                ))}
                               </div>
                             )
                           })}
@@ -2130,15 +2147,6 @@ export function Supplies({ user }) {
                           {r.quarter && <span style={{ fontSize:'10px', color:'#9ca3af' }}>{r.quarter}</span>}
                           {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d' }}>{fmt(getPrice(r))}원</span>}
                           <span style={{ fontSize:'10px', color:'#9ca3af' }}>지급 {r.givenAt}</span>
-                          <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
-                            <span style={{ fontSize:'10px', color:'#6b7280', whiteSpace:'nowrap' }}>입금일</span>
-                            <input type="date" defaultValue={r.paidAt || ''}
-                              onChange={async e => {
-                                await SupplyGiven.update(r.id, { paidAt: e.target.value || null })
-                                reload()
-                              }}
-                              style={{ padding:'2px 5px', borderRadius:'5px', border:'1px solid #d1fae5', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background: r.paidAt ? '#f0fdf4' : '#fff', color:'#15803d' }} />
-                          </div>
                         </div>
                       ))}
                     </div>
