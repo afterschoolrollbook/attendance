@@ -2178,7 +2178,7 @@ export function Supplies({ user }) {
                                     r.studentId === studentId
                                   ).sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||''))
                                   return (
-                                    <div key={stu?.id || studentName} style={{ display:'flex', gap:'8px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
+                                    <div key={stu?.id || studentName} style={{ display:'flex', gap:'8px', padding:'6px 10px', background: stuPeriodRecs.length > 1 ? '#eff6ff' : stuPeriodRecs.length === 0 ? '#fff7ed' : '#f9fafb', borderRadius:'7px', border: stuPeriodRecs.length > 1 ? '1px solid #bfdbfe' : stuPeriodRecs.length === 0 ? '1px solid #fed7aa' : '1px solid #e5e7eb' }}>
                                       <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px', flexShrink:0, paddingTop:'2px' }}>{stuLabel}</span>
                                       <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0, paddingTop:'2px' }}>{studentName}</span>
                                       <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'4px' }}>
