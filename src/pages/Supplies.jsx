@@ -1925,7 +1925,7 @@ export function Supplies({ user }) {
             const todayStr = new Date().toISOString().slice(0,10)
 
             // ── 요약용 데이터 (아래 리스트 필터와 동일하게 filteredClasses 기준)
-            const summaryRecords = givenList.filter(g => filteredClasses.some(c => c.id === g.classId))
+            const summaryRecords = givenList.filter(g => filteredClasses.some(c => c.id === g.classId) && (givenTermFilter === 'current' || !g.quarter || g.quarter === givenTermFilter))
             const fmt = n => Number(n||0).toLocaleString('ko-KR')
             const getPrice = (r) => {
               // schoolPriceList에서 학교 + 교구명 매칭 (정확 or itemName이 productName으로 시작)
