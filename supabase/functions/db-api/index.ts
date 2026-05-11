@@ -171,7 +171,7 @@ serve(async (req) => {
     switch (action) {
       case 'getAll': {
         // _deleted 컬럼이 없는 테이블은 필터 없이 전체 조회
-        const NO_DELETED_TABLES = new Set(['hqVendorPrices'])
+        const NO_DELETED_TABLES = new Set(['hqVendorPrices', 'supplyGiven', 'supplySchoolPrices'])
         let q = supabase.from(tbl).select('*')
         if (!NO_DELETED_TABLES.has(table)) {
           q = q.or('_deleted.is.null,_deleted.eq.false')
