@@ -2162,7 +2162,7 @@ export function Supplies({ user }) {
                       { label:'준비 교구',      cnt: summaryRecords.filter(r=>getSupplyStatus(r)==='ready').length,  recs: summaryRecords.filter(r=>getSupplyStatus(r)==='ready'),  color:'#6b7280', bg:'#f3f4f6', extra: null },
                       { label:'청구 교구',      cnt: billedOnly.length,  recs: billedOnly,  color:'#a16207', bg:'#fef9c3',
                         extra: billedOnly.length > 0 ? `청구 ${fmt(billedOnly.reduce((s,r)=>s+getPrice(r),0))}원` : null },
-                      { label:'입금',           cnt: paidAll.length, recs: paidAll, color:'#15803d', bg:'#dcfce7',
+                      { label:'입금',           cnt: paidAll.length, recs: paidAll, detailRecs: givenOnlyRecs, color:'#15803d', bg:'#dcfce7',
                         extra: paidAll.length > 0 ? (() => {
                           const amt = paidAll.reduce((s,r)=>s+getPrice(r),0)
                           const dates = [...new Set(paidAll.filter(r=>r.paidAt).map(r=>r.paidAt))].sort()
@@ -2173,22 +2173,25 @@ export function Supplies({ user }) {
                     ]
                     return (
                       <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                        {rows.map(({ label, cnt, recs: rowRecs, color, bg, extra }) => (
-                          <div key={label} onClick={() => rowRecs.length > 0 && setSummaryDetailModal({ label, recs: rowRecs, color })}
-                            style={{ background:bg, borderRadius:'8px', padding:'8px 12px', cursor: rowRecs.length>0 ? 'pointer' : 'default', transition:'box-shadow .1s' }}
-                            onMouseEnter={e => { if(rowRecs.length>0) e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)' }}
+                        {rows.map(({ label, cnt, recs: rowRecs, detailRecs, color, bg, extra }) => {
+                          const modalRecs = detailRecs || rowRecs
+                          return (
+                          <div key={label} onClick={() => modalRecs.length > 0 && setSummaryDetailModal({ label, recs: modalRecs, color })}
+                            style={{ background:bg, borderRadius:'8px', padding:'8px 12px', cursor: modalRecs.length>0 ? 'pointer' : 'default', transition:'box-shadow .1s' }}
+                            onMouseEnter={e => { if(modalRecs.length>0) e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)' }}
                             onMouseLeave={e => e.currentTarget.style.boxShadow='none'}>
-                            <div style={{ display:'flex', alignItems:'baseline', gap:'6px', flexWrap:'wrap', marginBottom: rowRecs.length>0?'4px':0 }}>
+                            <div style={{ display:'flex', alignItems:'baseline', gap:'6px', flexWrap:'wrap', marginBottom: modalRecs.length>0?'4px':0 }}>
                               <span style={{ fontSize:'10px', color, fontWeight:600 }}>{label}</span>
                               <span style={{ fontSize:'16px', fontWeight:800, color }}>{cnt}건</span>
                               {extra && <span style={{ fontSize:'11px', fontWeight:700, color }}>{extra}</span>}
-                              {rowRecs.length > 0 && <span style={{ fontSize:'10px', color, opacity:0.6, marginLeft:'auto' }}>▶ 상세보기</span>}
+                              {modalRecs.length > 0 && <span style={{ fontSize:'10px', color, opacity:0.6, marginLeft:'auto' }}>▶ 상세보기</span>}
                             </div>
                             {rowRecs.length > 0 && (
                               <div style={{ fontSize:'11px', color, opacity:0.85, lineHeight:1.6 }}>{itemBreakdown(rowRecs)}</div>
                             )}
                           </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     )
                   })()}
@@ -2248,7 +2251,13 @@ export function Supplies({ user }) {
                                               <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
                                               {r.quarter && <span style={{ fontSize:'10px', color:'#3b82f6', flexShrink:0 }}>{r.quarter}</span>}
                                               {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', flexShrink:0 }}>{fmt(getPrice(r))}원</span>}
-                                              <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {r.givenAt}</span>
+                                              {summaryDetailModal.label === '입금'
+                                                ? (r.paidAt
+                                                  ? <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>입금 {r.paidAt}</span>
+                                                  : <span style={{ fontSize:'10px', color:'#ef4444', fontWeight:700, flexShrink:0 }}>등록필요</span>
+                                                )
+                                                : <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {r.givenAt}</span>
+                                              }
                                             </div>
                                           ))
                                         }
