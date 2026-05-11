@@ -204,14 +204,15 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
   }
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'3px', padding:'2px 7px', background:st.bg, borderRadius:'5px', border:`1px solid ${st.border}`, cursor:'pointer' }}
-      title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
-      <span style={{ fontSize:'12px', fontWeight:600, color:st.color }} onClick={handleCycle}>
+    <div style={{ display:'flex', alignItems:'center', gap:'3px', padding:'2px 7px', background:st.bg, borderRadius:'5px', border:`1px solid ${st.border}` }}>
+      <span style={{ fontSize:'12px', fontWeight:600, color:st.color, cursor:'pointer' }} onClick={handleCycle}
+        title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
         {status !== 'given' && <span style={{ fontSize:'10px', marginRight:'2px' }}>({st.label})</span>}
         {record.itemName}
       </span>
-      <span style={{ fontSize:'11px', color:st.color, opacity:0.8 }} onClick={handleCycle}>{record.givenAt}</span>
-
+      <span style={{ fontSize:'11px', color:st.color, opacity:0.8, cursor:'pointer' }} onClick={handleCycle}>
+        {record.givenAt ? record.givenAt.slice(5) : ''}
+      </span>
       <button onClick={() => setEditing(true)} style={{ padding:'0 3px', border:'none', background:'none', color:st.color, fontSize:'11px', cursor:'pointer', opacity:0.7 }}>✏️</button>
       <button onClick={onDelete} style={{ padding:'0 3px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer' }}>✕</button>
     </div>
@@ -1969,25 +1970,17 @@ export function Supplies({ user }) {
                                     </button>
                                   </div>
                                   {groupEntries.map(([qKey, qRecords]) => (
-                                    <div key={qKey} style={{ display:'flex', flexWrap:'wrap', alignItems:'center', gap:'4px', marginBottom:'4px' }}>
-                                      <select
-                                        defaultValue={qKey}
-                                        onChange={async e => {
-                                          const newQ = e.target.value || null
-                                          for (const r of qRecords) {
-                                            await SupplyGiven.update(r.id, { quarter: newQ })
-                                          }
-                                          reload()
-                                        }}
-                                        style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', background:'#f3f4f6', border:'1px solid #e5e7eb', borderRadius:'5px', padding:'2px 6px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }}>
-                                        <option value="">미분류</option>
-                                        {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
-                                      </select>
-                                      {qRecords.map(r => (
-                                        <GivenRecord key={r.id} record={r} termType={cls.termType}
-                                          onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
-                                          onUpdate={async (itemName, givenAt, quarter, status) => { await SupplyGiven.update(r.id, { itemName, givenAt, quarter, status }); reload() }} />
-                                      ))}
+                                    <div key={qKey} style={{ border:'1.5px solid #86efac', borderRadius:'10px', overflow:'hidden', marginBottom:'4px' }}>
+                                      <div style={{ background:'#dcfce7', padding:'5px 12px', fontSize:'12px', fontWeight:700, color:'#15803d' }}>
+                                        {qKey}
+                                      </div>
+                                      <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', padding:'6px 8px', background:'#f0fdf4' }}>
+                                        {qRecords.map(r => (
+                                          <GivenRecord key={r.id} record={r} termType={cls.termType}
+                                            onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
+                                            onUpdate={async (itemName, givenAt, quarter, status) => { await SupplyGiven.update(r.id, { itemName, givenAt, quarter, status }); reload() }} />
+                                        ))}
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
