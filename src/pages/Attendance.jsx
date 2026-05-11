@@ -840,7 +840,7 @@ function StudentMemoModal({ student, onClose, onSave }) {
 }
 
 // ─── 지급 기록 인라인 수정 행
-function GivenRecordRow({ record, classId, onSaved }) {
+function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
   const [editing, setEditing] = React.useState(false)
   const [item, setItem]       = React.useState(record.itemName)
   const [date, setDate]       = React.useState(record.givenAt)
@@ -886,7 +886,7 @@ function GivenRecordRow({ record, classId, onSaved }) {
   return (
     <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:'#f0fdf4', borderRadius:'8px', border:'1px solid #86efac' }}>
       <span style={{ fontSize:'13px', fontWeight:600, color:'#16a34a', flex:1 }}>{record.itemName}</span>
-      {record.quarter && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{record.quarter}</span>}
+      {!hideQuarter && record.quarter && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{record.quarter}</span>}
       <span style={{ fontSize:'12px', color:'#6b7280' }}>
         {(() => { const d = new Date(record.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일` })()}
       </span>
@@ -1198,14 +1198,31 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
       {/* 교구 지급일 */}
       <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#f8fafc' }}>
         <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📦 교구 지급 기록</div>
-        {/* 기존 기록 목록 */}
-        {givenRecords.length > 0 && (
-          <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'10px' }}>
-            {givenRecords.map(r => (
-              <GivenRecordRow key={r.id} record={r} classId={classId} onSaved={onSaved} />
-            ))}
-          </div>
-        )}
+        {/* 기존 기록 목록 - 학기별 그룹 */}
+        {givenRecords.length > 0 && (() => {
+          const grouped = {}
+          givenRecords.forEach(r => {
+            const k = r.quarter || '미분류'
+            if (!grouped[k]) grouped[k] = []
+            grouped[k].push(r)
+          })
+          return (
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'10px' }}>
+              {Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).map(([qKey, recs]) => (
+                <div key={qKey} style={{ border:'1.5px solid #86efac', borderRadius:'10px', overflow:'hidden' }}>
+                  <div style={{ background:'#dcfce7', padding:'5px 12px', fontSize:'12px', fontWeight:700, color:'#15803d' }}>
+                    {qKey}
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px', padding:'6px 8px', background:'#f0fdf4' }}>
+                    {recs.map(r => (
+                      <GivenRecordRow key={r.id} record={r} classId={classId} onSaved={onSaved} hideQuarter />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
         {/* 새 기록 입력 */}
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
           <input value={givenNewItem} onChange={e => setGivenNewItem(e.target.value)}
