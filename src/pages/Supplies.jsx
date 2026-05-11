@@ -1948,6 +1948,8 @@ export function Supplies({ user }) {
                                 grouped[k].push(r)
                               })
                               const groupEntries = Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b))
+                              // 각 그룹 내 날짜순 정렬
+                              groupEntries.forEach(([, recs]) => recs.sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||'')))
 
                               return (
                                 <div key={`${stu.id}_${cls.id}`} style={{ background:'#fff', borderRadius:'8px', border:`1px solid ${C.border}`, padding:'6px 12px' }}>
