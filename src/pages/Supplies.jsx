@@ -1878,10 +1878,9 @@ export function Supplies({ user }) {
               const sorted = DAY_ORDER.filter(d => daySet.has(d))
               return sorted.length > 0 ? `(${sorted.join(',')}) ` : ''
             }
-            // 학교 목록 (전체 filteredClasses 기준, 학교 필터 적용 전)
+            // 학교 목록 (전체 classes 기준 — 학기 필터와 무관하게 모든 학교 표시)
             const allSchools = [...new Set(
-              (givenTermFilter === 'current' ? activeClasses : classes.filter(c => getTermLabel(c) === givenTermFilter))
-                .map(c => c.organization).filter(Boolean)
+              classes.map(c => c.organization).filter(Boolean)
             )].sort((a, b) => {
               const DO = ['월','화','수','목','금','토','일']
               const aDay = DO.findIndex(d => (schoolDaysMap[a]||new Set()).has(d))
