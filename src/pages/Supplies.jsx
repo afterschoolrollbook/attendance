@@ -2041,12 +2041,9 @@ export function Supplies({ user }) {
 
                   {/* 학교별 교구 단가 목록 */}
                   {(() => {
-                    const orderedSchools = givenFilter.school
+                    const visibleSchools = givenFilter.school
                       ? allSchools.filter(s => s === givenFilter.school)
                       : allSchools
-                    const visibleSchools = orderedSchools.filter(s =>
-                      schoolPriceList.some(sp => sp.schoolName === s)
-                    )
                     if (visibleSchools.length === 0) return null
                     return (
                       <div style={{ marginBottom:'12px' }}>
@@ -2054,6 +2051,7 @@ export function Supplies({ user }) {
                         <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
                           {visibleSchools.map(school => {
                             const sps = schoolPriceList.filter(sp => sp.schoolName === school)
+                            // 단가 등록된 교구 - 같은 시리즈+같은단가 묶기
                             const grouped = []
                             const handled = new Set()
                             sps.forEach(sp => {
@@ -2066,17 +2064,25 @@ export function Supplies({ user }) {
                               const label = siblings.length > 1
                                 ? base + ' (' + siblings.map(x => x.productName.slice(base.length).trim() || '기본').join(', ') + ')'
                                 : sp.productName
-                              grouped.push({ label, price: sp.price })
+                              grouped.push({ label, price: sp.price, registered: true })
+                            })
+                            // 단가 미등록 교구 - productList 기준으로 추가
+                            productList.forEach(p => {
+                              if (!sps.some(sp => sp.productName === p.name)) {
+                                grouped.push({ label: p.name, price: 0, registered: false })
+                              }
                             })
                             return (
                               <div key={school} style={{ background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb', overflow:'hidden' }}>
                                 <div style={{ padding:'6px 10px', background:'#f3f4f6', borderBottom:'1px solid #e5e7eb' }}>
                                   <span style={{ fontSize:'12px', fontWeight:700, color:'#374151' }}>{getSchoolDayLabel(school)}{school}</span>
                                 </div>
-                                {grouped.map(({ label, price }) => (
+                                {grouped.map(({ label, price, registered }) => (
                                   <div key={label} style={{ display:'flex', alignItems:'center', padding:'5px 10px', background:'#fff', borderBottom:'1px solid #f3f4f6' }}>
-                                    <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{label}</span>
-                                    <span style={{ fontSize:'12px', fontWeight:700, color:'#374151' }}>{fmt(price)}원</span>
+                                    <span style={{ fontSize:'12px', color: registered ? '#374151' : '#9ca3af', flex:1 }}>{label}</span>
+                                    <span style={{ fontSize:'12px', fontWeight:700, color: registered ? '#374151' : '#9ca3af' }}>
+                                      {registered ? `${fmt(price)}원` : '단가 미등록'}
+                                    </span>
                                   </div>
                                 ))}
                               </div>
