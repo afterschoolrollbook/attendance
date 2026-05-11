@@ -925,6 +925,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const [nextSaved, setNextSaved] = React.useState(false)
   const [givenNewItem, setGivenNewItem] = React.useState('')
   const [givenNewDate, setGivenNewDate] = React.useState('')
+  const [givenNewQuarter, setGivenNewQuarter] = React.useState('')
   const [givenSaving, setGivenSaving] = React.useState(false)
 
   // 매 렌더링마다 DB 직접 조회 — prop 교체와 무관하게 항상 최신값
@@ -978,10 +979,12 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
       productName: product.name,
       itemName: givenNewItem.trim(),
       givenAt: givenNewDate,
+      quarter: givenNewQuarter || null,
       createdAt: now(),
     })
     setGivenNewItem('')
     setGivenNewDate('')
+    setGivenNewQuarter('')
     setGivenSaving(false)
     onSaved && onSaved()
   }
@@ -1208,6 +1211,24 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           <input value={givenNewItem} onChange={e => setGivenNewItem(e.target.value)}
             placeholder="교구명 입력 (예: 큐보 1단계)"
             style={{ flex:1, minWidth:'140px', padding:'7px 10px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+          {(() => {
+            const classInfo = ClassesDB.find(classId)
+            const isQuarter = classInfo?.termType === 'quarter'
+            const termUnit  = isQuarter ? '분기' : '학기'
+            const termCount = isQuarter ? 4 : 2
+            const curYear   = new Date().getFullYear()
+            const termOpts  = []
+            for (let y = curYear - 1; y <= curYear + 1; y++) {
+              for (let t = 1; t <= termCount; t++) termOpts.push(`${y}-${t}${termUnit}`)
+            }
+            return (
+              <select value={givenNewQuarter} onChange={e => setGivenNewQuarter(e.target.value)}
+                style={{ padding:'7px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
+                <option value="">{termUnit} 선택</option>
+                {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            )
+          })()}
           <input type="date" value={givenNewDate} onChange={e => setGivenNewDate(e.target.value)}
             style={{ padding:'7px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
           <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || !givenNewDate || givenSaving}
