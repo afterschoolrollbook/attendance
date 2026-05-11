@@ -1730,7 +1730,14 @@ export function Supplies({ user }) {
             const todayStr = new Date().toISOString().slice(0,10)
 
             // ── 요약용 데이터
-            const allSummarySchools = [...new Set(classes.map(c => c.organization).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
+            const allSummarySchools = [...new Set(classes.map(c => c.organization).filter(Boolean))].sort((a,b) => {
+              const DO = ['월','화','수','목','금','토','일']
+              const ai = DO.findIndex(d => (schoolDaysMap[a]||new Set()).has(d))
+              const bi = DO.findIndex(d => (schoolDaysMap[b]||new Set()).has(d))
+              const aIdx = ai === -1 ? 99 : ai
+              const bIdx = bi === -1 ? 99 : bi
+              return aIdx !== bIdx ? aIdx - bIdx : a.localeCompare(b, 'ko')
+            })
             const allSummaryYears   = [...new Set(givenList.map(g => g.quarter?.slice(0,4)).filter(Boolean))].sort().reverse()
             const toggleTermNo = (no) => setGivenSummaryTermNos(prev =>
               prev.includes(no) ? prev.filter(x=>x!==no) : [...prev, no]
@@ -1882,29 +1889,53 @@ export function Supplies({ user }) {
                       )}
                     </div>
                   </div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-                    {[
-                      { label:'준비 교구',    cnt:sumReady,  recs:readyRecs,  color:'#6b7280', bg:'#f3f4f6', extra:null },
-                      { label:'지급 교구',    cnt:sumGiven,  recs:givenRecs,  color:'#1d4ed8', bg:'#dbeafe', extra:null },
-                      { label:'청구 교구',    cnt:sumBilled, recs:billedRecs, color:'#a16207', bg:'#fef9c3', extra:`청구 금액 ${fmt(sumBilledAmt)}원` },
-                      { label:'입금 금액',    cnt:null,      recs:paidRecs,   color:'#15803d', bg:'#dcfce7', extra:`${fmt(sumPaidAmt)}원` },
-                      { label:'미지급(입금됨)', cnt:sumUnpaid, recs:unpaidRecs, color:'#b91c1c', bg:'#fee2e2', extra:null },
-                      { label:'추가 지급',    cnt:sumExtra,  recs:extraRecs,  color:'#7c3aed', bg:'#ede9fe', extra:null },
-                    ].map(({ label, cnt, recs, color, bg, extra }) => (
-                      <div key={label} style={{ background:bg, borderRadius:'8px', padding:'10px 14px' }}>
-                        <div style={{ display:'flex', alignItems:'baseline', gap:'8px', marginBottom: recs.length>0?'5px':0 }}>
-                          <span style={{ fontSize:'11px', color, fontWeight:600 }}>{label}</span>
-                          {cnt !== null && <span style={{ fontSize:'18px', fontWeight:800, color }}>{cnt}건</span>}
-                          {extra && <span style={{ fontSize:'13px', fontWeight:700, color }}>{extra}</span>}
-                        </div>
-                        {recs.length > 0 && (
-                          <div style={{ fontSize:'12px', color, opacity:0.85, lineHeight:1.6 }}>
-                            {itemBreakdown(recs)}
+                  {(() => {
+                    // 컬럼 목록: 복수 선택 시 학기별 + 전체, 단일/미선택 시 전체만
+                    const sortedNos = [...givenSummaryTermNos].sort()
+                    const columns = sortedNos.length > 1
+                      ? [
+                          ...sortedNos.map(no => ({
+                            title: `${no}${termUnitLabel}`,
+                            recs: summaryRecords.filter(g => {
+                              const match = (g.quarter||'').match(/-(\d+)(분기|학기)$/)
+                              return match && parseInt(match[1]) === no
+                            })
+                          })),
+                          { title: '전체', recs: summaryRecords }
+                        ]
+                      : [{ title: null, recs: summaryRecords }]
+
+                    const makeRows = (recs) => [
+                      { label:'준비 교구',     cnt:recs.filter(r=>r.status==='ready').length,  recs:recs.filter(r=>r.status==='ready'),  color:'#6b7280', bg:'#f3f4f6', extra:null },
+                      { label:'지급 교구',     cnt:recs.filter(r=>r.status==='given').length,  recs:recs.filter(r=>r.status==='given'),  color:'#1d4ed8', bg:'#dbeafe', extra:null },
+                      { label:'청구 교구',     cnt:recs.filter(r=>r.status==='billed'||r.status==='paid').length, recs:recs.filter(r=>r.status==='billed'||r.status==='paid'), color:'#a16207', bg:'#fef9c3', extra:`청구 ${fmt(recs.filter(r=>r.status==='billed'||r.status==='paid').reduce((s,r)=>s+getPrice(r),0))}원` },
+                      { label:'입금 금액',     cnt:null, recs:recs.filter(r=>r.status==='paid'), color:'#15803d', bg:'#dcfce7', extra:`${fmt(recs.filter(r=>r.status==='paid').reduce((s,r)=>s+getPrice(r),0))}원` },
+                      { label:'미지급(입금됨)', cnt:recs.filter(r=>r.status==='unpaid').length, recs:recs.filter(r=>r.status==='unpaid'), color:'#b91c1c', bg:'#fee2e2', extra:null },
+                      { label:'추가 지급',     cnt:recs.filter(r=>r.isExtra).length, recs:recs.filter(r=>r.isExtra), color:'#7c3aed', bg:'#ede9fe', extra:null },
+                    ]
+
+                    return (
+                      <div style={{ display:'grid', gridTemplateColumns:`repeat(${columns.length}, 1fr)`, gap:'12px' }}>
+                        {columns.map(({ title, recs: colRecs }) => (
+                          <div key={title||'all'} style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                            {title && <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', textAlign:'center', padding:'4px 0', background:'#f3f4f6', borderRadius:'6px' }}>{title}</div>}
+                            {makeRows(colRecs).map(({ label, cnt, recs: rowRecs, color, bg, extra }) => (
+                              <div key={label} style={{ background:bg, borderRadius:'8px', padding:'8px 12px' }}>
+                                <div style={{ display:'flex', alignItems:'baseline', gap:'6px', flexWrap:'wrap', marginBottom: rowRecs.length>0?'4px':0 }}>
+                                  <span style={{ fontSize:'10px', color, fontWeight:600 }}>{label}</span>
+                                  {cnt !== null && <span style={{ fontSize:'16px', fontWeight:800, color }}>{cnt}건</span>}
+                                  {extra && <span style={{ fontSize:'11px', fontWeight:700, color }}>{extra}</span>}
+                                </div>
+                                {rowRecs.length > 0 && (
+                                  <div style={{ fontSize:'11px', color, opacity:0.85, lineHeight:1.6 }}>{itemBreakdown(rowRecs)}</div>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        )}
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    )
+                  })()}
                 </div>
 
                 {/* 필터: 한 줄 */}
