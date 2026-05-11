@@ -2162,8 +2162,8 @@ export function Supplies({ user }) {
                     const paidAll     = summaryRecords.filter(r => getBillingStatus(r) === 'paid')
                     const unpaidRecs  = summaryRecords.filter(r => getBillingStatus(r) === 'unpaid')
                     const rows = [
-                      { label:'지급 교구',      cnt: givenOnlyRecs.length, recs: givenOnlyRecs, color:'#1d4ed8', bg:'#dbeafe', extra: null },
                       { label:'준비 교구',      cnt: summaryRecords.filter(r=>getSupplyStatus(r)==='ready').length,  recs: summaryRecords.filter(r=>getSupplyStatus(r)==='ready'),  color:'#6b7280', bg:'#f3f4f6', extra: null },
+                      { label:'지급 교구',      cnt: givenOnlyRecs.length, recs: givenOnlyRecs, color:'#1d4ed8', bg:'#dbeafe', extra: null },
                       { label:'청구 교구',      cnt: billedOnly.length,  recs: billedOnly,  color:'#a16207', bg:'#fef9c3',
                         extra: billedOnly.length > 0 ? `청구 ${fmt(billedOnly.reduce((s,r)=>s+getPrice(r),0))}원` : null },
                       { label:'입금',           cnt: paidAll.length, recs: paidAll, detailRecs: givenOnlyRecs, color:'#15803d', bg:'#dcfce7',
