@@ -213,11 +213,6 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
       <span style={{ fontSize:'11px', color:st.color, opacity:0.8, cursor:'pointer' }} onClick={handleCycle}>
         {record.givenAt ? record.givenAt.slice(5) : ''}
       </span>
-      <select value={quarter} onChange={async e => { setQuarter(e.target.value); await onUpdate(record.itemName, record.givenAt, e.target.value || null, status) }}
-        style={{ padding:'1px 3px', borderRadius:'4px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:st.bg, color:st.color, cursor:'pointer' }}>
-        <option value="">학기</option>
-        {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
       <button onClick={() => setEditing(true)} style={{ padding:'0 3px', border:'none', background:'none', color:st.color, fontSize:'11px', cursor:'pointer', opacity:0.7 }}>✏️</button>
       <button onClick={onDelete} style={{ padding:'0 3px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer' }}>✕</button>
     </div>
@@ -1943,6 +1938,15 @@ export function Supplies({ user }) {
 
                               const canAdd = itemVal.trim() && dateVal
 
+                              // quarter 기준 그룹핑
+                              const grouped = {}
+                              records.forEach(r => {
+                                const k = r.quarter || '미분류'
+                                if (!grouped[k]) grouped[k] = []
+                                grouped[k].push(r)
+                              })
+                              const groupEntries = Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b))
+
                               return (
                                 <div key={`${stu.id}_${cls.id}`} style={{ background:'#fff', borderRadius:'8px', border:`1px solid ${C.border}`, padding:'6px 12px' }}>
                                   <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom: records.length > 0 ? '6px' : 0 }}>
@@ -1965,15 +1969,28 @@ export function Supplies({ user }) {
                                       + 추가
                                     </button>
                                   </div>
-                                  {records.length > 0 && (
-                                    <div style={{ display:'flex', flexWrap:'wrap', gap:'3px' }}>
-                                      {records.map(r => (
+                                  {groupEntries.map(([qKey, qRecords]) => (
+                                    <div key={qKey} style={{ display:'flex', flexWrap:'wrap', alignItems:'center', gap:'4px', marginBottom:'4px' }}>
+                                      <select
+                                        defaultValue={qKey}
+                                        onChange={async e => {
+                                          const newQ = e.target.value || null
+                                          for (const r of qRecords) {
+                                            await SupplyGiven.update(r.id, { quarter: newQ })
+                                          }
+                                          reload()
+                                        }}
+                                        style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', background:'#f3f4f6', border:'1px solid #e5e7eb', borderRadius:'5px', padding:'2px 6px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }}>
+                                        <option value="">미분류</option>
+                                        {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
+                                      </select>
+                                      {qRecords.map(r => (
                                         <GivenRecord key={r.id} record={r} termType={cls.termType}
                                           onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
                                           onUpdate={async (itemName, givenAt, quarter, status) => { await SupplyGiven.update(r.id, { itemName, givenAt, quarter, status }); reload() }} />
                                       ))}
                                     </div>
-                                  )}
+                                  ))}
                                 </div>
                               )
                             })}
