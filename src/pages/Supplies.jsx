@@ -2197,22 +2197,21 @@ export function Supplies({ user }) {
                 {/* 요약 상세 모달 */}
                 {summaryDetailModal && (
                   <Modal open={true} onClose={() => setSummaryDetailModal(null)}
-                    title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건) · ${givenTermFilter}`} width={680}>
+                    title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건) · ${givenTermFilter}`} width={620}>
                     <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'12px', maxHeight:'65vh', overflowY:'auto' }}>
                       {(() => {
+                        // 기간 맞는 지급기록
                         const toQKey = (q) => q ? q.replace(/^(\d+)년\s*(\d+)/, '$1-$2') : ''
                         const periodRecs = summaryDetailModal.recs.filter(r =>
                           toQKey(r.quarter) === toQKey(givenTermFilter)
                         )
-                        const isBilling = summaryDetailModal.label === '입금' || summaryDetailModal.label === '청구 교구'
+                        // 학생 명단은 filteredClasses 기준 전체
                         const schoolOrder = allSchools.filter(s => filteredClasses.some(c => c.organization === s))
                         return schoolOrder.map(school => {
                           const schoolClassIds = filteredClasses.filter(c => c.organization === school).map(c => c.id)
                           const allSchoolRecs = periodRecs.filter(r => r.schoolName === school)
-                          if (allSchoolRecs.length === 0) return null
                           const stuList = students
-                            .filter(s => s.status === 'confirmed' && s.classIds?.some(cid => schoolClassIds.includes(cid))
-                              && allSchoolRecs.some(r => r.studentId === s.id))
+                            .filter(s => s.status === 'confirmed' && s.classIds?.some(cid => schoolClassIds.includes(cid)))
                             .sort((a, b) => {
                               const ag = parseInt(a.grade||'0'), bg = parseInt(b.grade||'0')
                               if (ag !== bg) return ag - bg
@@ -2220,52 +2219,40 @@ export function Supplies({ user }) {
                               if (ac !== bc) return ac - bc
                               return parseInt(a.number||'0') - parseInt(b.number||'0')
                             })
+                            .map(s => ({ stu: s, studentId: s.id, studentName: s.name }))
                           return (
                             <div key={school}>
-                              <div style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', marginBottom:'6px', paddingBottom:'4px', borderBottom:'1px solid #e5e7eb' }}>
+                              <div style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', marginBottom:'4px', paddingBottom:'4px', borderBottom:'1px solid #e5e7eb' }}>
                                 {getSchoolDayLabel(school)}{school}
                               </div>
-                              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                                {stuList.map(stu => {
-                                  const stuLabel = [stu.grade?`${stu.grade}학년`:'', stu.classNum?`${stu.classNum}반`:'', stu.number?`${stu.number}번`:''].filter(Boolean).join(' ')
-                                  const stuRecs = allSchoolRecs.filter(r => r.studentId === stu.id)
-                                  // 분기 그룹핑
-                                  const qMap = {}
-                                  stuRecs.forEach(r => { const k = r.quarter||'미분류'; if (!qMap[k]) qMap[k]=[]; qMap[k].push(r) })
-                                  const qEntries = Object.entries(qMap).sort(([a],[b]) => a.localeCompare(b))
-                                  qEntries.forEach(([,recs]) => recs.sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||'')))
+                              <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                                {stuList.map(({ stu, studentId, studentName }) => {
+                                  const stuLabel = [
+                                    stu?.grade ? `${stu.grade}학년` : '',
+                                    stu?.classNum ? `${stu.classNum}반` : '',
+                                    stu?.number ? `${stu.number}번` : '',
+                                  ].filter(Boolean).join(' ')
+                                  // 이 학생의 기간 내 기록 (studentId 직접 매칭)
+                                  const stuPeriodRecs = allSchoolRecs.filter(r =>
+                                    r.studentId === studentId
+                                  ).sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||''))
                                   return (
-                                    <div key={stu.id} style={{ background:'#fff', borderRadius:'8px', border:'1px solid #e5e7eb', padding:'6px 12px' }}>
-                                      <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom:'6px' }}>
-                                        <span style={{ fontSize:'12px', color:C.muted }}>{stuLabel}</span>
-                                        <span style={{ fontSize:'13px', fontWeight:700, color:C.text }}>{stu.name}</span>
+                                    <div key={stu?.id || studentName} style={{ display:'flex', gap:'8px', padding:'6px 10px', background: stuPeriodRecs.length > 1 ? '#eff6ff' : stuPeriodRecs.length === 0 ? '#fff7ed' : '#f9fafb', borderRadius:'7px', border: stuPeriodRecs.length > 1 ? '1px solid #bfdbfe' : stuPeriodRecs.length === 0 ? '1px solid #fed7aa' : '1px solid #e5e7eb' }}>
+                                      <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px', flexShrink:0, paddingTop:'2px' }}>{stuLabel}</span>
+                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0, paddingTop:'2px' }}>{studentName}</span>
+                                      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'4px' }}>
+                                        {stuPeriodRecs.length === 0
+                                          ? <span style={{ fontSize:'12px', color:'#d1d5db' }}>미지급</span>
+                                          : stuPeriodRecs.map(r => (
+                                            <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                                              <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
+                                              {r.quarter && <span style={{ fontSize:'10px', color:'#3b82f6', flexShrink:0 }}>{r.quarter}</span>}
+                                              {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', flexShrink:0 }}>{fmt(getPrice(r))}원</span>}
+                                              <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {r.givenAt}</span>
+                                            </div>
+                                          ))
+                                        }
                                       </div>
-                                      {qEntries.map(([qKey, qRecords]) => {
-                                        const isUnclassified = qKey === '미분류'
-                                        const hdrBg     = isUnclassified ? '#f3f4f6' : (isBilling ? '#dcfce7' : '#dbeafe')
-                                        const hdrBorder = isUnclassified ? '#d1d5db' : (isBilling ? '#86efac' : '#93c5fd')
-                                        const hdrColor  = isUnclassified ? '#6b7280' : (isBilling ? '#15803d' : '#1d4ed8')
-                                        const bodyBg    = isUnclassified ? '#fafafa'  : (isBilling ? '#f0fdf4' : '#eff6ff')
-                                        const cls = filteredClasses.find(c => schoolClassIds.includes(c.id))
-                                        return (
-                                          <div key={qKey} style={{ border:`1.5px solid ${hdrBorder}`, borderRadius:'10px', overflow:'hidden', marginBottom:'4px' }}>
-                                            <div style={{ background:hdrBg, padding:'4px 12px', fontSize:'12px', fontWeight:700, color:hdrColor, fontStyle: isUnclassified?'italic':'normal' }}>
-                                              {isUnclassified ? '미분류' : qKey}
-                                            </div>
-                                            <div style={{ display:'flex', flexDirection:'column', gap:'4px', padding:'6px 8px', background:bodyBg }}>
-                                              {qRecords.map(r => (
-                                                <GivenRecord key={r.id + '_' + (r.supplyStatus||r.status||'')} record={r} termType={cls?.termType}
-                                                  onDelete={async () => { await SupplyGiven.delete(r.id); reload(); setSummaryDetailModal(null) }}
-                                                  onUpdate={async (itemName, givenAt, quarter, supplyStatus, billingStatus, paidAt) => {
-                                                    const paymentStatus = billingStatus === 'unpaid' ? 'unpaid' : 'paid'
-                                                    await SupplyGiven.update(r.id, { itemName, givenAt, quarter, supplyStatus, status: billingStatus, paymentStatus, paidAt })
-                                                    reload()
-                                                  }} />
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )
-                                      })}
                                     </div>
                                   )
                                 })}
