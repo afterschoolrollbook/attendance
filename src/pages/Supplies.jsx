@@ -469,7 +469,7 @@ export function Supplies({ user }) {
   // 교구 지급 기록
   const [givenList, setGivenList]           = useState([])
   const [schoolPriceList, setSchoolPriceList] = useState([])
-  const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'' })
+  const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'', priceSchool:'' })
   const [givenTermFilter, setGivenTermFilter]       = useState('current')
   const [summaryDetailModal, setSummaryDetailModal] = useState(null) // { label, recs, color }
   const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
@@ -2041,22 +2041,22 @@ export function Supplies({ user }) {
 
                   {/* 학교별 교구 단가 목록 */}
                   {(() => {
-                    const schools = [...new Set(summaryRecords.map(r => r.schoolName).filter(Boolean))]
-                    if (schools.length === 0) return null
-                    const [selSchool, setSelSchool] = React.useState('')
-                    const visibleSchools = selSchool ? schools.filter(s => s === selSchool) : schools
+                    const priceSchools = [...new Set(summaryRecords.map(r => r.schoolName).filter(Boolean))]
+                    if (priceSchools.length === 0) return null
+                    const selPS = givenFilter.priceSchool
+                    const visibleSchools = selPS ? priceSchools.filter(s => s === selPS) : priceSchools
                     return (
                       <div style={{ marginBottom:'12px' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px', flexWrap:'wrap' }}>
-                          <span style={{ fontSize:'12px', fontWeight:700, color:'#374151' }}>🏫 학교별 교구비</span>
+                          <span style={{ fontSize:'12px', fontWeight:700, color:'#374151', flexShrink:0 }}>🏫 학교별 교구비</span>
                           <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
-                            <button onClick={() => setSelSchool('')}
-                              style={{ padding:'2px 8px', borderRadius:'12px', border:`1px solid ${selSchool==='' ? '#374151' : '#e5e7eb'}`, background: selSchool==='' ? '#374151' : '#fff', color: selSchool==='' ? '#fff' : '#6b7280', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: selSchool==='' ? 700 : 400 }}>
+                            <button onClick={() => setGivenFilter(f => ({ ...f, priceSchool:'' }))}
+                              style={{ padding:'2px 8px', borderRadius:'12px', border:`1px solid ${selPS==='' ? '#374151' : '#d1d5db'}`, background: selPS==='' ? '#374151' : '#fff', color: selPS==='' ? '#fff' : '#6b7280', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: selPS==='' ? 700 : 400 }}>
                               전체
                             </button>
-                            {schools.map(s => (
-                              <button key={s} onClick={() => setSelSchool(s)}
-                                style={{ padding:'2px 8px', borderRadius:'12px', border:`1px solid ${selSchool===s ? '#374151' : '#e5e7eb'}`, background: selSchool===s ? '#374151' : '#fff', color: selSchool===s ? '#fff' : '#6b7280', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: selSchool===s ? 700 : 400 }}>
+                            {priceSchools.map(s => (
+                              <button key={s} onClick={() => setGivenFilter(f => ({ ...f, priceSchool: f.priceSchool===s ? '' : s }))}
+                                style={{ padding:'2px 8px', borderRadius:'12px', border:`1px solid ${selPS===s ? '#374151' : '#d1d5db'}`, background: selPS===s ? '#374151' : '#fff', color: selPS===s ? '#fff' : '#6b7280', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: selPS===s ? 700 : 400 }}>
                                 {getSchoolDayLabel(s)}{s}
                               </button>
                             ))}
@@ -2072,12 +2072,10 @@ export function Supplies({ user }) {
                             return (
                               <div key={school} style={{ background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb', overflow:'hidden' }}>
                                 <div style={{ padding:'6px 10px', background:'#f3f4f6', borderBottom:'1px solid #e5e7eb' }}>
-                                  <span style={{ fontSize:'12px', fontWeight:700, color:'#374151' }}>
-                                    {getSchoolDayLabel(school)}{school}
-                                  </span>
+                                  <span style={{ fontSize:'12px', fontWeight:700, color:'#374151' }}>{getSchoolDayLabel(school)}{school}</span>
                                 </div>
                                 {Object.entries(itemMap).map(([name, price]) => (
-                                  <div key={name} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'5px 10px', background:'#fff', borderBottom:'1px solid #f3f4f6' }}>
+                                  <div key={name} style={{ display:'flex', alignItems:'center', padding:'5px 10px', background:'#fff', borderBottom:'1px solid #f3f4f6' }}>
                                     <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{name}</span>
                                     <span style={{ fontSize:'12px', fontWeight:700, color: price > 0 ? '#374151' : '#9ca3af' }}>
                                       {price > 0 ? `${fmt(price)}원` : '단가 미등록'}
