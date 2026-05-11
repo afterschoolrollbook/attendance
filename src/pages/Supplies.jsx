@@ -1927,17 +1927,25 @@ export function Supplies({ user }) {
             const summaryRecords = givenList.filter(g => filteredClasses.some(c => c.id === g.classId))
             const fmt = n => Number(n||0).toLocaleString('ko-KR')
             const getPrice = (r) => {
-              // 1. productId로 교구 찾기
-              const p = productList.find(x => x.id === r.productId) ||
-                        productList.find(x => r.itemName && r.itemName.startsWith(x.name))
-              // 2. 학교별 공급가 우선 (productId 매칭 or schoolName만으로)
+              // 1. productId 정확 매칭
+              let p = productList.find(x => x.id === r.productId)
+              // 2. itemName 정확 매칭 (startsWith 대신 정확히 같은 이름 우선)
+              if (!p) p = productList.find(x => r.itemName && r.itemName === x.name)
+              // 3. itemName이 productName으로 시작하는 것 중 가장 긴 이름 매칭 (큐보3 → 큐보3, 큐보1 → 큐보)
+              if (!p) {
+                const matches = productList.filter(x => r.itemName && r.itemName.startsWith(x.name))
+                if (matches.length > 0) p = matches.reduce((a, b) => a.name.length >= b.name.length ? a : b)
+              }
               if (p) {
                 const sp = schoolPriceList.find(x => x.productId === p.id && x.schoolName === r.schoolName)
                 if (sp) return sp.price || 0
+                // schoolName + productName으로 fallback
+                const sp2 = schoolPriceList.find(x => x.schoolName === r.schoolName && x.productName === p.name)
+                if (sp2) return sp2.price || 0
                 return p.schoolPrice || p.price || 0
               }
-              // 3. schoolName만으로 fallback
-              const sp = schoolPriceList.find(x => x.schoolName === r.schoolName)
+              // 4. schoolPriceList에서 productName으로 정확 매칭
+              const sp = schoolPriceList.find(x => x.schoolName === r.schoolName && x.productName === r.itemName)
               return sp?.price || 0
             }
             // paidAt 기준 달력용 그룹
