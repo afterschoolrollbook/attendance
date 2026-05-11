@@ -147,10 +147,11 @@ function ProgressBadge({ checkedCount, totalCount, alertSession, sessionsPerStag
 }
 
 // 교구 지급 기록 한 줄 (상태 순환 + 수정/삭제)
-function GivenRecord({ record, onDelete, onUpdate }) {
+function GivenRecord({ record, onDelete, onUpdate, termType }) {
   const [editing, setEditing] = React.useState(false)
-  const [item, setItem] = React.useState(record.itemName)
-  const [date, setDate] = React.useState(record.givenAt)
+  const [item, setItem]       = React.useState(record.itemName)
+  const [date, setDate]       = React.useState(record.givenAt)
+  const [quarter, setQuarter] = React.useState(record.quarter || '')
 
   const STATUS_CYCLE = ['given', 'billed', 'paid', 'unpaid']
   const STATUS_STYLE = {
@@ -162,26 +163,40 @@ function GivenRecord({ record, onDelete, onUpdate }) {
   const status = record.status || 'given'
   const st = STATUS_STYLE[status] || STATUS_STYLE.given
 
+  const isQuarter = termType === 'quarter'
+  const termUnit  = isQuarter ? '분기' : '학기'
+  const termCount = isQuarter ? 4 : 2
+  const curYear   = new Date().getFullYear()
+  const termOpts  = []
+  for (let y = curYear - 1; y <= curYear + 1; y++) {
+    for (let t = 1; t <= termCount; t++) termOpts.push(`${y}-${t}${termUnit}`)
+  }
+
   const handleCycle = async () => {
     const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(status) + 1) % STATUS_CYCLE.length]
-    await onUpdate(record.itemName, record.givenAt, next)
+    await onUpdate(record.itemName, record.givenAt, record.quarter, next)
   }
 
   const handleSave = async () => {
     if (!item.trim() || !date) return
-    await onUpdate(item.trim(), date, status)
+    await onUpdate(item.trim(), date, quarter || null, status)
     setEditing(false)
   }
 
   if (editing) {
     return (
-      <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap' }}>
         <input value={item} onChange={e => setItem(e.target.value)}
           style={{ width:'100px', padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
         <input type="date" value={date} onChange={e => setDate(e.target.value)}
           style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+        <select value={quarter} onChange={e => setQuarter(e.target.value)}
+          style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}>
+          <option value="">{termUnit} 선택</option>
+          {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
         <button onClick={handleSave} style={{ padding:'2px 8px', borderRadius:'5px', border:'none', background:'#16a34a', color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
-        <button onClick={() => { setItem(record.itemName); setDate(record.givenAt); setEditing(false) }}
+        <button onClick={() => { setItem(record.itemName); setDate(record.givenAt); setQuarter(record.quarter||''); setEditing(false) }}
           style={{ padding:'2px 6px', borderRadius:'5px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'11px', cursor:'pointer' }}>취소</button>
       </div>
     )
@@ -1752,21 +1767,25 @@ export function Supplies({ user }) {
 
                               const canAdd = itemVal.trim() && dateVal
 
+                              // quarter 기준 그룹핑
+                              const grouped = {}
+                              records.forEach(r => {
+                                const k = r.quarter || '미분류'
+                                if (!grouped[k]) grouped[k] = []
+                                grouped[k].push(r)
+                              })
+                              const groupEntries = Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b))
+
                               return (
                                 <div key={`${stu.id}_${cls.id}`} style={{ background:'#fff', borderRadius:'8px', border:`1px solid ${C.border}`, padding:'6px 12px' }}>
-                                  <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                                  <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom: records.length > 0 ? '6px' : 0 }}>
                                     <span style={{ fontSize:'12px', color:C.muted, whiteSpace:'nowrap' }}>{stuLabel}</span>
                                     <span style={{ fontSize:'13px', fontWeight:700, color:C.text, whiteSpace:'nowrap' }}>{stu.name}</span>
-                                    {records.map(r => (
-                                      <GivenRecord key={r.id} record={r}
-                                        onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
-                                        onUpdate={async (itemName, givenAt, status) => { await SupplyGiven.update(r.id, { itemName, givenAt, status }); reload() }} />
-                                    ))}
                                     <div style={{ flex:1 }} />
                                     <input value={itemVal} onChange={e => setGivenInputs(p => ({ ...p, [itemKey]: e.target.value }))}
                                       placeholder="교구명"
                                       onKeyDown={e => e.key === 'Enter' && handleAdd()}
-                                      style={{ width:'120px', padding:'4px 7px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                                      style={{ width:'100px', padding:'4px 7px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
                                     <input type="date" value={dateVal} onChange={e => setGivenInputs(p => ({ ...p, [dateKey]: e.target.value }))}
                                       style={{ padding:'4px 5px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
                                     <select value={termVal} onChange={e => setGivenInputs(p => ({ ...p, [termKey]: e.target.value }))}
@@ -1779,6 +1798,18 @@ export function Supplies({ user }) {
                                       + 추가
                                     </button>
                                   </div>
+                                  {groupEntries.map(([qKey, qRecords]) => (
+                                    <div key={qKey} style={{ marginBottom:'4px' }}>
+                                      <div style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', marginBottom:'3px' }}>{qKey}</div>
+                                      <div style={{ display:'flex', flexWrap:'wrap', gap:'3px', paddingLeft:'8px' }}>
+                                        {qRecords.map(r => (
+                                          <GivenRecord key={r.id} record={r} termType={cls.termType}
+                                            onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
+                                            onUpdate={async (itemName, givenAt, quarter, status) => { await SupplyGiven.update(r.id, { itemName, givenAt, quarter, status }); reload() }} />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                               )
                             })}
