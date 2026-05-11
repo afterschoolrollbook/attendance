@@ -2141,47 +2141,50 @@ export function Supplies({ user }) {
                     title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건)`} width={620}>
                     <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'12px', maxHeight:'65vh', overflowY:'auto' }}>
                       {(() => {
-                        // 학교별 - filteredClasses 기준 학생 명단
-                        const schoolOrder = allSchools.filter(s => filteredClasses.some(c => c.organization === s))
+                        // 학교 순서 - 지급기록에 있는 학교 기준 (allSchools 순서)
+                        const schoolOrder = allSchools.filter(s => summaryDetailModal.recs.some(r => r.schoolName === s))
                         return schoolOrder.map(school => {
-                          const schoolClasses = filteredClasses.filter(c => c.organization === school)
-                          // 해당 학교 전체 학생
-                          const schoolStudents = students.filter(s => schoolClasses.some(c => c.id === s.classId))
-                          // 학년>반>번호 오름차순
-                          const sortedStudents = [...schoolStudents].sort((a, b) => {
-                            const ag = parseInt(a.grade||'0'), bg = parseInt(b.grade||'0')
-                            if (ag !== bg) return ag - bg
-                            const ac = parseInt(a.classNum||'0'), bc = parseInt(b.classNum||'0')
-                            if (ac !== bc) return ac - bc
-                            return parseInt(a.number||'0') - parseInt(b.number||'0')
+                          // 이 학교의 모든 지급기록 studentId 기준으로 학생 목록 구성
+                          const allSchoolRecs = summaryDetailModal.recs.filter(r => r.schoolName === school)
+                          const stuMap = {}
+                          allSchoolRecs.forEach(r => {
+                            if (!stuMap[r.studentId]) {
+                              const stu = students.find(s => s.id === r.studentId)
+                              stuMap[r.studentId] = { stu, studentName: r.studentName }
+                            }
                           })
-                          if (sortedStudents.length === 0) return null
+                          const stuList = Object.values(stuMap).sort((a, b) => {
+                            const ag = parseInt(a.stu?.grade||'0'), bg = parseInt(b.stu?.grade||'0')
+                            if (ag !== bg) return ag - bg
+                            const ac = parseInt(a.stu?.classNum||'0'), bc = parseInt(b.stu?.classNum||'0')
+                            if (ac !== bc) return ac - bc
+                            return parseInt(a.stu?.number||'0') - parseInt(b.stu?.number||'0')
+                          })
                           return (
                             <div key={school}>
                               <div style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', marginBottom:'4px', paddingBottom:'4px', borderBottom:'1px solid #e5e7eb' }}>
                                 {getSchoolDayLabel(school)}{school}
                               </div>
                               <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-                                {sortedStudents.map(stu => {
+                                {stuList.map(({ stu, studentName }) => {
                                   const stuLabel = [
-                                    stu.grade ? `${stu.grade}학년` : '',
-                                    stu.classNum ? `${stu.classNum}반` : '',
-                                    stu.number ? `${stu.number}번` : '',
+                                    stu?.grade ? `${stu.grade}학년` : '',
+                                    stu?.classNum ? `${stu.classNum}반` : '',
+                                    stu?.number ? `${stu.number}번` : '',
                                   ].filter(Boolean).join(' ')
-                                  // 이 학생의 지급 기록 중 현재 기간 것만
-                                  const stuRecs = summaryDetailModal.recs.filter(r =>
-                                    r.studentId === stu.id &&
+                                  // 이 학생의 기록 중 현재 기간에 맞는 것만
+                                  const periodRecs = allSchoolRecs.filter(r =>
+                                    r.studentId === (stu?.id || '') &&
                                     (givenTermFilter === 'current' || !r.quarter || r.quarter === givenTermFilter)
-                                  )
-                                  const sortedRecs = [...stuRecs].sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||''))
+                                  ).sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||''))
                                   return (
-                                    <div key={stu.id} style={{ display:'flex', gap:'8px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
+                                    <div key={stu?.id || studentName} style={{ display:'flex', gap:'8px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
                                       <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px', flexShrink:0, paddingTop:'2px' }}>{stuLabel}</span>
-                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0, paddingTop:'2px' }}>{stu.name}</span>
+                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0, paddingTop:'2px' }}>{studentName}</span>
                                       <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'4px' }}>
-                                        {sortedRecs.length === 0
+                                        {periodRecs.length === 0
                                           ? <span style={{ fontSize:'12px', color:'#d1d5db' }}>미지급</span>
-                                          : sortedRecs.map(r => (
+                                          : periodRecs.map(r => (
                                             <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                                               <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
                                               {r.quarter && <span style={{ fontSize:'10px', color:'#3b82f6', flexShrink:0 }}>{r.quarter}</span>}
