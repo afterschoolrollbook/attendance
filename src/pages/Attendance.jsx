@@ -846,6 +846,23 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
   const [date, setDate]       = React.useState(record.givenAt)
   const [quarter, setQuarter] = React.useState(record.quarter || '')
 
+  const STATUS_CYCLE = ['ready', 'given', 'billed', 'paid', 'unpaid']
+  const STATUS_STYLE = {
+    ready:  { bg:'#f3f4f6', color:'#6b7280', border:'#d1d5db', label:'준비' },
+    given:  { bg:'#dbeafe', color:'#1d4ed8', border:'#93c5fd', label:'지급' },
+    billed: { bg:'#fef9c3', color:'#a16207', border:'#fde047', label:'청' },
+    paid:   { bg:'#dcfce7', color:'#15803d', border:'#86efac', label:'입' },
+    unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미지급(보관)' },
+  }
+  const status = record.status || 'given'
+  const st = STATUS_STYLE[status] || STATUS_STYLE.given
+
+  const handleCycle = async () => {
+    const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(status) + 1) % STATUS_CYCLE.length]
+    await SupplyGiven.update(record.id, { status: next })
+    onSaved && onSaved()
+  }
+
   const classInfo = ClassesDB.find(classId)
   const isQuarter = classInfo?.termType === 'quarter'
   const termUnit  = isQuarter ? '분기' : '학기'
@@ -884,8 +901,12 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
   }
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:'#f0fdf4', borderRadius:'8px', border:'1px solid #86efac' }}>
-      <span style={{ fontSize:'13px', fontWeight:600, color:'#16a34a', flex:1 }}>{record.itemName}</span>
+    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}` }}>
+      <span style={{ fontSize:'13px', fontWeight:600, color:st.color, flex:1, cursor:'pointer' }} onClick={handleCycle}
+        title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
+        <span style={{ fontSize:'10px', marginRight:'4px' }}>({st.label})</span>
+        {record.itemName}
+      </span>
       {!hideQuarter && record.quarter && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{record.quarter}</span>}
       <span style={{ fontSize:'12px', color:'#6b7280' }}>
         {(() => { const d = new Date(record.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일` })()}
