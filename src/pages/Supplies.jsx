@@ -2205,6 +2205,7 @@ export function Supplies({ user }) {
                         const periodRecs = summaryDetailModal.recs.filter(r =>
                           toQKey(r.quarter) === toQKey(givenTermFilter)
                         )
+                        // 학생 명단은 filteredClasses 기준 전체
                         const schoolOrder = allSchools.filter(s => filteredClasses.some(c => c.organization === s))
                         return schoolOrder.map(school => {
                           const schoolClassIds = filteredClasses.filter(c => c.organization === school).map(c => c.id)
@@ -2219,66 +2220,39 @@ export function Supplies({ user }) {
                               return parseInt(a.number||'0') - parseInt(b.number||'0')
                             })
                             .map(s => ({ stu: s, studentId: s.id, studentName: s.name }))
-                          const isBilling = summaryDetailModal.label === '입금' || summaryDetailModal.label === '청구 교구'
                           return (
                             <div key={school}>
                               <div style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', marginBottom:'4px', paddingBottom:'4px', borderBottom:'1px solid #e5e7eb' }}>
                                 {getSchoolDayLabel(school)}{school}
                               </div>
-                              <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                              <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
                                 {stuList.map(({ stu, studentId, studentName }) => {
                                   const stuLabel = [
                                     stu?.grade ? `${stu.grade}학년` : '',
                                     stu?.classNum ? `${stu.classNum}반` : '',
                                     stu?.number ? `${stu.number}번` : '',
                                   ].filter(Boolean).join(' ')
-                                  const stuRecs = allSchoolRecs.filter(r => r.studentId === studentId)
-                                    .sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||''))
-                                  // 분기 그룹핑
-                                  const qMap = {}
-                                  stuRecs.forEach(r => { const k = r.quarter||'미분류'; if (!qMap[k]) qMap[k]=[]; qMap[k].push(r) })
-                                  const qEntries = Object.entries(qMap).sort(([a],[b]) => a.localeCompare(b))
+                                  // 이 학생의 기간 내 기록 (studentId 직접 매칭)
+                                  const stuPeriodRecs = allSchoolRecs.filter(r =>
+                                    r.studentId === studentId
+                                  ).sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||''))
                                   return (
-                                    <div key={stu?.id || studentName} style={{ background:'#fff', borderRadius:'8px', border:`1px solid ${C.border}`, padding:'6px 12px' }}>
-                                      {/* 학생 헤더 */}
-                                      <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom: stuRecs.length > 0 ? '6px' : 0 }}>
-                                        <span style={{ fontSize:'12px', color:C.muted, whiteSpace:'nowrap' }}>{stuLabel}</span>
-                                        <span style={{ fontSize:'13px', fontWeight:700, color:C.text, whiteSpace:'nowrap' }}>{studentName}</span>
-                                      </div>
-                                      {/* 분기 그룹 */}
-                                      {stuRecs.length === 0
-                                        ? <span style={{ fontSize:'12px', color:'#d1d5db' }}>미지급</span>
-                                        : qEntries.map(([qKey, qRecords]) => {
-                                          const isUnclassified = qKey === '미분류'
-                                          const hdrBg     = isUnclassified ? '#f3f4f6' : (isBilling ? '#dcfce7' : '#dbeafe')
-                                          const hdrBorder = isUnclassified ? '#d1d5db' : (isBilling ? '#86efac' : '#93c5fd')
-                                          const hdrColor  = isUnclassified ? '#6b7280' : (isBilling ? '#15803d' : '#1d4ed8')
-                                          const bodyBg    = isUnclassified ? '#fafafa'  : (isBilling ? '#f0fdf4' : '#eff6ff')
-                                          return (
-                                            <div key={qKey} style={{ border:`1.5px solid ${hdrBorder}`, borderRadius:'10px', overflow:'hidden', marginBottom:'4px' }}>
-                                              <div style={{ background:hdrBg, padding:'4px 12px', fontSize:'12px', fontWeight:700, color:hdrColor, fontStyle:isUnclassified?'italic':'normal' }}>
-                                                {isUnclassified ? '미분류' : qKey}
-                                              </div>
-                                              <div style={{ display:'flex', flexDirection:'column', gap:'4px', padding:'6px 8px', background:bodyBg }}>
-                                                {qRecords.map(r => {
-                                                  const dateVal   = isBilling ? r.paidAt   : r.givenAt
-                                                  const dateLabel = isBilling ? '입금일'   : '지급'
-                                                  return (
-                                                    <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                                                      <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
-                                                      {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', flexShrink:0 }}>{fmt(getPrice(r))}원</span>}
-                                                      {dateVal
-                                                        ? <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>{dateLabel} {dateVal}</span>
-                                                        : <span style={{ fontSize:'10px', color:'#ef4444', fontWeight:700, flexShrink:0 }}>등록필요</span>
-                                                      }
-                                                    </div>
-                                                  )
-                                                })}
-                                              </div>
+                                    <div key={stu?.id || studentName} style={{ display:'flex', gap:'8px', padding:'6px 10px', background: stuPeriodRecs.length > 1 ? '#eff6ff' : stuPeriodRecs.length === 0 ? '#fff7ed' : '#f9fafb', borderRadius:'7px', border: stuPeriodRecs.length > 1 ? '1px solid #bfdbfe' : stuPeriodRecs.length === 0 ? '1px solid #fed7aa' : '1px solid #e5e7eb' }}>
+                                      <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px', flexShrink:0, paddingTop:'2px' }}>{stuLabel}</span>
+                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0, paddingTop:'2px' }}>{studentName}</span>
+                                      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'4px' }}>
+                                        {stuPeriodRecs.length === 0
+                                          ? <span style={{ fontSize:'12px', color:'#d1d5db' }}>미지급</span>
+                                          : stuPeriodRecs.map(r => (
+                                            <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                                              <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
+                                              {r.quarter && <span style={{ fontSize:'10px', color:'#3b82f6', flexShrink:0 }}>{r.quarter}</span>}
+                                              {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', flexShrink:0 }}>{fmt(getPrice(r))}원</span>}
+                                              <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {r.givenAt}</span>
                                             </div>
-                                          )
-                                        })
-                                      }
+                                          ))
+                                        }
+                                      </div>
                                     </div>
                                   )
                                 })}
