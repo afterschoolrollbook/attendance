@@ -524,6 +524,10 @@ export function Supplies({ user }) {
   const [givenTermFilter, setGivenTermFilter]       = useState('')
   const [summaryDetailModal, setSummaryDetailModal] = useState(null) // { label, recs, color }
   const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
+  const [bulkChecked, setBulkChecked]   = useState([])
+  const [bulkSupplyStatus,  setBulkSupplyStatus]  = useState('given')
+  const [bulkBillingStatus, setBulkBillingStatus] = useState('none')
+  const [bulkDate, setBulkDate]         = useState('')
   const [givenCalYM, setGivenCalYM]           = useState(() => new Date().toISOString().slice(0,7))
   const [givenCalDetailDate, setGivenCalDetailDate] = useState(null)
 
@@ -2176,7 +2180,7 @@ export function Supplies({ user }) {
                         {rows.map(({ label, cnt, recs: rowRecs, detailRecs, color, bg, extra }) => {
                           const modalRecs = detailRecs || rowRecs
                           return (
-                          <div key={label} onClick={() => modalRecs.length > 0 && setSummaryDetailModal({ label, recs: modalRecs, color })}
+                          <div key={label} onClick={() => { if (modalRecs.length > 0) { setSummaryDetailModal({ label, recs: modalRecs, color }); setBulkChecked([]) } }}
                             style={{ background:bg, borderRadius:'8px', padding:'8px 12px', cursor: modalRecs.length>0 ? 'pointer' : 'default', transition:'box-shadow .1s' }}
                             onMouseEnter={e => { if(modalRecs.length>0) e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)' }}
                             onMouseLeave={e => e.currentTarget.style.boxShadow='none'}>
@@ -2198,69 +2202,117 @@ export function Supplies({ user }) {
                 </div>
 
                 {/* 요약 상세 모달 */}
-                {summaryDetailModal && (
-                  <Modal open={true} onClose={() => setSummaryDetailModal(null)}
-                    title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건) · ${givenTermFilter}`} width={620}>
-                    <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'12px', maxHeight:'65vh', overflowY:'auto' }}>
-                      {(() => {
-                        // 기간 맞는 지급기록
-                        const toQKey = (q) => q ? q.replace(/^(\d+)년\s*(\d+)/, '$1-$2') : ''
-                        const periodRecs = summaryDetailModal.recs.filter(r =>
-                          toQKey(r.quarter) === toQKey(givenTermFilter)
-                        )
-                        // 학생 명단은 filteredClasses 기준 전체
-                        const schoolOrder = allSchools.filter(s => filteredClasses.some(c => c.organization === s))
-                        return schoolOrder.map(school => {
+                {summaryDetailModal && (() => {
+                  const toQKey = (q) => q ? q.replace(/^(\d+)년\s*(\d+)/, '$1-$2') : ''
+                  const periodRecs = summaryDetailModal.recs.filter(r =>
+                    toQKey(r.quarter) === toQKey(givenTermFilter)
+                  )
+                  const allIds = periodRecs.map(r => r.id)
+                  const allBulkChecked = allIds.length > 0 && allIds.every(id => bulkChecked.includes(id))
+
+                  const handleBulkApply = async () => {
+                    if (bulkChecked.length === 0) return
+                    const targetRecs = periodRecs.filter(r => bulkChecked.includes(r.id))
+                    for (const r of targetRecs) {
+                      const patch = { supplyStatus: bulkSupplyStatus, status: bulkBillingStatus }
+                      if (['given','extra'].includes(bulkSupplyStatus) && bulkDate) patch.givenAt = bulkDate
+                      if (['billed','paid'].includes(bulkBillingStatus) && bulkDate) patch.paidAt = bulkDate
+                      if (bulkBillingStatus === 'none') patch.paidAt = null
+                      patch.paymentStatus = bulkBillingStatus === 'unpaid' ? 'unpaid' : 'paid'
+                      await SupplyGiven.update(r.id, patch)
+                    }
+                    reload()
+                    setBulkChecked([])
+                    success(`${targetRecs.length}건 일괄 적용 완료`)
+                  }
+
+                  const schoolOrder = allSchools.filter(s => filteredClasses.some(c => c.organization === s))
+
+                  return (
+                    <Modal open={true} onClose={() => { setSummaryDetailModal(null); setBulkChecked([]) }}
+                      title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건) · ${givenTermFilter}`} width={640}>
+                      {/* 일괄처리 바 */}
+                      <div style={{ padding:'10px 16px', background:'#f8fafc', borderBottom:'1px solid #e5e7eb', display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+                        <label style={{ display:'flex', alignItems:'center', gap:'5px', cursor:'pointer', fontSize:'12px', fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>
+                          <input type="checkbox" checked={allBulkChecked}
+                            onChange={() => setBulkChecked(allBulkChecked ? [] : allIds)}
+                            style={{ width:'15px', height:'15px', cursor:'pointer', accentColor:'#3b82f6' }} />
+                          전체
+                        </label>
+                        <span style={{ fontSize:'11px', color:'#9ca3af' }}>{bulkChecked.length > 0 ? `${bulkChecked.length}건 선택` : '항목 선택 후'}</span>
+                        <select value={bulkSupplyStatus} onChange={e => setBulkSupplyStatus(e.target.value)}
+                          style={{ padding:'4px 7px', borderRadius:'6px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
+                          <option value="ready">준비</option>
+                          <option value="given">지급</option>
+                          <option value="unpaid">미지급</option>
+                          <option value="extra">추가지급</option>
+                        </select>
+                        <select value={bulkBillingStatus} onChange={e => setBulkBillingStatus(e.target.value)}
+                          style={{ padding:'4px 7px', borderRadius:'6px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
+                          <option value="none">청구/입금 없음</option>
+                          <option value="billed">청구</option>
+                          <option value="paid">입금</option>
+                          <option value="unpaid">미입금</option>
+                        </select>
+                        <input type="date" value={bulkDate} onChange={e => setBulkDate(e.target.value)}
+                          style={{ padding:'4px 7px', borderRadius:'6px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }} />
+                        <button onClick={handleBulkApply} disabled={bulkChecked.length === 0}
+                          style={{ padding:'5px 14px', borderRadius:'6px', border:'none', background: bulkChecked.length > 0 ? '#3b82f6' : '#e5e7eb', color: bulkChecked.length > 0 ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: bulkChecked.length > 0 ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                          일괄적용
+                        </button>
+                      </div>
+                      <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'12px', maxHeight:'60vh', overflowY:'auto' }}>
+                        {schoolOrder.map(school => {
                           const schoolClassIds = filteredClasses.filter(c => c.organization === school).map(c => c.id)
                           const allSchoolRecs = periodRecs.filter(r => r.schoolName === school)
+                          if (allSchoolRecs.length === 0) return null
                           const stuList = students
                             .filter(s => s.status === 'confirmed' && s.classIds?.some(cid => schoolClassIds.includes(cid)))
                             .sort((a, b) => {
-                              const ag = parseInt(a.grade||'0'), bg = parseInt(b.grade||'0')
-                              if (ag !== bg) return ag - bg
+                              const ag = parseInt(a.grade||'0'), bg_ = parseInt(b.grade||'0')
+                              if (ag !== bg_) return ag - bg_
                               const ac = parseInt(a.classNum||'0'), bc = parseInt(b.classNum||'0')
                               if (ac !== bc) return ac - bc
                               return parseInt(a.number||'0') - parseInt(b.number||'0')
                             })
-                            .map(s => ({ stu: s, studentId: s.id, studentName: s.name }))
                           return (
                             <div key={school}>
                               <div style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', marginBottom:'4px', paddingBottom:'4px', borderBottom:'1px solid #e5e7eb' }}>
                                 {getSchoolDayLabel(school)}{school}
                               </div>
                               <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-                                {stuList.map(({ stu, studentId, studentName }) => {
+                                {stuList.map(stu => {
                                   const stuLabel = [
-                                    stu?.grade ? `${stu.grade}학년` : '',
-                                    stu?.classNum ? `${stu.classNum}반` : '',
-                                    stu?.number ? `${stu.number}번` : '',
+                                    stu.grade ? `${stu.grade}학년` : '',
+                                    stu.classNum ? `${stu.classNum}반` : '',
+                                    stu.number ? `${stu.number}번` : '',
                                   ].filter(Boolean).join(' ')
-                                  // 이 학생의 기간 내 기록 (studentId 직접 매칭)
-                                  const stuPeriodRecs = allSchoolRecs.filter(r =>
-                                    r.studentId === studentId
-                                  ).sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||''))
+                                  const stuRecs = allSchoolRecs.filter(r => r.studentId === stu.id)
+                                    .sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||''))
+                                  if (stuRecs.length === 0) return null
                                   return (
-                                    <div key={stu?.id || studentName} style={{ display:'flex', gap:'8px', padding:'6px 10px', background: stuPeriodRecs.length > 1 ? '#eff6ff' : stuPeriodRecs.length === 0 ? '#fff7ed' : '#f9fafb', borderRadius:'7px', border: stuPeriodRecs.length > 1 ? '1px solid #bfdbfe' : stuPeriodRecs.length === 0 ? '1px solid #fed7aa' : '1px solid #e5e7eb' }}>
+                                    <div key={stu.id} style={{ display:'flex', gap:'8px', padding:'6px 10px', background: stuRecs.length > 1 ? '#eff6ff' : '#f9fafb', borderRadius:'7px', border: stuRecs.length > 1 ? '1px solid #bfdbfe' : '1px solid #e5e7eb' }}>
                                       <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px', flexShrink:0, paddingTop:'2px' }}>{stuLabel}</span>
-                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0, paddingTop:'2px' }}>{studentName}</span>
+                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0, paddingTop:'2px' }}>{stu.name}</span>
                                       <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'4px' }}>
-                                        {stuPeriodRecs.length === 0
-                                          ? <span style={{ fontSize:'12px', color:'#d1d5db' }}>미지급</span>
-                                          : stuPeriodRecs.map(r => (
-                                            <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                                              <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
-                                              {r.quarter && <span style={{ fontSize:'10px', color:'#3b82f6', flexShrink:0 }}>{r.quarter}</span>}
-                                              {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', flexShrink:0 }}>{fmt(getPrice(r))}원</span>}
-                                              {summaryDetailModal.label === '입금'
-                                                ? (r.paidAt
-                                                  ? <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>입금 {r.paidAt}</span>
-                                                  : <span style={{ fontSize:'10px', color:'#ef4444', fontWeight:700, flexShrink:0 }}>등록필요</span>
-                                                )
-                                                : <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {r.givenAt}</span>
-                                              }
-                                            </div>
-                                          ))
-                                        }
+                                        {stuRecs.map(r => (
+                                          <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                                            <input type="checkbox"
+                                              checked={bulkChecked.includes(r.id)}
+                                              onChange={() => setBulkChecked(p => p.includes(r.id) ? p.filter(x=>x!==r.id) : [...p, r.id])}
+                                              style={{ width:'13px', height:'13px', cursor:'pointer', accentColor:'#3b82f6', flexShrink:0 }} />
+                                            <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
+                                            {r.quarter && <span style={{ fontSize:'10px', color:'#3b82f6', flexShrink:0 }}>{r.quarter}</span>}
+                                            {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', flexShrink:0 }}>{fmt(getPrice(r))}원</span>}
+                                            {summaryDetailModal.label === '입금'
+                                              ? (r.paidAt
+                                                ? <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>입금 {r.paidAt}</span>
+                                                : <span style={{ fontSize:'10px', color:'#ef4444', fontWeight:700, flexShrink:0 }}>등록필요</span>
+                                              )
+                                              : <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {r.givenAt}</span>
+                                            }
+                                          </div>
+                                        ))}
                                       </div>
                                     </div>
                                   )
@@ -2268,11 +2320,11 @@ export function Supplies({ user }) {
                               </div>
                             </div>
                           )
-                        })
-                      })()}
-                    </div>
-                  </Modal>
-                )}
+                        })}
+                      </div>
+                    </Modal>
+                  )
+                })()}
 
                 {/* 필터: 한 줄 */}
                 <div style={{ display:'flex', gap:'8px', marginBottom:'16px', alignItems:'center' }}>
