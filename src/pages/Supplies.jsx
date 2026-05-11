@@ -2240,20 +2240,44 @@ export function Supplies({ user }) {
                           전체
                         </label>
                         <span style={{ fontSize:'11px', color:'#9ca3af' }}>{bulkChecked.length > 0 ? `${bulkChecked.length}건 선택` : '항목 선택 후'}</span>
-                        <select value={bulkSupplyStatus} onChange={e => setBulkSupplyStatus(e.target.value)}
-                          style={{ padding:'4px 7px', borderRadius:'6px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
-                          <option value="ready">준비</option>
-                          <option value="given">지급</option>
-                          <option value="unpaid">미지급</option>
-                          <option value="extra">추가지급</option>
-                        </select>
-                        <select value={bulkBillingStatus} onChange={e => setBulkBillingStatus(e.target.value)}
-                          style={{ padding:'4px 7px', borderRadius:'6px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
-                          <option value="none">청구/입금 없음</option>
-                          <option value="billed">청구</option>
-                          <option value="paid">입금</option>
-                          <option value="unpaid">미입금</option>
-                        </select>
+                        {/* 지급 교구 모달: 지급상태 드롭만 표시 */}
+                        {summaryDetailModal.label === '지급 교구' && (
+                          <select value={bulkSupplyStatus} onChange={e => setBulkSupplyStatus(e.target.value)}
+                            style={{ padding:'4px 7px', borderRadius:'6px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
+                            <option value="ready">준비</option>
+                            <option value="given">지급</option>
+                            <option value="unpaid">미지급</option>
+                            <option value="extra">추가지급</option>
+                          </select>
+                        )}
+                        {/* 청구 교구 모달: 청구/입금 드롭만 표시 */}
+                        {summaryDetailModal.label === '청구 교구' && (
+                          <select value={bulkBillingStatus} onChange={e => setBulkBillingStatus(e.target.value)}
+                            style={{ padding:'4px 7px', borderRadius:'6px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
+                            <option value="billed">청구</option>
+                            <option value="paid">입금</option>
+                            <option value="unpaid">미입금</option>
+                          </select>
+                        )}
+                        {/* 그 외(입금, 미입금 등): 둘 다 표시 */}
+                        {summaryDetailModal.label !== '지급 교구' && summaryDetailModal.label !== '청구 교구' && (
+                          <>
+                            <select value={bulkSupplyStatus} onChange={e => setBulkSupplyStatus(e.target.value)}
+                              style={{ padding:'4px 7px', borderRadius:'6px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
+                              <option value="ready">준비</option>
+                              <option value="given">지급</option>
+                              <option value="unpaid">미지급</option>
+                              <option value="extra">추가지급</option>
+                            </select>
+                            <select value={bulkBillingStatus} onChange={e => setBulkBillingStatus(e.target.value)}
+                              style={{ padding:'4px 7px', borderRadius:'6px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
+                              <option value="none">청구/입금 없음</option>
+                              <option value="billed">청구</option>
+                              <option value="paid">입금</option>
+                              <option value="unpaid">미입금</option>
+                            </select>
+                          </>
+                        )}
                         <input type="date" value={bulkDate} onChange={e => setBulkDate(e.target.value)}
                           style={{ padding:'4px 7px', borderRadius:'6px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }} />
                         <button onClick={handleBulkApply} disabled={bulkChecked.length === 0}
