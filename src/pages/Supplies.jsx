@@ -2179,19 +2179,23 @@ export function Supplies({ user }) {
                                     stu?.number ? `${stu.number}번` : '',
                                   ].filter(Boolean).join(' ')
                                   // 교구별 1줄씩, 날짜 오름차순
-                                  return [...recs].sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||'')).map(r => (
-                                    <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
-                                      <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px', flexShrink:0 }}>{stuLabel}</span>
-                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0 }}>{r.studentName}</span>
-                                      <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
-                                      {getPrice(r) > 0 && (
-                                        <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', flexShrink:0 }}>
-                                          {fmt(getPrice(r))}원
-                                        </span>
-                                      )}
-                                      <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {r.givenAt}</span>
+                                  const sortedRecs = [...recs].sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||''))
+                                  return (
+                                    <div key={recs[0].studentId} style={{ display:'flex', gap:'8px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
+                                      <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px', flexShrink:0, paddingTop:'2px' }}>{stuLabel}</span>
+                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0, paddingTop:'2px' }}>{recs[0].studentName}</span>
+                                      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'4px' }}>
+                                        {sortedRecs.map(r => (
+                                          <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                                            <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
+                                            {r.quarter && <span style={{ fontSize:'10px', color:'#3b82f6', flexShrink:0 }}>{r.quarter}</span>}
+                                            {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', flexShrink:0 }}>{fmt(getPrice(r))}원</span>}
+                                            <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {r.givenAt}</span>
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
-                                  ))
+                                  )
                                 })}
                               </div>
                             </div>
