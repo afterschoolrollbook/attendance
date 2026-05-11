@@ -163,6 +163,7 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
     paid:   { bg:'#dcfce7', color:'#15803d', border:'#86efac', label:'입' },
     unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미지급(보관)' },
     extra:  { bg:'#ede9fe', color:'#7c3aed', border:'#c4b5fd', label:'추가지급' },
+    extra:  { bg:'#ede9fe', color:'#7c3aed', border:'#c4b5fd', label:'추가지급' },
   }
   const status = record.status || 'given'
   const st = STATUS_STYLE[status] || STATUS_STYLE.given
@@ -2141,27 +2142,25 @@ export function Supplies({ user }) {
                     title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건) · ${givenTermFilter === 'current' ? (activeClasses.length > 0 ? getTermLabel(activeClasses[0]) : '현재 진행 중') : givenTermFilter}`} width={620}>
                     <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'12px', maxHeight:'65vh', overflowY:'auto' }}>
                       {(() => {
-                        // 기간 필터 적용한 기록만
+                        // 기간 맞는 지급기록
                         const periodRecs = summaryDetailModal.recs.filter(r =>
-                          givenTermFilter === 'current' || !r.quarter || r.quarter === givenTermFilter
+                          givenTermFilter === 'current' || r.quarter === givenTermFilter
                         )
-                        const schoolOrder = allSchools.filter(s => periodRecs.some(r => r.schoolName === s))
+                        // 학생 명단은 filteredClasses 기준 전체
+                        const schoolOrder = allSchools.filter(s => filteredClasses.some(c => c.organization === s))
                         return schoolOrder.map(school => {
+                          const schoolClassIds = filteredClasses.filter(c => c.organization === school).map(c => c.id)
                           const allSchoolRecs = periodRecs.filter(r => r.schoolName === school)
-                          const stuMap = {}
-                          allSchoolRecs.forEach(r => {
-                            if (!stuMap[r.studentId]) {
-                              const stu = students.find(s => s.id === r.studentId)
-                              stuMap[r.studentId] = { stu, studentId: r.studentId, studentName: r.studentName }
-                            }
-                          })
-                          const stuList = Object.values(stuMap).sort((a, b) => {
-                            const ag = parseInt(a.stu?.grade||'0'), bg = parseInt(b.stu?.grade||'0')
-                            if (ag !== bg) return ag - bg
-                            const ac = parseInt(a.stu?.classNum||'0'), bc = parseInt(b.stu?.classNum||'0')
-                            if (ac !== bc) return ac - bc
-                            return parseInt(a.stu?.number||'0') - parseInt(b.stu?.number||'0')
-                          })
+                          const stuList = students
+                            .filter(s => s.status === 'confirmed' && s.classIds?.some(cid => schoolClassIds.includes(cid)))
+                            .sort((a, b) => {
+                              const ag = parseInt(a.grade||'0'), bg = parseInt(b.grade||'0')
+                              if (ag !== bg) return ag - bg
+                              const ac = parseInt(a.classNum||'0'), bc = parseInt(b.classNum||'0')
+                              if (ac !== bc) return ac - bc
+                              return parseInt(a.number||'0') - parseInt(b.number||'0')
+                            })
+                            .map(s => ({ stu: s, studentId: s.id, studentName: s.name }))
                           return (
                             <div key={school}>
                               <div style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', marginBottom:'4px', paddingBottom:'4px', borderBottom:'1px solid #e5e7eb' }}>
@@ -2351,7 +2350,7 @@ export function Supplies({ user }) {
                                       </div>
                                       <div style={{ display:'flex', flexDirection:'column', gap:'4px', padding:'6px 8px', background:bodyBg }}>
                                         {qRecords.map(r => (
-                                          <GivenRecord key={r.id} record={r} termType={cls.termType}
+                                          <GivenRecord key={r.id + '_' + (r.status||'') + '_' + (r.paymentStatus||'')} record={r} termType={cls.termType}
                                             onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
                                             onUpdate={async (itemName, givenAt, quarter, status, paymentStatus, paidAt) => { await SupplyGiven.update(r.id, { itemName, givenAt, quarter, status, paymentStatus, paidAt }); reload() }} />
                                         ))}
