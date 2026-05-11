@@ -1925,7 +1925,7 @@ export function Supplies({ user }) {
             const todayStr = new Date().toISOString().slice(0,10)
 
             // ── 요약용 데이터 (아래 리스트 필터와 동일하게 filteredClasses 기준)
-            const summaryRecords = givenList.filter(g => filteredClasses.some(c => c.id === g.classId) && (givenTermFilter === 'current' || !g.quarter || g.quarter === givenTermFilter))
+            const summaryRecords = givenList.filter(g => filteredClasses.some(c => c.id === g.classId))
             const fmt = n => Number(n||0).toLocaleString('ko-KR')
             const getPrice = (r) => {
               // schoolPriceList에서 학교 + 교구명 매칭 (정확 or itemName이 productName으로 시작)
@@ -2141,53 +2141,55 @@ export function Supplies({ user }) {
                     title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건)`} width={620}>
                     <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'12px', maxHeight:'65vh', overflowY:'auto' }}>
                       {(() => {
-                        const schoolOrder = allSchools.filter(s => summaryDetailModal.recs.some(r => r.schoolName === s))
+                        // 학교별 - filteredClasses 기준 학생 명단
+                        const schoolOrder = allSchools.filter(s => filteredClasses.some(c => c.organization === s))
                         return schoolOrder.map(school => {
-                          const schoolRecs = summaryDetailModal.recs.filter(r => r.schoolName === school)
-                          // 학생별 그룹
-                          const stuMap = {}
-                          schoolRecs.forEach(r => {
-                            if (!stuMap[r.studentId]) {
-                              const stu = students.find(s => s.id === r.studentId)
-                              stuMap[r.studentId] = { stu, recs: [] }
-                            }
-                            stuMap[r.studentId].recs.push(r)
-                          })
+                          const schoolClasses = filteredClasses.filter(c => c.organization === school)
+                          // 해당 학교 전체 학생
+                          const schoolStudents = students.filter(s => schoolClasses.some(c => c.id === s.classId))
                           // 학년>반>번호 오름차순
-                          const stuList = Object.values(stuMap).sort((a, b) => {
-                            const ag = parseInt(a.stu?.grade||'0'), bg = parseInt(b.stu?.grade||'0')
+                          const sortedStudents = [...schoolStudents].sort((a, b) => {
+                            const ag = parseInt(a.grade||'0'), bg = parseInt(b.grade||'0')
                             if (ag !== bg) return ag - bg
-                            const ac = parseInt(a.stu?.classNum||'0'), bc = parseInt(b.stu?.classNum||'0')
+                            const ac = parseInt(a.classNum||'0'), bc = parseInt(b.classNum||'0')
                             if (ac !== bc) return ac - bc
-                            return parseInt(a.stu?.number||'0') - parseInt(b.stu?.number||'0')
+                            return parseInt(a.number||'0') - parseInt(b.number||'0')
                           })
+                          if (sortedStudents.length === 0) return null
                           return (
                             <div key={school}>
                               <div style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', marginBottom:'4px', paddingBottom:'4px', borderBottom:'1px solid #e5e7eb' }}>
                                 {getSchoolDayLabel(school)}{school}
                               </div>
                               <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-                                {stuList.map(({ stu, recs }) => {
+                                {sortedStudents.map(stu => {
                                   const stuLabel = [
-                                    stu?.grade ? `${stu.grade}학년` : '',
-                                    stu?.classNum ? `${stu.classNum}반` : '',
-                                    stu?.number ? `${stu.number}번` : '',
+                                    stu.grade ? `${stu.grade}학년` : '',
+                                    stu.classNum ? `${stu.classNum}반` : '',
+                                    stu.number ? `${stu.number}번` : '',
                                   ].filter(Boolean).join(' ')
-                                  // 교구별 1줄씩, 날짜 오름차순
-                                  const sortedRecs = [...recs].sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||''))
+                                  // 이 학생의 지급 기록 중 현재 기간 것만
+                                  const stuRecs = summaryDetailModal.recs.filter(r =>
+                                    r.studentId === stu.id &&
+                                    (givenTermFilter === 'current' || !r.quarter || r.quarter === givenTermFilter)
+                                  )
+                                  const sortedRecs = [...stuRecs].sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||''))
                                   return (
-                                    <div key={recs[0].studentId} style={{ display:'flex', gap:'8px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
+                                    <div key={stu.id} style={{ display:'flex', gap:'8px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
                                       <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px', flexShrink:0, paddingTop:'2px' }}>{stuLabel}</span>
-                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0, paddingTop:'2px' }}>{recs[0].studentName}</span>
+                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0, paddingTop:'2px' }}>{stu.name}</span>
                                       <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'4px' }}>
-                                        {sortedRecs.map(r => (
-                                          <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                                            <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
-                                            {r.quarter && <span style={{ fontSize:'10px', color:'#3b82f6', flexShrink:0 }}>{r.quarter}</span>}
-                                            {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', flexShrink:0 }}>{fmt(getPrice(r))}원</span>}
-                                            <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {r.givenAt}</span>
-                                          </div>
-                                        ))}
+                                        {sortedRecs.length === 0
+                                          ? <span style={{ fontSize:'12px', color:'#d1d5db' }}>미지급</span>
+                                          : sortedRecs.map(r => (
+                                            <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                                              <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
+                                              {r.quarter && <span style={{ fontSize:'10px', color:'#3b82f6', flexShrink:0 }}>{r.quarter}</span>}
+                                              {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', flexShrink:0 }}>{fmt(getPrice(r))}원</span>}
+                                              <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {r.givenAt}</span>
+                                            </div>
+                                          ))
+                                        }
                                       </div>
                                     </div>
                                   )
