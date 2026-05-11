@@ -381,7 +381,9 @@ function SchoolPriceRow({ sp, allSchools, onUpdate, onDelete }) {
 
   return (
     <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'6px 10px', background:'#f0fdf4', borderRadius:'7px', border:'1px solid #86efac' }}>
-      <span style={{ fontSize:'12px', fontWeight:600, color:'#15803d', flex:1 }}>{sp.schoolName}</span>
+      <span style={{ fontSize:'12px', fontWeight:600, color:'#15803d', flex:1 }}>
+        {(() => { const s = allSchools.find(x => (x.value||x) === sp.schoolName); return s ? (s.label || s) : sp.schoolName })()}
+      </span>
       {sp.memo && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{sp.memo}</span>}
       <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>{fmt(sp.price)}원</span>
       <button onClick={() => setEditing(true)}
