@@ -1826,6 +1826,7 @@ export function Supplies({ user }) {
             ).values()].sort().reverse()
 
             const filteredClasses = classes.filter(c =>
+                  getTermLabel(c) === givenTermFilter &&
                   (!givenFilter.school || c.organization === givenFilter.school) &&
                   (!givenFilter.classId || c.id === givenFilter.classId)
                 )
