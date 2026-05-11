@@ -1952,7 +1952,7 @@ export function Supplies({ user }) {
             const billedRecs  = summaryRecords.filter(r => r.status === 'billed' || r.status === 'paid')
             const paidRecs    = summaryRecords.filter(r => r.status === 'paid')
             const unpaidRecs  = summaryRecords.filter(r => r.status === 'unpaid')
-            const extraRecs   = summaryRecords.filter(r => r.isExtra)
+            const extraRecs   = summaryRecords.filter(r => r.isExtra || r.status === 'extra')
 
             return (
               <div>
@@ -2110,7 +2110,7 @@ export function Supplies({ user }) {
                           return `${fmt(amt)}원${dates.length > 0 ? ` · 입금일: ${dates.join(', ')}` : ''}`
                         })() : null },
                       { label:'미입금',         cnt: unpaidRecs.length, recs: unpaidRecs, color:'#b91c1c', bg:'#fee2e2', extra: null },
-                      { label:'추가 지급',      cnt: summaryRecords.filter(r=>r.isExtra).length, recs: summaryRecords.filter(r=>r.isExtra), color:'#7c3aed', bg:'#ede9fe', extra: null },
+                      { label:'추가 지급',      cnt: summaryRecords.filter(r=>r.isExtra||r.status==='extra').length, recs: summaryRecords.filter(r=>r.isExtra||r.status==='extra'), color:'#7c3aed', bg:'#ede9fe', extra: null },
                     ]
                     return (
                       <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
@@ -2138,19 +2138,21 @@ export function Supplies({ user }) {
                 {/* 요약 상세 모달 */}
                 {summaryDetailModal && (
                   <Modal open={true} onClose={() => setSummaryDetailModal(null)}
-                    title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건)`} width={620}>
+                    title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건) · ${givenTermFilter === 'current' ? (activeClasses.length > 0 ? getTermLabel(activeClasses[0]) : '현재 진행 중') : givenTermFilter}`} width={620}>
                     <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'12px', maxHeight:'65vh', overflowY:'auto' }}>
                       {(() => {
-                        // 학교 순서 - 지급기록에 있는 학교 기준 (allSchools 순서)
-                        const schoolOrder = allSchools.filter(s => summaryDetailModal.recs.some(r => r.schoolName === s))
+                        // 기간 필터 적용한 기록만
+                        const periodRecs = summaryDetailModal.recs.filter(r =>
+                          givenTermFilter === 'current' || !r.quarter || r.quarter === givenTermFilter
+                        )
+                        const schoolOrder = allSchools.filter(s => periodRecs.some(r => r.schoolName === s))
                         return schoolOrder.map(school => {
-                          // 이 학교의 모든 지급기록 studentId 기준으로 학생 목록 구성
-                          const allSchoolRecs = summaryDetailModal.recs.filter(r => r.schoolName === school)
+                          const allSchoolRecs = periodRecs.filter(r => r.schoolName === school)
                           const stuMap = {}
                           allSchoolRecs.forEach(r => {
                             if (!stuMap[r.studentId]) {
                               const stu = students.find(s => s.id === r.studentId)
-                              stuMap[r.studentId] = { stu, studentName: r.studentName }
+                              stuMap[r.studentId] = { stu, studentId: r.studentId, studentName: r.studentName }
                             }
                           })
                           const stuList = Object.values(stuMap).sort((a, b) => {
@@ -2166,25 +2168,24 @@ export function Supplies({ user }) {
                                 {getSchoolDayLabel(school)}{school}
                               </div>
                               <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-                                {stuList.map(({ stu, studentName }) => {
+                                {stuList.map(({ stu, studentId, studentName }) => {
                                   const stuLabel = [
                                     stu?.grade ? `${stu.grade}학년` : '',
                                     stu?.classNum ? `${stu.classNum}반` : '',
                                     stu?.number ? `${stu.number}번` : '',
                                   ].filter(Boolean).join(' ')
-                                  // 이 학생의 기록 중 현재 기간에 맞는 것만
-                                  const periodRecs = allSchoolRecs.filter(r =>
-                                    r.studentId === (stu?.id || '') &&
-                                    (givenTermFilter === 'current' || !r.quarter || r.quarter === givenTermFilter)
+                                  // 이 학생의 기간 내 기록 (studentId 직접 매칭)
+                                  const stuPeriodRecs = allSchoolRecs.filter(r =>
+                                    r.studentId === studentId
                                   ).sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||''))
                                   return (
                                     <div key={stu?.id || studentName} style={{ display:'flex', gap:'8px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
                                       <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px', flexShrink:0, paddingTop:'2px' }}>{stuLabel}</span>
                                       <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0, paddingTop:'2px' }}>{studentName}</span>
                                       <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'4px' }}>
-                                        {periodRecs.length === 0
+                                        {stuPeriodRecs.length === 0
                                           ? <span style={{ fontSize:'12px', color:'#d1d5db' }}>미지급</span>
-                                          : periodRecs.map(r => (
+                                          : stuPeriodRecs.map(r => (
                                             <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                                               <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
                                               {r.quarter && <span style={{ fontSize:'10px', color:'#3b82f6', flexShrink:0 }}>{r.quarter}</span>}
