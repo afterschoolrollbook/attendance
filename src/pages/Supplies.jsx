@@ -2077,8 +2077,8 @@ export function Supplies({ user }) {
                     const paidAll     = summaryRecords.filter(r => r.status==='paid' || (r.status==='billed' && r.paidAt))
                     const unpaidRecs  = summaryRecords.filter(r => r.paymentStatus==='unpaid')
                     const rows = [
+                      { label:'지급 교구',      cnt: summaryRecords.length, recs: summaryRecords, color:'#1d4ed8', bg:'#dbeafe', extra: null },
                       { label:'준비 교구',      cnt: summaryRecords.filter(r=>r.status==='ready').length,  recs: summaryRecords.filter(r=>r.status==='ready'),  color:'#6b7280', bg:'#f3f4f6', extra: null },
-                      { label:'지급 교구',      cnt: summaryRecords.filter(r=>r.status==='given').length,  recs: summaryRecords.filter(r=>r.status==='given'),  color:'#1d4ed8', bg:'#dbeafe', extra: null },
                       { label:'청구 교구',      cnt: billedOnly.length,  recs: billedOnly,  color:'#a16207', bg:'#fef9c3',
                         extra: billedOnly.length > 0 ? `청구 ${fmt(billedOnly.reduce((s,r)=>s+getPrice(r),0))}원` : null },
                       { label:'입금',           cnt: paidAll.length, recs: paidAll, color:'#15803d', bg:'#dcfce7',
@@ -2116,17 +2116,25 @@ export function Supplies({ user }) {
                 {/* 요약 상세 모달 */}
                 {summaryDetailModal && (
                   <Modal open={true} onClose={() => setSummaryDetailModal(null)}
-                    title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건)`} width={580}>
+                    title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건)`} width={620}>
                     <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'6px', maxHeight:'65vh', overflowY:'auto' }}>
                       {summaryDetailModal.recs.map(r => (
                         <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', background:'#f9fafb', borderRadius:'8px', border:'1px solid #e5e7eb', flexWrap:'wrap' }}>
-                          <span style={{ fontSize:'11px', color:'#6b7280', minWidth:'60px' }}>{r.schoolName || '-'}</span>
-                          <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'60px' }}>{r.studentName || '-'}</span>
+                          <span style={{ fontSize:'11px', color:'#6b7280', minWidth:'55px' }}>{r.schoolName || '-'}</span>
+                          <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px' }}>{r.studentName || '-'}</span>
                           <span style={{ fontSize:'13px', color:'#374151', flex:1 }}>{r.itemName}</span>
                           {r.quarter && <span style={{ fontSize:'10px', color:'#9ca3af' }}>{r.quarter}</span>}
                           {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d' }}>{fmt(getPrice(r))}원</span>}
-                          {r.paidAt && <span style={{ fontSize:'11px', color:'#15803d' }}>입금 {r.paidAt}</span>}
-                          <span style={{ fontSize:'11px', color:'#9ca3af' }}>{r.givenAt}</span>
+                          <span style={{ fontSize:'10px', color:'#9ca3af' }}>지급 {r.givenAt}</span>
+                          <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+                            <span style={{ fontSize:'10px', color:'#6b7280', whiteSpace:'nowrap' }}>입금일</span>
+                            <input type="date" defaultValue={r.paidAt || ''}
+                              onChange={async e => {
+                                await SupplyGiven.update(r.id, { paidAt: e.target.value || null })
+                                reload()
+                              }}
+                              style={{ padding:'2px 5px', borderRadius:'5px', border:'1px solid #d1fae5', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background: r.paidAt ? '#f0fdf4' : '#fff', color:'#15803d' }} />
+                          </div>
                         </div>
                       ))}
                     </div>
