@@ -464,7 +464,8 @@ export function Supplies({ user }) {
   const [givenList, setGivenList]           = useState([])
   const [schoolPriceList, setSchoolPriceList] = useState([])
   const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'' })
-  const [givenTermFilter, setGivenTermFilter] = useState('current')
+  const [givenTermFilter, setGivenTermFilter]       = useState('current')
+  const [summaryDetailModal, setSummaryDetailModal] = useState(null) // { label, recs, color }
   const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
   const [givenCalYM, setGivenCalYM]           = useState(() => new Date().toISOString().slice(0,7))
   const [givenCalDetailDate, setGivenCalDetailDate] = useState(null)
@@ -1919,12 +1920,18 @@ export function Supplies({ user }) {
             const summaryRecords = givenList.filter(g => filteredClasses.some(c => c.id === g.classId))
             const fmt = n => Number(n||0).toLocaleString('ko-KR')
             const getPrice = (r) => {
-              const p = productList.find(x => x.name === r.itemName || x.id === r.productId)
-              if (!p) return 0
-              // 학교별 공급가 우선
-              const sp = schoolPriceList.find(x => x.productId === p.id && x.schoolName === r.schoolName)
-              if (sp) return sp.price || 0
-              return p.schoolPrice || p.price || 0
+              // 1. productId로 교구 찾기
+              const p = productList.find(x => x.id === r.productId) ||
+                        productList.find(x => r.itemName && r.itemName.startsWith(x.name))
+              // 2. 학교별 공급가 우선 (productId 매칭 or schoolName만으로)
+              if (p) {
+                const sp = schoolPriceList.find(x => x.productId === p.id && x.schoolName === r.schoolName)
+                if (sp) return sp.price || 0
+                return p.schoolPrice || p.price || 0
+              }
+              // 3. schoolName만으로 fallback
+              const sp = schoolPriceList.find(x => x.schoolName === r.schoolName)
+              return sp?.price || 0
             }
             // paidAt 기준 달력용 그룹
             const paidByDate = {}
@@ -2021,7 +2028,7 @@ export function Supplies({ user }) {
                     <span style={{ fontSize:'11px', color:C.muted }}>
                       {givenFilter.school ? givenFilter.school : '전체 학교'}
                       {givenFilter.classId ? ` · ${schoolFilteredClasses.find(c=>c.id===givenFilter.classId)?.className || ''}` : ''}
-                      {givenTermFilter !== 'current' ? ` · ${givenTermFilter}` : ' · 현재 진행 중'}
+                      {givenTermFilter !== 'current' ? ` · ${givenTermFilter}` : ` · ${activeClasses.length > 0 ? (getTermLabel(activeClasses[0]) || '현재 진행 중') : '현재 진행 중'}`}
                     </span>
                   </div>
 
@@ -2034,17 +2041,25 @@ export function Supplies({ user }) {
                         <div style={{ fontSize:'12px', fontWeight:700, color:'#374151', marginBottom:'6px' }}>🏫 학교별 교구비</div>
                         <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
                           {schools.map(school => {
-                            const schoolRecs = summaryRecords.filter(r => r.schoolName === school)
-                            const billedAmt = schoolRecs.filter(r => r.status==='billed'||r.status==='paid').reduce((s,r) => s+getPrice(r), 0)
-                            const paidAmt   = schoolRecs.filter(r => r.status==='paid').reduce((s,r) => s+getPrice(r), 0)
-                            const paidDates = [...new Set(schoolRecs.filter(r => r.paidAt).map(r => r.paidAt))].sort()
+                            const schoolRecs  = summaryRecords.filter(r => r.schoolName === school)
+                            const billedRecs  = schoolRecs.filter(r => r.status==='billed' && !r.paidAt)
+                            const paidRecs    = schoolRecs.filter(r => r.status==='paid' || r.paidAt)
+                            const billedAmt   = billedRecs.reduce((s,r) => s+getPrice(r), 0)
+                            const paidAmt     = paidRecs.reduce((s,r) => s+getPrice(r), 0)
+                            const paidDates   = [...new Set(paidRecs.filter(r => r.paidAt).map(r => r.paidAt))].sort()
+                            const hasPrice    = schoolRecs.some(r => getPrice(r) > 0)
                             return (
                               <div key={school} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb', flexWrap:'wrap' }}>
                                 <span style={{ fontSize:'12px', fontWeight:700, color:'#374151', minWidth:'80px' }}>{school}</span>
-                                <span style={{ fontSize:'12px', color:'#a16207' }}>청구 <b>{fmt(billedAmt)}</b>원</span>
-                                <span style={{ fontSize:'12px', color:'#15803d' }}>입금 <b>{fmt(paidAmt)}</b>원</span>
-                                {billedAmt > paidAmt && <span style={{ fontSize:'11px', color:'#b91c1c', fontWeight:600 }}>미수 {fmt(billedAmt-paidAmt)}원</span>}
-                                {paidDates.length > 0 && <span style={{ fontSize:'10px', color:'#9ca3af' }}>입금일: {paidDates.join(', ')}</span>}
+                                {!hasPrice
+                                  ? <span style={{ fontSize:'11px', color:'#f97316' }}>⚠️ 단가 미등록 (💰가격 버튼에서 설정)</span>
+                                  : <>
+                                      <span style={{ fontSize:'12px', color:'#a16207' }}>청구 <b>{fmt(billedAmt)}</b>원</span>
+                                      <span style={{ fontSize:'12px', color:'#15803d' }}>입금 <b>{fmt(paidAmt)}</b>원</span>
+                                      {billedAmt > 0 && <span style={{ fontSize:'11px', color:'#b91c1c', fontWeight:600 }}>미수 {fmt(billedAmt)}원</span>}
+                                      {paidDates.length > 0 && <span style={{ fontSize:'10px', color:'#9ca3af' }}>입금일: {paidDates.join(', ')}</span>}
+                                    </>
+                                }
                               </div>
                             )
                           })}
@@ -2052,23 +2067,38 @@ export function Supplies({ user }) {
                       </div>
                     )
                   })()}
+
+                  {/* 상태별 요약 rows */}
                   {(() => {
-                    const makeRows = (recs) => [
-                      { label:'준비 교구',     cnt:recs.filter(r=>r.status==='ready').length,  recs:recs.filter(r=>r.status==='ready'),  color:'#6b7280', bg:'#f3f4f6', extra:null },
-                      { label:'지급 교구',     cnt:recs.filter(r=>r.status==='given').length,  recs:recs.filter(r=>r.status==='given'),  color:'#1d4ed8', bg:'#dbeafe', extra:null },
-                      { label:'청구 교구',     cnt:recs.filter(r=>r.status==='billed'||r.status==='paid').length, recs:recs.filter(r=>r.status==='billed'||r.status==='paid'), color:'#a16207', bg:'#fef9c3', extra:`청구 ${fmt(recs.filter(r=>r.status==='billed'||r.status==='paid').reduce((s,r)=>s+getPrice(r),0))}원` },
-                      { label:'입금 금액',     cnt:null, recs:recs.filter(r=>r.status==='paid'), color:'#15803d', bg:'#dcfce7', extra:`${fmt(recs.filter(r=>r.status==='paid').reduce((s,r)=>s+getPrice(r),0))}원` },
-                      { label:'미지급(입금됨)', cnt:recs.filter(r=>r.status==='unpaid').length, recs:recs.filter(r=>r.status==='unpaid'), color:'#b91c1c', bg:'#fee2e2', extra:null },
-                      { label:'추가 지급',     cnt:recs.filter(r=>r.isExtra).length, recs:recs.filter(r=>r.isExtra), color:'#7c3aed', bg:'#ede9fe', extra:null },
+                    const billedOnly  = summaryRecords.filter(r => r.status==='billed' && !r.paidAt)
+                    const paidAll     = summaryRecords.filter(r => r.status==='paid' || (r.status==='billed' && r.paidAt))
+                    const unpaidRecs  = summaryRecords.filter(r => r.paymentStatus==='unpaid')
+                    const rows = [
+                      { label:'준비 교구',      cnt: summaryRecords.filter(r=>r.status==='ready').length,  recs: summaryRecords.filter(r=>r.status==='ready'),  color:'#6b7280', bg:'#f3f4f6', extra: null },
+                      { label:'지급 교구',      cnt: summaryRecords.filter(r=>r.status==='given').length,  recs: summaryRecords.filter(r=>r.status==='given'),  color:'#1d4ed8', bg:'#dbeafe', extra: null },
+                      { label:'청구 교구',      cnt: billedOnly.length,  recs: billedOnly,  color:'#a16207', bg:'#fef9c3',
+                        extra: billedOnly.length > 0 ? `청구 ${fmt(billedOnly.reduce((s,r)=>s+getPrice(r),0))}원` : null },
+                      { label:'입금',           cnt: paidAll.length, recs: paidAll, color:'#15803d', bg:'#dcfce7',
+                        extra: paidAll.length > 0 ? (() => {
+                          const amt = paidAll.reduce((s,r)=>s+getPrice(r),0)
+                          const dates = [...new Set(paidAll.filter(r=>r.paidAt).map(r=>r.paidAt))].sort()
+                          return `${fmt(amt)}원${dates.length > 0 ? ` · 입금일: ${dates.join(', ')}` : ''}`
+                        })() : null },
+                      { label:'미입금',         cnt: unpaidRecs.length, recs: unpaidRecs, color:'#b91c1c', bg:'#fee2e2', extra: null },
+                      { label:'추가 지급',      cnt: summaryRecords.filter(r=>r.isExtra).length, recs: summaryRecords.filter(r=>r.isExtra), color:'#7c3aed', bg:'#ede9fe', extra: null },
                     ]
                     return (
                       <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                        {makeRows(summaryRecords).map(({ label, cnt, recs: rowRecs, color, bg, extra }) => (
-                          <div key={label} style={{ background:bg, borderRadius:'8px', padding:'8px 12px' }}>
+                        {rows.map(({ label, cnt, recs: rowRecs, color, bg, extra }) => (
+                          <div key={label} onClick={() => rowRecs.length > 0 && setSummaryDetailModal({ label, recs: rowRecs, color })}
+                            style={{ background:bg, borderRadius:'8px', padding:'8px 12px', cursor: rowRecs.length>0 ? 'pointer' : 'default', transition:'box-shadow .1s' }}
+                            onMouseEnter={e => { if(rowRecs.length>0) e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)' }}
+                            onMouseLeave={e => e.currentTarget.style.boxShadow='none'}>
                             <div style={{ display:'flex', alignItems:'baseline', gap:'6px', flexWrap:'wrap', marginBottom: rowRecs.length>0?'4px':0 }}>
                               <span style={{ fontSize:'10px', color, fontWeight:600 }}>{label}</span>
-                              {cnt !== null && <span style={{ fontSize:'16px', fontWeight:800, color }}>{cnt}건</span>}
+                              <span style={{ fontSize:'16px', fontWeight:800, color }}>{cnt}건</span>
                               {extra && <span style={{ fontSize:'11px', fontWeight:700, color }}>{extra}</span>}
+                              {rowRecs.length > 0 && <span style={{ fontSize:'10px', color, opacity:0.6, marginLeft:'auto' }}>▶ 상세보기</span>}
                             </div>
                             {rowRecs.length > 0 && (
                               <div style={{ fontSize:'11px', color, opacity:0.85, lineHeight:1.6 }}>{itemBreakdown(rowRecs)}</div>
@@ -2079,6 +2109,26 @@ export function Supplies({ user }) {
                     )
                   })()}
                 </div>
+
+                {/* 요약 상세 모달 */}
+                {summaryDetailModal && (
+                  <Modal open={true} onClose={() => setSummaryDetailModal(null)}
+                    title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건)`} width={580}>
+                    <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'6px', maxHeight:'65vh', overflowY:'auto' }}>
+                      {summaryDetailModal.recs.map(r => (
+                        <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', background:'#f9fafb', borderRadius:'8px', border:'1px solid #e5e7eb', flexWrap:'wrap' }}>
+                          <span style={{ fontSize:'11px', color:'#6b7280', minWidth:'60px' }}>{r.schoolName || '-'}</span>
+                          <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'60px' }}>{r.studentName || '-'}</span>
+                          <span style={{ fontSize:'13px', color:'#374151', flex:1 }}>{r.itemName}</span>
+                          {r.quarter && <span style={{ fontSize:'10px', color:'#9ca3af' }}>{r.quarter}</span>}
+                          {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d' }}>{fmt(getPrice(r))}원</span>}
+                          {r.paidAt && <span style={{ fontSize:'11px', color:'#15803d' }}>입금 {r.paidAt}</span>}
+                          <span style={{ fontSize:'11px', color:'#9ca3af' }}>{r.givenAt}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Modal>
+                )}
 
                 {/* 필터: 한 줄 */}
                 <div style={{ display:'flex', gap:'8px', marginBottom:'16px', alignItems:'center' }}>
