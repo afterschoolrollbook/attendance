@@ -153,8 +153,9 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
   const [date, setDate]       = React.useState(record.givenAt)
   const [quarter, setQuarter] = React.useState(record.quarter || '')
 
-  const STATUS_CYCLE = ['given', 'billed', 'paid', 'unpaid']
+  const STATUS_CYCLE = ['ready', 'given', 'billed', 'paid', 'unpaid']
   const STATUS_STYLE = {
+    ready:  { bg:'#f3f4f6', color:'#6b7280', border:'#d1d5db', label:'준비' },
     given:  { bg:'#dbeafe', color:'#1d4ed8', border:'#93c5fd', label:'지급' },
     billed: { bg:'#fef9c3', color:'#a16207', border:'#fde047', label:'청' },
     paid:   { bg:'#dcfce7', color:'#15803d', border:'#86efac', label:'입' },
@@ -204,13 +205,13 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
 
   return (
     <div style={{ display:'flex', alignItems:'center', gap:'3px', padding:'2px 7px', background:st.bg, borderRadius:'5px', border:`1px solid ${st.border}`, cursor:'pointer' }}
-      title="클릭하면 상태 변경 (지급→청구→입금→미지급)">
+      title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
       <span style={{ fontSize:'12px', fontWeight:600, color:st.color }} onClick={handleCycle}>
         {status !== 'given' && <span style={{ fontSize:'10px', marginRight:'2px' }}>({st.label})</span>}
         {record.itemName}
       </span>
       <span style={{ fontSize:'11px', color:st.color, opacity:0.8 }} onClick={handleCycle}>{record.givenAt}</span>
-      {record.quarter && <span style={{ fontSize:'10px', color:st.color, opacity:0.75, marginLeft:'1px' }}>({record.quarter})</span>}
+
       <button onClick={() => setEditing(true)} style={{ padding:'0 3px', border:'none', background:'none', color:st.color, fontSize:'11px', cursor:'pointer', opacity:0.7 }}>✏️</button>
       <button onClick={onDelete} style={{ padding:'0 3px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer' }}>✕</button>
     </div>
@@ -268,7 +269,7 @@ export function Supplies({ user }) {
   // 교구 등록/수정 모달
   const [productModal, setProductModal] = useState(false)
   const [productVendorId, setProductVendorId] = useState(null)
-  const [productForm, setProductForm] = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:3, subject:'' })
+  const [productForm, setProductForm] = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:3, subject:'', price:0 })
   const [productStageTab, setProductStageTab] = useState(1)
   const [stageSessionTitles, setStageSessionTitles] = useState({})
 
@@ -289,6 +290,8 @@ export function Supplies({ user }) {
   const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'' })
   const [givenTermFilter, setGivenTermFilter] = useState('current')
   const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
+  const [givenCalYM, setGivenCalYM] = useState(() => new Date().toISOString().slice(0,7))
+  const [givenSummaryQuarter, setGivenSummaryQuarter] = useState('')
   const { error: toastError, success } = useToast()
 
   const schoolList = [...new Set(classes.map(c => c.organization).filter(Boolean))]
@@ -641,14 +644,14 @@ export function Supplies({ user }) {
       SupplyProducts.update(productId, {
         name: productForm.name, maxStage: productForm.maxStage,
         sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession,
-        subject: productForm.subject,
+        subject: productForm.subject, price: productForm.price || 0,
       })
     } else {
       SupplyProducts.insert({
         id: productId, teacherId: user.id, vendorId: productVendorId, subject: productForm.subject || selSubject,
         name: productForm.name, maxStage: productForm.maxStage,
         sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession,
-        createdAt: now(),
+        price: productForm.price || 0, createdAt: now(),
       })
     }
     // 단계별 차시 제목+준비물 저장/수정
@@ -1684,8 +1687,108 @@ export function Supplies({ user }) {
               termBaseClasses.map(c => [getTermLabel(c), getTermLabel(c)])
             ).values()].sort().reverse()
 
+            // ── 달력용 데이터
+            const DAY_LABELS = ['월','화','수','목','금','토','일']
+            const [calY, calM] = givenCalYM.split('-').map(Number)
+            const firstDow = new Date(calY, calM - 1, 1).getDay()
+            const calOffset = firstDow === 0 ? 6 : firstDow - 1
+            const totalDays = new Date(calY, calM, 0).getDate()
+            const calCells = []
+            for (let i = 0; i < calOffset; i++) calCells.push(null)
+            for (let d = 1; d <= totalDays; d++) calCells.push(`${givenCalYM}-${String(d).padStart(2,'0')}`)
+            const givenByDate = {}
+            givenList.forEach(g => {
+              if (!g.givenAt) return
+              if (!givenByDate[g.givenAt]) givenByDate[g.givenAt] = []
+              givenByDate[g.givenAt].push(g)
+            })
+            const todayStr = new Date().toISOString().slice(0,10)
+
+            // ── 요약용 데이터
+            const allQuarterKeys = [...new Set(givenList.map(g => g.quarter).filter(Boolean))].sort()
+            const summaryRecords = givenSummaryQuarter
+              ? givenList.filter(g => g.quarter === givenSummaryQuarter)
+              : givenList
+            const fmt = n => n.toLocaleString('ko-KR')
+            const getPrice = (r) => {
+              const p = productList.find(x => x.name === r.itemName || x.id === r.productId)
+              return p?.price || 0
+            }
+            const sumGiven   = summaryRecords.length
+            const sumBilled  = summaryRecords.filter(r => r.status === 'billed' || r.status === 'paid').length
+            const sumBilledAmt = summaryRecords.filter(r => r.status === 'billed' || r.status === 'paid').reduce((s,r) => s + getPrice(r), 0)
+            const sumPaidAmt   = summaryRecords.filter(r => r.status === 'paid').reduce((s,r) => s + getPrice(r), 0)
+            const sumUnpaid  = summaryRecords.filter(r => r.status === 'unpaid').length
+            const sumExtra   = summaryRecords.filter(r => r.isExtra).length
+
             return (
               <div>
+                {/* ── 달력 */}
+                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:'12px', padding:'16px', marginBottom:'16px' }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
+                    <button onClick={() => { const d = new Date(calY, calM-2,1); setGivenCalYM(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`) }}
+                      style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #e5e7eb', background:'#f9fafb', cursor:'pointer', fontSize:'14px' }}>‹</button>
+                    <span style={{ fontSize:'15px', fontWeight:700, color:'#111827' }}>{calY}년 {calM}월</span>
+                    <button onClick={() => { const d = new Date(calY, calM,1); setGivenCalYM(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`) }}
+                      style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #e5e7eb', background:'#f9fafb', cursor:'pointer', fontSize:'14px' }}>›</button>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'2px', marginBottom:'2px' }}>
+                    {DAY_LABELS.map((d,i) => (
+                      <div key={d} style={{ textAlign:'center', fontSize:'11px', fontWeight:600, padding:'3px 0', color: i===5?'#3b82f6':i===6?'#ef4444':'#6b7280' }}>{d}</div>
+                    ))}
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'2px' }}>
+                    {calCells.map((date, i) => {
+                      if (!date) return <div key={i} style={{ minHeight:'56px' }} />
+                      const dayRecs = givenByDate[date] || []
+                      const isToday = date === todayStr
+                      const dow = new Date(date+'T00:00:00').getDay()
+                      const readyCnt  = dayRecs.filter(r => r.status === 'ready').length
+                      const givenCnt  = dayRecs.filter(r => r.status === 'given').length
+                      const billedCnt = dayRecs.filter(r => r.status === 'billed').length
+                      const paidCnt   = dayRecs.filter(r => r.status === 'paid').length
+                      const unpaidCnt = dayRecs.filter(r => r.status === 'unpaid').length
+                      return (
+                        <div key={date} style={{ borderRadius:'7px', padding:'4px 3px', minHeight:'56px', background: isToday?'#fff7ed':'#fafafa', border:`1px solid ${isToday?'#fed7aa':'#f3f4f6'}` }}>
+                          <div style={{ fontSize:'11px', fontWeight:600, marginBottom:'2px', color: dow===6?'#3b82f6':dow===0?'#ef4444':'#374151' }}>{Number(date.slice(-2))}</div>
+                          {readyCnt  > 0 && <div style={{ fontSize:'9px', background:'#f3f4f6', color:'#6b7280', borderRadius:'3px', padding:'1px 3px', marginBottom:'1px', fontWeight:600 }}>준비 {readyCnt}</div>}
+                          {givenCnt  > 0 && <div style={{ fontSize:'9px', background:'#dbeafe', color:'#1d4ed8', borderRadius:'3px', padding:'1px 3px', marginBottom:'1px', fontWeight:600 }}>지급 {givenCnt}</div>}
+                          {billedCnt > 0 && <div style={{ fontSize:'9px', background:'#fef9c3', color:'#a16207', borderRadius:'3px', padding:'1px 3px', marginBottom:'1px', fontWeight:600 }}>청구 {billedCnt}</div>}
+                          {paidCnt   > 0 && <div style={{ fontSize:'9px', background:'#dcfce7', color:'#15803d', borderRadius:'3px', padding:'1px 3px', marginBottom:'1px', fontWeight:600 }}>입금 {paidCnt}</div>}
+                          {unpaidCnt > 0 && <div style={{ fontSize:'9px', background:'#fee2e2', color:'#b91c1c', borderRadius:'3px', padding:'1px 3px', fontWeight:600 }}>미지급 {unpaidCnt}</div>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* ── 분기별 요약 */}
+                <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:'12px', padding:'16px', marginBottom:'16px' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px' }}>
+                    <span style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>📊 지급 요약</span>
+                    <select value={givenSummaryQuarter} onChange={e => setGivenSummaryQuarter(e.target.value)}
+                      style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}>
+                      <option value=''>전체 기간</option>
+                      {allQuarterKeys.map(q => <option key={q} value={q}>{q}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
+                    {[
+                      { label:'지급 교구', value:`${sumGiven}건`, color:'#1d4ed8', bg:'#dbeafe' },
+                      { label:'청구 교구', value:`${sumBilled}건`, color:'#a16207', bg:'#fef9c3' },
+                      { label:'청구 금액', value:`${fmt(sumBilledAmt)}원`, color:'#a16207', bg:'#fef9c3' },
+                      { label:'입금 금액', value:`${fmt(sumPaidAmt)}원`, color:'#15803d', bg:'#dcfce7' },
+                      { label:'미지급(입금됨)', value:`${sumUnpaid}건`, color:'#b91c1c', bg:'#fee2e2' },
+                      { label:'추가 지급', value:`${sumExtra}건`, color:'#7c3aed', bg:'#ede9fe' },
+                    ].map(({ label, value, color, bg }) => (
+                      <div key={label} style={{ background:bg, borderRadius:'8px', padding:'10px 12px' }}>
+                        <div style={{ fontSize:'11px', color, fontWeight:600, marginBottom:'3px' }}>{label}</div>
+                        <div style={{ fontSize:'16px', fontWeight:800, color }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* 필터: 한 줄 */}
                 <div style={{ display:'flex', gap:'8px', marginBottom:'16px', alignItems:'center' }}>
                   <select value={givenFilter.school} onChange={e => setGivenFilter(f => ({ ...f, school: e.target.value, classId: '' }))}
@@ -1745,6 +1848,9 @@ export function Supplies({ user }) {
                                 }
                               }
 
+                              const extraKey   = `extra_${stu.id}_${cls.id}`
+                              const isExtraVal = givenInputs[extraKey] || false
+
                               const handleAdd = async () => {
                                 if (!itemVal.trim() || !dateVal) return
                                 await SupplyGiven.insert({
@@ -1758,9 +1864,11 @@ export function Supplies({ user }) {
                                   itemName: itemVal.trim(),
                                   givenAt: dateVal,
                                   quarter: termVal || null,
+                                  isExtra: isExtraVal,
+                                  status: isExtraVal ? 'unpaid' : 'ready',
                                   createdAt: now(),
                                 })
-                                setGivenInputs(p => ({ ...p, [itemKey]: '', [dateKey]: '', [termKey]: '' }))
+                                setGivenInputs(p => ({ ...p, [itemKey]: '', [dateKey]: '', [termKey]: '', [extraKey]: false }))
                                 reload()
                                 success(`${stu.name} 지급 기록 추가됨`)
                               }
@@ -2200,6 +2308,14 @@ export function Supplies({ user }) {
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교구명 *</label>
                 <input value={productForm.name} onChange={e=>setProductForm(v=>({...v, name:e.target.value}))}
                   placeholder="예: 큐보 1단계, 로봇 키트 A형" style={iStyle} autoFocus />
+              </div>
+
+              {/* 교구 가격 */}
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교구 가격 (원)</label>
+                <input type="number" min={0} value={productForm.price||0}
+                  onChange={e => setProductForm(v=>({...v, price: Number(e.target.value)}))}
+                  placeholder="예: 15000" style={{ ...iStyle, textAlign:'right' }} />
               </div>
 
               {/* 기본 설정: 최대단계 / 단계당 차시수 / 준비알림 차시 */}
