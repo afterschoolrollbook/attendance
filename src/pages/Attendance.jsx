@@ -841,10 +841,11 @@ function StudentMemoModal({ student, onClose, onSave }) {
 
 // ─── 지급 기록 인라인 수정 행
 function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
-  const [editing, setEditing] = React.useState(false)
-  const [item, setItem]       = React.useState(record.itemName)
-  const [date, setDate]       = React.useState(record.givenAt)
-  const [quarter, setQuarter] = React.useState(record.quarter || '')
+  const [editing, setEditing]           = React.useState(false)
+  const [item, setItem]                 = React.useState(record.itemName)
+  const [date, setDate]                 = React.useState(record.givenAt)
+  const [quarter, setQuarter]           = React.useState(record.quarter || '')
+  const [paymentStatus, setPaymentStatus] = React.useState(record.paymentStatus || 'paid')
 
   const STATUS_CYCLE = ['ready', 'given', 'billed', 'paid', 'unpaid']
   const STATUS_STYLE = {
@@ -856,10 +857,18 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
   }
   const status = record.status || 'given'
   const st = STATUS_STYLE[status] || STATUS_STYLE.given
+  const rowBg     = paymentStatus === 'unpaid' ? '#fee2e2' : st.bg
+  const rowBorder = paymentStatus === 'unpaid' ? '#fca5a5' : st.border
 
   const handleCycle = async () => {
     const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(status) + 1) % STATUS_CYCLE.length]
     await SupplyGiven.update(record.id, { status: next })
+    onSaved && onSaved()
+  }
+
+  const handlePayment = async (val) => {
+    setPaymentStatus(val)
+    await SupplyGiven.update(record.id, { paymentStatus: val })
     onSaved && onSaved()
   }
 
@@ -901,16 +910,14 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
   }
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}` }}>
+    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:rowBg, borderRadius:'8px', border:`1px solid ${rowBorder}` }}>
       <span style={{ fontSize:'13px', fontWeight:600, color:st.color, flex:1, cursor:'pointer' }} onClick={handleCycle}
         title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
         <span style={{ fontSize:'10px', marginRight:'4px' }}>({st.label})</span>
         {record.itemName}
       </span>
-      <select
-        value={record.paymentStatus || 'paid'}
-        onChange={async e => { await SupplyGiven.update(record.id, { paymentStatus: e.target.value }); onSaved && onSaved() }}
-        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:st.bg, color:st.color, cursor:'pointer' }}>
+      <select value={paymentStatus} onChange={e => handlePayment(e.target.value)}
+        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${rowBorder}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background: paymentStatus==='unpaid'?'#fee2e2':'#dcfce7', color: paymentStatus==='unpaid'?'#b91c1c':'#15803d', cursor:'pointer' }}>
         <option value="paid">입금</option>
         <option value="unpaid">미입금</option>
       </select>

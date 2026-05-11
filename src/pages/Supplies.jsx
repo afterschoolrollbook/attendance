@@ -148,10 +148,11 @@ function ProgressBadge({ checkedCount, totalCount, alertSession, sessionsPerStag
 
 // 교구 지급 기록 한 줄 (상태 순환 + 수정/삭제)
 function GivenRecord({ record, onDelete, onUpdate, termType }) {
-  const [editing, setEditing] = React.useState(false)
-  const [item, setItem]       = React.useState(record.itemName)
-  const [date, setDate]       = React.useState(record.givenAt)
-  const [quarter, setQuarter] = React.useState(record.quarter || '')
+  const [editing, setEditing]             = React.useState(false)
+  const [item, setItem]                   = React.useState(record.itemName)
+  const [date, setDate]                   = React.useState(record.givenAt)
+  const [quarter, setQuarter]             = React.useState(record.quarter || '')
+  const [paymentStatus, setPaymentStatus] = React.useState(record.paymentStatus || 'paid')
 
   const STATUS_CYCLE = ['ready', 'given', 'billed', 'paid', 'unpaid']
   const STATUS_STYLE = {
@@ -163,6 +164,8 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
   }
   const status = record.status || 'given'
   const st = STATUS_STYLE[status] || STATUS_STYLE.given
+  const rowBg     = paymentStatus === 'unpaid' ? '#fee2e2' : st.bg
+  const rowBorder = paymentStatus === 'unpaid' ? '#fca5a5' : st.border
 
   const isQuarter = termType === 'quarter'
   const termUnit  = isQuarter ? '분기' : '학기'
@@ -175,12 +178,17 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
 
   const handleCycle = async () => {
     const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(status) + 1) % STATUS_CYCLE.length]
-    await onUpdate(record.itemName, record.givenAt, record.quarter, next, record.paymentStatus || 'paid')
+    await onUpdate(record.itemName, record.givenAt, record.quarter, next, paymentStatus)
+  }
+
+  const handlePayment = async (val) => {
+    setPaymentStatus(val)
+    await onUpdate(record.itemName, record.givenAt, record.quarter, status, val)
   }
 
   const handleSave = async () => {
     if (!item.trim() || !date) return
-    await onUpdate(item.trim(), date, quarter || null, status, record.paymentStatus || 'paid')
+    await onUpdate(item.trim(), date, quarter || null, status, paymentStatus)
     setEditing(false)
   }
 
@@ -204,16 +212,14 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
   }
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}` }}>
+    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:rowBg, borderRadius:'8px', border:`1px solid ${rowBorder}` }}>
       <span style={{ fontSize:'13px', fontWeight:600, color:st.color, flex:1, cursor:'pointer' }} onClick={handleCycle}
         title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
         <span style={{ fontSize:'10px', marginRight:'4px' }}>({st.label})</span>
         {record.itemName}
       </span>
-      <select
-        value={record.paymentStatus || 'paid'}
-        onChange={async e => { await onUpdate(record.itemName, record.givenAt, record.quarter, status, e.target.value) }}
-        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:st.bg, color:st.color, cursor:'pointer' }}>
+      <select value={paymentStatus} onChange={e => handlePayment(e.target.value)}
+        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${rowBorder}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background: paymentStatus==='unpaid'?'#fee2e2':'#dcfce7', color: paymentStatus==='unpaid'?'#b91c1c':'#15803d', cursor:'pointer' }}>
         <option value="paid">입금</option>
         <option value="unpaid">미입금</option>
       </select>
