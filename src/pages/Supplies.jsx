@@ -2143,8 +2143,10 @@ export function Supplies({ user }) {
                     <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'12px', maxHeight:'65vh', overflowY:'auto' }}>
                       {(() => {
                         // 기간 맞는 지급기록
+                        // quarter 저장형식: '2026-1학기', givenTermFilter: '2026년 1학기' → 변환 비교
+                        const toQKey = (q) => q ? q.replace(/^(\d+)[년-](\d+)/, '$1-$2') : ''
                         const periodRecs = summaryDetailModal.recs.filter(r =>
-                          givenTermFilter === 'current' || r.quarter === givenTermFilter
+                          givenTermFilter === 'current' || toQKey(r.quarter) === toQKey(givenTermFilter)
                         )
                         // 학생 명단은 filteredClasses 기준 전체
                         const schoolOrder = allSchools.filter(s => filteredClasses.some(c => c.organization === s))
