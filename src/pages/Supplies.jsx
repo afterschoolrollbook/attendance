@@ -152,11 +152,12 @@ function GivenRecord({ record, onDelete, onUpdate }) {
   const [item, setItem] = React.useState(record.itemName)
   const [date, setDate] = React.useState(record.givenAt)
 
-  const STATUS_CYCLE = ['given', 'billed', 'paid']
+  const STATUS_CYCLE = ['given', 'billed', 'paid', 'unpaid']
   const STATUS_STYLE = {
     given:  { bg:'#dbeafe', color:'#1d4ed8', border:'#93c5fd', label:'지급' },
     billed: { bg:'#fef9c3', color:'#a16207', border:'#fde047', label:'청' },
     paid:   { bg:'#dcfce7', color:'#15803d', border:'#86efac', label:'입' },
+    unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미지급(보관)' },
   }
   const status = record.status || 'given'
   const st = STATUS_STYLE[status] || STATUS_STYLE.given
@@ -188,12 +189,13 @@ function GivenRecord({ record, onDelete, onUpdate }) {
 
   return (
     <div style={{ display:'flex', alignItems:'center', gap:'3px', padding:'2px 7px', background:st.bg, borderRadius:'5px', border:`1px solid ${st.border}`, cursor:'pointer' }}
-      title="클릭하면 상태 변경 (지급→청구→입금)">
+      title="클릭하면 상태 변경 (지급→청구→입금→미지급)">
       <span style={{ fontSize:'12px', fontWeight:600, color:st.color }} onClick={handleCycle}>
         {status !== 'given' && <span style={{ fontSize:'10px', marginRight:'2px' }}>({st.label})</span>}
         {record.itemName}
       </span>
       <span style={{ fontSize:'11px', color:st.color, opacity:0.8 }} onClick={handleCycle}>{record.givenAt}</span>
+      {record.quarter && <span style={{ fontSize:'10px', color:st.color, opacity:0.75, marginLeft:'1px' }}>({record.quarter})</span>}
       <button onClick={() => setEditing(true)} style={{ padding:'0 3px', border:'none', background:'none', color:st.color, fontSize:'11px', cursor:'pointer', opacity:0.7 }}>✏️</button>
       <button onClick={onDelete} style={{ padding:'0 3px', border:'none', background:'none', color:'#ef4444', fontSize:'11px', cursor:'pointer' }}>✕</button>
     </div>
@@ -1708,11 +1710,25 @@ export function Supplies({ user }) {
                           <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
                             {studs.map(stu => {
                               const records = givenList.filter(g => g.studentId === stu.id && g.classId === cls.id)
-                              const itemKey = `item_${stu.id}_${cls.id}`
-                              const dateKey = `date_${stu.id}_${cls.id}`
-                              const itemVal = givenInputs[itemKey] || ''
-                              const dateVal = givenInputs[dateKey] || ''
-                              const stuLabel = [stu.grade ? `${stu.grade}학년` : '', stu.classNum ? `${stu.classNum}반` : '', stu.number ? `${stu.number}번` : ''].filter(Boolean).join(' ')
+                              const itemKey    = `item_${stu.id}_${cls.id}`
+                              const dateKey    = `date_${stu.id}_${cls.id}`
+                              const termKey    = `term_${stu.id}_${cls.id}`
+                              const itemVal    = givenInputs[itemKey] || ''
+                              const dateVal    = givenInputs[dateKey] || ''
+                              const termVal    = givenInputs[termKey] || ''
+                              const stuLabel   = [stu.grade ? `${stu.grade}학년` : '', stu.classNum ? `${stu.classNum}반` : '', stu.number ? `${stu.number}번` : ''].filter(Boolean).join(' ')
+
+                              // 분기/학기 선택 옵션 (termType 기반)
+                              const isQuarter  = cls.termType === 'quarter'
+                              const termUnit   = isQuarter ? '분기' : '학기'
+                              const termCount  = isQuarter ? 4 : 2
+                              const curYear    = new Date().getFullYear()
+                              const termOpts   = []
+                              for (let y = curYear - 1; y <= curYear + 1; y++) {
+                                for (let t = 1; t <= termCount; t++) {
+                                  termOpts.push(`${y}-${t}${termUnit}`)
+                                }
+                              }
 
                               const handleAdd = async () => {
                                 if (!itemVal.trim() || !dateVal) return
@@ -1726,9 +1742,10 @@ export function Supplies({ user }) {
                                   productId: '', productName: '',
                                   itemName: itemVal.trim(),
                                   givenAt: dateVal,
+                                  quarter: termVal || null,
                                   createdAt: now(),
                                 })
-                                setGivenInputs(p => ({ ...p, [itemKey]: '', [dateKey]: '' }))
+                                setGivenInputs(p => ({ ...p, [itemKey]: '', [dateKey]: '', [termKey]: '' }))
                                 reload()
                                 success(`${stu.name} 지급 기록 추가됨`)
                               }
@@ -1752,6 +1769,11 @@ export function Supplies({ user }) {
                                       style={{ width:'120px', padding:'4px 7px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
                                     <input type="date" value={dateVal} onChange={e => setGivenInputs(p => ({ ...p, [dateKey]: e.target.value }))}
                                       style={{ padding:'4px 5px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
+                                    <select value={termVal} onChange={e => setGivenInputs(p => ({ ...p, [termKey]: e.target.value }))}
+                                      style={{ padding:'4px 5px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
+                                      <option value="">{termUnit} 선택</option>
+                                      {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
+                                    </select>
                                     <button onClick={handleAdd} disabled={!canAdd}
                                       style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background: canAdd ? C.success : '#e5e7eb', color: canAdd ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: canAdd ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
                                       + 추가
