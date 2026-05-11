@@ -469,7 +469,7 @@ export function Supplies({ user }) {
   // 교구 지급 기록
   const [givenList, setGivenList]           = useState([])
   const [schoolPriceList, setSchoolPriceList] = useState([])
-  const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'', priceSchool:'' })
+  const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'' })
   const [givenTermFilter, setGivenTermFilter]       = useState('current')
   const [summaryDetailModal, setSummaryDetailModal] = useState(null) // { label, recs, color }
   const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
@@ -2043,25 +2043,10 @@ export function Supplies({ user }) {
                   {(() => {
                     const priceSchools = [...new Set(summaryRecords.map(r => r.schoolName).filter(Boolean))]
                     if (priceSchools.length === 0) return null
-                    const selPS = givenFilter.priceSchool
-                    const visibleSchools = selPS ? priceSchools.filter(s => s === selPS) : priceSchools
+                    const visibleSchools = givenFilter.school ? priceSchools.filter(s => s === givenFilter.school) : priceSchools
                     return (
                       <div style={{ marginBottom:'12px' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px', flexWrap:'wrap' }}>
-                          <span style={{ fontSize:'12px', fontWeight:700, color:'#374151', flexShrink:0 }}>🏫 학교별 교구비</span>
-                          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
-                            <button onClick={() => setGivenFilter(f => ({ ...f, priceSchool:'' }))}
-                              style={{ padding:'2px 8px', borderRadius:'12px', border:`1px solid ${selPS==='' ? '#374151' : '#d1d5db'}`, background: selPS==='' ? '#374151' : '#fff', color: selPS==='' ? '#fff' : '#6b7280', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: selPS==='' ? 700 : 400 }}>
-                              전체
-                            </button>
-                            {priceSchools.map(s => (
-                              <button key={s} onClick={() => setGivenFilter(f => ({ ...f, priceSchool: f.priceSchool===s ? '' : s }))}
-                                style={{ padding:'2px 8px', borderRadius:'12px', border:`1px solid ${selPS===s ? '#374151' : '#d1d5db'}`, background: selPS===s ? '#374151' : '#fff', color: selPS===s ? '#fff' : '#6b7280', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: selPS===s ? 700 : 400 }}>
-                                {getSchoolDayLabel(s)}{s}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                        <div style={{ fontSize:'12px', fontWeight:700, color:'#374151', marginBottom:'6px' }}>🏫 학교별 교구비</div>
                         <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
                           {visibleSchools.map(school => {
                             const schoolRecs = summaryRecords.filter(r => r.schoolName === school)
