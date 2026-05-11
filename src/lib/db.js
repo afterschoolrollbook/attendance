@@ -192,6 +192,7 @@ const SYNC_TABLES = [
   'schoolAdminTeachers', 'schoolSubjects', 'schoolTeacherInvites',
   'schoolNotices', 'schoolNoticeSubmits',
   'supplyGiven',
+  'supplySchoolPrices',
 ]
 
 // _deleted 컬럼 없는 테이블 (소프트딜리트 미적용)
@@ -817,6 +818,16 @@ export const SupplyGiven = {
   insert:       (r)             => db.insert('supplyGiven', { ...r, id: r.id || uid() }),
   update:       (id, p)         => db.update('supplyGiven', id, p),
   delete:       (id)            => db.delete('supplyGiven', id),
+}
+
+export const SupplySchoolPrices = {
+  all:          ()              => db.get('supplySchoolPrices'),
+  byProduct:    (productId)     => db.where('supplySchoolPrices', r => r.productId === productId),
+  byTeacher:    (tid)           => db.where('supplySchoolPrices', r => r.teacherId === tid),
+  find:         (id)            => db.getOne('supplySchoolPrices', id),
+  insert:       (r)             => db.insert('supplySchoolPrices', { ...r, id: r.id || uid() }),
+  update:       (id, p)         => db.update('supplySchoolPrices', id, p),
+  delete:       (id)            => db.delete('supplySchoolPrices', id),
 }
 
 // ─── 안내 문구
