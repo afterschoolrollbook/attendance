@@ -1200,6 +1200,15 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
         <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📦 교구 지급 기록</div>
         {/* 기존 기록 목록 - 학기별 그룹 */}
         {givenRecords.length > 0 && (() => {
+          const classInfo = ClassesDB.find(classId)
+          const isQuarter = classInfo?.termType === 'quarter'
+          const termUnit  = isQuarter ? '분기' : '학기'
+          const termCount = isQuarter ? 4 : 2
+          const curYear   = new Date().getFullYear()
+          const termOpts  = []
+          for (let y = curYear - 1; y <= curYear + 1; y++) {
+            for (let t = 1; t <= termCount; t++) termOpts.push(`${y}-${t}${termUnit}`)
+          }
           const grouped = {}
           givenRecords.forEach(r => {
             const k = r.quarter || '미분류'
@@ -1210,8 +1219,20 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'10px' }}>
               {Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).map(([qKey, recs]) => (
                 <div key={qKey} style={{ border:'1.5px solid #86efac', borderRadius:'10px', overflow:'hidden' }}>
-                  <div style={{ background:'#dcfce7', padding:'5px 12px', fontSize:'12px', fontWeight:700, color:'#15803d' }}>
-                    {qKey}
+                  <div style={{ background:'#dcfce7', padding:'4px 12px' }}>
+                    <select
+                      defaultValue={qKey === '미분류' ? '' : qKey}
+                      onChange={async e => {
+                        const newQ = e.target.value || null
+                        for (const r of recs) {
+                          await SupplyGiven.update(r.id, { quarter: newQ })
+                        }
+                        onSaved && onSaved()
+                      }}
+                      style={{ fontSize:'12px', fontWeight:700, color:'#15803d', background:'transparent', border:'none', outline:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', padding:'2px 0' }}>
+                      <option value="">미분류</option>
+                      {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:'4px', padding:'6px 8px', background:'#f0fdf4' }}>
                     {recs.map(r => (
