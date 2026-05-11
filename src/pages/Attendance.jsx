@@ -839,6 +839,65 @@ function StudentMemoModal({ student, onClose, onSave }) {
   )
 }
 
+// ─── 지급 기록 인라인 수정 행
+function GivenRecordRow({ record, classId, onSaved }) {
+  const [editing, setEditing] = React.useState(false)
+  const [item, setItem]       = React.useState(record.itemName)
+  const [date, setDate]       = React.useState(record.givenAt)
+  const [quarter, setQuarter] = React.useState(record.quarter || '')
+
+  const classInfo = ClassesDB.find(classId)
+  const isQuarter = classInfo?.termType === 'quarter'
+  const termUnit  = isQuarter ? '분기' : '학기'
+  const termCount = isQuarter ? 4 : 2
+  const curYear   = new Date().getFullYear()
+  const termOpts  = []
+  for (let y = curYear - 1; y <= curYear + 1; y++) {
+    for (let t = 1; t <= termCount; t++) termOpts.push(`${y}-${t}${termUnit}`)
+  }
+
+  const handleSave = async () => {
+    if (!item.trim() || !date) return
+    await SupplyGiven.update(record.id, { itemName: item.trim(), givenAt: date, quarter: quarter || null })
+    setEditing(false)
+    onSaved && onSaved()
+  }
+
+  if (editing) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap', padding:'7px 10px', background:'#fffbeb', borderRadius:'8px', border:'1px solid #fde68a' }}>
+        <input value={item} onChange={e => setItem(e.target.value)}
+          style={{ flex:1, minWidth:'100px', padding:'4px 7px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+        <select value={quarter} onChange={e => setQuarter(e.target.value)}
+          style={{ padding:'4px 6px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
+          <option value="">{termUnit} 선택</option>
+          {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)}
+          style={{ padding:'4px 6px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
+        <button onClick={handleSave}
+          style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background:'#16a34a', color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+        <button onClick={() => { setItem(record.itemName); setDate(record.givenAt); setQuarter(record.quarter||''); setEditing(false) }}
+          style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:'#f0fdf4', borderRadius:'8px', border:'1px solid #86efac' }}>
+      <span style={{ fontSize:'13px', fontWeight:600, color:'#16a34a', flex:1 }}>{record.itemName}</span>
+      {record.quarter && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{record.quarter}</span>}
+      <span style={{ fontSize:'12px', color:'#6b7280' }}>
+        {(() => { const d = new Date(record.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일` })()}
+      </span>
+      <button onClick={() => setEditing(true)}
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fed7aa', background:'#fff7ed', color:'#f97316', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+      <button onClick={async () => { await SupplyGiven.delete(record.id); onSaved && onSaved() }}
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+    </div>
+  )
+}
+
 // ─── 예정 수업 학생 행 — StudentRow 코드 완전 동일, 출석컬럼만 예정버튼으로 교체
 // ─── 진도 체크 모달 (공통 컴포넌트 — 교구/단계 변경 지원)
 function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose, onSaved }) {
@@ -866,7 +925,6 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const [nextSaved, setNextSaved] = React.useState(false)
   const [givenNewItem, setGivenNewItem] = React.useState('')
   const [givenNewDate, setGivenNewDate] = React.useState('')
-  const [givenNewQuarter, setGivenNewQuarter] = React.useState('')
   const [givenSaving, setGivenSaving] = React.useState(false)
 
   // 매 렌더링마다 DB 직접 조회 — prop 교체와 무관하게 항상 최신값
@@ -908,14 +966,6 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     if (!givenNewItem.trim() || !givenNewDate) return
     const classInfo = ClassesDB.find(classId)
     const className = classInfo ? ((classInfo.className || '') + (classInfo.section ? ' ' + classInfo.section : '')) : ''
-    const isQuarter = classInfo?.termType === 'quarter'
-    const termUnit  = isQuarter ? '분기' : '학기'
-    const termCount = isQuarter ? 4 : 2
-    const curYear   = new Date().getFullYear()
-    const termOpts  = []
-    for (let y = curYear - 1; y <= curYear + 1; y++) {
-      for (let t = 1; t <= termCount; t++) termOpts.push(`${y}-${t}${termUnit}`)
-    }
     setGivenSaving(true)
     await SupplyGiven.insert({
       teacherId: teacherId || '',
@@ -928,12 +978,10 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
       productName: product.name,
       itemName: givenNewItem.trim(),
       givenAt: givenNewDate,
-      quarter: givenNewQuarter || null,
       createdAt: now(),
     })
     setGivenNewItem('')
     setGivenNewDate('')
-    setGivenNewQuarter('')
     setGivenSaving(false)
     onSaved && onSaved()
   }
@@ -1151,14 +1199,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
         {givenRecords.length > 0 && (
           <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'10px' }}>
             {givenRecords.map(r => (
-              <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:'#f0fdf4', borderRadius:'8px', border:'1px solid #86efac' }}>
-                <span style={{ fontSize:'13px', fontWeight:600, color:'#16a34a', flex:1 }}>{r.itemName}</span>
-                <span style={{ fontSize:'12px', color:'#6b7280' }}>
-                  {(() => { const d = new Date(r.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일` })()}
-                </span>
-                <button onClick={async () => { await SupplyGiven.delete(r.id); onSaved && onSaved() }}
-                  style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-              </div>
+              <GivenRecordRow key={r.id} record={r} classId={classId} onSaved={onSaved} />
             ))}
           </div>
         )}
@@ -1167,24 +1208,6 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           <input value={givenNewItem} onChange={e => setGivenNewItem(e.target.value)}
             placeholder="교구명 입력 (예: 큐보 1단계)"
             style={{ flex:1, minWidth:'140px', padding:'7px 10px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-          {(() => {
-            const classInfo = ClassesDB.find(classId)
-            const isQuarter = classInfo?.termType === 'quarter'
-            const termUnit  = isQuarter ? '분기' : '학기'
-            const termCount = isQuarter ? 4 : 2
-            const curYear   = new Date().getFullYear()
-            const termOpts  = []
-            for (let y = curYear - 1; y <= curYear + 1; y++) {
-              for (let t = 1; t <= termCount; t++) termOpts.push(`${y}-${t}${termUnit}`)
-            }
-            return (
-              <select value={givenNewQuarter} onChange={e => setGivenNewQuarter(e.target.value)}
-                style={{ padding:'7px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
-                <option value="">{termUnit} 선택</option>
-                {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            )
-          })()}
           <input type="date" value={givenNewDate} onChange={e => setGivenNewDate(e.target.value)}
             style={{ padding:'7px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
           <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || !givenNewDate || givenSaving}
@@ -3129,7 +3152,23 @@ export function Attendance({ user, pageParams = {} }) {
               <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>학교</label>
               <select value={selSchool} onChange={e => { handleSchoolChange(e.target.value); setActiveMode('class'); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
                 <option value="">전체 학교</option>
-                {[...new Set(allClasses.filter(c => !selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)).map(c => c.organization).filter(Boolean))].map(s => <option key={s} value={s}>{s}</option>)}
+                {(() => {
+                  const DAY_ORDER = ['월','화','수','목','금','토','일']
+                  const filteredCls = allClasses.filter(c => !selYear || c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear))
+                  const schoolDaysMap = {}
+                  filteredCls.forEach(c => {
+                    if (!c.organization) return
+                    if (!schoolDaysMap[c.organization]) schoolDaysMap[c.organization] = new Set()
+                    ;(c.days || []).forEach(d => schoolDaysMap[c.organization].add(d))
+                  })
+                  const getDayLabel = (s) => {
+                    const days = DAY_ORDER.filter(d => (schoolDaysMap[s] || new Set()).has(d))
+                    return days.length > 0 ? `(${days.join(',')}) ` : ''
+                  }
+                  return [...new Set(filteredCls.map(c => c.organization).filter(Boolean))].map(s => (
+                    <option key={s} value={s}>{getDayLabel(s)}{s}</option>
+                  ))
+                })()}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
