@@ -204,10 +204,10 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
   }
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:'#f0fdf4', borderRadius:'8px', border:'1px solid #86efac' }}>
-      <span style={{ fontSize:'13px', fontWeight:600, color:'#16a34a', flex:1, cursor:'pointer' }} onClick={handleCycle}
-        title="클릭하면 상태 변경">
-        {status !== 'given' && <span style={{ fontSize:'10px', marginRight:'4px', color:st.color }}>({st.label})</span>}
+    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}` }}>
+      <span style={{ fontSize:'13px', fontWeight:600, color:st.color, flex:1, cursor:'pointer' }} onClick={handleCycle}
+        title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
+        {status !== 'given' && <span style={{ fontSize:'10px', marginRight:'4px' }}>({st.label})</span>}
         {record.itemName}
       </span>
       <span style={{ fontSize:'12px', color:'#6b7280' }}>
