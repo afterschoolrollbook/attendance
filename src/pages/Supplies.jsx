@@ -207,7 +207,7 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
     <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}` }}>
       <span style={{ fontSize:'13px', fontWeight:600, color:st.color, flex:1, cursor:'pointer' }} onClick={handleCycle}
         title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
-        {status !== 'given' && <span style={{ fontSize:'10px', marginRight:'4px' }}>({st.label})</span>}
+        <span style={{ fontSize:'10px', marginRight:'4px' }}>({st.label})</span>
         {record.itemName}
       </span>
       <span style={{ fontSize:'12px', color:'#6b7280' }}>
@@ -1971,11 +1971,17 @@ export function Supplies({ user }) {
                                       + 추가
                                     </button>
                                   </div>
-                                  {groupEntries.map(([qKey, qRecords]) => (
-                                    <div key={qKey} style={{ border:'1.5px solid #86efac', borderRadius:'10px', overflow:'hidden', marginBottom:'4px' }}>
-                                      <div style={{ background:'#dcfce7', padding:'4px 12px' }}>
+                                  {groupEntries.map(([qKey, qRecords]) => {
+                                    const isUnclassified = qKey === '미분류'
+                                    const hdrBg     = isUnclassified ? '#f3f4f6' : '#dcfce7'
+                                    const hdrBorder = isUnclassified ? '#d1d5db' : '#86efac'
+                                    const hdrColor  = isUnclassified ? '#6b7280' : '#15803d'
+                                    const bodyBg    = isUnclassified ? '#fafafa'  : '#f0fdf4'
+                                    return (
+                                    <div key={qKey} style={{ border:`1.5px solid ${hdrBorder}`, borderRadius:'10px', overflow:'hidden', marginBottom:'4px' }}>
+                                      <div style={{ background:hdrBg, padding:'4px 12px' }}>
                                         <select
-                                          defaultValue={qKey === '미분류' ? '' : qKey}
+                                          defaultValue={isUnclassified ? '' : qKey}
                                           onChange={async e => {
                                             const newQ = e.target.value || null
                                             for (const r of qRecords) {
@@ -1983,12 +1989,12 @@ export function Supplies({ user }) {
                                             }
                                             reload()
                                           }}
-                                          style={{ fontSize:'12px', fontWeight:700, color:'#15803d', background:'transparent', border:'none', outline:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', padding:'2px 0' }}>
+                                          style={{ fontSize:'12px', fontWeight:700, color:hdrColor, background:'transparent', border:'none', outline:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', padding:'2px 0', fontStyle: isUnclassified ? 'italic' : 'normal' }}>
                                           <option value="">미분류</option>
                                           {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
                                         </select>
                                       </div>
-                                      <div style={{ display:'flex', flexDirection:'column', gap:'4px', padding:'6px 8px', background:'#f0fdf4' }}>
+                                      <div style={{ display:'flex', flexDirection:'column', gap:'4px', padding:'6px 8px', background:bodyBg }}>
                                         {qRecords.map(r => (
                                           <GivenRecord key={r.id} record={r} termType={cls.termType}
                                             onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
@@ -1996,7 +2002,8 @@ export function Supplies({ user }) {
                                         ))}
                                       </div>
                                     </div>
-                                  ))}
+                                    )
+                                  })}
                                 </div>
                               )
                             })}
