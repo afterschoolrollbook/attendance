@@ -175,12 +175,12 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
 
   const handleCycle = async () => {
     const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(status) + 1) % STATUS_CYCLE.length]
-    await onUpdate(record.itemName, record.givenAt, record.quarter, next)
+    await onUpdate(record.itemName, record.givenAt, record.quarter, next, record.paymentStatus || 'paid')
   }
 
   const handleSave = async () => {
     if (!item.trim() || !date) return
-    await onUpdate(item.trim(), date, quarter || null, status)
+    await onUpdate(item.trim(), date, quarter || null, status, record.paymentStatus || 'paid')
     setEditing(false)
   }
 
@@ -210,6 +210,13 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
         <span style={{ fontSize:'10px', marginRight:'4px' }}>({st.label})</span>
         {record.itemName}
       </span>
+      <select
+        value={record.paymentStatus || 'paid'}
+        onChange={async e => { await onUpdate(record.itemName, record.givenAt, record.quarter, status, e.target.value) }}
+        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:st.bg, color:st.color, cursor:'pointer' }}>
+        <option value="paid">입금</option>
+        <option value="unpaid">미입금</option>
+      </select>
       <span style={{ fontSize:'12px', color:'#6b7280' }}>
         {record.givenAt ? (() => { const d = new Date(record.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일` })() : ''}
       </span>
@@ -2000,7 +2007,7 @@ export function Supplies({ user }) {
                                         {qRecords.map(r => (
                                           <GivenRecord key={r.id} record={r} termType={cls.termType}
                                             onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
-                                            onUpdate={async (itemName, givenAt, quarter, status) => { await SupplyGiven.update(r.id, { itemName, givenAt, quarter, status }); reload() }} />
+                                            onUpdate={async (itemName, givenAt, quarter, status, paymentStatus) => { await SupplyGiven.update(r.id, { itemName, givenAt, quarter, status, paymentStatus }); reload() }} />
                                         ))}
                                       </div>
                                     </div>
