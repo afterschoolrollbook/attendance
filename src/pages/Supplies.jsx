@@ -472,7 +472,7 @@ export function Supplies({ user }) {
   const [givenList, setGivenList]           = useState([])
   const [schoolPriceList, setSchoolPriceList] = useState([])
   const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'' })
-  const [givenTermFilter, setGivenTermFilter]       = useState('current')
+  const [givenTermFilter, setGivenTermFilter]       = useState('')
   const [summaryDetailModal, setSummaryDetailModal] = useState(null) // { label, recs, color }
   const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
   const [givenCalYM, setGivenCalYM]           = useState(() => new Date().toISOString().slice(0,7))
@@ -1825,12 +1825,7 @@ export function Supplies({ user }) {
               classes.map(c => [getTermLabel(c), getTermLabel(c)])
             ).values()].sort().reverse()
 
-            const filteredClasses = givenTermFilter === 'current'
-              ? activeClasses.filter(c =>
-                  (!givenFilter.school || c.organization === givenFilter.school) &&
-                  (!givenFilter.classId || c.id === givenFilter.classId)
-                )
-              : classes.filter(c =>
+            const filteredClasses = classes.filter(c =>
                   getTermLabel(c) === givenTermFilter &&
                   (!givenFilter.school || c.organization === givenFilter.school) &&
                   (!givenFilter.classId || c.id === givenFilter.classId)
@@ -1907,6 +1902,11 @@ export function Supplies({ user }) {
             const termOptionsForClass = [...new Map(
               termBaseClasses.map(c => [getTermLabel(c), getTermLabel(c)])
             ).values()].sort().reverse()
+
+            // givenTermFilter 초기값 자동설정 (첫 렌더시)
+            if (!givenTermFilter && termOptionsForClass.length > 0) {
+              setGivenTermFilter(termOptionsForClass[0])
+            }
 
             // ── 달력용 데이터
             const DAY_LABELS = ['월','화','수','목','금','토','일']
@@ -2031,7 +2031,7 @@ export function Supplies({ user }) {
                     <span style={{ fontSize:'11px', color:C.muted }}>
                       {givenFilter.school ? givenFilter.school : '전체 학교'}
                       {givenFilter.classId ? ` · ${schoolFilteredClasses.find(c=>c.id===givenFilter.classId)?.className || ''}` : ''}
-                      {givenTermFilter !== 'current' ? ` · ${givenTermFilter}` : ` · ${activeClasses.length > 0 ? (getTermLabel(activeClasses[0]) || '현재 진행 중') : '현재 진행 중'}`}
+                      {` · ${givenTermFilter}`}
                     </span>
                   </div>
 
@@ -2139,14 +2139,13 @@ export function Supplies({ user }) {
                 {/* 요약 상세 모달 */}
                 {summaryDetailModal && (
                   <Modal open={true} onClose={() => setSummaryDetailModal(null)}
-                    title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건) · ${givenTermFilter === 'current' ? (activeClasses.length > 0 ? getTermLabel(activeClasses[0]) : '현재 진행 중') : givenTermFilter}`} width={620}>
+                    title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건) · ${givenTermFilter}`} width={620}>
                     <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'12px', maxHeight:'65vh', overflowY:'auto' }}>
                       {(() => {
                         // 기간 맞는 지급기록
-                        // quarter 저장형식: '2026-1학기', givenTermFilter: '2026년 1학기' → 변환 비교
-                        const toQKey = (q) => q ? q.replace(/^(\d+)[년-](\d+)/, '$1-$2') : ''
+                        const toQKey = (q) => q ? q.replace(/^(\d+)년\s*(\d+)/, '$1-$2') : ''
                         const periodRecs = summaryDetailModal.recs.filter(r =>
-                          givenTermFilter === 'current' || toQKey(r.quarter) === toQKey(givenTermFilter)
+                          toQKey(r.quarter) === toQKey(givenTermFilter)
                         )
                         // 학생 명단은 filteredClasses 기준 전체
                         const schoolOrder = allSchools.filter(s => filteredClasses.some(c => c.organization === s))
@@ -2224,7 +2223,6 @@ export function Supplies({ user }) {
                   </select>
                   <select value={givenTermFilter} onChange={e => { setGivenTermFilter(e.target.value); setGivenFilter(f => ({ ...f, classId: '' })) }}
                     style={{ flex:1, padding:'7px 10px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
-                    <option value='current'>현재 진행 중</option>
                     {termOptionsForClass.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
