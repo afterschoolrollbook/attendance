@@ -330,7 +330,11 @@ function PriceModal({ product, teacherId, allSchools, onClose }) {
           {schoolPrices.length === 0 && (
             <div style={{ fontSize:'12px', color:'#9ca3af', textAlign:'center', padding:'10px 0' }}>등록된 학교별 공급가가 없습니다</div>
           )}
-          {schoolPrices.map(sp => (
+          {[...schoolPrices].sort((a, b) => {
+            const idxA = allSchools.findIndex(s => (s.value||s) === a.schoolName)
+            const idxB = allSchools.findIndex(s => (s.value||s) === b.schoolName)
+            return (idxA===-1?99:idxA) - (idxB===-1?99:idxB)
+          }).map(sp => (
             <SchoolPriceRow key={sp.id} sp={sp} allSchools={allSchools}
               onUpdate={patch => handleUpdateSchool(sp.id, patch)}
               onDelete={() => handleDeleteSchool(sp.id)} />
