@@ -291,7 +291,7 @@ function PriceModal({ product, teacherId, allSchools, onClose }) {
   ]
 
   return (
-    <Modal title={`💰 ${product.name} 가격 설정`} onClose={onClose} width="560px">
+    <Modal open={true} title={`💰 ${product.name} 가격 설정`} onClose={onClose} width={560}>
       {/* 기준 가격 */}
       <div style={{ marginBottom:'20px' }}>
         <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📋 기준 가격</div>
@@ -438,7 +438,7 @@ export function Supplies({ user }) {
   const [productModal, setProductModal] = useState(false)
   const [priceModal, setPriceModal]     = useState(null) // product object
   const [productVendorId, setProductVendorId] = useState(null)
-  const [productForm, setProductForm] = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:3, subject:'', price:0 })
+  const [productForm, setProductForm] = useState({ id:null, name:'', maxStage:10, sessionsPerStage:12, alertSession:3, subject:'', price:0, consumerPrice:0, schoolPrice:0, branchPrice:0, teacherPrice:0, purchasePrice:0 })
   const [productStageTab, setProductStageTab] = useState(1)
   const [stageSessionTitles, setStageSessionTitles] = useState({})
 
@@ -779,7 +779,7 @@ export function Supplies({ user }) {
             memo:  plans[i]?.memo  || '',
           }))
         }
-        setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: maxS, sessionsPerStage: perS, alertSession: existingProduct.alertSession||3, subject: existingProduct.subject||'' })
+        setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: maxS, sessionsPerStage: perS, alertSession: existingProduct.alertSession||3, subject: existingProduct.subject||'', consumerPrice: existingProduct.consumerPrice||0, schoolPrice: existingProduct.schoolPrice||0, branchPrice: existingProduct.branchPrice||0, teacherPrice: existingProduct.teacherPrice||0, purchasePrice: existingProduct.purchasePrice||0 })
         setStageSessionTitles(titles)
       } else {
         const cnt = 12
@@ -810,18 +810,27 @@ export function Supplies({ user }) {
     }
     const isEdit = !!productForm.id
     const productId = isEdit ? productForm.id : uid()
+    const priceFields = {
+      consumerPrice: productForm.consumerPrice || 0,
+      schoolPrice:   productForm.schoolPrice   || 0,
+      branchPrice:   productForm.branchPrice   || 0,
+      teacherPrice:  productForm.teacherPrice  || 0,
+      purchasePrice: productForm.purchasePrice || 0,
+    }
     if (isEdit) {
       SupplyProducts.update(productId, {
         name: productForm.name, maxStage: productForm.maxStage,
         sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession,
-        subject: productForm.subject, price: productForm.price || 0,
+        subject: productForm.subject, price: productForm.consumerPrice || 0,
+        ...priceFields,
       })
     } else {
       SupplyProducts.insert({
         id: productId, teacherId: user.id, vendorId: productVendorId, subject: productForm.subject || selSubject,
         name: productForm.name, maxStage: productForm.maxStage,
         sessionsPerStage: productForm.sessionsPerStage, alertSession: productForm.alertSession,
-        price: productForm.price || 0, createdAt: now(),
+        price: productForm.consumerPrice || 0, createdAt: now(),
+        ...priceFields,
       })
     }
     // 단계별 차시 제목+준비물 저장/수정
@@ -2568,10 +2577,23 @@ export function Supplies({ user }) {
 
               {/* 교구 가격 */}
               <div>
-                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'5px' }}>교구 가격 (원)</label>
-                <input type="number" min={0} value={productForm.price||0}
-                  onChange={e => setProductForm(v=>({...v, price: Number(e.target.value)}))}
-                  placeholder="예: 15000" style={{ ...iStyle, textAlign:'right' }} />
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'8px' }}>교구 가격 (원)</label>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+                  {[
+                    { key:'consumerPrice', label:'소비자가' },
+                    { key:'schoolPrice',   label:'학교공급가 (기준)' },
+                    { key:'branchPrice',   label:'지사가' },
+                    { key:'teacherPrice',  label:'선생님가' },
+                    { key:'purchasePrice', label:'매입가' },
+                  ].map(({ key, label }) => (
+                    <div key={key}>
+                      <label style={{ fontSize:'11px', color:'#9ca3af', display:'block', marginBottom:'3px' }}>{label}</label>
+                      <input type="number" min={0} value={productForm[key]||0}
+                        onChange={e => setProductForm(v => ({ ...v, [key]: Number(e.target.value) }))}
+                        placeholder="0" style={{ ...iStyle, textAlign:'right', width:'100%' }} />
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* 기본 설정: 최대단계 / 단계당 차시수 / 준비알림 차시 */}
