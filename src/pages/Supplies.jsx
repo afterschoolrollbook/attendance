@@ -292,9 +292,7 @@ export function Supplies({ user }) {
   const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
   const [givenCalYM, setGivenCalYM]           = useState(() => new Date().toISOString().slice(0,7))
   const [givenCalDetailDate, setGivenCalDetailDate] = useState(null)
-  const [givenSummarySchool, setGivenSummarySchool]   = useState('')
-  const [givenSummaryYear, setGivenSummaryYear]       = useState('')
-  const [givenSummaryTermNos, setGivenSummaryTermNos] = useState([])  // 선택된 분기 번호 배열 (복수)
+
   const { error: toastError, success } = useToast()
 
   const schoolList = [...new Set(classes.map(c => c.organization).filter(Boolean))]
@@ -1729,37 +1727,8 @@ export function Supplies({ user }) {
             })
             const todayStr = new Date().toISOString().slice(0,10)
 
-            // ── 요약용 데이터
-            const allSummarySchools = [...new Set(classes.map(c => c.organization).filter(Boolean))].sort((a,b) => {
-              const DO = ['월','화','수','목','금','토','일']
-              const ai = DO.findIndex(d => (schoolDaysMap[a]||new Set()).has(d))
-              const bi = DO.findIndex(d => (schoolDaysMap[b]||new Set()).has(d))
-              const aIdx = ai === -1 ? 99 : ai
-              const bIdx = bi === -1 ? 99 : bi
-              return aIdx !== bIdx ? aIdx - bIdx : a.localeCompare(b, 'ko')
-            })
-            const allSummaryYears   = [...new Set(givenList.map(g => g.quarter?.slice(0,4)).filter(Boolean))].sort().reverse()
-            const toggleTermNo = (no) => setGivenSummaryTermNos(prev =>
-              prev.includes(no) ? prev.filter(x=>x!==no) : [...prev, no]
-            )
-            // 선택 학교의 termType 파악
-            const summarySchoolClass  = classes.find(c => c.organization === givenSummarySchool)
-            const summaryTermType     = summarySchoolClass?.termType || 'quarter'
-            const isSchoolSemester    = summaryTermType === 'semester'
-            const termUnitLabel       = isSchoolSemester ? '학기' : '분기'
-            const termButtonCount     = isSchoolSemester ? 2 : 4
-
-            const summaryRecords = givenList.filter(g => {
-              if (givenSummarySchool && g.schoolName !== givenSummarySchool) return false
-              if (givenSummaryYear && !(g.quarter||'').startsWith(givenSummaryYear+'-')) return false
-              if (givenSummaryTermNos.length > 0) {
-                // "2026-1분기" 또는 "2026-1학기" 에서 번호 추출
-                const match = (g.quarter||'').match(/-(\d+)(분기|학기)$/)
-                const qNo = match ? parseInt(match[1]) : 0
-                if (!givenSummaryTermNos.includes(qNo)) return false
-              }
-              return true
-            })
+            // ── 요약용 데이터 (아래 리스트 필터와 동일하게 filteredClasses 기준)
+            const summaryRecords = givenList.filter(g => filteredClasses.some(c => c.id === g.classId))
             const fmt = n => n.toLocaleString('ko-KR')
             const getPrice = (r) => {
               const p = productList.find(x => x.name === r.itemName || x.id === r.productId)
@@ -1777,13 +1746,6 @@ export function Supplies({ user }) {
             const paidRecs    = summaryRecords.filter(r => r.status === 'paid')
             const unpaidRecs  = summaryRecords.filter(r => r.status === 'unpaid')
             const extraRecs   = summaryRecords.filter(r => r.isExtra)
-            const sumReady    = readyRecs.length
-            const sumGiven    = givenRecs.length
-            const sumBilled   = billedRecs.length
-            const sumBilledAmt = billedRecs.reduce((s,r) => s + getPrice(r), 0)
-            const sumPaidAmt   = paidRecs.reduce((s,r) => s + getPrice(r), 0)
-            const sumUnpaid   = unpaidRecs.length
-            const sumExtra    = extraRecs.length
 
             return (
               <div>
@@ -1851,60 +1813,17 @@ export function Supplies({ user }) {
                   </div>
                 </Modal>
 
-                {/* ── 분기별 요약 */}
+                {/* ── 지급 요약 */}
                 <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:'12px', padding:'16px', marginBottom:'16px' }}>
-                  <div style={{ marginBottom:'12px' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-                      <span style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>📊 지급 요약</span>
-                      {/* 학교 */}
-                      <select value={givenSummarySchool} onChange={e => { setGivenSummarySchool(e.target.value); setGivenSummaryTermNos([]) }}
-                        style={{ padding:'5px 9px', borderRadius:'7px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}>
-                        <option value=''>전체 학교</option>
-                        {allSummarySchools.map(s => <option key={s} value={s}>{getSchoolDayLabel(s)}{s}</option>)}
-                      </select>
-                      {/* 년도 */}
-                      <select value={givenSummaryYear} onChange={e => { setGivenSummaryYear(e.target.value); setGivenSummaryTermNos([]) }}
-                        style={{ padding:'5px 9px', borderRadius:'7px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}>
-                        <option value=''>전체 년도</option>
-                        {allSummaryYears.map(y => <option key={y} value={y}>{y}년</option>)}
-                      </select>
-                      {/* 분기/학기 버튼 (학교 선택 시 동적) */}
-                      {givenSummarySchool
-                        ? Array.from({length: termButtonCount}, (_,i) => i+1).map(no => {
-                            const sel = givenSummaryTermNos.includes(no)
-                            return (
-                              <button key={no} onClick={() => toggleTermNo(no)}
-                                style={{ padding:'5px 12px', borderRadius:'7px', border:`1.5px solid ${sel?'#f97316':'#e5e7eb'}`, background: sel?'#fff7ed':'#f9fafb', color: sel?'#f97316':'#6b7280', fontSize:'12px', fontWeight: sel?700:400, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
-                                {no}{termUnitLabel}
-                              </button>
-                            )
-                          })
-                        : <span style={{ fontSize:'11px', color:'#9ca3af' }}>학교 선택 시 {termUnitLabel} 버튼 표시</span>
-                      }
-                      {(givenSummarySchool||givenSummaryYear||givenSummaryTermNos.length>0) && (
-                        <button onClick={() => { setGivenSummarySchool(''); setGivenSummaryYear(''); setGivenSummaryTermNos([]) }}
-                          style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid #e5e7eb', background:'#fff', color:'#9ca3af', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                          초기화
-                        </button>
-                      )}
-                    </div>
+                  <div style={{ marginBottom:'10px', display:'flex', alignItems:'center', gap:'8px' }}>
+                    <span style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>📊 지급 요약</span>
+                    <span style={{ fontSize:'11px', color:C.muted }}>
+                      {givenFilter.school ? givenFilter.school : '전체 학교'}
+                      {givenFilter.classId ? ` · ${schoolFilteredClasses.find(c=>c.id===givenFilter.classId)?.className || ''}` : ''}
+                      {givenTermFilter !== 'current' ? ` · ${givenTermFilter}` : ' · 현재 진행 중'}
+                    </span>
                   </div>
                   {(() => {
-                    // 컬럼 목록: 복수 선택 시 학기별 + 전체, 단일/미선택 시 전체만
-                    const sortedNos = [...givenSummaryTermNos].sort()
-                    const columns = sortedNos.length > 1
-                      ? [
-                          ...sortedNos.map(no => ({
-                            title: `${no}${termUnitLabel}`,
-                            recs: summaryRecords.filter(g => {
-                              const match = (g.quarter||'').match(/-(\d+)(분기|학기)$/)
-                              return match && parseInt(match[1]) === no
-                            })
-                          })),
-                          { title: '전체', recs: summaryRecords }
-                        ]
-                      : [{ title: null, recs: summaryRecords }]
-
                     const makeRows = (recs) => [
                       { label:'준비 교구',     cnt:recs.filter(r=>r.status==='ready').length,  recs:recs.filter(r=>r.status==='ready'),  color:'#6b7280', bg:'#f3f4f6', extra:null },
                       { label:'지급 교구',     cnt:recs.filter(r=>r.status==='given').length,  recs:recs.filter(r=>r.status==='given'),  color:'#1d4ed8', bg:'#dbeafe', extra:null },
@@ -1913,24 +1832,18 @@ export function Supplies({ user }) {
                       { label:'미지급(입금됨)', cnt:recs.filter(r=>r.status==='unpaid').length, recs:recs.filter(r=>r.status==='unpaid'), color:'#b91c1c', bg:'#fee2e2', extra:null },
                       { label:'추가 지급',     cnt:recs.filter(r=>r.isExtra).length, recs:recs.filter(r=>r.isExtra), color:'#7c3aed', bg:'#ede9fe', extra:null },
                     ]
-
                     return (
-                      <div style={{ display:'grid', gridTemplateColumns:`repeat(${columns.length}, 1fr)`, gap:'12px' }}>
-                        {columns.map(({ title, recs: colRecs }) => (
-                          <div key={title||'all'} style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                            {title && <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', textAlign:'center', padding:'4px 0', background:'#f3f4f6', borderRadius:'6px' }}>{title}</div>}
-                            {makeRows(colRecs).map(({ label, cnt, recs: rowRecs, color, bg, extra }) => (
-                              <div key={label} style={{ background:bg, borderRadius:'8px', padding:'8px 12px' }}>
-                                <div style={{ display:'flex', alignItems:'baseline', gap:'6px', flexWrap:'wrap', marginBottom: rowRecs.length>0?'4px':0 }}>
-                                  <span style={{ fontSize:'10px', color, fontWeight:600 }}>{label}</span>
-                                  {cnt !== null && <span style={{ fontSize:'16px', fontWeight:800, color }}>{cnt}건</span>}
-                                  {extra && <span style={{ fontSize:'11px', fontWeight:700, color }}>{extra}</span>}
-                                </div>
-                                {rowRecs.length > 0 && (
-                                  <div style={{ fontSize:'11px', color, opacity:0.85, lineHeight:1.6 }}>{itemBreakdown(rowRecs)}</div>
-                                )}
-                              </div>
-                            ))}
+                      <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                        {makeRows(summaryRecords).map(({ label, cnt, recs: rowRecs, color, bg, extra }) => (
+                          <div key={label} style={{ background:bg, borderRadius:'8px', padding:'8px 12px' }}>
+                            <div style={{ display:'flex', alignItems:'baseline', gap:'6px', flexWrap:'wrap', marginBottom: rowRecs.length>0?'4px':0 }}>
+                              <span style={{ fontSize:'10px', color, fontWeight:600 }}>{label}</span>
+                              {cnt !== null && <span style={{ fontSize:'16px', fontWeight:800, color }}>{cnt}건</span>}
+                              {extra && <span style={{ fontSize:'11px', fontWeight:700, color }}>{extra}</span>}
+                            </div>
+                            {rowRecs.length > 0 && (
+                              <div style={{ fontSize:'11px', color, opacity:0.85, lineHeight:1.6 }}>{itemBreakdown(rowRecs)}</div>
+                            )}
                           </div>
                         ))}
                       </div>
