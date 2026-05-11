@@ -1826,7 +1826,6 @@ export function Supplies({ user }) {
             ).values()].sort().reverse()
 
             const filteredClasses = classes.filter(c =>
-                  getTermLabel(c) === givenTermFilter &&
                   (!givenFilter.school || c.organization === givenFilter.school) &&
                   (!givenFilter.classId || c.id === givenFilter.classId)
                 )
@@ -1880,7 +1879,8 @@ export function Supplies({ user }) {
             }
             // 학교 목록 (전체 filteredClasses 기준, 학교 필터 적용 전)
             const allSchools = [...new Set(
-              classes.map(c => c.organization).filter(Boolean)
+              (givenTermFilter === 'current' ? activeClasses : classes.filter(c => getTermLabel(c) === givenTermFilter))
+                .map(c => c.organization).filter(Boolean)
             )].sort((a, b) => {
               const DO = ['월','화','수','목','금','토','일']
               const aDay = DO.findIndex(d => (schoolDaysMap[a]||new Set()).has(d))
