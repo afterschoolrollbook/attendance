@@ -341,7 +341,7 @@ function PriceModal({ product, teacherId, allSchools, onClose }) {
           <select value={newSchool} onChange={e => setNewSchool(e.target.value)}
             style={{ flex:1, minWidth:'120px', padding:'5px 7px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}>
             <option value="">학교 선택</option>
-            {allSchools.map(s => <option key={s} value={s}>{s}</option>)}
+            {allSchools.map(s => <option key={s.value || s} value={s.value || s}>{s.label || s}</option>)}
           </select>
           <input type="number" min={0} value={newPrice} onChange={e => setNewPrice(e.target.value)}
             placeholder="공급가"
@@ -501,7 +501,7 @@ export function Supplies({ user }) {
     setClasses(sortClasses(Classes.byTeacher(user.id)))
     setStudents(Students.byTeacher(user.id))
     setGivenList(SupplyGiven.byTeacher(user.id))
-    setSchoolPriceList(SupplySchoolPrices.byTeacher(user.id))
+    setSchoolPriceList(SupplySchoolPrices.all())
   }
 
   useEffect(() => {
@@ -510,7 +510,8 @@ export function Supplies({ user }) {
     const u2 = onDbChange('supplyItems',           reload)
     const u3 = onDbChange('supplySessionChecks',   reload)
     const u4 = onDbChange('supplyGiven',           reload)
-    return () => { u1(); u2(); u3(); u4() }
+    const u5 = onDbChange('supplySchoolPrices',    reload)
+    return () => { u1(); u2(); u3(); u4(); u5() }
   }, [])
   useEffect(() => { if (subjects.length > 0 && !selSubject) setSelSubject(subjects[0]) }, [subjects])
   useEffect(() => { setCheckedStudents([]) }, [selClassId, selSubject])
@@ -3245,7 +3246,26 @@ export function Supplies({ user }) {
         <PriceModal
           product={priceModal}
           teacherId={user?.id}
-          allSchools={[...new Set(classes.map(c => c.organization).filter(Boolean))].sort()}
+          allSchools={(() => {
+            const DAY_ORDER = ['월','화','수','목','금','토','일']
+            const sdMap = {}
+            classes.forEach(c => {
+              if (!c.organization) return
+              if (!sdMap[c.organization]) sdMap[c.organization] = new Set()
+              ;(c.days || []).forEach(d => sdMap[c.organization].add(d))
+            })
+            return [...new Set(classes.map(c => c.organization).filter(Boolean))]
+              .sort((a, b) => {
+                const ai = DAY_ORDER.findIndex(d => (sdMap[a]||new Set()).has(d))
+                const bi = DAY_ORDER.findIndex(d => (sdMap[b]||new Set()).has(d))
+                return (ai===-1?99:ai) !== (bi===-1?99:bi) ? (ai===-1?99:ai)-(bi===-1?99:bi) : a.localeCompare(b,'ko')
+              })
+              .map(s => {
+                const days = DAY_ORDER.filter(d => (sdMap[s]||new Set()).has(d))
+                const label = days.length > 0 ? `(${days.join(',')}) ${s}` : s
+                return { value: s, label }
+              })
+          })()}
           onClose={() => setPriceModal(null)}
         />
       )}
