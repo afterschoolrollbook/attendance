@@ -179,17 +179,17 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
 
   const handleCycle = async () => {
     const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(status) + 1) % STATUS_CYCLE.length]
-    await onUpdate(record.itemName, record.givenAt, record.quarter, next, paymentStatus)
+    await onUpdate(record.itemName, record.givenAt, record.quarter, next, paymentStatus, record.paidAt || null)
   }
 
   const handlePayment = async (val) => {
     setPaymentStatus(val)
-    await onUpdate(record.itemName, record.givenAt, record.quarter, status, val)
+    await onUpdate(record.itemName, record.givenAt, record.quarter, status, val, record.paidAt || null)
   }
 
   const handleSave = async () => {
     if (!item.trim() || !date) return
-    await onUpdate(item.trim(), date, quarter || null, status, paymentStatus)
+    await onUpdate(item.trim(), date, quarter || null, status, paymentStatus, record.paidAt || null)
     setEditing(false)
   }
 
@@ -224,6 +224,12 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
         <option value="paid">입금</option>
         <option value="unpaid">미입금</option>
       </select>
+      {(status === 'paid' || status === 'billed') && (
+        <input type="date" value={record.paidAt || ''}
+          onChange={async e => { await onUpdate(record.itemName, record.givenAt, record.quarter, status, paymentStatus, e.target.value) }}
+          title="입금날짜"
+          style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${rowBorder}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
+      )}
       <span style={{ fontSize:'12px', color:'#6b7280' }}>
         {record.givenAt ? (() => { const d = new Date(record.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일` })() : ''}
       </span>
@@ -455,7 +461,8 @@ export function Supplies({ user }) {
   // 교구 준비/지급 체크 모달
   const [supplyCheckModal, setSupplyCheckModal] = useState(null) // { studentId, classId, productId, alertLabel, studentName }
   // 교구 지급 기록
-  const [givenList, setGivenList]       = useState([])
+  const [givenList, setGivenList]           = useState([])
+  const [schoolPriceList, setSchoolPriceList] = useState([])
   const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'' })
   const [givenTermFilter, setGivenTermFilter] = useState('current')
   const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
@@ -493,6 +500,7 @@ export function Supplies({ user }) {
     setClasses(sortClasses(Classes.byTeacher(user.id)))
     setStudents(Students.byTeacher(user.id))
     setGivenList(SupplyGiven.byTeacher(user.id))
+    setSchoolPriceList(SupplySchoolPrices.byTeacher(user.id))
   }
 
   useEffect(() => {
@@ -1909,11 +1917,21 @@ export function Supplies({ user }) {
 
             // ── 요약용 데이터 (아래 리스트 필터와 동일하게 filteredClasses 기준)
             const summaryRecords = givenList.filter(g => filteredClasses.some(c => c.id === g.classId))
-            const fmt = n => n.toLocaleString('ko-KR')
+            const fmt = n => Number(n||0).toLocaleString('ko-KR')
             const getPrice = (r) => {
               const p = productList.find(x => x.name === r.itemName || x.id === r.productId)
-              return p?.price || 0
+              if (!p) return 0
+              // 학교별 공급가 우선
+              const sp = schoolPriceList.find(x => x.productId === p.id && x.schoolName === r.schoolName)
+              if (sp) return sp.price || 0
+              return p.schoolPrice || p.price || 0
             }
+            // paidAt 기준 달력용 그룹
+            const paidByDate = {}
+            summaryRecords.filter(r => r.paidAt).forEach(g => {
+              if (!paidByDate[g.paidAt]) paidByDate[g.paidAt] = []
+              paidByDate[g.paidAt].push(g)
+            })
             // 교구별 건수 텍스트 생성
             const itemBreakdown = (records) => {
               const map = {}
@@ -1947,6 +1965,7 @@ export function Supplies({ user }) {
                     {calCells.map((date, i) => {
                       if (!date) return <div key={i} style={{ minHeight:'56px' }} />
                       const dayRecs = givenByDate[date] || []
+                      const paidDayRecs = paidByDate[date] || []
                       const isToday = date === todayStr
                       const dow = new Date(date+'T00:00:00').getDay()
                       const readyCnt  = dayRecs.filter(r => r.status === 'ready').length
@@ -1954,10 +1973,11 @@ export function Supplies({ user }) {
                       const billedCnt = dayRecs.filter(r => r.status === 'billed').length
                       const paidCnt   = dayRecs.filter(r => r.status === 'paid').length
                       const unpaidCnt = dayRecs.filter(r => r.status === 'unpaid').length
+                      const paidAmt   = paidDayRecs.reduce((s,r) => s + getPrice(r), 0)
                       return (
-                        <div key={date} onClick={() => dayRecs.length > 0 && setGivenCalDetailDate(date)}
-                          style={{ borderRadius:'7px', padding:'4px 3px', minHeight:'56px', background: isToday?'#fff7ed':'#fafafa', border:`1px solid ${isToday?'#fed7aa':'#f3f4f6'}`, cursor: dayRecs.length>0?'pointer':'default', transition:'box-shadow .1s' }}
-                          onMouseEnter={e => { if(dayRecs.length>0) e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)' }}
+                        <div key={date} onClick={() => (dayRecs.length > 0 || paidDayRecs.length > 0) && setGivenCalDetailDate(date)}
+                          style={{ borderRadius:'7px', padding:'4px 3px', minHeight:'56px', background: isToday?'#fff7ed':'#fafafa', border:`1px solid ${isToday?'#fed7aa':'#f3f4f6'}`, cursor: (dayRecs.length>0||paidDayRecs.length>0)?'pointer':'default', transition:'box-shadow .1s' }}
+                          onMouseEnter={e => { if(dayRecs.length>0||paidDayRecs.length>0) e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)' }}
                           onMouseLeave={e => e.currentTarget.style.boxShadow='none'}>
                           <div style={{ fontSize:'11px', fontWeight:600, marginBottom:'2px', color: dow===6?'#3b82f6':dow===0?'#ef4444':'#374151' }}>{Number(date.slice(-2))}</div>
                           {readyCnt  > 0 && <div style={{ fontSize:'9px', background:'#f3f4f6', color:'#6b7280', borderRadius:'3px', padding:'1px 3px', marginBottom:'1px', fontWeight:600 }}>준비 {readyCnt}</div>}
@@ -1965,6 +1985,7 @@ export function Supplies({ user }) {
                           {billedCnt > 0 && <div style={{ fontSize:'9px', background:'#fef9c3', color:'#a16207', borderRadius:'3px', padding:'1px 3px', marginBottom:'1px', fontWeight:600 }}>청구 {billedCnt}</div>}
                           {paidCnt   > 0 && <div style={{ fontSize:'9px', background:'#dcfce7', color:'#15803d', borderRadius:'3px', padding:'1px 3px', marginBottom:'1px', fontWeight:600 }}>입금 {paidCnt}</div>}
                           {unpaidCnt > 0 && <div style={{ fontSize:'9px', background:'#fee2e2', color:'#b91c1c', borderRadius:'3px', padding:'1px 3px', fontWeight:600 }}>미지급 {unpaidCnt}</div>}
+                          {paidAmt   > 0 && <div style={{ fontSize:'9px', background:'#f0fdf4', color:'#15803d', borderRadius:'3px', padding:'1px 3px', marginTop:'1px', fontWeight:700 }}>💰{fmt(paidAmt)}</div>}
                         </div>
                       )
                     })}
@@ -2003,6 +2024,34 @@ export function Supplies({ user }) {
                       {givenTermFilter !== 'current' ? ` · ${givenTermFilter}` : ' · 현재 진행 중'}
                     </span>
                   </div>
+
+                  {/* 학교별 교구비 */}
+                  {(() => {
+                    const schools = [...new Set(summaryRecords.map(r => r.schoolName).filter(Boolean))]
+                    if (schools.length === 0) return null
+                    return (
+                      <div style={{ marginBottom:'12px' }}>
+                        <div style={{ fontSize:'12px', fontWeight:700, color:'#374151', marginBottom:'6px' }}>🏫 학교별 교구비</div>
+                        <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                          {schools.map(school => {
+                            const schoolRecs = summaryRecords.filter(r => r.schoolName === school)
+                            const billedAmt = schoolRecs.filter(r => r.status==='billed'||r.status==='paid').reduce((s,r) => s+getPrice(r), 0)
+                            const paidAmt   = schoolRecs.filter(r => r.status==='paid').reduce((s,r) => s+getPrice(r), 0)
+                            const paidDates = [...new Set(schoolRecs.filter(r => r.paidAt).map(r => r.paidAt))].sort()
+                            return (
+                              <div key={school} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb', flexWrap:'wrap' }}>
+                                <span style={{ fontSize:'12px', fontWeight:700, color:'#374151', minWidth:'80px' }}>{school}</span>
+                                <span style={{ fontSize:'12px', color:'#a16207' }}>청구 <b>{fmt(billedAmt)}</b>원</span>
+                                <span style={{ fontSize:'12px', color:'#15803d' }}>입금 <b>{fmt(paidAmt)}</b>원</span>
+                                {billedAmt > paidAmt && <span style={{ fontSize:'11px', color:'#b91c1c', fontWeight:600 }}>미수 {fmt(billedAmt-paidAmt)}원</span>}
+                                {paidDates.length > 0 && <span style={{ fontSize:'10px', color:'#9ca3af' }}>입금일: {paidDates.join(', ')}</span>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })()}
                   {(() => {
                     const makeRows = (recs) => [
                       { label:'준비 교구',     cnt:recs.filter(r=>r.status==='ready').length,  recs:recs.filter(r=>r.status==='ready'),  color:'#6b7280', bg:'#f3f4f6', extra:null },
@@ -2177,7 +2226,7 @@ export function Supplies({ user }) {
                                         {qRecords.map(r => (
                                           <GivenRecord key={r.id} record={r} termType={cls.termType}
                                             onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
-                                            onUpdate={async (itemName, givenAt, quarter, status, paymentStatus) => { await SupplyGiven.update(r.id, { itemName, givenAt, quarter, status, paymentStatus }); reload() }} />
+                                            onUpdate={async (itemName, givenAt, quarter, status, paymentStatus, paidAt) => { await SupplyGiven.update(r.id, { itemName, givenAt, quarter, status, paymentStatus, paidAt }); reload() }} />
                                         ))}
                                       </div>
                                     </div>
