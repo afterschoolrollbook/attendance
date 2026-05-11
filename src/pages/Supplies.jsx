@@ -2039,49 +2039,49 @@ export function Supplies({ user }) {
                     </span>
                   </div>
 
-                  {/* 학교별 교구비 */}
+                  {/* 학교별 교구 단가 목록 */}
                   {(() => {
                     const schools = [...new Set(summaryRecords.map(r => r.schoolName).filter(Boolean))]
                     if (schools.length === 0) return null
+                    const [selSchool, setSelSchool] = React.useState('')
+                    const visibleSchools = selSchool ? schools.filter(s => s === selSchool) : schools
                     return (
                       <div style={{ marginBottom:'12px' }}>
-                        <div style={{ fontSize:'12px', fontWeight:700, color:'#374151', marginBottom:'6px' }}>🏫 학교별 교구비</div>
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px', flexWrap:'wrap' }}>
+                          <span style={{ fontSize:'12px', fontWeight:700, color:'#374151' }}>🏫 학교별 교구비</span>
+                          <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
+                            <button onClick={() => setSelSchool('')}
+                              style={{ padding:'2px 8px', borderRadius:'12px', border:`1px solid ${selSchool==='' ? '#374151' : '#e5e7eb'}`, background: selSchool==='' ? '#374151' : '#fff', color: selSchool==='' ? '#fff' : '#6b7280', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: selSchool==='' ? 700 : 400 }}>
+                              전체
+                            </button>
+                            {schools.map(s => (
+                              <button key={s} onClick={() => setSelSchool(s)}
+                                style={{ padding:'2px 8px', borderRadius:'12px', border:`1px solid ${selSchool===s ? '#374151' : '#e5e7eb'}`, background: selSchool===s ? '#374151' : '#fff', color: selSchool===s ? '#fff' : '#6b7280', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: selSchool===s ? 700 : 400 }}>
+                                {getSchoolDayLabel(s)}{s}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                         <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                          {schools.map(school => {
-                            const schoolRecs  = summaryRecords.filter(r => r.schoolName === school)
-                            const billedRecs  = schoolRecs.filter(r => r.status==='billed' && !r.paidAt)
-                            const paidRecs    = schoolRecs.filter(r => r.status==='paid' || r.paidAt)
-                            const billedAmt   = billedRecs.reduce((s,r) => s+getPrice(r), 0)
-                            const paidAmt     = paidRecs.reduce((s,r) => s+getPrice(r), 0)
-                            const paidDates   = [...new Set(paidRecs.filter(r => r.paidAt).map(r => r.paidAt))].sort()
-                            const hasPrice    = schoolRecs.some(r => getPrice(r) > 0)
+                          {visibleSchools.map(school => {
+                            const schoolRecs = summaryRecords.filter(r => r.schoolName === school)
                             const itemMap = {}
                             schoolRecs.forEach(r => {
-                              if (!itemMap[r.itemName]) itemMap[r.itemName] = { cnt:0, price: getPrice(r) }
-                              itemMap[r.itemName].cnt++
+                              if (!itemMap[r.itemName]) itemMap[r.itemName] = getPrice(r)
                             })
                             return (
-                              <div key={school} style={{ padding:'8px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
-                                <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap', marginBottom:'6px' }}>
-                                  <span style={{ fontSize:'12px', fontWeight:700, color:'#374151', minWidth:'80px' }}>{school}</span>
-                                  {!hasPrice
-                                    ? <span style={{ fontSize:'11px', color:'#f97316' }}>⚠️ 단가 미등록 (💰가격 버튼에서 설정)</span>
-                                    : <>
-                                        <span style={{ fontSize:'12px', color:'#a16207' }}>청구 <b>{fmt(billedAmt)}</b>원</span>
-                                        <span style={{ fontSize:'12px', color:'#15803d' }}>입금 <b>{fmt(paidAmt)}</b>원</span>
-                                        {billedAmt > 0 && <span style={{ fontSize:'11px', color:'#b91c1c', fontWeight:600 }}>미수 {fmt(billedAmt)}원</span>}
-                                        {paidDates.length > 0 && <span style={{ fontSize:'10px', color:'#9ca3af' }}>입금일: {paidDates.join(', ')}</span>}
-                                      </>
-                                  }
+                              <div key={school} style={{ background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb', overflow:'hidden' }}>
+                                <div style={{ padding:'6px 10px', background:'#f3f4f6', borderBottom:'1px solid #e5e7eb' }}>
+                                  <span style={{ fontSize:'12px', fontWeight:700, color:'#374151' }}>
+                                    {getSchoolDayLabel(school)}{school}
+                                  </span>
                                 </div>
-                                {Object.entries(itemMap).map(([name, { cnt, price }]) => (
-                                  <div key={name} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'3px 8px', background:'#fff', borderRadius:'5px', border:'1px solid #e5e7eb', marginBottom:'2px' }}>
-                                    <span style={{ fontSize:'12px', fontWeight:600, color:'#374151', flex:1 }}>{name}</span>
-                                    <span style={{ fontSize:'11px', color:'#6b7280' }}>{cnt}명</span>
-                                    <span style={{ fontSize:'11px', color:'#9ca3af' }}>×</span>
-                                    <span style={{ fontSize:'12px', color:'#374151' }}>{price > 0 ? `${fmt(price)}원` : '단가미등록'}</span>
-                                    <span style={{ fontSize:'11px', color:'#9ca3af' }}>=</span>
-                                    <span style={{ fontSize:'12px', fontWeight:700, color:'#1d4ed8' }}>{price > 0 ? `${fmt(cnt*price)}원` : '-'}</span>
+                                {Object.entries(itemMap).map(([name, price]) => (
+                                  <div key={name} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'5px 10px', background:'#fff', borderBottom:'1px solid #f3f4f6' }}>
+                                    <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{name}</span>
+                                    <span style={{ fontSize:'12px', fontWeight:700, color: price > 0 ? '#374151' : '#9ca3af' }}>
+                                      {price > 0 ? `${fmt(price)}원` : '단가 미등록'}
+                                    </span>
                                   </div>
                                 ))}
                               </div>
