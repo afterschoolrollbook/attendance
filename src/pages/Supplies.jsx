@@ -2178,26 +2178,18 @@ export function Supplies({ user }) {
                                     stu?.classNum ? `${stu.classNum}반` : '',
                                     stu?.number ? `${stu.number}번` : '',
                                   ].filter(Boolean).join(' ')
-                                  // 날짜별 그룹
-                                  const dateMap = {}
-                                  recs.forEach(r => {
-                                    const d = r.givenAt || '날짜없음'
-                                    if (!dateMap[d]) dateMap[d] = []
-                                    dateMap[d].push(r)
-                                  })
-                                  return Object.entries(dateMap).sort(([a],[b]) => a.localeCompare(b)).map(([date, dateRecs]) => (
-                                    <div key={`${stu?.id}_${date}`} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
+                                  // 교구별 1줄씩, 날짜 오름차순
+                                  return [...recs].sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||'')).map(r => (
+                                    <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
                                       <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px', flexShrink:0 }}>{stuLabel}</span>
-                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0 }}>{recs[0].studentName}</span>
-                                      <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>
-                                        {dateRecs.map(r => r.itemName).join(', ')}
-                                      </span>
-                                      {dateRecs.some(r => getPrice(r) > 0) && (
+                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0 }}>{r.studentName}</span>
+                                      <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
+                                      {getPrice(r) > 0 && (
                                         <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', flexShrink:0 }}>
-                                          {fmt(dateRecs.reduce((s,r) => s + getPrice(r), 0))}원
+                                          {fmt(getPrice(r))}원
                                         </span>
                                       )}
-                                      <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {date}</span>
+                                      <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {r.givenAt}</span>
                                     </div>
                                   ))
                                 })}
