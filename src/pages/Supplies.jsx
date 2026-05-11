@@ -2051,9 +2051,9 @@ export function Supplies({ user }) {
                         <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
                           {visibleSchools.map(school => {
                             const sps = schoolPriceList.filter(sp => sp.schoolName === school)
-                            // 단가 등록된 교구 - 같은 시리즈+같은단가 묶기
                             const grouped = []
                             const handled = new Set()
+                            // 단가 등록된 교구 (시리즈+같은단가 묶기)
                             sps.forEach(sp => {
                               if (handled.has(sp.productName)) return
                               const base = sp.productName.replace(/\d+$/, '')
@@ -2064,12 +2064,12 @@ export function Supplies({ user }) {
                               const label = siblings.length > 1
                                 ? base + ' (' + siblings.map(x => x.productName.slice(base.length).trim() || '기본').join(', ') + ')'
                                 : sp.productName
-                              grouped.push({ label, price: sp.price, registered: true })
+                              grouped.push({ label, price: sp.price, registered: true, productName: sp.productName })
                             })
-                            // 단가 미등록 교구 - productList 기준으로 추가
+                            // 단가 미등록 교구
                             productList.forEach(p => {
                               if (!sps.some(sp => sp.productName === p.name)) {
-                                grouped.push({ label: p.name, price: 0, registered: false })
+                                grouped.push({ label: p.name, price: 0, registered: false, productName: p.name })
                               }
                             })
                             return (
@@ -2077,14 +2077,19 @@ export function Supplies({ user }) {
                                 <div style={{ padding:'6px 10px', background:'#f3f4f6', borderBottom:'1px solid #e5e7eb' }}>
                                   <span style={{ fontSize:'12px', fontWeight:700, color:'#374151' }}>{getSchoolDayLabel(school)}{school}</span>
                                 </div>
-                                {grouped.map(({ label, price, registered }) => (
-                                  <div key={label} style={{ display:'flex', alignItems:'center', padding:'5px 10px', background:'#fff', borderBottom:'1px solid #f3f4f6' }}>
-                                    <span style={{ fontSize:'12px', color: registered ? '#374151' : '#9ca3af', flex:1 }}>{label}</span>
-                                    <span style={{ fontSize:'12px', fontWeight:700, color: registered ? '#374151' : '#9ca3af' }}>
-                                      {registered ? `${fmt(price)}원` : '단가 미등록'}
-                                    </span>
-                                  </div>
-                                ))}
+                                {grouped.map(({ label, price, registered, productName }) => {
+                                  const prod = productList.find(p => p.name === productName)
+                                  return (
+                                    <div key={label}
+                                      onClick={() => prod && setPriceModal(prod)}
+                                      style={{ display:'flex', alignItems:'center', padding:'5px 10px', background:'#fff', borderBottom:'1px solid #f3f4f6', cursor: prod ? 'pointer' : 'default' }}>
+                                      <span style={{ fontSize:'12px', color: registered ? '#374151' : '#9ca3af', flex:1 }}>{label}</span>
+                                      <span style={{ fontSize:'12px', fontWeight:700, color: registered ? '#374151' : '#f97316' }}>
+                                        {registered ? `${fmt(price)}원` : '단가 미등록 ✏️'}
+                                      </span>
+                                    </div>
+                                  )
+                                })}
                               </div>
                             )
                           })}
@@ -2139,17 +2144,53 @@ export function Supplies({ user }) {
                 {summaryDetailModal && (
                   <Modal open={true} onClose={() => setSummaryDetailModal(null)}
                     title={`📋 ${summaryDetailModal.label} 상세내역 (${summaryDetailModal.recs.length}건)`} width={620}>
-                    <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'6px', maxHeight:'65vh', overflowY:'auto' }}>
-                      {summaryDetailModal.recs.map(r => (
-                        <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', background:'#f9fafb', borderRadius:'8px', border:'1px solid #e5e7eb', flexWrap:'wrap' }}>
-                          <span style={{ fontSize:'11px', color:'#6b7280', minWidth:'55px' }}>{r.schoolName || '-'}</span>
-                          <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px' }}>{r.studentName || '-'}</span>
-                          <span style={{ fontSize:'13px', color:'#374151', flex:1 }}>{r.itemName}</span>
-                          {r.quarter && <span style={{ fontSize:'10px', color:'#9ca3af' }}>{r.quarter}</span>}
-                          {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d' }}>{fmt(getPrice(r))}원</span>}
-                          <span style={{ fontSize:'10px', color:'#9ca3af' }}>지급 {r.givenAt}</span>
-                        </div>
-                      ))}
+                    <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'12px', maxHeight:'65vh', overflowY:'auto' }}>
+                      {(() => {
+                        const schoolOrder = allSchools.filter(s => summaryDetailModal.recs.some(r => r.schoolName === s))
+                        return schoolOrder.map(school => {
+                          const schoolRecs = summaryDetailModal.recs.filter(r => r.schoolName === school)
+                          const stuMap = {}
+                          schoolRecs.forEach(r => {
+                            if (!stuMap[r.studentId]) {
+                              const stu = students.find(s => s.id === r.studentId)
+                              stuMap[r.studentId] = { stu, recs: [] }
+                            }
+                            stuMap[r.studentId].recs.push(r)
+                          })
+                          const stuList = Object.values(stuMap).sort((a, b) => {
+                            const ag = parseInt(a.stu?.grade||'0'), bg = parseInt(b.stu?.grade||'0')
+                            if (ag !== bg) return bg - ag
+                            const ac = parseInt(a.stu?.classNum||'0'), bc = parseInt(b.stu?.classNum||'0')
+                            if (ac !== bc) return bc - ac
+                            return parseInt(b.stu?.number||'0') - parseInt(a.stu?.number||'0')
+                          })
+                          return (
+                            <div key={school}>
+                              <div style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', marginBottom:'4px', paddingBottom:'4px', borderBottom:'1px solid #e5e7eb' }}>
+                                {getSchoolDayLabel(school)}{school}
+                              </div>
+                              <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+                                {stuList.map(({ stu, recs }) => {
+                                  const stuLabel = [
+                                    stu?.grade ? `${stu.grade}학년` : '',
+                                    stu?.classNum ? `${stu.classNum}반` : '',
+                                    stu?.number ? `${stu.number}번` : '',
+                                  ].filter(Boolean).join(' ')
+                                  return [...recs].sort((a,b) => (a.givenAt||'').localeCompare(b.givenAt||'')).map(r => (
+                                    <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#f9fafb', borderRadius:'7px', border:'1px solid #e5e7eb' }}>
+                                      <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px' }}>{stuLabel}</span>
+                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'60px' }}>{r.studentName}</span>
+                                      <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
+                                      {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d' }}>{fmt(getPrice(r))}원</span>}
+                                      <span style={{ fontSize:'10px', color:'#9ca3af' }}>지급 {r.givenAt}</span>
+                                    </div>
+                                  ))
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })
+                      })()}
                     </div>
                   </Modal>
                 )}
