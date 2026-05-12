@@ -1576,10 +1576,10 @@ export function Supplies({ user }) {
               {selClassId && isRobot && (
                 /* 로봇 전용: 교구배정 / 진도체크 뷰 전환 */
                 <div style={{ display:'flex', gap:'8px', marginBottom:'16px' }}>
-                  {[{ v:'assign', l:'🎒 교구 배정' }, { v:'progress', l:'📊 진도 체크' }].map(o => (
-                    <button key={o.v} onClick={() => setRobotView(o.v)}
-                      style={{ padding:'7px 18px', borderRadius:'8px', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, background: robotView===o.v ? C.primary : '#f3f4f6', color: robotView===o.v ? '#fff' : C.muted, transition:'all .15s' }}>
-                      {o.l}
+                  {[{ v:'assign', l:'🎒 교구 배정' }, { v:'progress', l:'📊 진도 체크' }].map(viewOpt => (
+                    <button key={viewOpt.v} onClick={() => setRobotView(viewOpt.v)}
+                      style={{ padding:'7px 18px', borderRadius:'8px', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, background: robotView===viewOpt.v ? C.primary : '#f3f4f6', color: robotView===viewOpt.v ? '#fff' : C.muted, transition:'all .15s' }}>
+                      {viewOpt.l}
                     </button>
                   ))}
                 </div>
@@ -3351,10 +3351,10 @@ export function Supplies({ user }) {
                   <div>
                     <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>종류</label>
                     <div style={{ display:'flex', gap:'6px' }}>
-                      {FILE_TYPE_OPTIONS.map(o => (
-                        <button key={o.v} onClick={()=>setFileForm(f=>({...f, fileType:o.v, stage:''}))}
-                          style={{ padding:'8px 18px', borderRadius:'8px', border:`1.5px solid ${fileForm.fileType===o.v?C.primary:C.border}`, background: fileForm.fileType===o.v?'#fff7ed':'#fff', color: fileForm.fileType===o.v?C.primary:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                          {o.l}
+                      {FILE_TYPE_OPTIONS.map(ftOpt => (
+                        <button key={ftOpt.v} onClick={()=>setFileForm(f=>({...f, fileType:ftOpt.v, stage:''}))}
+                          style={{ padding:'8px 18px', borderRadius:'8px', border:`1.5px solid ${fileForm.fileType===ftOpt.v?C.primary:C.border}`, background: fileForm.fileType===ftOpt.v?'#fff7ed':'#fff', color: fileForm.fileType===ftOpt.v?C.primary:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                          {ftOpt.l}
                         </button>
                       ))}
                     </div>
