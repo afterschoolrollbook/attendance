@@ -1340,7 +1340,7 @@ export function Supplies({ user }) {
                                     <div>{s.name}</div>
                                   </span>
                                   <span style={{ fontSize:'12px', fontWeight:600, color: hasSupply ? '#7c3aed' : C.danger }}>
-                                    {hasSupply ? supply.name : '없음'}
+                                    {hasSupply ? (product?.name || supply.name) : '없음'}
                                   </span>
                                   <span style={{ fontSize:'12px', color: hasSupply && curStage ? C.text : C.danger }}>
                                     {hasSupply && curStage ? `${curStage}단계` : <span style={{ color:C.danger }}>없음</span>}

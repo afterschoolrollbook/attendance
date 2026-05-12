@@ -955,6 +955,71 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
   )
 }
 
+// ─── 교구 미배정 학생 — 진도체크 모달 안에서 바로 교구 설정
+function NoSupplyAssignModal({ student, classId, teacherId, allProds, onClose, onSaved }) {
+  const { success, error } = useToast()
+  const [selProductId, setSelProductId] = React.useState('')
+  const [selStage, setSelStage] = React.useState(1)
+  const [saving, setSaving] = React.useState(false)
+
+  const product = allProds.find(p => p.id === selProductId)
+  const maxStage = product?.maxStage || 10
+
+  const handleSave = async () => {
+    if (!selProductId) { error('교구를 선택해주세요'); return }
+    setSaving(true)
+    await SupplyItems.upsert({
+      id: uid(), teacherId: teacherId || '', classId, studentId: student.id,
+      productId: selProductId, stage: selStage, remoteNo: '', createdAt: now(),
+    })
+    await SupplyStudentProgress.upsert({
+      id: uid(), teacherId: teacherId || '', studentId: student.id, classId,
+      productId: selProductId, curStage: selStage, curSession: 1,
+      updatedAt: now(), createdAt: now(),
+    })
+    setSaving(false)
+    success('교구가 설정되었습니다')
+    onSaved && onSaved()
+  }
+
+  return (
+    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+      <div style={{ padding:'24px' }}>
+        <div style={{ padding:'14px 16px', background:'#fff7ed', borderRadius:'10px', border:'1px solid #fed7aa', marginBottom:'20px' }}>
+          <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>📦 교구가 배정되지 않은 학생입니다</div>
+          <div style={{ fontSize:'12px', color:'#b45309' }}>아래에서 교구를 선택하면 바로 진도체크를 시작할 수 있습니다</div>
+        </div>
+        <div style={{ display:'flex', gap:'12px', alignItems:'flex-end', flexWrap:'wrap' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'160px' }}>
+            <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>교구 선택 *</label>
+            <select value={selProductId} onChange={e => { setSelProductId(e.target.value); setSelStage(1) }}
+              style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+              <option value=''>-- 교구를 선택하세요 --</option>
+              {allProds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px', minWidth:'90px' }}>
+            <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>단계</label>
+            <select value={selStage} onChange={e => setSelStage(Number(e.target.value))}
+              style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+              {Array.from({ length: maxStage }, (_, i) => i+1).map(s => (
+                <option key={s} value={s}>{s}단계</option>
+              ))}
+            </select>
+          </div>
+          <button onClick={handleSave} disabled={saving || !selProductId}
+            style={{ padding:'8px 20px', borderRadius:'8px', border:'none', background: selProductId ? C.primary : '#e5e7eb', color: selProductId ? '#fff' : '#9ca3af', fontSize:'13px', fontWeight:700, cursor: selProductId ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            {saving ? '저장 중...' : '저장 후 진도체크'}
+          </button>
+        </div>
+      </div>
+      <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb' }}>
+        <button onClick={onClose} style={{ width:'100%', padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>닫기</button>
+      </div>
+    </Modal>
+  )
+}
+
 // ─── 예정 수업 학생 행 — StudentRow 코드 완전 동일, 출석컬럼만 예정버튼으로 교체
 // ─── 진도 체크 모달 (공통 컴포넌트 — 교구/단계 변경 지원)
 function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose, onSaved }) {
@@ -990,10 +1055,24 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const allProds = SupplyProducts.byTeacher(teacherId || '')
   const product = allProds.find(p => p.id === selProductId)
 
-  // si/product 없어도 모달은 절대 닫히지 않음 — 닫기 버튼으로만 닫힘
-  if (!si || !product) return (
-    <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={600}>
-      <div style={{ padding:'60px', textAlign:'center', color:'#9ca3af' }}>불러오는 중...</div>
+  // si 없음 → 교구 미배정 상태 — 모달 안에서 바로 교구 설정
+  if (!si) return (
+    <NoSupplyAssignModal
+      student={student} classId={classId} teacherId={teacherId}
+      allProds={allProds}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  )
+
+  // si 있는데 product 없음 → 교구가 삭제된 케이스
+  if (!product) return (
+    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+      <div style={{ padding:'40px 24px', textAlign:'center' }}>
+        <div style={{ fontSize:'36px', marginBottom:'12px' }}>⚠️</div>
+        <div style={{ fontSize:'15px', fontWeight:700, color:'#374151', marginBottom:'6px' }}>교구 정보를 찾을 수 없습니다</div>
+        <div style={{ fontSize:'13px', color:'#9ca3af' }}>배정된 교구가 삭제되었거나 데이터가 올바르지 않습니다</div>
+      </div>
       <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb' }}>
         <button onClick={onClose} style={{ width:'100%', padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>닫기</button>
       </div>
