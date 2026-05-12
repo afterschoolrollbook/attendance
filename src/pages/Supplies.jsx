@@ -134,8 +134,8 @@ function FileRow({ item, onDelete, onEdit, schools=[] }) {
 function ProgressBadge({ checkedCount, totalCount, alertSession, sessionsPerStage }) {
   if (!totalCount) return null
   const rate = Math.round(checkedCount / totalCount * 100)
-  const isAlert = checkedCount >= (totalCount - alertSession) && !isDone  // totalCount = 해당 단계 실제 차시수
   const isDone  = checkedCount >= sessionsPerStage
+  const isAlert = checkedCount >= (totalCount - alertSession) && !isDone
   const color   = isDone ? C.success : isAlert ? C.warning : C.blue
   const bg      = isDone ? '#f0fdf4' : isAlert ? '#fffbeb' : '#eff6ff'
   const border  = isDone ? '#86efac' : isAlert ? '#fde68a' : '#bfdbfe'
@@ -446,6 +446,342 @@ function SchoolPriceRow({ sp, allSchools, onUpdate, onDelete }) {
       <button onClick={onDelete}
         style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
     </div>
+  )
+}
+
+// ─── Supplies 전용 진도체크 모달 (Attendance ProgCheckModal과 동일 기능)
+function SuppliesProgCheckModal({ student, initialProductId, productList, productPlanList, givenList, teacherId, selClassId, classes, onClose, onSaved }) {
+  const classId = student._clsId || selClassId || ''
+  const { success: toastSuccess } = useToast()
+
+  const si = SupplyItems.byClassStudent(classId, student.id)[0]
+  const allProds = productList
+
+  const [selProductId, setSelProductId] = React.useState(initialProductId || si?.productId || '')
+  const [selStage, setSelStage] = React.useState(() => {
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || si?.productId || ''))
+    return prog?.curStage ? Number(prog.curStage) : (si?.stage ? Number(si.stage) : 1)
+  })
+  const [remoteNo, setRemoteNo] = React.useState(si?.remoteNo || '')
+  const [remoteNoSaved, setRemoteNoSaved] = React.useState(false)
+  const [tick, setTick] = React.useState(0)
+  const [nextProductId, setNextProductId] = React.useState(() => {
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || si?.productId || ''))
+    return prog?.nextProductId || ''
+  })
+  const [nextStage, setNextStage] = React.useState(() => {
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || si?.productId || ''))
+    return prog?.nextStage || 1
+  })
+  const [nextSaved, setNextSaved] = React.useState(false)
+  const [givenNewItem, setGivenNewItem] = React.useState('')
+  const [givenNewDate, setGivenNewDate] = React.useState('')
+  const [givenNewQuarter, setGivenNewQuarter] = React.useState('')
+  const [givenSaving, setGivenSaving] = React.useState(false)
+
+  const product = allProds.find(p => p.id === selProductId)
+
+  if (!si) return (
+    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+      <div style={{ padding:'24px' }}>
+        <div style={{ padding:'14px 16px', background:'#fff7ed', borderRadius:'10px', border:'1px solid #fed7aa', marginBottom:'20px' }}>
+          <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>📦 교구가 배정되지 않은 학생입니다</div>
+          <div style={{ fontSize:'12px', color:'#b45309' }}>교구 배정 탭에서 교구를 먼저 설정해주세요</div>
+        </div>
+      </div>
+      <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb' }}>
+        <button onClick={onClose} style={{ width:'100%', padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>닫기</button>
+      </div>
+    </Modal>
+  )
+
+  if (!product) return (
+    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+      <div style={{ padding:'40px 24px', textAlign:'center' }}>
+        <div style={{ fontSize:'36px', marginBottom:'12px' }}>⚠️</div>
+        <div style={{ fontSize:'15px', fontWeight:700, color:'#374151', marginBottom:'6px' }}>교구 정보를 찾을 수 없습니다</div>
+        <div style={{ fontSize:'13px', color:'#9ca3af' }}>배정된 교구가 삭제되었거나 데이터가 올바르지 않습니다</div>
+      </div>
+      <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb' }}>
+        <button onClick={onClose} style={{ width:'100%', padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>닫기</button>
+      </div>
+    </Modal>
+  )
+
+  const spp = product.sessionsPerStage || 12
+  const alertSess = product.alertSession || 3
+  const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === selProductId)
+  const curStage = prog?.curStage || selStage || 1
+  const maxStage = product.maxStage || 10
+
+  const origProductId = si?.productId || ''
+  const origStage = si?.stage ? Number(si.stage) : 1
+  const isChanged = selProductId !== origProductId || selStage !== origStage
+
+  const nextProduct = allProds.find(p => p.id === nextProductId)
+  const nextMaxStage = nextProduct?.maxStage || 10
+  const origNextProductId = prog?.nextProductId || ''
+  const origNextStage = prog?.nextStage || 1
+  const isNextChanged = nextProductId !== origNextProductId || Number(nextStage) !== Number(origNextStage)
+
+  const givenRecords = (givenList || []).filter(g => g.studentId === student.id && g.classId === classId)
+
+  const classInfo = classes?.find(c => c.id === classId)
+  const isQuarter = classInfo?.termType === 'quarter'
+  const termUnit  = isQuarter ? '분기' : '학기'
+  const termCount = isQuarter ? 4 : 2
+  const curYear   = new Date().getFullYear()
+  const termOpts  = []
+  for (let y = curYear - 1; y <= curYear + 1; y++) {
+    for (let t = 1; t <= termCount; t++) termOpts.push(`${y}-${t}${termUnit}`)
+  }
+
+  const handleAddGiven = async () => {
+    if (!givenNewItem.trim() || !givenNewDate) return
+    const className = classInfo ? ((classInfo.className || '') + (classInfo.section ? ' ' + classInfo.section : '')) : ''
+    setGivenSaving(true)
+    await SupplyGiven.insert({
+      teacherId: teacherId || '',
+      studentId: student.id, studentName: student.name,
+      classId, className, schoolName: classInfo?.organization || '',
+      productId: selProductId, productName: product.name,
+      itemName: givenNewItem.trim(), givenAt: givenNewDate,
+      quarter: givenNewQuarter || null, createdAt: now(),
+    })
+    setGivenNewItem(''); setGivenNewDate(''); setGivenNewQuarter('')
+    setGivenSaving(false)
+    onSaved && onSaved()
+  }
+
+  const handleApply = () => {
+    if (!si) return
+    SupplyItems.upsert({ ...si, productId: selProductId, stage: selStage, remoteNo: si.remoteNo || '' })
+    onSaved && onSaved(); setTick(t => t+1)
+  }
+
+  const handleSaveRemoteNo = () => {
+    if (!si) return
+    SupplyItems.upsert({ ...si, remoteNo })
+    setRemoteNoSaved(true); setTimeout(() => setRemoteNoSaved(false), 2000)
+    onSaved && onSaved()
+  }
+
+  const handleSaveNext = () => {
+    if (!nextProductId) return
+    const base = prog || { id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId: selProductId, curStage: selStage, curSession: 1, createdAt: now() }
+    SupplyStudentProgress.upsert({ ...base, nextProductId, nextStage: Number(nextStage), updatedAt: now() })
+    setNextSaved(true); setTimeout(() => setNextSaved(false), 2000)
+    onSaved && onSaved()
+  }
+
+  const toggleCheck = async (productId, stage, sessionNo) => {
+    const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
+    if (existing) await SupplySessionChecks.delete(existing.id)
+    else await SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
+    const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
+    const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
+    await Promise.all([
+      SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() }),
+      si ? SupplyItems.upsert({ ...si, productId, stage, remoteNo: si.remoteNo || '' }) : Promise.resolve(),
+    ])
+    onSaved && onSaved(); setTick(t => t+1)
+  }
+
+  const updateCheckDate = async (productId, stage, sessionNo, newDateStr) => {
+    const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
+    if (!existing) return
+    await SupplySessionChecks.upsert({ ...existing, checkedAt: new Date(newDateStr).toISOString() })
+    onSaved && onSaved(); setTick(t => t+1)
+  }
+
+  return (
+    <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={600}>
+      <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
+        {/* 교구 시리즈 / 단계 변경 */}
+        <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', marginBottom:'16px' }}>
+          <div style={{ display:'flex', alignItems:'flex-end', gap:'10px', flexWrap:'wrap' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'160px' }}>
+              <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>교구 시리즈</label>
+              <select value={selProductId} onChange={e => { setSelProductId(e.target.value); setSelStage(1) }}
+                style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+                {allProds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px', minWidth:'90px' }}>
+              <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>단계</label>
+              <select value={selStage} onChange={e => setSelStage(Number(e.target.value))}
+                style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+                {Array.from({ length: maxStage }, (_, i) => i+1).map(s => <option key={s} value={s}>{s}단계</option>)}
+              </select>
+            </div>
+            {isChanged && (
+              <button onClick={handleApply}
+                style={{ padding:'8px 18px', borderRadius:'8px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                ✓ 적용
+              </button>
+            )}
+          </div>
+          <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'8px' }}>
+            🤖 {product.name} · {selStage}단계 배정 · 단계당 {spp}차시 기준
+          </div>
+        </div>
+        {/* 리모컨 번호 */}
+        <div style={{ padding:'10px 14px', background:'#f0f9ff', border:'1px solid #bae6fd', borderRadius:'10px', marginBottom:'16px', display:'flex', alignItems:'center', gap:'10px' }}>
+          <span style={{ fontSize:'12px', fontWeight:700, color:'#0369a1', whiteSpace:'nowrap' }}>🎮 리모컨 번호</span>
+          <input value={remoteNo} onChange={e => setRemoteNo(e.target.value)} placeholder="예: A-12, 5번, RC03..."
+            style={{ flex:1, padding:'6px 10px', borderRadius:'7px', border:'1.5px solid #bae6fd', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }} />
+          <button onClick={handleSaveRemoteNo}
+            style={{ padding:'6px 14px', borderRadius:'7px', border:'none', background: remoteNoSaved ? '#16a34a' : '#0284c7', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            {remoteNoSaved ? '✓ 저장됨' : '저장'}
+          </button>
+        </div>
+        {/* 이전 단계 완료 표시 */}
+        {selStage > 1 && (
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'10px' }}>
+            {Array.from({ length: selStage - 1 }, (_, i) => i+1).map(s => (
+              <div key={s} style={{ padding:'6px 12px', borderRadius:'8px', background:'#f0fdf4', border:'1px solid #86efac', fontSize:'12px', fontWeight:600, color:'#16a34a' }}>✅ {s}단계 완료</div>
+            ))}
+          </div>
+        )}
+        {/* 현재 단계 진도 목록 */}
+        {(() => {
+          const stage = selStage
+          const stagePlans = (productPlanList || []).filter(p => p.productId === selProductId && p.stage === stage).sort((a,b) => a.sessionNo-b.sessionNo)
+          const sessions = stagePlans.length > 0 ? stagePlans
+            : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
+          const stageChecks = SupplySessionChecks.byProductStudent(selProductId, student.id, classId).filter(c => c.stage===stage)
+          const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
+          const cnt = stageChecks.length
+          const isDone = cnt >= spp
+          const actualSessions = stagePlans.length > 0 ? stagePlans.length : spp
+          const isAlert = cnt >= (actualSessions - alertSess) && !isDone
+          return (
+            <div style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
+              <div style={{ padding:'10px 14px', background:isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
+                <span style={{ fontSize:'13px', fontWeight:700, color:isDone?'#16a34a':isAlert?'#f59e0b':'#111827' }}>{stage}단계</span>
+                <span style={{ fontSize:'12px', color:'#6b7280' }}>{cnt}/{spp}차시</span>
+                {isDone && (() => {
+                  const np = nextProductId ? allProds.find(p => p.id === nextProductId) : null
+                  return np
+                    ? <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료 → {np.name} {nextStage}단계 준비</span>
+                    : <span style={{ fontSize:'11px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>
+                })()}
+                {isAlert && !isDone && (() => {
+                  const np = nextProductId ? allProds.find(p => p.id === nextProductId) : null
+                  const alertLabel = np ? `${np.name} ${nextStage}단계 준비 필요` : `${product.name} ${selStage+1}단계 준비 필요`
+                  return <span style={{ fontSize:'11px', background:'#fffbeb', color:'#f59e0b', border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ {alertLabel}</span>
+                })()}
+              </div>
+              <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                {sessions.map(sess => {
+                  const isChk = checkedNos.has(sess.sessionNo)
+                  const chkRecord = stageChecks.find(c => c.sessionNo === sess.sessionNo)
+                  const chkDateStr = chkRecord?.checkedAt ? (() => {
+                    const d = new Date(chkRecord.checkedAt)
+                    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+                  })() : null
+                  return (
+                    <div key={sess.id}
+                      style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, transition:'all .12s' }}>
+                      <div onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)}
+                        style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, cursor:'pointer' }}>
+                        {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
+                      </div>
+                      <span onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)}
+                        style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827', flex:1, cursor:'pointer' }}>
+                        {sess.sessionNo}차시{!sess.dummy && sess.title ? ` · ${sess.title}` : ''}
+                      </span>
+                      {isChk && chkDateStr && (
+                        <input type="date" defaultValue={chkDateStr}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => { if(e.target.value) updateCheckDate(selProductId, stage, sess.sessionNo, e.target.value) }}
+                          style={{ fontSize:'11px', color:'#6b7280', border:'1px solid #e5e7eb', borderRadius:'5px', padding:'1px 4px', background:'#fff', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }} />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+      </div>
+      {/* 다음 진도 준비 */}
+      <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#fafafa' }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📌 다음 진도 준비</div>
+        <div style={{ display:'flex', alignItems:'flex-end', gap:'10px', flexWrap:'wrap' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'150px' }}>
+            <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>다음 교구</label>
+            <select value={nextProductId} onChange={e => { setNextProductId(e.target.value); setNextStage(1) }}
+              style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+              <option value="">선택 안함</option>
+              {allProds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          {nextProductId && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px', minWidth:'90px' }}>
+              <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>단계</label>
+              <select value={nextStage} onChange={e => setNextStage(Number(e.target.value))}
+                style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+                {Array.from({ length: nextMaxStage }, (_, i) => i+1).map(s => <option key={s} value={s}>{s}단계</option>)}
+              </select>
+            </div>
+          )}
+          <button onClick={handleSaveNext} disabled={!nextProductId || (!isNextChanged && !nextSaved)}
+            style={{ padding:'8px 16px', borderRadius:'8px', border:'none', background: nextSaved ? '#16a34a' : (nextProductId && isNextChanged ? '#f97316' : '#e5e7eb'), color: (nextProductId && isNextChanged) || nextSaved ? '#fff' : '#9ca3af', fontSize:'13px', fontWeight:700, cursor: nextProductId && isNextChanged ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', transition:'all .2s' }}>
+            {nextSaved ? '✅ 저장됨' : '저장'}
+          </button>
+        </div>
+        {nextProduct && <div style={{ marginTop:'8px', fontSize:'12px', color:'#6b7280' }}>→ {nextProduct.name} {nextStage}단계로 이어집니다</div>}
+      </div>
+      {/* 교구 지급 기록 */}
+      <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#f8fafc' }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📦 교구 지급 기록</div>
+        {givenRecords.length > 0 && (() => {
+          const grouped = {}
+          givenRecords.forEach(r => { const k = r.quarter || '미분류'; if (!grouped[k]) grouped[k] = []; grouped[k].push(r) })
+          return (
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'10px' }}>
+              {Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).map(([qKey, recs]) => (
+                <div key={qKey} style={{ border:'1.5px solid #86efac', borderRadius:'10px', overflow:'hidden' }}>
+                  <div style={{ background:'#dcfce7', padding:'4px 12px' }}>
+                    <select defaultValue={qKey === '미분류' ? '' : qKey}
+                      onChange={async e => { const newQ = e.target.value || null; for (const r of recs) { await SupplyGiven.update(r.id, { quarter: newQ }) }; onSaved && onSaved() }}
+                      style={{ fontSize:'12px', fontWeight:700, color:'#15803d', background:'transparent', border:'none', outline:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', padding:'2px 0' }}>
+                      <option value="">미분류</option>
+                      {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px', padding:'6px 8px', background:'#f0fdf4' }}>
+                    {recs.map(r => <GivenRecord key={r.id} record={r} termType={isQuarter?'quarter':'semester'} onDelete={async () => { await SupplyGiven.delete(r.id); onSaved && onSaved() }} onUpdate={async (patch) => { await SupplyGiven.update(r.id, patch); onSaved && onSaved() }} />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
+        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
+          <input value={givenNewItem} onChange={e => setGivenNewItem(e.target.value)} placeholder="교구명 입력 (예: 큐보 1단계)"
+            style={{ flex:1, minWidth:'140px', padding:'7px 10px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+          <select value={givenNewQuarter} onChange={e => setGivenNewQuarter(e.target.value)}
+            style={{ padding:'7px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
+            <option value="">{termUnit} 선택</option>
+            {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+          <input type="date" value={givenNewDate} onChange={e => setGivenNewDate(e.target.value)}
+            style={{ padding:'7px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
+          <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || !givenNewDate || givenSaving}
+            style={{ padding:'7px 14px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && givenNewDate ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && givenNewDate ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && givenNewDate ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            + 추가
+          </button>
+        </div>
+      </div>
+      <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb' }}>
+        <button onClick={onClose}
+          style={{ width:'100%', padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
+          닫기
+        </button>
+      </div>
+    </Modal>
   )
 }
 
@@ -2690,184 +3026,20 @@ export function Supplies({ user }) {
       </Modal>
 
       {/* ── 진도 체크 모달 */}
-      <Modal open={!!(progressModal && progressStudent)} onClose={() => setProgressModal(false)} title={progressStudent ? `📊 ${progressStudent.name} 진도 체크` : ''} width={600}>
-
-            {/* 내용 */}
-            <div style={{ padding:'20px', overflowY:'auto' }}>
-              {(() => {
-                const product = productList.find(p=>p.id===progressProductId)
-                if (!product) return <div style={{ color:C.muted }}>교구를 찾을 수 없습니다</div>
-                const sessionsPerStage = product.sessionsPerStage || 12
-                const alertSession     = product.alertSession || 3
-                const studentChecks    = getStudentChecks(progressStudent.id, product.id)
-                const prog             = getProgress(progressStudent.id, product.id)
-                const curStage         = prog?.curStage || 1
-
-                // 이 학생에게 배정된 단계만
-                const supply = itemList.find(i => i.classId===selClassId && i.studentId===progressStudent.id)
-                const assignedStage = supply?.stage ? Number(supply.stage) : (prog?.curStage || 1)
-                // 배정 단계 기준으로 현재 단계만 표시 (완료된 이전 단계 포함)
-                const maxShowStage = Math.max(assignedStage, prog?.curStage || 1)
-                const showStages = STAGES.slice(0, maxShowStage)
-
-                const allSessions = productPlanList.filter(p=>p.productId===product.id).sort((a,b)=>a.stage!==b.stage?a.stage-b.stage:a.sessionNo-b.sessionNo)
-                const stageGroups = {}
-                showStages.forEach(stage => {
-                  const stagePlans = allSessions.filter(p=>p.stage===stage)
-                  stageGroups[stage] = stagePlans.length > 0
-                    ? stagePlans
-                    : Array.from({length: sessionsPerStage}, (_, i) => ({ id:`dummy_${stage}_${i+1}`, stage, sessionNo:i+1, title:`${stage}단계 ${i+1}차시`, dummy:true }))
-                })
-
-                return (
-                  <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-                    <div
-                      onClick={() => { setProgressModal(false); openProductModal(product.vendorId, product) }}
-                      title="교구 등록에서 차시·알림 기준을 수정할 수 있습니다"
-                      style={{ padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', fontSize:'13px', color:C.muted, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'space-between', transition:'background .15s' }}
-                      onMouseEnter={e => e.currentTarget.style.background='#f0f4ff'}
-                      onMouseLeave={e => e.currentTarget.style.background='#f9fafb'}
-                    >
-                      <span>🤖 {product.name} · {assignedStage}단계 배정 · 단계당 {sessionsPerStage}차시 기준 · 마지막 {alertSession}차시 전 준비 알림</span>
-                      <span style={{ fontSize:'11px', color:C.primary, fontWeight:600, marginLeft:'10px', whiteSpace:'nowrap' }}>✏️ 교구 등록에서 수정</span>
-                    </div>
-                    {showStages.map(stage => {
-                      const sessions = stageGroups[stage]
-                      const stageChecks = studentChecks.filter(c=>c.stage===stage)
-                      const checkedNos  = new Set(stageChecks.map(c=>c.sessionNo))
-                      const checkedCnt  = stageChecks.length
-                      const actualSessions = stagePlans.length > 0 ? stagePlans.length : sessionsPerStage
-                        const isAlert     = checkedCnt >= (actualSessions - alertSession) && checkedCnt < actualSessions
-                      const isDone      = checkedCnt >= sessionsPerStage
-
-                      return (
-                        <div key={stage} style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':C.border}`, borderRadius:'10px', overflow:'hidden' }}>
-                          <div style={{ padding:'10px 14px', background: isDone?'#f0fdf4':isAlert?'#fffbeb':'#f9fafb', display:'flex', alignItems:'center', gap:'8px' }}>
-                            <span style={{ fontSize:'13px', fontWeight:700, color: isDone?C.success:isAlert?C.warning:C.text }}>{stage}단계</span>
-                            <span style={{ fontSize:'12px', color:C.muted }}>{checkedCnt}/{sessionsPerStage}차시</span>
-                            {isDone && (() => {
-                              const np = prog?.nextProductId ? productList.find(p => p.id === prog.nextProductId) : null
-                              return np
-                                ? <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료 → {np.name} {prog.nextStage}단계 준비</span>
-                                : <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>✅ 완료</span>
-                            })()}
-                            {isAlert && !isDone && (() => {
-                              const np = prog?.nextProductId ? productList.find(p => p.id === prog.nextProductId) : null
-                              const alertLabel = np
-                                ? `${np.name} ${prog.nextStage}단계 준비 필요`
-                                : `${product.name} ${stage + 1}단계 준비 필요`
-                              return <span style={{ fontSize:'11px', background:'#fffbeb', color:C.warning, border:'1px solid #fde68a', borderRadius:'4px', padding:'0 6px', fontWeight:700 }}>⚠️ {alertLabel}</span>
-                            })()}
-                          </div>
-                          <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:'5px' }}>
-                            {sessions.map(sess => {
-                              const isChecked = checkedNos.has(sess.sessionNo)
-                              return (
-                                <div key={sess.id} onClick={() => toggleCheck(progressStudent.id, product.id, stage, sess.sessionNo)}
-                                  style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background: isChecked ? '#f0fdf4' : '#fff', border:`1px solid ${isChecked?'#86efac':C.border}`, cursor:'pointer', transition:'all .12s' }}>
-                                  <div style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChecked?C.success:C.border}`, background: isChecked?C.success:'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .12s' }}>
-                                    {isChecked && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
-                                  </div>
-                                  <div style={{ flex:1 }}>
-                                    <span style={{ fontSize:'13px', fontWeight: isChecked?600:400, color: isChecked?C.success:C.text }}>
-                                      {sess.sessionNo}차시
-                                    </span>
-                                    {!sess.dummy && (
-                                      <span style={{ fontSize:'12px', color:C.muted, marginLeft:'8px' }}>{sess.title}</span>
-                                    )}
-                                  </div>
-                                  {sess.fileUrl && (
-                                    <a href={sess.fileUrl} download target="_blank" rel="noopener noreferrer"
-                                      onClick={e=>e.stopPropagation()}
-                                      style={{ fontSize:'11px', color:C.blue, textDecoration:'none' }}>📄</a>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              })()}
-            </div>
-
-            {/* 교구 지급일 */}
-            {progressStudent && progressProductId && (() => {
-              const stuGivenRecords = givenList.filter(g => g.studentId === progressStudent.id && g.classId === selClassId)
-              const itemKey = `pm_item_${progressStudent.id}`
-              const dateKey = `pm_date_${progressStudent.id}`
-              const itemVal = givenInputs[itemKey] || ''
-              const dateVal = givenInputs[dateKey] || ''
-              const cls = classes.find(c => c.id === selClassId)
-              const product = productList.find(p => p.id === progressProductId)
-
-              const handleAdd = async () => {
-                if (!itemVal.trim() || !dateVal) return
-                const clsName = cls ? ((cls.className||'') + (cls.section ? ' ' + cls.section : '')) : ''
-                await SupplyGiven.insert({
-                  teacherId: user.id,
-                  studentId: progressStudent.id,
-                  studentName: progressStudent.name,
-                  classId: selClassId,
-                  className: clsName,
-                  schoolName: cls?.organization || '',
-                  productId: progressProductId,
-                  productName: product?.name || '',
-                  itemName: itemVal.trim(),
-                  givenAt: dateVal,
-                  createdAt: now(),
-                })
-                setGivenInputs(p => ({ ...p, [itemKey]: '', [dateKey]: '' }))
-                reload()
-                success('교구 지급 기록 추가됨')
-              }
-
-              return (
-                <div style={{ padding:'12px 20px', borderTop:`1px solid ${C.border}`, background:'#f8fafc' }}>
-                  <div style={{ fontSize:'12px', fontWeight:700, color:'#374151', marginBottom:'8px' }}>📦 교구 지급 기록</div>
-                  {stuGivenRecords.length > 0 && (
-                    <div style={{ display:'flex', flexDirection:'column', gap:'5px', marginBottom:'8px' }}>
-                      {stuGivenRecords.map(r => (
-                        <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'5px 10px', background:'#f0fdf4', borderRadius:'7px', border:'1px solid #86efac' }}>
-                          <span style={{ fontSize:'12px', fontWeight:600, color:'#16a34a', flex:1 }}>{r.itemName}</span>
-                          <span style={{ fontSize:'11px', color:'#6b7280' }}>
-                            {(() => { const d = new Date(r.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일` })()}
-                          </span>
-                          <button onClick={async () => { await SupplyGiven.delete(r.id); reload() }}
-                            style={{ padding:'2px 7px', borderRadius:'4px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'10px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
-                    <input value={itemVal} onChange={e => setGivenInputs(p => ({ ...p, [itemKey]: e.target.value }))}
-                      placeholder="교구명 (예: 큐보 1단계)"
-                      style={{ flex:1, minWidth:'120px', padding:'6px 10px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-                    <input type="date" value={dateVal} onChange={e => setGivenInputs(p => ({ ...p, [dateKey]: e.target.value }))}
-                      style={{ padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
-                    <button onClick={handleAdd} disabled={!itemVal.trim() || !dateVal}
-                      style={{ padding:'5px 12px', borderRadius:'7px', border:'none', background: itemVal.trim() && dateVal ? C.success : '#e5e7eb', color: itemVal.trim() && dateVal ? '#fff' : '#9ca3af', fontSize:'11px', fontWeight:700, cursor: itemVal.trim() && dateVal ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-                      + 추가
-                    </button>
-                  </div>
-                </div>
-              )
-            })()}
-
-            {/* footer 고정 버튼 */}
-            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, flexShrink:0, display:'flex', gap:'10px' }}>
-              <button onClick={() => setProgressModal(false)}
-                style={{ flex:1, padding:'11px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:C.muted, fontWeight:600 }}>
-                닫기
-              </button>
-              <button onClick={() => { success('수정이 완료되었습니다.'); setProgressModal(false) }}
-                style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#fff', fontWeight:600 }}>
-                저장
-              </button>
-            </div>
-      </Modal>
+      {progressModal && progressStudent && (
+        <SuppliesProgCheckModal
+          student={{ ...progressStudent, _clsId: selClassId }}
+          initialProductId={progressProductId}
+          productList={productList}
+          productPlanList={productPlanList}
+          givenList={givenList}
+          teacherId={user.id}
+          selClassId={selClassId}
+          classes={classes}
+          onClose={() => setProgressModal(false)}
+          onSaved={() => { reload(); }}
+        />
+      )}
 
       {/* ── 교구 등록/수정 모달 */}
       <Modal open={productModal} onClose={() => setProductModal(false)} title={productForm.id ? '🤖 교구 수정' : '🤖 교구 등록'} width={560}>
