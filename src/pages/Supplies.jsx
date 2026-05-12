@@ -449,6 +449,98 @@ function SchoolPriceRow({ sp, allSchools, onUpdate, onDelete }) {
   )
 }
 
+// ─── 교구 지급 기록 행 (Attendance GivenRecordRow와 동일)
+function SuppliesGivenRow({ record, classId, classes, onSaved }) {
+  const [editing, setEditing]   = React.useState(false)
+  const [item, setItem]         = React.useState(record.itemName)
+  const [date, setDate]         = React.useState(record.givenAt)
+  const [quarter, setQuarter]   = React.useState(record.quarter || '')
+
+  const STATUS_CYCLE = ['ready', 'given', 'billed', 'paid', 'unpaid']
+  const STATUS_STYLE = {
+    ready:  { bg:'#f3f4f6', color:'#6b7280', border:'#d1d5db', label:'준비' },
+    given:  { bg:'#dbeafe', color:'#1d4ed8', border:'#93c5fd', label:'지급' },
+    billed: { bg:'#fef9c3', color:'#a16207', border:'#fde047', label:'청' },
+    paid:   { bg:'#dcfce7', color:'#15803d', border:'#86efac', label:'입' },
+    unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미지급(보관)' },
+  }
+  const [paymentStatus, setPaymentStatus] = React.useState(record.paymentStatus || 'paid')
+
+  const status = record.status || 'given'
+  const st = STATUS_STYLE[status] || STATUS_STYLE.given
+  const rowBg     = paymentStatus === 'unpaid' ? '#fee2e2' : st.bg
+  const rowBorder = paymentStatus === 'unpaid' ? '#fca5a5' : st.border
+
+  const classInfo = (classes||[]).find(c => c.id === classId)
+  const isQuarter = classInfo?.termType === 'quarter'
+  const termUnit  = isQuarter ? '분기' : '학기'
+  const termCount = isQuarter ? 4 : 2
+  const curYear   = new Date().getFullYear()
+  const termOpts  = []
+  for (let y = curYear - 1; y <= curYear + 1; y++) {
+    for (let t = 1; t <= termCount; t++) termOpts.push(`${y}-${t}${termUnit}`)
+  }
+
+  const handleCycle = async () => {
+    const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(status) + 1) % STATUS_CYCLE.length]
+    await SupplyGiven.update(record.id, { status: next })
+    onSaved && onSaved()
+  }
+  const handlePayment = async (val) => {
+    setPaymentStatus(val)
+    await SupplyGiven.update(record.id, { paymentStatus: val })
+    onSaved && onSaved()
+  }
+  const handleSave = async () => {
+    if (!item.trim() || !date) return
+    await SupplyGiven.update(record.id, { itemName: item.trim(), givenAt: date, quarter: quarter || null })
+    setEditing(false)
+    onSaved && onSaved()
+  }
+
+  if (editing) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap', padding:'7px 10px', background:'#fffbeb', borderRadius:'8px', border:'1px solid #fde68a' }}>
+        <input value={item} onChange={e => setItem(e.target.value)}
+          style={{ flex:1, minWidth:'100px', padding:'4px 7px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+        <select value={quarter} onChange={e => setQuarter(e.target.value)}
+          style={{ padding:'4px 6px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
+          <option value="">{termUnit} 선택</option>
+          {termOpts.map(tOpt => <option key={tOpt} value={tOpt}>{tOpt}</option>)}
+        </select>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)}
+          style={{ padding:'4px 6px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
+        <button onClick={handleSave}
+          style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background:'#16a34a', color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+        <button onClick={() => { setItem(record.itemName); setDate(record.givenAt); setQuarter(record.quarter||''); setEditing(false) }}
+          style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
+      </div>
+    )
+  }
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:rowBg, borderRadius:'8px', border:`1px solid ${rowBorder}` }}>
+      <span style={{ fontSize:'13px', fontWeight:600, color:st.color, flex:1, cursor:'pointer' }} onClick={handleCycle}
+        title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
+        <span style={{ fontSize:'10px', marginRight:'4px' }}>({st.label})</span>
+        {record.itemName}
+      </span>
+      <select value={paymentStatus} onChange={e => handlePayment(e.target.value)}
+        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${rowBorder}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background: paymentStatus==='unpaid'?'#fee2e2':'#dcfce7', color: paymentStatus==='unpaid'?'#b91c1c':'#15803d', cursor:'pointer' }}>
+        <option value="paid">입금</option>
+        <option value="unpaid">미입금</option>
+      </select>
+      {record.quarter && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{record.quarter}</span>}
+      <span style={{ fontSize:'12px', color:'#6b7280' }}>
+        {(() => { const d = new Date(record.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일` })()}
+      </span>
+      <button onClick={() => setEditing(true)}
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fed7aa', background:'#fff7ed', color:'#f97316', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+      <button onClick={async () => { await SupplyGiven.delete(record.id); onSaved && onSaved() }}
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+    </div>
+  )
+}
+
 // ─── Supplies 전용 진도체크 모달 (Attendance ProgCheckModal과 동일 기능)
 function SuppliesProgCheckModal({ student, initialProductId, productList, productPlanList, givenList, teacherId, selClassId, classes, onClose, onSaved }) {
   const classId = student._clsId || selClassId || ''
@@ -481,19 +573,65 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
 
   const product = allProds.find(p => p.id === selProductId)
 
-  if (!si) return (
-    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
-      <div style={{ padding:'24px' }}>
-        <div style={{ padding:'14px 16px', background:'#fff7ed', borderRadius:'10px', border:'1px solid #fed7aa', marginBottom:'20px' }}>
-          <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>📦 교구가 배정되지 않은 학생입니다</div>
-          <div style={{ fontSize:'12px', color:'#b45309' }}>교구 배정 탭에서 교구를 먼저 설정해주세요</div>
+  // 교구 미배정 상태 — 바로 여기서 교구 설정 가능
+  const [noSupplySelPid,   setNoSupplySelPid]   = React.useState('')
+  const [noSupplySelStage, setNoSupplySelStage] = React.useState(1)
+  const [noSupplySaving,   setNoSupplySaving]   = React.useState(false)
+
+  if (!si) {
+    const nsProd   = allProds.find(p => p.id === noSupplySelPid)
+    const nsMax    = nsProd?.maxStage || 10
+    const handleNsSave = async () => {
+      if (!noSupplySelPid) return
+      setNoSupplySaving(true)
+      await SupplyItems.upsert({
+        id: uid(), teacherId: teacherId || '', classId, studentId: student.id,
+        productId: noSupplySelPid, stage: noSupplySelStage, remoteNo: '', createdAt: now(),
+      })
+      await SupplyStudentProgress.upsert({
+        id: uid(), teacherId: teacherId || '', studentId: student.id, classId,
+        productId: noSupplySelPid, curStage: noSupplySelStage, curSession: 1,
+        updatedAt: now(), createdAt: now(),
+      })
+      setNoSupplySaving(false)
+      toastSuccess('교구가 설정되었습니다')
+      onSaved && onSaved()
+    }
+    return (
+      <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+        <div style={{ padding:'24px' }}>
+          <div style={{ padding:'14px 16px', background:'#fff7ed', borderRadius:'10px', border:'1px solid #fed7aa', marginBottom:'20px' }}>
+            <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>📦 교구가 배정되지 않은 학생입니다</div>
+            <div style={{ fontSize:'12px', color:'#b45309' }}>아래에서 교구를 선택하면 바로 진도체크를 시작할 수 있습니다</div>
+          </div>
+          <div style={{ display:'flex', gap:'12px', alignItems:'flex-end', flexWrap:'wrap' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'160px' }}>
+              <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>교구 선택 *</label>
+              <select value={noSupplySelPid} onChange={e => { setNoSupplySelPid(e.target.value); setNoSupplySelStage(1) }}
+                style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+                <option value=''>-- 교구를 선택하세요 --</option>
+                {allProds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px', minWidth:'90px' }}>
+              <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>단계</label>
+              <select value={noSupplySelStage} onChange={e => setNoSupplySelStage(Number(e.target.value))}
+                style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+                {Array.from({ length: nsMax }, (_, i) => i+1).map(stg => <option key={stg} value={stg}>{stg}단계</option>)}
+              </select>
+            </div>
+            <button onClick={handleNsSave} disabled={noSupplySaving || !noSupplySelPid}
+              style={{ padding:'8px 20px', borderRadius:'8px', border:'none', background: noSupplySelPid ? C.primary : '#e5e7eb', color: noSupplySelPid ? '#fff' : '#9ca3af', fontSize:'13px', fontWeight:700, cursor: noSupplySelPid ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+              {noSupplySaving ? '저장 중...' : '저장 후 진도체크'}
+            </button>
+          </div>
         </div>
-      </div>
-      <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb' }}>
-        <button onClick={onClose} style={{ width:'100%', padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>닫기</button>
-      </div>
-    </Modal>
-  )
+        <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb' }}>
+          <button onClick={onClose} style={{ width:'100%', padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>닫기</button>
+        </div>
+      </Modal>
+    )
+  }
 
   if (!product) return (
     <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
@@ -752,7 +890,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
                     </select>
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:'4px', padding:'6px 8px', background:'#f0fdf4' }}>
-                    {recs.map(r => <GivenRecord key={r.id} record={r} termType={isQuarter?'quarter':'semester'} onDelete={async () => { await SupplyGiven.delete(r.id); onSaved && onSaved() }} onUpdate={async (patch) => { await SupplyGiven.update(r.id, patch); onSaved && onSaved() }} />)}
+                    {recs.map(r => <SuppliesGivenRow key={r.id} record={r} classId={classId} classes={classes} onSaved={onSaved} />)}
                   </div>
                 </div>
               ))}
@@ -1762,7 +1900,9 @@ export function Supplies({ user }) {
                           </div>
                         )
 
-                        return assignedProducts.map(product => {
+                        return (
+                          <div>
+                            {assignedProducts.map(product => {
                           const sessionsPerStage = product.sessionsPerStage || 12
                           const alertSession     = product.alertSession || 3
                           const avg = avgProgress[product.id] || 0
@@ -1819,7 +1959,37 @@ export function Supplies({ user }) {
                               </div>
                             </div>
                           )
-                        })
+                        })}
+                            {/* ── 교구 미배정 학생 섹션 */}
+                            {(() => {
+                              const unassigned = confirmedStudents.filter(s => !getStudentSupply(s.id).productId)
+                              if (unassigned.length === 0) return null
+                              return (
+                                <div style={{ background:C.card, borderRadius:'14px', border:`1.5px dashed #fed7aa`, overflow:'hidden', marginBottom:'24px' }}>
+                                  <div style={{ padding:'12px 18px', background:'#fff7ed', borderBottom:`1px solid #fed7aa`, display:'flex', alignItems:'center', gap:'8px' }}>
+                                    <span style={{ fontSize:'14px', fontWeight:700, color:'#92400e' }}>📦 교구 미배정</span>
+                                    <span style={{ fontSize:'12px', color:'#b45309' }}>{unassigned.length}명 · 클릭하면 바로 교구를 배정할 수 있습니다</span>
+                                  </div>
+                                  <div style={{ padding:'10px 18px', display:'flex', flexDirection:'column', gap:'6px' }}>
+                                    {unassigned.map(s => (
+                                      <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 14px', background:'#fff', borderRadius:'9px', border:`1px solid #fed7aa`, cursor:'pointer' }}
+                                        onClick={() => { setProgressStudent({ ...s, _clsId: selClassId }); setProgressProductId(''); setProgressModal(true) }}>
+                                        <div style={{ flex:1 }}>
+                                          <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>
+                                            {s.name}
+                                            <span style={{ fontSize:'12px', color:C.muted, fontWeight:400, marginLeft:'8px' }}>{s.grade} {s.classNum}반</span>
+                                          </div>
+                                          <div style={{ fontSize:'12px', color:'#b45309', marginTop:'2px' }}>교구 미배정</div>
+                                        </div>
+                                        <span style={{ fontSize:'12px', color:C.primary }}>배정하기 →</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        )
                       })()}
                     </div>
                   )}
