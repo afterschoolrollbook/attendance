@@ -405,9 +405,10 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
   // 수업화면(별도 창)에서 진도체크 시 왼쪽 패널 갱신
   useEffect(() => {
     const ch = new BroadcastChannel('progress_screen')
-    ch.onmessage = (e) => {
+    ch.onmessage = async (e) => {
       if (e.data?.type === 'refresh') {
         if (!cls) return
+        await refreshTablesFromSupabase('supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
         setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
         setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
         setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
@@ -2130,8 +2131,11 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
   useEffect(() => {
     if (!cls) return
     const ch = new BroadcastChannel('progress_screen')
-    ch.onmessage = (e) => {
-      if (e.data?.type === 'refresh') setProgTick(t => t+1)
+    ch.onmessage = async (e) => {
+      if (e.data?.type === 'refresh') {
+        await refreshTablesFromSupabase('supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
+        setProgTick(t => t+1)
+      }
     }
     return () => ch.close()
   }, [cls?.id])
