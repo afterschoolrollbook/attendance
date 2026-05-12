@@ -1890,7 +1890,16 @@ export function Supplies({ user }) {
                             .map(s => getStudentSupply(s.id).productId)
                             .filter(Boolean)
                         )]
-                        const assignedProducts = robotProducts.filter(p => assignedProductIds.includes(p.id))
+                        const PRODUCT_ORDER = ['큐보', '스카이로보', '프로보테크닉']
+                        const assignedProducts = robotProducts
+                          .filter(p => assignedProductIds.includes(p.id))
+                          .sort((a, b) => {
+                            const ai = PRODUCT_ORDER.findIndex(n => (a.name||'').includes(n))
+                            const bi = PRODUCT_ORDER.findIndex(n => (b.name||'').includes(n))
+                            const ai2 = ai === -1 ? 99 : ai
+                            const bi2 = bi === -1 ? 99 : bi
+                            return ai2 - bi2
+                          })
 
                         if (assignedProducts.length === 0) return (
                           <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>
