@@ -1923,35 +1923,96 @@ export function Supplies({ user }) {
                               </div>
 
                               {/* 학생별 진도 */}
-                              <div style={{ padding:'12px 18px', display:'flex', flexDirection:'column', gap:'8px' }}>
-                                {productStudents.map(s => {
+                              <div style={{ padding:'12px 18px', display:'flex', flexDirection:'column', gap:'6px' }}>
+                                {[...productStudents].sort((a, b) => {
+                                  const gd = parseInt(a.grade||'0') - parseInt(b.grade||'0')
+                                  if (gd !== 0) return gd
+                                  const cd = parseInt(a.classNum||'0') - parseInt(b.classNum||'0')
+                                  if (cd !== 0) return cd
+                                  return parseInt(a.number||'0') - parseInt(b.number||'0')
+                                }).map(s => {
                                   const supply = getStudentSupply(s.id)
                                   const assignedStage = Number(supply.stage) || 1
                                   const prog = getProgress(s.id, product.id)
                                   const curStage = prog?.curStage || assignedStage
                                   const studentChecks = getStudentChecks(s.id, product.id)
-                                  const curStageChecks = studentChecks.filter(c=>c.stage===curStage).length
-                                  const totalSessions = (curStage-1)*sessionsPerStage + curStageChecks
+                                  const curStageChecks = studentChecks.filter(c => c.stage === curStage)
+                                  const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
+                                  const todayChecks = curStageChecks.filter(c => c.checkedAt && (() => { const d = new Date(c.checkedAt); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })() === todayStr)
+                                  const allChecks = curStageChecks
+                                  const lastCheck = allChecks.length > 0 ? allChecks.reduce((a, b) => a.sessionNo > b.sessionNo ? a : b) : null
+                                  const stagePlans = lastCheck ? (productPlanList || []).filter(p => p.productId === product.id && p.stage === curStage) : []
+                                  const lastModelTitle = lastCheck ? (stagePlans.find(p => p.sessionNo === lastCheck.sessionNo)?.title || null) : null
+                                  const totalSessions = (curStage-1)*sessionsPerStage + allChecks.length
                                   const isAhead  = totalSessions > avg + 2
                                   const isBehind = avg > 0 && totalSessions < avg - 2
+                                  const hasTodayCheck = todayChecks.length > 0
+                                  const rowBg     = hasTodayCheck ? '#f0fdf4' : '#f9fafb'
+                                  const rowBorder = hasTodayCheck ? '#86efac' : C.border
 
                                   return (
-                                    <div key={s.id} style={{ border:`1px solid ${C.border}`, borderRadius:'10px', overflow:'hidden' }}>
-                                      <div style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 14px', background:'#f9fafb', cursor:'pointer' }}
-                                        onClick={() => { setProgressStudent(s); setProgressProductId(product.id); setProgressModal(true) }}>
-                                        <div style={{ flex:1 }}>
-                                          <div style={{ fontSize:'14px', fontWeight:600, color:C.text, display:'flex', alignItems:'center', gap:'8px' }}>
-                                            {s.name}
-                                            <span style={{ fontSize:'12px', color:C.muted, fontWeight:400 }}>{s.grade} {s.classNum}반</span>
-                                            {isAhead  && <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'0 5px' }}>🚀 빠름</span>}
-                                            {isBehind && <span style={{ fontSize:'11px', background:'#fef2f2', color:C.danger,  border:'1px solid #fca5a5', borderRadius:'4px', padding:'0 5px' }}>🐌 느림</span>}
-                                          </div>
-                                          <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                                            {curStage}단계 · {curStageChecks}/{sessionsPerStage}차시 완료
-                                          </div>
+                                    <div key={s.id} style={{ border:`1px solid ${rowBorder}`, borderRadius:'10px', overflow:'hidden' }}>
+                                      <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'9px 14px', background:rowBg }}>
+                                        {/* 학년·반·번호 */}
+                                        <div style={{ fontSize:'11px', color:C.muted, lineHeight:1.5, minWidth:'44px', flexShrink:0, textAlign:'center' }}>
+                                          <div>{s.grade ? s.grade+'학년' : '-'}</div>
+                                          <div>{s.classNum ? s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}</div>
                                         </div>
-                                        <ProgressBadge checkedCount={curStageChecks} totalCount={sessionsPerStage} alertSession={alertSession} sessionsPerStage={sessionsPerStage} />
-                                        <span style={{ fontSize:'12px', color:C.primary }}>체크 →</span>
+                                        {/* 이름 */}
+                                        <span style={{ fontSize:'13px', fontWeight:700, color: hasTodayCheck ? '#16a34a' : C.text, minWidth:'50px', flexShrink:0 }}>{s.name}</span>
+                                        {/* 교구명·단계 inline 수정 */}
+                                        <select
+                                          value={supply.productId || ''}
+                                          onClick={e => e.stopPropagation()}
+                                          onChange={async e => {
+                                            const newPid = e.target.value
+                                            if (!newPid) return
+                                            await SupplyItems.upsert({ ...supply, id: supply.id || uid(), teacherId: user.id, classId: selClassId, studentId: s.id, productId: newPid, stage: 1, remoteNo: supply.remoteNo || '', createdAt: supply.createdAt || now() })
+                                            await SupplyStudentProgress.upsert({ id: uid(), teacherId: user.id, studentId: s.id, classId: selClassId, productId: newPid, curStage: 1, curSession: 1, updatedAt: now(), createdAt: now() })
+                                            reload()
+                                          }}
+                                          style={{ padding:'3px 6px', borderRadius:'6px', border:'1.5px solid #e5e7eb', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none', maxWidth:'100px', flexShrink:0 }}>
+                                          {robotProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                        </select>
+                                        <select
+                                          value={curStage}
+                                          onClick={e => e.stopPropagation()}
+                                          onChange={async e => {
+                                            const newStage = Number(e.target.value)
+                                            await SupplyItems.upsert({ ...supply, id: supply.id || uid(), teacherId: user.id, classId: selClassId, studentId: s.id, productId: supply.productId, stage: newStage, remoteNo: supply.remoteNo || '', createdAt: supply.createdAt || now() })
+                                            await SupplyStudentProgress.upsert({ id: uid(), teacherId: user.id, studentId: s.id, classId: selClassId, productId: supply.productId, curStage: newStage, curSession: 1, updatedAt: now(), createdAt: now() })
+                                            reload()
+                                          }}
+                                          style={{ padding:'3px 6px', borderRadius:'6px', border:'1.5px solid #e5e7eb', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none', width:'64px', flexShrink:0 }}>
+                                          {Array.from({ length: product.maxStage || 10 }, (_, i) => i+1).map(stg => <option key={stg} value={stg}>{stg}단계</option>)}
+                                        </select>
+                                        {/* 오늘 체크 + 누적 */}
+                                        {hasTodayCheck && (
+                                          <span style={{ fontSize:'11px', fontWeight:700, color:'#16a34a', whiteSpace:'nowrap', flexShrink:0 }}>
+                                            +{todayChecks.length}차시 ({allChecks.length}차시)
+                                          </span>
+                                        )}
+                                        {!hasTodayCheck && allChecks.length > 0 && (
+                                          <span style={{ fontSize:'11px', color:C.muted, whiteSpace:'nowrap', flexShrink:0 }}>
+                                            {allChecks.length}차시
+                                          </span>
+                                        )}
+                                        {/* 차시 제목 */}
+                                        {lastModelTitle && (
+                                          <span style={{ fontSize:'11px', color:'#6b7280', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{lastModelTitle}</span>
+                                        )}
+                                        {/* 빠름/느림 */}
+                                        {isAhead  && <span style={{ fontSize:'10px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'0 4px', flexShrink:0 }}>🚀빠름</span>}
+                                        {isBehind && <span style={{ fontSize:'10px', background:'#fef2f2', color:C.danger,  border:'1px solid #fca5a5', borderRadius:'4px', padding:'0 4px', flexShrink:0 }}>🐌느림</span>}
+                                        {/* 최대 뱃지 */}
+                                        {todayChecks.length >= 2 && (
+                                          <span style={{ fontSize:'10px', background:'#fef2f2', color:'#ef4444', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 5px', flexShrink:0 }}>최대</span>
+                                        )}
+                                        {/* 체크 버튼 */}
+                                        <button onClick={() => { setProgressStudent(s); setProgressProductId(product.id); setProgressModal(true) }}
+                                          style={{ marginLeft:'auto', padding:'4px 10px', borderRadius:'7px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', flexShrink:0 }}>
+                                          체크 →
+                                        </button>
                                       </div>
                                     </div>
                                   )
