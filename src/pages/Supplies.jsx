@@ -2493,7 +2493,7 @@ export function Supplies({ user }) {
                                       </div>
                                       <div style={{ display:'flex', flexDirection:'column', gap:'4px', padding:'6px 8px', background:bodyBg }}>
                                         {qRecords.map(r => (
-                                          <GivenRecord key={r.id + '_' + (r.supplyStatus||r.status||'') + '_' + (r.status||'')} record={r} termType={cls.termType}
+                                          <GivenRecord key={r.id + '_' + (r.supplyStatus||r.status||'') + '_' + (r.status||'') + '_' + (r.paidAt||'') + '_' + (r.givenAt||'')} record={r} termType={cls.termType}
                                             onDelete={async () => { await SupplyGiven.delete(r.id); reload() }}
                                             onUpdate={async (itemName, givenAt, quarter, supplyStatus, billingStatus, paidAt) => {
                                               const paymentStatus = billingStatus === 'unpaid' ? 'unpaid' : 'paid'
