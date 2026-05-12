@@ -88,8 +88,30 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
     return { s, si, prod, curStage, todayChecks, allChecks, lastModelTitle }
   }).filter(Boolean)
 
-  const checkedToday = studentProgList.filter(p => p.todayChecks.length > 0).sort((a, b) => a.s.name.localeCompare(b.s.name, 'ko'))
+  const checkedToday    = studentProgList.filter(p => p.todayChecks.length > 0).sort((a, b) => a.s.name.localeCompare(b.s.name, 'ko'))
   const notCheckedToday = studentProgList.filter(p => p.todayChecks.length === 0).sort((a, b) => a.s.name.localeCompare(b.s.name, 'ko'))
+
+  // 교구+단계별 그룹 (정렬은 기존 가나다순 유지, 같은 교구 안에서 단계 오름차순)
+  const groupByProductStage = (list) => {
+    const map = {}
+    const prodOrder = []
+    list.forEach(item => {
+      const pid = item.prod?.id || '노교구'
+      const key = `${pid}__${item.curStage}`
+      if (!map[key]) {
+        map[key] = { prod: item.prod, curStage: item.curStage, items: [], _pid: pid }
+        if (!prodOrder.includes(pid)) prodOrder.push(pid)
+      }
+      map[key].items.push(item)
+    })
+    // 교구 DB 등록 순서 → 단계 오름차순
+    return Object.values(map).sort((a, b) => {
+      const pi = prodOrder.indexOf(a._pid) - prodOrder.indexOf(b._pid)
+      if (pi !== 0) return pi
+      return (a.curStage||1) - (b.curStage||1)
+    })
+  }
+
   if (!cls) return null
 
   return (
@@ -123,14 +145,20 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
           {checkedToday.length > 0 && (
             <div>
               <div style={{ fontSize:'11px', fontWeight:700, color:'#16a34a', marginBottom:'5px' }}>✅ 진도체크 완료 ({checkedToday.length}명)</div>
-              {checkedToday.map(({ s, prod, curStage, todayChecks, allChecks, lastModelTitle }) => (
-                <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
-                  style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f0fdf4', border:'1px solid #86efac', marginBottom:'4px', cursor:'pointer' }}>
-                  <span style={{ fontSize:'13px', fontWeight:700, color:'#16a34a' }}>{s.name}</span>
-                  <span style={{ fontSize:'11px', color:'#6b7280' }}>{prod?.name} {curStage}단계</span>
-                  <span style={{ marginLeft:'auto', fontSize:'11px', fontWeight:700, color:'#16a34a' }}>+{todayChecks.length}차시 ({allChecks.length}차시)</span>
-                  {lastModelTitle && <span style={{ fontSize:'11px', color:'#6b7280' }}>{lastModelTitle}</span>}
-                  {todayChecks.length >= 2 && <span style={{ fontSize:'10px', background:'#fef2f2', color:'#ef4444', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 5px' }}>최대</span>}
+              {groupByProductStage(checkedToday).map(({ prod, curStage, items }) => (
+                <div key={`${prod?.id}__${curStage}`} style={{ marginBottom:'5px' }}>
+                  <div style={{ fontSize:'10px', fontWeight:700, color:'#15803d', background:'#dcfce7', borderRadius:'4px', padding:'1px 7px', display:'inline-block', marginBottom:'3px' }}>
+                    {prod?.name} {curStage}단계
+                  </div>
+                  {items.map(({ s, todayChecks, allChecks, lastModelTitle }) => (
+                    <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
+                      style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f0fdf4', border:'1px solid #86efac', marginBottom:'3px', cursor:'pointer' }}>
+                      <span style={{ fontSize:'13px', fontWeight:700, color:'#16a34a' }}>{s.name}</span>
+                      <span style={{ marginLeft:'auto', fontSize:'11px', fontWeight:700, color:'#16a34a' }}>+{todayChecks.length}차시 ({allChecks.length}차시)</span>
+                      {lastModelTitle && <span style={{ fontSize:'11px', color:'#6b7280' }}>{lastModelTitle}</span>}
+                      {todayChecks.length >= 2 && <span style={{ fontSize:'10px', background:'#fef2f2', color:'#ef4444', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 5px' }}>최대</span>}
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -156,12 +184,18 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
           {notCheckedToday.length > 0 && (
             <div>
               <div style={{ fontSize:'11px', fontWeight:700, color:'#9ca3af', marginBottom:'5px' }}>⬜ 미체크 ({notCheckedToday.length}명)</div>
-              {notCheckedToday.map(({ s, prod, curStage, lastModelTitle }) => (
-                <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
-                  style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f9fafb', border:'1px solid #e5e7eb', marginBottom:'4px', cursor:'pointer' }}>
-                  <span style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>{s.name}</span>
-                  <span style={{ fontSize:'11px', color:'#9ca3af' }}>{prod?.name} {curStage}단계</span>
-                  {lastModelTitle && <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{lastModelTitle}</span>}
+              {groupByProductStage(notCheckedToday).map(({ prod, curStage, items }) => (
+                <div key={`${prod?.id}__${curStage}`} style={{ marginBottom:'5px' }}>
+                  <div style={{ fontSize:'10px', fontWeight:700, color:'#9ca3af', background:'#f3f4f6', borderRadius:'4px', padding:'1px 7px', display:'inline-block', marginBottom:'3px' }}>
+                    {prod?.name} {curStage}단계
+                  </div>
+                  {items.map(({ s, lastModelTitle }) => (
+                    <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
+                      style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f9fafb', border:'1px solid #e5e7eb', marginBottom:'3px', cursor:'pointer' }}>
+                      <span style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>{s.name}</span>
+                      {lastModelTitle && <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{lastModelTitle}</span>}
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -269,6 +303,25 @@ export function ProgressWindow() {
   const total = checkedToday.length + notCheckedToday.length
   const pct = total > 0 ? Math.round(checkedToday.length / total * 100) : 0
 
+  const groupByProductStage = (list) => {
+    const map = {}
+    const prodOrder = []
+    list.forEach(item => {
+      const pid = item.prod?.id || '노교구'
+      const key = `${pid}__${item.curStage}`
+      if (!map[key]) {
+        map[key] = { prod: item.prod, curStage: item.curStage, items: [], _pid: pid }
+        if (!prodOrder.includes(pid)) prodOrder.push(pid)
+      }
+      map[key].items.push(item)
+    })
+    return Object.values(map).sort((a, b) => {
+      const pi = prodOrder.indexOf(a._pid) - prodOrder.indexOf(b._pid)
+      if (pi !== 0) return pi
+      return (a.curStage||1) - (b.curStage||1)
+    })
+  }
+
   const DAYS_KO2 = ['일','월','화','수','목','금','토']
   const d = new Date(date + 'T00:00:00')
   const dateLabel = `${d.getMonth()+1}월 ${d.getDate()}일 (${DAYS_KO2[d.getDay()]})`
@@ -326,22 +379,31 @@ export function ProgressWindow() {
               ✅ 진도체크 완료
               <span style={{ background:'#dcfce7', borderRadius:'20px', padding:'2px 10px', fontSize:'12px' }}>{checkedToday.length}명</span>
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-              {checkedToday.map(({ s, prod, curStage, todayChecks, allChecks, lastModelTitle, isMax }) => (
-                <div key={s.id} onClick={() => openProgCheck(s, spItems.find(i=>i.studentId===s.id&&i.classId===cls.id)?.productId)}
-                  style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'12px', background:'#f0fdf4', border:'2px solid #86efac', cursor:'pointer' }}>
-                  <div style={{ width:'38px', height:'38px', borderRadius:'50%', background:'#16a34a', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <span style={{ fontSize:'16px', color:'#fff', fontWeight:800 }}>{(s.name||'?')[0]}</span>
+            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+              {groupByProductStage(checkedToday).map(({ prod, curStage, items }) => (
+                <div key={`${prod?.id}__${curStage}`}>
+                  <div style={{ fontSize:'11px', fontWeight:700, color:'#15803d', background:'#dcfce7', borderRadius:'6px', padding:'2px 10px', display:'inline-block', marginBottom:'6px' }}>
+                    🤖 {prod?.name} {curStage}단계
                   </div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:'15px', fontWeight:700, color:'#15803d' }}>{s.name}</div>
-                    <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'2px' }}>{prod?.name} {curStage}단계{lastModelTitle ? ` · ${lastModelTitle}` : ''}</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                    {items.map(({ s, todayChecks, allChecks, lastModelTitle, isMax }) => (
+                      <div key={s.id} onClick={() => openProgCheck(s, spItems.find(i=>i.studentId===s.id&&i.classId===cls.id)?.productId)}
+                        style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'12px', background:'#f0fdf4', border:'2px solid #86efac', cursor:'pointer' }}>
+                        <div style={{ width:'38px', height:'38px', borderRadius:'50%', background:'#16a34a', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          <span style={{ fontSize:'16px', color:'#fff', fontWeight:800 }}>{(s.name||'?')[0]}</span>
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:'15px', fontWeight:700, color:'#15803d' }}>{s.name}</div>
+                          {lastModelTitle && <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'2px' }}>{lastModelTitle}</div>}
+                        </div>
+                        <div style={{ textAlign:'right', flexShrink:0 }}>
+                          <div style={{ fontSize:'14px', fontWeight:700, color:'#16a34a' }}>+{todayChecks.length}차시</div>
+                          <div style={{ fontSize:'11px', color:'#9ca3af' }}>누적 {allChecks.length}차시</div>
+                        </div>
+                        {isMax && <span style={{ fontSize:'10px', background:'#fef2f2', color:'#ef4444', border:'1px solid #fca5a5', borderRadius:'4px', padding:'2px 6px', fontWeight:700 }}>최대</span>}
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ textAlign:'right', flexShrink:0 }}>
-                    <div style={{ fontSize:'14px', fontWeight:700, color:'#16a34a' }}>+{todayChecks.length}차시</div>
-                    <div style={{ fontSize:'11px', color:'#9ca3af' }}>누적 {allChecks.length}차시</div>
-                  </div>
-                  {isMax && <span style={{ fontSize:'10px', background:'#fef2f2', color:'#ef4444', border:'1px solid #fca5a5', borderRadius:'4px', padding:'2px 6px', fontWeight:700 }}>최대</span>}
                 </div>
               ))}
             </div>
@@ -355,18 +417,27 @@ export function ProgressWindow() {
               ⬜ 미체크
               <span style={{ background:'#f3f4f6', borderRadius:'20px', padding:'2px 10px', fontSize:'12px' }}>{notCheckedToday.length}명</span>
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-              {notCheckedToday.map(({ s, prod, curStage, lastModelTitle }) => (
-                <div key={s.id} onClick={() => openProgCheck(s, spItems.find(i=>i.studentId===s.id&&i.classId===cls.id)?.productId)}
-                  style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'12px', background:'#f9fafb', border:'2px solid #e5e7eb', cursor:'pointer' }}>
-                  <div style={{ width:'38px', height:'38px', borderRadius:'50%', background:'#e5e7eb', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <span style={{ fontSize:'16px', color:'#9ca3af', fontWeight:800 }}>{(s.name||'?')[0]}</span>
+            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+              {groupByProductStage(notCheckedToday).map(({ prod, curStage, items }) => (
+                <div key={`${prod?.id}__${curStage}`}>
+                  <div style={{ fontSize:'11px', fontWeight:700, color:'#9ca3af', background:'#f3f4f6', borderRadius:'6px', padding:'2px 10px', display:'inline-block', marginBottom:'6px' }}>
+                    🤖 {prod?.name} {curStage}단계
                   </div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>{s.name}</div>
-                    <div style={{ fontSize:'12px', color:'#9ca3af', marginTop:'2px' }}>{prod?.name} {curStage}단계{lastModelTitle ? ` · ${lastModelTitle}` : ''}</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                    {items.map(({ s, lastModelTitle }) => (
+                      <div key={s.id} onClick={() => openProgCheck(s, spItems.find(i=>i.studentId===s.id&&i.classId===cls.id)?.productId)}
+                        style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'12px', background:'#f9fafb', border:'2px solid #e5e7eb', cursor:'pointer' }}>
+                        <div style={{ width:'38px', height:'38px', borderRadius:'50%', background:'#e5e7eb', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          <span style={{ fontSize:'16px', color:'#9ca3af', fontWeight:800 }}>{(s.name||'?')[0]}</span>
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:'15px', fontWeight:600, color:'#374151' }}>{s.name}</div>
+                          {lastModelTitle && <div style={{ fontSize:'12px', color:'#9ca3af', marginTop:'2px' }}>{lastModelTitle}</div>}
+                        </div>
+                        <div style={{ fontSize:'12px', color:'#f97316', fontWeight:700 }}>체크하기 ›</div>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ fontSize:'12px', color:'#f97316', fontWeight:700 }}>체크하기 ›</div>
                 </div>
               ))}
             </div>
