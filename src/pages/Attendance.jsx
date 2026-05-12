@@ -58,7 +58,7 @@ function localDateStr(d) {
 
 
 // ─── 수업 메모장 패널
-function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, onProgOpen, onOpenScreen }) {
+function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, spGiven, onProgOpen, onOpenScreen }) {
   const [memos, setMemos] = useState(() => cls ? LessonMemos.byClassDate(cls.id, date) : [])
   const [memoText, setMemoText] = useState('')
 
@@ -135,6 +135,24 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
               ))}
             </div>
           )}
+          {/* 오늘 교구지급 목록 */}
+          {(() => {
+            const todayGiven = (spGiven || []).filter(g => g.classId === cls?.id && g.givenAt === date)
+            if (todayGiven.length === 0) return null
+            return (
+              <div style={{ marginTop:'6px' }}>
+                <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', marginBottom:'5px' }}>📦 교구지급 ({todayGiven.length}명)</div>
+                {todayGiven.map(g => (
+                  <div key={g.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f5f3ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
+                    <span style={{ fontSize:'13px', fontWeight:700, color:'#6d28d9' }}>{g.studentName}</span>
+                    <span style={{ fontSize:'11px', color:'#6b7280' }}>{g.productName}</span>
+                    {g.itemName && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{g.itemName}</span>}
+                    <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{g.givenAt}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
           {notCheckedToday.length > 0 && (
             <div>
               <div style={{ fontSize:'11px', fontWeight:700, color:'#9ca3af', marginBottom:'5px' }}>⬜ 미체크 ({notCheckedToday.length}명)</div>
@@ -389,6 +407,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
   const [spProds,  setSpProds]  = useState(() => cls ? SupplyProducts.byTeacher(cls.teacherId||'') : [])
   const [spProg,   setSpProg]   = useState(() => cls ? SupplyStudentProgress.byTeacher(cls.teacherId||'') : [])
   const [spChecks, setSpChecks] = useState(() => cls ? SupplySessionChecks.byTeacher(cls.teacherId||'') : [])
+  const [spGiven,  setSpGiven]  = useState(() => cls ? SupplyGiven.byTeacher(cls.teacherId||'') : [])
   const [progStudent, setProgStudent] = useState(null)
   const [progProductId, setProgProductId] = useState('')
   const [tick, setTick] = useState(0)
@@ -400,6 +419,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
     setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
     setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+    setSpGiven(SupplyGiven.byTeacher(cls.teacherId||''))
   }, [cls?.id, date, tick])
 
   // 수업화면(별도 창)에서 진도체크 시 왼쪽 패널 갱신
@@ -439,7 +459,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
     <>
       <LessonMemoPanel
         cls={cls} date={date} students={students}
-        spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks}
+        spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} spGiven={spGiven}
         onProgOpen={(s, pid) => { setProgStudent({...s, _clsId: cls.id}); setProgProductId(pid) }}
         onOpenScreen={(payload) => { lastPayloadRef.current = payload }}
       />
@@ -452,6 +472,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
             setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
             setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
             setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+            setSpGiven(SupplyGiven.byTeacher(cls.teacherId||''))
             setTick(t => t+1)
             // 별도 창에 갱신 신호 전송
             const ch = new BroadcastChannel('progress_screen')
