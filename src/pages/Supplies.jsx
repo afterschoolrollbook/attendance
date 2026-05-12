@@ -522,6 +522,7 @@ export function Supplies({ user }) {
   const [schoolPriceList, setSchoolPriceList] = useState([])
   const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'' })
   const [givenTermFilter, setGivenTermFilter]       = useState('')
+  const [givenStatusFilter, setGivenStatusFilter]   = useState('') // 'given'|'unpaid'|'extra'|'paid'|''
   const [summaryDetailModal, setSummaryDetailModal] = useState(null) // { label, recs, color }
   const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
   const [bulkChecked, setBulkChecked]   = useState([])
@@ -2170,7 +2171,7 @@ export function Supplies({ user }) {
                         extra: paidAll.length > 0 ? (() => {
                           const amt = paidAll.reduce((s,r)=>s+getPrice(r),0)
                           const dates = [...new Set(paidAll.filter(r=>r.paidAt).map(r=>r.paidAt))].sort()
-                          return `${fmt(amt)}원${dates.length > 0 ? ` · 입금일: ${dates.join(', ')}` : ''}`
+                          return `${fmt(amt)}원`
                         })() : null },
                       { label:'미입금',         cnt: unpaidRecs.length, recs: unpaidRecs, color:'#b91c1c', bg:'#fee2e2', extra: null },
                       { label:'추가 지급',      cnt: summaryRecords.filter(r=>getSupplyStatus(r)==='extra').length, recs: summaryRecords.filter(r=>getSupplyStatus(r)==='extra'), color:'#7c3aed', bg:'#ede9fe', extra: null },
@@ -2370,6 +2371,30 @@ export function Supplies({ user }) {
                   </select>
                 </div>
 
+                {/* 상태별 필터 버튼 */}
+                {(() => {
+                  const btns = [
+                    { val: '',       label: '전체',    bg: '#f3f4f6', color: '#374151', act: '#374151', actBg: '#e5e7eb' },
+                    { val: 'given',  label: '지급',    bg: '#dbeafe', color: '#1d4ed8', act: '#1d4ed8', actBg: '#bfdbfe' },
+                    { val: 'unpaid', label: '미지급',  bg: '#fee2e2', color: '#b91c1c', act: '#b91c1c', actBg: '#fca5a5' },
+                    { val: 'extra',  label: '추가지급', bg: '#ede9fe', color: '#7c3aed', act: '#7c3aed', actBg: '#c4b5fd' },
+                    { val: 'paid',   label: '입금',    bg: '#dcfce7', color: '#15803d', act: '#15803d', actBg: '#86efac' },
+                  ]
+                  return (
+                    <div style={{ display:'flex', gap:'6px', marginBottom:'14px', flexWrap:'wrap' }}>
+                      {btns.map(b => {
+                        const active = givenStatusFilter === b.val
+                        return (
+                          <button key={b.val} onClick={() => setGivenStatusFilter(b.val)}
+                            style={{ padding:'5px 14px', borderRadius:'20px', border: active ? `2px solid ${b.act}` : '1px solid #e5e7eb', background: active ? b.actBg : b.bg, color: b.color, fontSize:'12px', fontWeight: active ? 700 : 500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                            {b.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+
                 {/* 학생 목록 - 반별 그룹핑 */}
                 {grouped.length === 0 ? (
                   <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>해당 조건의 학생이 없습니다.</div>
@@ -2386,7 +2411,19 @@ export function Supplies({ user }) {
                             </div>
                           )}
                           <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                            {studs.map(stu => {
+                            {studs.filter(stu => {
+                              if (!givenStatusFilter) return true
+                              const recs = givenList.filter(g => g.studentId === stu.id && g.classId === cls.id)
+                              return recs.some(r => {
+                                const ss = r.supplyStatus || (['billed','paid'].includes(r.status) ? 'given' : r.status) || 'given'
+                                const bs = r.supplyStatus != null ? (r.status || 'none') : (r.status === 'paid' ? 'paid' : r.status === 'billed' ? 'billed' : r.paymentStatus === 'unpaid' ? 'unpaid' : 'none')
+                                if (givenStatusFilter === 'paid') return bs === 'paid'
+                                if (givenStatusFilter === 'unpaid') return ss === 'unpaid'
+                                if (givenStatusFilter === 'extra') return ss === 'extra'
+                                if (givenStatusFilter === 'given') return ss === 'given'
+                                return true
+                              })
+                            }).map(stu => {
                               const records = givenList.filter(g => g.studentId === stu.id && g.classId === cls.id)
                               const itemKey    = `item_${stu.id}_${cls.id}`
                               const dateKey    = `date_${stu.id}_${cls.id}`
