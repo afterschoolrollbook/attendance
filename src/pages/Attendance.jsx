@@ -1032,45 +1032,40 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
   }
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}`, flexWrap:'wrap' }}>
+    <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}`, flexWrap:'nowrap', overflowX:'auto' }}>
       {/* 교구명 */}
-      <span style={{ fontSize:'13px', fontWeight:600, color:st.color, flex:1, minWidth:'80px' }}>
-        <span style={{ fontSize:'10px', marginRight:'4px' }}>({st.label})</span>
+      <span style={{ fontSize:'13px', fontWeight:600, color:st.color, flex:1, minWidth:'60px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
         {record.itemName}
       </span>
       {/* 드롭1: 지급상태 */}
       <select value={supplyStatus} onChange={e => handleSupplyChange(e.target.value)}
-        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:ssStyle.bg, color:ssStyle.color }}>
+        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:ssStyle.bg, color:ssStyle.color, flexShrink:0 }}>
         <option value="ready">준비</option>
         <option value="given">지급</option>
         <option value="unpaid">미지급</option>
         <option value="extra">추가지급</option>
       </select>
-      {/* 지급날짜 (지급·추가지급) */}
-      {showGivenDate && (
-        <input type="date" value={givenDate} onChange={e => handleGivenDate(e.target.value)}
-          title="지급날짜"
-          style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
-      )}
+      {/* 지급날짜 */}
+      <input type="date" value={givenDate} onChange={e => handleGivenDate(e.target.value)}
+        title="지급날짜"
+        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer', flexShrink:0 }} />
       {/* 드롭2: 청구·입금 */}
       <select value={billingStatus} onChange={e => handleBillingChange(e.target.value)}
-        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:bsStyle.bg, color:bsStyle.color }}>
+        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:bsStyle.bg, color:bsStyle.color, flexShrink:0 }}>
         <option value="none">-</option>
         <option value="billed">청구</option>
         <option value="paid">입금</option>
         <option value="unpaid">미입금</option>
       </select>
-      {/* 청구·입금날짜 */}
-      {showPaidDate && (
-        <input type="date" value={paidDate} onChange={e => handlePaidDate(e.target.value)}
-          title={billingStatus === 'billed' ? '청구날짜' : '입금날짜'}
-          style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
-      )}
+      {/* 입금날짜 */}
+      <input type="date" value={paidDate} onChange={e => handlePaidDate(e.target.value)}
+        title="입금날짜"
+        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer', flexShrink:0 }} />
       {/* 수정·삭제 */}
       <button onClick={() => setEditing(true)}
-        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fed7aa', background:'#fff7ed', color:'#f97316', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', marginLeft:'auto' }}>수정</button>
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fed7aa', background:'#fff7ed', color:'#f97316', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>수정</button>
       <button onClick={async () => { await SupplyGiven.delete(record.id); onSaved && onSaved() }}
-        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
     </div>
   )
 }
