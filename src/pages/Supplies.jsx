@@ -3046,7 +3046,19 @@ export function Supplies({ user }) {
                                 return true
                               })
                             }).map(stu => {
-                              const records = givenList.filter(g => g.studentId === stu.id && g.classId === cls.id)
+                              const allRecords = givenList.filter(g => g.studentId === stu.id && g.classId === cls.id)
+                              const matchRec = (r) => {
+                                if (!givenStatusFilter) return true
+                                const ss = r.supplyStatus || (['billed','paid'].includes(r.status) ? 'given' : r.status) || 'given'
+                                const bs = r.supplyStatus != null ? (r.status || 'none') : (r.status === 'paid' ? 'paid' : r.status === 'billed' ? 'billed' : r.paymentStatus === 'unpaid' ? 'unpaid' : 'none')
+                                if (givenStatusFilter === 'paid')    return bs === 'paid'
+                                if (givenStatusFilter === 'notpaid') return bs === 'unpaid'
+                                if (givenStatusFilter === 'unpaid')  return ss === 'unpaid'
+                                if (givenStatusFilter === 'extra')   return ss === 'extra'
+                                if (givenStatusFilter === 'given')   return ss === 'given'
+                                return true
+                              }
+                              const records = allRecords.filter(matchRec)
                               const itemKey    = `item_${stu.id}_${cls.id}`
                               const dateKey    = `date_${stu.id}_${cls.id}`
                               const termKey    = `term_${stu.id}_${cls.id}`
