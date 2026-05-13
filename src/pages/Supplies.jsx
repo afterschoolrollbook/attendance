@@ -97,7 +97,7 @@ function FileRow({ item, onDelete, onEdit, schools=[] }) {
   const allSchools = schools.length > 0 ? schools : (item.school ? [item.school] : [])
   return (
     <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', background:C.card, borderRadius:'9px', border:`1.5px solid ${noFile ? '#fca5a5' : C.border}` }}>
-      <span style={{ fontSize:'20px', flexShrink:0 }}>{noFile ? '⚠️' : icon}</span>
+      <span style={{ fontSize:'20px' }}>{noFile ? '⚠️' : icon}</span>
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ fontSize:'13px', fontWeight:600, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</div>
         <div style={{ fontSize:'11px', marginTop:'2px', display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
@@ -110,7 +110,7 @@ function FileRow({ item, onDelete, onEdit, schools=[] }) {
           }
         </div>
       </div>
-      <div style={{ display:'flex', gap:'5px', flexShrink:0 }}>
+      <div style={{ display:'flex', gap:'5px' }}>
         {item.fileUrl && (
           <a href={item.fileUrl} download={item.fileName} target="_blank" rel="noopener noreferrer"
             style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #86efac', background:'#f0fdf4', color:C.success, fontSize:'11px', fontWeight:600, textDecoration:'none' }}>
@@ -141,7 +141,7 @@ function ProgressBadge({ checkedCount, totalCount, alertSession, sessionsPerStag
   const border  = isDone ? '#86efac' : isAlert ? '#fde68a' : '#bfdbfe'
   const label   = isDone ? '단계완료' : isAlert ? '준비필요' : `${checkedCount}/${totalCount}`
   return (
-    <span style={{ fontSize:'11px', fontWeight:700, color, background:bg, border:`1px solid ${border}`, borderRadius:'5px', padding:'1px 7px', flexShrink:0 }}>
+    <span style={{ fontSize:'11px', fontWeight:700, color, background:bg, border:`1px solid ${border}`, borderRadius:'5px', padding:'1px 7px' }}>
       {isDone ? '✅' : isAlert ? '⚠️' : '📖'} {label}
     </span>
   )
@@ -244,7 +244,7 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
   const bsStyle = (billingStatus !== 'none' && BILLING_STYLE[billingStatus]) || { bg:'#f3f4f6', color:'#9ca3af' }
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}`, flexWrap:'nowrap', overflowX:'auto' }}>
+    <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}`, flexWrap:'wrap' }}>
       {/* 교구명 */}
       <span style={{ fontSize:'13px', fontWeight:600, color:st.color, flex:1, minWidth:'60px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
         {record.itemName}
@@ -252,7 +252,7 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
 
       {/* 드롭1: 지급상태 */}
       <select value={supplyStatus} onChange={e => handleSupplyChange(e.target.value)}
-        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:ssStyle.bg, color:ssStyle.color, flexShrink:0 }}>
+        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:ssStyle.bg, color:ssStyle.color }}>
         <option value="ready">준비</option>
         <option value="given">지급</option>
         <option value="unpaid">미지급</option>
@@ -262,11 +262,11 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
       {/* 지급날짜 */}
       <input type="date" value={givenDate} onChange={e => handleGivenDate(e.target.value)}
         title="지급날짜"
-        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer', flexShrink:0 }} />
+        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
 
       {/* 드롭2: 청구·입금 */}
       <select value={billingStatus} onChange={e => handleBillingChange(e.target.value)}
-        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:bsStyle.bg, color:bsStyle.color, flexShrink:0 }}>
+        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:bsStyle.bg, color:bsStyle.color }}>
         <option value="none">-</option>
         <option value="billed">청구</option>
         <option value="paid">입금</option>
@@ -276,13 +276,13 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
       {/* 입금날짜 */}
       <input type="date" value={paidDate} onChange={e => handlePaidDate(e.target.value)}
         title="입금날짜"
-        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer', flexShrink:0 }} />
+        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
 
       {/* 수정·삭제 */}
       <button onClick={() => setEditing(true)}
-        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fed7aa', background:'#fff7ed', color:'#f97316', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>수정</button>
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fed7aa', background:'#fff7ed', color:'#f97316', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
       <button onClick={onDelete}
-        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
     </div>
   )
 }
@@ -350,7 +350,7 @@ function PriceModal({ product, teacherId, allSchools, onClose }) {
         <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
           {BASE_PRICES.map(({ key, label }) => (
             <div key={key} style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-              <span style={{ fontSize:'12px', color:'#6b7280', width:'120px', flexShrink:0 }}>{label}</span>
+              <span style={{ fontSize:'12px', color:'#6b7280', width:'120px' }}>{label}</span>
               <input type="number" min={0} value={form[key]}
                 onChange={e => setForm(p => ({ ...p, [key]: Number(e.target.value) }))}
                 style={{ width:'130px', padding:'5px 8px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'right' }} />
@@ -596,7 +596,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
       onSaved && onSaved()
     }
     return (
-      <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+      <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={780}>
         <div style={{ padding:'24px' }}>
           <div style={{ padding:'14px 16px', background:'#fff7ed', borderRadius:'10px', border:'1px solid #fed7aa', marginBottom:'20px' }}>
             <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>📦 교구가 배정되지 않은 학생입니다</div>
@@ -632,7 +632,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
   }
 
   if (!product) return (
-    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={780}>
       <div style={{ padding:'40px 24px', textAlign:'center' }}>
         <div style={{ fontSize:'36px', marginBottom:'12px' }}>⚠️</div>
         <div style={{ fontSize:'15px', fontWeight:700, color:'#374151', marginBottom:'6px' }}>교구 정보를 찾을 수 없습니다</div>
@@ -736,7 +736,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
   }
 
   return (
-    <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={600}>
+    <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={780}>
       <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
         {/* 교구 시리즈 / 단계 변경 */}
         <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', marginBottom:'16px' }}>
@@ -825,7 +825,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
                     <div key={sess.id}
                       style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, transition:'all .12s' }}>
                       <div onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)}
-                        style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, cursor:'pointer' }}>
+                        style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
                         {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
                       </div>
                       <span onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)}
@@ -900,16 +900,16 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
             </div>
           )
         })()}
-        <div style={{ display:'flex', gap:'6px', flexWrap:'nowrap', alignItems:'center', overflowX:'auto' }}>
+        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
           <input value={givenNewItem} onChange={e => setGivenNewItem(e.target.value)} placeholder="교구명 입력"
             style={{ flex:1, minWidth:'80px', padding:'7px 10px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
           <select value={givenNewQuarter} onChange={e => setGivenNewQuarter(e.target.value)}
-            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }}>
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
             <option value="">{termUnit} 선택</option>
             {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
           <select value={givenNewSupplyStatus} onChange={e => setGivenNewSupplyStatus(e.target.value)}
-            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }}>
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
             <option value="ready">준비</option>
             <option value="given">지급</option>
             <option value="unpaid">미지급</option>
@@ -917,9 +917,9 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
           </select>
           <input type="date" value={givenNewDate} onChange={e => setGivenNewDate(e.target.value)}
             title="지급날짜"
-            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }} />
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
           <select value={givenNewBillingStatus} onChange={e => setGivenNewBillingStatus(e.target.value)}
-            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }}>
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
             <option value="none">-</option>
             <option value="billed">청구</option>
             <option value="paid">입금</option>
@@ -927,9 +927,9 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
           </select>
           <input type="date" value={givenNewPaidDate} onChange={e => setGivenNewPaidDate(e.target.value)}
             title="입금날짜"
-            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }} />
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
           <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || !givenNewDate || givenSaving}
-            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && givenNewDate ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && givenNewDate ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && givenNewDate ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', flexShrink:0 }}>
+            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && givenNewDate ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && givenNewDate ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && givenNewDate ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
             + 추가
           </button>
         </div>
@@ -1999,12 +1999,12 @@ export function Supplies({ user }) {
                                             <div key={s.id} style={{ border:`1px solid ${rowBorder}`, borderRadius:'9px', overflow:'hidden' }}>
                                               <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:rowBg }}>
                                                 {/* 학년·반·번호 */}
-                                                <div style={{ fontSize:'11px', color:C.muted, lineHeight:1.5, minWidth:'44px', flexShrink:0, textAlign:'center' }}>
+                                                <div style={{ fontSize:'11px', color:C.muted, lineHeight:1.5, minWidth:'44px', textAlign:'center' }}>
                                                   <div>{s.grade ? s.grade+'학년' : '-'}</div>
                                                   <div>{s.classNum ? s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}</div>
                                                 </div>
                                                 {/* 이름 */}
-                                                <span style={{ fontSize:'13px', fontWeight:700, color: hasTodayCheck ? '#16a34a' : C.text, minWidth:'50px', flexShrink:0 }}>{s.name}</span>
+                                                <span style={{ fontSize:'13px', fontWeight:700, color: hasTodayCheck ? '#16a34a' : C.text, minWidth:'50px' }}>{s.name}</span>
                                                 {/* 교구 셀렉트 — 이 수업에서 진행중인 교구만 */}
                                                 <select value={supply.productId || ''} onClick={e => e.stopPropagation()}
                                                   onChange={async e => {
@@ -2013,7 +2013,7 @@ export function Supplies({ user }) {
                                                     await SupplyStudentProgress.upsert({ id: uid(), teacherId: user.id, studentId: s.id, classId: selClassId, productId: newPid, curStage: 1, curSession: 1, updatedAt: now(), createdAt: now() })
                                                     reload()
                                                   }}
-                                                  style={{ padding:'3px 6px', borderRadius:'6px', border:'1.5px solid #e5e7eb', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none', maxWidth:'100px', flexShrink:0 }}>
+                                                  style={{ padding:'3px 6px', borderRadius:'6px', border:'1.5px solid #e5e7eb', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none', maxWidth:'100px' }}>
                                                   {assignedProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                                 </select>
                                                 {/* 단계 셀렉트 */}
@@ -2024,19 +2024,19 @@ export function Supplies({ user }) {
                                                     await SupplyStudentProgress.upsert({ id: uid(), teacherId: user.id, studentId: s.id, classId: selClassId, productId: supply.productId, curStage: newStage, curSession: 1, updatedAt: now(), createdAt: now() })
                                                     reload()
                                                   }}
-                                                  style={{ padding:'3px 6px', borderRadius:'6px', border:'1.5px solid #e5e7eb', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none', width:'64px', flexShrink:0 }}>
+                                                  style={{ padding:'3px 6px', borderRadius:'6px', border:'1.5px solid #e5e7eb', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none', width:'64px' }}>
                                                   {Array.from({ length: product.maxStage || 10 }, (_, i) => i+1).map(stg => <option key={stg} value={stg}>{stg}단계</option>)}
                                                 </select>
                                                 {/* 오늘 체크 + 누적 */}
-                                                {hasTodayCheck && <span style={{ fontSize:'11px', fontWeight:700, color:'#16a34a', whiteSpace:'nowrap', flexShrink:0 }}>+{todayChecks.length}차시 ({allChecks.length}차시)</span>}
-                                                {!hasTodayCheck && allChecks.length > 0 && <span style={{ fontSize:'11px', color:C.muted, whiteSpace:'nowrap', flexShrink:0 }}>{allChecks.length}차시</span>}
+                                                {hasTodayCheck && <span style={{ fontSize:'11px', fontWeight:700, color:'#16a34a', whiteSpace:'nowrap' }}>+{todayChecks.length}차시 ({allChecks.length}차시)</span>}
+                                                {!hasTodayCheck && allChecks.length > 0 && <span style={{ fontSize:'11px', color:C.muted, whiteSpace:'nowrap' }}>{allChecks.length}차시</span>}
                                                 {/* 차시 제목 */}
                                                 {lastModelTitle && <span style={{ fontSize:'11px', color:'#6b7280', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{lastModelTitle}</span>}
-                                                {isAhead  && <span style={{ fontSize:'10px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'0 4px', flexShrink:0 }}>🚀빠름</span>}
-                                                {isBehind && <span style={{ fontSize:'10px', background:'#fef2f2', color:C.danger,  border:'1px solid #fca5a5', borderRadius:'4px', padding:'0 4px', flexShrink:0 }}>🐌느림</span>}
-                                                {todayChecks.length >= 2 && <span style={{ fontSize:'10px', background:'#fef2f2', color:'#ef4444', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 5px', flexShrink:0 }}>최대</span>}
+                                                {isAhead  && <span style={{ fontSize:'10px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'0 4px' }}>🚀빠름</span>}
+                                                {isBehind && <span style={{ fontSize:'10px', background:'#fef2f2', color:C.danger,  border:'1px solid #fca5a5', borderRadius:'4px', padding:'0 4px' }}>🐌느림</span>}
+                                                {todayChecks.length >= 2 && <span style={{ fontSize:'10px', background:'#fef2f2', color:'#ef4444', border:'1px solid #fca5a5', borderRadius:'4px', padding:'1px 5px' }}>최대</span>}
                                                 <button onClick={() => { setProgressStudent(s); setProgressProductId(product.id); setProgressModal(true) }}
-                                                  style={{ marginLeft:'auto', padding:'4px 10px', borderRadius:'7px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', flexShrink:0 }}>
+                                                  style={{ marginLeft:'auto', padding:'4px 10px', borderRadius:'7px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
                                                   체크 →
                                                 </button>
                                               </div>
@@ -2258,16 +2258,16 @@ export function Supplies({ user }) {
                                             </div>
                                           </div>
                                           <button onClick={() => openProductModal(v.id, p)}
-                                            style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>수정</button>
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
                                           <button onClick={() => deleteProduct(p.id)}
-                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                                           <button onClick={() => setPriceModal(p)}
-                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #f59e0b', background:'#fffbeb', color:'#d97706', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>💰 가격</button>
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #f59e0b', background:'#fffbeb', color:'#d97706', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>💰 가격</button>
                                           <button onClick={() => downloadProductsExcel(v, [p], productPlanList)}
-                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>⬇ 다운</button>
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운</button>
                                           <button onClick={() => downloadSampleExcel()}
-                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #3b82f6', background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>📋 샘플</button>
-                                          <label style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #8b5cf6', background:'#f5f3ff', color:'#8b5cf6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #3b82f6', background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 샘플</button>
+                                          <label style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #8b5cf6', background:'#f5f3ff', color:'#8b5cf6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                             📤 일괄등록
                                             <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={(e) => handleBulkUpload(e, v.id)} />
                                           </label>
@@ -2308,28 +2308,28 @@ export function Supplies({ user }) {
                                                       {/* 단계 헤더 — 클릭하면 목차 토글 */}
                                                       <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', cursor:'pointer' }}
                                                         onClick={() => setExpandedStage(prev => prev === expandKey ? null : expandKey)}>
-                                                        <span style={{ fontSize:'16px', flexShrink:0 }}>📝</span>
+                                                        <span style={{ fontSize:'16px' }}>📝</span>
                                                         <div style={{ flex:1 }}>
                                                           <span style={{ fontSize:'13px', fontWeight:600, color:C.text }}>{p.name} {stage}단계 목차리스트</span>
                                                           <span style={{ fontSize:'11px', color:C.success, marginLeft:'8px' }}>{plans.length}차시</span>
                                                         </div>
                                                         <button onClick={e=>{ e.stopPropagation(); openSessionPlan(p.id, stage) }}
-                                                          style={{ padding:'3px 10px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                                          style={{ padding:'3px 10px', borderRadius:'6px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                                           수정
                                                         </button>
                                                         <button onClick={e=>{ e.stopPropagation(); setDeleteConfirm({ msg:`${stage}단계 차시 진도체크 데이터를 삭제하시겠습니까?`, onOk: () => { productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage).forEach(pl=>SupplyProductPlans.delete(pl.id)); reload(); success('삭제가 완료되었습니다.') } }) }}
-                                                          style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                                          style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                                           삭제
                                                         </button>
                                                         <button onClick={e=>{ e.stopPropagation(); downloadProductsExcel(v, [p], productPlanList.filter(pl=>pl.productId===p.id&&pl.stage===stage)) }}
-                                                          style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                                          style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                                           ⬇ 다운
                                                         </button>
                                                         <button onClick={e=>{ e.stopPropagation(); downloadSampleExcel() }}
-                                                          style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #3b82f6', background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                                          style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #3b82f6', background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                                           📋 샘플
                                                         </button>
-                                                        <label onClick={e=>e.stopPropagation()} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #8b5cf6', background:'#f5f3ff', color:'#8b5cf6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>
+                                                        <label onClick={e=>e.stopPropagation()} style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #8b5cf6', background:'#f5f3ff', color:'#8b5cf6', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                                           📤 일괄등록
                                                           <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={(e) => handleBulkUpload(e, v.id)} />
                                                         </label>
@@ -2914,24 +2914,24 @@ export function Supplies({ user }) {
                                   if (stuRecs.length === 0) return null
                                   return (
                                     <div key={stu.id} style={{ display:'flex', gap:'8px', padding:'6px 10px', background: stuRecs.length > 1 ? '#eff6ff' : '#f9fafb', borderRadius:'7px', border: stuRecs.length > 1 ? '1px solid #bfdbfe' : '1px solid #e5e7eb' }}>
-                                      <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px', flexShrink:0, paddingTop:'2px' }}>{stuLabel}</span>
-                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', flexShrink:0, paddingTop:'2px' }}>{stu.name}</span>
+                                      <span style={{ fontSize:'11px', color:'#9ca3af', minWidth:'70px', paddingTop:'2px' }}>{stuLabel}</span>
+                                      <span style={{ fontSize:'12px', fontWeight:700, color:'#111827', minWidth:'55px', paddingTop:'2px' }}>{stu.name}</span>
                                       <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'4px' }}>
                                         {stuRecs.map(r => (
                                           <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                                             <input type="checkbox"
                                               checked={bulkChecked.includes(r.id)}
                                               onChange={() => setBulkChecked(p => p.includes(r.id) ? p.filter(x=>x!==r.id) : [...p, r.id])}
-                                              style={{ width:'13px', height:'13px', cursor:'pointer', accentColor:'#3b82f6', flexShrink:0 }} />
+                                              style={{ width:'13px', height:'13px', cursor:'pointer', accentColor:'#3b82f6' }} />
                                             <span style={{ fontSize:'12px', color:'#374151', flex:1 }}>{r.itemName}</span>
-                                            {r.quarter && <span style={{ fontSize:'10px', color:'#3b82f6', flexShrink:0 }}>{r.quarter}</span>}
-                                            {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', flexShrink:0 }}>{fmt(getPrice(r))}원</span>}
+                                            {r.quarter && <span style={{ fontSize:'10px', color:'#3b82f6' }}>{r.quarter}</span>}
+                                            {getPrice(r) > 0 && <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d' }}>{fmt(getPrice(r))}원</span>}
                                             {summaryDetailModal.label === '입금'
                                               ? (r.paidAt
-                                                ? <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>입금 {r.paidAt}</span>
-                                                : <span style={{ fontSize:'10px', color:'#ef4444', fontWeight:700, flexShrink:0 }}>등록필요</span>
+                                                ? <span style={{ fontSize:'10px', color:'#9ca3af' }}>입금 {r.paidAt}</span>
+                                                : <span style={{ fontSize:'10px', color:'#ef4444', fontWeight:700 }}>등록필요</span>
                                               )
-                                              : <span style={{ fontSize:'10px', color:'#9ca3af', flexShrink:0 }}>지급 {r.givenAt}</span>
+                                              : <span style={{ fontSize:'10px', color:'#9ca3af' }}>지급 {r.givenAt}</span>
                                             }
                                           </div>
                                         ))}
@@ -3274,7 +3274,7 @@ export function Supplies({ user }) {
             </div>
 
             {/* footer 고정 버튼 */}
-            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, display:'flex', gap:'8px', flexShrink:0 }}>
+            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, display:'flex', gap:'8px' }}>
               <button onClick={saveSupply}
                 style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                 저장
@@ -3518,7 +3518,7 @@ export function Supplies({ user }) {
             </div>
 
             {/* 저장/취소 버튼 — footer 고정 */}
-            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, display:'flex', gap:'8px', flexShrink:0 }}>
+            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, display:'flex', gap:'8px' }}>
               <button onClick={saveProduct}
                 style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                 저장
@@ -3591,7 +3591,7 @@ export function Supplies({ user }) {
             </div>
 
             {/* footer 고정 버튼 */}
-            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, display:'flex', gap:'8px', flexShrink:0 }}>
+            <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, display:'flex', gap:'8px' }}>
               <button onClick={saveSessionPlan} disabled={uploading}
                 style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:uploading?'#e5e7eb':C.primary, color:uploading?C.muted:'#fff', fontSize:'14px', fontWeight:700, cursor:uploading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                 {uploading ? '저장 중...' : '저장'}
@@ -3738,7 +3738,7 @@ export function Supplies({ user }) {
               </div>
 
               {/* footer 고정 버튼 */}
-              <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, display:'flex', gap:'8px', flexShrink:0 }}>
+              <div style={{ padding:'14px 20px', borderTop:`1px solid ${C.border}`, display:'flex', gap:'8px' }}>
                 <button onClick={saveFile} disabled={uploading}
                   style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background: uploading?'#e5e7eb':C.primary, color: uploading?C.muted:'#fff', fontSize:'14px', fontWeight:700, cursor: uploading?'not-allowed':'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   {uploading ? '업로드 중...' : fileForm.schools.length > 1 ? `저장 (${fileForm.schools.length}개 학교)` : '저장'}
@@ -3891,7 +3891,7 @@ export function Supplies({ user }) {
                 ].map(item => (
                   <label key={item.key} onClick={item.toggle}
                     style={{ display:'flex', alignItems:'center', gap:'12px', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${item.checked ? item.border : '#e5e7eb'}`, background: item.checked ? item.bg : '#f9fafb', cursor:'pointer', transition:'all .15s' }}>
-                    <div style={{ width:'20px', height:'20px', borderRadius:'5px', border:`2px solid ${item.checked ? item.color : '#d1d5db'}`, background: item.checked ? item.color : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .15s' }}>
+                    <div style={{ width:'20px', height:'20px', borderRadius:'5px', border:`2px solid ${item.checked ? item.color : '#d1d5db'}`, background: item.checked ? item.color : '#fff', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .15s' }}>
                       {item.checked && <span style={{ color:'#fff', fontSize:'13px', fontWeight:700, lineHeight:1 }}>✓</span>}
                     </div>
                     <span style={{ fontSize:'14px', fontWeight: item.checked ? 700 : 500, color: item.checked ? item.color : '#374151' }}>{item.label}</span>

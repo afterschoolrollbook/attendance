@@ -214,7 +214,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
           {memos.map(m => (
             <div key={m.id} style={{ display:'flex', alignItems:'flex-start', gap:'6px', padding:'8px 10px', background:'#fffbeb', borderRadius:'8px', border:'1px solid #fde68a' }}>
               <span style={{ flex:1, fontSize:'12px', color:'#374151', lineHeight:1.6 }}>{m.content}</span>
-              <button onClick={() => delMemo(m.id)} style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', flexShrink:0 }}>삭제</button>
+              <button onClick={() => delMemo(m.id)} style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer' }}>삭제</button>
             </div>
           ))}
           <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
@@ -389,14 +389,14 @@ export function ProgressWindow() {
                     {items.map(({ s, todayChecks, allChecks, lastModelTitle, isMax }) => (
                       <div key={s.id} onClick={() => openProgCheck(s, spItems.find(i=>i.studentId===s.id&&i.classId===cls.id)?.productId)}
                         style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'12px', background:'#f0fdf4', border:'2px solid #86efac', cursor:'pointer' }}>
-                        <div style={{ width:'38px', height:'38px', borderRadius:'50%', background:'#16a34a', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <div style={{ width:'38px', height:'38px', borderRadius:'50%', background:'#16a34a', display:'flex', alignItems:'center', justifyContent:'center' }}>
                           <span style={{ fontSize:'16px', color:'#fff', fontWeight:800 }}>{(s.name||'?')[0]}</span>
                         </div>
                         <div style={{ flex:1 }}>
                           <div style={{ fontSize:'15px', fontWeight:700, color:'#15803d' }}>{s.name}</div>
                           {lastModelTitle && <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'2px' }}>{lastModelTitle}</div>}
                         </div>
-                        <div style={{ textAlign:'right', flexShrink:0 }}>
+                        <div style={{ textAlign:'right' }}>
                           <div style={{ fontSize:'14px', fontWeight:700, color:'#16a34a' }}>+{todayChecks.length}차시</div>
                           <div style={{ fontSize:'11px', color:'#9ca3af' }}>누적 {allChecks.length}차시</div>
                         </div>
@@ -427,7 +427,7 @@ export function ProgressWindow() {
                     {items.map(({ s, lastModelTitle }) => (
                       <div key={s.id} onClick={() => openProgCheck(s, spItems.find(i=>i.studentId===s.id&&i.classId===cls.id)?.productId)}
                         style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'12px', background:'#f9fafb', border:'2px solid #e5e7eb', cursor:'pointer' }}>
-                        <div style={{ width:'38px', height:'38px', borderRadius:'50%', background:'#e5e7eb', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <div style={{ width:'38px', height:'38px', borderRadius:'50%', background:'#e5e7eb', display:'flex', alignItems:'center', justifyContent:'center' }}>
                           <span style={{ fontSize:'16px', color:'#9ca3af', fontWeight:800 }}>{(s.name||'?')[0]}</span>
                         </div>
                         <div style={{ flex:1 }}>
@@ -1032,14 +1032,14 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
   }
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}`, flexWrap:'nowrap', overflowX:'auto' }}>
+    <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}`, flexWrap:'wrap' }}>
       {/* 교구명 */}
       <span style={{ fontSize:'13px', fontWeight:600, color:st.color, flex:1, minWidth:'60px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
         {record.itemName}
       </span>
       {/* 드롭1: 지급상태 */}
       <select value={supplyStatus} onChange={e => handleSupplyChange(e.target.value)}
-        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:ssStyle.bg, color:ssStyle.color, flexShrink:0 }}>
+        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:ssStyle.bg, color:ssStyle.color }}>
         <option value="ready">준비</option>
         <option value="given">지급</option>
         <option value="unpaid">미지급</option>
@@ -1048,10 +1048,10 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
       {/* 지급날짜 */}
       <input type="date" value={givenDate} onChange={e => handleGivenDate(e.target.value)}
         title="지급날짜"
-        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer', flexShrink:0 }} />
+        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
       {/* 드롭2: 청구·입금 */}
       <select value={billingStatus} onChange={e => handleBillingChange(e.target.value)}
-        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:bsStyle.bg, color:bsStyle.color, flexShrink:0 }}>
+        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:bsStyle.bg, color:bsStyle.color }}>
         <option value="none">-</option>
         <option value="billed">청구</option>
         <option value="paid">입금</option>
@@ -1060,12 +1060,12 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
       {/* 입금날짜 */}
       <input type="date" value={paidDate} onChange={e => handlePaidDate(e.target.value)}
         title="입금날짜"
-        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer', flexShrink:0 }} />
+        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
       {/* 수정·삭제 */}
       <button onClick={() => setEditing(true)}
-        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fed7aa', background:'#fff7ed', color:'#f97316', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>수정</button>
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fed7aa', background:'#fff7ed', color:'#f97316', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
       <button onClick={async () => { await SupplyGiven.delete(record.id); onSaved && onSaved() }}
-        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', flexShrink:0 }}>삭제</button>
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
     </div>
   )
 }
@@ -1098,7 +1098,7 @@ function NoSupplyAssignModal({ student, classId, teacherId, allProds, onClose, o
   }
 
   return (
-    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={780}>
       <div style={{ padding:'24px' }}>
         <div style={{ padding:'14px 16px', background:'#fff7ed', borderRadius:'10px', border:'1px solid #fed7aa', marginBottom:'20px' }}>
           <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>📦 교구가 배정되지 않은 학생입니다</div>
@@ -1185,7 +1185,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
 
   // si 있는데 product 없음 → 교구가 삭제된 케이스
   if (!product) return (
-    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={600}>
+    <Modal open={true} onClose={onClose} title={`📊 ${student.name} 진도 체크`} width={780}>
       <div style={{ padding:'40px 24px', textAlign:'center' }}>
         <div style={{ fontSize:'36px', marginBottom:'12px' }}>⚠️</div>
         <div style={{ fontSize:'15px', fontWeight:700, color:'#374151', marginBottom:'6px' }}>교구 정보를 찾을 수 없습니다</div>
@@ -1301,7 +1301,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   }
 
   return (
-    <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={600}>
+    <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={780}>
       <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
         {/* 교구 시리즈 / 단계 변경 */}
         <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', marginBottom:'16px' }}>
@@ -1400,7 +1400,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
                     <div key={sess.id}
                       style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'7px', background:isChk?'#f0fdf4':'#fff', border:`1px solid ${isChk?'#86efac':'#e5e7eb'}`, transition:'all .12s' }}>
                       <div onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)}
-                        style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, cursor:'pointer' }}>
+                        style={{ width:'20px', height:'20px', borderRadius:'50%', border:`2px solid ${isChk?'#16a34a':'#e5e7eb'}`, background:isChk?'#16a34a':'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
                         {isChk && <span style={{ color:'#fff', fontSize:'12px', fontWeight:700 }}>✓</span>}
                       </div>
                       <span onClick={() => toggleCheck(selProductId, stage, sess.sessionNo)} style={{ fontSize:'13px', fontWeight:isChk?600:400, color:isChk?'#16a34a':'#111827', flex:1, cursor:'pointer' }}>
@@ -1505,7 +1505,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           )
         })()}
         {/* 새 기록 입력 */}
-        <div style={{ display:'flex', gap:'6px', flexWrap:'nowrap', alignItems:'center', overflowX:'auto' }}>
+        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
           <input value={givenNewItem} onChange={e => setGivenNewItem(e.target.value)}
             placeholder="교구명 입력"
             style={{ flex:1, minWidth:'80px', padding:'7px 10px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
@@ -1521,14 +1521,14 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             }
             return (
               <select value={givenNewQuarter} onChange={e => setGivenNewQuarter(e.target.value)}
-                style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }}>
+                style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
                 <option value="">{termUnit} 선택</option>
                 {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             )
           })()}
           <select value={givenNewSupplyStatus} onChange={e => setGivenNewSupplyStatus(e.target.value)}
-            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }}>
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
             <option value="ready">준비</option>
             <option value="given">지급</option>
             <option value="unpaid">미지급</option>
@@ -1536,9 +1536,9 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           </select>
           <input type="date" value={givenNewDate} onChange={e => setGivenNewDate(e.target.value)}
             title="지급날짜"
-            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }} />
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
           <select value={givenNewBillingStatus} onChange={e => setGivenNewBillingStatus(e.target.value)}
-            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }}>
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
             <option value="none">-</option>
             <option value="billed">청구</option>
             <option value="paid">입금</option>
@@ -1546,9 +1546,9 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           </select>
           <input type="date" value={givenNewPaidDate} onChange={e => setGivenNewPaidDate(e.target.value)}
             title="입금날짜"
-            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }} />
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
           <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || !givenNewDate || givenSaving}
-            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && givenNewDate ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && givenNewDate ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && givenNewDate ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', flexShrink:0 }}>
+            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && givenNewDate ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && givenNewDate ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && givenNewDate ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
             + 추가
           </button>
         </div>
@@ -1943,7 +1943,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
           )}
           {/* 귀가방법 드롭다운 */}
           <div style={{ display:'flex', alignItems:'center', gap:'4px', marginBottom:'4px', flexWrap:'wrap' }}>
-            <span style={{ fontSize:'11px', color:'#1d4ed8', flexShrink:0 }}>🚌</span>
+            <span style={{ fontSize:'11px', color:'#1d4ed8' }}>🚌</span>
             <select value={hrType} onChange={e => {
               const v = e.target.value
               setHrType(v)
@@ -2046,7 +2046,7 @@ function SupplyCheckModal({ studentName, alertLabel, studentId, classId, product
           ].map((item, i) => (
             <label key={i} onClick={item.toggle}
               style={{ display:'flex', alignItems:'center', gap:'12px', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${item.checked ? item.border : '#e5e7eb'}`, background: item.checked ? item.bg : '#f9fafb', cursor:'pointer', transition:'all .15s' }}>
-              <div style={{ width:'20px', height:'20px', borderRadius:'5px', border:`2px solid ${item.checked ? item.color : '#d1d5db'}`, background: item.checked ? item.color : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <div style={{ width:'20px', height:'20px', borderRadius:'5px', border:`2px solid ${item.checked ? item.color : '#d1d5db'}`, background: item.checked ? item.color : '#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 {item.checked && <span style={{ color:'#fff', fontSize:'13px', fontWeight:700, lineHeight:1 }}>✓</span>}
               </div>
               <span style={{ fontSize:'14px', fontWeight: item.checked ? 700 : 500, color: item.checked ? item.color : '#374151' }}>{item.label}</span>
@@ -2110,8 +2110,8 @@ function InactiveStudentRow({ s, idx }) {
   const st = s.status
   return (
     <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'9px 14px', borderRadius:'10px', border:`1.5px dashed ${statusColor[st]}40`, background:`${statusColor[st]}08`, opacity:0.75 }}>
-      <div style={{ fontSize:'12px', color:C.muted, minWidth:'22px', textAlign:'center', flexShrink:0 }}>{s.number||idx+1}</div>
-      <div style={{ minWidth:'70px', flexShrink:0 }}>
+      <div style={{ fontSize:'12px', color:C.muted, minWidth:'22px', textAlign:'center' }}>{s.number||idx+1}</div>
+      <div style={{ minWidth:'70px' }}>
         <div style={{ fontSize:'14px', fontWeight:700, color:'#9ca3af' }}>{s.name}</div>
         <div style={{ fontSize:'11px', color:'#d1d5db' }}>{s.grade}{s.classNum?' '+s.classNum+'반':''}</div>
       </div>
@@ -2626,7 +2626,7 @@ function StudentDetailModal({ student, onClose }) {
         ['메모', student.memo || '-'],
       ].map(([label, value]) => (
         <div key={label} style={{ display:'flex', gap:'12px', padding:'9px 0', borderBottom:'1px solid #f3f4f6', fontSize:'14px' }}>
-          <span style={{ color:'#9ca3af', fontWeight:600, minWidth:'90px', flexShrink:0 }}>{label}</span>
+          <span style={{ color:'#9ca3af', fontWeight:600, minWidth:'90px' }}>{label}</span>
           {label.includes('전화') && value !== '-'
             ? <PhoneAction phone={value}><span style={{ color:'#3b82f6' }}>{fmtPhone(value)}</span></PhoneAction>
             : <span style={{ color:'#18181b' }}>{value}</span>
@@ -3462,7 +3462,7 @@ export function Attendance({ user, pageParams = {} }) {
           <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
             <button onClick={() => { setActiveMode('class'); setSelDay(''); setDateClicked(false) }}
               style={{
-                width:'20px', height:'20px', borderRadius:'50%', flexShrink:0, border:'none', cursor:'pointer',
+                width:'20px', height:'20px', borderRadius:'50%', border:'none', cursor:'pointer',
                 background: activeMode === 'class' ? C.primary : '#e5e7eb',
                 display:'flex', alignItems:'center', justifyContent:'center',
                 fontSize:'11px', fontWeight:700, color:'#fff',
@@ -3569,7 +3569,7 @@ export function Attendance({ user, pageParams = {} }) {
           <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
             <button onClick={() => { setActiveMode('day'); setSelClassId(''); setSelSection(''); setDateClicked(false) }}
               style={{
-                width:'20px', height:'20px', borderRadius:'50%', flexShrink:0, border:'none', cursor:'pointer',
+                width:'20px', height:'20px', borderRadius:'50%', border:'none', cursor:'pointer',
                 background: activeMode === 'day' ? C.primary : '#e5e7eb',
                 display:'flex', alignItems:'center', justifyContent:'center',
                 fontSize:'11px', fontWeight:700, color:'#fff',
