@@ -932,7 +932,6 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
             style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && givenNewDate ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && givenNewDate ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && givenNewDate ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', flexShrink:0 }}>
             + 추가
           </button>
-          </button>
         </div>
       </div>
       <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb' }}>
