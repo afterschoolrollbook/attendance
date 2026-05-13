@@ -163,53 +163,63 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
               ))}
             </div>
           )}
-          {/* 교구지급 — 완료 목록 + 지급 예정 목록 */}
+          {/* 교구지급 — 완료 목록 */}
           {(() => {
             const todayGiven = (spGiven || []).filter(g => g.classId === cls?.id && g.givenAt === date)
-            // 지급 예정: supplyReady=true && supplyDelivered=false 인 학생
-            const pendingDelivery = activeStudents.filter(s => {
-              const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)
-              if (!si?.productId) return false
-              const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
-              return prog?.supplyReady && !prog?.supplyDelivered
-            }).map(s => {
-              const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)
-              const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
-              const prod = spProds.find(p => p.id === si.productId)
-              const nextProd = prog?.nextProductId ? spProds.find(p => p.id === prog.nextProductId) : null
-              const nextLabel = nextProd ? `${nextProd.name} ${prog?.nextStage||1}단계` : (prod ? `${prod.name} ${(prog?.curStage||si.stage||1)+1}단계` : '')
-              return { s, si, prog, prod, nextLabel }
-            })
-            if (todayGiven.length === 0 && pendingDelivery.length === 0) return null
+            if (todayGiven.length === 0) return null
             return (
               <div style={{ marginTop:'6px' }}>
-                {/* 오늘 지급 완료 */}
-                {todayGiven.length > 0 && (
-                  <>
-                    <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', marginBottom:'5px' }}>📦 교구지급 ({todayGiven.length}명)</div>
-                    {todayGiven.map(g => (
-                      <div key={g.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f5f3ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
-                        <span style={{ fontSize:'13px', fontWeight:700, color:'#6d28d9' }}>{g.studentName}</span>
-                        <span style={{ fontSize:'11px', color:'#6b7280' }}>{g.productName}</span>
-                        {g.itemName && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{g.itemName}</span>}
-                        <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{g.givenAt}</span>
-                      </div>
-                    ))}
-                  </>
-                )}
-                {/* 지급 예정 */}
-                {pendingDelivery.length > 0 && (
-                  <>
-                    <div style={{ fontSize:'11px', fontWeight:700, color:'#f59e0b', marginBottom:'5px', marginTop: todayGiven.length > 0 ? '8px' : 0 }}>📬 지급 예정 ({pendingDelivery.length}명)</div>
-                    {pendingDelivery.map(({ s, si, prog, prod, nextLabel }) => (
-                      <div key={s.id}
-                        style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#fffbeb', border:'1px solid #fde68a', marginBottom:'4px' }}>
-                        <span style={{ fontSize:'13px', fontWeight:700, color:'#92400e' }}>{s.name}</span>
-                        <span style={{ fontSize:'11px', color:'#a16207' }}>{nextLabel}</span>
-                      </div>
-                    ))}
-                  </>
-                )}
+                <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', marginBottom:'5px' }}>📦 교구지급 ({todayGiven.length}명)</div>
+                {todayGiven.map(g => (
+                  <div key={g.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f5f3ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
+                    <span style={{ fontSize:'13px', fontWeight:700, color:'#6d28d9' }}>{g.studentName}</span>
+                    <span style={{ fontSize:'11px', color:'#6b7280' }}>{g.productName}</span>
+                    {g.itemName && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{g.itemName}</span>}
+                    <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{g.givenAt}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+          {/* 교구 준비 필요 리스트 (대시보드와 동일 로직) */}
+          {(() => {
+            const supplyAlertList = activeStudents.flatMap(s => {
+              const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)
+              if (!si?.productId) return []
+              const prod = spProds.find(p => p.id === si.productId)
+              if (!prod) return []
+              const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
+              if (prog?.supplyDelivered) return []
+              const spp = prod.sessionsPerStage || 12
+              const alertSess = prod.alertSession || 3
+              const curStage = prog?.curStage || si.stage || 1
+              const stagePlans = SupplyProductPlans.byProductStage(si.productId, curStage)
+              const actualSessions = stagePlans.length > 0 ? stagePlans.length : spp
+              const chk = spChecks.filter(c => c.studentId === s.id && c.productId === si.productId && c.stage === curStage).length
+              const isDone = chk >= actualSessions
+              const isAlert = chk >= (actualSessions - alertSess) && !isDone
+              if (!isDone && !isAlert) return []
+              const nextProd = prog?.nextProductId ? spProds.find(p => p.id === prog.nextProductId) : null
+              const nextStage = prog?.nextStage || 1
+              const noNextInfo = !nextProd
+              const label = isDone
+                ? (nextProd ? `${nextProd.name} ${nextStage}단계 준비 필요` : `진도확인 바람`)
+                : (nextProd ? `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — ${nextProd.name} ${nextStage}단계 준비 필요` : `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — 진도확인 바람`)
+              return [{ s, label, isDone, noNextInfo }]
+            })
+            if (supplyAlertList.length === 0) return null
+            return (
+              <div style={{ marginTop:'6px' }}>
+                <div style={{ fontSize:'11px', fontWeight:700, color:'#ef4444', marginBottom:'5px' }}>⚠️ 교구 준비 필요 ({supplyAlertList.length}명)</div>
+                {supplyAlertList.map(({ s, label, isDone, noNextInfo }) => (
+                  <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background: noNextInfo ? '#fefce8' : isDone ? '#f0fdf4' : '#fef2f2', border:`1px solid ${noNextInfo ? '#fde047' : isDone ? '#86efac' : '#fca5a5'}`, marginBottom:'4px' }}>
+                    <span style={{ fontSize:'11px', fontWeight:700, color: noNextInfo ? '#854d0e' : isDone ? '#16a34a' : '#ef4444' }}>
+                      {noNextInfo ? '📋' : isDone ? '✅' : '⚠️'}
+                    </span>
+                    <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>{s.name}</span>
+                    <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>{label}</span>
+                  </div>
+                ))}
               </div>
             )
           })()}
