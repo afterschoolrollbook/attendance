@@ -932,38 +932,47 @@ function StudentMemoModal({ student, onClose, onSave }) {
   )
 }
 
-// ─── 지급 기록 인라인 수정 행
+// ─── 지급 기록 인라인 수정 행 (신형: 지급상태 + 청구·입금상태 분리, givenAt + paidAt 별도)
 function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
-  const [editing, setEditing]           = React.useState(false)
-  const [item, setItem]                 = React.useState(record.itemName)
-  const [date, setDate]                 = React.useState(record.givenAt)
-  const [quarter, setQuarter]           = React.useState(record.quarter || '')
-  const [paymentStatus, setPaymentStatus] = React.useState(record.paymentStatus || 'paid')
+  const [editing, setEditing]     = React.useState(false)
+  const [item, setItem]           = React.useState(record.itemName)
+  const [quarter, setQuarter]     = React.useState(record.quarter || '')
+  const [givenDate, setGivenDate] = React.useState(record.givenAt || '')
+  const [paidDate, setPaidDate]   = React.useState(record.paidAt  || '')
 
-  const STATUS_CYCLE = ['ready', 'given', 'billed', 'paid', 'unpaid']
-  const STATUS_STYLE = {
+  // 초기값: supplyStatus 컬럼 있으면 신규모델, 없으면 구모델에서 역산
+  const initSupply = () => {
+    if (record.supplyStatus) return record.supplyStatus
+    const s = record.status || 'given'
+    return ['billed','paid'].includes(s) ? 'given' : s
+  }
+  const initBilling = () => {
+    if (record.supplyStatus != null) return record.status || 'none'
+    const s = record.status || 'given'
+    if (s === 'billed') return 'billed'
+    if (s === 'paid')   return 'paid'
+    if (record.paymentStatus === 'unpaid') return 'unpaid'
+    return 'none'
+  }
+  const [supplyStatus,  setSupplyStatus]  = React.useState(initSupply)
+  const [billingStatus, setBillingStatus] = React.useState(initBilling)
+
+  const SUPPLY_STYLE = {
     ready:  { bg:'#f3f4f6', color:'#6b7280', border:'#d1d5db', label:'준비' },
     given:  { bg:'#dbeafe', color:'#1d4ed8', border:'#93c5fd', label:'지급' },
+    unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미지급(보관)' },
+    extra:  { bg:'#ede9fe', color:'#7c3aed', border:'#c4b5fd', label:'추가지급' },
+  }
+  const BILLING_STYLE = {
     billed: { bg:'#fef9c3', color:'#a16207', border:'#fde047', label:'청' },
     paid:   { bg:'#dcfce7', color:'#15803d', border:'#86efac', label:'입' },
-    unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미지급(보관)' },
+    unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미입금' },
   }
-  const status = record.status || 'given'
-  const st = STATUS_STYLE[status] || STATUS_STYLE.given
-  const rowBg     = paymentStatus === 'unpaid' ? '#fee2e2' : st.bg
-  const rowBorder = paymentStatus === 'unpaid' ? '#fca5a5' : st.border
-
-  const handleCycle = async () => {
-    const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(status) + 1) % STATUS_CYCLE.length]
-    await SupplyGiven.update(record.id, { status: next })
-    onSaved && onSaved()
-  }
-
-  const handlePayment = async (val) => {
-    setPaymentStatus(val)
-    await SupplyGiven.update(record.id, { paymentStatus: val })
-    onSaved && onSaved()
-  }
+  const st = (billingStatus !== 'none' && BILLING_STYLE[billingStatus])
+    || SUPPLY_STYLE[supplyStatus]
+    || SUPPLY_STYLE.given
+  const ssStyle = SUPPLY_STYLE[supplyStatus]  || SUPPLY_STYLE.given
+  const bsStyle = (billingStatus !== 'none' && BILLING_STYLE[billingStatus]) || { bg:'#f3f4f6', color:'#9ca3af' }
 
   const classInfo = ClassesDB.find(classId)
   const isQuarter = classInfo?.termType === 'quarter'
@@ -975,51 +984,91 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
     for (let t = 1; t <= termCount; t++) termOpts.push(`${y}-${t}${termUnit}`)
   }
 
+  const doUpdate = async (ss, bs, gd, pd) => {
+    const paymentStatus = bs === 'paid' ? 'paid' : bs === 'unpaid' ? 'unpaid' : 'paid'
+    await SupplyGiven.update(record.id, {
+      supplyStatus: ss, status: bs, paymentStatus, givenAt: gd, paidAt: pd || null,
+    })
+    onSaved && onSaved()
+  }
+
+  const handleSupplyChange  = async (val) => { setSupplyStatus(val);  await doUpdate(val, billingStatus, givenDate, paidDate) }
+  const handleBillingChange = async (val) => { setBillingStatus(val); await doUpdate(supplyStatus, val, givenDate, paidDate) }
+  const handleGivenDate     = async (val) => { setGivenDate(val);     await doUpdate(supplyStatus, billingStatus, val, paidDate) }
+  const handlePaidDate      = async (val) => { setPaidDate(val);      await doUpdate(supplyStatus, billingStatus, givenDate, val) }
+
   const handleSave = async () => {
-    if (!item.trim() || !date) return
-    await SupplyGiven.update(record.id, { itemName: item.trim(), givenAt: date, quarter: quarter || null })
+    if (!item.trim()) return
+    const paymentStatus = billingStatus === 'paid' ? 'paid' : billingStatus === 'unpaid' ? 'unpaid' : 'paid'
+    await SupplyGiven.update(record.id, {
+      itemName: item.trim(), givenAt: givenDate, quarter: quarter || null,
+      supplyStatus, status: billingStatus, paymentStatus, paidAt: paidDate || null,
+    })
     setEditing(false)
     onSaved && onSaved()
   }
 
+  const showGivenDate = supplyStatus === 'given' || supplyStatus === 'extra'
+  const showPaidDate  = billingStatus === 'billed' || billingStatus === 'paid'
+
   if (editing) {
     return (
-      <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap', padding:'7px 10px', background:'#fffbeb', borderRadius:'8px', border:'1px solid #fde68a' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}` }}>
         <input value={item} onChange={e => setItem(e.target.value)}
-          style={{ flex:1, minWidth:'100px', padding:'4px 7px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+          style={{ width:'100px', padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+        <input type="date" value={givenDate} onChange={e => setGivenDate(e.target.value)}
+          style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
         <select value={quarter} onChange={e => setQuarter(e.target.value)}
-          style={{ padding:'4px 6px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
+          style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}>
           <option value="">{termUnit} 선택</option>
           {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)}
-          style={{ padding:'4px 6px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
         <button onClick={handleSave}
-          style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background:'#16a34a', color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
-        <button onClick={() => { setItem(record.itemName); setDate(record.givenAt); setQuarter(record.quarter||''); setEditing(false) }}
-          style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
+          style={{ padding:'2px 8px', borderRadius:'5px', border:'none', background:'#16a34a', color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+        <button onClick={() => { setItem(record.itemName); setGivenDate(record.givenAt||''); setQuarter(record.quarter||''); setEditing(false) }}
+          style={{ padding:'2px 6px', borderRadius:'5px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'11px', cursor:'pointer' }}>취소</button>
       </div>
     )
   }
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', background:rowBg, borderRadius:'8px', border:`1px solid ${rowBorder}` }}>
-      <span style={{ fontSize:'13px', fontWeight:600, color:st.color, flex:1, cursor:'pointer' }} onClick={handleCycle}
-        title="클릭하면 상태 변경 (준비→지급→청구→입금→미지급)">
+    <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}`, flexWrap:'wrap' }}>
+      {/* 교구명 */}
+      <span style={{ fontSize:'13px', fontWeight:600, color:st.color, flex:1, minWidth:'80px' }}>
         <span style={{ fontSize:'10px', marginRight:'4px' }}>({st.label})</span>
         {record.itemName}
       </span>
-      <select value={paymentStatus} onChange={e => handlePayment(e.target.value)}
-        style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${rowBorder}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background: paymentStatus==='unpaid'?'#fee2e2':'#dcfce7', color: paymentStatus==='unpaid'?'#b91c1c':'#15803d', cursor:'pointer' }}>
+      {/* 드롭1: 지급상태 */}
+      <select value={supplyStatus} onChange={e => handleSupplyChange(e.target.value)}
+        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:ssStyle.bg, color:ssStyle.color }}>
+        <option value="ready">준비</option>
+        <option value="given">지급</option>
+        <option value="unpaid">미지급</option>
+        <option value="extra">추가지급</option>
+      </select>
+      {/* 지급날짜 (지급·추가지급) */}
+      {showGivenDate && (
+        <input type="date" value={givenDate} onChange={e => handleGivenDate(e.target.value)}
+          title="지급날짜"
+          style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
+      )}
+      {/* 드롭2: 청구·입금 */}
+      <select value={billingStatus} onChange={e => handleBillingChange(e.target.value)}
+        style={{ padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background:bsStyle.bg, color:bsStyle.color }}>
+        <option value="none">-</option>
+        <option value="billed">청구</option>
         <option value="paid">입금</option>
         <option value="unpaid">미입금</option>
       </select>
-      {!hideQuarter && record.quarter && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{record.quarter}</span>}
-      <span style={{ fontSize:'12px', color:'#6b7280' }}>
-        {(() => { const d = new Date(record.givenAt); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일` })()}
-      </span>
+      {/* 청구·입금날짜 */}
+      {showPaidDate && (
+        <input type="date" value={paidDate} onChange={e => handlePaidDate(e.target.value)}
+          title={billingStatus === 'billed' ? '청구날짜' : '입금날짜'}
+          style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
+      )}
+      {/* 수정·삭제 */}
       <button onClick={() => setEditing(true)}
-        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fed7aa', background:'#fff7ed', color:'#f97316', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+        style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fed7aa', background:'#fff7ed', color:'#f97316', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', marginLeft:'auto' }}>수정</button>
       <button onClick={async () => { await SupplyGiven.delete(record.id); onSaved && onSaved() }}
         style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
     </div>
@@ -1187,6 +1236,8 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
       itemName: givenNewItem.trim(),
       givenAt: givenNewDate,
       quarter: givenNewQuarter || null,
+      supplyStatus: 'given',
+      status: 'none',
       createdAt: now(),
     })
     setGivenNewItem('')
