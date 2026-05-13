@@ -203,15 +203,9 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                     <div style={{ fontSize:'11px', fontWeight:700, color:'#f59e0b', marginBottom:'5px', marginTop: todayGiven.length > 0 ? '8px' : 0 }}>📬 지급 예정 ({pendingDelivery.length}명)</div>
                     {pendingDelivery.map(({ s, si, prog, prod, nextLabel }) => (
                       <div key={s.id}
-                        style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#fffbeb', border:'1px solid #fde68a', marginBottom:'4px', cursor:'pointer' }}
-                        onClick={async () => {
-                          const base = prog || { id: uid(), teacherId: cls.teacherId, studentId: s.id, classId: cls.id, productId: si.productId, createdAt: now() }
-                          await SupplyStudentProgress.upsert({ ...base, supplyReady: true, supplyDelivered: true, updatedAt: now() })
-                          onProgOpen && onProgOpen(s, si.productId)
-                        }}>
+                        style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#fffbeb', border:'1px solid #fde68a', marginBottom:'4px' }}>
                         <span style={{ fontSize:'13px', fontWeight:700, color:'#92400e' }}>{s.name}</span>
                         <span style={{ fontSize:'11px', color:'#a16207' }}>{nextLabel}</span>
-                        <span style={{ marginLeft:'auto', fontSize:'10px', color:'#d97706', background:'#fff7ed', border:'1px solid #fde68a', borderRadius:'4px', padding:'1px 6px', fontWeight:700 }}>탭하면 지급완료</span>
                       </div>
                     ))}
                   </>
