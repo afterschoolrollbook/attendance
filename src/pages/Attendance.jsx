@@ -1162,7 +1162,10 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const [nextSaved, setNextSaved] = React.useState(false)
   const [givenNewItem, setGivenNewItem] = React.useState('')
   const [givenNewDate, setGivenNewDate] = React.useState('')
+  const [givenNewPaidDate, setGivenNewPaidDate] = React.useState('')
   const [givenNewQuarter, setGivenNewQuarter] = React.useState('')
+  const [givenNewSupplyStatus, setGivenNewSupplyStatus] = React.useState('given')
+  const [givenNewBillingStatus, setGivenNewBillingStatus] = React.useState('none')
   const [givenSaving, setGivenSaving] = React.useState(false)
 
   // 매 렌더링마다 DB 직접 조회 — prop 교체와 무관하게 항상 최신값
@@ -1230,14 +1233,18 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
       productName: product.name,
       itemName: givenNewItem.trim(),
       givenAt: givenNewDate,
+      paidAt: givenNewPaidDate || null,
       quarter: givenNewQuarter || null,
-      supplyStatus: 'given',
-      status: 'none',
+      supplyStatus: givenNewSupplyStatus,
+      status: givenNewBillingStatus,
       createdAt: now(),
     })
     setGivenNewItem('')
     setGivenNewDate('')
+    setGivenNewPaidDate('')
     setGivenNewQuarter('')
+    setGivenNewSupplyStatus('given')
+    setGivenNewBillingStatus('none')
     setGivenSaving(false)
     onSaved && onSaved()
   }
@@ -1498,10 +1505,10 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           )
         })()}
         {/* 새 기록 입력 */}
-        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
+        <div style={{ display:'flex', gap:'6px', flexWrap:'nowrap', alignItems:'center', overflowX:'auto' }}>
           <input value={givenNewItem} onChange={e => setGivenNewItem(e.target.value)}
-            placeholder="교구명 입력 (예: 큐보 1단계)"
-            style={{ flex:1, minWidth:'140px', padding:'7px 10px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+            placeholder="교구명 입력"
+            style={{ flex:1, minWidth:'80px', padding:'7px 10px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
           {(() => {
             const classInfo = ClassesDB.find(classId)
             const isQuarter = classInfo?.termType === 'quarter'
@@ -1514,16 +1521,34 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             }
             return (
               <select value={givenNewQuarter} onChange={e => setGivenNewQuarter(e.target.value)}
-                style={{ padding:'7px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
+                style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }}>
                 <option value="">{termUnit} 선택</option>
                 {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             )
           })()}
+          <select value={givenNewSupplyStatus} onChange={e => setGivenNewSupplyStatus(e.target.value)}
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }}>
+            <option value="ready">준비</option>
+            <option value="given">지급</option>
+            <option value="unpaid">미지급</option>
+            <option value="extra">추가지급</option>
+          </select>
           <input type="date" value={givenNewDate} onChange={e => setGivenNewDate(e.target.value)}
-            style={{ padding:'7px 8px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
+            title="지급날짜"
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }} />
+          <select value={givenNewBillingStatus} onChange={e => setGivenNewBillingStatus(e.target.value)}
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }}>
+            <option value="none">-</option>
+            <option value="billed">청구</option>
+            <option value="paid">입금</option>
+            <option value="unpaid">미입금</option>
+          </select>
+          <input type="date" value={givenNewPaidDate} onChange={e => setGivenNewPaidDate(e.target.value)}
+            title="입금날짜"
+            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', flexShrink:0 }} />
           <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || !givenNewDate || givenSaving}
-            style={{ padding:'7px 14px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && givenNewDate ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && givenNewDate ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && givenNewDate ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && givenNewDate ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && givenNewDate ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && givenNewDate ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', flexShrink:0 }}>
             + 추가
           </button>
         </div>
