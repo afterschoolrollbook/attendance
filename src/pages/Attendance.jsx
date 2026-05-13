@@ -163,21 +163,59 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
               ))}
             </div>
           )}
-          {/* 오늘 교구지급 목록 */}
+          {/* 교구지급 — 완료 목록 + 지급 예정 목록 */}
           {(() => {
             const todayGiven = (spGiven || []).filter(g => g.classId === cls?.id && g.givenAt === date)
-            if (todayGiven.length === 0) return null
+            // 지급 예정: supplyReady=true && supplyDelivered=false 인 학생
+            const pendingDelivery = activeStudents.filter(s => {
+              const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)
+              if (!si?.productId) return false
+              const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
+              return prog?.supplyReady && !prog?.supplyDelivered
+            }).map(s => {
+              const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)
+              const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
+              const prod = spProds.find(p => p.id === si.productId)
+              const nextProd = prog?.nextProductId ? spProds.find(p => p.id === prog.nextProductId) : null
+              const nextLabel = nextProd ? `${nextProd.name} ${prog?.nextStage||1}단계` : (prod ? `${prod.name} ${(prog?.curStage||si.stage||1)+1}단계` : '')
+              return { s, si, prog, prod, nextLabel }
+            })
+            if (todayGiven.length === 0 && pendingDelivery.length === 0) return null
             return (
               <div style={{ marginTop:'6px' }}>
-                <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', marginBottom:'5px' }}>📦 교구지급 ({todayGiven.length}명)</div>
-                {todayGiven.map(g => (
-                  <div key={g.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f5f3ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
-                    <span style={{ fontSize:'13px', fontWeight:700, color:'#6d28d9' }}>{g.studentName}</span>
-                    <span style={{ fontSize:'11px', color:'#6b7280' }}>{g.productName}</span>
-                    {g.itemName && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{g.itemName}</span>}
-                    <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{g.givenAt}</span>
-                  </div>
-                ))}
+                {/* 오늘 지급 완료 */}
+                {todayGiven.length > 0 && (
+                  <>
+                    <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', marginBottom:'5px' }}>📦 교구지급 ({todayGiven.length}명)</div>
+                    {todayGiven.map(g => (
+                      <div key={g.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f5f3ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
+                        <span style={{ fontSize:'13px', fontWeight:700, color:'#6d28d9' }}>{g.studentName}</span>
+                        <span style={{ fontSize:'11px', color:'#6b7280' }}>{g.productName}</span>
+                        {g.itemName && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{g.itemName}</span>}
+                        <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{g.givenAt}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+                {/* 지급 예정 */}
+                {pendingDelivery.length > 0 && (
+                  <>
+                    <div style={{ fontSize:'11px', fontWeight:700, color:'#f59e0b', marginBottom:'5px', marginTop: todayGiven.length > 0 ? '8px' : 0 }}>📬 지급 예정 ({pendingDelivery.length}명)</div>
+                    {pendingDelivery.map(({ s, si, prog, prod, nextLabel }) => (
+                      <div key={s.id}
+                        style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#fffbeb', border:'1px solid #fde68a', marginBottom:'4px', cursor:'pointer' }}
+                        onClick={async () => {
+                          const base = prog || { id: uid(), teacherId: cls.teacherId, studentId: s.id, classId: cls.id, productId: si.productId, createdAt: now() }
+                          await SupplyStudentProgress.upsert({ ...base, supplyReady: true, supplyDelivered: true, updatedAt: now() })
+                          onProgOpen && onProgOpen(s, si.productId)
+                        }}>
+                        <span style={{ fontSize:'13px', fontWeight:700, color:'#92400e' }}>{s.name}</span>
+                        <span style={{ fontSize:'11px', color:'#a16207' }}>{nextLabel}</span>
+                        <span style={{ marginLeft:'auto', fontSize:'10px', color:'#d97706', background:'#fff7ed', border:'1px solid #fde68a', borderRadius:'4px', padding:'1px 6px', fontWeight:700 }}>탭하면 지급완료</span>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             )
           })()}
