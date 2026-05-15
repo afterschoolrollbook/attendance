@@ -1205,15 +1205,24 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
 
   // ── 학교/학생/교구 이관 상태
   const [transferSchool, setTransferSchool] = React.useState(() => {
-    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || ''))
+    const _si = SupplyItems.byClassStudent(classId, student.id)[0]
+    const _pid = initialProductId || _si?.productId || ''
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === _pid)
+      || SupplyStudentProgress.byStudent(student.id, classId)[0]
     return prog?.transferSchool || ''
   })
   const [transferStudent, setTransferStudent] = React.useState(() => {
-    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || ''))
+    const _si = SupplyItems.byClassStudent(classId, student.id)[0]
+    const _pid = initialProductId || _si?.productId || ''
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === _pid)
+      || SupplyStudentProgress.byStudent(student.id, classId)[0]
     return prog?.transferStudent || ''
   })
   const [transferSupply, setTransferSupply] = React.useState(() => {
-    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || ''))
+    const _si = SupplyItems.byClassStudent(classId, student.id)[0]
+    const _pid = initialProductId || _si?.productId || ''
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === _pid)
+      || SupplyStudentProgress.byStudent(student.id, classId)[0]
     return prog?.transferSupply || ''
   })
   const [transferSaved, setTransferSaved] = React.useState(false)
