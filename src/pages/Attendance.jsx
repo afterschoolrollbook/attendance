@@ -1202,6 +1202,22 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     return prog?.nextStage || 1
   })
   const [nextSaved, setNextSaved] = React.useState(false)
+
+  // ── 학교/학생/교구 이관 상태
+  const [transferSchool, setTransferSchool] = React.useState(() => {
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || ''))
+    return prog?.transferSchool || ''
+  })
+  const [transferStudent, setTransferStudent] = React.useState(() => {
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || ''))
+    return prog?.transferStudent || ''
+  })
+  const [transferSupply, setTransferSupply] = React.useState(() => {
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === (initialProductId || ''))
+    return prog?.transferSupply || ''
+  })
+  const [transferSaved, setTransferSaved] = React.useState(false)
+
   const [givenNewItem, setGivenNewItem] = React.useState('')
   const [givenNewDate, setGivenNewDate] = React.useState('')
   const [givenNewPaidDate, setGivenNewPaidDate] = React.useState('')
@@ -1464,6 +1480,85 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           )
         })()}
       </div>
+      {/* 학교/학생/교구 이관 정보 */}
+      <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#fffbeb' }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>🏫 학교·학생·교구 이관 정보</div>
+        <div style={{ fontSize:'11px', color:'#b45309', marginBottom:'10px' }}>새 학교 전입 시 이전 선생님의 교구를 사용 중인지 파악하는 정보입니다</div>
+        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'flex-end' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'120px' }}>
+            <label style={{ fontSize:'11px', fontWeight:700, color:'#92400e' }}>학교 구분</label>
+            <select value={transferSchool} onChange={e => { setTransferSchool(e.target.value); setTransferSaved(false) }}
+              style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fde68a', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+              <option value="">선택</option>
+              <option value="신규학교">신규학교</option>
+              <option value="기존학교">기존학교</option>
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'120px' }}>
+            <label style={{ fontSize:'11px', fontWeight:700, color:'#92400e' }}>학생 구분</label>
+            <select value={transferStudent} onChange={e => { setTransferStudent(e.target.value); setTransferSaved(false) }}
+              style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fde68a', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+              <option value="">선택</option>
+              <option value="신규학생">신규학생</option>
+              <option value="기존학생">기존학생</option>
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'120px' }}>
+            <label style={{ fontSize:'11px', fontWeight:700, color:'#92400e' }}>교구 구분</label>
+            <select value={transferSupply} onChange={e => { setTransferSupply(e.target.value); setTransferSaved(false) }}
+              style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fde68a', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+              <option value="">선택</option>
+              <option value="기존교구">기존교구</option>
+              <option value="지급교구">지급교구</option>
+            </select>
+          </div>
+          <button
+            onClick={async () => {
+              const base = prog || { id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId: selProductId, createdAt: now() }
+              SupplyStudentProgress.upsert({ ...base, transferSchool, transferStudent, transferSupply, updatedAt: now() })
+              setTransferSaved(true)
+              onSaved && onSaved()
+              setTimeout(() => setTransferSaved(false), 2000)
+            }}
+            style={{ padding:'8px 16px', borderRadius:'8px', border:'none', background: transferSaved ? '#16a34a' : '#f59e0b', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', transition:'all .2s', alignSelf:'flex-end' }}>
+            {transferSaved ? '✅ 저장됨' : '저장'}
+          </button>
+        </div>
+        {(transferSchool || transferStudent || transferSupply) && (
+          <div style={{ marginTop:'8px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
+            {transferSchool && (
+              <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 8px', borderRadius:'20px',
+                background: transferSchool === '신규학교' ? '#dbeafe' : '#dcfce7',
+                color: transferSchool === '신규학교' ? '#1d4ed8' : '#15803d',
+                border: `1px solid ${transferSchool === '신규학교' ? '#93c5fd' : '#86efac'}` }}>
+                🏫 {transferSchool}
+              </span>
+            )}
+            {transferStudent && (
+              <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 8px', borderRadius:'20px',
+                background: transferStudent === '신규학생' ? '#dbeafe' : '#f3e8ff',
+                color: transferStudent === '신규학생' ? '#1d4ed8' : '#7e22ce',
+                border: `1px solid ${transferStudent === '신규학생' ? '#93c5fd' : '#d8b4fe'}` }}>
+                👤 {transferStudent}
+              </span>
+            )}
+            {transferSupply && (
+              <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 8px', borderRadius:'20px',
+                background: transferSupply === '기존교구' ? '#fef3c7' : '#dcfce7',
+                color: transferSupply === '기존교구' ? '#92400e' : '#15803d',
+                border: `1px solid ${transferSupply === '기존교구' ? '#fcd34d' : '#86efac'}` }}>
+                📦 {transferSupply}
+              </span>
+            )}
+            {transferSchool === '신규학교' && transferStudent === '기존학생' && transferSupply === '기존교구' && (
+              <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 8px', borderRadius:'20px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fca5a5' }}>
+                ⚠️ 이전 선생님 교구 사용 중
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* 다음 진도 준비 */}
       <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#fafafa' }}>
         <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📌 다음 진도 준비</div>
