@@ -1227,8 +1227,11 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   })
   const [transferSaved, setTransferSaved] = React.useState(false)
 
-  // 모달 열릴 때 Supabase에서 최신 이관 정보 로드
+  // 모달 열릴 때 Supabase에서 최신 이관 정보 로드 (1회만)
+  const _transferLoaded = React.useRef(false)
   React.useEffect(() => {
+    if (_transferLoaded.current) return
+    _transferLoaded.current = true
     refreshTablesFromSupabase('supplyStudentProgress').then(() => {
       const _si = SupplyItems.byClassStudent(classId, student.id)[0]
       const _pid = initialProductId || _si?.productId || ''
@@ -1240,7 +1243,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
         setTransferSupply(_prog.transferSupply || '')
       }
     })
-  }, [student.id, classId])
+  }, [])
 
   const [givenNewItem, setGivenNewItem] = React.useState('')
   const [givenNewDate, setGivenNewDate] = React.useState('')
@@ -1505,7 +1508,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
         })()}
       </div>
       {/* 학교/학생/교구 이관 정보 */}
-      <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#fffbeb' }}>
+      <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#fffbeb', position:'relative', zIndex:1 }}>
         <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>🏫 학교·학생·교구 이관 정보</div>
         <div style={{ fontSize:'11px', color:'#b45309', marginBottom:'10px' }}>새 학교 전입 시 이전 선생님의 교구를 사용 중인지 파악하는 정보입니다</div>
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'flex-end' }}>
@@ -1538,15 +1541,18 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           </div>
           <button
             onClick={async () => {
-              const _prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === selProductId)
+              const _productId = selProductId || si?.productId || ''
+              const _prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === _productId)
                 || SupplyStudentProgress.byStudent(student.id, classId)[0]
               const base = _prog
                 ? { ..._prog }
-                : { id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId: selProductId || si?.productId || '', createdAt: now() }
+                : { id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId: _productId, createdAt: now() }
               await SupplyStudentProgress.upsert({ ...base, transferSchool, transferStudent, transferSupply, updatedAt: now() })
               setTransferSaved(true)
-              onSaved && onSaved()
-              setTimeout(() => setTransferSaved(false), 2000)
+              setTimeout(() => {
+                setTransferSaved(false)
+                onSaved && onSaved()
+              }, 1500)
             }}
             style={{ padding:'8px 16px', borderRadius:'8px', border:'none', background: transferSaved ? '#16a34a' : '#f59e0b', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', transition:'all .2s', alignSelf:'flex-end' }}>
             {transferSaved ? '✅ 저장됨' : '저장'}
