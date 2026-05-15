@@ -1227,6 +1227,21 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   })
   const [transferSaved, setTransferSaved] = React.useState(false)
 
+  // 모달 열릴 때 Supabase에서 최신 이관 정보 로드
+  React.useEffect(() => {
+    refreshTablesFromSupabase('supplyStudentProgress').then(() => {
+      const _si = SupplyItems.byClassStudent(classId, student.id)[0]
+      const _pid = initialProductId || _si?.productId || ''
+      const _prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === _pid)
+        || SupplyStudentProgress.byStudent(student.id, classId)[0]
+      if (_prog) {
+        setTransferSchool(_prog.transferSchool || '')
+        setTransferStudent(_prog.transferStudent || '')
+        setTransferSupply(_prog.transferSupply || '')
+      }
+    })
+  }, [student.id, classId])
+
   const [givenNewItem, setGivenNewItem] = React.useState('')
   const [givenNewDate, setGivenNewDate] = React.useState('')
   const [givenNewPaidDate, setGivenNewPaidDate] = React.useState('')
@@ -1523,8 +1538,12 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           </div>
           <button
             onClick={async () => {
-              const base = prog || { id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId: selProductId, createdAt: now() }
-              SupplyStudentProgress.upsert({ ...base, transferSchool, transferStudent, transferSupply, updatedAt: now() })
+              const _prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === selProductId)
+                || SupplyStudentProgress.byStudent(student.id, classId)[0]
+              const base = _prog
+                ? { ..._prog }
+                : { id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId: selProductId || si?.productId || '', createdAt: now() }
+              await SupplyStudentProgress.upsert({ ...base, transferSchool, transferStudent, transferSupply, updatedAt: now() })
               setTransferSaved(true)
               onSaved && onSaved()
               setTimeout(() => setTransferSaved(false), 2000)
