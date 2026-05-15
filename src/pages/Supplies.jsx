@@ -259,6 +259,7 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
         <option value="given">지급</option>
         <option value="unpaid">미지급</option>
         <option value="extra">추가지급</option>
+        <option value="own">보유교구</option>
       </select>
 
       {/* 지급날짜 */}
@@ -3278,6 +3279,43 @@ export function Supplies({ user }) {
                                   <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom: records.length > 0 ? '6px' : 0 }}>
                                     <span style={{ fontSize:'12px', color:C.muted, whiteSpace:'nowrap' }}>{stuLabel}</span>
                                     <span style={{ fontSize:'13px', fontWeight:700, color:C.text, whiteSpace:'nowrap' }}>{stu.name}</span>
+                                    {(() => {
+                                      const _prog = progressList.find(p => p.studentId === stu.id && p.classId === cls.id)
+                                      if (!_prog) return null
+                                      return (
+                                        <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
+                                          {_prog.transferSchool && (
+                                            <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'10px',
+                                              background: _prog.transferSchool === '신규학교' ? '#dbeafe' : '#dcfce7',
+                                              color: _prog.transferSchool === '신규학교' ? '#1d4ed8' : '#15803d',
+                                              border: `1px solid ${_prog.transferSchool === '신규학교' ? '#93c5fd' : '#86efac'}` }}>
+                                              🏫 {_prog.transferSchool}
+                                            </span>
+                                          )}
+                                          {_prog.transferStudent && (
+                                            <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'10px',
+                                              background: _prog.transferStudent === '신규학생' ? '#dbeafe' : _prog.transferStudent === '신규전학' ? '#e0f2fe' : '#f3e8ff',
+                                              color: _prog.transferStudent === '신규학생' ? '#1d4ed8' : _prog.transferStudent === '신규전학' ? '#0369a1' : '#7e22ce',
+                                              border: `1px solid ${_prog.transferStudent === '신규학생' ? '#93c5fd' : _prog.transferStudent === '신규전학' ? '#7dd3fc' : '#d8b4fe'}` }}>
+                                              👤 {_prog.transferStudent}
+                                            </span>
+                                          )}
+                                          {_prog.transferSupply && (
+                                            <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'10px',
+                                              background: _prog.transferSupply === '기존교구' ? '#fef3c7' : '#dcfce7',
+                                              color: _prog.transferSupply === '기존교구' ? '#92400e' : '#15803d',
+                                              border: `1px solid ${_prog.transferSupply === '기존교구' ? '#fcd34d' : '#86efac'}` }}>
+                                              📦 {_prog.transferSupply}
+                                            </span>
+                                          )}
+                                          {_prog.transferSchool === '신규학교' && _prog.transferStudent === '기존학생' && _prog.transferSupply === '기존교구' && (
+                                            <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'10px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fca5a5' }}>
+                                              ⚠️ 이전 선생님 교구
+                                            </span>
+                                          )}
+                                        </div>
+                                      )
+                                    })()}
                                     <div style={{ flex:1 }} />
                                     <input value={itemVal} onChange={e => setGivenInputs(p => ({ ...p, [itemKey]: e.target.value }))}
                                       placeholder="교구명"
