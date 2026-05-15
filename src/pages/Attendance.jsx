@@ -1529,6 +1529,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
               style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fde68a', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
               <option value="">선택</option>
               <option value="신규학생">신규학생</option>
+              <option value="신규전학">신규전학</option>
               <option value="기존학생">기존학생</option>
             </select>
           </div>

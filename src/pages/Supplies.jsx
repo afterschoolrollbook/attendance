@@ -179,6 +179,7 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
     given:  { bg:'#dbeafe', color:'#1d4ed8', border:'#93c5fd', label:'지급' },
     unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미지급(보관)' },
     extra:  { bg:'#ede9fe', color:'#7c3aed', border:'#c4b5fd', label:'추가지급' },
+    own:    { bg:'#fef9c3', color:'#854d0e', border:'#fde047', label:'보유교구' },
   }
   const BILLING_STYLE = {
     billed: { bg:'#fef9c3', color:'#a16207', border:'#fde047', label:'청' },
@@ -474,6 +475,7 @@ function SuppliesGivenRow({ record, classId, classes, onSaved }) {
     given:  { bg:'#dbeafe', color:'#1d4ed8', border:'#93c5fd', label:'지급' },
     unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미지급(보관)' },
     extra:  { bg:'#ede9fe', color:'#7c3aed', border:'#c4b5fd', label:'추가지급' },
+    own:    { bg:'#fef9c3', color:'#854d0e', border:'#fde047', label:'보유교구' },
   }
   const BILLING_STYLE = {
     billed: { bg:'#fef9c3', color:'#a16207', border:'#fde047', label:'청' },
@@ -540,6 +542,7 @@ function SuppliesGivenRow({ record, classId, classes, onSaved }) {
         <option value="given">지급</option>
         <option value="unpaid">미지급</option>
         <option value="extra">추가지급</option>
+        <option value="own">보유교구</option>
       </select>
       <input type="date" value={givenDate} onChange={e => handleGivenDate(e.target.value)} title="지급날짜"
         style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
@@ -735,7 +738,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
   }
 
   const handleAddGiven = async () => {
-    const dateRequired = givenNewSupplyStatus !== 'unpaid' && givenNewSupplyStatus !== 'own'
+    const dateRequired = givenNewSupplyStatus !== 'unpaid' && givenNewSupplyStatus !== 'own' && givenNewSupplyStatus !== 'transfer'
     if (!givenNewItem.trim() || (dateRequired && !givenNewDate)) return
     const className = classInfo ? ((classInfo.className || '') + (classInfo.section ? ' ' + classInfo.section : '')) : ''
     setGivenSaving(true)
@@ -929,6 +932,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
               style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fde68a', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
               <option value="">선택</option>
               <option value="신규학생">신규학생</option>
+              <option value="신규전학">신규전학</option>
               <option value="기존학생">기존학생</option>
             </select>
           </div>
@@ -3125,6 +3129,7 @@ export function Supplies({ user }) {
                     { val: 'given',    label: '지급',    bg: '#dbeafe', color: '#1d4ed8', act: '#1d4ed8', actBg: '#bfdbfe' },
                     { val: 'unpaid',   label: '미지급',  bg: '#fee2e2', color: '#b91c1c', act: '#b91c1c', actBg: '#fca5a5' },
                     { val: 'extra',    label: '추가지급', bg: '#ede9fe', color: '#7c3aed', act: '#7c3aed', actBg: '#c4b5fd' },
+                    { val: 'own',      label: '보유교구', bg: '#fef9c3', color: '#854d0e', act: '#854d0e', actBg: '#fde047' },
                     { val: 'paid',     label: '입금',    bg: '#dcfce7', color: '#15803d', act: '#15803d', actBg: '#86efac' },
                     { val: 'notpaid',  label: '미입금',  bg: '#fee2e2', color: '#b91c1c', act: '#b91c1c', actBg: '#fca5a5' },
                   ]
