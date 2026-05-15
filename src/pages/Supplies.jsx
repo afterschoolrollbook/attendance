@@ -1172,6 +1172,7 @@ export function Supplies({ user }) {
   const [givenFilter, setGivenFilter]   = useState({ school:'', classId:'' })
   const [givenTermFilter, setGivenTermFilter]       = useState('')
   const [givenStatusFilter, setGivenStatusFilter]   = useState('') // 'given'|'unpaid'|'extra'|'paid'|''
+  const [givenStudentFilter, setGivenStudentFilter] = useState('') // '신규학생'|'신규전학'|'기존학생'|''
   const [summaryDetailModal, setSummaryDetailModal] = useState(null) // { label, recs, color }
   const [givenInputs, setGivenInputs]   = useState({}) // { studentId_productId: date }
   const [bulkChecked, setBulkChecked]   = useState([])
@@ -3148,6 +3149,24 @@ export function Supplies({ user }) {
                   )
                 })()}
 
+                {/* 학생 구분 필터 버튼 */}
+                <div style={{ display:'flex', gap:'6px', marginBottom:'14px', flexWrap:'wrap' }}>
+                  {[
+                    { val: '',       label: '전체학생',  bg: '#f3f4f6', color: '#374151', act: '#374151', actBg: '#e5e7eb' },
+                    { val: '신규학생', label: '신규학생', bg: '#dbeafe', color: '#1d4ed8', act: '#1d4ed8', actBg: '#bfdbfe' },
+                    { val: '신규전학', label: '신규전학', bg: '#e0f2fe', color: '#0369a1', act: '#0369a1', actBg: '#7dd3fc' },
+                    { val: '기존학생', label: '기존학생', bg: '#f3e8ff', color: '#7e22ce', act: '#7e22ce', actBg: '#d8b4fe' },
+                  ].map(b => {
+                    const active = givenStudentFilter === b.val
+                    return (
+                      <button key={b.val} onClick={() => setGivenStudentFilter(b.val)}
+                        style={{ padding:'5px 14px', borderRadius:'20px', border: active ? `2px solid ${b.act}` : '1px solid #e5e7eb', background: active ? b.actBg : b.bg, color: b.color, fontSize:'12px', fontWeight: active ? 700 : 500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                        {b.label}
+                      </button>
+                    )
+                  })}
+                </div>
+
                 {/* 학생 목록 - 반별 그룹핑 */}
                 {grouped.length === 0 ? (
                   <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>해당 조건의 학생이 없습니다.</div>
@@ -3165,6 +3184,11 @@ export function Supplies({ user }) {
                           )}
                           <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
                             {studs.filter(stu => {
+                              // 학생 구분 필터
+                              if (givenStudentFilter) {
+                                const _prog = progressList.find(p => p.studentId === stu.id && p.classId === cls.id)
+                                if (!_prog || _prog.transferStudent !== givenStudentFilter) return false
+                              }
                               if (!givenStatusFilter) return true
                               const recs = givenList.filter(g => g.studentId === stu.id && g.classId === cls.id)
                               return recs.some(r => {
