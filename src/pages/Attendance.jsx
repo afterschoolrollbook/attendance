@@ -1004,6 +1004,7 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
     given:  { bg:'#dbeafe', color:'#1d4ed8', border:'#93c5fd', label:'지급' },
     unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미지급(보관)' },
     extra:  { bg:'#ede9fe', color:'#7c3aed', border:'#c4b5fd', label:'추가지급' },
+    own:    { bg:'#fef9c3', color:'#854d0e', border:'#fde047', label:'보유교구' },
   }
   const BILLING_STYLE = {
     billed: { bg:'#fef9c3', color:'#a16207', border:'#fde047', label:'청' },
@@ -1086,6 +1087,7 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
         <option value="given">지급</option>
         <option value="unpaid">미지급</option>
         <option value="extra">추가지급</option>
+        <option value="own">보유교구</option>
       </select>
       {/* 지급날짜 */}
       <input type="date" value={givenDate} onChange={e => handleGivenDate(e.target.value)}
@@ -1303,7 +1305,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const givenRecords = SupplyGiven.byStudentClass(student.id, classId)
 
   const handleAddGiven = async () => {
-    const dateRequired = givenNewSupplyStatus !== 'unpaid'
+    const dateRequired = givenNewSupplyStatus !== 'unpaid' && givenNewSupplyStatus !== 'own'
     if (!givenNewItem.trim() || (dateRequired && !givenNewDate)) return
     const classInfo = ClassesDB.find(classId)
     const className = classInfo ? ((classInfo.className || '') + (classInfo.section ? ' ' + classInfo.section : '')) : ''
@@ -1705,10 +1707,11 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             <option value="given">지급</option>
             <option value="unpaid">미지급</option>
             <option value="extra">추가지급</option>
+            <option value="own">보유교구</option>
           </select>
           <input type="date" value={givenNewDate} onChange={e => setGivenNewDate(e.target.value)}
-            title={givenNewSupplyStatus === 'unpaid' ? '지급날짜 (미지급 시 생략 가능)' : '지급날짜'}
-            style={{ padding:'7px 6px', borderRadius:'7px', border:`1.5px solid ${givenNewSupplyStatus === 'unpaid' ? '#fde68a' : '#e5e7eb'}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background: givenNewSupplyStatus === 'unpaid' ? '#fffbeb' : '#fff' }} />
+            title={['unpaid','own'].includes(givenNewSupplyStatus) ? '지급날짜 (생략 가능)' : '지급날짜'}
+            style={{ padding:'7px 6px', borderRadius:'7px', border:`1.5px solid ${['unpaid','own'].includes(givenNewSupplyStatus) ? '#fde68a' : '#e5e7eb'}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background: ['unpaid','own'].includes(givenNewSupplyStatus) ? '#fffbeb' : '#fff' }} />
           <select value={givenNewBillingStatus} onChange={e => setGivenNewBillingStatus(e.target.value)}
             style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
             <option value="none">-</option>
@@ -1719,8 +1722,8 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           <input type="date" value={givenNewPaidDate} onChange={e => setGivenNewPaidDate(e.target.value)}
             title="입금날짜"
             style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
-          <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || (givenNewSupplyStatus !== 'unpaid' && !givenNewDate) || givenSaving}
-            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && (givenNewSupplyStatus === 'unpaid' || givenNewDate) ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && (givenNewSupplyStatus === 'unpaid' || givenNewDate) ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && (givenNewSupplyStatus === 'unpaid' || givenNewDate) ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+          <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || (!['unpaid','own'].includes(givenNewSupplyStatus) && !givenNewDate) || givenSaving}
+            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && (['unpaid','own'].includes(givenNewSupplyStatus) || givenNewDate) ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && (['unpaid','own'].includes(givenNewSupplyStatus) || givenNewDate) ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && (['unpaid','own'].includes(givenNewSupplyStatus) || givenNewDate) ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
             + 추가
           </button>
         </div>
