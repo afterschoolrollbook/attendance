@@ -7,6 +7,7 @@ import {
   SupplyGiven,
   SupplySchoolPrices,
   onDbChange,
+  refreshTablesFromSupabase,
 } from '../lib/db.js'
 import { Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
@@ -584,6 +585,44 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
     return prog?.nextStage || 1
   })
   const [nextSaved, setNextSaved] = React.useState(false)
+
+  // ── 학교/학생/교구 이관 상태
+  const [transferSchool, setTransferSchool] = React.useState(() => {
+    const _pid = initialProductId || si?.productId || ''
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === _pid)
+      || SupplyStudentProgress.byStudent(student.id, classId)[0]
+    return prog?.transferSchool || ''
+  })
+  const [transferStudent, setTransferStudent] = React.useState(() => {
+    const _pid = initialProductId || si?.productId || ''
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === _pid)
+      || SupplyStudentProgress.byStudent(student.id, classId)[0]
+    return prog?.transferStudent || ''
+  })
+  const [transferSupply, setTransferSupply] = React.useState(() => {
+    const _pid = initialProductId || si?.productId || ''
+    const prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === _pid)
+      || SupplyStudentProgress.byStudent(student.id, classId)[0]
+    return prog?.transferSupply || ''
+  })
+  const [transferSaved, setTransferSaved] = React.useState(false)
+
+  // 모달 열릴 때 Supabase에서 최신 이관 정보 로드 (1회만)
+  const _transferLoaded = React.useRef(false)
+  React.useEffect(() => {
+    if (_transferLoaded.current) return
+    _transferLoaded.current = true
+    refreshTablesFromSupabase('supplyStudentProgress').then(() => {
+      const _pid = initialProductId || si?.productId || ''
+      const _prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === _pid)
+        || SupplyStudentProgress.byStudent(student.id, classId)[0]
+      if (_prog) {
+        setTransferSchool(_prog.transferSchool || '')
+        setTransferStudent(_prog.transferStudent || '')
+        setTransferSupply(_prog.transferSupply || '')
+      }
+    })
+  }, [])
   const [givenNewItem, setGivenNewItem] = React.useState('')
   const [givenNewDate, setGivenNewDate] = React.useState('')
   const [givenNewPaidDate, setGivenNewPaidDate] = React.useState('')
@@ -696,7 +735,8 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
   }
 
   const handleAddGiven = async () => {
-    if (!givenNewItem.trim() || !givenNewDate) return
+    const dateRequired = givenNewSupplyStatus !== 'unpaid' && givenNewSupplyStatus !== 'own'
+    if (!givenNewItem.trim() || (dateRequired && !givenNewDate)) return
     const className = classInfo ? ((classInfo.className || '') + (classInfo.section ? ' ' + classInfo.section : '')) : ''
     setGivenSaving(true)
     await SupplyGiven.insert({
@@ -704,7 +744,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
       studentId: student.id, studentName: student.name,
       classId, className, schoolName: classInfo?.organization || '',
       productId: selProductId, productName: product.name,
-      itemName: givenNewItem.trim(), givenAt: givenNewDate,
+      itemName: givenNewItem.trim(), givenAt: givenNewDate || undefined,
       paidAt: givenNewPaidDate || null,
       quarter: givenNewQuarter || null,
       supplyStatus: givenNewSupplyStatus,
@@ -869,6 +909,92 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
           )
         })()}
       </div>
+      {/* 학교/학생/교구 이관 정보 */}
+      <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#fffbeb', position:'relative', zIndex:1 }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#92400e', marginBottom:'4px' }}>🏫 학교·학생·교구 이관 정보</div>
+        <div style={{ fontSize:'11px', color:'#b45309', marginBottom:'10px' }}>새 학교 전입 시 이전 선생님의 교구를 사용 중인지 파악하는 정보입니다</div>
+        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'flex-end' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'120px' }}>
+            <label style={{ fontSize:'11px', fontWeight:700, color:'#92400e' }}>학교 구분</label>
+            <select value={transferSchool} onChange={e => { setTransferSchool(e.target.value); setTransferSaved(false) }}
+              style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fde68a', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+              <option value="">선택</option>
+              <option value="신규학교">신규학교</option>
+              <option value="기존학교">기존학교</option>
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'120px' }}>
+            <label style={{ fontSize:'11px', fontWeight:700, color:'#92400e' }}>학생 구분</label>
+            <select value={transferStudent} onChange={e => { setTransferStudent(e.target.value); setTransferSaved(false) }}
+              style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fde68a', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+              <option value="">선택</option>
+              <option value="신규학생">신규학생</option>
+              <option value="기존학생">기존학생</option>
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'120px' }}>
+            <label style={{ fontSize:'11px', fontWeight:700, color:'#92400e' }}>교구 구분</label>
+            <select value={transferSupply} onChange={e => { setTransferSupply(e.target.value); setTransferSaved(false) }}
+              style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fde68a', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+              <option value="">선택</option>
+              <option value="기존교구">기존교구</option>
+              <option value="지급교구">지급교구</option>
+            </select>
+          </div>
+          <button
+            onClick={async () => {
+              const _productId = selProductId || si?.productId || ''
+              const _prog = SupplyStudentProgress.byStudent(student.id, classId).find(p => p.productId === _productId)
+                || SupplyStudentProgress.byStudent(student.id, classId)[0]
+              const base = _prog
+                ? { ..._prog }
+                : { id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId: _productId, createdAt: now() }
+              await SupplyStudentProgress.upsert({ ...base, transferSchool, transferStudent, transferSupply, updatedAt: now() })
+              setTransferSaved(true)
+              setTimeout(() => {
+                setTransferSaved(false)
+                onSaved && onSaved()
+              }, 1500)
+            }}
+            style={{ padding:'8px 16px', borderRadius:'8px', border:'none', background: transferSaved ? '#16a34a' : '#f59e0b', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', transition:'all .2s', alignSelf:'flex-end' }}>
+            {transferSaved ? '✅ 저장됨' : '저장'}
+          </button>
+        </div>
+        {(transferSchool || transferStudent || transferSupply) && (
+          <div style={{ marginTop:'8px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
+            {transferSchool && (
+              <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 8px', borderRadius:'20px',
+                background: transferSchool === '신규학교' ? '#dbeafe' : '#dcfce7',
+                color: transferSchool === '신규학교' ? '#1d4ed8' : '#15803d',
+                border: `1px solid ${transferSchool === '신규학교' ? '#93c5fd' : '#86efac'}` }}>
+                🏫 {transferSchool}
+              </span>
+            )}
+            {transferStudent && (
+              <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 8px', borderRadius:'20px',
+                background: transferStudent === '신규학생' ? '#dbeafe' : '#f3e8ff',
+                color: transferStudent === '신규학생' ? '#1d4ed8' : '#7e22ce',
+                border: `1px solid ${transferStudent === '신규학생' ? '#93c5fd' : '#d8b4fe'}` }}>
+                👤 {transferStudent}
+              </span>
+            )}
+            {transferSupply && (
+              <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 8px', borderRadius:'20px',
+                background: transferSupply === '기존교구' ? '#fef3c7' : '#dcfce7',
+                color: transferSupply === '기존교구' ? '#92400e' : '#15803d',
+                border: `1px solid ${transferSupply === '기존교구' ? '#fcd34d' : '#86efac'}` }}>
+                📦 {transferSupply}
+              </span>
+            )}
+            {transferSchool === '신규학교' && transferStudent === '기존학생' && transferSupply === '기존교구' && (
+              <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 8px', borderRadius:'20px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fca5a5' }}>
+                ⚠️ 이전 선생님 교구 사용 중
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* 다음 진도 준비 */}
       <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#fafafa' }}>
         <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📌 다음 진도 준비</div>
@@ -937,10 +1063,11 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
             <option value="given">지급</option>
             <option value="unpaid">미지급</option>
             <option value="extra">추가지급</option>
+            <option value="own">보유교구</option>
           </select>
           <input type="date" value={givenNewDate} onChange={e => setGivenNewDate(e.target.value)}
-            title="지급날짜"
-            style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
+            title={['unpaid','own'].includes(givenNewSupplyStatus) ? '지급날짜 (생략 가능)' : '지급날짜'}
+            style={{ padding:'7px 6px', borderRadius:'7px', border:`1.5px solid ${['unpaid','own'].includes(givenNewSupplyStatus) ? '#fde68a' : '#e5e7eb'}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background: ['unpaid','own'].includes(givenNewSupplyStatus) ? '#fffbeb' : '#fff' }} />
           <select value={givenNewBillingStatus} onChange={e => setGivenNewBillingStatus(e.target.value)}
             style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
             <option value="none">-</option>
@@ -951,8 +1078,8 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
           <input type="date" value={givenNewPaidDate} onChange={e => setGivenNewPaidDate(e.target.value)}
             title="입금날짜"
             style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
-          <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || !givenNewDate || givenSaving}
-            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && givenNewDate ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && givenNewDate ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && givenNewDate ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+          <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || (!['unpaid','own'].includes(givenNewSupplyStatus) && !givenNewDate) || givenSaving}
+            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && (['unpaid','own'].includes(givenNewSupplyStatus) || givenNewDate) ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && (['unpaid','own'].includes(givenNewSupplyStatus) || givenNewDate) ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && (['unpaid','own'].includes(givenNewSupplyStatus) || givenNewDate) ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
             + 추가
           </button>
         </div>
