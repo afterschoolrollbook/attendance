@@ -1320,7 +1320,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
       productId: selProductId,
       productName: product.name,
       itemName: givenNewItem.trim(),
-      givenAt: givenNewDate,
+      givenAt: givenNewDate || undefined,
       paidAt: givenNewPaidDate || null,
       quarter: givenNewQuarter || null,
       supplyStatus: givenNewSupplyStatus,
