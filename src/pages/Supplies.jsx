@@ -1034,23 +1034,36 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
         {givenRecords.length > 0 && (() => {
           const grouped = {}
           givenRecords.forEach(r => { const k = r.quarter || '미분류'; if (!grouped[k]) grouped[k] = []; grouped[k].push(r) })
+          const _palettes = [
+            { hdrBg:'#dcfce7', hdrBorder:'#86efac', hdrColor:'#15803d', bodyBg:'#f0fdf4' },
+            { hdrBg:'#dbeafe', hdrBorder:'#93c5fd', hdrColor:'#1d4ed8', bodyBg:'#eff6ff' },
+            { hdrBg:'#fef9c3', hdrBorder:'#fde047', hdrColor:'#92400e', bodyBg:'#fefce8' },
+            { hdrBg:'#ede9fe', hdrBorder:'#c4b5fd', hdrColor:'#6d28d9', bodyBg:'#f5f3ff' },
+            { hdrBg:'#fce7f3', hdrBorder:'#f9a8d4', hdrColor:'#9d174d', bodyBg:'#fdf2f8' },
+          ]
           return (
             <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'10px' }}>
-              {Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).map(([qKey, recs]) => (
-                <div key={qKey} style={{ border:'1.5px solid #86efac', borderRadius:'10px', overflow:'hidden' }}>
-                  <div style={{ background:'#dcfce7', padding:'4px 12px' }}>
+              {Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).map(([qKey, recs], qIdx) => {
+                const isUnclassified = qKey === '미분류'
+                const p = isUnclassified
+                  ? { hdrBg:'#f3f4f6', hdrBorder:'#d1d5db', hdrColor:'#6b7280', bodyBg:'#fafafa' }
+                  : _palettes[qIdx % _palettes.length]
+                return (
+                <div key={qKey} style={{ border:`1.5px solid ${p.hdrBorder}`, borderRadius:'10px', overflow:'hidden' }}>
+                  <div style={{ background:p.hdrBg, padding:'4px 12px' }}>
                     <select defaultValue={qKey === '미분류' ? '' : qKey}
                       onChange={async e => { const newQ = e.target.value || null; for (const r of recs) { await SupplyGiven.update(r.id, { quarter: newQ }) }; onSaved && onSaved() }}
-                      style={{ fontSize:'12px', fontWeight:700, color:'#15803d', background:'transparent', border:'none', outline:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', padding:'2px 0' }}>
+                      style={{ fontSize:'12px', fontWeight:700, color:p.hdrColor, background:'transparent', border:'none', outline:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', padding:'2px 0' }}>
                       <option value="">미분류</option>
                       {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:'4px', padding:'6px 8px', background:'#f0fdf4' }}>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px', padding:'6px 8px', background:p.bodyBg }}>
                     {recs.map(r => <SuppliesGivenRow key={r.id} record={r} classId={classId} classes={classes} onSaved={onSaved} />)}
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )
         })()}
@@ -3333,12 +3346,20 @@ export function Supplies({ user }) {
                                       + 추가
                                     </button>
                                   </div>
-                                  {groupEntries.map(([qKey, qRecords]) => {
+                                  {groupEntries.map(([qKey, qRecords], qIdx) => {
                                     const isUnclassified = qKey === '미분류'
-                                    const hdrBg     = isUnclassified ? '#f3f4f6' : '#dcfce7'
-                                    const hdrBorder = isUnclassified ? '#d1d5db' : '#86efac'
-                                    const hdrColor  = isUnclassified ? '#6b7280' : '#15803d'
-                                    const bodyBg    = isUnclassified ? '#fafafa'  : '#f0fdf4'
+                                    // 학기별 색상 팔레트 (미분류 제외)
+                                    const palettes = [
+                                      { hdrBg:'#dcfce7', hdrBorder:'#86efac', hdrColor:'#15803d', bodyBg:'#f0fdf4' },
+                                      { hdrBg:'#dbeafe', hdrBorder:'#93c5fd', hdrColor:'#1d4ed8', bodyBg:'#eff6ff' },
+                                      { hdrBg:'#fef9c3', hdrBorder:'#fde047', hdrColor:'#92400e', bodyBg:'#fefce8' },
+                                      { hdrBg:'#ede9fe', hdrBorder:'#c4b5fd', hdrColor:'#6d28d9', bodyBg:'#f5f3ff' },
+                                      { hdrBg:'#fce7f3', hdrBorder:'#f9a8d4', hdrColor:'#9d174d', bodyBg:'#fdf2f8' },
+                                    ]
+                                    const palette = isUnclassified
+                                      ? { hdrBg:'#f3f4f6', hdrBorder:'#d1d5db', hdrColor:'#6b7280', bodyBg:'#fafafa' }
+                                      : palettes[qIdx % palettes.length]
+                                    const { hdrBg, hdrBorder, hdrColor, bodyBg } = palette
                                     return (
                                     <div key={qKey} style={{ border:`1.5px solid ${hdrBorder}`, borderRadius:'10px', overflow:'hidden', marginBottom:'4px' }}>
                                       <div style={{ background:hdrBg, padding:'4px 12px' }}>
