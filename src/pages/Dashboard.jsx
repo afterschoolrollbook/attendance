@@ -4,7 +4,7 @@ import {
   Notes, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans,
   RevenueFees, RevenuePayments,
   Trainings, Careers, Educations, Certificates, Awards,
-  Settings, onDbChange,
+  Settings, onDbChange, LessonMemos,
 } from '../lib/db.js'
 import { dbCall } from '../lib/supabase.js'
 import { calcSessionDates, sortClasses, uid, now, getSessionInfo } from '../lib/utils.js'
@@ -2664,6 +2664,37 @@ export function Dashboard({ user, onNav }) {
 
   const supplyProds  = SupplyProducts.byTeacher(user.id)
   const supplyAlerts = classes.flatMap(cls => {
+
+  // ── 부품 주문 누적 (모든 수업의 __PARTS_ORDER__ 메모 합산)
+  const PARTS_ORDER_KEY = '__PARTS_ORDER__:'
+  const allOrderItems = (() => {
+    const allMemos = LessonMemos.byTeacher(user.id)
+    const orderMemos = allMemos.filter(m => m.content?.startsWith(PARTS_ORDER_KEY))
+    const merged = {}
+    orderMemos.forEach(m => {
+      try {
+        const list = JSON.parse(m.content.slice(PARTS_ORDER_KEY.length))
+        list.forEach(o => {
+          const key = `${o.productId}__${o.stage}__${o.partId}`
+          if (merged[key]) {
+            merged[key].qty += o.qty
+            merged[key]._memoIds = merged[key]._memoIds || []
+          } else {
+            merged[key] = { ...o, _memoId: m.id, _memoIds: [m.id] }
+          }
+          if (!merged[key]._memoIds.includes(m.id)) merged[key]._memoIds.push(m.id)
+        })
+      } catch {}
+    })
+    return Object.values(merged)
+  })()
+  const allOrderMemoIds = (() => {
+    const allMemos = LessonMemos.byTeacher(user.id)
+    return allMemos.filter(m => m.content?.startsWith(PARTS_ORDER_KEY)).map(m => m.id)
+  })()
+
+  // ── 교구준비 요일별 접기 상태 (첫 번째만 펼침)
+  const [expandedDays, setExpandedDays] = useState(() => new Set(['__first__']))
     const confirmed  = StudentsDB.confirmed(cls.id)
     if (!confirmed.length) return []
     const supplyData = SupplyItems.byClass(cls.id)
@@ -2877,6 +2908,35 @@ export function Dashboard({ user, onNav }) {
           </div>
         </div>
       )}
+      {/* 필요한 부품 카드 */}
+      {allOrderItems.length > 0 && (
+        <div style={{ background:'#f0fdf4', borderRadius:'12px', border:'1.5px solid #86efac', padding:'14px 18px' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'10px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+              <span style={{ fontSize:'16px' }}>🔧</span>
+              <span style={{ fontSize:'14px', fontWeight:700, color:'#15803d' }}>필요한 부품</span>
+            </div>
+            <button onClick={() => {
+              if (window.confirm('주문완료 처리하면 모든 부품 주문 목록이 삭제됩니다. 계속할까요?')) {
+                allOrderMemoIds.forEach(id => LessonMemos.delete(id))
+                window.location.reload()
+              }
+            }} style={{ padding:'5px 14px', borderRadius:'8px', border:'none', background:'#16a34a', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              ✅ 주문완료
+            </button>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+            {allOrderItems.map((o, i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#fff', borderRadius:'8px', border:'1px solid #bbf7d0' }}>
+                <span style={{ fontSize:'12px', color:'#166534', fontWeight:600 }}>{o.productName} · {o.stage}단계 · {o.partName}</span>
+                <span style={{ marginLeft:'auto', fontSize:'13px', fontWeight:800, color:'#15803d' }}>{o.qty}개</span>
+                {o.memo && <span style={{ fontSize:'11px', color:'#6b7280' }}>{o.memo}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {settings.supply && supplyAlerts.length > 0 && (
         <div style={{ background: '#fef2f2', borderRadius: '12px', border: '1.5px solid #fca5a5', padding: '14px 18px', position: 'relative' }}>
           <button
@@ -2884,18 +2944,16 @@ export function Dashboard({ user, onNav }) {
             title="카드 숨기기"
             style={{ position: 'absolute', top: '10px', right: '12px', width: '22px', height: '22px', borderRadius: '50%', border: '1px solid #fca5a5', background: '#fff', cursor: 'pointer', fontSize: '11px', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >✕</button>
-          <div onClick={() => onNav('supplies')} style={{ cursor: 'pointer' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }} onClick={() => onNav('supplies')} style={{ cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
               <span style={{ fontSize: '16px' }}>⚠️</span>
               <span style={{ fontSize: '14px', fontWeight: 700, color: C.danger }}>교구 준비 필요 — 이번주 수업</span>
               <span style={{ fontSize: '11px', color: C.primary, fontWeight: 600 }}>바로가기 →</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {(() => {
                 const DAY_NAMES = ['일','월','화','수','목','금','토']
                 const todayIdx = new Date().getDay()
-
-                // 요일별로 묶기 (daysUntil 기준 정렬된 상태)
                 const dayMap = {}
                 supplyAlerts.forEach(({ cls, students, total, clsDayIdx, daysUntil }) => {
                   const dayKey = clsDayIdx >= 0 ? clsDayIdx : -1
@@ -2904,63 +2962,54 @@ export function Dashboard({ user, onNav }) {
                   if (!dayMap[dayKey].schools[school]) dayMap[dayKey].schools[school] = []
                   dayMap[dayKey].schools[school].push({ cls, students, total })
                 })
-
-                // daysUntil 기준으로 요일 정렬
-                return Object.entries(dayMap)
-                  .sort((a, b) => a[1].daysUntil - b[1].daysUntil)
-                  .map(([dayKey, { daysUntil, clsDayIdx, schools }]) => {
-                    const dayLabel = clsDayIdx >= 0 ? DAY_NAMES[clsDayIdx] + '요일' : '요일 미설정'
-                    const dayBadge = daysUntil === 0 ? '오늘' : daysUntil === 1 ? '내일' : `${daysUntil}일 후`
-                    return (
-                      <div key={dayKey}>
-                        {/* 요일 헤더 */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>{dayLabel}</span>
-                          <span style={{ fontSize: '11px', fontWeight: 700, color: daysUntil === 0 ? C.danger : C.primary, background: daysUntil === 0 ? '#fef2f2' : '#fff7ed', border: `1px solid ${daysUntil === 0 ? '#fca5a5' : '#fed7aa'}`, borderRadius: '20px', padding: '1px 8px' }}>{dayBadge}</span>
-                        </div>
-                        {/* 학교별 묶음 */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '8px' }}>
+                const sortedDays = Object.entries(dayMap).sort((a, b) => a[1].daysUntil - b[1].daysUntil)
+                return sortedDays.map(([dayKey, { daysUntil, clsDayIdx, schools }], idx) => {
+                  const dayLabel = clsDayIdx >= 0 ? DAY_NAMES[clsDayIdx] + '요일' : '요일 미설정'
+                  const dayBadge = daysUntil === 0 ? '오늘' : daysUntil === 1 ? '내일' : `${daysUntil}일 후`
+                  const isOpen = idx === 0 ? !expandedDays.has('__closed__' + dayKey) : expandedDays.has(dayKey)
+                  const toggle = () => setExpandedDays(prev => {
+                    const next = new Set(prev)
+                    if (idx === 0) {
+                      if (isOpen) next.add('__closed__' + dayKey); else next.delete('__closed__' + dayKey)
+                    } else {
+                      if (isOpen) next.delete(dayKey); else next.add(dayKey)
+                    }
+                    return next
+                  })
+                  return (
+                    <div key={dayKey}>
+                      {/* 요일 헤더 — 클릭으로 접기/펼치기 */}
+                      <div onClick={toggle} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 4px', cursor:'pointer', userSelect:'none' }}>
+                        <span style={{ fontSize:'10px', color:C.muted, transition:'transform .2s', display:'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>{dayLabel}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: daysUntil === 0 ? C.danger : C.primary, background: daysUntil === 0 ? '#fef2f2' : '#fff7ed', border: `1px solid ${daysUntil === 0 ? '#fca5a5' : '#fed7aa'}`, borderRadius: '20px', padding: '1px 8px' }}>{dayBadge}</span>
+                      </div>
+                      {/* 학교별 묶음 — 펼쳐진 경우만 표시 */}
+                      {isOpen && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '8px', marginTop:'4px' }}>
                           {Object.entries(schools).map(([school, items]) => {
-                            const sorted = [...items].sort((a, b) =>
-                              (a.cls.section || '').localeCompare(b.cls.section || '', 'ko')
-                            )
+                            const sorted = [...items].sort((a, b) => (a.cls.section || '').localeCompare(b.cls.section || '', 'ko'))
                             const totalAlert = sorted.reduce((sum, i) => sum + i.students.length, 0)
                             return (
                               <div key={school} style={{ background: '#fff', borderRadius: '10px', border: '1px solid #fca5a5', overflow: 'hidden' }}>
-                                {/* 학교 헤더 */}
                                 {(() => {
-                                  // 교구별 카운트 집계
                                   const prodCount = {}
-                                  sorted.forEach(({ students }) => {
-                                    students.forEach(({ supplyLabel }) => {
-                                      if (!supplyLabel) return
-                                      prodCount[supplyLabel] = (prodCount[supplyLabel] || 0) + 1
-                                    })
-                                  })
-                                  const prodSummary = Object.entries(prodCount)
-                                    .map(([name, cnt]) => `${name} ${cnt}명`)
-                                    .join(' / ')
+                                  sorted.forEach(({ students }) => { students.forEach(({ supplyLabel }) => { if (!supplyLabel) return; prodCount[supplyLabel] = (prodCount[supplyLabel] || 0) + 1 }) })
+                                  const prodSummary = Object.entries(prodCount).map(([name, cnt]) => `${name} ${cnt}명`).join(' / ')
                                   return (
                                     <div style={{ padding: '8px 14px', background: '#fef2f2', borderBottom: '1px solid #fca5a5' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: prodSummary ? '3px' : 0 }}>
                                         <span style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>🏫 {school}</span>
                                         <span style={{ fontSize: '12px', fontWeight: 700, color: C.danger }}>{totalAlert}명 준비 필요</span>
                                       </div>
-                                      {prodSummary && (
-                                        <div style={{ fontSize: '11px', color: '#92400e', fontWeight: 600 }}>
-                                          {prodSummary}
-                                        </div>
-                                      )}
+                                      {prodSummary && <div style={{ fontSize: '11px', color: '#92400e', fontWeight: 600 }}>{prodSummary}</div>}
                                     </div>
                                   )
                                 })()}
-                                {/* A반, B반 순서로 */}
                                 {sorted.map(({ cls, students, total }) => (
                                   <div key={cls.id} style={{ borderBottom: '1px solid #fee2e2' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 14px', background: '#fff7ed' }}>
-                                      <span style={{ fontSize: '12px', fontWeight: 700, color: C.primary }}>
-                                        {cls.className}{cls.section ? ' ' + cls.section + '반' : ''}
-                                      </span>
+                                      <span style={{ fontSize: '12px', fontWeight: 700, color: C.primary }}>{cls.className}{cls.section ? ' ' + cls.section + '반' : ''}</span>
                                       <span style={{ fontSize: '11px', color: C.muted }}>{students.length}/{total}명</span>
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 12px' }}>
@@ -2984,9 +3033,10 @@ export function Dashboard({ user, onNav }) {
                             )
                           })}
                         </div>
-                      </div>
-                    )
-                  })
+                      )}
+                    </div>
+                  )
+                })
               })()}
             </div>
           </div>
