@@ -91,6 +91,7 @@ const TABLE_MAP: Record<string, string> = {
   blogPosts:              'blog_posts',              // ← SEO 블로그
   supplyGiven:            'supplyGiven',             // ← 교구 지급 기록
   supplySchoolPrices:     'supplySchoolPrices',      // ← 학교별 교구 공급가
+  supplyParts:            'supplyParts',             // ← 교구 부품
 }
 
 // 컬럼이 camelCase로 저장된 테이블 — snake 변환 없이 그대로 사용
@@ -115,6 +116,7 @@ const CAMEL_TABLES = new Set([
   'blogPosts',                               // ← SEO 블로그
   'supplyGiven',                             // ← 교구 지급 기록
   'supplySchoolPrices',                      // ← 학교별 교구 공급가
+  'supplyParts',                             // ← 교구 부품
 ])
 
 // camelCase → snake_case 변환
