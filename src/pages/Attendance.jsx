@@ -506,45 +506,41 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                       style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', borderRadius:'7px', border:'1px solid #f59e0b', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }} />
                   )}
 
-                  {/* 수량 + 추가 */}
-                  {(selPartId && selPartId !== '__new__' || (addingNew && newPartName.trim())) && (
+                  {/* 수량 + 버튼 */}
+                  {addingNew && newPartName.trim() ? (
+                    <button onClick={async () => {
+                      try {
+                        const newRow = await SupplyParts.insert({ productId: selProductId, stage: Number(selStage), name: newPartName.trim() })
+                        const updated = await SupplyParts.byProduct(selProductId)
+                        setPartsData(prev => [...prev.filter(p => p.productId !== selProductId), ...updated])
+                        setAddingNew(false)
+                        setSelPartId(newRow.id)
+                        setNewPartName('')
+                      } catch(e) { }
+                    }}
+                      style={{ width:'100%', padding:'7px', borderRadius:'7px', background:'#f59e0b', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      부품 등록
+                    </button>
+                  ) : (selPartId && selPartId !== '__new__') ? (
                     <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
                       <span style={{ fontSize:'12px', color:'#6b7280', whiteSpace:'nowrap' }}>수량</span>
                       <input type="number" min={1} value={selQty} onChange={e => setSelQty(Math.max(1, Number(e.target.value)))}
                         style={{ width:'60px', padding:'7px 8px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif' }} />
-                      <button onClick={async () => {
+                      <button onClick={() => {
                         const prod = spProds.find(p => p.id === selProductId)
-                        let partName = ''
-                        let partId = selPartId
-
-                        if (addingNew) {
-                          // 새 부품 Supabase에 저장 후 목록 갱신
-                          try {
-                            const newRow = await SupplyParts.insert({ productId: selProductId, stage: Number(selStage), name: newPartName.trim() })
-                            partId = newRow.id
-                            partName = newPartName.trim()
-                            const updated = await SupplyParts.byProduct(selProductId)
-                            setPartsData(prev => [...prev.filter(p => p.productId !== selProductId), ...updated])
-                            setAddingNew(false)
-                            setSelPartId(newRow.id)
-                          } catch(e) { return }
-                        } else {
-                          partName = partsData.find(p => p.id === selPartId)?.name || ''
-                        }
-
+                        const partName = partsData.find(p => p.id === selPartId)?.name || ''
                         setOrderList(prev => {
-                          const existing = prev.find(o => o.partId === partId)
-                          if (existing) return prev.map(o => o.partId === partId ? { ...o, qty: o.qty + selQty } : o)
-                          return [...prev, { productId: selProductId, productName: prod?.name || '', stage: Number(selStage), partId, partName, qty: selQty }]
+                          const existing = prev.find(o => o.partId === selPartId)
+                          if (existing) return prev.map(o => o.partId === selPartId ? { ...o, qty: o.qty + selQty } : o)
+                          return [...prev, { productId: selProductId, productName: prod?.name || '', stage: Number(selStage), partId: selPartId, partName, qty: selQty }]
                         })
                         setSelQty(1)
-                        setNewPartName('')
                       }}
                         style={{ flex:1, padding:'7px', borderRadius:'7px', background:'#78716c', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                         목록에 추가
                       </button>
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* 주문 목록 */}
