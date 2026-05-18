@@ -63,6 +63,7 @@ const TABLE_MAP = {
   schoolInfo:           'schoolInfo',
   blogPosts:            'blog_posts',
   supplyGiven:          'supplyGiven',
+  supplyParts:          'supplyParts',
 }
 
 // ─── camelCase 컬럼 테이블 (변환 없이 그대로 사용)
@@ -81,6 +82,7 @@ const CAMEL_TABLES = new Set([
   'customCategories',  // ✅ teacherId, sortOrder, createdAt, updatedAt (camelCase)
   'lessonMemos',       // ✅ teacherId, classId, createdAt, updatedAt (camelCase)
   'supplyGiven',       // ✅ 교구 지급 기록
+  'supplyParts',       // ✅ 교구 부품
 ])
 
 // ─── camelCase → snake_case 변환
@@ -950,4 +952,15 @@ export const SchoolNoticeSubmits = {
   insert:    (r)     => db.insert('schoolNoticeSubmits', r),
   update:    (id, p) => db.update('schoolNoticeSubmits', id, p),
   delete:    (id)    => db.delete('schoolNoticeSubmits', id),
+}
+
+export const SupplyParts = {
+  byProduct: async (productId) => {
+    const { supabase } = await import('./supabase.js')
+    const { data, error } = await supabase.from('supplyParts').select('*').eq('productId', productId)
+    if (error) throw new Error(error.message)
+    return data || []
+  },
+  insert: (r) => db.insert('supplyParts', { ...r, id: r.id || uid() }),
+  delete: (id) => db.delete('supplyParts', id),
 }
