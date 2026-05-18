@@ -2707,7 +2707,40 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                   )
                 })()}
               </div>
-              <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>{cls.organization} · {cls.className}{cls.section?' '+cls.section+'반':''} · {activeStudents.length}명</div>
+              <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px', display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                <span>{cls.organization} · {cls.className}{cls.section?' '+cls.section+'반':''} · {activeStudents.length}명</span>
+                {(() => {
+                  const cancelAfter = students.filter(s => s.status === 'cancel_after')
+                  if (cancelAfter.length === 0) return null
+                  // 취소 날짜 기준으로 텀 분류
+                  const sessionDates = calcSessionDates(cls)
+                  const termCounts = {}
+                  cancelAfter.forEach(s => {
+                    const cd = s.cancel_info?.date
+                    let termNum = null
+                    if (cd) {
+                      const before = sessionDates.filter(d => d <= cd)
+                      if (before.length > 0) {
+                        const si = getSessionInfo(cls, before[before.length - 1])
+                        termNum = si?.termNum
+                      }
+                    }
+                    const key = termNum != null ? termNum : '?'
+                    termCounts[key] = (termCounts[key] || 0) + 1
+                  })
+                  const isQuarter = cls.termType === 'quarter'
+                  const termUnit = isQuarter ? '분기' : '학기'
+                  const breakdown = Object.entries(termCounts)
+                    .sort(([a],[b]) => Number(a) - Number(b))
+                    .map(([t, cnt]) => t === '?' ? `미분류${cnt}` : `${t}텀${cnt}`)
+                    .join(',')
+                  return (
+                    <span style={{ fontSize:'12px', fontWeight:700, color:'#dc2626', background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'5px', padding:'1px 7px', whiteSpace:'nowrap' }}>
+                      취소:{termUnit} {cancelAfter.length} ⇒{breakdown}
+                    </span>
+                  )
+                })()}
+              </div>
             </div>
             <span style={{ fontSize:'12px', padding:'4px 10px', borderRadius:'6px', fontWeight:600,
               background: isToday?'#f0fdf4': isPast?'#f3f4f6':'#eff6ff',
