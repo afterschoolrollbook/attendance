@@ -1,6 +1,6 @@
 import React from 'react'
 import { AdSlots } from '../lib/db.js'
-import { can, canAccessMenu, getLevelNames, LEVEL_COLORS } from '../constants/permissions.js'
+import { can, canAccessMenu, isMenuVisible, getMenuMinLevel, getLevelNames, LEVEL_COLORS } from '../constants/permissions.js'
 import { FEATURES } from '../constants/permissions.js'
 
 const NAV = [
@@ -60,7 +60,17 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
 
   const visibleMyNav = MY_NAV.filter(item => menuCfg[item.menuKey] !== false)
 
-  const handleNav    = (path) => { onNav(path); if (mobile) onClose?.() }
+  const [lockModal, setLockModal] = React.useState(null)
+
+  const handleMenuClick = (path) => {
+    if (!canAccessMenu(user, path)) {
+      setLockModal({ path, minLevel: getMenuMinLevel(path) })
+      return
+    }
+    onNav(path)
+    if (mobile) onClose?.()
+  }
+  const handleNav = (path) => { onNav(path); if (mobile) onClose?.() }
   const handleLogout = () => { onLogout(); if (mobile) onClose?.() }
 
   const UserBadge = () => (
@@ -75,19 +85,22 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
   const renderNav = (isMobile) => (
     <nav style={{ flex:1, overflowY:'auto', padding: isMobile ? '10px 0' : '12px 0' }}>
       {NAV.map(item => {
-        if (!canAccessMenu(user, item.path)) return null
-        return <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />
+        if (!isMenuVisible(user, item.path)) return null
+        const locked = !canAccessMenu(user, item.path)
+        return <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleMenuClick(item.path)} locked={locked} />
       })}
 
       <div style={{ fontSize:'11px', color:'#52525b', padding: isMobile ? '10px 16px 4px' : '12px 20px 4px', fontWeight:600, letterSpacing:'0.05em' }}>
         선생님 커리어
       </div>
-      {canAccessMenu(user, 'revenue') && MY_NAV_FIXED.map(item => (
-        <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />
-      ))}
-      {visibleMyNav.filter(item => canAccessMenu(user, item.menuKey)).map(item => (
-        <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />
-      ))}
+      {isMenuVisible(user, 'revenue') && MY_NAV_FIXED.map(item => {
+        const locked = !canAccessMenu(user, item.path)
+        return <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleMenuClick(item.path)} locked={locked} />
+      })}
+      {visibleMyNav.filter(item => isMenuVisible(user, item.menuKey)).map(item => {
+        const locked = !canAccessMenu(user, item.menuKey)
+        return <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleMenuClick(item.path)} locked={locked} />
+      })}
 
       {isAdmin && (
         <>
@@ -173,6 +186,26 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
           </div>
         </div>
       )}
+
+      {/* 잠금 모달 */}
+      {lockModal && (
+        <div onClick={() => setLockModal(null)}
+          style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background:'#fff', borderRadius:'16px', padding:'32px 24px', maxWidth:'300px', width:'100%', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
+            <div style={{ fontSize:'40px', marginBottom:'12px' }}>🔒</div>
+            <div style={{ fontSize:'16px', fontWeight:700, color:'#111827', marginBottom:'10px' }}>접근 제한</div>
+            <div style={{ fontSize:'14px', color:'#6b7280', lineHeight:1.7, marginBottom:'24px' }}>
+              <strong style={{ color:'#f97316' }}>Lv.{lockModal.minLevel}</strong> 등급 이상 사용이 가능합니다.<br/>
+              관리자에게 문의해 주세요.
+            </div>
+            <button onClick={() => setLockModal(null)}
+              style={{ padding:'10px 32px', borderRadius:'10px', border:'none', background:'#f97316', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              확인
+            </button>
+          </div>
+        </div>
+      )}
       <div style={{ padding:'12px 20px', borderTop:'1px solid #27272a' }}>
         <button onClick={onLogout} style={{ background:'none', border:'none', cursor:'pointer', color:'#71717a', fontSize:'14px', padding:'6px 0', display:'flex', alignItems:'center', gap:'8px', width:'100%', fontFamily:'Noto Sans KR, sans-serif' }}>
           <span>🚪</span> 로그아웃
@@ -182,7 +215,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
   )
 }
 
-function NavItem({ item, active, onClick, accent }) {
+function NavItem({ item, active, onClick, accent, locked }) {
   const activeColor = accent || '#f97316'
   const activeBg    = accent ? '#8b5cf618' : '#f9731618'
   return (
@@ -191,16 +224,18 @@ function NavItem({ item, active, onClick, accent }) {
         width:'100%', display:'flex', alignItems:'center', gap:'10px',
         padding:'10px 20px', background: active ? activeBg : 'none',
         border:'none', borderLeft: active ? `3px solid ${activeColor}` : '3px solid transparent',
-        color: active ? activeColor : '#a1a1aa',
+        color: locked ? '#52525b' : active ? activeColor : '#a1a1aa',
         fontSize:'14px', fontWeight: active ? 600 : 400,
         cursor:'pointer', textAlign:'left', transition:'all .15s',
         fontFamily:'Noto Sans KR, sans-serif',
+        opacity: locked ? 0.6 : 1,
       }}
-      onMouseEnter={e=>{ if(!active){ e.currentTarget.style.color='#fff'; e.currentTarget.style.background='#27272a' } }}
-      onMouseLeave={e=>{ if(!active){ e.currentTarget.style.color='#a1a1aa'; e.currentTarget.style.background='none' } }}
+      onMouseEnter={e=>{ if(!active && !locked){ e.currentTarget.style.color='#fff'; e.currentTarget.style.background='#27272a' } }}
+      onMouseLeave={e=>{ if(!active && !locked){ e.currentTarget.style.color='#a1a1aa'; e.currentTarget.style.background='none' } }}
     >
       <span style={{ fontSize:'16px', width:'20px', textAlign:'center' }}>{item.icon}</span>
-      {item.label}
+      <span style={{ flex:1 }}>{item.label}</span>
+      {locked && <span style={{ fontSize:'12px', color:'#52525b' }}>🔒</span>}
     </button>
   )
 }
