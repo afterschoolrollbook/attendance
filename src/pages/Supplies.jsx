@@ -2505,9 +2505,10 @@ export function Supplies({ user }) {
                                             setPartsNewName('')
                                             setPartsNewStage(1)
                                             setPartsLoading(true)
-                                            SupplyParts.byProduct(p.id).then(rows => {
+                                            try {
+                                              const rows = SupplyParts.byProduct(p.id)
                                               setPartsList(rows || [])
-                                            }).catch(() => setPartsList([])).finally(() => setPartsLoading(false))
+                                            } catch { setPartsList([]) } finally { setPartsLoading(false) }
                                           }}
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #78716c', background:'#fafaf9', color:'#78716c', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>🔧 부품</button>
                                         </div>
@@ -2527,9 +2528,10 @@ export function Supplies({ user }) {
                                                     setPartsNewName('')
                                                     setPartsNewStage(st)
                                                     setPartsLoading(true)
-                                                    SupplyParts.byProduct(p.id).then(rows => {
+                                                    try {
+                                                      const rows = SupplyParts.byProduct(p.id)
                                                       setPartsList(rows || [])
-                                                    }).catch(() => setPartsList([])).finally(() => setPartsLoading(false))
+                                                    } catch { setPartsList([]) } finally { setPartsLoading(false) }
                                                   }}
                                                     style={{ padding:'2px 8px', borderRadius:'12px', border:'1px solid #d6d3d1', background:'#f5f5f4', color:'#78716c', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                                     🔧 {st}단계 부품 {cnt}종
