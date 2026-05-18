@@ -958,7 +958,7 @@ export const SchoolNoticeSubmits = {
 export const SupplyParts = {
   byProduct: (productId) => db.where('supplyParts', r => r.productId === productId),
   insert: async (r) => {
-    const row = { ...r, id: r.id || uid(), createdAt: now() }
+    const row = { ...r, id: r.id || crypto.randomUUID(), createdAt: now() }
     return await db.insert('supplyParts', row)
   },
   delete: async (id) => {
