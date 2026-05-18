@@ -2276,7 +2276,6 @@ function MobileDashboard({ user, onNav }) {
           {/* 접속 기간 표시 */}
           {(() => {
             const expDate = user.accessExpiredAt ? new Date(user.accessExpiredAt) : null
-            if (!expDate && !user.accessStartAt) return null
             if (!expDate) return (
               <div style={{ display:'inline-flex', alignItems:'center', gap:'6px', marginTop:'6px', padding:'4px 10px', borderRadius:'8px', background:'#f0fdf4', border:'1px solid #86efac' }}>
                 <span style={{ fontSize:'12px', color:'#16a34a', fontWeight:700 }}>∞ 무제한 이용 중</span>
@@ -2746,7 +2745,6 @@ export function Dashboard({ user, onNav }) {
             {(() => {
               const expDate = user.accessExpiredAt ? new Date(user.accessExpiredAt) : null
               const startDate = user.accessStartAt ? new Date(user.accessStartAt) : null
-              if (!expDate && !startDate) return null // 무제한
               if (!expDate) return (
                 <span style={{ fontSize:'12px', fontWeight:700, color:'#16a34a', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'20px', padding:'2px 10px' }}>
                   ∞ 무제한 이용 중
