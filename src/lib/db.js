@@ -194,6 +194,7 @@ const SYNC_TABLES = [
   'schoolAdminTeachers', 'schoolSubjects', 'schoolTeacherInvites',
   'schoolNotices', 'schoolNoticeSubmits',
   'supplyGiven',
+  'supplyParts',
   'supplySchoolPrices',
 ]
 
@@ -957,8 +958,7 @@ export const SchoolNoticeSubmits = {
 export const SupplyParts = {
   byProduct: (productId) => db.where('supplyParts', r => r.productId === productId),
   insert: async (r) => {
-    const row = { ...r, createdAt: now() }
-    delete row.id
+    const row = { ...r, id: r.id || uid(), createdAt: now() }
     return await db.insert('supplyParts', row)
   },
   delete: async (id) => {
