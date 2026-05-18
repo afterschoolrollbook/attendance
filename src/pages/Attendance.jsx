@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers, SupplyGiven, refreshTablesFromSupabase } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers, SupplyGiven, SupplyParts, refreshTablesFromSupabase } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -61,6 +61,17 @@ function localDateStr(d) {
 function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, spGiven, onProgOpen, onOpenScreen }) {
   const [memos, setMemos] = useState(() => cls ? LessonMemos.byClassDate(cls.id, date) : [])
   const [memoText, setMemoText] = useState('')
+  // 부품 주문 메모
+  const [partsOpen, setPartsOpen]           = useState(false)
+  const [partsData, setPartsData]           = useState([])   // { id, productId, stage, name }
+  const [selProductId, setSelProductId]     = useState('')
+  const [selStage, setSelStage]             = useState('')
+  const [selPartId, setSelPartId]           = useState('')
+  const [selQty, setSelQty]                 = useState(1)
+  const [orderList, setOrderList]           = useState([])   // { productId, productName, stage, partId, partName, qty }
+  const [addingNew, setAddingNew]           = useState(false)
+  const [newPartName, setNewPartName]       = useState('')
+  const [partsLoading, setPartsLoading]     = useState(false)
   // 진도 섹션 접기/펼치기 상태 (기본: 펼침)
   const [openSections, setOpenSections] = useState({
     교구지급: true, 교구준비: true, 미지급: true, 확인필요: true,
@@ -401,6 +412,169 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
             )
           })()}
         </div>
+      </div>
+
+      {/* 부품 주문 메모 */}
+      <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:'12px', marginTop:'0' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: partsOpen ? '10px' : '0' }}>
+          <div style={{ fontSize:'11px', fontWeight:700, color:C.muted }}>🔧 부품 주문 메모</div>
+          <button onClick={async () => {
+            if (!partsOpen) {
+              setPartsLoading(true)
+              // 현재 수업 학생들의 교구 목록에서 productId 수집
+              const productIds = [...new Set(
+                activeStudents.map(s => spItems.find(i => i.studentId === s.id && i.classId === cls.id)?.productId).filter(Boolean)
+              )]
+              if (productIds.length > 0) {
+                try {
+                  const allParts = await Promise.all(productIds.map(pid => SupplyParts.byProduct(pid)))
+                  setPartsData(allParts.flat())
+                  // 첫 번째 교구로 초기화
+                  setSelProductId(productIds[0])
+                  const stages = [...new Set(allParts[0]?.map(p => Number(p.stage)) || [])].sort((a,b)=>a-b)
+                  setSelStage(stages[0] || '')
+                  setSelPartId('')
+                } catch(e) { setPartsData([]) }
+              }
+              setPartsLoading(false)
+            }
+            setPartsOpen(v => !v)
+          }}
+            style={{ padding:'3px 10px', borderRadius:'6px', border:'1px solid #d6d3d1', background: partsOpen ? '#f5f5f4' : '#fff', color:'#78716c', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            {partsOpen ? '닫기' : '+ 추가'}
+          </button>
+        </div>
+
+        {partsOpen && (
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+            {partsLoading ? (
+              <div style={{ fontSize:'12px', color:'#9ca3af', textAlign:'center', padding:'8px' }}>불러오는 중...</div>
+            ) : (
+              <>
+                {/* 드롭다운 선택 */}
+                <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                  {/* 교구(로봇) 선택 */}
+                  <select value={selProductId} onChange={e => {
+                    setSelProductId(e.target.value)
+                    const stages = [...new Set(partsData.filter(p => p.productId === e.target.value).map(p => Number(p.stage)))].sort((a,b)=>a-b)
+                    setSelStage(stages[0] || '')
+                    setSelPartId('')
+                    setAddingNew(false)
+                  }}
+                    style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    <option value="">-- 교구 선택 --</option>
+                    {[...new Set(activeStudents.map(s => spItems.find(i => i.studentId === s.id && i.classId === cls.id)?.productId).filter(Boolean))].map(pid => {
+                      const prod = spProds.find(p => p.id === pid)
+                      return <option key={pid} value={pid}>{prod?.name || pid}</option>
+                    })}
+                  </select>
+
+                  {/* 단계 선택 */}
+                  {selProductId && (
+                    <select value={selStage} onChange={e => {
+                      setSelStage(Number(e.target.value))
+                      setSelPartId('')
+                      setAddingNew(false)
+                    }}
+                      style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      <option value="">-- 단계 선택 --</option>
+                      {[...new Set(partsData.filter(p => p.productId === selProductId).map(p => Number(p.stage)))].sort((a,b)=>a-b).map(st => (
+                        <option key={st} value={st}>{st}단계</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* 부품 선택 */}
+                  {selProductId && selStage !== '' && (
+                    <select value={selPartId} onChange={e => {
+                      setSelPartId(e.target.value)
+                      setAddingNew(e.target.value === '__new__')
+                      setNewPartName('')
+                    }}
+                      style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      <option value="">-- 부품 선택 --</option>
+                      {partsData.filter(p => p.productId === selProductId && Number(p.stage) === Number(selStage)).map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                      <option value="__new__">+ 새 부품 직접 입력</option>
+                    </select>
+                  )}
+
+                  {/* 새 부품 직접 입력 */}
+                  {addingNew && (
+                    <input value={newPartName} onChange={e => setNewPartName(e.target.value)}
+                      placeholder="새 부품명 입력"
+                      style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', borderRadius:'7px', border:'1px solid #f59e0b', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }} />
+                  )}
+
+                  {/* 수량 + 추가 */}
+                  {(selPartId && selPartId !== '__new__' || (addingNew && newPartName.trim())) && (
+                    <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                      <span style={{ fontSize:'12px', color:'#6b7280', whiteSpace:'nowrap' }}>수량</span>
+                      <input type="number" min={1} value={selQty} onChange={e => setSelQty(Math.max(1, Number(e.target.value)))}
+                        style={{ width:'60px', padding:'7px 8px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif' }} />
+                      <button onClick={async () => {
+                        const prod = spProds.find(p => p.id === selProductId)
+                        let partName = ''
+                        let partId = selPartId
+
+                        if (addingNew) {
+                          // 새 부품 Supabase에 저장 후 목록 갱신
+                          try {
+                            const newRow = await SupplyParts.insert({ productId: selProductId, stage: Number(selStage), name: newPartName.trim() })
+                            partId = newRow.id
+                            partName = newPartName.trim()
+                            const updated = await SupplyParts.byProduct(selProductId)
+                            setPartsData(prev => [...prev.filter(p => p.productId !== selProductId), ...updated])
+                            setAddingNew(false)
+                            setSelPartId(newRow.id)
+                          } catch(e) { return }
+                        } else {
+                          partName = partsData.find(p => p.id === selPartId)?.name || ''
+                        }
+
+                        setOrderList(prev => {
+                          const existing = prev.find(o => o.partId === partId)
+                          if (existing) return prev.map(o => o.partId === partId ? { ...o, qty: o.qty + selQty } : o)
+                          return [...prev, { productId: selProductId, productName: prod?.name || '', stage: Number(selStage), partId, partName, qty: selQty }]
+                        })
+                        setSelQty(1)
+                        setNewPartName('')
+                      }}
+                        style={{ flex:1, padding:'7px', borderRadius:'7px', background:'#78716c', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                        목록에 추가
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 주문 목록 */}
+                {orderList.length > 0 && (
+                  <div style={{ background:'#f9fafb', borderRadius:'8px', padding:'10px', display:'flex', flexDirection:'column', gap:'5px' }}>
+                    <div style={{ fontSize:'11px', fontWeight:700, color:'#374151', marginBottom:'3px' }}>📋 주문 목록</div>
+                    {orderList.map((o, i) => (
+                      <div key={i} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', background:'#fff', borderRadius:'6px', border:'1px solid #e5e7eb' }}>
+                        <div style={{ flex:1 }}>
+                          <span style={{ fontSize:'11px', color:'#6b7280' }}>{o.productName} {o.stage}단계 · </span>
+                          <span style={{ fontSize:'12px', color:'#1c1917', fontWeight:600 }}>{o.partName}</span>
+                        </div>
+                        <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+                          <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, qty: Math.max(1, x.qty-1)} : x))}
+                            style={{ width:'20px', height:'20px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'12px', cursor:'pointer', lineHeight:1, padding:0 }}>-</button>
+                          <span style={{ fontSize:'12px', fontWeight:700, minWidth:'20px', textAlign:'center' }}>{o.qty}</span>
+                          <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, qty: x.qty+1} : x))}
+                            style={{ width:'20px', height:'20px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'12px', cursor:'pointer', lineHeight:1, padding:0 }}>+</button>
+                          <button onClick={() => setOrderList(prev => prev.filter((_,j) => j!==i))}
+                            style={{ background:'none', border:'none', color:'#ef4444', fontSize:'13px', cursor:'pointer', padding:'0 2px' }}>✕</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 메모 섹션 — 항상 표시 */}
