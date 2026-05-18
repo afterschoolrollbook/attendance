@@ -2937,8 +2937,8 @@ export function Dashboard({ user, onNav }) {
                   {g.items.map((o, i) => (
                     <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', borderTop: i > 0 ? '1px solid #f0fdf4' : 'none' }}>
                       <span style={{ fontSize:'12px', color:'#374151' }}>{o.stage}단계 · {o.partName}</span>
+                      {o.memo && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{o.memo}</span>}
                       <span style={{ marginLeft:'auto', fontSize:'13px', fontWeight:800, color:'#15803d' }}>{o.qty}개</span>
-                      {o.memo && <span style={{ fontSize:'11px', color:'#6b7280' }}>{o.memo}</span>}
                     </div>
                   ))}
                 </div>
