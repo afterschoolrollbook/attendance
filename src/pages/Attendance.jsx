@@ -91,7 +91,6 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
     } else {
       LessonMemos.insert({ id: uid(), teacherId: cls.teacherId, classId: cls.id, date, content, createdAt: now() })
     }
-    success('주문 목록이 저장되었습니다')
   }
   const _setOrderList = (updater) => {
     const prev = orderListRef.current
@@ -576,6 +575,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                         setAddingNew(false)
                         setSelPartId(newRow.id)
                         setNewPartName('')
+                        success('부품이 등록되었습니다')
                       } catch(e) { }
                     }}
                       style={{ width:'100%', padding:'7px', borderRadius:'7px', background:'#f59e0b', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
@@ -595,6 +595,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                           return [...prev, { productId: selProductId, productName: prod?.name || '', stage: Number(selStage), partId: selPartId, partName, qty: selQty }]
                         })
                         setSelQty(1)
+                        success('목록에 추가되었습니다')
                       }}
                         style={{ flex:1, padding:'7px', borderRadius:'7px', background:'#78716c', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                         목록에 추가
@@ -622,7 +623,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                             title="메모" style={{ fontSize:'14px', lineHeight:1, color: o.memo ? '#f59e0b' : '#d1d5db', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>🗒️</button>
                           <button onClick={() => upd({ _edit: !o._edit, _memoEdit: false, _editProductId: o.productId, _editStage: o.stage, _editPartId: o.partId })}
                             title="수정" style={{ fontSize:'13px', lineHeight:1, color: o._edit ? '#3b82f6' : '#9ca3af', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>✏️</button>
-                          <button onClick={() => _setOrderList(prev => prev.filter((_,j) => j!==i))}
+                          <button onClick={() => { _setOrderList(prev => prev.filter((_,j) => j!==i)); success('삭제되었습니다') }}
                             title="삭제" style={{ fontSize:'13px', lineHeight:1, color:'#fca5a5', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>✕</button>
                         </div>
                         {o._memoEdit && (
@@ -695,6 +696,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                                 stage: editStage || o.stage, partId: editPartId || o.partId, partName,
                                 _edit: false, _editProductId: undefined, _editStage: undefined, _editPartId: undefined,
                               })
+                              success('저장되었습니다')
                             }} style={{ padding:'6px', borderRadius:'6px', background:'#3b82f6', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                               확인
                             </button>
