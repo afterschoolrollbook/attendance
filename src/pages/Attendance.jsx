@@ -441,7 +441,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
             setPartsOpen(v => !v)
           }}
             style={{ padding:'3px 10px', borderRadius:'6px', border:'1px solid #d6d3d1', background: partsOpen ? '#f5f5f4' : '#fff', color:'#78716c', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {partsOpen ? '닫기' : '+ 추가'}
+            {partsOpen ? '닫기' : '📝 기록'}
           </button>
         </div>
 
@@ -496,14 +496,14 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                       {partsData.filter(p => p.productId === selProductId && Number(p.stage) === Number(selStage)).map(p => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
-                      <option value="__new__">+ 새 부품 직접 입력</option>
+                      <option value="__new__">+ 새 부품 등록</option>
                     </select>
                   )}
 
-                  {/* 새 부품 직접 입력 */}
+                  {/* 새 부품 등록 */}
                   {addingNew && (
                     <input value={newPartName} onChange={e => setNewPartName(e.target.value)}
-                      placeholder="새 부품명 입력"
+                      placeholder="등록할 부품명 입력"
                       style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', borderRadius:'7px', border:'1px solid #f59e0b', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }} />
                   )}
 
@@ -550,23 +550,30 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
 
                 {/* 주문 목록 */}
                 {orderList.length > 0 && (
-                  <div style={{ background:'#f9fafb', borderRadius:'8px', padding:'10px', display:'flex', flexDirection:'column', gap:'5px' }}>
+                  <div style={{ background:'#f9fafb', borderRadius:'8px', padding:'10px', display:'flex', flexDirection:'column', gap:'6px' }}>
                     <div style={{ fontSize:'11px', fontWeight:700, color:'#374151', marginBottom:'3px' }}>📋 주문 목록</div>
                     {orderList.map((o, i) => (
-                      <div key={i} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', background:'#fff', borderRadius:'6px', border:'1px solid #e5e7eb' }}>
-                        <div style={{ flex:1 }}>
-                          <span style={{ fontSize:'11px', color:'#6b7280' }}>{o.productName} {o.stage}단계 · </span>
-                          <span style={{ fontSize:'12px', color:'#1c1917', fontWeight:600 }}>{o.partName}</span>
+                      <div key={i} style={{ background:'#fff', borderRadius:'6px', border:'1px solid #e5e7eb', padding:'7px 8px', display:'flex', flexDirection:'column', gap:'5px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                          <div style={{ flex:1 }}>
+                            <span style={{ fontSize:'11px', color:'#6b7280' }}>{o.productName} {o.stage}단계 · </span>
+                            <span style={{ fontSize:'12px', color:'#1c1917', fontWeight:600 }}>{o.partName}</span>
+                          </div>
+                          <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+                            <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, qty: Math.max(1, x.qty-1)} : x))}
+                              style={{ width:'20px', height:'20px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'12px', cursor:'pointer', lineHeight:1, padding:0 }}>-</button>
+                            <span style={{ fontSize:'12px', fontWeight:700, minWidth:'20px', textAlign:'center' }}>{o.qty}</span>
+                            <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, qty: x.qty+1} : x))}
+                              style={{ width:'20px', height:'20px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'12px', cursor:'pointer', lineHeight:1, padding:0 }}>+</button>
+                            <button onClick={() => setOrderList(prev => prev.filter((_,j) => j!==i))}
+                              style={{ background:'none', border:'none', color:'#ef4444', fontSize:'13px', cursor:'pointer', padding:'0 2px' }}>✕</button>
+                          </div>
                         </div>
-                        <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
-                          <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, qty: Math.max(1, x.qty-1)} : x))}
-                            style={{ width:'20px', height:'20px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'12px', cursor:'pointer', lineHeight:1, padding:0 }}>-</button>
-                          <span style={{ fontSize:'12px', fontWeight:700, minWidth:'20px', textAlign:'center' }}>{o.qty}</span>
-                          <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, qty: x.qty+1} : x))}
-                            style={{ width:'20px', height:'20px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'12px', cursor:'pointer', lineHeight:1, padding:0 }}>+</button>
-                          <button onClick={() => setOrderList(prev => prev.filter((_,j) => j!==i))}
-                            style={{ background:'none', border:'none', color:'#ef4444', fontSize:'13px', cursor:'pointer', padding:'0 2px' }}>✕</button>
-                        </div>
+                        <input
+                          value={o.memo || ''}
+                          onChange={e => setOrderList(prev => prev.map((x,j) => j===i ? {...x, memo: e.target.value} : x))}
+                          placeholder={`메모 (예: ${o.productName} ${o.stage}단계 AS 요청)`}
+                          style={{ width:'100%', boxSizing:'border-box', padding:'5px 8px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'11px', color:'#374151', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#f9fafb' }} />
                       </div>
                     ))}
                   </div>
