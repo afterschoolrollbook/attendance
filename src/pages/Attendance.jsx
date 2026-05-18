@@ -59,7 +59,6 @@ function localDateStr(d) {
 
 // ─── 수업 메모장 패널
 function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, spGiven, onProgOpen, onOpenScreen }) {
-  const { success, error: toastError } = useToast()
   const [memos, setMemos] = useState(() => cls ? LessonMemos.byClassDate(cls.id, date) : [])
   const [memoText, setMemoText] = useState('')
   // 부품 주문 메모
@@ -512,14 +511,12 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                     <button onClick={async () => {
                       try {
                         const newRow = await SupplyParts.insert({ productId: selProductId, stage: Number(selStage), name: newPartName.trim() })
-                        if (!newRow) throw new Error('insert 결과 없음')
                         const updated = await SupplyParts.byProduct(selProductId)
                         setPartsData(prev => [...prev.filter(p => p.productId !== selProductId), ...updated])
                         setAddingNew(false)
                         setSelPartId(newRow.id)
                         setNewPartName('')
-                        success('부품이 등록되었습니다')
-                      } catch(e) { toastError(e.message || '부품 등록 실패') }
+                      } catch(e) { }
                     }}
                       style={{ width:'100%', padding:'7px', borderRadius:'7px', background:'#f59e0b', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                       부품 등록
@@ -548,30 +545,35 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
 
                 {/* 주문 목록 */}
                 {orderList.length > 0 && (
-                  <div style={{ background:'#f9fafb', borderRadius:'8px', padding:'10px', display:'flex', flexDirection:'column', gap:'6px' }}>
+                  <div style={{ background:'#f9fafb', borderRadius:'8px', padding:'10px', display:'flex', flexDirection:'column', gap:'4px' }}>
                     <div style={{ fontSize:'11px', fontWeight:700, color:'#374151', marginBottom:'3px' }}>📋 주문 목록</div>
                     {orderList.map((o, i) => (
-                      <div key={i} style={{ background:'#fff', borderRadius:'6px', border:'1px solid #e5e7eb', padding:'7px 8px', display:'flex', flexDirection:'column', gap:'5px' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                          <div style={{ flex:1 }}>
-                            <span style={{ fontSize:'11px', color:'#6b7280' }}>{o.productName} {o.stage}단계 · </span>
-                            <span style={{ fontSize:'12px', color:'#1c1917', fontWeight:600 }}>{o.partName}</span>
-                          </div>
-                          <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
-                            <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, qty: Math.max(1, x.qty-1)} : x))}
-                              style={{ width:'20px', height:'20px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'12px', cursor:'pointer', lineHeight:1, padding:0 }}>-</button>
-                            <span style={{ fontSize:'12px', fontWeight:700, minWidth:'20px', textAlign:'center' }}>{o.qty}</span>
-                            <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, qty: x.qty+1} : x))}
-                              style={{ width:'20px', height:'20px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'12px', cursor:'pointer', lineHeight:1, padding:0 }}>+</button>
-                            <button onClick={() => setOrderList(prev => prev.filter((_,j) => j!==i))}
-                              style={{ background:'none', border:'none', color:'#ef4444', fontSize:'13px', cursor:'pointer', padding:'0 2px' }}>✕</button>
-                          </div>
+                      <div key={i}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 6px', background:'#fff', borderRadius: o._edit ? '6px 6px 0 0' : '6px', border:'1px solid #e5e7eb' }}>
+                          <span style={{ flex:1, fontSize:'12px', color:'#1c1917' }}>
+                            {o.productName} · {o.stage}단계 · {o.partName} · <b>{o.qty}개</b>
+                            {o.memo && <span style={{ color:'#6b7280' }}> · {o.memo}</span>}
+                          </span>
+                          <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, _edit: !x._edit} : x))}
+                            style={{ fontSize:'11px', color:'#3b82f6', background:'none', border:'none', cursor:'pointer', padding:'0 2px' }}>수정</button>
+                          <button onClick={() => setOrderList(prev => prev.filter((_,j) => j!==i))}
+                            style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', padding:'0 2px' }}>삭제</button>
                         </div>
-                        <input
-                          value={o.memo || ''}
-                          onChange={e => setOrderList(prev => prev.map((x,j) => j===i ? {...x, memo: e.target.value} : x))}
-                          placeholder={`메모 (예: ${o.productName} ${o.stage}단계 AS 요청)`}
-                          style={{ width:'100%', boxSizing:'border-box', padding:'5px 8px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'11px', color:'#374151', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#f9fafb' }} />
+                        {o._edit && (
+                          <div style={{ padding:'7px 8px', background:'#fffbeb', borderRadius:'0 0 6px 6px', border:'1px solid #fde68a', borderTop:'none', display:'flex', flexDirection:'column', gap:'5px' }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+                              <span style={{ fontSize:'11px', color:'#6b7280' }}>수량</span>
+                              <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, qty: Math.max(1, x.qty-1)} : x))}
+                                style={{ width:'20px', height:'20px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'12px', cursor:'pointer', lineHeight:1, padding:0 }}>-</button>
+                              <span style={{ fontSize:'12px', fontWeight:700, minWidth:'20px', textAlign:'center' }}>{o.qty}</span>
+                              <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, qty: x.qty+1} : x))}
+                                style={{ width:'20px', height:'20px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'12px', cursor:'pointer', lineHeight:1, padding:0 }}>+</button>
+                            </div>
+                            <input value={o.memo || ''} onChange={e => setOrderList(prev => prev.map((x,j) => j===i ? {...x, memo: e.target.value} : x))}
+                              placeholder="메모 입력"
+                              style={{ width:'100%', boxSizing:'border-box', padding:'5px 8px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
