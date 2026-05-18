@@ -311,7 +311,7 @@ export function Students({ user, onNav }) {
   // 취소 모달
   const [cancelModal,  setCancelModal]  = useState(false)
   const [cancelTarget, setCancelTarget] = useState(null) // { id, name, pendingStatus }
-  const [cancelForm,   setCancelForm]   = useState({ type: 'before', date: '', memo: '' })
+  const [cancelForm,   setCancelForm]   = useState({ type: 'before', date: '', memo: '', termNum: null })
   const refresh = () => setTick(t => t + 1)
 
   // 현재 학기 자동 계산
@@ -644,7 +644,7 @@ export function Students({ user, onNav }) {
         StudentsDB.update(editId, saveData)
         setShowModal(false)
         setCancelTarget({ id: editId, name: saveData.name })
-        setCancelForm({ type: 'before', date: new Date().toISOString().slice(0,10), memo: '' })
+        setCancelForm({ type: 'before', date: new Date().toISOString().slice(0,10), memo: '', termNum: null })
         setCancelModal(true)
         refresh()
       } else {
@@ -1178,7 +1178,7 @@ export function Students({ user, onNav }) {
                             setPendingStatuses(p => ({...p, [s.id]: v}))
                             if (v === 'cancel_before' || v === 'cancel_after') {
                               setCancelTarget({ id: s.id, name: s.name, status: v })
-                              setCancelForm({ type: v === 'cancel_after' ? 'after' : 'before', date: new Date().toISOString().slice(0,10), memo: '' })
+                              setCancelForm({ type: v === 'cancel_after' ? 'after' : 'before', date: new Date().toISOString().slice(0,10), memo: '', termNum: null })
                             }
                           }}
                             style={{ padding: '4px 8px', borderRadius: '6px', border: `1.5px solid ${cfg.color}50`, background: cfg.bg, color: cfg.color, fontSize: '12px', fontWeight: 600, fontFamily: 'Noto Sans KR, sans-serif', cursor: 'pointer', outline: 'none' }}>
@@ -1197,6 +1197,22 @@ export function Students({ user, onNav }) {
                         {/* 취소 선택 시 인라인 날짜+메모 입력 */}
                         {cancelTarget?.id === s.id && (pendingStatuses[s.id] === 'cancel_before' || pendingStatuses[s.id] === 'cancel_after') && (
                           <div style={{ display:'flex', flexDirection:'column', gap:'5px', padding:'8px 10px', background:'#fef2f2', borderRadius:'8px', border:'1px solid #fca5a5' }}>
+                            {pendingStatuses[s.id] === 'cancel_after' && (() => {
+                              const cls = classes.find(c => s.classIds?.includes(c.id))
+                              const termSizes = cls?.periods?.length > 0
+                                ? cls.periods.flatMap(p => (p.termSizes?.length > 0) ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n)||4) : Array(Number(p.termCount)||1).fill(4))
+                                : (cls?.termSizes?.length > 0) ? cls.termSizes.slice(0, cls.termCount||cls.termSizes.length).map(n => Number(n)||4) : [cls?.termSize ? Number(cls.termSize) : 4]
+                              const totalTerms = termSizes.length
+                              return (
+                                <select value={cancelForm.termNum ?? ''} onChange={e => setCancelForm(f=>({...f, termNum: e.target.value ? Number(e.target.value) : null}))}
+                                  style={{ padding:'5px 8px', borderRadius:'6px', border:'1px solid #fca5a5', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
+                                  <option value=''>텀 선택</option>
+                                  {Array.from({ length: totalTerms }, (_, i) => (
+                                    <option key={i+1} value={i+1}>{i+1}텀</option>
+                                  ))}
+                                </select>
+                              )
+                            })()}
                             <input type="date" value={cancelForm.date} onChange={e => setCancelForm(f=>({...f, date:e.target.value}))}
                               style={{ padding:'5px 8px', borderRadius:'6px', border:'1px solid #fca5a5', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }} />
                             <textarea value={cancelForm.memo} onChange={e => setCancelForm(f=>({...f, memo:e.target.value}))}
@@ -1212,9 +1228,7 @@ export function Students({ user, onNav }) {
                                     type: cancelForm.type,
                                     date: cancelForm.date,
                                     memo: cancelForm.memo,
-                                    termNum: cancelForm.type === 'after'
-                                      ? computeTermNumForStudent(classes, st?.classIds, cancelForm.date)
-                                      : null,
+                                    termNum: cancelForm.termNum ?? null,
                                   },
                                   statusHistory: [...(st?.statusHistory||[]), { status: pendingStatuses[s.id], changedAt: now(), memo: `[${cancelForm.type==='after'?'개강후':'개강전'} 취소] ${cancelForm.date}${cancelForm.memo?' - '+cancelForm.memo:''}` }],
                                 })
@@ -1737,6 +1751,22 @@ export function Students({ user, onNav }) {
                 </select>
                 {(form.status === 'cancel_before' || form.status === 'cancel_after') && (
                   <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'5px' }}>
+                    {form.status === 'cancel_after' && (() => {
+                      const cls = classes.find(c => form.classIds?.includes(c.id))
+                      const termSizes = cls?.periods?.length > 0
+                        ? cls.periods.flatMap(p => (p.termSizes?.length > 0) ? p.termSizes.slice(0, p.termCount||p.termSizes.length).map(n => Number(n)||4) : Array(Number(p.termCount)||1).fill(4))
+                        : (cls?.termSizes?.length > 0) ? cls.termSizes.slice(0, cls.termCount||cls.termSizes.length).map(n => Number(n)||4) : [cls?.termSize ? Number(cls.termSize) : 4]
+                      const totalTerms = termSizes.length
+                      return (
+                        <select value={form.cancel_info?.termNum ?? ''} onChange={e => set('cancel_info', { ...form.cancel_info, termNum: e.target.value ? Number(e.target.value) : null })}
+                          style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #fca5a5', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
+                          <option value=''>텀 선택</option>
+                          {Array.from({ length: totalTerms }, (_, i) => (
+                            <option key={i+1} value={i+1}>{i+1}텀</option>
+                          ))}
+                        </select>
+                      )
+                    })()}
                     <input type="date" value={form.cancel_info?.date || new Date().toISOString().slice(0,10)}
                       onChange={e => set('cancel_info', { ...form.cancel_info, type: form.status==='cancel_after'?'after':'before', date: e.target.value, memo: form.cancel_info?.memo||'' })}
                       style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #fca5a5', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
@@ -1852,6 +1882,28 @@ export function Students({ user, onNav }) {
               style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
           </div>
 
+          {/* 개강후 취소 시 텀 선택 */}
+          {cancelForm.type === 'after' && (() => {
+            const s = StudentsDB.find(cancelTarget?.id)
+            const cls = classes.find(c => s?.classIds?.includes(c.id))
+            const termSizes = cls?.periods?.length > 0
+              ? cls.periods.flatMap(p => (p.termSizes?.length > 0) ? p.termSizes.slice(0, p.termCount||p.termSizes.length).map(n => Number(n)||4) : Array(Number(p.termCount)||1).fill(4))
+              : (cls?.termSizes?.length > 0) ? cls.termSizes.slice(0, cls.termCount||cls.termSizes.length).map(n => Number(n)||4) : [cls?.termSize ? Number(cls.termSize) : 4]
+            const totalTerms = termSizes.length
+            return (
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', display:'block', marginBottom:'6px' }}>취소 텀</label>
+                <select value={cancelForm.termNum ?? ''} onChange={e => setCancelForm(f => ({ ...f, termNum: e.target.value ? Number(e.target.value) : null }))}
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
+                  <option value=''>텀 선택</option>
+                  {Array.from({ length: totalTerms }, (_, i) => (
+                    <option key={i+1} value={i+1}>{i+1}텀</option>
+                  ))}
+                </select>
+              </div>
+            )
+          })()}
+
           {/* 메모 */}
           <div>
             <label style={{ fontSize:'12px', fontWeight:600, color:'#374151', display:'block', marginBottom:'6px' }}>메모</label>
@@ -1871,9 +1923,7 @@ export function Students({ user, onNav }) {
                   type: cancelForm.type,
                   date: cancelForm.date,
                   memo: cancelForm.memo,
-                  termNum: cancelForm.type === 'after'
-                    ? computeTermNumForStudent(classes, s?.classIds, cancelForm.date)
-                    : null,
+                  termNum: cancelForm.termNum ?? null,
                 },
                 statusHistory: [...(s?.statusHistory || []), {
                   status: cancelTarget?.status || 'cancelled',
