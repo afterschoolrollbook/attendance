@@ -956,21 +956,14 @@ export const SchoolNoticeSubmits = {
 
 export const SupplyParts = {
   byProduct: async (productId) => {
-    const { supabase } = await import('./supabase.js')
-    const { data, error } = await supabase.from('supplyParts').select('*').eq('productId', productId)
-    if (error) throw new Error(error.message)
-    return data || []
+    const rows = await dbCall({ action: 'where', table: 'supplyParts', where: { productId } })
+    return rows || []
   },
   insert: async (r) => {
-    const { supabase } = await import('./supabase.js')
     const row = { ...r, id: r.id || uid(), createdAt: now() }
-    const { data, error } = await supabase.from('supplyParts').insert(row).select().single()
-    if (error) throw new Error(error.message)
-    return data
+    return await dbCall({ action: 'insert', table: 'supplyParts', data: row })
   },
   delete: async (id) => {
-    const { supabase } = await import('./supabase.js')
-    const { error } = await supabase.from('supplyParts').delete().eq('id', id)
-    if (error) throw new Error(error.message)
+    await dbCall({ action: 'delete', table: 'supplyParts', id })
   },
 }
