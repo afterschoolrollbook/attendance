@@ -2532,7 +2532,7 @@ export function Supplies({ user }) {
                                                     }).catch(() => setPartsList([])).finally(() => setPartsLoading(false))
                                                   }}
                                                     style={{ padding:'2px 8px', borderRadius:'12px', border:'1px solid #d6d3d1', background:'#f5f5f4', color:'#78716c', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                                                    🔧 {st}단계 신규 {cnt}종
+                                                    🔧 {st}단계 부품 {cnt}종
                                                   </button>
                                                 )
                                               })}
@@ -3978,7 +3978,7 @@ export function Supplies({ user }) {
                     const stagesFromPlans = planList.filter(pl => pl.productId === pid && (pl.fileType === 'session' || pl.type === 'session') && pl.stage).map(pl => Number(pl.stage))
                     const stagesFromProductPlans = productPlanList.filter(pl => pl.productId === pid).map(pl => Number(pl.stage))
                     const stages = [...new Set([...stagesFromProductPlans, ...stagesFromPlans])].sort((a,b)=>a-b)
-                    return (stages.length > 0 ? stages : [1]).map(s => <option key={s} value={s}>{s}단계 신규</option>)
+                    return (stages.length > 0 ? stages : [1]).map(s => <option key={s} value={s}>{s}단계</option>)
                   })()}
                 </select>
                 <button onClick={async () => {
@@ -4047,7 +4047,7 @@ export function Supplies({ user }) {
                             const items = myParts.filter(pt => Number(pt.stage) === st)
                             return (
                               <div key={st}>
-                                <div style={{ fontSize:'11px', fontWeight:700, color:'#78716c', marginBottom:'4px' }}>{st}단계 신규</div>
+                                <div style={{ fontSize:'11px', fontWeight:700, color:'#78716c', marginBottom:'4px' }}>{st}단계</div>
                                 {items.map(pt => (
                                   <div key={pt.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
                                     padding:'6px 10px', borderRadius:'7px', background:'#f5f5f4', marginBottom:'3px' }}>
@@ -4078,7 +4078,7 @@ export function Supplies({ user }) {
                           return (
                             <div key={st}>
                               <div style={{ fontSize:'11px', fontWeight:700, color: isCurrent ? '#1d4ed8' : '#93c5fd', marginBottom:'4px' }}>
-                                {st}단계 신규 {isCurrent ? '(이번 단계)' : ''}
+                                {st}단계 {isCurrent ? '(이번 단계)' : ''}
                               </div>
                               {items.map(pt => (
                                 <div key={pt.id} style={{ display:'flex', alignItems:'center',
