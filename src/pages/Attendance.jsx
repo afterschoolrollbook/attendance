@@ -547,35 +547,99 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                 {orderList.length > 0 && (
                   <div style={{ background:'#f9fafb', borderRadius:'8px', padding:'10px', display:'flex', flexDirection:'column', gap:'4px' }}>
                     <div style={{ fontSize:'11px', fontWeight:700, color:'#374151', marginBottom:'3px' }}>📋 주문 목록</div>
-                    {orderList.map((o, i) => (
+                    {orderList.map((o, i) => {
+                      const editPid   = o._editProductId   ?? o.productId
+                      const editStage = o._editStage       ?? o.stage
+                      const editPartId= o._editPartId      ?? o.partId
+                      const upd = (patch) => setOrderList(prev => prev.map((x,j) => j===i ? {...x, ...patch} : x))
+                      return (
                       <div key={i}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 6px', background:'#fff', borderRadius: o._edit ? '6px 6px 0 0' : '6px', border:'1px solid #e5e7eb' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'4px', padding:'5px 6px', background:'#fff', borderRadius: (o._edit || o._memoEdit) ? '6px 6px 0 0' : '6px', border:'1px solid #e5e7eb' }}>
                           <span style={{ flex:1, fontSize:'12px', color:'#1c1917' }}>
                             {o.productName} · {o.stage}단계 · {o.partName} · <b>{o.qty}개</b>
-                            {o.memo && <span style={{ color:'#6b7280' }}> · {o.memo}</span>}
                           </span>
-                          <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, _edit: !x._edit} : x))}
-                            style={{ fontSize:'11px', color:'#3b82f6', background:'none', border:'none', cursor:'pointer', padding:'0 2px' }}>수정</button>
+                          <button onClick={() => upd({ _memoEdit: !o._memoEdit, _edit: false })}
+                            title="메모" style={{ fontSize:'14px', lineHeight:1, color: o.memo ? '#f59e0b' : '#d1d5db', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>🗒️</button>
+                          <button onClick={() => upd({ _edit: !o._edit, _memoEdit: false, _editProductId: o.productId, _editStage: o.stage, _editPartId: o.partId })}
+                            title="수정" style={{ fontSize:'13px', lineHeight:1, color: o._edit ? '#3b82f6' : '#9ca3af', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>✏️</button>
                           <button onClick={() => setOrderList(prev => prev.filter((_,j) => j!==i))}
-                            style={{ fontSize:'11px', color:'#ef4444', background:'none', border:'none', cursor:'pointer', padding:'0 2px' }}>삭제</button>
+                            title="삭제" style={{ fontSize:'13px', lineHeight:1, color:'#fca5a5', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>✕</button>
                         </div>
-                        {o._edit && (
-                          <div style={{ padding:'7px 8px', background:'#fffbeb', borderRadius:'0 0 6px 6px', border:'1px solid #fde68a', borderTop:'none', display:'flex', flexDirection:'column', gap:'5px' }}>
-                            <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
-                              <span style={{ fontSize:'11px', color:'#6b7280' }}>수량</span>
-                              <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, qty: Math.max(1, x.qty-1)} : x))}
-                                style={{ width:'20px', height:'20px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'12px', cursor:'pointer', lineHeight:1, padding:0 }}>-</button>
-                              <span style={{ fontSize:'12px', fontWeight:700, minWidth:'20px', textAlign:'center' }}>{o.qty}</span>
-                              <button onClick={() => setOrderList(prev => prev.map((x,j) => j===i ? {...x, qty: x.qty+1} : x))}
-                                style={{ width:'20px', height:'20px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'12px', cursor:'pointer', lineHeight:1, padding:0 }}>+</button>
-                            </div>
-                            <input value={o.memo || ''} onChange={e => setOrderList(prev => prev.map((x,j) => j===i ? {...x, memo: e.target.value} : x))}
-                              placeholder="메모 입력"
+                        {o._memoEdit && (
+                          <div style={{ padding:'7px 8px', background:'#fffbeb', borderRadius:'0 0 6px 6px', border:'1px solid #fde68a', borderTop:'none', display:'flex', flexDirection:'column', gap:'4px' }}>
+                            {o.memo && <div style={{ fontSize:'11px', color:'#92400e', padding:'2px 4px' }}>{o.memo}</div>}
+                            <input value={o.memo || ''} onChange={e => upd({ memo: e.target.value })}
+                              placeholder="메모 입력" autoFocus
                               style={{ width:'100%', boxSizing:'border-box', padding:'5px 8px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
                           </div>
                         )}
+                        {o._edit && (
+                          <div style={{ padding:'8px', background:'#f0f9ff', borderRadius:'0 0 6px 6px', border:'1px solid #bae6fd', borderTop:'none', display:'flex', flexDirection:'column', gap:'6px' }}>
+                            {/* 교구 */}
+                            <select value={editPid} onChange={async e => {
+                              const pid = e.target.value
+                              try {
+                                const rows = await SupplyParts.byProduct(pid)
+                                setPartsData(prev => [...prev.filter(p => p.productId !== pid), ...(rows || [])])
+                              } catch(e) {}
+                              upd({ _editProductId: pid, _editStage: '', _editPartId: '' })
+                            }} style={{ width:'100%', padding:'6px 8px', borderRadius:'6px', border:'1px solid #bae6fd', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
+                              <option value="">-- 교구 선택 --</option>
+                              {[...new Set(activeStudents.map(s => spItems.find(ii => ii.studentId === s.id && ii.classId === cls.id)?.productId).filter(Boolean))].map(pid => {
+                                const prod = spProds.find(p => p.id === pid)
+                                return <option key={pid} value={pid}>{prod?.name || pid}</option>
+                              })}
+                            </select>
+                            {/* 단계 */}
+                            {editPid && (
+                              <select value={editStage} onChange={e => upd({ _editStage: Number(e.target.value), _editPartId: '' })}
+                                style={{ width:'100%', padding:'6px 8px', borderRadius:'6px', border:'1px solid #bae6fd', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                <option value="">-- 단계 선택 --</option>
+                                {(() => {
+                                  const fromPlans = SupplyPlans.byProduct(editPid).filter(pl => (pl.fileType==='session'||pl.type==='session') && pl.stage).map(pl => Number(pl.stage))
+                                  const fromProductPlans = SupplyProductPlans.byProduct(editPid).map(pl => Number(pl.stage))
+                                  return [...new Set([...fromProductPlans, ...fromPlans])].sort((a,b)=>a-b).map(st => (
+                                    <option key={st} value={st}>{st}단계</option>
+                                  ))
+                                })()}
+                              </select>
+                            )}
+                            {/* 부품 */}
+                            {editPid && editStage !== '' && (
+                              <select value={editPartId} onChange={e => upd({ _editPartId: e.target.value })}
+                                style={{ width:'100%', padding:'6px 8px', borderRadius:'6px', border:'1px solid #bae6fd', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                <option value="">-- 부품 선택 --</option>
+                                {partsData.filter(p => p.productId === editPid && Number(p.stage) === Number(editStage)).map(p => (
+                                  <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                              </select>
+                            )}
+                            {/* 수량 */}
+                            <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+                              <span style={{ fontSize:'11px', color:'#6b7280' }}>수량</span>
+                              <button onClick={() => upd({ qty: Math.max(1, o.qty - 1) })}
+                                style={{ width:'22px', height:'22px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'13px', cursor:'pointer', lineHeight:1, padding:0 }}>-</button>
+                              <span style={{ fontSize:'12px', fontWeight:700, minWidth:'24px', textAlign:'center' }}>{o.qty}</span>
+                              <button onClick={() => upd({ qty: o.qty + 1 })}
+                                style={{ width:'22px', height:'22px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'13px', cursor:'pointer', lineHeight:1, padding:0 }}>+</button>
+                            </div>
+                            {/* 확인 */}
+                            <button onClick={() => {
+                              const prod = spProds.find(p => p.id === editPid)
+                              const partName = partsData.find(p => p.id === editPartId)?.name || o.partName
+                              upd({
+                                productId: editPid, productName: prod?.name || o.productName,
+                                stage: editStage || o.stage, partId: editPartId || o.partId, partName,
+                                _edit: false, _editProductId: undefined, _editStage: undefined, _editPartId: undefined,
+                              })
+                            }} style={{ padding:'6px', borderRadius:'6px', background:'#3b82f6', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                              확인
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </>
