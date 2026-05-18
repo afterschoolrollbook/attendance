@@ -961,6 +961,16 @@ export const SupplyParts = {
     if (error) throw new Error(error.message)
     return data || []
   },
-  insert: (r) => db.insert('supplyParts', { ...r, id: r.id || uid() }),
-  delete: (id) => db.delete('supplyParts', id),
+  insert: async (r) => {
+    const { supabase } = await import('./supabase.js')
+    const row = { ...r, id: r.id || uid(), createdAt: now() }
+    const { data, error } = await supabase.from('supplyParts').insert(row).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  },
+  delete: async (id) => {
+    const { supabase } = await import('./supabase.js')
+    const { error } = await supabase.from('supplyParts').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+  },
 }
