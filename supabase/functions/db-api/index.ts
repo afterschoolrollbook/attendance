@@ -173,7 +173,7 @@ serve(async (req) => {
     switch (action) {
       case 'getAll': {
         // _deleted 컬럼이 없는 테이블은 필터 없이 전체 조회
-        const NO_DELETED_TABLES = new Set(['hqVendorPrices', 'supplyGiven', 'supplySchoolPrices'])
+        const NO_DELETED_TABLES = new Set(['hqVendorPrices', 'supplyGiven', 'supplySchoolPrices', 'supplyParts'])
         let q = supabase.from(tbl).select('*')
         if (!NO_DELETED_TABLES.has(table)) {
           q = q.or('_deleted.is.null,_deleted.eq.false')
@@ -227,13 +227,17 @@ serve(async (req) => {
         break
       }
       case 'delete': {
-        // 물리 삭제 대신 소프트딜리트: _deleted=true + updatedAt 갱신
-        // → 다른 기기/재동기화 시에도 삭제 상태가 유지됨
-        const { error } = await supabase
-          .from(tbl)
-          .update({ _deleted: true, updatedAt: new Date().toISOString() })
-          .eq('id', id)
-        if (error) throw error
+        const NO_SOFT_DELETE = new Set(['supplyParts'])
+        if (NO_SOFT_DELETE.has(table)) {
+          const { error } = await supabase.from(tbl).delete().eq('id', id)
+          if (error) throw error
+        } else {
+          const { error } = await supabase
+            .from(tbl)
+            .update({ _deleted: true, updatedAt: new Date().toISOString() })
+            .eq('id', id)
+          if (error) throw error
+        }
         result = { deleted: true }
         break
       }
