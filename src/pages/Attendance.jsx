@@ -256,6 +256,38 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
               </div>
             )
           })()}
+          {/* 확인필요 리스트 — billingStatus === 'check' 인 SupplyGiven 기록 */}
+          {(() => {
+            const checkList = (spGiven || []).filter(g => {
+              if (g.classId !== cls?.id) return false
+              // 신규 모델(supplyStatus 있으면 status가 billing) + 구형 모델
+              const bs = g.supplyStatus != null
+                ? (g.status || 'none')
+                : (g.status === 'paid' ? 'paid' : g.status === 'billed' ? 'billed' : g.paymentStatus === 'unpaid' ? 'unpaid' : 'none')
+              return bs === 'check'
+            })
+            if (checkList.length === 0) return null
+            const byStudent = {}
+            checkList.forEach(g => {
+              const key = g.studentId || g.studentName
+              if (!byStudent[key]) byStudent[key] = { name: g.studentName, items: [] }
+              byStudent[key].items.push(g)
+            })
+            const entries = Object.values(byStudent)
+            return (
+              <div style={{ marginTop:'6px' }}>
+                <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', marginBottom:'5px' }}>🔍 확인필요 ({entries.length}명)</div>
+                {entries.map(({ name, items }) => (
+                  <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f3e8ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
+                    <span style={{ fontSize:'13px', fontWeight:700, color:'#7c3aed' }}>{name}</span>
+                    <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>
+                      {items.map(i => i.itemName || i.productName).filter(Boolean).join(', ')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
           {notCheckedToday.length > 0 && (
             <div>
               <div style={{ fontSize:'11px', fontWeight:700, color:'#9ca3af', marginBottom:'5px' }}>⬜ 미체크 ({notCheckedToday.length}명)</div>
