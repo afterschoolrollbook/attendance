@@ -262,16 +262,11 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
             })
             const extraEntries = Object.values(extraByStudent).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
 
-            // ── 6. 미입금 (billingStatus === 'unpaid' 또는 paymentStatus === 'unpaid', supplyStatus가 given인 경우)
+            // ── 6. 미입금: 신규모델(supplyStatus 있음) → status === 'unpaid', 구모델 → paymentStatus === 'unpaid'
             const unpaidPayRaw = (spGiven || []).filter(g => {
               if (g.classId !== cls?.id) return false
-              const ss = g.supplyStatus
-                ? g.supplyStatus
-                : (['billed','paid'].includes(g.status) ? 'given' : g.status) || 'given'
-              if (ss !== 'given') return false
-              // 입금 안된 케이스: billingStatus/paymentStatus 확인
-              const ps = g.billingStatus || g.paymentStatus || ''
-              return ps === 'unpaid'
+              if (g.supplyStatus != null) return g.status === 'unpaid'
+              return g.paymentStatus === 'unpaid'
             })
             const unpaidPayByStudent = {}
             unpaidPayRaw.forEach(g => {
@@ -284,9 +279,30 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
             // ── 7. 미체크 (가나다순)
             const notCheckedSorted = [...notCheckedToday].sort((a, b) => a.s.name.localeCompare(b.s.name, 'ko'))
 
-            // 가나다 순서로 섹션 렌더링: 교구지급 교구준비 미입금 미지급 미체크 추가지급 확인필요
+            // 순서: 미체크(항상펼침) → 교구지급 → 교구준비 → 미지급 → 추가지급 → 확인필요 → 미입금
             return (
               <>
+                {/* 미체크 — 접기 없이 항상 표시 */}
+                {notCheckedSorted.length > 0 && (
+                  <div style={{ marginTop:'6px' }}>
+                    <div style={{ fontSize:'11px', fontWeight:700, color:'#9ca3af', marginBottom:'5px' }}>⬜ 미체크 ({notCheckedSorted.length}명)</div>
+                    {groupByProductStage(notCheckedSorted).map(({ prod, curStage, items }) => (
+                      <div key={`${prod?.id}__${curStage}`} style={{ marginBottom:'5px' }}>
+                        <div style={{ fontSize:'10px', fontWeight:700, color:'#9ca3af', background:'#f3f4f6', borderRadius:'4px', padding:'1px 7px', display:'inline-block', marginBottom:'3px' }}>
+                          {prod?.name} {curStage}단계
+                        </div>
+                        {items.map(({ s, lastModelTitle }) => (
+                          <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
+                            style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f9fafb', border:'1px solid #e5e7eb', marginBottom:'3px', cursor:'pointer' }}>
+                            <span style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>{s.name}</span>
+                            {lastModelTitle && <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{lastModelTitle}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* 교구지급 */}
                 {todayGiven.length > 0 && (
                   <div style={{ marginTop:'6px' }}>
@@ -318,21 +334,6 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                   </div>
                 )}
 
-                {/* 미입금 */}
-                {unpaidPayEntries.length > 0 && (
-                  <div style={{ marginTop:'6px' }}>
-                    <SectionHeader sectionKey="미입금" label="💸 미입금" count={unpaidPayEntries.length} color="#0369a1" />
-                    {openSections['미입금'] && unpaidPayEntries.map(({ name, items }) => (
-                      <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#e0f2fe', border:'1px solid #7dd3fc', marginBottom:'4px' }}>
-                        <span style={{ fontSize:'13px', fontWeight:700, color:'#0369a1' }}>{name}</span>
-                        <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>
-                          {items.map(i => i.itemName || i.productName).filter(Boolean).join(', ')}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
                 {/* 미지급 */}
                 {unpaidEntries.length > 0 && (
                   <div style={{ marginTop:'6px' }}>
@@ -343,27 +344,6 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                         <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>
                           {items.map(i => i.itemName || i.productName).filter(Boolean).join(', ')}
                         </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* 미체크 */}
-                {notCheckedSorted.length > 0 && (
-                  <div style={{ marginTop:'6px' }}>
-                    <SectionHeader sectionKey="미체크" label="⬜ 미체크" count={notCheckedSorted.length} color="#9ca3af" />
-                    {openSections['미체크'] && groupByProductStage(notCheckedSorted).map(({ prod, curStage, items }) => (
-                      <div key={`${prod?.id}__${curStage}`} style={{ marginBottom:'5px' }}>
-                        <div style={{ fontSize:'10px', fontWeight:700, color:'#9ca3af', background:'#f3f4f6', borderRadius:'4px', padding:'1px 7px', display:'inline-block', marginBottom:'3px' }}>
-                          {prod?.name} {curStage}단계
-                        </div>
-                        {items.map(({ s, lastModelTitle }) => (
-                          <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
-                            style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f9fafb', border:'1px solid #e5e7eb', marginBottom:'3px', cursor:'pointer' }}>
-                            <span style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>{s.name}</span>
-                            {lastModelTitle && <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{lastModelTitle}</span>}
-                          </div>
-                        ))}
                       </div>
                     ))}
                   </div>
@@ -391,6 +371,21 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                     {openSections['확인필요'] && checkEntries.map(({ name, items }) => (
                       <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f3e8ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
                         <span style={{ fontSize:'13px', fontWeight:700, color:'#7c3aed' }}>{name}</span>
+                        <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>
+                          {items.map(i => i.itemName || i.productName).filter(Boolean).join(', ')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 미입금 — 주황색 */}
+                {unpaidPayEntries.length > 0 && (
+                  <div style={{ marginTop:'6px' }}>
+                    <SectionHeader sectionKey="미입금" label="💰 미입금" count={unpaidPayEntries.length} color="#ea580c" />
+                    {openSections['미입금'] && unpaidPayEntries.map(({ name, items }) => (
+                      <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#fff7ed', border:'1px solid #fdba74', marginBottom:'4px' }}>
+                        <span style={{ fontSize:'13px', fontWeight:700, color:'#ea580c' }}>{name}</span>
                         <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>
                           {items.map(i => i.itemName || i.productName).filter(Boolean).join(', ')}
                         </span>
