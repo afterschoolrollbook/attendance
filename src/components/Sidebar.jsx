@@ -1,4 +1,5 @@
 import React from 'react'
+import ReactDOM from 'react-dom'
 import { AdSlots } from '../lib/db.js'
 import { can, canAccessMenu, isMenuVisible, getMenuMinLevel, getLevelNames, LEVEL_COLORS } from '../constants/permissions.js'
 import { FEATURES } from '../constants/permissions.js'
@@ -73,6 +74,26 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
   const handleNav = (path) => { onNav(path); if (mobile) onClose?.() }
   const handleLogout = () => { onLogout(); if (mobile) onClose?.() }
 
+  const LockModal = lockModal ? ReactDOM.createPortal(
+    <div onClick={() => setLockModal(null)}
+      style={{ position:'fixed', inset:0, zIndex:999999, background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px', fontFamily:'Noto Sans KR, sans-serif' }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background:'#fff', borderRadius:'16px', padding:'32px 24px', maxWidth:'300px', width:'100%', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
+        <div style={{ fontSize:'40px', marginBottom:'12px' }}>🔒</div>
+        <div style={{ fontSize:'16px', fontWeight:700, color:'#111827', marginBottom:'10px' }}>접근 제한</div>
+        <div style={{ fontSize:'14px', color:'#6b7280', lineHeight:1.7, marginBottom:'24px' }}>
+          <strong style={{ color:'#f97316' }}>Lv.{lockModal.minLevel}</strong> 등급 이상 사용이 가능합니다.<br/>
+          관리자에게 문의해 주세요.
+        </div>
+        <button onClick={() => setLockModal(null)}
+          style={{ padding:'10px 32px', borderRadius:'10px', border:'none', background:'#f97316', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          확인
+        </button>
+      </div>
+    </div>,
+    document.body
+  ) : null
+
   const UserBadge = () => (
     <div style={{
       display:'inline-block', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'999px',
@@ -128,7 +149,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
 
   // ── 모바일
   if (mobile) return (
-    <>
+    <>{LockModal}
       {open && <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.55)' }} />}
       <aside style={{
         position:'fixed', top:0, left:open ? 0 : '-260px', zIndex:1100,
@@ -159,7 +180,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
   )
 
   // ── PC
-  return (
+  return (<>{LockModal}
     <aside style={{
       width:'220px', minWidth:'220px', background:'#18181b',
       display:'flex', flexDirection:'column', height:'100vh',
@@ -187,32 +208,14 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
         </div>
       )}
 
-      {/* 잠금 모달 */}
-      {lockModal && (
-        <div onClick={() => setLockModal(null)}
-          style={{ position:'fixed', inset:0, zIndex:99999, background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
-          <div onClick={e => e.stopPropagation()}
-            style={{ background:'#fff', borderRadius:'16px', padding:'32px 24px', maxWidth:'300px', width:'100%', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
-            <div style={{ fontSize:'40px', marginBottom:'12px' }}>🔒</div>
-            <div style={{ fontSize:'16px', fontWeight:700, color:'#111827', marginBottom:'10px' }}>접근 제한</div>
-            <div style={{ fontSize:'14px', color:'#6b7280', lineHeight:1.7, marginBottom:'24px' }}>
-              <strong style={{ color:'#f97316' }}>Lv.{lockModal.minLevel}</strong> 등급 이상 사용이 가능합니다.<br/>
-              관리자에게 문의해 주세요.
-            </div>
-            <button onClick={() => setLockModal(null)}
-              style={{ padding:'10px 32px', borderRadius:'10px', border:'none', background:'#f97316', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-              확인
-            </button>
-          </div>
-        </div>
-      )}
+
       <div style={{ padding:'12px 20px', borderTop:'1px solid #27272a' }}>
         <button onClick={onLogout} style={{ background:'none', border:'none', cursor:'pointer', color:'#71717a', fontSize:'14px', padding:'6px 0', display:'flex', alignItems:'center', gap:'8px', width:'100%', fontFamily:'Noto Sans KR, sans-serif' }}>
           <span>🚪</span> 로그아웃
         </button>
       </div>
     </aside>
-  )
+  </>) 
 }
 
 function NavItem({ item, active, onClick, accent, locked }) {
