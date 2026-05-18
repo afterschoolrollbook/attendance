@@ -869,16 +869,38 @@ function BranchPanel({ branches, setBranches, teachers }) {
 
 // ─── 레벨 관리 패널 ───────────────────────────────────────────────
 function LevelManagementPanel() {
+  const initSettings = () => {
+    const storedMin  = Settings.get('menuMinLevels') || {}
+    const storedVis  = Settings.get('menuVisible')   || {}
+    const result = {}
+    MENU_ITEMS.forEach(item => {
+      result[item.menuKey] = {
+        minLevel: storedMin[item.menuKey] ?? 1,
+        visible:  storedVis[item.menuKey] ?? true,
+      }
+    })
+    return result
+  }
+
   const [levelNames,   setLevelNames]   = React.useState(() => ({ ...DEFAULT_LEVEL_NAMES, ...(Settings.get('levelNames') || {}) }))
-  const [menuMinLevels, setMenuMinLevels] = React.useState(() => ({ ...DEFAULT_MENU_MIN_LEVELS, ...(Settings.get('menuMinLevels') || {}) }))
+  const [menuSettings, setMenuSettings] = React.useState(initSettings)
   const [saved, setSaved] = React.useState(false)
 
   const handleSave = () => {
-    Settings.set('levelNames', levelNames)
-    Settings.set('menuMinLevels', menuMinLevels)
+    const minLevels = {}, visible = {}
+    Object.entries(menuSettings).forEach(([k, v]) => {
+      minLevels[k] = v.minLevel
+      visible[k]   = v.visible
+    })
+    Settings.set('levelNames',    levelNames)
+    Settings.set('menuMinLevels', minLevels)
+    Settings.set('menuVisible',   visible)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
+
+  const setMenu = (menuKey, field, val) =>
+    setMenuSettings(p => ({ ...p, [menuKey]: { ...p[menuKey], [field]: val } }))
 
   const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', card:'#fff' }
 
@@ -905,29 +927,47 @@ function LevelManagementPanel() {
         </div>
       </div>
 
-      {/* ── 메뉴별 최소 레벨 설정 ── */}
+      {/* ── 메뉴별 레벨 + 보이기/가리기 설정 ── */}
       <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'24px' }}>
-        <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>📋 메뉴별 최소 레벨 설정</div>
-        <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>설정한 레벨 이상인 선생님만 해당 메뉴에 접근할 수 있습니다. (Lv.10 관리자는 항상 전체 접근)</div>
-        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+        <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>📋 메뉴별 레벨 · 표시 설정</div>
+        <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>
+          <strong>보이기</strong>: 메뉴가 보이지만 레벨 미달 시 클릭하면 안내 메시지 표시 &nbsp;·&nbsp;
+          <strong>가리기</strong>: 해당 레벨 이하 선생님에게 메뉴 자체가 안 보임
+        </div>
+        {/* 헤더 */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 160px 130px', gap:'8px', padding:'4px 14px 8px', fontSize:'11px', fontWeight:700, color:C.muted }}>
+          <span>메뉴</span><span style={{textAlign:'center'}}>최소 레벨</span><span style={{textAlign:'center'}}>표시</span>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
           {MENU_ITEMS.map(item => {
-            const minLv = menuMinLevels[item.menuKey] ?? 1
-            const lvColor = LEVEL_COLORS[minLv] || '#9ca3af'
+            const s = menuSettings[item.menuKey] || { minLevel:1, visible:true }
+            const lvColor = LEVEL_COLORS[s.minLevel] || '#9ca3af'
             return (
-              <div key={item.menuKey} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 14px', borderRadius:'10px', border:`1px solid ${C.border}`, background:'#fafafa' }}>
-                <span style={{ fontSize:'18px', width:'24px', textAlign:'center' }}>{item.icon}</span>
-                <span style={{ flex:1, fontSize:'14px', fontWeight:500, color:C.text }}>{item.label}</span>
-                <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                  <span style={{ fontSize:'12px', color:C.muted }}>최소</span>
-                  <select
-                    value={minLv}
-                    onChange={e => setMenuMinLevels(p => ({ ...p, [item.menuKey]: parseInt(e.target.value) }))}
-                    style={{ padding:'4px 8px', borderRadius:'8px', border:`1.5px solid ${lvColor}`, fontSize:'13px', fontWeight:700, color:lvColor, background:`${lvColor}11`, outline:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}
-                  >
-                    {Array.from({length:10}, (_,i) => i+1).map(lv => (
-                      <option key={lv} value={lv}>Lv.{lv} {levelNames[lv] || DEFAULT_LEVEL_NAMES[lv]}</option>
-                    ))}
-                  </select>
+              <div key={item.menuKey} style={{ display:'grid', gridTemplateColumns:'1fr 160px 130px', gap:'8px', alignItems:'center', padding:'10px 14px', borderRadius:'10px', border:`1px solid ${C.border}`, background:'#fafafa' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  <span style={{ fontSize:'16px', width:'22px', textAlign:'center' }}>{item.icon}</span>
+                  <span style={{ fontSize:'14px', fontWeight:500, color:C.text }}>{item.label}</span>
+                </div>
+                {/* 최소 레벨 선택 */}
+                <select
+                  value={s.minLevel}
+                  onChange={e => setMenu(item.menuKey, 'minLevel', parseInt(e.target.value))}
+                  style={{ padding:'5px 8px', borderRadius:'8px', border:`1.5px solid ${lvColor}`, fontSize:'12px', fontWeight:700, color:lvColor, background:`${lvColor}11`, outline:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}
+                >
+                  {Array.from({length:10}, (_,i) => i+1).map(lv => (
+                    <option key={lv} value={lv}>Lv.{lv} {levelNames[lv] || DEFAULT_LEVEL_NAMES[lv]}</option>
+                  ))}
+                </select>
+                {/* 보이기/가리기 */}
+                <div style={{ display:'flex', gap:'4px' }}>
+                  <button onClick={() => setMenu(item.menuKey, 'visible', true)}
+                    style={{ flex:1, padding:'5px 0', borderRadius:'6px', border:`1.5px solid ${s.visible ? '#16a34a' : '#e5e7eb'}`, background: s.visible ? '#f0fdf4' : '#f9fafb', color: s.visible ? '#16a34a' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    보이기
+                  </button>
+                  <button onClick={() => setMenu(item.menuKey, 'visible', false)}
+                    style={{ flex:1, padding:'5px 0', borderRadius:'6px', border:`1.5px solid ${!s.visible ? '#ef4444' : '#e5e7eb'}`, background: !s.visible ? '#fef2f2' : '#f9fafb', color: !s.visible ? '#ef4444' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    가리기
+                  </button>
                 </div>
               </div>
             )
