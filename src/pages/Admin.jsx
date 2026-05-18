@@ -5,7 +5,7 @@ import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard, useConfirm } from 
 import { useToast } from '../hooks/useToast.js'
 import { FUNCTIONS_BASE, sendEmail } from '../lib/supabase.js'
 import { supabase } from '../lib/supabase.js'
-import { LEVEL_NAMES, FEATURES, LEVEL_PERMISSIONS } from '../constants/permissions.js'
+import { LEVEL_NAMES, FEATURES, LEVEL_PERMISSIONS, DEFAULT_LEVEL_NAMES, MENU_ITEMS, DEFAULT_MENU_MIN_LEVELS, LEVEL_COLORS } from '../constants/permissions.js'
 
 const FEATURE_LABELS = {
   [FEATURES.MANAGE_CLASS]:      '수업 등록/수정/삭제',
@@ -866,6 +866,85 @@ function BranchPanel({ branches, setBranches, teachers }) {
 }
 
 
+
+// ─── 레벨 관리 패널 ───────────────────────────────────────────────
+function LevelManagementPanel() {
+  const [levelNames,   setLevelNames]   = React.useState(() => ({ ...DEFAULT_LEVEL_NAMES, ...(Settings.get('levelNames') || {}) }))
+  const [menuMinLevels, setMenuMinLevels] = React.useState(() => ({ ...DEFAULT_MENU_MIN_LEVELS, ...(Settings.get('menuMinLevels') || {}) }))
+  const [saved, setSaved] = React.useState(false)
+
+  const handleSave = () => {
+    Settings.set('levelNames', levelNames)
+    Settings.set('menuMinLevels', menuMinLevels)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', card:'#fff' }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:'28px' }}>
+
+      {/* ── 레벨 이름 설정 ── */}
+      <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'24px' }}>
+        <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'16px' }}>🎖️ 레벨 이름 설정</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:'12px' }}>
+          {Array.from({length:10}, (_,i) => i+1).map(lv => (
+            <div key={lv} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', borderRadius:'10px', border:`1.5px solid ${LEVEL_COLORS[lv]}44`, background:`${LEVEL_COLORS[lv]}0a` }}>
+              <div style={{ minWidth:'36px', height:'36px', borderRadius:'50%', background:LEVEL_COLORS[lv], display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:800, color:'#fff' }}>
+                {lv}
+              </div>
+              <input
+                value={levelNames[lv] || ''}
+                onChange={e => setLevelNames(p => ({ ...p, [lv]: e.target.value }))}
+                placeholder={DEFAULT_LEVEL_NAMES[lv]}
+                style={{ flex:1, border:'none', borderBottom:`1.5px solid ${LEVEL_COLORS[lv]}66`, background:'transparent', fontSize:'13px', fontWeight:600, color:C.text, outline:'none', padding:'2px 4px', fontFamily:'Noto Sans KR, sans-serif' }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── 메뉴별 최소 레벨 설정 ── */}
+      <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'24px' }}>
+        <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>📋 메뉴별 최소 레벨 설정</div>
+        <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>설정한 레벨 이상인 선생님만 해당 메뉴에 접근할 수 있습니다. (Lv.10 관리자는 항상 전체 접근)</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+          {MENU_ITEMS.map(item => {
+            const minLv = menuMinLevels[item.menuKey] ?? 1
+            const lvColor = LEVEL_COLORS[minLv] || '#9ca3af'
+            return (
+              <div key={item.menuKey} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 14px', borderRadius:'10px', border:`1px solid ${C.border}`, background:'#fafafa' }}>
+                <span style={{ fontSize:'18px', width:'24px', textAlign:'center' }}>{item.icon}</span>
+                <span style={{ flex:1, fontSize:'14px', fontWeight:500, color:C.text }}>{item.label}</span>
+                <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                  <span style={{ fontSize:'12px', color:C.muted }}>최소</span>
+                  <select
+                    value={minLv}
+                    onChange={e => setMenuMinLevels(p => ({ ...p, [item.menuKey]: parseInt(e.target.value) }))}
+                    style={{ padding:'4px 8px', borderRadius:'8px', border:`1.5px solid ${lvColor}`, fontSize:'13px', fontWeight:700, color:lvColor, background:`${lvColor}11`, outline:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}
+                  >
+                    {Array.from({length:10}, (_,i) => i+1).map(lv => (
+                      <option key={lv} value={lv}>Lv.{lv} {levelNames[lv] || DEFAULT_LEVEL_NAMES[lv]}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── 저장 버튼 ── */}
+      <div style={{ display:'flex', justifyContent:'flex-end' }}>
+        <button onClick={handleSave} style={{ padding:'12px 32px', borderRadius:'12px', border:'none', background: saved ? '#16a34a' : '#f97316', color:'#fff', fontSize:'15px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'background .2s' }}>
+          {saved ? '✅ 저장됨' : '💾 저장'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function Admin({ user: currentUser }) {
   const [tab, setTab] = useState('pending')
   const [branches, setBranches] = useState(() => Branches.all())
@@ -969,6 +1048,7 @@ export function Admin({ user: currentUser }) {
           { key: 'students', label: '학생 목록' },
           { key: 'branches', label: '지사 관리' },
           { key: 'stats',    label: '전체 통계' },
+          { key: 'levels',   label: '🎖️ 레벨 관리' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '10px 18px', border: 'none', cursor: 'pointer', background: 'none',
@@ -1134,6 +1214,10 @@ export function Admin({ user: currentUser }) {
           <StatCard label="오늘 출석 처리" value={stats.todayAttendance}  icon="📋"   color="#ef4444" />
         </div>
       )}
+
+
+      {/* ── 레벨 관리 탭 ── */}
+      {tab === 'levels' && <LevelManagementPanel />}
 
       {/* 이미지 라이트박스 */}
       {lightboxImg && (
