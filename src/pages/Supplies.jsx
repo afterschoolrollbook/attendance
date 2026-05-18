@@ -6,6 +6,7 @@ import {
   SupplyProducts, SupplyProductPlans, SupplyStudentProgress, SupplySessionChecks,
   SupplyGiven,
   SupplySchoolPrices,
+  SupplyParts,
   onDbChange,
   refreshTablesFromSupabase,
 } from '../lib/db.js'
@@ -2504,7 +2505,7 @@ export function Supplies({ user }) {
                                             setPartsNewName('')
                                             setPartsNewStage(1)
                                             setPartsLoading(true)
-                                            db.list('supplyParts', { productId: p.id }).then(rows => {
+                                            SupplyParts.byProduct(p.id).then(rows => {
                                               setPartsList(rows || [])
                                             }).catch(() => setPartsList([])).finally(() => setPartsLoading(false))
                                           }}
@@ -2526,7 +2527,7 @@ export function Supplies({ user }) {
                                                     setPartsNewName('')
                                                     setPartsNewStage(st)
                                                     setPartsLoading(true)
-                                                    db.list('supplyParts', { productId: p.id }).then(rows => {
+                                                    SupplyParts.byProduct(p.id).then(rows => {
                                                       setPartsList(rows || [])
                                                     }).catch(() => setPartsList([])).finally(() => setPartsLoading(false))
                                                   }}
@@ -3978,8 +3979,8 @@ export function Supplies({ user }) {
                   if (!partsNewName.trim()) return
                   const row = { productId: partsModal.product.id, stage: partsNewStage, name: partsNewName.trim() }
                   try {
-                    await db.insert('supplyParts', row)
-                    const rows = await db.list('supplyParts', { productId: partsModal.product.id })
+                    await SupplyParts.insert(row)
+                    const rows = await SupplyParts.byProduct(partsModal.product.id)
                     setPartsList(rows || [])
                     setPartsNewName('')
                     success('부품이 추가됐어요')
@@ -4033,8 +4034,8 @@ export function Supplies({ user }) {
                                     <span style={{ fontSize:'13px', color:'#1c1917', fontFamily:'Noto Sans KR, sans-serif' }}>{pt.name}</span>
                                     <button onClick={async () => {
                                       try {
-                                        await db.remove('supplyParts', pt.id)
-                                        const rows = await db.list('supplyParts', { productId: partsModal.product.id })
+                                        await SupplyParts.delete(pt.id)
+                                        const rows = await SupplyParts.byProduct(partsModal.product.id)
                                         setPartsList(rows || [])
                                         success('삭제됐어요')
                                       } catch(e) { toastError('삭제 실패') }
