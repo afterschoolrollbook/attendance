@@ -2760,37 +2760,57 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                 </div>
               ))}
               {(() => {
-                // 분기 시작 후 취소: cancel_after OR (cancelled + cancel_info.type==='after')
                 const cancelAfter = students.filter(s =>
                   s.status === 'cancel_after' ||
                   (s.status === 'cancelled' && s.cancel_info?.type === 'after')
                 )
                 if (cancelAfter.length === 0) return null
-                const sessionDates = calcSessionDates(cls)
+
+                const allSessions = calcSessionDates(cls)
+                const sessions = cls.totalSessions ? allSessions.slice(0, cls.totalSessions) : allSessions
+                const cancelledSet = new Set((cls.cancelledDates || []).map(c => c.date))
+                const termSizes = cls.periods?.length > 0
+                  ? cls.periods.flatMap(p =>
+                      (p.termSizes?.length > 0)
+                        ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
+                        : Array(Number(p.termCount) || 1).fill(4)
+                    )
+                  : (cls.termSizes?.length > 0)
+                    ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length).map(n => Number(n) || 4)
+                    : [cls.termSize ? Number(cls.termSize) : 4]
+
+                const termMap = {}
+                let cursor = 0
+                termSizes.forEach((size, ti) => {
+                  sessions.slice(cursor, cursor + size).forEach(d => { termMap[d] = ti + 1 })
+                  cursor += size
+                })
+                if (!cls.totalSessions && cursor < sessions.length) {
+                  sessions.slice(cursor).forEach(d => { termMap[d] = termSizes.length })
+                }
+
                 const termCounts = {}
                 cancelAfter.forEach(s => {
                   const cd = s.cancel_info?.date
-                  let termNum = null
-                  if (cd) {
-                    const before = sessionDates.filter(d => d <= cd)
-                    if (before.length > 0) {
-                      const si = getSessionInfo(cls, before[before.length - 1])
-                      termNum = si?.termNum ?? null
-                    }
-                  }
-                  if (termNum != null) {
-                    termCounts[termNum] = (termCounts[termNum] || 0) + 1
-                  }
+                  if (!cd) return
+                  const before = sessions.filter(d => d <= cd && !cancelledSet.has(d))
+                  const lastSess = before[before.length - 1]
+                  const tn = lastSess ? termMap[lastSess] : null
+                  if (tn != null) termCounts[tn] = (termCounts[tn] || 0) + 1
                 })
+
                 const isQuarter = cls.termType === 'quarter'
                 const termUnit = isQuarter ? '분기' : '학기'
-                const breakdown = Object.entries(termCounts)
-                  .sort(([a],[b]) => Number(a) - Number(b))
-                  .map(([t, cnt]) => `${t}텀${cnt}`)
-                  .join(',')
+                const totalTerms = termSizes.length
+                // 전체 텀 표시 (0명 포함)
+                const termBreakdown = Array.from({ length: totalTerms }, (_, i) => {
+                  const cnt = termCounts[i + 1] || 0
+                  return `${i + 1}텀:${cnt}명`
+                }).join(', ')
+
                 return (
                   <div style={{ padding:'5px 10px', borderRadius:'7px', background:'#fef2f2', border:'1px solid #fca5a530', fontSize:'12px', fontWeight:600, color:'#dc2626' }}>
-                    ✕ 취소({termUnit}) {cancelAfter.length}{breakdown ? ` ⇒${breakdown}` : ''}
+                    ✕ 취소 {termUnit} {cancelAfter.length}명 ({termBreakdown})
                   </div>
                 )
               })()}
