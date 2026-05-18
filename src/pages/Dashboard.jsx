@@ -2922,14 +2922,28 @@ export function Dashboard({ user, onNav }) {
               ✅ 주문완료
             </button>
           </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-            {allOrderItems.map((o, i) => (
-              <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#fff', borderRadius:'8px', border:'1px solid #bbf7d0' }}>
-                <span style={{ fontSize:'12px', color:'#166534', fontWeight:600 }}>{o.productName} · {o.stage}단계 · {o.partName}</span>
-                <span style={{ marginLeft:'auto', fontSize:'13px', fontWeight:800, color:'#15803d' }}>{o.qty}개</span>
-                {o.memo && <span style={{ fontSize:'11px', color:'#6b7280' }}>{o.memo}</span>}
-              </div>
-            ))}
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+            {(() => {
+              const groups = {}
+              allOrderItems.forEach(o => {
+                if (!groups[o.productId]) groups[o.productId] = { productName: o.productName, items: [] }
+                groups[o.productId].items.push(o)
+              })
+              return Object.values(groups).map((g, gi) => (
+                <div key={gi} style={{ background:'#fff', borderRadius:'8px', border:'1px solid #bbf7d0', overflow:'hidden' }}>
+                  <div style={{ padding:'5px 10px', background:'#dcfce7', fontSize:'11px', fontWeight:700, color:'#15803d' }}>
+                    {g.productName}
+                  </div>
+                  {g.items.map((o, i) => (
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', borderTop: i > 0 ? '1px solid #f0fdf4' : 'none' }}>
+                      <span style={{ fontSize:'12px', color:'#374151' }}>{o.stage}단계 · {o.partName}</span>
+                      <span style={{ marginLeft:'auto', fontSize:'13px', fontWeight:800, color:'#15803d' }}>{o.qty}개</span>
+                      {o.memo && <span style={{ fontSize:'11px', color:'#6b7280' }}>{o.memo}</span>}
+                    </div>
+                  ))}
+                </div>
+              ))
+            })()}
           </div>
         </div>
       )}
