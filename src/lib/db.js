@@ -955,15 +955,12 @@ export const SchoolNoticeSubmits = {
 }
 
 export const SupplyParts = {
-  byProduct: async (productId) => {
-    const rows = await dbCall({ action: 'where', table: 'supplyParts', where: { productId } })
-    return rows || []
-  },
+  byProduct: (productId) => db.where('supplyParts', r => r.productId === productId),
   insert: async (r) => {
     const row = { ...r, id: r.id || uid(), createdAt: now() }
-    return await dbCall({ action: 'insert', table: 'supplyParts', data: row })
+    return await db.insert('supplyParts', row)
   },
   delete: async (id) => {
-    await dbCall({ action: 'delete', table: 'supplyParts', id })
+    await db.delete('supplyParts', id)
   },
 }
