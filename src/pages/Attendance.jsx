@@ -2585,9 +2585,8 @@ function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user
           </div>
           <div style={{ padding:'12px 16px' }}>
             {classes.map(cls => {
-              const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting'].includes(s.status))
-              return <UnifiedPanel key={cls.id + date} cls={cls} date={date} students={clsStudents} user={user} allClasses={allClasses} />
-            })}
+              const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before'].includes(s.status))
+              return <UnifiedPanel key={cls.id + date} cls={cls} date={date} students={clsStudents} user={user} allClasses={allClasses} />}
           </div>
         </div>
       ))}
@@ -2790,27 +2789,39 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                 }
 
                 const termCounts = {}
+                let hasUnknown = false
                 cancelAfter.forEach(s => {
-                  const cd = s.cancel_info?.date
-                  if (!cd) return
+                  // cancel_info가 JSON 문자열로 올 수도 있으므로 파싱
+                  const ci = typeof s.cancel_info === 'string'
+                    ? (() => { try { return JSON.parse(s.cancel_info) } catch { return null } })()
+                    : s.cancel_info
+                  const cd = ci?.date
+                  if (!cd) { hasUnknown = true; return }
+
+                  // 저장된 termNum 우선 사용
+                  if (ci.termNum != null) {
+                    termCounts[ci.termNum] = (termCounts[ci.termNum] || 0) + 1
+                    return
+                  }
+                  // 없으면 날짜로 계산 시도
                   const before = sessions.filter(d => d <= cd && !cancelledSet.has(d))
                   const lastSess = before[before.length - 1]
                   const tn = lastSess ? termMap[lastSess] : null
                   if (tn != null) termCounts[tn] = (termCounts[tn] || 0) + 1
+                  else hasUnknown = true
                 })
 
                 const isQuarter = cls.termType === 'quarter'
                 const termUnit = isQuarter ? '분기' : '학기'
-                const totalTerms = termSizes.length
-                // 전체 텀 표시 (0명 포함)
-                const termBreakdown = Array.from({ length: totalTerms }, (_, i) => {
-                  const cnt = termCounts[i + 1] || 0
-                  return `${i + 1}텀:${cnt}명`
-                }).join(', ')
+                const termBreakdown = Object.entries(termCounts)
+                  .sort(([a],[b]) => Number(a) - Number(b))
+                  .map(([t, cnt]) => `${t}텀:${cnt}명`)
+                  .join(', ')
+                const parts = [termBreakdown, hasUnknown ? '확인필요' : ''].filter(Boolean).join(', ')
 
                 return (
                   <div style={{ padding:'5px 10px', borderRadius:'7px', background:'#fef2f2', border:'1px solid #fca5a530', fontSize:'12px', fontWeight:600, color:'#dc2626' }}>
-                    ✕ 취소 {termUnit} {cancelAfter.length}명 ({termBreakdown})
+                    ✕ 취소({termUnit}) {cancelAfter.length}명{parts ? ` (${parts})` : ''}
                   </div>
                 )
               })()}
@@ -3998,7 +4009,7 @@ export function Attendance({ user, pageParams = {} }) {
               ) : (
                 <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
                   {schoolClasses.map(cls => {
-                    const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting'].includes(s.status))
+                    const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before'].includes(s.status))
                     return <UnifiedPanel key={cls.id + selDate + rightPanelTick} cls={cls} date={selDate} students={clsStudents} user={user} allClasses={allClasses} />
                   })}
                 </div>

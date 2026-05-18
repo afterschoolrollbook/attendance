@@ -1,12 +1,53 @@
 import React, { useState, useRef } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, RevenuePayments, TeacherParentLinks } from '../lib/db.js'
 import { SupplyItems, SupplyProducts, SupplyStudentProgress, SupplyProgressLogs, SupplySessionChecks, SupplyProductPlans } from '../lib/db.js'
-import { uid, now, fmtPhone, sortClasses } from '../lib/utils.js'
+import { uid, now, fmtPhone, sortClasses, calcSessionDates } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Tag, EmptyState, PageHeader, Checkbox, Textarea } from '../components/Atoms.jsx'
 import { STUDENT_STATUS, GRADES, DAYS } from '../constants/config.js'
 import { useToast } from '../hooks/useToast.js'
 
-// ── 상단+하단 동기화 스크롤 테이블 래퍼
+// ── 취소 날짜 기준 텀번호 계산 (ClassCalendar와 동일 로직)
+function computeTermNum(cls, cancelDate) {
+  if (!cls || !cancelDate) return null
+  try {
+    const allSessions = calcSessionDates(cls)
+    const sessions = cls.totalSessions ? allSessions.slice(0, cls.totalSessions) : allSessions
+    const cancelledSet = new Set((cls.cancelledDates || []).map(c => c.date))
+    const termSizes = cls.periods?.length > 0
+      ? cls.periods.flatMap(p =>
+          (p.termSizes?.length > 0)
+            ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
+            : Array(Number(p.termCount) || 1).fill(4)
+        )
+      : (cls.termSizes?.length > 0)
+        ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length).map(n => Number(n) || 4)
+        : [cls.termSize ? Number(cls.termSize) : 4]
+    const termMap = {}
+    let cursor = 0
+    termSizes.forEach((size, ti) => {
+      sessions.slice(cursor, cursor + size).forEach(d => { termMap[d] = ti + 1 })
+      cursor += size
+    })
+    if (!cls.totalSessions && cursor < sessions.length) {
+      sessions.slice(cursor).forEach(d => { termMap[d] = termSizes.length })
+    }
+    const before = sessions.filter(d => d <= cancelDate && !cancelledSet.has(d))
+    const lastSess = before[before.length - 1]
+    return lastSess ? (termMap[lastSess] ?? null) : null
+  } catch { return null }
+}
+
+// ── 학생의 classIds에서 텀번호 계산 (첫 번째 매칭 클래스 기준)
+function computeTermNumForStudent(classes, classIds, cancelDate) {
+  for (const cid of (classIds || [])) {
+    const cls = classes.find(c => c.id === cid)
+    const tn = computeTermNum(cls, cancelDate)
+    if (tn != null) return tn
+  }
+  return null
+}
+
+
 function SyncScrollTable({ children }) {
   const topRef = React.useRef(null)
   const botRef = React.useRef(null)
@@ -1167,7 +1208,14 @@ export function Students({ user, onNav }) {
                                 const st = StudentsDB.find(s.id)
                                 StudentsDB.update(s.id, {
                                   status: pendingStatuses[s.id],
-                                  cancel_info: { type: cancelForm.type, date: cancelForm.date, memo: cancelForm.memo },
+                                  cancel_info: {
+                                    type: cancelForm.type,
+                                    date: cancelForm.date,
+                                    memo: cancelForm.memo,
+                                    termNum: cancelForm.type === 'after'
+                                      ? computeTermNumForStudent(classes, st?.classIds, cancelForm.date)
+                                      : null,
+                                  },
                                   statusHistory: [...(st?.statusHistory||[]), { status: pendingStatuses[s.id], changedAt: now(), memo: `[${cancelForm.type==='after'?'개강후':'개강전'} 취소] ${cancelForm.date}${cancelForm.memo?' - '+cancelForm.memo:''}` }],
                                 })
                                 const cids = st?.classIds||[]
@@ -1819,7 +1867,14 @@ export function Students({ user, onNav }) {
               const s = StudentsDB.find(cancelTarget.id)
               StudentsDB.update(cancelTarget.id, {
                 status: cancelTarget?.status || 'cancelled',
-                cancel_info: { type: cancelForm.type, date: cancelForm.date, memo: cancelForm.memo },
+                cancel_info: {
+                  type: cancelForm.type,
+                  date: cancelForm.date,
+                  memo: cancelForm.memo,
+                  termNum: cancelForm.type === 'after'
+                    ? computeTermNumForStudent(classes, s?.classIds, cancelForm.date)
+                    : null,
+                },
                 statusHistory: [...(s?.statusHistory || []), {
                   status: cancelTarget?.status || 'cancelled',
                   changedAt: now(),
