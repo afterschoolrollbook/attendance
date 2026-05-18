@@ -2274,17 +2274,30 @@ function MobileDashboard({ user, onNav }) {
           <div style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>안녕하세요, {name} 선생님 👋</div>
           <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px' }}>{formatDateKo(today)}</div>
           {/* 접속 기간 표시 */}
-          {user.accessExpiredAt && (() => {
-            const expDate  = new Date(user.accessExpiredAt)
-            const daysLeft = Math.ceil((expDate - new Date()) / (1000 * 60 * 60 * 24))
-            const isWarn   = daysLeft >= 0 && daysLeft <= 7
-            if (!isWarn) return null
+          {(() => {
+            const expDate = user.accessExpiredAt ? new Date(user.accessExpiredAt) : null
+            if (!expDate && !user.accessStartAt) return null
+            if (!expDate) return (
+              <div style={{ display:'inline-flex', alignItems:'center', gap:'6px', marginTop:'6px', padding:'4px 10px', borderRadius:'8px', background:'#f0fdf4', border:'1px solid #86efac' }}>
+                <span style={{ fontSize:'12px', color:'#16a34a', fontWeight:700 }}>∞ 무제한 이용 중</span>
+              </div>
+            )
+            const now = new Date(); now.setHours(0,0,0,0)
+            const daysLeft = Math.ceil((expDate - now) / (1000*60*60*24))
+            const expStr = user.accessExpiredAt.slice(0,10)
+            if (daysLeft < 0) return (
+              <div style={{ display:'inline-flex', alignItems:'center', gap:'6px', marginTop:'6px', padding:'4px 10px', borderRadius:'8px', background:'#fef2f2', border:'1px solid #fca5a5' }}>
+                <span style={{ fontSize:'12px', color:'#ef4444', fontWeight:700 }}>⚠️ 이용 기간 만료 ({expStr})</span>
+              </div>
+            )
+            if (daysLeft <= 7) return (
+              <div style={{ display:'inline-flex', alignItems:'center', gap:'6px', marginTop:'6px', padding:'4px 10px', borderRadius:'8px', background:'#fff7ed', border:'1px solid #fdba74' }}>
+                <span style={{ fontSize:'12px', color:'#f97316', fontWeight:700 }}>⏰ D-{daysLeft} ({expStr}까지)</span>
+              </div>
+            )
             return (
-              <div style={{ display:'inline-flex', alignItems:'center', gap:'6px', marginTop:'6px', padding:'5px 12px', borderRadius:'8px', background:'#fff7ed', border:'1px solid #fed7aa' }}>
-                <span>⚠️</span>
-                <span style={{ fontSize:'12px', color:'#b45309', fontWeight:600 }}>
-                  접속 기간이 {daysLeft}일 남았습니다 ({user.accessExpiredAt.slice(0,10)} 만료)
-                </span>
+              <div style={{ display:'inline-flex', alignItems:'center', gap:'6px', marginTop:'6px', padding:'4px 10px', borderRadius:'8px', background:'#f3f4f6', border:'1px solid #e5e7eb' }}>
+                <span style={{ fontSize:'12px', color:'#6b7280', fontWeight:600 }}>📅 {expStr}까지</span>
               </div>
             )
           })()}
@@ -2728,7 +2741,37 @@ export function Dashboard({ user, onNav }) {
           <h1 style={{ fontSize: '22px', fontWeight: 700, color: C.text }}>
             안녕하세요, {(user.displayNameMode === 'nickname' && user.nickname) ? user.nickname : user.name} 선생님 👋
           </h1>
-          <div style={{ fontSize: '14px', color: C.muted, marginTop: '4px' }}>{formatDateKo(today)}</div>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px', marginTop: '4px', flexWrap:'wrap' }}>
+            <div style={{ fontSize: '14px', color: C.muted }}>{formatDateKo(today)}</div>
+            {(() => {
+              const expDate = user.accessExpiredAt ? new Date(user.accessExpiredAt) : null
+              const startDate = user.accessStartAt ? new Date(user.accessStartAt) : null
+              if (!expDate && !startDate) return null // 무제한
+              if (!expDate) return (
+                <span style={{ fontSize:'12px', fontWeight:700, color:'#16a34a', background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'20px', padding:'2px 10px' }}>
+                  ∞ 무제한 이용 중
+                </span>
+              )
+              const now = new Date(); now.setHours(0,0,0,0)
+              const daysLeft = Math.ceil((expDate - now) / (1000*60*60*24))
+              const expStr = user.accessExpiredAt.slice(0,10)
+              if (daysLeft < 0) return (
+                <span style={{ fontSize:'12px', fontWeight:700, color:'#ef4444', background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'20px', padding:'2px 10px' }}>
+                  ⚠️ 이용 기간 만료 ({expStr})
+                </span>
+              )
+              if (daysLeft <= 7) return (
+                <span style={{ fontSize:'12px', fontWeight:700, color:'#f97316', background:'#fff7ed', border:'1px solid #fdba74', borderRadius:'20px', padding:'2px 10px' }}>
+                  ⏰ D-{daysLeft} ({expStr}까지)
+                </span>
+              )
+              return (
+                <span style={{ fontSize:'12px', fontWeight:600, color:'#6b7280', background:'#f3f4f6', border:'1px solid #e5e7eb', borderRadius:'20px', padding:'2px 10px' }}>
+                  📅 {expStr}까지
+                </span>
+              )
+            })()}
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {/* 날씨 */}
