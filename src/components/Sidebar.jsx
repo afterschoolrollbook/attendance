@@ -190,7 +190,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
       {/* 잠금 모달 */}
       {lockModal && (
         <div onClick={() => setLockModal(null)}
-          style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
+          style={{ position:'fixed', inset:0, zIndex:99999, background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
           <div onClick={e => e.stopPropagation()}
             style={{ background:'#fff', borderRadius:'16px', padding:'32px 24px', maxWidth:'300px', width:'100%', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
             <div style={{ fontSize:'40px', marginBottom:'12px' }}>🔒</div>
