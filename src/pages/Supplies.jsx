@@ -1948,7 +1948,7 @@ export function Supplies({ user }) {
                         const classLabel = `${selClass?.className || ''}${selClass?.section ? ' '+selClass.section : ''}`
                         const cols = '32px 100px 90px 56px 44px 40px 1fr 1fr 62px 72px 110px 52px'
 
-                        // ── 특이사항 뱃지 헬퍼 (교구준비·준비·추가지급·미입금)
+                        // ── 특이사항 뱃지 헬퍼 (교구준비·미지급·준비·추가지급·미입금·확인필요)
                         const getStatusBadges = (studentId) => {
                           const sg = givenList.filter(g => g.studentId === studentId && g.classId === selClassId)
                           const badges = []
@@ -1958,9 +1958,11 @@ export function Supplies({ user }) {
                           sg.forEach(g => {
                             const ss = g.supplyStatus ? g.supplyStatus : (['billed','paid'].includes(g.status) ? 'given' : g.status) || 'given'
                             const bs = g.supplyStatus != null ? (g.status || 'none') : (g.status === 'paid' ? 'paid' : g.status === 'billed' ? 'billed' : g.paymentStatus === 'unpaid' ? 'unpaid' : 'none')
+                            if (ss === 'unpaid' && !seenSS.has('unpaid')) { seenSS.add('unpaid'); badges.push({ label:'미지급',  bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5' }) }
                             if (ss === 'ready'  && !seenSS.has('ready'))  { seenSS.add('ready');  badges.push({ label:'준비',    bg:'#f3f4f6', color:'#6b7280', border:'#d1d5db' }) }
                             if (ss === 'extra'  && !seenSS.has('extra'))  { seenSS.add('extra');  badges.push({ label:'추가지급', bg:'#ede9fe', color:'#7c3aed', border:'#c4b5fd' }) }
-                            if (bs === 'unpaid' && !seenBS.has('unpaid')) { seenBS.add('unpaid'); badges.push({ label:'미입금',  bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5' }) }
+                            if (bs === 'unpaid' && !seenBS.has('unpaid')) { seenBS.add('unpaid'); badges.push({ label:'미입금',  bg:'#fef2f2', color:'#b91c1c', border:'#fca5a5' }) }
+                            if (bs === 'check'  && !seenBS.has('check'))  { seenBS.add('check');  badges.push({ label:'확인필요', bg:'#f3e8ff', color:'#7c3aed', border:'#c4b5fd' }) }
                           })
                           return badges
                         }
@@ -2211,9 +2213,11 @@ export function Supplies({ user }) {
                                                     sg.forEach(g => {
                                                       const ss = g.supplyStatus ? g.supplyStatus : (['billed','paid'].includes(g.status) ? 'given' : g.status) || 'given'
                                                       const bs = g.supplyStatus != null ? (g.status || 'none') : (g.status === 'paid' ? 'paid' : g.status === 'billed' ? 'billed' : g.paymentStatus === 'unpaid' ? 'unpaid' : 'none')
+                                                      if (ss === 'unpaid' && !seenSS.has('unpaid')) { seenSS.add('unpaid'); badges.push({ label:'미지급',  bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5' }) }
                                                       if (ss === 'ready'  && !seenSS.has('ready'))  { seenSS.add('ready');  badges.push({ label:'준비',    bg:'#f3f4f6', color:'#6b7280', border:'#d1d5db' }) }
                                                       if (ss === 'extra'  && !seenSS.has('extra'))  { seenSS.add('extra');  badges.push({ label:'추가지급', bg:'#ede9fe', color:'#7c3aed', border:'#c4b5fd' }) }
-                                                      if (bs === 'unpaid' && !seenBS.has('unpaid')) { seenBS.add('unpaid'); badges.push({ label:'미입금',  bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5' }) }
+                                                      if (bs === 'unpaid' && !seenBS.has('unpaid')) { seenBS.add('unpaid'); badges.push({ label:'미입금',  bg:'#fef2f2', color:'#b91c1c', border:'#fca5a5' }) }
+                                                      if (bs === 'check'  && !seenBS.has('check'))  { seenBS.add('check');  badges.push({ label:'확인필요', bg:'#f3e8ff', color:'#7c3aed', border:'#c4b5fd' }) }
                                                     })
                                                     return badges.map(b => (
                                                       <span key={b.label} style={{ fontSize:'10px', fontWeight:700, padding:'1px 5px', borderRadius:'4px', background:b.bg, color:b.color, border:`1px solid ${b.border}` }}>{b.label}</span>
