@@ -1030,7 +1030,7 @@ function PhoneAction({ phone, children }) {
       </span>
       {open && (
         <>
-          <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:999 }} />
+          <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:1 }} />
           <div style={{ position:'absolute', top:'100%', left:0, zIndex:1000, background:'#fff', borderRadius:'10px', boxShadow:'0 4px 20px rgba(0,0,0,0.15)', border:'1px solid #e5e7eb', overflow:'hidden', minWidth:'130px', marginTop:'4px' }}>
             <button onClick={() => handleAction('call')}  style={phoneActionBtn}>📞 전화하기</button>
             <button onClick={() => handleAction('sms')}   style={phoneActionBtn}>💬 문자 보내기</button>
