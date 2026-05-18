@@ -1084,8 +1084,8 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
             <option value="own">보유교구</option>
           </select>
           <input type="date" value={givenNewDate} onChange={e => setGivenNewDate(e.target.value)}
-            title={['unpaid','own'].includes(givenNewSupplyStatus) ? '지급날짜 (생략 가능)' : '지급날짜'}
-            style={{ padding:'7px 6px', borderRadius:'7px', border:`1.5px solid ${['unpaid','own'].includes(givenNewSupplyStatus) ? '#fde68a' : '#e5e7eb'}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background: ['unpaid','own'].includes(givenNewSupplyStatus) ? '#fffbeb' : '#fff' }} />
+            title={['unpaid','own','ready'].includes(givenNewSupplyStatus) ? '지급날짜 (생략 가능)' : '지급날짜'}
+            style={{ padding:'7px 6px', borderRadius:'7px', border:`1.5px solid ${['unpaid','own','ready'].includes(givenNewSupplyStatus) ? '#fde68a' : '#e5e7eb'}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background: ['unpaid','own','ready'].includes(givenNewSupplyStatus) ? '#fffbeb' : '#fff' }} />
           <select value={givenNewBillingStatus} onChange={e => setGivenNewBillingStatus(e.target.value)}
             style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
             <option value="none">-</option>
@@ -1096,8 +1096,8 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
           <input type="date" value={givenNewPaidDate} onChange={e => setGivenNewPaidDate(e.target.value)}
             title="입금날짜"
             style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
-          <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || (!['unpaid','own'].includes(givenNewSupplyStatus) && !givenNewDate) || givenSaving}
-            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && (['unpaid','own'].includes(givenNewSupplyStatus) || givenNewDate) ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && (['unpaid','own'].includes(givenNewSupplyStatus) || givenNewDate) ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && (['unpaid','own'].includes(givenNewSupplyStatus) || givenNewDate) ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+          <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || (!['unpaid','own','ready'].includes(givenNewSupplyStatus) && !givenNewDate) || givenSaving}
+            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && (['unpaid','own','ready'].includes(givenNewSupplyStatus) || givenNewDate) ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && (['unpaid','own','ready'].includes(givenNewSupplyStatus) || givenNewDate) ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && (['unpaid','own','ready'].includes(givenNewSupplyStatus) || givenNewDate) ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
             + 추가
           </button>
         </div>
@@ -3253,7 +3253,7 @@ export function Supplies({ user }) {
                               const isExtraVal = givenInputs[extraKey] || false
 
                               const handleAdd = async () => {
-                                if (!itemVal.trim() || !dateVal) return
+                                if (!itemVal.trim() || (!dateVal && isExtraVal)) return
                                 await SupplyGiven.insert({
                                   teacherId: user.id,
                                   studentId: stu.id,
@@ -3266,6 +3266,7 @@ export function Supplies({ user }) {
                                   givenAt: dateVal,
                                   quarter: termVal || null,
                                   isExtra: isExtraVal,
+                                  supplyStatus: isExtraVal ? 'unpaid' : 'ready',
                                   status: isExtraVal ? 'unpaid' : 'ready',
                                   createdAt: now(),
                                 })
@@ -3274,7 +3275,7 @@ export function Supplies({ user }) {
                                 success(`${stu.name} 지급 기록 추가됨`)
                               }
 
-                              const canAdd = itemVal.trim() && dateVal
+                              const canAdd = itemVal.trim() && (dateVal || !isExtraVal)
 
                               // quarter 기준 그룹핑
                               const grouped = {}
@@ -3340,7 +3341,8 @@ export function Supplies({ user }) {
                                       {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
                                     </select>
                                     <input type="date" value={dateVal} onChange={e => setGivenInputs(p => ({ ...p, [dateKey]: e.target.value }))}
-                                      style={{ padding:'4px 5px', borderRadius:'6px', border:'1px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
+                                      title={!isExtraVal ? '날짜 생략 가능 (준비)' : '지급날짜'}
+                                      style={{ padding:'4px 5px', borderRadius:'6px', border:`1px solid ${!isExtraVal ? '#fde68a' : '#e5e7eb'}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background: !isExtraVal ? '#fffbeb' : '#fff' }} />
                                     <button onClick={handleAdd} disabled={!canAdd}
                                       style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background: canAdd ? C.success : '#e5e7eb', color: canAdd ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: canAdd ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
                                       + 추가
