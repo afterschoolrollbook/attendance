@@ -223,6 +223,39 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
               </div>
             )
           })()}
+          {/* 미지급 리스트 — supplyStatus === 'unpaid' 인 SupplyGiven 기록 */}
+          {(() => {
+            const unpaidList = (spGiven || []).filter(g => {
+              if (g.classId !== cls?.id) return false
+              // 신규 모델(supplyStatus 있음) + 구형 모델(status만 있음) 동시 지원
+              const ss = g.supplyStatus
+                ? g.supplyStatus
+                : (['billed','paid'].includes(g.status) ? 'given' : g.status) || 'given'
+              return ss === 'unpaid'
+            })
+            if (unpaidList.length === 0) return null
+            // 학생별로 그룹
+            const byStudent = {}
+            unpaidList.forEach(g => {
+              const key = g.studentId || g.studentName
+              if (!byStudent[key]) byStudent[key] = { name: g.studentName, items: [] }
+              byStudent[key].items.push(g)
+            })
+            const entries = Object.values(byStudent)
+            return (
+              <div style={{ marginTop:'6px' }}>
+                <div style={{ fontSize:'11px', fontWeight:700, color:'#b91c1c', marginBottom:'5px' }}>📦 미지급 ({entries.length}명)</div>
+                {entries.map(({ name, items }) => (
+                  <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#fee2e2', border:'1px solid #fca5a5', marginBottom:'4px' }}>
+                    <span style={{ fontSize:'13px', fontWeight:700, color:'#b91c1c' }}>{name}</span>
+                    <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>
+                      {items.map(i => i.itemName || i.productName).filter(Boolean).join(', ')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
           {notCheckedToday.length > 0 && (
             <div>
               <div style={{ fontSize:'11px', fontWeight:700, color:'#9ca3af', marginBottom:'5px' }}>⬜ 미체크 ({notCheckedToday.length}명)</div>
@@ -1724,8 +1757,8 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             <option value="own">보유교구</option>
           </select>
           <input type="date" value={givenNewDate} onChange={e => setGivenNewDate(e.target.value)}
-            title={['unpaid','own'].includes(givenNewSupplyStatus) ? '지급날짜 (생략 가능)' : '지급날짜'}
-            style={{ padding:'7px 6px', borderRadius:'7px', border:`1.5px solid ${['unpaid','own'].includes(givenNewSupplyStatus) ? '#fde68a' : '#e5e7eb'}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background: ['unpaid','own'].includes(givenNewSupplyStatus) ? '#fffbeb' : '#fff' }} />
+            title={['unpaid','own','ready'].includes(givenNewSupplyStatus) ? '지급날짜 (생략 가능)' : '지급날짜'}
+            style={{ padding:'7px 6px', borderRadius:'7px', border:`1.5px solid ${['unpaid','own','ready'].includes(givenNewSupplyStatus) ? '#fde68a' : '#e5e7eb'}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer', background: ['unpaid','own','ready'].includes(givenNewSupplyStatus) ? '#fffbeb' : '#fff' }} />
           <select value={givenNewBillingStatus} onChange={e => setGivenNewBillingStatus(e.target.value)}
             style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}>
             <option value="none">-</option>
@@ -1736,8 +1769,8 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           <input type="date" value={givenNewPaidDate} onChange={e => setGivenNewPaidDate(e.target.value)}
             title="입금날짜"
             style={{ padding:'7px 6px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }} />
-          <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || (!['unpaid','own'].includes(givenNewSupplyStatus) && !givenNewDate) || givenSaving}
-            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && (['unpaid','own'].includes(givenNewSupplyStatus) || givenNewDate) ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && (['unpaid','own'].includes(givenNewSupplyStatus) || givenNewDate) ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && (['unpaid','own'].includes(givenNewSupplyStatus) || givenNewDate) ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+          <button onClick={handleAddGiven} disabled={!givenNewItem.trim() || (!['unpaid','own','ready'].includes(givenNewSupplyStatus) && !givenNewDate) || givenSaving}
+            style={{ padding:'7px 12px', borderRadius:'7px', border:'none', background: givenNewItem.trim() && (['unpaid','own','ready'].includes(givenNewSupplyStatus) || givenNewDate) ? '#16a34a' : '#e5e7eb', color: givenNewItem.trim() && (['unpaid','own','ready'].includes(givenNewSupplyStatus) || givenNewDate) ? '#fff' : '#9ca3af', fontSize:'12px', fontWeight:700, cursor: givenNewItem.trim() && (['unpaid','own','ready'].includes(givenNewSupplyStatus) || givenNewDate) ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
             + 추가
           </button>
         </div>
