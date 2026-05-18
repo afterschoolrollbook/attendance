@@ -123,27 +123,23 @@ export function getLevelNames() {
   return result
 }
 
-// 메뉴 표시 여부 (가리기 설정 확인) — Admin에서 'menuVisible'로 저장
-export function isMenuVisible(user, menuKey) {
-  if (!user) return false
-  if (user.role === 'admin' || user.level >= 10) return true
-  const stored = Settings.get('menuVisible') || {}
-  return stored[menuKey] ?? true
+// 메뉴 최소레벨 가져오기 (Settings 우선, 없으면 기본값)
+export function getMenuMinLevels() {
+  const stored = Settings.get('menuMinLevels') || {}
+  const result = {}
+  for (const key of Object.keys(DEFAULT_MENU_MIN_LEVELS)) {
+    result[key] = stored[key] ?? DEFAULT_MENU_MIN_LEVELS[key]
+  }
+  return result
 }
 
-// 메뉴 접근 가능 여부 (레벨 체크) — Admin에서 'menuMinLevels'로 저장
+// 메뉴 접근 가능 여부
 export function canAccessMenu(user, menuKey) {
   if (!user) return false
   if (user.role === 'admin' || user.level >= 10) return true
   const minLevels = getMenuMinLevels()
   const minLevel = minLevels[menuKey] ?? 1
   return (user.level || 1) >= minLevel
-}
-
-// 메뉴 최소레벨 단독 조회
-export function getMenuMinLevel(menuKey) {
-  const stored = Settings.get('menuMinLevels') || {}
-  return stored[menuKey] ?? DEFAULT_MENU_MIN_LEVELS[menuKey] ?? 1
 }
 
 // 기존 feature 기반 권한 체크 (하위호환)
@@ -162,4 +158,18 @@ export function can(user, feature) {
   }
   const minLevel = stored[feature] ?? DEFAULT_MIN[feature] ?? 1
   return level >= minLevel
+}
+
+// 메뉴 표시 여부 (기본 true, 가리기 설정 시 false)
+export function isMenuVisible(user, menuKey) {
+  if (!user) return false
+  if (user.role === 'admin' || (user.level || 1) >= 10) return true
+  const stored = Settings.get('menuVisible') || {}
+  return stored[menuKey] ?? true
+}
+
+// 메뉴 최소레벨 단독 조회
+export function getMenuMinLevel(menuKey) {
+  const stored = Settings.get('menuMinLevels') || {}
+  return stored[menuKey] ?? DEFAULT_MENU_MIN_LEVELS[menuKey] ?? 1
 }
