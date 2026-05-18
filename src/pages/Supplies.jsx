@@ -185,6 +185,7 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
     billed: { bg:'#fef9c3', color:'#a16207', border:'#fde047', label:'청' },
     paid:   { bg:'#dcfce7', color:'#15803d', border:'#86efac', label:'입' },
     unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미입금' },
+    check:  { bg:'#f3e8ff', color:'#7c3aed', border:'#c4b5fd', label:'확인필요' },
   }
   // 행 색상: 청구/입금 상태가 있으면 우선
   const st = (billingStatus !== 'none' && BILLING_STYLE[billingStatus])
@@ -274,6 +275,7 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
         <option value="billed">청구</option>
         <option value="paid">입금</option>
         <option value="unpaid">미입금</option>
+        <option value="check">확인필요</option>
       </select>
 
       {/* 입금날짜 */}
@@ -482,6 +484,7 @@ function SuppliesGivenRow({ record, classId, classes, onSaved }) {
     billed: { bg:'#fef9c3', color:'#a16207', border:'#fde047', label:'청' },
     paid:   { bg:'#dcfce7', color:'#15803d', border:'#86efac', label:'입' },
     unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미입금' },
+    check:  { bg:'#f3e8ff', color:'#7c3aed', border:'#c4b5fd', label:'확인필요' },
   }
   const st      = (billingStatus !== 'none' && BILLING_STYLE[billingStatus]) || SUPPLY_STYLE[supplyStatus] || SUPPLY_STYLE.given
   const ssStyle = SUPPLY_STYLE[supplyStatus]  || SUPPLY_STYLE.given
@@ -553,6 +556,7 @@ function SuppliesGivenRow({ record, classId, classes, onSaved }) {
         <option value="billed">청구</option>
         <option value="paid">입금</option>
         <option value="unpaid">미입금</option>
+        <option value="check">확인필요</option>
       </select>
       <input type="date" value={paidDate} onChange={e => handlePaidDate(e.target.value)} title="입금날짜"
         style={{ padding:'2px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', cursor:'pointer' }} />
@@ -739,7 +743,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
   }
 
   const handleAddGiven = async () => {
-    const dateRequired = givenNewSupplyStatus !== 'unpaid' && givenNewSupplyStatus !== 'own' && givenNewSupplyStatus !== 'transfer'
+    const dateRequired = !['unpaid', 'own', 'ready', 'transfer'].includes(givenNewSupplyStatus)
     if (!givenNewItem.trim() || (dateRequired && !givenNewDate)) return
     const className = classInfo ? ((classInfo.className || '') + (classInfo.section ? ' ' + classInfo.section : '')) : ''
     setGivenSaving(true)
@@ -1092,6 +1096,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
             <option value="billed">청구</option>
             <option value="paid">입금</option>
             <option value="unpaid">미입금</option>
+            <option value="check">확인필요</option>
           </select>
           <input type="date" value={givenNewPaidDate} onChange={e => setGivenNewPaidDate(e.target.value)}
             title="입금날짜"
@@ -3024,6 +3029,7 @@ export function Supplies({ user }) {
                             <option value="billed">청구</option>
                             <option value="paid">입금</option>
                             <option value="unpaid">미입금</option>
+                            <option value="check">확인필요</option>
                           </select>
                         )}
                         {/* 그 외(입금, 미입금 등): 둘 다 표시 */}
@@ -3042,6 +3048,7 @@ export function Supplies({ user }) {
                               <option value="billed">청구</option>
                               <option value="paid">입금</option>
                               <option value="unpaid">미입금</option>
+                              <option value="check">확인필요</option>
                             </select>
                           </>
                         )}

@@ -1043,6 +1043,7 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
     billed: { bg:'#fef9c3', color:'#a16207', border:'#fde047', label:'청' },
     paid:   { bg:'#dcfce7', color:'#15803d', border:'#86efac', label:'입' },
     unpaid: { bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5', label:'미입금' },
+    check:  { bg:'#f3e8ff', color:'#7c3aed', border:'#c4b5fd', label:'확인필요' },
   }
   const st = (billingStatus !== 'none' && BILLING_STYLE[billingStatus])
     || SUPPLY_STYLE[supplyStatus]
@@ -1133,6 +1134,7 @@ function GivenRecordRow({ record, classId, onSaved, hideQuarter }) {
         <option value="billed">청구</option>
         <option value="paid">입금</option>
         <option value="unpaid">미입금</option>
+        <option value="check">확인필요</option>
       </select>
       {/* 입금날짜 */}
       <input type="date" value={paidDate} onChange={e => handlePaidDate(e.target.value)}
@@ -1765,6 +1767,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             <option value="billed">청구</option>
             <option value="paid">입금</option>
             <option value="unpaid">미입금</option>
+            <option value="check">확인필요</option>
           </select>
           <input type="date" value={givenNewPaidDate} onChange={e => setGivenNewPaidDate(e.target.value)}
             title="입금날짜"
