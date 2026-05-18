@@ -1947,6 +1947,24 @@ export function Supplies({ user }) {
                         const school     = selClass?.organization || '-'
                         const classLabel = `${selClass?.className || ''}${selClass?.section ? ' '+selClass.section : ''}`
                         const cols = '32px 100px 90px 56px 44px 40px 1fr 1fr 62px 72px 110px 52px'
+
+                        // ── 특이사항 뱃지 헬퍼 (교구준비·준비·추가지급·미입금)
+                        const getStatusBadges = (studentId) => {
+                          const sg = givenList.filter(g => g.studentId === studentId && g.classId === selClassId)
+                          const badges = []
+                          const prog0 = progressList.find(p => p.studentId === studentId && p.classId === selClassId)
+                          if (prog0?.supplyReady) badges.push({ label:'교구준비', bg:'#fef9c3', color:'#92400e', border:'#fde047' })
+                          const seenSS = new Set(); const seenBS = new Set()
+                          sg.forEach(g => {
+                            const ss = g.supplyStatus ? g.supplyStatus : (['billed','paid'].includes(g.status) ? 'given' : g.status) || 'given'
+                            const bs = g.supplyStatus != null ? (g.status || 'none') : (g.status === 'paid' ? 'paid' : g.status === 'billed' ? 'billed' : g.paymentStatus === 'unpaid' ? 'unpaid' : 'none')
+                            if (ss === 'ready'  && !seenSS.has('ready'))  { seenSS.add('ready');  badges.push({ label:'준비',    bg:'#f3f4f6', color:'#6b7280', border:'#d1d5db' }) }
+                            if (ss === 'extra'  && !seenSS.has('extra'))  { seenSS.add('extra');  badges.push({ label:'추가지급', bg:'#ede9fe', color:'#7c3aed', border:'#c4b5fd' }) }
+                            if (bs === 'unpaid' && !seenBS.has('unpaid')) { seenBS.add('unpaid'); badges.push({ label:'미입금',  bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5' }) }
+                          })
+                          return badges
+                        }
+
                         return (
                           <div style={{ display:'flex', flexDirection:'column', gap:'4px', overflowX:'auto' }}>
                             {/* 헤더 */}
@@ -2006,7 +2024,12 @@ export function Supplies({ user }) {
                                         </div>
                                       )
                                     })()}
-                                    <div>{s.name}</div>
+                                    <div style={{ display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap' }}>
+                                      <span>{s.name}</span>
+                                      {getStatusBadges(s.id).map(b => (
+                                        <span key={b.label} style={{ fontSize:'10px', fontWeight:700, padding:'1px 5px', borderRadius:'4px', background:b.bg, color:b.color, border:`1px solid ${b.border}` }}>{b.label}</span>
+                                      ))}
+                                    </div>
                                   </span>
                                   <span style={{ fontSize:'12px', fontWeight:600, color: hasSupply ? '#7c3aed' : C.danger }}>
                                     {hasSupply ? (product?.name || supply.name) : '없음'}
@@ -2172,13 +2195,31 @@ export function Supplies({ user }) {
                                           return (
                                             <div key={s.id} style={{ border:`1px solid ${rowBorder}`, borderRadius:'9px', overflow:'hidden' }}>
                                               <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:rowBg }}>
-                                                {/* 학년·반·번호 */}
-                                                <div style={{ fontSize:'11px', color:C.muted, lineHeight:1.5, minWidth:'44px', textAlign:'center' }}>
-                                                  <div>{s.grade ? s.grade+'학년' : '-'}</div>
-                                                  <div>{s.classNum ? s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}</div>
+                                                {/* 학년·반·번호 — 1줄로 표시 */}
+                                                <div style={{ fontSize:'11px', color:C.muted, minWidth:'52px', textAlign:'center', whiteSpace:'nowrap' }}>
+                                                  {[s.grade ? s.grade+'학년' : '', s.classNum ? s.classNum+'반' : '', s.number ? s.number+'번' : ''].filter(Boolean).join(' ') || '-'}
                                                 </div>
-                                                {/* 이름 */}
-                                                <span style={{ fontSize:'13px', fontWeight:700, color: hasTodayCheck ? '#16a34a' : C.text, minWidth:'50px' }}>{s.name}</span>
+                                                {/* 이름 + 특이사항 뱃지 */}
+                                                <div style={{ display:'flex', alignItems:'center', gap:'4px', minWidth:'50px', flexWrap:'wrap' }}>
+                                                  <span style={{ fontSize:'13px', fontWeight:700, color: hasTodayCheck ? '#16a34a' : C.text }}>{s.name}</span>
+                                                  {(() => {
+                                                    const sg = givenList.filter(g => g.studentId === s.id && g.classId === selClassId)
+                                                    const prog0 = progressList.find(p => p.studentId === s.id && p.classId === selClassId)
+                                                    const badges = []
+                                                    if (prog0?.supplyReady) badges.push({ label:'교구준비', bg:'#fef9c3', color:'#92400e', border:'#fde047' })
+                                                    const seenSS = new Set(); const seenBS = new Set()
+                                                    sg.forEach(g => {
+                                                      const ss = g.supplyStatus ? g.supplyStatus : (['billed','paid'].includes(g.status) ? 'given' : g.status) || 'given'
+                                                      const bs = g.supplyStatus != null ? (g.status || 'none') : (g.status === 'paid' ? 'paid' : g.status === 'billed' ? 'billed' : g.paymentStatus === 'unpaid' ? 'unpaid' : 'none')
+                                                      if (ss === 'ready'  && !seenSS.has('ready'))  { seenSS.add('ready');  badges.push({ label:'준비',    bg:'#f3f4f6', color:'#6b7280', border:'#d1d5db' }) }
+                                                      if (ss === 'extra'  && !seenSS.has('extra'))  { seenSS.add('extra');  badges.push({ label:'추가지급', bg:'#ede9fe', color:'#7c3aed', border:'#c4b5fd' }) }
+                                                      if (bs === 'unpaid' && !seenBS.has('unpaid')) { seenBS.add('unpaid'); badges.push({ label:'미입금',  bg:'#fee2e2', color:'#b91c1c', border:'#fca5a5' }) }
+                                                    })
+                                                    return badges.map(b => (
+                                                      <span key={b.label} style={{ fontSize:'10px', fontWeight:700, padding:'1px 5px', borderRadius:'4px', background:b.bg, color:b.color, border:`1px solid ${b.border}` }}>{b.label}</span>
+                                                    ))
+                                                  })()}
+                                                </div>
                                                 {/* 교구 셀렉트 — 이 수업에서 진행중인 교구만 */}
                                                 <select value={supply.productId || ''} onClick={e => e.stopPropagation()}
                                                   onChange={async e => {
