@@ -957,7 +957,8 @@ export const SchoolNoticeSubmits = {
 export const SupplyParts = {
   byProduct: (productId) => db.where('supplyParts', r => r.productId === productId),
   insert: async (r) => {
-    const row = { ...r, id: r.id || uid(), createdAt: now() }
+    const row = { ...r, createdAt: now() }
+    delete row.id
     return await db.insert('supplyParts', row)
   },
   delete: async (id) => {
