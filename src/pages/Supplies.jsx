@@ -3985,7 +3985,12 @@ export function Supplies({ user }) {
                 </select>
                 <button onClick={async () => {
                   if (!partsNewName.trim()) return
-                  const row = { productId: partsModal.product.id, stage: partsNewStage, name: partsNewName.trim() }
+                  const trimmedName = partsNewName.trim()
+                  // 단계 상관없이 같은 교구에 같은 이름 중복 체크
+                  const allParts = SupplyParts.byProduct(partsModal.product.id)
+                  const isDup = allParts.some(p => p.name === trimmedName)
+                  if (isDup) { toastError('이미 있는 부품입니다'); return }
+                  const row = { productId: partsModal.product.id, stage: partsNewStage, name: trimmedName }
                   try {
                     await SupplyParts.insert(row)
                     const rows = await SupplyParts.byProduct(partsModal.product.id)

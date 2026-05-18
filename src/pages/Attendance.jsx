@@ -569,7 +569,17 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                   {addingNew && newPartName.trim() ? (
                     <button onClick={async () => {
                       try {
-                        const newRow = await SupplyParts.insert({ productId: selProductId, stage: Number(selStage), name: newPartName.trim() })
+                        const trimmedName = newPartName.trim()
+                        const allParts = SupplyParts.byProduct(selProductId)
+                        if (allParts.some(p => p.name === trimmedName)) {
+                          // 이미 있는 부품이면 등록 없이 바로 선택
+                          const existing = allParts.find(p => p.name === trimmedName)
+                          setAddingNew(false)
+                          setSelPartId(existing.id)
+                          setNewPartName('')
+                          return
+                        }
+                        const newRow = await SupplyParts.insert({ productId: selProductId, stage: Number(selStage), name: trimmedName })
                         const updated = await SupplyParts.byProduct(selProductId)
                         setPartsData(prev => [...prev.filter(p => p.productId !== selProductId), ...updated])
                         setAddingNew(false)
