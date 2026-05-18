@@ -607,11 +607,12 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
               </>
             )}
           </div>
+        )}
 
-          {/* 주문 목록 — 항상 표시 */}
-          {orderList.length > 0 && (
-            <div style={{ marginTop:'8px', background:'#f9fafb', borderRadius:'8px', padding:'10px', display:'flex', flexDirection:'column', gap:'4px' }}>
-              <div style={{ fontSize:'11px', fontWeight:700, color:'#374151', marginBottom:'3px' }}>📋 주문 목록</div>
+        {/* 주문 목록 — partsOpen 상관없이 항상 표시 */}
+        {orderList.length > 0 && (
+          <div style={{ marginTop:'8px', background:'#f9fafb', borderRadius:'8px', padding:'10px', display:'flex', flexDirection:'column', gap:'4px' }}>
+            <div style={{ fontSize:'11px', fontWeight:700, color:'#374151', marginBottom:'3px' }}>📋 주문 목록</div>
               {orderList.map((o, i) => {
                 const editPid   = o._editProductId   ?? o.productId
                 const editStage = o._editStage       ?? o.stage
@@ -706,7 +707,6 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
               })}
             </div>
           )}
-        </div>
       </div>
 
       {/* 메모 섹션 — 항상 표시 */}
