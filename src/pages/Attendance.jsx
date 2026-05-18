@@ -3652,15 +3652,29 @@ export function Attendance({ user, pageParams = {} }) {
   const currentYear = String(now_.getFullYear())
   if (!years.includes(currentYear)) years.unshift(currentYear)
 
+  // 오늘 요일에 수업이 있으면 자동 선택
+  const todayDayKo = ['일','월','화','수','목','금','토'][now_.getDay()]
+  const autoClass = (() => {
+    if (pageParams.classId) return null
+    // 오늘 요일 수업 중 현재 년도에 해당하는 수업
+    const candidates = allClasses.filter(c =>
+      (c.days||[]).includes(todayDayKo) &&
+      (c.startDate?.startsWith(currentYear) || c.endDate?.startsWith(currentYear))
+    )
+    if (candidates.length === 0) return null
+    // sortClasses 적용 후 첫번째
+    return sortClasses(candidates)[0]
+  })()
+
   const [selYear,    setSelYear]    = useState(() => {
     if (pageParams.classId) { const cls = allClasses.find(c=>c.id===pageParams.classId); return cls?.startDate?.slice(0,4) || currentYear }
     return currentYear
   })
   const [selSchool,  setSelSchool]  = useState(() => {
     if (pageParams.classId) { const cls = allClasses.find(c=>c.id===pageParams.classId); return cls?.organization || '' }
-    return ''
+    return autoClass?.organization || ''
   })
-  const [selClassId, setSelClassId] = useState(() => pageParams.classId || '')
+  const [selClassId, setSelClassId] = useState(() => pageParams.classId || autoClass?.id || '')
   const [selSection, setSelSection] = useState('')
   const [selTerm,    setSelTerm]    = useState('')
   const [selDay,     setSelDay]     = useState('')  // 요일 필터 ('월','화','수','목','금','토','일')
