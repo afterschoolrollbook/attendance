@@ -3973,7 +3973,13 @@ export function Supplies({ user }) {
                   style={{ flex:1, padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif' }} />
                 <select value={partsNewStage} onChange={e => setPartsNewStage(Number(e.target.value))}
                   style={{ padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif' }}>
-                  {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>{s}단계 신규</option>)}
+                  {(() => {
+                    const pid = partsModal?.product?.id
+                    const stagesFromPlans = planList.filter(pl => pl.productId === pid && (pl.fileType === 'session' || pl.type === 'session') && pl.stage).map(pl => Number(pl.stage))
+                    const stagesFromProductPlans = productPlanList.filter(pl => pl.productId === pid).map(pl => Number(pl.stage))
+                    const stages = [...new Set([...stagesFromProductPlans, ...stagesFromPlans])].sort((a,b)=>a-b)
+                    return (stages.length > 0 ? stages : [1]).map(s => <option key={s} value={s}>{s}단계 신규</option>)
+                  })()}
                 </select>
                 <button onClick={async () => {
                   if (!partsNewName.trim()) return
@@ -3990,6 +3996,20 @@ export function Supplies({ user }) {
                   추가
                 </button>
               </div>
+              {(() => {
+                if (partsNewStage <= 1) return null
+                const prevParts = partsList.filter(pt => pt.productId === partsModal?.product?.id && Number(pt.stage) < partsNewStage)
+                if (prevParts.length === 0) return null
+                const prevStages = [...new Set(prevParts.map(pt => Number(pt.stage)))].sort((a,b)=>a-b)
+                return (
+                  <div style={{ fontSize:'11px', color:'#3b82f6', background:'#eff6ff', borderRadius:'7px', padding:'7px 10px', lineHeight:'1.6' }}>
+                    {prevStages.map(st => {
+                      const names = prevParts.filter(pt => Number(pt.stage) === st).map(pt => pt.name).join(', ')
+                      return <div key={st}>📦 {st}단계에 등록된 부품이 있습니다 → {names}</div>
+                    })}
+                  </div>
+                )
+              })()}
             </div>
 
             {/* 탭: 전체 / 단계별 누적 */}
