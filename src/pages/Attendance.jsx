@@ -59,6 +59,7 @@ function localDateStr(d) {
 
 // ─── 수업 메모장 패널
 function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, spGiven, onProgOpen, onOpenScreen }) {
+  const { success, error: toastError } = useToast()
   const [memos, setMemos] = useState(() => cls ? LessonMemos.byClassDate(cls.id, date) : [])
   const [memoText, setMemoText] = useState('')
   // 부품 주문 메모
@@ -511,12 +512,14 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                     <button onClick={async () => {
                       try {
                         const newRow = await SupplyParts.insert({ productId: selProductId, stage: Number(selStage), name: newPartName.trim() })
+                        if (!newRow) throw new Error('insert 결과 없음')
                         const updated = await SupplyParts.byProduct(selProductId)
                         setPartsData(prev => [...prev.filter(p => p.productId !== selProductId), ...updated])
                         setAddingNew(false)
                         setSelPartId(newRow.id)
                         setNewPartName('')
-                      } catch(e) { }
+                        success('부품이 등록되었습니다')
+                      } catch(e) { toastError(e.message || '부품 등록 실패') }
                     }}
                       style={{ width:'100%', padding:'7px', borderRadius:'7px', background:'#f59e0b', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                       부품 등록
