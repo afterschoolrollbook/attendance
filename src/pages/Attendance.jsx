@@ -61,6 +61,12 @@ function localDateStr(d) {
 function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, spGiven, onProgOpen, onOpenScreen }) {
   const [memos, setMemos] = useState(() => cls ? LessonMemos.byClassDate(cls.id, date) : [])
   const [memoText, setMemoText] = useState('')
+  // 진도 섹션 접기/펼치기 상태 (기본: 펼침)
+  const [openSections, setOpenSections] = useState({
+    교구지급: true, 교구준비: true, 미지급: true, 확인필요: true,
+    추가지급: true, 미입금: true, 미체크: true,
+  })
+  const toggleSection = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
 
   const addMemo = () => {
     if (!memoText.trim() || !cls) return
@@ -94,20 +100,25 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   // 교구+단계별 그룹 (정렬은 기존 가나다순 유지, 같은 교구 안에서 단계 오름차순)
   const groupByProductStage = (list) => {
     const map = {}
-    const prodOrder = []
     list.forEach(item => {
       const pid = item.prod?.id || '노교구'
       const key = `${pid}__${item.curStage}`
       if (!map[key]) {
         map[key] = { prod: item.prod, curStage: item.curStage, items: [], _pid: pid }
-        if (!prodOrder.includes(pid)) prodOrder.push(pid)
       }
       map[key].items.push(item)
     })
-    // 교구 DB 등록 순서 → 단계 오름차순
+    // 큐보 → 스카이로보 → 나머지(가나다순), 단계 오름차순
+    const prodPriority = (name) => {
+      if ((name||'').startsWith('큐보')) return 0
+      if ((name||'').startsWith('스카이')) return 1
+      return 2
+    }
     return Object.values(map).sort((a, b) => {
-      const pi = prodOrder.indexOf(a._pid) - prodOrder.indexOf(b._pid)
-      if (pi !== 0) return pi
+      const pa = prodPriority(a.prod?.name), pb = prodPriority(b.prod?.name)
+      if (pa !== pb) return pa - pb
+      const nameCmp = (a.prod?.name||'').localeCompare(b.prod?.name||'', 'ko')
+      if (nameCmp !== 0) return nameCmp
       return (a.curStage||1) - (b.curStage||1)
     })
   }
@@ -163,26 +174,23 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
               ))}
             </div>
           )}
-          {/* 교구지급 — 완료 목록 */}
+          {/* ── 공통 접기/펼치기 헤더 렌더러 */}
           {(() => {
-            const todayGiven = (spGiven || []).filter(g => g.classId === cls?.id && g.givenAt === date)
-            if (todayGiven.length === 0) return null
-            return (
-              <div style={{ marginTop:'6px' }}>
-                <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', marginBottom:'5px' }}>📦 교구지급 ({todayGiven.length}명)</div>
-                {todayGiven.map(g => (
-                  <div key={g.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f5f3ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
-                    <span style={{ fontSize:'13px', fontWeight:700, color:'#6d28d9' }}>{g.studentName}</span>
-                    <span style={{ fontSize:'11px', color:'#6b7280' }}>{g.productName}</span>
-                    {g.itemName && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{g.itemName}</span>}
-                    <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{g.givenAt}</span>
-                  </div>
-                ))}
+            const SectionHeader = ({ sectionKey, label, count, color }) => (
+              <div
+                onClick={() => toggleSection(sectionKey)}
+                style={{ display:'flex', alignItems:'center', gap:'4px', cursor:'pointer', userSelect:'none', marginBottom: openSections[sectionKey] ? '5px' : '0' }}>
+                <span style={{ fontSize:'9px', color, transition:'transform .2s', display:'inline-block', transform: openSections[sectionKey] ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                <span style={{ fontSize:'11px', fontWeight:700, color }}>{label} ({count}명)</span>
               </div>
             )
-          })()}
-          {/* 교구 준비 필요 리스트 (대시보드와 동일 로직) */}
-          {(() => {
+
+            // ── 1. 교구지급
+            const todayGiven = (spGiven || [])
+              .filter(g => g.classId === cls?.id && g.givenAt === date)
+              .sort((a, b) => (a.studentName||'').localeCompare(b.studentName||'', 'ko'))
+
+            // ── 2. 교구 준비 필요
             const supplyAlertList = activeStudents.flatMap(s => {
               const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)
               if (!si?.productId) return []
@@ -206,110 +214,197 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                 ? (nextProd ? `${nextProd.name} ${nextStage}단계 준비 필요` : `진도확인 바람`)
                 : (nextProd ? `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — ${nextProd.name} ${nextStage}단계 준비 필요` : `${prod.name} ${curStage}단계 ${chk}/${actualSessions}차시 — 진도확인 바람`)
               return [{ s, label, isDone, noNextInfo }]
-            })
-            if (supplyAlertList.length === 0) return null
-            return (
-              <div style={{ marginTop:'6px' }}>
-                <div style={{ fontSize:'11px', fontWeight:700, color:'#ef4444', marginBottom:'5px' }}>⚠️ 교구 준비 필요 ({supplyAlertList.length}명)</div>
-                {supplyAlertList.map(({ s, label, isDone, noNextInfo }) => (
-                  <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background: noNextInfo ? '#fefce8' : isDone ? '#f0fdf4' : '#fef2f2', border:`1px solid ${noNextInfo ? '#fde047' : isDone ? '#86efac' : '#fca5a5'}`, marginBottom:'4px' }}>
-                    <span style={{ fontSize:'11px', fontWeight:700, color: noNextInfo ? '#854d0e' : isDone ? '#16a34a' : '#ef4444' }}>
-                      {noNextInfo ? '📋' : isDone ? '✅' : '⚠️'}
-                    </span>
-                    <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>{s.name}</span>
-                    <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>{label}</span>
-                  </div>
-                ))}
-              </div>
-            )
-          })()}
-          {/* 미지급 리스트 — supplyStatus === 'unpaid' 인 SupplyGiven 기록 */}
-          {(() => {
-            const unpaidList = (spGiven || []).filter(g => {
+            }).sort((a, b) => a.s.name.localeCompare(b.s.name, 'ko'))
+
+            // ── 3. 미지급 (supplyStatus === 'unpaid')
+            const unpaidRaw = (spGiven || []).filter(g => {
               if (g.classId !== cls?.id) return false
-              // 신규 모델(supplyStatus 있음) + 구형 모델(status만 있음) 동시 지원
               const ss = g.supplyStatus
                 ? g.supplyStatus
                 : (['billed','paid'].includes(g.status) ? 'given' : g.status) || 'given'
               return ss === 'unpaid'
             })
-            if (unpaidList.length === 0) return null
-            // 학생별로 그룹
-            const byStudent = {}
-            unpaidList.forEach(g => {
+            const unpaidByStudent = {}
+            unpaidRaw.forEach(g => {
               const key = g.studentId || g.studentName
-              if (!byStudent[key]) byStudent[key] = { name: g.studentName, items: [] }
-              byStudent[key].items.push(g)
+              if (!unpaidByStudent[key]) unpaidByStudent[key] = { name: g.studentName, items: [] }
+              unpaidByStudent[key].items.push(g)
             })
-            const entries = Object.values(byStudent)
-            return (
-              <div style={{ marginTop:'6px' }}>
-                <div style={{ fontSize:'11px', fontWeight:700, color:'#b91c1c', marginBottom:'5px' }}>📦 미지급 ({entries.length}명)</div>
-                {entries.map(({ name, items }) => (
-                  <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#fee2e2', border:'1px solid #fca5a5', marginBottom:'4px' }}>
-                    <span style={{ fontSize:'13px', fontWeight:700, color:'#b91c1c' }}>{name}</span>
-                    <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>
-                      {items.map(i => i.itemName || i.productName).filter(Boolean).join(', ')}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )
-          })()}
-          {/* 확인필요 리스트 — billingStatus === 'check' 인 SupplyGiven 기록 */}
-          {(() => {
-            const checkList = (spGiven || []).filter(g => {
+            const unpaidEntries = Object.values(unpaidByStudent).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+
+            // ── 4. 확인필요 (status === 'check')
+            const checkRaw = (spGiven || []).filter(g => {
               if (g.classId !== cls?.id) return false
-              // 신규 모델(supplyStatus 있으면 status가 billing) + 구형 모델
               const bs = g.supplyStatus != null
                 ? (g.status || 'none')
                 : (g.status === 'paid' ? 'paid' : g.status === 'billed' ? 'billed' : g.paymentStatus === 'unpaid' ? 'unpaid' : 'none')
               return bs === 'check'
             })
-            if (checkList.length === 0) return null
-            const byStudent = {}
-            checkList.forEach(g => {
+            const checkByStudent = {}
+            checkRaw.forEach(g => {
               const key = g.studentId || g.studentName
-              if (!byStudent[key]) byStudent[key] = { name: g.studentName, items: [] }
-              byStudent[key].items.push(g)
+              if (!checkByStudent[key]) checkByStudent[key] = { name: g.studentName, items: [] }
+              checkByStudent[key].items.push(g)
             })
-            const entries = Object.values(byStudent)
+            const checkEntries = Object.values(checkByStudent).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+
+            // ── 5. 추가지급 (supplyStatus === 'extra' 또는 status === 'extra')
+            const extraRaw = (spGiven || []).filter(g => {
+              if (g.classId !== cls?.id) return false
+              const ss = g.supplyStatus || g.status || ''
+              return ss === 'extra'
+            })
+            const extraByStudent = {}
+            extraRaw.forEach(g => {
+              const key = g.studentId || g.studentName
+              if (!extraByStudent[key]) extraByStudent[key] = { name: g.studentName, items: [] }
+              extraByStudent[key].items.push(g)
+            })
+            const extraEntries = Object.values(extraByStudent).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+
+            // ── 6. 미입금 (billingStatus === 'unpaid' 또는 paymentStatus === 'unpaid', supplyStatus가 given인 경우)
+            const unpaidPayRaw = (spGiven || []).filter(g => {
+              if (g.classId !== cls?.id) return false
+              const ss = g.supplyStatus
+                ? g.supplyStatus
+                : (['billed','paid'].includes(g.status) ? 'given' : g.status) || 'given'
+              if (ss !== 'given') return false
+              // 입금 안된 케이스: billingStatus/paymentStatus 확인
+              const ps = g.billingStatus || g.paymentStatus || ''
+              return ps === 'unpaid'
+            })
+            const unpaidPayByStudent = {}
+            unpaidPayRaw.forEach(g => {
+              const key = g.studentId || g.studentName
+              if (!unpaidPayByStudent[key]) unpaidPayByStudent[key] = { name: g.studentName, items: [] }
+              unpaidPayByStudent[key].items.push(g)
+            })
+            const unpaidPayEntries = Object.values(unpaidPayByStudent).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+
+            // ── 7. 미체크 (가나다순)
+            const notCheckedSorted = [...notCheckedToday].sort((a, b) => a.s.name.localeCompare(b.s.name, 'ko'))
+
+            // 가나다 순서로 섹션 렌더링: 교구지급 교구준비 미입금 미지급 미체크 추가지급 확인필요
             return (
-              <div style={{ marginTop:'6px' }}>
-                <div style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', marginBottom:'5px' }}>🔍 확인필요 ({entries.length}명)</div>
-                {entries.map(({ name, items }) => (
-                  <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f3e8ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
-                    <span style={{ fontSize:'13px', fontWeight:700, color:'#7c3aed' }}>{name}</span>
-                    <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>
-                      {items.map(i => i.itemName || i.productName).filter(Boolean).join(', ')}
-                    </span>
+              <>
+                {/* 교구지급 */}
+                {todayGiven.length > 0 && (
+                  <div style={{ marginTop:'6px' }}>
+                    <SectionHeader sectionKey="교구지급" label="📦 교구지급" count={todayGiven.length} color="#7c3aed" />
+                    {openSections['교구지급'] && todayGiven.map(g => (
+                      <div key={g.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f5f3ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
+                        <span style={{ fontSize:'13px', fontWeight:700, color:'#6d28d9' }}>{g.studentName}</span>
+                        <span style={{ fontSize:'11px', color:'#6b7280' }}>{g.productName}</span>
+                        {g.itemName && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{g.itemName}</span>}
+                        <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{g.givenAt}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+
+                {/* 교구준비 */}
+                {supplyAlertList.length > 0 && (
+                  <div style={{ marginTop:'6px' }}>
+                    <SectionHeader sectionKey="교구준비" label="⚠️ 교구 준비 필요" count={supplyAlertList.length} color="#ef4444" />
+                    {openSections['교구준비'] && supplyAlertList.map(({ s, label, isDone, noNextInfo }) => (
+                      <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background: noNextInfo ? '#fefce8' : isDone ? '#f0fdf4' : '#fef2f2', border:`1px solid ${noNextInfo ? '#fde047' : isDone ? '#86efac' : '#fca5a5'}`, marginBottom:'4px' }}>
+                        <span style={{ fontSize:'11px', fontWeight:700, color: noNextInfo ? '#854d0e' : isDone ? '#16a34a' : '#ef4444' }}>
+                          {noNextInfo ? '📋' : isDone ? '✅' : '⚠️'}
+                        </span>
+                        <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>{s.name}</span>
+                        <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 미입금 */}
+                {unpaidPayEntries.length > 0 && (
+                  <div style={{ marginTop:'6px' }}>
+                    <SectionHeader sectionKey="미입금" label="💸 미입금" count={unpaidPayEntries.length} color="#0369a1" />
+                    {openSections['미입금'] && unpaidPayEntries.map(({ name, items }) => (
+                      <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#e0f2fe', border:'1px solid #7dd3fc', marginBottom:'4px' }}>
+                        <span style={{ fontSize:'13px', fontWeight:700, color:'#0369a1' }}>{name}</span>
+                        <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>
+                          {items.map(i => i.itemName || i.productName).filter(Boolean).join(', ')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 미지급 */}
+                {unpaidEntries.length > 0 && (
+                  <div style={{ marginTop:'6px' }}>
+                    <SectionHeader sectionKey="미지급" label="📦 미지급" count={unpaidEntries.length} color="#b91c1c" />
+                    {openSections['미지급'] && unpaidEntries.map(({ name, items }) => (
+                      <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#fee2e2', border:'1px solid #fca5a5', marginBottom:'4px' }}>
+                        <span style={{ fontSize:'13px', fontWeight:700, color:'#b91c1c' }}>{name}</span>
+                        <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>
+                          {items.map(i => i.itemName || i.productName).filter(Boolean).join(', ')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 미체크 */}
+                {notCheckedSorted.length > 0 && (
+                  <div style={{ marginTop:'6px' }}>
+                    <SectionHeader sectionKey="미체크" label="⬜ 미체크" count={notCheckedSorted.length} color="#9ca3af" />
+                    {openSections['미체크'] && groupByProductStage(notCheckedSorted).map(({ prod, curStage, items }) => (
+                      <div key={`${prod?.id}__${curStage}`} style={{ marginBottom:'5px' }}>
+                        <div style={{ fontSize:'10px', fontWeight:700, color:'#9ca3af', background:'#f3f4f6', borderRadius:'4px', padding:'1px 7px', display:'inline-block', marginBottom:'3px' }}>
+                          {prod?.name} {curStage}단계
+                        </div>
+                        {items.map(({ s, lastModelTitle }) => (
+                          <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
+                            style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f9fafb', border:'1px solid #e5e7eb', marginBottom:'3px', cursor:'pointer' }}>
+                            <span style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>{s.name}</span>
+                            {lastModelTitle && <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{lastModelTitle}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 추가지급 */}
+                {extraEntries.length > 0 && (
+                  <div style={{ marginTop:'6px' }}>
+                    <SectionHeader sectionKey="추가지급" label="➕ 추가지급" count={extraEntries.length} color="#0891b2" />
+                    {openSections['추가지급'] && extraEntries.map(({ name, items }) => (
+                      <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#ecfeff', border:'1px solid #67e8f9', marginBottom:'4px' }}>
+                        <span style={{ fontSize:'13px', fontWeight:700, color:'#0891b2' }}>{name}</span>
+                        <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>
+                          {items.map(i => i.itemName || i.productName).filter(Boolean).join(', ')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 확인필요 */}
+                {checkEntries.length > 0 && (
+                  <div style={{ marginTop:'6px' }}>
+                    <SectionHeader sectionKey="확인필요" label="🔍 확인필요" count={checkEntries.length} color="#7c3aed" />
+                    {openSections['확인필요'] && checkEntries.map(({ name, items }) => (
+                      <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f3e8ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
+                        <span style={{ fontSize:'13px', fontWeight:700, color:'#7c3aed' }}>{name}</span>
+                        <span style={{ fontSize:'11px', color:'#6b7280', flex:1 }}>
+                          {items.map(i => i.itemName || i.productName).filter(Boolean).join(', ')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {studentProgList.length === 0 && (
+                  <div style={{ fontSize:'12px', color:'#d1d5db', textAlign:'center', padding:'8px 0' }}>교구 배정된 학생이 없습니다</div>
+                )}
+              </>
             )
           })()}
-          {notCheckedToday.length > 0 && (
-            <div>
-              <div style={{ fontSize:'11px', fontWeight:700, color:'#9ca3af', marginBottom:'5px' }}>⬜ 미체크 ({notCheckedToday.length}명)</div>
-              {groupByProductStage(notCheckedToday).map(({ prod, curStage, items }) => (
-                <div key={`${prod?.id}__${curStage}`} style={{ marginBottom:'5px' }}>
-                  <div style={{ fontSize:'10px', fontWeight:700, color:'#9ca3af', background:'#f3f4f6', borderRadius:'4px', padding:'1px 7px', display:'inline-block', marginBottom:'3px' }}>
-                    {prod?.name} {curStage}단계
-                  </div>
-                  {items.map(({ s, lastModelTitle }) => (
-                    <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
-                      style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f9fafb', border:'1px solid #e5e7eb', marginBottom:'3px', cursor:'pointer' }}>
-                      <span style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>{s.name}</span>
-                      {lastModelTitle && <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{lastModelTitle}</span>}
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-          {studentProgList.length === 0 && (
-            <div style={{ fontSize:'12px', color:'#d1d5db', textAlign:'center', padding:'8px 0' }}>교구 배정된 학생이 없습니다</div>
-          )}
         </div>
       </div>
 
@@ -412,19 +507,25 @@ export function ProgressWindow() {
 
   const groupByProductStage = (list) => {
     const map = {}
-    const prodOrder = []
     list.forEach(item => {
       const pid = item.prod?.id || '노교구'
       const key = `${pid}__${item.curStage}`
       if (!map[key]) {
         map[key] = { prod: item.prod, curStage: item.curStage, items: [], _pid: pid }
-        if (!prodOrder.includes(pid)) prodOrder.push(pid)
       }
       map[key].items.push(item)
     })
+    // 큐보 → 스카이로보 → 나머지(가나다순), 단계 오름차순
+    const prodPriority = (name) => {
+      if ((name||'').startsWith('큐보')) return 0
+      if ((name||'').startsWith('스카이')) return 1
+      return 2
+    }
     return Object.values(map).sort((a, b) => {
-      const pi = prodOrder.indexOf(a._pid) - prodOrder.indexOf(b._pid)
-      if (pi !== 0) return pi
+      const pa = prodPriority(a.prod?.name), pb = prodPriority(b.prod?.name)
+      if (pa !== pb) return pa - pb
+      const nameCmp = (a.prod?.name||'').localeCompare(b.prod?.name||'', 'ko')
+      if (nameCmp !== 0) return nameCmp
       return (a.curStage||1) - (b.curStage||1)
     })
   }
