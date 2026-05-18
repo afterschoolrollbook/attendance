@@ -1201,6 +1201,14 @@ export function Supplies({ user }) {
   const [givenCalYM, setGivenCalYM]           = useState(() => new Date().toISOString().slice(0,7))
   const [givenCalDetailDate, setGivenCalDetailDate] = useState(null)
 
+  // 부품 모달
+  const [partsModal, setPartsModal]           = useState(null)  // { product, vendorId } | null
+  const [partsList, setPartsList]             = useState([])     // { id, productId, stage, name }
+  const [partsLoading, setPartsLoading]       = useState(false)
+  const [partsNewName, setPartsNewName]       = useState('')
+  const [partsNewStage, setPartsNewStage]     = useState(1)
+  const [partsViewStage, setPartsViewStage]   = useState(null)  // null=전체, n=누적탭
+
   const { error: toastError, success } = useToast()
 
   const schoolList = [...new Set(classes.map(c => c.organization).filter(Boolean))]
@@ -2490,7 +2498,46 @@ export function Supplies({ user }) {
                                             📤 일괄등록
                                             <input type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={(e) => handleBulkUpload(e, v.id)} />
                                           </label>
+                                          <button onClick={() => {
+                                            setPartsModal({ product: p, vendorId: v.id })
+                                            setPartsViewStage(null)
+                                            setPartsNewName('')
+                                            setPartsNewStage(1)
+                                            setPartsLoading(true)
+                                            db.list('supplyParts', { productId: p.id }).then(rows => {
+                                              setPartsList(rows || [])
+                                            }).catch(() => setPartsList([])).finally(() => setPartsLoading(false))
+                                          }}
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #78716c', background:'#fafaf9', color:'#78716c', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>🔧 부품</button>
                                         </div>
+                                        {/* 부품 미리보기 */}
+                                        {(() => {
+                                          const pParts = partsList.filter(pt => pt.productId === p.id)
+                                          if (pParts.length === 0) return null
+                                          const stages = [...new Set(pParts.map(pt => Number(pt.stage)))].sort((a,b)=>a-b)
+                                          return (
+                                            <div style={{ padding:'4px 14px 6px', display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                                              {stages.map(st => {
+                                                const cnt = pParts.filter(pt => Number(pt.stage) === st).length
+                                                return (
+                                                  <button key={st} onClick={() => {
+                                                    setPartsModal({ product: p, vendorId: v.id })
+                                                    setPartsViewStage(st)
+                                                    setPartsNewName('')
+                                                    setPartsNewStage(st)
+                                                    setPartsLoading(true)
+                                                    db.list('supplyParts', { productId: p.id }).then(rows => {
+                                                      setPartsList(rows || [])
+                                                    }).catch(() => setPartsList([])).finally(() => setPartsLoading(false))
+                                                  }}
+                                                    style={{ padding:'2px 8px', borderRadius:'12px', border:'1px solid #d6d3d1', background:'#f5f5f4', color:'#78716c', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                                    🔧 {st}단계 신규 {cnt}종
+                                                  </button>
+                                                )
+                                              })}
+                                            </div>
+                                          )
+                                        })()}
                                         {/* 단계별 차시지도안 */}
                                         <div style={{ padding:'6px 14px 10px', borderTop:`1px solid ${C.border}` }}>
                                           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
@@ -3907,6 +3954,130 @@ export function Supplies({ user }) {
                 취소
               </button>
             </div>
+      </Modal>
+
+      {/* ── 부품 모달 */}
+      <Modal open={!!partsModal} onClose={() => { setPartsModal(null); setPartsViewStage(null) }}
+        title={`🔧 부품 관리 — ${partsModal?.product?.name || ''}`} width={520}>
+        <div style={{ padding:'20px', display:'flex', flexDirection:'column', gap:'16px' }}>
+          {partsLoading ? (
+            <div style={{ textAlign:'center', color:'#9ca3af', fontSize:'13px', padding:'20px' }}>불러오는 중...</div>
+          ) : (<>
+            {/* 부품 추가 */}
+            <div style={{ background:'#f9fafb', borderRadius:'10px', padding:'14px', display:'flex', flexDirection:'column', gap:'10px' }}>
+              <div style={{ fontSize:'12px', fontWeight:700, color:'#374151' }}>부품 추가</div>
+              <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                <input value={partsNewName} onChange={e => setPartsNewName(e.target.value)}
+                  placeholder="부품명 입력"
+                  style={{ flex:1, padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif' }} />
+                <select value={partsNewStage} onChange={e => setPartsNewStage(Number(e.target.value))}
+                  style={{ padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>{s}단계 신규</option>)}
+                </select>
+                <button onClick={async () => {
+                  if (!partsNewName.trim()) return
+                  const row = { productId: partsModal.product.id, stage: partsNewStage, name: partsNewName.trim() }
+                  try {
+                    await db.insert('supplyParts', row)
+                    const rows = await db.list('supplyParts', { productId: partsModal.product.id })
+                    setPartsList(rows || [])
+                    setPartsNewName('')
+                    success('부품이 추가됐어요')
+                  } catch(e) { toastError('추가 실패: ' + (e.message || e)) }
+                }}
+                  style={{ padding:'7px 14px', borderRadius:'7px', background:'#78716c', color:'#fff', border:'none', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                  추가
+                </button>
+              </div>
+            </div>
+
+            {/* 탭: 전체 / 단계별 누적 */}
+            {(() => {
+              const myParts = partsList.filter(pt => pt.productId === partsModal?.product?.id)
+              const stages = [...new Set(myParts.map(pt => Number(pt.stage)))].sort((a,b)=>a-b)
+              return (
+                <>
+                  <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                    <button onClick={() => setPartsViewStage(null)}
+                      style={{ padding:'4px 12px', borderRadius:'20px', border:'1px solid #d1d5db',
+                        background: partsViewStage === null ? '#78716c' : '#fff',
+                        color: partsViewStage === null ? '#fff' : '#6b7280',
+                        fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      전체 목록
+                    </button>
+                    {stages.map(st => (
+                      <button key={st} onClick={() => setPartsViewStage(st)}
+                        style={{ padding:'4px 12px', borderRadius:'20px', border:'1px solid #d1d5db',
+                          background: partsViewStage === st ? '#1d4ed8' : '#fff',
+                          color: partsViewStage === st ? '#fff' : '#6b7280',
+                          fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                        {st}단계 누적
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 목록 */}
+                  <div style={{ maxHeight:'300px', overflowY:'auto', display:'flex', flexDirection:'column', gap:'6px' }}>
+                    {partsViewStage === null ? (
+                      /* 전체: 단계별 그룹, 신규만 */
+                      stages.length === 0
+                        ? <div style={{ color:'#9ca3af', fontSize:'13px', textAlign:'center', padding:'20px' }}>등록된 부품이 없어요</div>
+                        : stages.map(st => {
+                            const items = myParts.filter(pt => Number(pt.stage) === st)
+                            return (
+                              <div key={st}>
+                                <div style={{ fontSize:'11px', fontWeight:700, color:'#78716c', marginBottom:'4px' }}>{st}단계 신규</div>
+                                {items.map(pt => (
+                                  <div key={pt.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+                                    padding:'6px 10px', borderRadius:'7px', background:'#f5f5f4', marginBottom:'3px' }}>
+                                    <span style={{ fontSize:'13px', color:'#1c1917', fontFamily:'Noto Sans KR, sans-serif' }}>{pt.name}</span>
+                                    <button onClick={async () => {
+                                      try {
+                                        await db.remove('supplyParts', pt.id)
+                                        const rows = await db.list('supplyParts', { productId: partsModal.product.id })
+                                        setPartsList(rows || [])
+                                        success('삭제됐어요')
+                                      } catch(e) { toastError('삭제 실패') }
+                                    }}
+                                      style={{ background:'none', border:'none', color:'#9ca3af', fontSize:'14px', cursor:'pointer', lineHeight:1 }}>✕</button>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          })
+                    ) : (
+                      /* 누적탭: 해당 단계까지 누적, 이전=연파랑, 해당=진파랑 */
+                      (() => {
+                        const accumulated = myParts.filter(pt => Number(pt.stage) <= partsViewStage)
+                        const accStages = [...new Set(accumulated.map(pt => Number(pt.stage)))].sort((a,b)=>a-b)
+                        if (accumulated.length === 0) return <div style={{ color:'#9ca3af', fontSize:'13px', textAlign:'center', padding:'20px' }}>등록된 부품이 없어요</div>
+                        return accStages.map(st => {
+                          const items = accumulated.filter(pt => Number(pt.stage) === st)
+                          const isCurrent = st === partsViewStage
+                          return (
+                            <div key={st}>
+                              <div style={{ fontSize:'11px', fontWeight:700, color: isCurrent ? '#1d4ed8' : '#93c5fd', marginBottom:'4px' }}>
+                                {st}단계 신규 {isCurrent ? '(이번 단계)' : ''}
+                              </div>
+                              {items.map(pt => (
+                                <div key={pt.id} style={{ display:'flex', alignItems:'center',
+                                  padding:'6px 10px', borderRadius:'7px', marginBottom:'3px',
+                                  background: isCurrent ? '#eff6ff' : '#f0f9ff',
+                                  border: `1px solid ${isCurrent ? '#bfdbfe' : '#e0f2fe'}` }}>
+                                  <span style={{ fontSize:'13px', color: isCurrent ? '#1e40af' : '#7dd3fc', fontFamily:'Noto Sans KR, sans-serif' }}>{pt.name}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        })
+                      })()
+                    )}
+                  </div>
+                </>
+              )
+            })()}
+          </>)}
+        </div>
       </Modal>
 
       {/* ── 파일 등록 모달 */}
