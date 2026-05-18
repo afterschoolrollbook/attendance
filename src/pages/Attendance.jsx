@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, SupplyPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers, SupplyGiven, SupplyParts, refreshTablesFromSupabase } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, SupplyPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers, SupplyGiven, SupplyParts, refreshTablesFromSupabase, onDbChange } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -59,7 +59,8 @@ function localDateStr(d) {
 
 // ─── 수업 메모장 패널
 function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, spGiven, onProgOpen, onOpenScreen }) {
-  const [memos, setMemos] = useState(() => cls ? LessonMemos.byClassDate(cls.id, date) : [])
+  const { success } = useToast()
+  const [memos, setMemos] = useState(() => cls ? LessonMemos.byClassDate(cls.id, date).filter(m => !m.content?.startsWith('__PARTS_ORDER__:')) : [])
   const [memoText, setMemoText] = useState('')
   // 부품 주문 메모
   const [partsOpen, setPartsOpen]           = useState(false)
@@ -68,7 +69,37 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   const [selStage, setSelStage]             = useState('')
   const [selPartId, setSelPartId]           = useState('')
   const [selQty, setSelQty]                 = useState(1)
-  const [orderList, setOrderList]           = useState([])   // { productId, productName, stage, partId, partName, qty }
+  const PARTS_ORDER_KEY = '__PARTS_ORDER__:'
+  const orderListRef = useRef([])
+  const [orderList, setOrderList] = useState(() => {
+    if (!cls) return []
+    const saved = LessonMemos.byClassDate(cls.id, date).find(m => m.content?.startsWith(PARTS_ORDER_KEY))
+    if (saved) { try {
+      const parsed = JSON.parse(saved.content.slice(PARTS_ORDER_KEY.length))
+      orderListRef.current = parsed
+      return parsed
+    } catch {} }
+    return []
+  })
+  const _saveOrderToSupabase = (list) => {
+    if (!cls) return
+    const content = PARTS_ORDER_KEY + JSON.stringify(list)
+    const allMemos = LessonMemos.byClassDate(cls.id, date)
+    const existing = allMemos.find(m => m.content?.startsWith(PARTS_ORDER_KEY))
+    if (existing) {
+      LessonMemos.update(existing.id, { content })
+    } else {
+      LessonMemos.insert({ id: uid(), teacherId: cls.teacherId, classId: cls.id, date, content, createdAt: now() })
+    }
+    success('주문 목록이 저장되었습니다')
+  }
+  const _setOrderList = (updater) => {
+    const prev = orderListRef.current
+    const next = typeof updater === 'function' ? updater(prev) : updater
+    orderListRef.current = next
+    setOrderList(next)
+    _saveOrderToSupabase(next)
+  }
   const [addingNew, setAddingNew]           = useState(false)
   const [newPartName, setNewPartName]       = useState('')
   const [partsLoading, setPartsLoading]     = useState(false)
@@ -79,13 +110,39 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   })
   const toggleSection = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
 
+  // 다른 기기에서 변경 시 실시간 반영
+  useEffect(() => {
+    if (!cls) return
+    const unsub = onDbChange('lessonMemos', () => {
+      const all = LessonMemos.byClassDate(cls.id, date)
+      setMemos(all.filter(m => !m.content?.startsWith(PARTS_ORDER_KEY)))
+      const saved = all.find(m => m.content?.startsWith(PARTS_ORDER_KEY))
+      if (saved) { try { const p = JSON.parse(saved.content.slice(PARTS_ORDER_KEY.length)); orderListRef.current = p; setOrderList(p) } catch {} }
+    })
+    return unsub
+  }, [cls?.id, date])
+
+  // 다른 기기 변경사항 폴링 (30초마다 Supabase 재조회)
+  useEffect(() => {
+    if (!cls) return
+    const poll = async () => {
+      await refreshTablesFromSupabase('lessonMemos')
+      const all = LessonMemos.byClassDate(cls.id, date)
+      setMemos(all.filter(m => !m.content?.startsWith(PARTS_ORDER_KEY)))
+      const saved = all.find(m => m.content?.startsWith(PARTS_ORDER_KEY))
+      if (saved) { try { const p = JSON.parse(saved.content.slice(PARTS_ORDER_KEY.length)); orderListRef.current = p; setOrderList(p) } catch {} }
+    }
+    const timer = setInterval(poll, 30000)
+    return () => clearInterval(timer)
+  }, [cls?.id, date])
+
   const addMemo = () => {
     if (!memoText.trim() || !cls) return
     LessonMemos.insert({ id: uid(), teacherId: cls.teacherId, classId: cls.id, date, content: memoText.trim(), createdAt: now() })
-    setMemos(LessonMemos.byClassDate(cls.id, date))
+    setMemos(LessonMemos.byClassDate(cls.id, date).filter(m => !m.content?.startsWith(PARTS_ORDER_KEY)))
     setMemoText('')
   }
-  const delMemo = (id) => { LessonMemos.delete(id); setMemos(LessonMemos.byClassDate(cls.id, date)) }
+  const delMemo = (id) => { LessonMemos.delete(id); setMemos(LessonMemos.byClassDate(cls.id, date).filter(m => !m.content?.startsWith(PARTS_ORDER_KEY))) }
 
   const activeStudents = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
   const studentProgList = activeStudents.map(s => {
@@ -492,7 +549,10 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                     }}
                       style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                       <option value="">-- 부품 선택 --</option>
-                      {partsData.filter(p => p.productId === selProductId && Number(p.stage) === Number(selStage)).map(p => (
+                      {(() => {
+                        const seen = new Set()
+                        return partsData.filter(p => p.productId === selProductId && Number(p.stage) === Number(selStage) && (seen.has(p.name) ? false : seen.add(p.name)))
+                      })().map(p => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
                       <option value="__new__">+ 새 부품 등록</option>
@@ -529,7 +589,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                       <button onClick={() => {
                         const prod = spProds.find(p => p.id === selProductId)
                         const partName = partsData.find(p => p.id === selPartId)?.name || ''
-                        setOrderList(prev => {
+                        _setOrderList(prev => {
                           const existing = prev.find(o => o.partId === selPartId)
                           if (existing) return prev.map(o => o.partId === selPartId ? { ...o, qty: o.qty + selQty } : o)
                           return [...prev, { productId: selProductId, productName: prod?.name || '', stage: Number(selStage), partId: selPartId, partName, qty: selQty }]
@@ -551,7 +611,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                       const editPid   = o._editProductId   ?? o.productId
                       const editStage = o._editStage       ?? o.stage
                       const editPartId= o._editPartId      ?? o.partId
-                      const upd = (patch) => setOrderList(prev => prev.map((x,j) => j===i ? {...x, ...patch} : x))
+                      const upd = (patch) => _setOrderList(prev => prev.map((x,j) => j===i ? {...x, ...patch} : x))
                       return (
                       <div key={i}>
                         <div style={{ display:'flex', alignItems:'center', gap:'4px', padding:'5px 6px', background:'#fff', borderRadius: (o._edit || o._memoEdit) ? '6px 6px 0 0' : '6px', border:'1px solid #e5e7eb' }}>
@@ -562,7 +622,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                             title="메모" style={{ fontSize:'14px', lineHeight:1, color: o.memo ? '#f59e0b' : '#d1d5db', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>🗒️</button>
                           <button onClick={() => upd({ _edit: !o._edit, _memoEdit: false, _editProductId: o.productId, _editStage: o.stage, _editPartId: o.partId })}
                             title="수정" style={{ fontSize:'13px', lineHeight:1, color: o._edit ? '#3b82f6' : '#9ca3af', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>✏️</button>
-                          <button onClick={() => setOrderList(prev => prev.filter((_,j) => j!==i))}
+                          <button onClick={() => _setOrderList(prev => prev.filter((_,j) => j!==i))}
                             title="삭제" style={{ fontSize:'13px', lineHeight:1, color:'#fca5a5', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>✕</button>
                         </div>
                         {o._memoEdit && (
@@ -609,7 +669,10 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                               <select value={editPartId} onChange={e => upd({ _editPartId: e.target.value })}
                                 style={{ width:'100%', padding:'6px 8px', borderRadius:'6px', border:'1px solid #bae6fd', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                                 <option value="">-- 부품 선택 --</option>
-                                {partsData.filter(p => p.productId === editPid && Number(p.stage) === Number(editStage)).map(p => (
+                                {(() => {
+                                  const seen = new Set()
+                                  return partsData.filter(p => p.productId === editPid && Number(p.stage) === Number(editStage) && (seen.has(p.name) ? false : seen.add(p.name)))
+                                })().map(p => (
                                   <option key={p.id} value={p.id}>{p.name}</option>
                                 ))}
                               </select>
