@@ -2663,7 +2663,6 @@ export function Dashboard({ user, onNav }) {
   classes.forEach(cls => calcSessionDates(cls).forEach(s => classDates.add(s)))
 
   const supplyProds  = SupplyProducts.byTeacher(user.id)
-  const supplyAlerts = classes.flatMap(cls => {
 
   // ── 부품 주문 누적 (모든 수업의 __PARTS_ORDER__ 메모 합산)
   const PARTS_ORDER_KEY = '__PARTS_ORDER__:'
@@ -2678,23 +2677,21 @@ export function Dashboard({ user, onNav }) {
           const key = `${o.productId}__${o.stage}__${o.partId}`
           if (merged[key]) {
             merged[key].qty += o.qty
-            merged[key]._memoIds = merged[key]._memoIds || []
+            if (!merged[key]._memoIds.includes(m.id)) merged[key]._memoIds.push(m.id)
           } else {
-            merged[key] = { ...o, _memoId: m.id, _memoIds: [m.id] }
+            merged[key] = { ...o, _memoIds: [m.id] }
           }
-          if (!merged[key]._memoIds.includes(m.id)) merged[key]._memoIds.push(m.id)
         })
       } catch {}
     })
     return Object.values(merged)
   })()
-  const allOrderMemoIds = (() => {
-    const allMemos = LessonMemos.byTeacher(user.id)
-    return allMemos.filter(m => m.content?.startsWith(PARTS_ORDER_KEY)).map(m => m.id)
-  })()
+  const allOrderMemoIds = LessonMemos.byTeacher(user.id).filter(m => m.content?.startsWith(PARTS_ORDER_KEY)).map(m => m.id)
 
   // ── 교구준비 요일별 접기 상태 (첫 번째만 펼침)
-  const [expandedDays, setExpandedDays] = useState(() => new Set(['__first__']))
+  const [expandedDays, setExpandedDays] = useState(() => new Set())
+
+  const supplyAlerts = classes.flatMap(cls => {
     const confirmed  = StudentsDB.confirmed(cls.id)
     if (!confirmed.length) return []
     const supplyData = SupplyItems.byClass(cls.id)
