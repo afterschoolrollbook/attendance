@@ -1,28 +1,27 @@
 import React from 'react'
 import { AdSlots } from '../lib/db.js'
-import { can, FEATURES } from '../constants/permissions.js'
+import { can, canAccessMenu, getLevelNames, LEVEL_COLORS } from '../constants/permissions.js'
+import { FEATURES } from '../constants/permissions.js'
 
 const NAV = [
-  { path: 'dashboard',       label: '대시보드',        icon: '🏠', feature: null },
-  { path: 'attendance',      label: '출석부',           icon: '✅', feature: FEATURES.ATTENDANCE },
-  { path: 'classes',         label: '수업등록 및 관리', icon: '📚', feature: FEATURES.MANAGE_CLASS },
-  { path: 'students',        label: '학생등록 및 관리', icon: '👥', feature: FEATURES.ADD_STUDENT },
-  { path: 'confirm',         label: '인원확정 및 추첨', icon: '🎲', feature: null },
-  { path: 'reports',         label: '출석 리포트',      icon: '📊', feature: FEATURES.VIEW_REPORT },
-  { path: 'templates',       label: '방과후 서류',      icon: '🗂️', feature: FEATURES.MANAGE_TEMPLATE },
-  { path: 'printsetup',      label: '출석부 출력',      icon: '🖨️', feature: FEATURES.PRINT_ATTENDANCE },
-  { path: 'parent-service',  label: '출결 서비스 관리', icon: '📲', feature: null },
-  { path: 'supplies',        label: '교구준비 및 관리', icon: '🎒', feature: null },
-  { path: 'messageguide',    label: '안내 문구 관리',   icon: '💬', feature: null },
-  { path: 'profile',         label: '내 정보',          icon: '👤', feature: null },
+  { path: 'dashboard',       label: '대시보드',        icon: '🏠' },
+  { path: 'attendance',      label: '출석부',           icon: '✅' },
+  { path: 'classes',         label: '수업등록 및 관리', icon: '📚' },
+  { path: 'students',        label: '학생등록 및 관리', icon: '👥' },
+  { path: 'confirm',         label: '인원확정 및 추첨', icon: '🎲' },
+  { path: 'reports',         label: '출석 리포트',      icon: '📊' },
+  { path: 'templates',       label: '방과후 서류',      icon: '🗂️' },
+  { path: 'printsetup',      label: '출석부 출력',      icon: '🖨️' },
+  { path: 'parent-service',  label: '출결 서비스 관리', icon: '📲' },
+  { path: 'supplies',        label: '교구준비 및 관리', icon: '🎒' },
+  { path: 'messageguide',    label: '안내 문구 관리',   icon: '💬' },
+  { path: 'profile',         label: '내 정보',          icon: '👤' },
 ]
 
-// 수익관리 — 항상 표시
 const MY_NAV_FIXED = [
   { path: 'revenue', label: '수익관리', icon: '💰' },
 ]
 
-// 내 관리 메뉴 — 관리자 ON/OFF 가능
 const MY_NAV = [
   { path: 'training',     label: '연수관리',         icon: '🎓', menuKey: 'training' },
   { path: 'certificates', label: '자격증관리',       icon: '🏆', menuKey: 'certificates' },
@@ -39,9 +38,8 @@ const ADMIN_NAV = [
   { path: 'blog_admin',     label: '블로그 관리', icon: '📝', feature: FEATURES.MANAGE_AD },
 ]
 
-// ✅ Lv.5 전용 — 본사 운영 메뉴
 const HQ_NAV = [
-  { path: 'vendor_manage', label: '업체 관리',      icon: '🏢' },
+  { path: 'vendor_manage', label: '업체 관리',        icon: '🏢' },
   { path: 'school_manage', label: '학교 담당자 관리', icon: '🏫' },
 ]
 
@@ -51,32 +49,79 @@ function getMenuConfig() {
 }
 
 export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onClose }) {
-  const adSlot  = AdSlots.all().find(s => s.id === 'sidebar_bottom')
-  const menuCfg = getMenuConfig()
+  const adSlot     = AdSlots.all().find(s => s.id === 'sidebar_bottom')
+  const menuCfg    = getMenuConfig()
+  const levelNames = getLevelNames()
 
-  const levelColors = { 1:'#9ca3af', 2:'#f97316', 3:'#16a34a', 4:'#8b5cf6', 5:'#ef4444' }
-  const levelLabels = { 1:'Lv.1 미인증', 2:'Lv.2 인증', 3:'Lv.3 우수', 4:'Lv.4 파트너', 5:'Lv.5 관리자' }
+  const userLevel   = user?.level || 1
+  const levelColor  = LEVEL_COLORS[userLevel] || '#9ca3af'
+  const levelLabel  = `Lv.${userLevel} ${levelNames[userLevel] || '미인증 선생님'}`
+  const isAdmin     = user?.role === 'admin' || userLevel >= 10
 
   const visibleMyNav = MY_NAV.filter(item => menuCfg[item.menuKey] !== false)
-  const isSuperAdmin = user?.level === 5  // ✅ Lv.5 판별
 
-  const handleNav = (path) => { onNav(path); if (mobile) onClose?.() }
+  const handleNav    = (path) => { onNav(path); if (mobile) onClose?.() }
   const handleLogout = () => { onLogout(); if (mobile) onClose?.() }
 
-  // ── 모바일: 오버레이 + 슬라이드 드로어
+  const UserBadge = () => (
+    <div style={{
+      display:'inline-block', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'999px',
+      background:`${levelColor}22`, color:levelColor, border:`1px solid ${levelColor}44`,
+    }}>
+      {levelLabel}
+    </div>
+  )
+
+  const renderNav = (isMobile) => (
+    <nav style={{ flex:1, overflowY:'auto', padding: isMobile ? '10px 0' : '12px 0' }}>
+      {NAV.map(item => {
+        if (!canAccessMenu(user, item.path)) return null
+        return <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />
+      })}
+
+      <div style={{ fontSize:'11px', color:'#52525b', padding: isMobile ? '10px 16px 4px' : '12px 20px 4px', fontWeight:600, letterSpacing:'0.05em' }}>
+        선생님 커리어
+      </div>
+      {canAccessMenu(user, 'revenue') && MY_NAV_FIXED.map(item => (
+        <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />
+      ))}
+      {visibleMyNav.filter(item => canAccessMenu(user, item.menuKey)).map(item => (
+        <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />
+      ))}
+
+      {isAdmin && (
+        <>
+          <div style={{ fontSize:'11px', color:'#52525b', padding: isMobile ? '10px 16px 4px' : '12px 20px 4px', fontWeight:600, letterSpacing:'0.05em' }}>
+            관리자
+          </div>
+          {ADMIN_NAV.map(item => (
+            <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />
+          ))}
+        </>
+      )}
+
+      {isAdmin && (
+        <>
+          <div style={{ fontSize:'11px', color:'#a78bfa', padding: isMobile ? '10px 16px 4px' : '12px 20px 4px', fontWeight:700, letterSpacing:'0.05em' }}>
+            본사 운영
+          </div>
+          {HQ_NAV.map(item => (
+            <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} accent="#8b5cf6" />
+          ))}
+        </>
+      )}
+    </nav>
+  )
+
+  // ── 모바일
   if (mobile) return (
     <>
-      {open && (
-        <div onClick={onClose} style={{
-          position: 'fixed', inset: 0, zIndex: 1000,
-          background: 'rgba(0,0,0,0.55)',
-        }} />
-      )}
+      {open && <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.55)' }} />}
       <aside style={{
-        position: 'fixed', top: 0, left: open ? 0 : '-260px', zIndex: 1100,
-        width: '240px', height: '100vh', background: '#18181b',
-        display: 'flex', flexDirection: 'column',
-        transition: 'left .25s ease',
+        position:'fixed', top:0, left:open ? 0 : '-260px', zIndex:1100,
+        width:'240px', height:'100vh', background:'#18181b',
+        display:'flex', flexDirection:'column',
+        transition:'left .25s ease',
         boxShadow: open ? '4px 0 24px rgba(0,0,0,0.35)' : 'none',
       }}>
         <div style={{ padding:'18px 16px 16px', borderBottom:'1px solid #27272a', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -88,32 +133,9 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
         </div>
         <div style={{ padding:'14px 16px', borderBottom:'1px solid #27272a' }}>
           <div style={{ fontSize:'14px', fontWeight:600, color:'#fff', marginBottom:'4px' }}>{user?.name}</div>
-          <div style={{ display:'inline-block', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'999px', background:`${levelColors[user?.level]||'#9ca3af'}22`, color:levelColors[user?.level]||'#9ca3af', border:`1px solid ${levelColors[user?.level]||'#9ca3af'}44` }}>
-            {levelLabels[user?.level] || 'Lv.1 미인증'}
-          </div>
+          <UserBadge />
         </div>
-        <nav style={{ flex:1, overflowY:'auto', padding:'10px 0' }}>
-          {NAV.map(item => {
-            if (item.feature && !can(user, item.feature)) return null
-            return <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />
-          })}
-          <div style={{ fontSize:'11px', color:'#52525b', padding:'10px 16px 4px', fontWeight:600 }}>선생님 커리어</div>
-          {MY_NAV_FIXED.map(item => <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />)}
-          {visibleMyNav.map(item => <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />)}
-          {(user?.role === 'admin' || isSuperAdmin) && (
-            <>
-              <div style={{ fontSize:'11px', color:'#52525b', padding:'10px 16px 4px', fontWeight:600 }}>관리자</div>
-              {ADMIN_NAV.map(item => <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />)}
-            </>
-          )}
-          {/* ✅ Lv.5 전용 본사 운영 — 모바일 */}
-          {isSuperAdmin && (
-            <>
-              <div style={{ fontSize:'11px', color:'#a78bfa', padding:'10px 16px 4px', fontWeight:700 }}>본사 운영</div>
-              {HQ_NAV.map(item => <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} accent="#8b5cf6" />)}
-            </>
-          )}
-        </nav>
+        {renderNav(true)}
         <div style={{ padding:'12px 16px', borderTop:'1px solid #27272a' }}>
           <button onClick={handleLogout} style={{ background:'none', border:'none', cursor:'pointer', color:'#71717a', fontSize:'14px', padding:'6px 0', display:'flex', alignItems:'center', gap:'8px', width:'100%', fontFamily:'Noto Sans KR, sans-serif' }}>
             <span>🚪</span> 로그아웃
@@ -123,12 +145,12 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
     </>
   )
 
-  // ── PC 레이아웃
+  // ── PC
   return (
     <aside style={{
-      width: '220px', minWidth: '220px', background: '#18181b',
-      display: 'flex', flexDirection: 'column', height: '100vh',
-      position: 'sticky', top: 0, overflow: 'hidden',
+      width:'220px', minWidth:'220px', background:'#18181b',
+      display:'flex', flexDirection:'column', height:'100vh',
+      position:'sticky', top:0, overflow:'hidden',
     }}>
       <div style={{ padding:'24px 20px 20px', borderBottom:'1px solid #27272a' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
@@ -139,59 +161,11 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
           </div>
         </div>
       </div>
-
       <div style={{ padding:'16px 20px', borderBottom:'1px solid #27272a' }}>
         <div style={{ fontSize:'14px', fontWeight:600, color:'#fff', marginBottom:'4px' }}>{user?.name}</div>
-        <div style={{
-          display:'inline-block', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'999px',
-          background:`${levelColors[user?.level] || '#9ca3af'}22`,
-          color: levelColors[user?.level] || '#9ca3af',
-          border:`1px solid ${levelColors[user?.level] || '#9ca3af'}44`,
-        }}>
-          {levelLabels[user?.level] || 'Lv.1 미인증'}
-        </div>
+        <UserBadge />
       </div>
-
-      <nav style={{ flex:1, overflowY:'auto', padding:'12px 0' }}>
-        {NAV.map(item => {
-          if (item.feature && !can(user, item.feature)) return null
-          return <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} />
-        })}
-
-        <div style={{ fontSize:'11px', color:'#52525b', padding:'12px 20px 4px', fontWeight:600, letterSpacing:'0.05em' }}>
-          선생님 커리어
-        </div>
-        {MY_NAV_FIXED.map(item => (
-          <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} />
-        ))}
-        {visibleMyNav.map(item => (
-          <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} />
-        ))}
-
-        {(user?.role === 'admin' || isSuperAdmin) && (
-          <>
-            <div style={{ fontSize:'11px', color:'#52525b', padding:'12px 20px 4px', fontWeight:600, letterSpacing:'0.05em' }}>
-              관리자
-            </div>
-            {ADMIN_NAV.map(item => (
-              <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} />
-            ))}
-          </>
-        )}
-
-        {/* ✅ Lv.5 전용 본사 운영 — PC */}
-        {isSuperAdmin && (
-          <>
-            <div style={{ fontSize:'11px', color:'#a78bfa', padding:'12px 20px 4px', fontWeight:700, letterSpacing:'0.05em' }}>
-              본사 운영
-            </div>
-            {HQ_NAV.map(item => (
-              <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>onNav(item.path)} accent="#8b5cf6" />
-            ))}
-          </>
-        )}
-      </nav>
-
+      {renderNav(false)}
       {adSlot?.active && adSlot.code && (
         <div style={{ padding:'12px 16px' }}>
           <div style={{ width:'100%', height:120, background:'#27272a', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', color:'#71717a' }}>
@@ -199,10 +173,8 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
           </div>
         </div>
       )}
-
       <div style={{ padding:'12px 20px', borderTop:'1px solid #27272a' }}>
-        <button onClick={onLogout}
-          style={{ background:'none', border:'none', cursor:'pointer', color:'#71717a', fontSize:'14px', padding:'6px 0', display:'flex', alignItems:'center', gap:'8px', width:'100%', fontFamily:'Noto Sans KR, sans-serif' }}>
+        <button onClick={onLogout} style={{ background:'none', border:'none', cursor:'pointer', color:'#71717a', fontSize:'14px', padding:'6px 0', display:'flex', alignItems:'center', gap:'8px', width:'100%', fontFamily:'Noto Sans KR, sans-serif' }}>
           <span>🚪</span> 로그아웃
         </button>
       </div>
@@ -210,20 +182,15 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
   )
 }
 
-// ✅ accent prop 추가 — 본사 메뉴는 보라색
 function NavItem({ item, active, onClick, accent }) {
   const activeColor = accent || '#f97316'
   const activeBg    = accent ? '#8b5cf618' : '#f9731618'
-
   return (
-    <button
-      onClick={onClick}
+    <button onClick={onClick}
       style={{
         width:'100%', display:'flex', alignItems:'center', gap:'10px',
-        padding:'10px 20px',
-        background: active ? activeBg : 'none',
-        border:'none',
-        borderLeft: active ? `3px solid ${activeColor}` : '3px solid transparent',
+        padding:'10px 20px', background: active ? activeBg : 'none',
+        border:'none', borderLeft: active ? `3px solid ${activeColor}` : '3px solid transparent',
         color: active ? activeColor : '#a1a1aa',
         fontSize:'14px', fontWeight: active ? 600 : 400,
         cursor:'pointer', textAlign:'left', transition:'all .15s',
