@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers, SupplyGiven, SupplyParts, refreshTablesFromSupabase } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Attendance as AttendanceDB, Notes, LessonMemos, SupplyItems, SupplyProducts, SupplyStudentProgress, SupplySessionChecks, SupplyProductPlans, SupplyPlans, MessageGuides, MessageCategories, TeacherProfiles, ParentMembers, SupplyGiven, SupplyParts, refreshTablesFromSupabase } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, getSession, getSessionInfo, fmtPhone } from '../lib/utils.js'
 import { ATTENDANCE_STATUS, HOME_RETURN_TYPES } from '../constants/config.js'
 import { Modal } from '../components/Atoms.jsx'
@@ -418,25 +418,13 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
       <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:'12px', marginTop:'0' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: partsOpen ? '10px' : '0' }}>
           <div style={{ fontSize:'11px', fontWeight:700, color:C.muted }}>🔧 부품 주문 메모</div>
-          <button onClick={async () => {
+          <button onClick={() => {
             if (!partsOpen) {
-              setPartsLoading(true)
-              // 현재 수업 학생들의 교구 목록에서 productId 수집
-              const productIds = [...new Set(
-                activeStudents.map(s => spItems.find(i => i.studentId === s.id && i.classId === cls.id)?.productId).filter(Boolean)
-              )]
-              if (productIds.length > 0) {
-                try {
-                  const allParts = await Promise.all(productIds.map(pid => SupplyParts.byProduct(pid)))
-                  setPartsData(allParts.flat())
-                  // 첫 번째 교구로 초기화
-                  setSelProductId(productIds[0])
-                  const stages = [...new Set(allParts[0]?.map(p => Number(p.stage)) || [])].sort((a,b)=>a-b)
-                  setSelStage(stages[0] || '')
-                  setSelPartId('')
-                } catch(e) { setPartsData([]) }
-              }
-              setPartsLoading(false)
+              setSelProductId('')
+              setSelStage('')
+              setSelPartId('')
+              setAddingNew(false)
+              setNewPartName('')
             }
             setPartsOpen(v => !v)
           }}
@@ -454,12 +442,19 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                 {/* 드롭다운 선택 */}
                 <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
                   {/* 교구(로봇) 선택 */}
-                  <select value={selProductId} onChange={e => {
-                    setSelProductId(e.target.value)
-                    const stages = [...new Set(partsData.filter(p => p.productId === e.target.value).map(p => Number(p.stage)))].sort((a,b)=>a-b)
-                    setSelStage(stages[0] || '')
+                  <select value={selProductId} onChange={async e => {
+                    const pid = e.target.value
+                    setSelProductId(pid)
+                    setSelStage('')
                     setSelPartId('')
                     setAddingNew(false)
+                    if (!pid) return
+                    try {
+                      const rows = await SupplyParts.byProduct(pid)
+                      setPartsData(prev => [...prev.filter(p => p.productId !== pid), ...(rows || [])])
+                      const stages = [...new Set((rows || []).map(p => Number(p.stage)))].sort((a,b)=>a-b)
+                      setSelStage(stages[0] || '')
+                    } catch(e) {}
                   }}
                     style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                     <option value="">-- 교구 선택 --</option>
@@ -478,9 +473,13 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                     }}
                       style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                       <option value="">-- 단계 선택 --</option>
-                      {[...new Set(partsData.filter(p => p.productId === selProductId).map(p => Number(p.stage)))].sort((a,b)=>a-b).map(st => (
-                        <option key={st} value={st}>{st}단계</option>
-                      ))}
+                      {(() => {
+                        const fromPlans = SupplyPlans.byProduct(selProductId).filter(pl => (pl.fileType==='session'||pl.type==='session') && pl.stage).map(pl => Number(pl.stage))
+                        const fromProductPlans = SupplyProductPlans.byProduct(selProductId).map(pl => Number(pl.stage))
+                        return [...new Set([...fromProductPlans, ...fromPlans])].sort((a,b)=>a-b).map(st => (
+                          <option key={st} value={st}>{st}단계</option>
+                        ))
+                      })()}
                     </select>
                   )}
 
