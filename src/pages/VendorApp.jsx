@@ -78,18 +78,23 @@ function downloadProductsExcel(vendorName, products, contents, subjects=[]) {
   XLSX.writeFile(wb, `교구목록_${vendorName}_${new Date().toLocaleDateString('ko-KR').replace(/\. /g,'-').replace('.','')} .xlsx`)
 }
 
-// ── 파일 스토리지 업로드
+// ── 파일 스토리지 업로드 (Edge Function 경유 — ANON_KEY 직접 사용 금지)
 async function uploadToStorage(vendorId, folder, file) {
-  const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
-  const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-  const filePath = `vendors/${vendorId}/${folder}/${Date.now()}_${file.name}`
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/teacher-files/${filePath}`, {
-    method:'POST',
-    headers:{ 'apikey':SUPABASE_ANON, 'Authorization':`Bearer ${SUPABASE_ANON}`, 'Content-Type':file.type||'application/octet-stream', 'x-upsert':'true' },
-    body:file,
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result.split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
   })
-  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e?.message||res.statusText) }
-  return `${SUPABASE_URL}/storage/v1/object/public/teacher-files/${filePath}`
+  const filePath = `vendors/${vendorId}/${folder}/${Date.now()}_${file.name}`
+  const result = await dbCall('storageUpload', '_storage', {
+    bucket: 'teacher-files',
+    path: filePath,
+    base64,
+    contentType: file.type || 'application/octet-stream',
+  })
+  if (!result?.url) throw new Error('업로드 실패')
+  return result.url
 }
 
 // ── FileRow
