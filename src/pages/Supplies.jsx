@@ -1148,6 +1148,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
             + 추가
           </button>
         </div>
+        </div>{/* end 교구 지급 기록 div */}
         <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb' }}>
           <button onClick={onClose}
             style={{ width:'100%', padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>

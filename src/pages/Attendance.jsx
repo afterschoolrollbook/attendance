@@ -2246,6 +2246,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             + 추가
           </button>
         </div>
+        </div>{/* end 교구 지급 기록 div */}
         <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
           <button onClick={onClose}
             style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
