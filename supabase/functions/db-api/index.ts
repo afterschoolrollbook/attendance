@@ -147,6 +147,26 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: getCorsHeaders(req) })
 
   try {
+    // ── JWT 인증 검증
+    const authHeader = req.headers.get('Authorization') || ''
+    if (!authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: '인증이 필요합니다.' }), {
+        status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+      })
+    }
+    const token = authHeader.replace('Bearer ', '')
+    const anonClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: `Bearer ${token}` } } }
+    )
+    const { data: { user: caller } } = await anonClient.auth.getUser()
+    if (!caller) {
+      return new Response(JSON.stringify({ error: '유효하지 않은 인증입니다.' }), {
+        status: 401, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+      })
+    }
+
     const url  = new URL(req.url)
     const body = req.method !== 'GET' ? await req.json() : {}
 
@@ -282,18 +302,17 @@ serve(async (req) => {
         break
       }
       case 'addColumn': {
-        // 컬럼이 없는 환경에서 자동 추가 (IF NOT EXISTS → 이미 있으면 무시)
+        // 화이트리스트 검증으로 SQL Injection 방어
         const { column, colType, colDefault } = body
-        const sql = `ALTER TABLE "${tbl}" ADD COLUMN IF NOT EXISTS "${column}" ${colType ?? 'boolean'} DEFAULT ${colDefault ?? false}`
-        const { error } = await supabase.rpc('exec_sql', { sql_text: sql })
-        if (error) throw new Error(`addColumn 실패 (exec_sql RPC 없음): ${error.message}\n아래 SQL을 Supabase 대시보드에서 수동 실행하세요:\n${sql}`)
-        result = { ok: true }
-        break
-      }
-      case 'addColumn': {
-        // 컬럼 누락 환경에서 자동 추가 — service_role로 직접 SQL 실행
-        const { column, colType, colDefault } = body
-        const sql = `ALTER TABLE "${tbl}" ADD COLUMN IF NOT EXISTS "${column}" ${colType ?? 'boolean'} DEFAULT ${colDefault ?? false}`
+        const ALLOWED_TYPES = ['boolean', 'text', 'integer', 'bigint', 'numeric', 'timestamptz', 'jsonb', 'uuid']
+        const safeColName = /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(column || '')
+        const safeColType = ALLOWED_TYPES.includes(colType ?? 'boolean')
+        if (!safeColName) throw new Error('유효하지 않은 컬럼명입니다.')
+        if (!safeColType) throw new Error('허용되지 않은 컬럼 타입입니다.')
+        const safeDefault = colDefault === undefined || colDefault === null || typeof colDefault === 'boolean' || typeof colDefault === 'number'
+          ? (colDefault ?? false)
+          : false
+        const sql = `ALTER TABLE "${tbl}" ADD COLUMN IF NOT EXISTS "${column}" ${colType ?? 'boolean'} DEFAULT ${safeDefault}`
         const { error } = await supabase.rpc('exec_sql', { sql_text: sql })
         if (error) throw new Error(`addColumn 실패: ${error.message}`)
         result = { ok: true }
