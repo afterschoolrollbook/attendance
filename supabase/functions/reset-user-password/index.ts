@@ -37,7 +37,7 @@ serve(async (req) => {
     if (!caller) throw new Error('인증되지 않은 요청입니다.')
 
     const { data: callerUser } = await anonClient.from('users').select('level').eq('auth_id', caller.id).single()
-    if (!callerUser || callerUser.level < 5) throw new Error('관리자 권한이 필요합니다.')
+    if (!callerUser || callerUser.level < 10) throw new Error('관리자 권한이 필요합니다.')
 
     // Service Role Key로 대상 유저 비밀번호 변경
     const adminClient = createClient(
