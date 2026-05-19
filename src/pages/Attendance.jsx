@@ -674,7 +674,15 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                       <button onClick={() => updUI({ _memoEdit: !o._memoEdit, _edit: false })}
                         title="메모" style={{ fontSize:'14px', lineHeight:1, color:'#f59e0b', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>🗒️</button>
                     )}
-                    <button onClick={() => updUI({ _edit: !o._edit, _memoEdit: false, _editProductId: o.productId, _editStage: o.stage, _editPartId: o.partId })}
+                    <button onClick={async () => {
+                      updUI({ _edit: !o._edit, _memoEdit: false, _editProductId: o.productId, _editStage: o.stage, _editPartId: o.partId })
+                      if (!o._edit) {
+                        try {
+                          const rows = await SupplyParts.byProduct(o.productId)
+                          setPartsData(prev => [...prev.filter(p => p.productId !== o.productId), ...(rows || [])])
+                        } catch(e) {}
+                      }
+                    }}
                       title="수정" style={{ fontSize:'13px', lineHeight:1, color: o._edit ? '#3b82f6' : '#9ca3af', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>✏️</button>
                     <button onClick={() => { _setOrderList(prev => prev.filter((_,j) => j!==i)); success('삭제되었습니다') }}
                       title="삭제" style={{ fontSize:'13px', lineHeight:1, color:'#fca5a5', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>✕</button>
