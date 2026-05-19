@@ -25,7 +25,24 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: getCorsHeaders(req) })
 
   try {
+    // Authorization 헤더 확인 (anon key 이상 필요)
+    const authHeader = req.headers.get('Authorization') || ''
+    if (!authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ success: false, error: '인증이 필요합니다.' }), {
+        status: 401,
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+      })
+    }
+
     const { to, subject, html, purpose, code } = await req.json()
+
+    // 수신자 이메일 기본 검증
+    if (!to || !String(to).includes('@')) {
+      return new Response(JSON.stringify({ success: false, error: '유효하지 않은 수신자입니다.' }), {
+        status: 400,
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+      })
+    }
 
     // settings 테이블에서 키 읽기 (관리자 페이지에서 등록)
     const supabase = createClient(
