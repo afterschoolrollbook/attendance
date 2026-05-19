@@ -1889,12 +1889,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
 
   return (
     <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={780}>
-      <div style={{ overflowY:'auto', maxHeight:'80vh', display:'flex', flexDirection:'column' }}>
-        {/* sticky 이름 헤더 */}
-        <div style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb', padding:'8px 24px', display:'flex', alignItems:'center', gap:'8px' }}>
-          <span style={{ fontSize:'15px', fontWeight:700, color:'#111827' }}>📊 {student.name} 진도 체크</span>
-        </div>
-        <div style={{ padding:'16px 24px' }}>
+      <div style={{ padding:'16px 24px' }}>
         {/* 교구 시리즈 / 단계 변경 */}
         <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', marginBottom:'16px' }}>
           <div style={{ display:'flex', alignItems:'flex-end', gap:'10px', flexWrap:'wrap' }}>
@@ -2098,45 +2093,45 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             )}
           </div>
         )}
-        </div>{/* end padding div */}
+      </div>
 
-        {/* 다음 진도 준비 */}
-        <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#fafafa' }}>
-          <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📌 다음 진도 준비</div>
-          <div style={{ display:'flex', alignItems:'flex-end', gap:'10px', flexWrap:'wrap' }}>
-            <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'150px' }}>
-              <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>다음 교구</label>
-              <select value={nextProductId} onChange={e => { setNextProductId(e.target.value); setNextStage(1) }}
+      {/* 다음 진도 준비 */}
+      <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#fafafa' }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📌 다음 진도 준비</div>
+        <div style={{ display:'flex', alignItems:'flex-end', gap:'10px', flexWrap:'wrap' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'4px', flex:1, minWidth:'150px' }}>
+            <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>다음 교구</label>
+            <select value={nextProductId} onChange={e => { setNextProductId(e.target.value); setNextStage(1) }}
+              style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
+              <option value="">선택 안함</option>
+              {spProds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          {nextProductId && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px', minWidth:'90px' }}>
+              <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>단계</label>
+              <select value={nextStage} onChange={e => setNextStage(Number(e.target.value))}
                 style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
-                <option value="">선택 안함</option>
-                {spProds.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {Array.from({ length: nextMaxStage }, (_, i) => i+1).map(s => (
+                  <option key={s} value={s}>{s}단계</option>
+                ))}
               </select>
             </div>
-            {nextProductId && (
-              <div style={{ display:'flex', flexDirection:'column', gap:'4px', minWidth:'90px' }}>
-                <label style={{ fontSize:'12px', fontWeight:600, color:'#6b7280' }}>단계</label>
-                <select value={nextStage} onChange={e => setNextStage(Number(e.target.value))}
-                  style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none' }}>
-                  {Array.from({ length: nextMaxStage }, (_, i) => i+1).map(s => (
-                    <option key={s} value={s}>{s}단계</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <button onClick={handleSaveNext} disabled={!nextProductId || (!isNextChanged && !nextSaved)}
-              style={{ padding:'8px 16px', borderRadius:'8px', border:'none', background: nextSaved ? '#16a34a' : (nextProductId && isNextChanged ? '#f97316' : '#e5e7eb'), color: (nextProductId && isNextChanged) || nextSaved ? '#fff' : '#9ca3af', fontSize:'13px', fontWeight:700, cursor: nextProductId && isNextChanged ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', transition:'all .2s' }}>
-              {nextSaved ? '✅ 저장됨' : '저장'}
-            </button>
-          </div>
-          {nextProduct && (
-            <div style={{ marginTop:'8px', fontSize:'12px', color:'#6b7280' }}>
-              → {nextProduct.name} {nextStage}단계로 이어집니다
-            </div>
           )}
+          <button onClick={handleSaveNext} disabled={!nextProductId || (!isNextChanged && !nextSaved)}
+            style={{ padding:'8px 16px', borderRadius:'8px', border:'none', background: nextSaved ? '#16a34a' : (nextProductId && isNextChanged ? '#f97316' : '#e5e7eb'), color: (nextProductId && isNextChanged) || nextSaved ? '#fff' : '#9ca3af', fontSize:'13px', fontWeight:700, cursor: nextProductId && isNextChanged ? 'pointer' : 'default', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', transition:'all .2s' }}>
+            {nextSaved ? '✅ 저장됨' : '저장'}
+          </button>
         </div>
-        {/* 교구 지급일 */}
-        <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#f8fafc' }}>
-        <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📦 교구 지급 기록</div>
+        {nextProduct && (
+          <div style={{ marginTop:'8px', fontSize:'12px', color:'#6b7280' }}>
+            → {nextProduct.name} {nextStage}단계로 이어집니다
+          </div>
+        )}
+      </div>
+      {/* 교구 지급일 */}
+      <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#f8fafc' }}>
+      <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📦 교구 지급 기록</div>
         {/* 기존 기록 목록 - 학기별 그룹 */}
         {givenRecords.length > 0 && (() => {
           const classInfo = ClassesDB.find(classId)
@@ -2246,14 +2241,13 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
             + 추가
           </button>
         </div>
-        </div>{/* end 교구 지급 기록 div */}
-        <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
-          <button onClick={onClose}
-            style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
-            닫기
-          </button>
-        </div>
-      </div>{/* end outer scroll div */}
+      </div>
+      <div style={{ padding:'12px 24px', borderTop:'1px solid #e5e7eb', display:'flex', gap:'8px' }}>
+        <button onClick={onClose}
+          style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280', fontWeight:600 }}>
+          닫기
+        </button>
+      </div>
     </Modal>
   )
 }
