@@ -225,6 +225,14 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
       <div style={{ display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}` }}>
         <input value={item} onChange={e => setItem(e.target.value)}
           style={{ width:'100px', padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+        <select value={supplyStatus} onChange={e => setSupplyStatus(e.target.value)}
+          style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}>
+          <option value="ready">준비</option>
+          <option value="given">지급</option>
+          <option value="unpaid">미지급</option>
+          <option value="extra">추가지급</option>
+          <option value="own">보유교구</option>
+        </select>
         <input type="date" value={givenDate} onChange={e => setGivenDate(e.target.value)}
           style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
         <select value={quarter} onChange={e => setQuarter(e.target.value)}
@@ -232,9 +240,19 @@ function GivenRecord({ record, onDelete, onUpdate, termType }) {
           <option value="">{termUnit} 선택</option>
           {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
+        <select value={billingStatus} onChange={e => setBillingStatus(e.target.value)}
+          style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}>
+          <option value="none">-</option>
+          <option value="billed">청구</option>
+          <option value="paid">입금</option>
+          <option value="unpaid">미입금</option>
+          <option value="check">확인필요</option>
+        </select>
+        <input type="date" value={paidDate} onChange={e => setPaidDate(e.target.value)}
+          style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
         <button onClick={handleSave}
           style={{ padding:'2px 8px', borderRadius:'5px', border:'none', background:'#16a34a', color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
-        <button onClick={() => { setItem(record.itemName); setGivenDate(record.givenAt||''); setQuarter(record.quarter||''); setEditing(false) }}
+        <button onClick={() => { setItem(record.itemName); setGivenDate(record.givenAt||''); setPaidDate(record.paidAt||''); setQuarter(record.quarter||''); setSupplyStatus(initSupply()); setBillingStatus(initBilling()); setEditing(false) }}
           style={{ padding:'2px 6px', borderRadius:'5px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'11px', cursor:'pointer' }}>취소</button>
       </div>
     )
@@ -524,6 +542,14 @@ function SuppliesGivenRow({ record, classId, classes, onSaved }) {
       <div style={{ display:'flex', alignItems:'center', gap:'4px', flexWrap:'wrap', padding:'7px 10px', background:st.bg, borderRadius:'8px', border:`1px solid ${st.border}` }}>
         <input value={item} onChange={e => setItem(e.target.value)}
           style={{ width:'100px', padding:'3px 6px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+        <select value={supplyStatus} onChange={e => setSupplyStatus(e.target.value)}
+          style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}>
+          <option value="ready">준비</option>
+          <option value="given">지급</option>
+          <option value="unpaid">미지급</option>
+          <option value="extra">추가지급</option>
+          <option value="own">보유교구</option>
+        </select>
         <input type="date" value={givenDate} onChange={e => setGivenDate(e.target.value)}
           style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
         <select value={quarter} onChange={e => setQuarter(e.target.value)}
@@ -531,9 +557,19 @@ function SuppliesGivenRow({ record, classId, classes, onSaved }) {
           <option value="">{termUnit} 선택</option>
           {termOpts.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
+        <select value={billingStatus} onChange={e => setBillingStatus(e.target.value)}
+          style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}>
+          <option value="none">-</option>
+          <option value="billed">청구</option>
+          <option value="paid">입금</option>
+          <option value="unpaid">미입금</option>
+          <option value="check">확인필요</option>
+        </select>
+        <input type="date" value={paidDate} onChange={e => setPaidDate(e.target.value)}
+          style={{ padding:'3px 5px', borderRadius:'5px', border:`1px solid ${st.border}`, fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
         <button onClick={handleSave}
           style={{ padding:'2px 8px', borderRadius:'5px', border:'none', background:'#16a34a', color:'#fff', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
-        <button onClick={() => { setItem(record.itemName); setGivenDate(record.givenAt||''); setQuarter(record.quarter||''); setEditing(false) }}
+        <button onClick={() => { setItem(record.itemName); setGivenDate(record.givenAt||''); setPaidDate(record.paidAt||''); setQuarter(record.quarter||''); setSupplyStatus(initSupply()); setBillingStatus(initBilling()); setEditing(false) }}
           style={{ padding:'2px 6px', borderRadius:'5px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'11px', cursor:'pointer' }}>취소</button>
       </div>
     )
