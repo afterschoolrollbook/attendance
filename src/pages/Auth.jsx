@@ -653,7 +653,7 @@ export function Auth({ onLogin }) {
         pw: '', role: 'teacher', level: 1,
         verified: false, verifyImg: null, permissionOverrides: {},
         provider: profile.provider, providerId: profile.providerId,
-        avatar: profile.avatar || '', createdAt: now(),
+        avatar: profile.avatar || '', authId: '', createdAt: now(),
       }
       Users.insert(user)
       onLogin(user)
