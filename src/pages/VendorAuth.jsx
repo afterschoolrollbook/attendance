@@ -16,6 +16,31 @@ const C = {
 
 const LS_SESSION = 'asa_vendor_session'
 
+
+// ─── 브루트포스 방어
+const loginAttempts = {}
+function checkBruteForce(key) {
+  const now = Date.now()
+  if (!loginAttempts[key]) loginAttempts[key] = { count: 0, lockedUntil: 0 }
+  const a = loginAttempts[key]
+  if (a.lockedUntil > now) {
+    const secs = Math.ceil((a.lockedUntil - now) / 1000)
+    throw new Error(`로그인 시도가 너무 많습니다. ${secs}초 후 다시 시도해주세요.`)
+  }
+  a.count++
+  if (a.count >= 5) { a.lockedUntil = now + 60000; a.count = 0; throw new Error('로그인 시도가 너무 많습니다. 1분 후 다시 시도해주세요.') }
+}
+function resetBruteForce(key) { delete loginAttempts[key] }
+
+// ─── 인증번호 만료 관리 (5분)
+const CODE_EXPIRY_MS = 5 * 60 * 1000
+function makeCode() { return { code: String(Math.floor(100000 + Math.random() * 900000)), expiresAt: Date.now() + CODE_EXPIRY_MS } }
+function checkCode(input, stored) {
+  if (!stored) return '인증번호를 먼저 발송해주세요.'
+  if (Date.now() > stored.expiresAt) return '인증번호가 만료되었습니다. 다시 발송해주세요.'
+  if (input !== stored.code) return '인증번호가 올바르지 않습니다.'
+  return null
+}
 // ─── Supabase에서 업체 조회
 const HQVendors = {
   byPhone: async (phone) => {
@@ -95,9 +120,9 @@ function LoginTab({ onLogin, onSwitch, onFindId, onResetPw }) {
     if (!email || !pw) return
     setLoading(true)
     try {
+      checkBruteForce(email.trim().toLowerCase())
       const acc = await VendorAccounts.byEmail(email.trim())
-      if (!acc) { setErr('등록된 업체 계정이 없습니다.'); return }
-      if (!(await verifyPassword(pw, acc.pw))) { setErr('비밀번호가 올바르지 않습니다.'); return }
+      if (!acc || !(await verifyPassword(pw, acc.pw))) { setErr('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
       if (!isHashed(acc.pw)) {
         const hashedPw = await hashPassword(pw)
         await VendorAccounts.save({ ...acc, pw: hashedPw })
@@ -106,9 +131,11 @@ function LoginTab({ onLogin, onSwitch, onFindId, onResetPw }) {
       const vendors = await dbCall('getAll', 'hqVendors')
       const vendor = vendors?.find(v => v.id === acc.vendorId)
       if (!vendor) { setErr('연결된 업체 정보가 없습니다.'); return }
-      localStorage.setItem(LS_SESSION, JSON.stringify({ ...acc, vendor }))
-      onLogin({ ...acc, vendor })
-    } catch { setErr('오류가 발생했습니다. 다시 시도해주세요.') }
+      resetBruteForce(email.trim().toLowerCase())
+      const { pw: _pw, ...safeAcc } = acc
+      localStorage.setItem(LS_SESSION, JSON.stringify({ ...safeAcc, vendor }))
+      onLogin({ ...safeAcc, vendor })
+    } catch(e) { setErr(e.message || '오류가 발생했습니다. 다시 시도해주세요.') }
     finally { setLoading(false) }
   }
 
@@ -225,7 +252,7 @@ function ResetPwTab({ onBack }) {
   const [step, setStep]           = useState(1)
   const [email, setEmail]         = useState('')
   const [code, setCode]           = useState('')
-  const [sentCode, setSentCode]   = useState('')
+  const [sentCode, setSentCode]   = useState(null) // { code, expiresAt }
   const [pw, setPw]               = useState('')
   const [pwConfirm, setPwConfirm] = useState('')
   const [err, setErr]             = useState('')
@@ -239,8 +266,9 @@ function ResetPwTab({ onBack }) {
       const acc = await VendorAccounts.byEmail(email.trim())
       if (!acc) { setErr('가입되지 않은 이메일입니다.'); return }
       setTargetAcc(acc)
-      const code6 = String(Math.floor(100000 + Math.random() * 900000))
-      setSentCode(code6)
+      const codeObj = makeCode()
+      setSentCode(codeObj)
+      const code6 = codeObj.code
       // Resend API로 인증번호 발송
       if (isConfigured && FUNCTIONS_BASE) {
         try {
@@ -259,8 +287,9 @@ function ResetPwTab({ onBack }) {
 
   // Step 2 → 3: 인증번호 확인
   const handleVerify = () => {
-    if (code === sentCode) { setErr(''); setStep(3) }
-    else setErr('인증번호가 올바르지 않습니다.')
+    const err = checkCode(code, sentCode)
+    if (err) { setErr(err); return }
+    setErr(''); setStep(3)
   }
 
   // Step 3: 새 비번 저장
@@ -407,7 +436,7 @@ function RegisterTab({ onDone, onSwitch }) {
   const [phone, setPhone]         = useState('')
   const [regEmail, setRegEmail]   = useState('')
   const [code, setCode]           = useState('')
-  const [sentCode, setSentCode]   = useState('')
+  const [sentCode, setSentCode]   = useState(null) // { code, expiresAt }
   const [verified, setVerified]   = useState(false)
   const [pw, setPw]               = useState('')
   const [pwConfirm, setPwConfirm] = useState('')
@@ -438,8 +467,9 @@ function RegisterTab({ onDone, onSwitch }) {
       setErr('본사에서 초대한 이메일만 사용 가능합니다.\n다른 이메일을 사용하고 싶으시면 본사 담당자에게 연락해주세요.')
       return
     }
-    const code6 = String(Math.floor(100000 + Math.random() * 900000))
-    setSentCode(code6)
+    const codeObj = makeCode()
+    setSentCode(codeObj)
+    const code6 = codeObj.code
     setErr('')
     if (isConfigured && FUNCTIONS_BASE) {
       try {
@@ -455,8 +485,9 @@ function RegisterTab({ onDone, onSwitch }) {
   }
 
   const handleVerifyCode = () => {
-    if (code === sentCode) { setVerified(true); setErr('') }
-    else setErr('인증번호가 올바르지 않습니다.')
+    const err = checkCode(code, sentCode)
+    if (err) { setErr(err); return }
+    setVerified(true); setErr('')
   }
 
   const handleRegister = async () => {
@@ -471,8 +502,9 @@ function RegisterTab({ onDone, onSwitch }) {
       const acc = { id:uid(), vendorId:matchedVendor.id, email:regEmail, pw: hashedPw, name: name || matchedVendor.managerName || matchedVendor.name, createdAt:now() }
       await VendorAccounts.save(acc)
       await HQVendors.save({ ...matchedVendor, status:'joined', joinedAt: now() })
-      localStorage.setItem(LS_SESSION, JSON.stringify({ ...acc, vendor: matchedVendor }))
-      onDone({ ...acc, vendor: matchedVendor })
+      const { pw: _pw2, ...safeAcc2 } = acc
+      localStorage.setItem(LS_SESSION, JSON.stringify({ ...safeAcc2, vendor: matchedVendor }))
+      onDone({ ...safeAcc2, vendor: matchedVendor })
     } catch { setErr('가입 중 오류가 발생했습니다.') }
     finally { setLoading(false) }
   }

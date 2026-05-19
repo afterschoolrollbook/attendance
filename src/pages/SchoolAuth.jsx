@@ -55,6 +55,31 @@ const SAAccounts = {
 
 const LS_SESSION = 'asa_school_session'
 
+// ─── 브루트포스 방어
+const loginAttempts = {}
+function checkBruteForce(key) {
+  const now = Date.now()
+  if (!loginAttempts[key]) loginAttempts[key] = { count: 0, lockedUntil: 0 }
+  const a = loginAttempts[key]
+  if (a.lockedUntil > now) {
+    const secs = Math.ceil((a.lockedUntil - now) / 1000)
+    throw new Error(`로그인 시도가 너무 많습니다. ${secs}초 후 다시 시도해주세요.`)
+  }
+  a.count++
+  if (a.count >= 5) { a.lockedUntil = now + 60000; a.count = 0; throw new Error('로그인 시도가 너무 많습니다. 1분 후 다시 시도해주세요.') }
+}
+function resetBruteForce(key) { delete loginAttempts[key] }
+
+// ─── 인증번호 만료 관리 (5분)
+const CODE_EXPIRY_MS = 5 * 60 * 1000
+function makeCode() { return { code: String(Math.floor(100000 + Math.random() * 900000)), expiresAt: Date.now() + CODE_EXPIRY_MS } }
+function checkCode(input, stored) {
+  if (!stored) return '인증번호를 먼저 발송해주세요.'
+  if (Date.now() > stored.expiresAt) return '인증번호가 만료되었습니다. 다시 발송해주세요.'
+  if (input !== stored.code) return '인증번호가 올바르지 않습니다.'
+  return null
+}
+
 // ── 로그인
 function LoginForm({ onLogin }) {
   const [email, setEmail] = useState('')
@@ -66,6 +91,7 @@ function LoginForm({ onLogin }) {
     if (!email || !pw) return
     setLoading(true); setError('')
     try {
+      checkBruteForce(email.trim().toLowerCase())
       const acc = await SAAccounts.byEmail(email.trim())
       const pwMatch = acc && await verifyPassword(pw, acc.pw)
       if (!pwMatch) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
@@ -76,10 +102,12 @@ function LoginForm({ onLogin }) {
       }
       const admin = await dbCall('getOne', 'schoolAdmins', { id: acc.adminId })
       if (!admin || admin.status === 'inactive') { setError('비활성화된 계정입니다.'); return }
-      const session = { ...acc, admin, adminId: acc.adminId }
+      resetBruteForce(email.trim().toLowerCase())
+      const { pw: _pw, ...safeAcc } = acc
+      const session = { ...safeAcc, admin, adminId: acc.adminId }
       localStorage.setItem(LS_SESSION, JSON.stringify(session))
       onLogin(session)
-    } catch { setError('오류가 발생했습니다.') }
+    } catch(e) { setError(e.message || '오류가 발생했습니다.') }
     finally { setLoading(false) }
   }
 
@@ -109,7 +137,7 @@ function JoinForm({ onLogin }) {
   const [input, setInput]     = useState('')
   const [admin, setAdmin]     = useState(null)
   const [code, setCode]       = useState('')
-  const [sentCode, setSentCode] = useState('')
+  const [sentCode, setSentCode] = useState(null) // { code, expiresAt }
   const [verified, setVerified] = useState(false)
   const [name, setName]       = useState('')
   const [pw, setPw]           = useState('')
@@ -133,8 +161,9 @@ function JoinForm({ onLogin }) {
   }
 
   const sendCode = async () => {
-    const c6 = String(Math.floor(100000 + Math.random() * 900000))
-    setSentCode(c6)
+    const codeObj = makeCode()
+    setSentCode(codeObj)
+    const c6 = codeObj.code
     if (!isConfigured) { alert(`[개발모드] 인증코드: ${c6}`); return }
     try {
       await fetch(`${FUNCTIONS_BASE}/send-email`, {
@@ -145,7 +174,8 @@ function JoinForm({ onLogin }) {
   }
 
   const handleVerify = () => {
-    if (code !== sentCode) { setError('인증번호가 올바르지 않습니다.'); return }
+    const err = checkCode(code, sentCode)
+    if (err) { setError(err); return }
     setVerified(true); setStep('register'); setError('')
   }
 
@@ -160,7 +190,8 @@ function JoinForm({ onLogin }) {
       const acc = { id:uid(), adminId:admin.id, email:admin.email, pw: hashedPw, name:name.trim(), active:true, createdAt:now() }
       await SAAccounts.save(acc)
       await SA.save({ ...admin, status:'joined', adminName: name.trim() })
-      const session = { ...acc, admin:{ ...admin, status:'joined' }, adminId:admin.id }
+      const { pw: _pw2, ...safeAcc2 } = acc
+      const session = { ...safeAcc2, admin:{ ...admin, status:'joined' }, adminId:admin.id }
       localStorage.setItem(LS_SESSION, JSON.stringify(session))
       setStep('done')
       setTimeout(() => onLogin(session), 1000)
