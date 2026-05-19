@@ -349,6 +349,19 @@ serve(async (req) => {
       }
       case 'storageUpload': {
         const { bucket, path: filePath, base64, contentType } = body
+
+        // #18 MIME 화이트리스트 검증
+        const ALLOWED_MIME = new Set([
+          'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+          'application/pdf',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/haansofthwp', 'application/x-hwp',
+          'application/octet-stream',
+        ])
+        if (!ALLOWED_MIME.has(contentType)) {
+          throw new Error(`허용되지 않은 파일 형식입니다: ${contentType}`)
+        }
         const binaryStr = atob(base64)
         const bytes = new Uint8Array(binaryStr.length)
         for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i)
