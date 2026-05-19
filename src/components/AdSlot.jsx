@@ -14,7 +14,6 @@ export function AdSlot({ slotId }) {
   }
 
   if (!slot.code) {
-    // 플레이스홀더 (광고 코드 없을 때)
     return (
       <div style={{ ...style, background: '#f9fafb', border: '1.5px dashed #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '4px' }}>
         <span style={{ fontSize: '12px', color: '#9ca3af' }}>광고 영역 ({slot.name})</span>
@@ -24,6 +23,7 @@ export function AdSlot({ slotId }) {
   }
 
   // iframe sandbox으로 광고 코드 격리 — XSS 방어
+  // allow-same-origin 제거: allow-scripts + allow-same-origin 동시 사용 시 sandbox 무력화됨
   const iframeSrc = `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>body{margin:0;padding:0;overflow:hidden;}</style></head>
     <body>${slot.code}</body></html>`
@@ -39,7 +39,7 @@ export function AdSlot({ slotId }) {
     <iframe
       src={blob}
       style={{ ...style, border: 'none', display: 'block' }}
-      sandbox="allow-scripts allow-same-origin allow-popups"
+      sandbox="allow-scripts allow-popups"
       title={slot.name || 'ad'}
       onLoad={() => URL.revokeObjectURL(blob)}
     />
