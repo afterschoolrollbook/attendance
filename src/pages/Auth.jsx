@@ -781,13 +781,42 @@ export function Auth({ onLogin }) {
   // 탭 전환 시 Google 버튼 재렌더 (DOM이 바뀌므로)
   useEffect(() => { renderButtons() }, [mode, socialStep, fpVerified])
 
+  // ── 로그인 브루트포스 방어 (메모리 기반, 5회 실패 시 5분 잠금)
+  const loginAttemptsRef = React.useRef({})
+  function checkBruteForce(email) {
+    const key = email.toLowerCase()
+    const a = loginAttemptsRef.current[key] || { count: 0, lockedUntil: 0 }
+    if (Date.now() < a.lockedUntil) {
+      const left = Math.ceil((a.lockedUntil - Date.now()) / 1000 / 60)
+      return `로그인 시도 횟수 초과. ${left}분 후 다시 시도해주세요.`
+    }
+    return null
+  }
+  function recordFailedAttempt(email) {
+    const key = email.toLowerCase()
+    const a = loginAttemptsRef.current[key] || { count: 0, lockedUntil: 0 }
+    a.count += 1
+    if (a.count >= 5) { a.lockedUntil = Date.now() + 5 * 60 * 1000; a.count = 0 }
+    loginAttemptsRef.current[key] = a
+  }
+  function resetAttempts(email) { delete loginAttemptsRef.current[email.toLowerCase()] }
+
   const handleLogin = async () => {
     setError('')
+    const email = form.email.trim().toLowerCase()
+    const locked = checkBruteForce(email)
+    if (locked) { setError(locked); return }
     try {
-      const { user: authUser } = await authSignIn(form.email.trim().toLowerCase(), form.pw)
-      if (!authUser) { setError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
-      onLogin({ email: form.email.trim().toLowerCase(), _authDone: true })
+      const { user: authUser } = await authSignIn(email, form.pw)
+      if (!authUser) {
+        recordFailedAttempt(email)
+        setError('이메일 또는 비밀번호가 올바르지 않습니다.')
+        return
+      }
+      resetAttempts(email)
+      onLogin({ email, _authDone: true })
     } catch (e) {
+      recordFailedAttempt(email)
       setError('이메일 또는 비밀번호가 올바르지 않습니다.')
     }
   }
