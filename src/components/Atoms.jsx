@@ -249,7 +249,7 @@ export function Modal({ open, onClose, title, children, width = 520 }) {
         <div
           ref={headerRef}
           onMouseDown={handleMouseDown}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${C.border}`, cursor: 'grab', userSelect: 'none', touchAction: 'none' }}
+          style={{ position: 'sticky', top: 0, zIndex: 1, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${C.border}`, cursor: 'grab', userSelect: 'none', touchAction: 'none' }}
         >
           <h2 style={{ fontSize: '17px', fontWeight: 600, color: C.text }}>{title}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: C.muted, lineHeight: 1 }}>×</button>
