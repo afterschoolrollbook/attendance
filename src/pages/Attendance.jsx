@@ -70,6 +70,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   const [selStage, setSelStage]             = useState('')
   const [selPartId, setSelPartId]           = useState('')
   const [selQty, setSelQty]                 = useState(1)
+  const [selMemo, setSelMemo]               = useState('')
   const PARTS_ORDER_KEY = '__PARTS_ORDER__:'
   const orderListRef = useRef([])
   const [orderList, setOrderList] = useState(() => {
@@ -659,6 +660,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                 const editPid   = o._editProductId   ?? o.productId
                 const editStage = o._editStage       ?? o.stage
                 const editPartId= o._editPartId      ?? o.partId
+                const updUI = (patch) => setOrderList(prev => prev.map((x,j) => j===i ? {...x, ...patch} : x))
                 const upd = (patch) => _setOrderList(prev => prev.map((x,j) => j===i ? {...x, ...patch} : x))
                 return (
                 <div key={i}>
@@ -666,25 +668,22 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                     <span style={{ flex:1, fontSize:'12px', color:'#1c1917' }}>
                       {o.productName} · {o.stage}단계 · {o.partName} · <b>{o.qty}개</b>
                     </span>
-                    <button onClick={() => upd({ _memoEdit: !o._memoEdit, _edit: false })}
-                      title="메모" style={{ fontSize:'14px', lineHeight:1, color: (o.memo || o._memoEdit) ? '#f59e0b' : '#d1d5db', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>🗒️</button>
-                    <button onClick={() => upd({ _edit: !o._edit, _memoEdit: false, _editProductId: o.productId, _editStage: o.stage, _editPartId: o.partId })}
+                    <button onClick={() => updUI({ _memoEdit: !o._memoEdit, _edit: false })}
+                      title="메모" style={{ fontSize:'14px', lineHeight:1, color: o.memo ? '#f59e0b' : '#d1d5db', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>🗒️</button>
+                    <button onClick={() => updUI({ _edit: !o._edit, _memoEdit: false, _editProductId: o.productId, _editStage: o.stage, _editPartId: o.partId })}
                       title="수정" style={{ fontSize:'13px', lineHeight:1, color: o._edit ? '#3b82f6' : '#9ca3af', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>✏️</button>
                     <button onClick={() => { _setOrderList(prev => prev.filter((_,j) => j!==i)); success('삭제되었습니다') }}
                       title="삭제" style={{ fontSize:'13px', lineHeight:1, color:'#fca5a5', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>✕</button>
                   </div>
                   {o._memoEdit && (
                     <div style={{ padding:'7px 8px', background:'#fffbeb', borderRadius:'0 0 6px 6px', border:'1px solid #fde68a', borderTop:'none', display:'flex', flexDirection:'column', gap:'4px' }}>
-                      <input defaultValue={o.memo || ''} id={`memo-input-${i}`}
-                        placeholder="메모 입력" autoFocus
-                        style={{ width:'100%', boxSizing:'border-box', padding:'5px 8px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-                      <button onClick={() => {
-                        const val = document.getElementById(`memo-input-${i}`)?.value || ''
-                        _setOrderList(prev => prev.map((x,j) => j===i ? { ...x, memo: val, _memoEdit: false } : x))
-                        success('메모가 저장되었습니다')
-                      }}
-                        style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background:'#f59e0b', color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', alignSelf:'flex-end' }}>
-                        저장
+                      {o.memo
+                        ? <div style={{ fontSize:'12px', color:'#92400e', lineHeight:1.6 }}>{o.memo}</div>
+                        : <div style={{ fontSize:'12px', color:'#d1d5db' }}>메모 없음</div>
+                      }
+                      <button onClick={() => updUI({ _memoEdit: false })}
+                        style={{ padding:'3px 10px', borderRadius:'6px', border:'1px solid #fde68a', background:'#fff', color:'#92400e', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', alignSelf:'flex-end' }}>
+                        닫기
                       </button>
                     </div>
                   )}
@@ -696,7 +695,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                           const rows = await SupplyParts.byProduct(pid)
                           setPartsData(prev => [...prev.filter(p => p.productId !== pid), ...(rows || [])])
                         } catch(e) {}
-                        upd({ _editProductId: pid, _editStage: '', _editPartId: '' })
+                        updUI({ _editProductId: pid, _editStage: '', _editPartId: '' })
                       }} style={{ width:'100%', padding:'6px 8px', borderRadius:'6px', border:'1px solid #bae6fd', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                         <option value="">-- 교구 선택 --</option>
                         {[...new Set(activeStudents.map(s => spItems.find(ii => ii.studentId === s.id && ii.classId === cls.id)?.productId).filter(Boolean))].map(pid => {
@@ -705,7 +704,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                         })}
                       </select>
                       {editPid && (
-                        <select value={editStage} onChange={e => upd({ _editStage: Number(e.target.value), _editPartId: '' })}
+                        <select value={editStage} onChange={e => updUI({ _editStage: Number(e.target.value), _editPartId: '' })}
                           style={{ width:'100%', padding:'6px 8px', borderRadius:'6px', border:'1px solid #bae6fd', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                           <option value="">-- 단계 선택 --</option>
                           {(() => {
@@ -718,7 +717,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                         </select>
                       )}
                       {editPid && editStage !== '' && (
-                        <select value={editPartId} onChange={e => upd({ _editPartId: e.target.value })}
+                        <select value={editPartId} onChange={e => updUI({ _editPartId: e.target.value })}
                           style={{ width:'100%', padding:'6px 8px', borderRadius:'6px', border:'1px solid #bae6fd', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                           <option value="">-- 부품 선택 --</option>
                           {(() => {
@@ -731,13 +730,13 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                       )}
                       <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
                         <span style={{ fontSize:'11px', color:'#6b7280' }}>수량</span>
-                        <button onClick={() => upd({ qty: Math.max(1, o.qty - 1) })}
+                        <button onClick={() => updUI({ qty: Math.max(1, o.qty - 1) })}
                           style={{ width:'22px', height:'22px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'13px', cursor:'pointer', lineHeight:1, padding:0 }}>-</button>
                         <span style={{ fontSize:'12px', fontWeight:700, minWidth:'24px', textAlign:'center' }}>{o.qty}</span>
-                        <button onClick={() => upd({ qty: o.qty + 1 })}
+                        <button onClick={() => updUI({ qty: o.qty + 1 })}
                           style={{ width:'22px', height:'22px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'13px', cursor:'pointer', lineHeight:1, padding:0 }}>+</button>
                       </div>
-                      <input value={o.memo || ''} onChange={e => upd({ memo: e.target.value })}
+                      <input value={o.memo || ''} onChange={e => updUI({ memo: e.target.value })}
                         placeholder="메모 (선택)"
                         style={{ width:'100%', boxSizing:'border-box', padding:'5px 8px', borderRadius:'6px', border:'1px solid #bae6fd', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
                       <button onClick={() => {
