@@ -43,6 +43,7 @@ import { VendorApp }    from './pages/VendorApp.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { ToastContainer, ConfirmDialog, useConfirmDialog } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
+import { can } from './constants/permissions.js'
 
 // ─── 구 버전 localStorage 캐시 정리 (Supabase 토큰 + 앱 데이터만 보존)
 ;(function cleanOldCache() {
@@ -319,10 +320,10 @@ export default function App() {
       case 'templates':       return <Templates {...pageProps} />
       case 'printsetup':      return <PrintSetup {...pageProps} />
       case 'parent-service':  return <ParentServiceManage user={user} />
-      case 'admin':           return <Admin {...pageProps} />
+      case 'admin':           return can(user, 'approve_teacher') ? <Admin {...pageProps} /> : <Dashboard {...pageProps} />
       case 'adsense':         return <Adsense {...pageProps} />
       case 'profile':         return <Profile {...pageProps} />
-      case 'admin_settings':  return <AdminSettings {...pageProps} />
+      case 'admin_settings':  return can(user, 'manage_ad') ? <AdminSettings {...pageProps} /> : <Dashboard {...pageProps} />
       case 'training':        return <Training     user={user} />
       case 'certificates':    return <Certificates user={user} />
       case 'career':          return <Career       user={user} />
@@ -332,7 +333,7 @@ export default function App() {
       case 'revenue':         return <Revenue      user={user} />
       case 'supplies':        return <Supplies     user={user} />
       case 'messageguide':    return <MessageGuide user={user} />
-      case 'blog_admin':      return <BlogAdmin user={user} />
+      case 'blog_admin':      return can(user, 'manage_ad') ? <BlogAdmin user={user} /> : <Dashboard {...pageProps} />
       // ✅ 본사 업체 관리 (Lv.5 전용)
       case 'vendor_manage':   return <VendorManage user={user} />
       // ✅ 본사 학교 담당자 관리 (Lv.5 전용)
