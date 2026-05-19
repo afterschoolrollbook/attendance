@@ -69,6 +69,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   const [selStage, setSelStage]             = useState('')
   const [selPartId, setSelPartId]           = useState('')
   const [selQty, setSelQty]                 = useState(1)
+  const [selMemo, setSelMemo]               = useState('')
   const PARTS_ORDER_KEY = '__PARTS_ORDER__:'
   const orderListRef = useRef([])
   const [orderList, setOrderList] = useState(() => {
@@ -592,22 +593,28 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                       부품 등록
                     </button>
                   ) : (selPartId && selPartId !== '__new__') ? (
-                    <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-                      <span style={{ fontSize:'12px', color:'#6b7280', whiteSpace:'nowrap' }}>수량</span>
-                      <input type="number" min={1} value={selQty} onChange={e => setSelQty(Math.max(1, Number(e.target.value)))}
-                        style={{ width:'60px', padding:'7px 8px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif' }} />
+                    <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                      <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                        <span style={{ fontSize:'12px', color:'#6b7280', whiteSpace:'nowrap' }}>수량</span>
+                        <input type="number" min={1} value={selQty} onChange={e => setSelQty(Math.max(1, Number(e.target.value)))}
+                          style={{ width:'60px', padding:'7px 8px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif' }} />
+                      </div>
+                      <input value={selMemo} onChange={e => setSelMemo(e.target.value)}
+                        placeholder="메모 (선택)"
+                        style={{ width:'100%', boxSizing:'border-box', padding:'7px 8px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
                       <button onClick={() => {
                         const prod = spProds.find(p => p.id === selProductId)
                         const partName = partsData.find(p => p.id === selPartId)?.name || ''
                         _setOrderList(prev => {
                           const existing = prev.find(o => o.partId === selPartId)
-                          if (existing) return prev.map(o => o.partId === selPartId ? { ...o, qty: o.qty + selQty } : o)
-                          return [...prev, { productId: selProductId, productName: prod?.name || '', stage: Number(selStage), partId: selPartId, partName, qty: selQty }]
+                          if (existing) return prev.map(o => o.partId === selPartId ? { ...o, qty: o.qty + selQty, memo: selMemo || o.memo } : o)
+                          return [...prev, { productId: selProductId, productName: prod?.name || '', stage: Number(selStage), partId: selPartId, partName, qty: selQty, memo: selMemo || '' }]
                         })
                         setSelQty(1)
+                        setSelMemo('')
                         success('목록에 추가되었습니다')
                       }}
-                        style={{ flex:1, padding:'7px', borderRadius:'7px', background:'#78716c', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                        style={{ width:'100%', padding:'7px', borderRadius:'7px', background:'#78716c', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                         목록에 추가
                       </button>
                     </div>
@@ -1889,7 +1896,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
 
   return (
     <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={780}>
-      <div style={{ padding:'16px 24px' }}>
+      <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
         {/* 교구 시리즈 / 단계 변경 */}
         <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', marginBottom:'16px' }}>
           <div style={{ display:'flex', alignItems:'flex-end', gap:'10px', flexWrap:'wrap' }}>
@@ -2131,7 +2138,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
       </div>
       {/* 교구 지급일 */}
       <div style={{ padding:'14px 24px', borderTop:'1px solid #e5e7eb', background:'#f8fafc' }}>
-      <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📦 교구 지급 기록</div>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'10px' }}>📦 교구 지급 기록</div>
         {/* 기존 기록 목록 - 학기별 그룹 */}
         {givenRecords.length > 0 && (() => {
           const classInfo = ClassesDB.find(classId)
