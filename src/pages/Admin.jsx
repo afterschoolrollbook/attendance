@@ -1543,7 +1543,7 @@ export function Admin({ user: currentUser }) {
                     <span style={{ fontSize: '14px', fontWeight: 600 }}>등급 변경</span>
                     <select value={selectedUser.level} onChange={e => setSelectedUser(p => ({ ...p, level: parseInt(e.target.value) }))}
                       style={{ padding: '7px 12px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }}>
-                      {[1, 2, 3, 4].map(l => <option key={l} value={l}>{LEVEL_NAMES[l]}</option>)}
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(l => <option key={l} value={l}>{LEVEL_NAMES[l]}</option>)}
                     </select>
                   </div>
                   <div style={{ fontSize: '13px', color: '#6b7280', background: '#f9fafb', padding: '10px 14px', borderRadius: '8px' }}>
@@ -1601,7 +1601,7 @@ export function Admin({ user: currentUser }) {
               <span style={{ fontSize: '14px', fontWeight: 600 }}>등급 변경</span>
               <select value={selectedUser.level} onChange={e => setSelectedUser(p => ({ ...p, level: parseInt(e.target.value) }))}
                 style={{ padding: '7px 12px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }}>
-                {[1, 2, 3, 4].map(l => <option key={l} value={l}>{LEVEL_NAMES[l]}</option>)}
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(l => <option key={l} value={l}>{LEVEL_NAMES[l]}</option>)}
               </select>
             </div>
 
