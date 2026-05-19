@@ -625,6 +625,7 @@ export function ParentInvite() {
   const params    = new URLSearchParams(window.location.search)
   const phone     = decodeURIComponent(params.get('phone') || '')
   const teacherId = params.get('teacher') || ''
+  const token     = params.get('token') || ''
 
   const [step, setStep]         = useState('loading')
   const [teacher, setTeacher]   = useState(null)
@@ -647,20 +648,46 @@ export function ParentInvite() {
 
   useEffect(() => {
     if (!phone || !teacherId) { setStep('error'); return }
-    const t = Users.find(teacherId)
-    if (!t) { setStep('error'); return }
-    setTeacher(t)
-    const matched = StudentsDB.byTeacher(teacherId).filter(s =>
-      s.parentPhone?.replace(/[^0-9]/g,'') === phone.replace(/[^0-9]/g,'')
-    )
-    setStudents(matched)
 
-    const already = ParentMembers.findByPhone(phone)
-    if (already?.appJoined) {
-      setStep('done')
-    } else {
-      setStep('info')
+    // #14 IDOR 방어 — token 파라미터 검증
+    // token = base64(sha256(phone + ':' + teacherId)) 형식
+    // 토큰 없으면 접근 차단 (기존 링크 호환: 토큰 없으면 에러)
+    if (!token) { setStep('error'); return }
+
+    // token이 있으면 서버에서 검증 (verify_codes 테이블 활용)
+    // 단기 처리: phone+teacherId 조합으로 토큰 검증
+    async function validateToken() {
+      try {
+        const rows = await dbCall('where', 'verify_codes', {
+          where: { target: `invite:${phone}:${teacherId}`, code: token, used: false }
+        })
+        // 만료 체크 (24시간)
+        const valid = (rows || []).some(r => {
+          const created = new Date(r.createdAt || r.created_at || 0)
+          return (Date.now() - created.getTime()) < 24 * 60 * 60 * 1000
+        })
+        if (!valid) { setStep('error'); return }
+      } catch {
+        // verify_codes 조회 실패 시 토큰 형식만 확인 (폴백)
+        if (token.length < 8) { setStep('error'); return }
+      }
+
+      const t = Users.find(teacherId)
+      if (!t) { setStep('error'); return }
+      setTeacher(t)
+      const matched = StudentsDB.byTeacher(teacherId).filter(s =>
+        s.parentPhone?.replace(/[^0-9]/g,'') === phone.replace(/[^0-9]/g,'')
+      )
+      setStudents(matched)
+
+      const already = ParentMembers.findByPhone(phone)
+      if (already?.appJoined) {
+        setStep('done')
+      } else {
+        setStep('info')
+      }
     }
+    validateToken()
   }, [])
 
   const handleJoin = async () => {
