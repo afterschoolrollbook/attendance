@@ -23,10 +23,25 @@ export function AdSlot({ slotId }) {
     )
   }
 
+  // iframe sandbox으로 광고 코드 격리 — XSS 방어
+  const iframeSrc = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <style>body{margin:0;padding:0;overflow:hidden;}</style></head>
+    <body>${slot.code}</body></html>`
+  const blob = typeof Blob !== 'undefined'
+    ? URL.createObjectURL(new Blob([iframeSrc], { type: 'text/html' }))
+    : null
+
+  if (!blob) return (
+    <div style={style} dangerouslySetInnerHTML={{ __html: slot.code }} />
+  )
+
   return (
-    <div
-      style={style}
-      dangerouslySetInnerHTML={{ __html: slot.code }}
+    <iframe
+      src={blob}
+      style={{ ...style, border: 'none', display: 'block' }}
+      sandbox="allow-scripts allow-same-origin allow-popups"
+      title={slot.name || 'ad'}
+      onLoad={() => URL.revokeObjectURL(blob)}
     />
   )
 }
