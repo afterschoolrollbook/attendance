@@ -329,7 +329,7 @@ export function Profile({ user, onUserUpdate, onNav }) {
         <Card style={{ marginBottom:'16px' }}>
           <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'16px' }}>🔒 비밀번호 변경</div>
           <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
-            <Input label="새 비밀번호 (4자 이상)" value={pw.next}  onChange={v => setPw(p=>({...p,next:v}))}  type="password" placeholder="새 비밀번호" />
+            <Input label="새 비밀번호 (8자 이상, 영문+숫자)" value={pw.next}  onChange={v => setPw(p=>({...p,next:v}))}  type="password" placeholder="새 비밀번호" />
             <Input label="새 비밀번호 확인"        value={pw.next2} onChange={v => setPw(p=>({...p,next2:v}))} type="password" placeholder="재입력" />
             <Msg data={pwMsg} />
             <Btn onClick={savePw} style={{ alignSelf:'flex-end' }}>변경</Btn>

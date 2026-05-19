@@ -3,7 +3,7 @@ import { Users, initFromSupabase } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
 import { Btn, Input } from '../components/Atoms.jsx'
 import { Settings } from '../lib/db.js'
-import { sendEmail, isConfigured, authSignIn, authSignUp, authResetPassword, supabase } from '../lib/supabase.js'
+import { sendEmail, isConfigured, authSignIn, authSignUp, authResetPassword, supabase, dbCall } from '../lib/supabase.js'
 import { useToast } from '../hooks/useToast.js'
 
 function getSocialConfig() {
@@ -15,8 +15,118 @@ function getSocialConfig() {
   }
 }
 
-function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000))
+// [보안 수정] 인증번호 서버 측 발급·검증
+// - 코드를 클라이언트 state에 저장하지 않음 (개발자도구 노출 방지)
+// - Supabase verify_codes 테이블에 저장 (5분 만료)
+// - 검증도 서버(테이블) 기준으로 수행
+
+async function sendVerifyCode(email) {
+  const code = String(Math.floor(100000 + Math.random() * 900000))
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+
+  if (!isConfigured || !supabase) {
+    // 개발 모드: 콘솔에만 출력, DB 저장 없이 임시 세션 키로 관리
+    console.log(`[개발모드] 인증번호: ${code}`)
+    return { dev: true, devCode: code }
+  }
+
+  try {
+    // 기존 미사용 코드 무효화
+    await supabase
+      .from('verify_codes')
+      .update({ used: true })
+      .eq('target', email.toLowerCase())
+      .eq('used', false)
+
+    // 새 코드 저장
+    await supabase.from('verify_codes').insert({
+      target:     email.toLowerCase(),
+      code,
+      purpose:    'signup',
+      used:       false,
+      expires_at: expiresAt,
+    })
+
+    await sendEmail(email, code)
+    return { sent: true }
+  } catch(e) {
+    console.error('인증번호 발송 실패:', e)
+    return { error: true }
+  }
+}
+
+async function verifyCode(email, inputCode) {
+  if (!isConfigured || !supabase) return false
+
+  const { data: rows } = await supabase
+    .from('verify_codes')
+    .select('id, expires_at')
+    .eq('target', email.toLowerCase())
+    .eq('code', inputCode.trim())
+    .eq('used', false)
+    .limit(1)
+
+  if (!rows || rows.length === 0) return false
+
+  const row = rows[0]
+  // 만료 확인
+  if (new Date(row.expires_at) < new Date()) return false
+
+  // 사용 처리
+  await supabase.from('verify_codes').update({ used: true }).eq('id', row.id)
+  return true
+}
+
+// 비밀번호 찾기 전용 (purpose='reset')
+async function sendResetCode(email) {
+  const code = String(Math.floor(100000 + Math.random() * 900000))
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+
+  if (!isConfigured || !supabase) {
+    console.log(`[개발모드] 비번재설정 코드: ${code}`)
+    return { dev: true, devCode: code }
+  }
+
+  try {
+    await supabase
+      .from('verify_codes')
+      .update({ used: true })
+      .eq('target', email.toLowerCase())
+      .eq('purpose', 'reset')
+      .eq('used', false)
+
+    await supabase.from('verify_codes').insert({
+      target:     email.toLowerCase(),
+      code,
+      purpose:    'reset',
+      used:       false,
+      expires_at: expiresAt,
+    })
+
+    await sendEmail(email, code)
+    return { sent: true }
+  } catch(e) {
+    return { error: true }
+  }
+}
+
+async function verifyResetCode(email, inputCode) {
+  if (!isConfigured || !supabase) return false
+
+  const { data: rows } = await supabase
+    .from('verify_codes')
+    .select('id, expires_at')
+    .eq('target', email.toLowerCase())
+    .eq('code', inputCode.trim())
+    .eq('purpose', 'reset')
+    .eq('used', false)
+    .limit(1)
+
+  if (!rows || rows.length === 0) return false
+  if (new Date(rows[0].expires_at) < new Date()) return false
+
+  await supabase.from('verify_codes').update({ used: true }).eq('id', rows[0].id)
+  return true
 }
 
 function isGarbled(str) {
@@ -24,20 +134,7 @@ function isGarbled(str) {
   return /[ë¬ìíê°-ÿ]{2,}/.test(str)
 }
 
-// 이메일 발송 (Resend 연동 or 개발모드)
-async function sendVerifyCode(email, code) {
-  if (!isConfigured) {
-    console.log(`[개발모드] 인증번호: ${code}`)
-    return { dev: true }
-  }
-  try {
-    await sendEmail(email, code)
-    return { sent: true }
-  } catch(e) {
-    console.error('이메일 발송 실패:', e)
-    return { error: true }
-  }
-}
+
 
 // Google 로그인 훅
 function useGoogleAuth(onSuccess, clientId) {
@@ -210,10 +307,10 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
 
   const [emailInput, setEmailInput] = useState(isFakeEmail(profile.email) ? '' : (profile.email || ''))
   const [code,       setCode]       = useState('')
-  const [sentCode,   setSentCode]   = useState('')
   const [codeSent,   setCodeSent]   = useState(false)
   const [sending,    setSending]    = useState(false)
   const [isDev,      setIsDev]      = useState(false)
+  const [devCode,    setDevCode]    = useState('')
   const [error,      setError]      = useState('')
   const [useOtherEmail, setUseOtherEmail] = useState(false)
   const [otherEmail,    setOtherEmail]    = useState('')
@@ -238,17 +335,25 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
       return
     }
     setSending(true)
-    const c = generateCode()
-    setSentCode(c)
-    const result = await sendVerifyCode(targetEmail, c)
+    // [보안 수정] 서버 측 코드 발급 (verify_codes 테이블 저장)
+    const result = await sendVerifyCode(targetEmail)
     setSending(false)
     setCodeSent(true)
     setIsDev(!!result.dev)
+    setDevCode(result.devCode || '')
   }
 
-  const handleVerify = () => {
-    if (code.trim() !== sentCode) { setError('인증번호가 올바르지 않습니다.'); return }
-    onVerified(targetEmail)  // 인증된 이메일을 상위로 전달
+  const handleVerify = async () => {
+    if (isDev) {
+      // 개발 모드: 로컬 비교
+      if (code.trim() !== devCode) { setError('인증번호가 올바르지 않습니다.'); return }
+      onVerified(targetEmail)
+      return
+    }
+    // [보안 수정] 서버 측 코드 검증 (verify_codes 테이블 조회)
+    const ok = await verifyCode(targetEmail, code)
+    if (!ok) { setError('인증번호가 올바르지 않거나 만료되었습니다.'); return }
+    onVerified(targetEmail)
   }
 
   return (
@@ -327,7 +432,7 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
           {isDev && (
             <div style={{ padding: '12px', background: '#fffbeb', borderRadius: '8px', border: '1.5px solid #fde68a', fontSize: '13px' }}>
               <div style={{ fontWeight: 700, color: '#92400e', marginBottom: '4px' }}>🔧 개발 모드 (Resend 미설정)</div>
-              <div style={{ color: '#b45309' }}>인증번호: <strong style={{ fontSize: '22px', letterSpacing: '5px', color: '#f97316' }}>{sentCode}</strong></div>
+              <div style={{ color: '#b45309' }}>인증번호: <strong style={{ fontSize: '22px', letterSpacing: '5px', color: '#f97316' }}>{devCode}</strong></div>
             </div>
           )}
           {!isDev && (
@@ -447,7 +552,7 @@ export function Auth({ onLogin }) {
   const [form, setForm] = useState({ name: '', email: '', pw: '', pw2: '', phone: '' })
   const [emailChecked, setEmailChecked] = useState(false)
   const [error, setError] = useState('')
-  const [verifyCode, setVerifyCode] = useState('')
+  const [verifyCode, setVerifyCode] = useState('')  // 개발 모드 전용 (프로덕션에서는 미사용)
   const [inputCode, setInputCode] = useState('')
   const [codeSent, setCodeSent] = useState(false)
   const [verified, setVerified] = useState(false)
@@ -525,17 +630,22 @@ export function Auth({ onLogin }) {
       return
     }
     setFpSending(true)
-    const c = generateCode()
-    setFpSentCode(c)
-    const result = await sendVerifyCode(fpEmail.trim().toLowerCase(), c)
+    // [보안 수정] 서버 측 코드 발급 (purpose='reset')
+    const result = await sendResetCode(fpEmail.trim().toLowerCase())
     setFpSending(false)
     setFpCodeSent(true)
-    setFpDev(result.dev ? c : '')
+    setFpDev(result.dev ? result.devCode : '')
   }
 
-  // 비밀번호 초기화: 인증번호 확인
-  const handleFpVerify = () => {
-    if (fpCode.trim() !== fpSentCode) { setError('인증번호가 올바르지 않습니다.'); return }
+  // 비밀번호 초기화: 인증번호 확인 (서버 측 검증)
+  const handleFpVerify = async () => {
+    if (fpDev) {
+      // 개발 모드
+      if (fpCode.trim() !== fpDev) { setError('인증번호가 올바르지 않습니다.'); return }
+      setFpVerified(true); setError(''); return
+    }
+    const ok = await verifyResetCode(fpEmail.trim().toLowerCase(), fpCode)
+    if (!ok) { setError('인증번호가 올바르지 않거나 만료되었습니다.'); return }
     setFpVerified(true); setError('')
   }
 
@@ -696,19 +806,27 @@ export function Auth({ onLogin }) {
   const sendCode = async () => {
     setSending(true)
     setError('')
-    const code = generateCode()
-    setVerifyCode(code)
-    const result = await sendVerifyCode(form.email, code)
+    // [보안 수정] 서버 측 코드 발급 (verify_codes 테이블)
+    const result = await sendVerifyCode(form.email)
     setSending(false)
     setCodeSent(true)
     setIsDev(!!result.dev)
+    setVerifyCode(result.devCode || '')  // 개발 모드에서만 state에 저장
     setInputCode('')
     setVerified(false)
   }
 
-  const checkCode = () => {
-    if (inputCode.trim() === verifyCode) { setVerified(true); setError('') }
-    else setError('인증번호가 올바르지 않습니다.')
+  const checkCode = async () => {
+    if (isDev) {
+      // 개발 모드: 로컬 비교
+      if (inputCode.trim() === verifyCode) { setVerified(true); setError('') }
+      else setError('인증번호가 올바르지 않습니다.')
+      return
+    }
+    // [보안 수정] 서버 측 코드 검증
+    const ok = await verifyCode(form.email, inputCode)
+    if (ok) { setVerified(true); setError('') }
+    else setError('인증번호가 올바르지 않거나 만료되었습니다.')
   }
 
   const handleRegister = async () => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs'
 import { uid, now } from '../lib/utils.js'
 import { Trainings, Settings } from '../lib/db.js'
+import { supabase } from '../lib/supabase.js'
 import { ToastContainer, Modal } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 
@@ -63,46 +64,58 @@ function loadTrainingSites() {
   } catch { return DEFAULT_TRAINING_SITES }
 }
 
-// 파일을 base64로 변환
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload  = () => resolve(reader.result.split(',')[1])
-    reader.onerror = () => reject(new Error('파일 읽기 실패'))
-    reader.readAsDataURL(file)
-  })
-}
-
-// db-api Edge Function을 통해 Storage에 업로드 (service_role 키 사용)
+// [보안 수정] Storage 업로드: ANON_KEY → 사용자 JWT 사용
+// - supabase.storage.upload() 는 내부적으로 세션 토큰을 Authorization 헤더에 자동 포함
+// - teacher-files 버킷은 private으로 설정하고, Storage RLS policy로 본인 경로만 허용
+// - 파일 경로: training/{userId}/{trainingId}/{timestamp}.{ext}
 async function uploadToStorage(userId, trainingId, file) {
-  const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
-  const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+  if (!supabase) throw new Error('Supabase가 설정되지 않았습니다.')
 
-  if (!SUPABASE_URL || !SUPABASE_ANON) {
-    throw new Error('Supabase 환경변수가 설정되지 않았습니다.')
+  // 허용 MIME 타입 화이트리스트 (서버 측 재검증과 함께 사용)
+  const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
+  if (!ALLOWED_MIME.includes(file.type)) {
+    throw new Error('이미지(JPG·PNG·GIF·WebP) 또는 PDF 파일만 업로드 가능합니다.')
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('10MB 이하 파일만 업로드 가능합니다.')
   }
 
-  const ext      = file.name.split('.').pop().toLowerCase()
+  // 확장자는 파일명에서 추출 (MIME 타입이 아닌 원본 파일명 기준)
+  const ext = file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '')
   const filePath = `training/${userId}/${trainingId}/${Date.now()}.${ext}`
 
-  // sb_publishable_... 키는 JWT가 아니므로 apikey 헤더로 함께 전달해야 함
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/teacher-files/${filePath}`, {
-    method: 'POST',
-    headers: {
-      'apikey': SUPABASE_ANON,
-      'Authorization': `Bearer ${SUPABASE_ANON}`,
-      'Content-Type': file.type,
-      'x-upsert': 'true',
-    },
-    body: file,
-  })
+  // supabase.storage.upload() — 세션 JWT를 자동으로 Authorization 헤더에 포함
+  // Storage RLS: training/{userId}/ 경로는 해당 userId 본인만 업로드 가능
+  const { error } = await supabase.storage
+    .from('teacher-files')
+    .upload(filePath, file, {
+      contentType: file.type,
+      upsert: true,
+    })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(`파일 업로드 실패: ${err?.message || err?.error || res.statusText}`)
-  }
+  if (error) throw new Error(`파일 업로드 실패: ${error.message}`)
 
-  return `${SUPABASE_URL}/storage/v1/object/public/teacher-files/${filePath}`
+  // private 버킷이므로 signed URL 사용 (1시간 유효)
+  const { data: signedData, error: signErr } = await supabase.storage
+    .from('teacher-files')
+    .createSignedUrl(filePath, 60 * 60)
+
+  if (signErr) throw new Error(`URL 생성 실패: ${signErr.message}`)
+
+  // DB에는 filePath 저장 (URL이 아닌 경로) — 조회 시 signed URL 재생성
+  return { url: signedData.signedUrl, path: filePath }
+}
+
+// 파일 경로로 signed URL 생성 (조회 시 사용)
+export async function getSignedUrl(filePath) {
+  if (!supabase || !filePath) return null
+  // 구버전 호환: http로 시작하면 그대로 반환
+  if (filePath.startsWith('http')) return filePath
+  const { data, error } = await supabase.storage
+    .from('teacher-files')
+    .createSignedUrl(filePath, 60 * 60)
+  if (error) return null
+  return data.signedUrl
 }
 
 const EMPTY_FORM = {
@@ -123,6 +136,7 @@ export function Training({ user }) {
   const [modalDrag, setModalDrag] = useState(false)
   const [trainingSites]           = useState(() => loadTrainingSites())
   const [preview, setPreview]     = useState(null)
+  const [previewUrl, setPreviewUrl] = useState(null)
   const { toasts, success, error: toastError, info } = useToast()
   const [confirm, setConfirm]     = useState(null) // { msg, onOk }
   const currentYear               = String(new Date().getFullYear())
@@ -161,14 +175,15 @@ export function Training({ user }) {
     setUploading(true)
     try {
       const itemId = editId || uid()
-      let fileUrl = null, fileName = null, fileType = null
+      let fileUrl = null, fileName = null, fileType = null, filePath = null
 
       // 파일 먼저 업로드
       if (modalFile) {
         if (!validateFile(modalFile)) { setUploading(false); return }
-        fileUrl  = await uploadToStorage(user.id, itemId, modalFile)
-        fileName = modalFile.name
-        fileType = modalFile.type
+        const result = await uploadToStorage(user.id, itemId, modalFile)
+        fileUrl   = result.path  // DB에는 경로 저장
+        fileName  = modalFile.name
+        fileType  = modalFile.type
       }
 
       const item = {
@@ -206,8 +221,8 @@ export function Training({ user }) {
     if (!validateFile(file)) return
     setUploading(true)
     try {
-      const fileUrl  = await uploadToStorage(user.id, trainingId, file)
-      Trainings.update(trainingId, { fileUrl, fileName: file.name, fileType: file.type })
+      const result = await uploadToStorage(user.id, trainingId, file)
+      Trainings.update(trainingId, { fileUrl: result.path, fileName: file.name, fileType: file.type })
       reload()
       success('파일이 저장되었습니다.')
     } catch(e) {
@@ -224,9 +239,17 @@ export function Training({ user }) {
     }})
   }
 
-  const openPreview = (r) => {
+  // [보안 수정] private 버킷이므로 signed URL 먼저 생성 후 미리보기
+  const openPreview = async (r) => {
     if (!r.fileUrl) return
-    setPreview({ url: r.fileUrl, type: r.fileType || '', name: r.fileName || '첨부파일' })
+    try {
+      const url = await getSignedUrl(r.fileUrl)
+      if (!url) { toastError('파일 URL을 가져올 수 없습니다.'); return }
+      setPreview({ path: r.fileUrl, type: r.fileType || '', name: r.fileName || '첨부파일' })
+      setPreviewUrl(url)
+    } catch(e) {
+      toastError('파일을 열 수 없습니다: ' + e.message)
+    }
   }
 
   const downloadExcel = () => {
@@ -467,26 +490,26 @@ export function Training({ user }) {
       )}
 
       {/* 미리보기 모달 */}
-      {preview && (
-        <Modal onClose={() => setPreview(null)} title={`${preview.type?.startsWith('image/') ? '🖼' : '📄'} ${preview.name}`}>
+      {preview && previewUrl && (
+        <Modal onClose={() => { setPreview(null); setPreviewUrl(null) }} title={`${preview.type?.startsWith('image/') ? '🖼' : '📄'} ${preview.name}`}>
           <div style={{ display:'flex', justifyContent:'flex-end', padding:'8px 16px 0' }}>
-            <a href={preview.url} download={preview.name} target="_blank" rel="noopener noreferrer"
+            <a href={previewUrl} download={preview.name} target="_blank" rel="noopener noreferrer"
               style={{ padding:'6px 14px', borderRadius:'8px', background:'#f0fdf4', border:'1.5px solid #86efac', color:C.success, fontSize:'12px', fontWeight:700, textDecoration:'none' }}>
               ⬇ 다운로드
             </a>
           </div>
           <div style={{ overflow:'auto', flex:1, display:'flex', alignItems:'center', justifyContent:'center', background:'#f9fafb', padding:'16px' }}>
             {preview.type?.startsWith('image/') ? (
-              <img src={preview.url} alt={preview.name}
+              <img src={previewUrl} alt={preview.name}
                 style={{ maxWidth:'100%', maxHeight:'100%', borderRadius:'8px', boxShadow:'0 4px 20px rgba(0,0,0,0.15)', objectFit:'contain' }} />
             ) : preview.type === 'application/pdf' ? (
-              <iframe src={preview.url} title={preview.name}
+              <iframe src={previewUrl} title={preview.name}
                 style={{ width:'100%', height:'600px', border:'none', borderRadius:'8px' }} />
             ) : (
               <div style={{ textAlign:'center', color:C.muted }}>
                 <div style={{ fontSize:'40px', marginBottom:'12px' }}>📄</div>
                 <div style={{ fontSize:'14px' }}>미리보기를 지원하지 않는 파일 형식입니다</div>
-                <a href={preview.url} download={preview.name}
+                <a href={previewUrl} download={preview.name}
                   style={{ display:'inline-block', marginTop:'12px', color:C.primary, fontSize:'13px' }}>다운로드하여 확인하기</a>
               </div>
             )}
