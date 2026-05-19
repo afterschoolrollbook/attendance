@@ -667,7 +667,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                       {o.productName} · {o.stage}단계 · {o.partName} · <b>{o.qty}개</b>
                     </span>
                     <button onClick={() => upd({ _memoEdit: !o._memoEdit, _edit: false })}
-                      title="메모" style={{ fontSize:'14px', lineHeight:1, color: o.memo ? '#f59e0b' : '#d1d5db', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>🗒️</button>
+                      title="메모" style={{ fontSize:'14px', lineHeight:1, color: (o.memo || o._memoEdit) ? '#f59e0b' : '#d1d5db', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>🗒️</button>
                     <button onClick={() => upd({ _edit: !o._edit, _memoEdit: false, _editProductId: o.productId, _editStage: o.stage, _editPartId: o.partId })}
                       title="수정" style={{ fontSize:'13px', lineHeight:1, color: o._edit ? '#3b82f6' : '#9ca3af', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>✏️</button>
                     <button onClick={() => { _setOrderList(prev => prev.filter((_,j) => j!==i)); success('삭제되었습니다') }}
@@ -675,10 +675,17 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                   </div>
                   {o._memoEdit && (
                     <div style={{ padding:'7px 8px', background:'#fffbeb', borderRadius:'0 0 6px 6px', border:'1px solid #fde68a', borderTop:'none', display:'flex', flexDirection:'column', gap:'4px' }}>
-                      {o.memo && <div style={{ fontSize:'11px', color:'#92400e', padding:'2px 4px' }}>{o.memo}</div>}
-                      <input value={o.memo || ''} onChange={e => upd({ memo: e.target.value })}
+                      <input defaultValue={o.memo || ''} id={`memo-input-${i}`}
                         placeholder="메모 입력" autoFocus
                         style={{ width:'100%', boxSizing:'border-box', padding:'5px 8px', borderRadius:'6px', border:'1px solid #fde68a', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                      <button onClick={() => {
+                        const val = document.getElementById(`memo-input-${i}`)?.value || ''
+                        _setOrderList(prev => prev.map((x,j) => j===i ? { ...x, memo: val, _memoEdit: false } : x))
+                        success('메모가 저장되었습니다')
+                      }}
+                        style={{ padding:'4px 10px', borderRadius:'6px', border:'none', background:'#f59e0b', color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', alignSelf:'flex-end' }}>
+                        저장
+                      </button>
                     </div>
                   )}
                   {o._edit && (
@@ -730,14 +737,19 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                         <button onClick={() => upd({ qty: o.qty + 1 })}
                           style={{ width:'22px', height:'22px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'13px', cursor:'pointer', lineHeight:1, padding:0 }}>+</button>
                       </div>
+                      <input value={o.memo || ''} onChange={e => upd({ memo: e.target.value })}
+                        placeholder="메모 (선택)"
+                        style={{ width:'100%', boxSizing:'border-box', padding:'5px 8px', borderRadius:'6px', border:'1px solid #bae6fd', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
                       <button onClick={() => {
                         const prod = spProds.find(p => p.id === editPid)
                         const partName = partsData.find(p => p.id === editPartId)?.name || o.partName
-                        upd({
+                        _setOrderList(prev => prev.map((x,j) => j===i ? {
+                          ...x,
                           productId: editPid, productName: prod?.name || o.productName,
                           stage: editStage || o.stage, partId: editPartId || o.partId, partName,
+                          memo: o.memo,
                           _edit: false, _editProductId: undefined, _editStage: undefined, _editPartId: undefined,
-                        })
+                        } : x))
                         success('저장되었습니다')
                       }} style={{ padding:'6px', borderRadius:'6px', background:'#3b82f6', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                         확인
