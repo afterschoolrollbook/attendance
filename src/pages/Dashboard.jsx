@@ -2670,6 +2670,7 @@ export function Dashboard({ user, onNav }) {
   // ── 부품 주문 누적 (모든 수업의 __PARTS_ORDER__ 메모 합산)
   const PARTS_ORDER_KEY = '__PARTS_ORDER__:'
   const allOrderItems = (() => {
+    void supplyTick // supplyTick 변경 시 재계산
     const allMemos = LessonMemos.byTeacher(user.id)
     const orderMemos = allMemos.filter(m => m.content?.startsWith(PARTS_ORDER_KEY))
     const merged = {}
@@ -2919,7 +2920,7 @@ export function Dashboard({ user, onNav }) {
             <button onClick={() => {
               if (window.confirm('주문완료 처리하면 모든 부품 주문 목록이 삭제됩니다. 계속할까요?')) {
                 allOrderMemoIds.forEach(id => LessonMemos.delete(id))
-                window.location.reload()
+                setSupplyTick(t => t + 1)
               }
             }} style={{ padding:'5px 14px', borderRadius:'8px', border:'none', background:'#16a34a', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
               ✅ 주문완료
@@ -2971,7 +2972,6 @@ export function Dashboard({ user, onNav }) {
                               <button onClick={() => setEditingOrderKey(null)}
                                 style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #d1d5db', background:'#fff', color:'#6b7280', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
                               <button onClick={() => {
-                                // o._memoIds 에 속한 각 메모에서 해당 partId 항목 수량/메모 업데이트
                                 const allMemos = LessonMemos.byTeacher(user.id)
                                 o._memoIds.forEach(memoId => {
                                   const memo = allMemos.find(m => m.id === memoId)
@@ -2987,7 +2987,7 @@ export function Dashboard({ user, onNav }) {
                                   } catch {}
                                 })
                                 setEditingOrderKey(null)
-                                window.location.reload()
+                                setSupplyTick(t => t + 1)
                               }}
                                 style={{ padding:'4px 12px', borderRadius:'6px', border:'none', background:'#16a34a', color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
                             </div>
