@@ -1,3 +1,20 @@
+function sanitizeHtml(html) {
+  if (typeof window !== 'undefined' && window.DOMPurify) {
+    return window.DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['p','br','b','strong','i','em','u','h1','h2','h3','ul','ol','li',
+        'blockquote','code','pre','hr','a','img'],
+      ALLOWED_ATTR: ['href','src','alt','target','rel'],
+      ALLOW_DATA_ATTR: false,
+    })
+  }
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+    .replace(/javascript\s*:/gi, '')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
+}
+
 import React, { useState, useEffect } from 'react'
 import { dbCall } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
@@ -6,24 +23,14 @@ import { useToast } from '../hooks/useToast.js'
 const BLOG_CATEGORIES = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
 const DOCS_CATEGORIES = ['시작하기', '출석부', '교구 관리', '학생 관리', '수업 관리', '리포트', '설정', '기타']
 
-// DOMPurify CDN 로드 (없으면 기본 sanitizer 사용)
-function sanitizeHtml(html) {
-  if (typeof window !== 'undefined' && window.DOMPurify) {
-    return window.DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: ['p','br','b','strong','i','em','u','h1','h2','h3','ul','ol','li',
-        'blockquote','code','pre','hr','a','img'],
-      ALLOWED_ATTR: ['href','src','alt','target','rel','style'],
-      ALLOW_DATA_ATTR: false,
-    })
-  }
-  // fallback
+// replaced
+function _OLD_sanitizeHtml(html) {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
     .replace(/on\w+\s*=\s*[^\s>]*/gi, '')
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
     .replace(/javascript\s*:/gi, '')
-    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
 }
 
 function parseMarkdown(md) {
@@ -36,7 +43,7 @@ function parseMarkdown(md) {
     .replace(/^# (.+)$/gm, '<h1>$1</h1>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0">')
     .replace(/^---$/gm, '<hr>')
     .replace(/^\- (.+)$/gm, '<li>$1</li>')
