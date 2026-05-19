@@ -845,7 +845,12 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
 
   return (
     <Modal open={true} onClose={() => {}} title={`📊 ${student.name} 진도 체크`} width={780}>
-      <div style={{ padding:'16px 24px', overflowY:'auto', maxHeight:'65vh' }}>
+      <div style={{ overflowY:'auto', maxHeight:'65vh' }}>
+        {/* sticky 이름 헤더 */}
+        <div style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb', padding:'8px 24px', display:'flex', alignItems:'center', gap:'8px' }}>
+          <span style={{ fontSize:'15px', fontWeight:700, color:'#111827' }}>📊 {student.name} 진도 체크</span>
+        </div>
+        <div style={{ padding:'16px 24px' }}>
         {/* 교구 시리즈 / 단계 변경 */}
         <div style={{ padding:'12px 14px', background:'#f9fafb', borderRadius:'10px', marginBottom:'16px' }}>
           <div style={{ display:'flex', alignItems:'flex-end', gap:'10px', flexWrap:'wrap' }}>
@@ -1039,6 +1044,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
             )}
           </div>
         )}
+        </div>
       </div>
 
       {/* 다음 진도 준비 */}
