@@ -5,13 +5,24 @@ import { verifyPassword } from '../lib/crypto.js'
 import { BlogAdmin } from './BlogAdmin.jsx'
 
 // ── 마크다운 파서
+// DOMPurify CDN 로드 (없으면 기본 sanitizer 사용)
 function sanitizeHtml(html) {
+  if (typeof window !== 'undefined' && window.DOMPurify) {
+    return window.DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['p','br','b','strong','i','em','u','h1','h2','h3','ul','ol','li',
+        'blockquote','code','pre','hr','a','img'],
+      ALLOWED_ATTR: ['href','src','alt','target','rel','style'],
+      ALLOW_DATA_ATTR: false,
+    })
+  }
+  // fallback
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
     .replace(/on\w+\s*=\s*[^\s>]*/gi, '')
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
     .replace(/javascript\s*:/gi, '')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
 }
 
 function parseMarkdown(md) {
