@@ -63,13 +63,13 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   const [memos, setMemos] = useState(() => cls ? LessonMemos.byClassDate(cls.id, date).filter(m => !m.content?.startsWith('__PARTS_ORDER__:')) : [])
   const [memoText, setMemoText] = useState('')
   // 부품 주문 메모
-  const [partsOpen, setPartsOpen]           = useState(false)
+  const [addOpen, setAddOpen]               = useState(false)
+  const [orderOpen, setOrderOpen]           = useState(false)
   const [partsData, setPartsData]           = useState([])   // { id, productId, stage, name }
   const [selProductId, setSelProductId]     = useState('')
   const [selStage, setSelStage]             = useState('')
   const [selPartId, setSelPartId]           = useState('')
   const [selQty, setSelQty]                 = useState(1)
-  const [selMemo, setSelMemo]               = useState('')
   const PARTS_ORDER_KEY = '__PARTS_ORDER__:'
   const orderListRef = useRef([])
   const [orderList, setOrderList] = useState(() => {
@@ -473,155 +473,180 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
 
       {/* 부품 주문 메모 */}
       <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:'12px', marginTop:'0' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: partsOpen ? '10px' : '0' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:(addOpen||orderOpen) ? '10px' : '0' }}>
           <div style={{ fontSize:'11px', fontWeight:700, color:C.muted }}>🔧 부품 주문 메모</div>
-          <button onClick={() => {
-            if (!partsOpen) {
-              setSelProductId('')
-              setSelStage('')
-              setSelPartId('')
-              setAddingNew(false)
-              setNewPartName('')
-            }
-            setPartsOpen(v => !v)
-          }}
-            style={{ padding:'3px 10px', borderRadius:'6px', border:'1px solid #d6d3d1', background: partsOpen ? '#f5f5f4' : '#fff', color:'#78716c', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {partsOpen ? '닫기' : '📝 기록'}
-          </button>
+          <div style={{ display:'flex', gap:'4px' }}>
+            <button onClick={() => {
+              if (!addOpen) {
+                setSelProductId(''); setSelStage(''); setSelPartId('')
+                setAddingNew(false); setNewPartName('')
+                setOrderOpen(false)
+              }
+              setAddOpen(v => !v)
+            }}
+              style={{ padding:'3px 10px', borderRadius:'6px', border:'1px solid #d6d3d1', background: addOpen ? '#f59e0b' : '#fff', color: addOpen ? '#fff' : '#78716c', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: addOpen ? 700 : 400 }}>
+              {addOpen ? '닫기' : '➕ 부품추가'}
+            </button>
+            <button onClick={() => {
+              if (!orderOpen) {
+                setSelProductId(''); setSelStage(''); setSelPartId('')
+                setAddingNew(false); setNewPartName(''); setSelQty(1); setSelMemo('')
+                setAddOpen(false)
+              }
+              setOrderOpen(v => !v)
+            }}
+              style={{ padding:'3px 10px', borderRadius:'6px', border:'1px solid #d6d3d1', background: orderOpen ? '#78716c' : '#fff', color: orderOpen ? '#fff' : '#78716c', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight: orderOpen ? 700 : 400 }}>
+              {orderOpen ? '닫기' : '📋 주문'}
+            </button>
+          </div>
         </div>
 
-        {partsOpen && (
+        {/* 부품추가 패널 — 교구/단계 선택 후 새 부품명 등록 */}
+        {addOpen && (
           <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
             {partsLoading ? (
               <div style={{ fontSize:'12px', color:'#9ca3af', textAlign:'center', padding:'8px' }}>불러오는 중...</div>
             ) : (
-              <>
-                {/* 드롭다운 선택 */}
-                <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                  {/* 교구(로봇) 선택 */}
-                  <select value={selProductId} onChange={async e => {
-                    const pid = e.target.value
-                    setSelProductId(pid)
-                    setSelStage('')
-                    setSelPartId('')
-                    setAddingNew(false)
-                    if (!pid) return
-                    try {
-                      const rows = await SupplyParts.byProduct(pid)
-                      setPartsData(prev => [...prev.filter(p => p.productId !== pid), ...(rows || [])])
-                      const stages = [...new Set((rows || []).map(p => Number(p.stage)))].sort((a,b)=>a-b)
-                      setSelStage(stages[0] || '')
-                    } catch(e) {}
-                  }}
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                <select value={selProductId} onChange={async e => {
+                  const pid = e.target.value
+                  setSelProductId(pid); setSelStage(''); setSelPartId(''); setAddingNew(false)
+                  if (!pid) return
+                  try {
+                    const rows = await SupplyParts.byProduct(pid)
+                    setPartsData(prev => [...prev.filter(p => p.productId !== pid), ...(rows || [])])
+                  } catch(e) {}
+                }}
+                  style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  <option value="">-- 교구 선택 --</option>
+                  {[...new Set(activeStudents.map(s => spItems.find(i => i.studentId === s.id && i.classId === cls.id)?.productId).filter(Boolean))].map(pid => {
+                    const prod = spProds.find(p => p.id === pid)
+                    return <option key={pid} value={pid}>{prod?.name || pid}</option>
+                  })}
+                </select>
+                {selProductId && (
+                  <select value={selStage} onChange={e => { setSelStage(Number(e.target.value)); setSelPartId(''); setAddingNew(false) }}
                     style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
-                    <option value="">-- 교구 선택 --</option>
-                    {[...new Set(activeStudents.map(s => spItems.find(i => i.studentId === s.id && i.classId === cls.id)?.productId).filter(Boolean))].map(pid => {
-                      const prod = spProds.find(p => p.id === pid)
-                      return <option key={pid} value={pid}>{prod?.name || pid}</option>
-                    })}
+                    <option value="">-- 단계 선택 --</option>
+                    {(() => {
+                      const fromPlans = SupplyPlans.byProduct(selProductId).filter(pl => (pl.fileType==='session'||pl.type==='session') && pl.stage).map(pl => Number(pl.stage))
+                      const fromProductPlans = SupplyProductPlans.byProduct(selProductId).map(pl => Number(pl.stage))
+                      return [...new Set([...fromProductPlans, ...fromPlans])].sort((a,b)=>a-b).map(st => (
+                        <option key={st} value={st}>{st}단계</option>
+                      ))
+                    })()}
                   </select>
-
-                  {/* 단계 선택 */}
-                  {selProductId && (
-                    <select value={selStage} onChange={e => {
-                      setSelStage(Number(e.target.value))
-                      setSelPartId('')
-                      setAddingNew(false)
-                    }}
-                      style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
-                      <option value="">-- 단계 선택 --</option>
-                      {(() => {
-                        const fromPlans = SupplyPlans.byProduct(selProductId).filter(pl => (pl.fileType==='session'||pl.type==='session') && pl.stage).map(pl => Number(pl.stage))
-                        const fromProductPlans = SupplyProductPlans.byProduct(selProductId).map(pl => Number(pl.stage))
-                        return [...new Set([...fromProductPlans, ...fromPlans])].sort((a,b)=>a-b).map(st => (
-                          <option key={st} value={st}>{st}단계</option>
-                        ))
-                      })()}
-                    </select>
-                  )}
-
-                  {/* 부품 선택 */}
-                  {selProductId && selStage !== '' && (
-                    <select value={selPartId} onChange={e => {
-                      setSelPartId(e.target.value)
-                      setAddingNew(e.target.value === '__new__')
-                      setNewPartName('')
-                    }}
-                      style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
-                      <option value="">-- 부품 선택 --</option>
-                      {(() => {
-                        const seen = new Set()
-                        return partsData.filter(p => p.productId === selProductId && Number(p.stage) === Number(selStage) && (seen.has(p.name) ? false : seen.add(p.name)))
-                      })().map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                      <option value="__new__">+ 새 부품 등록</option>
-                    </select>
-                  )}
-
-                  {/* 새 부품 등록 */}
-                  {addingNew && (
+                )}
+                {selProductId && selStage !== '' && (
+                  <>
                     <input value={newPartName} onChange={e => setNewPartName(e.target.value)}
                       placeholder="등록할 부품명 입력"
                       style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', borderRadius:'7px', border:'1px solid #f59e0b', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }} />
-                  )}
-
-                  {/* 수량 + 버튼 */}
-                  {addingNew && newPartName.trim() ? (
-                    <button onClick={async () => {
-                      try {
-                        const trimmedName = newPartName.trim()
-                        const allParts = SupplyParts.byProduct(selProductId)
-                        if (allParts.some(p => p.name === trimmedName)) {
-                          // 이미 있는 부품이면 등록 없이 바로 선택
-                          const existing = allParts.find(p => p.name === trimmedName)
-                          setAddingNew(false)
-                          setSelPartId(existing.id)
+                    {newPartName.trim() && (
+                      <button onClick={async () => {
+                        try {
+                          const trimmedName = newPartName.trim()
+                          const allParts = SupplyParts.byProduct(selProductId)
+                          if (allParts.some(p => p.name === trimmedName)) {
+                            success('이미 등록된 부품입니다')
+                            setNewPartName('')
+                            return
+                          }
+                          await SupplyParts.insert({ productId: selProductId, stage: Number(selStage), name: trimmedName })
+                          const updated = await SupplyParts.byProduct(selProductId)
+                          setPartsData(prev => [...prev.filter(p => p.productId !== selProductId), ...updated])
                           setNewPartName('')
-                          return
-                        }
-                        const newRow = await SupplyParts.insert({ productId: selProductId, stage: Number(selStage), name: trimmedName })
-                        const updated = await SupplyParts.byProduct(selProductId)
-                        setPartsData(prev => [...prev.filter(p => p.productId !== selProductId), ...updated])
-                        setAddingNew(false)
-                        setSelPartId(newRow.id)
-                        setNewPartName('')
-                        success('부품이 등록되었습니다')
-                      } catch(e) { }
-                    }}
-                      style={{ width:'100%', padding:'7px', borderRadius:'7px', background:'#f59e0b', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                      부품 등록
-                    </button>
-                  ) : (selPartId && selPartId !== '__new__') ? (
-                    <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                      <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-                        <span style={{ fontSize:'12px', color:'#6b7280', whiteSpace:'nowrap' }}>수량</span>
-                        <input type="number" min={1} value={selQty} onChange={e => setSelQty(Math.max(1, Number(e.target.value)))}
-                          style={{ width:'60px', padding:'7px 8px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif' }} />
-                      </div>
-                      <input value={selMemo} onChange={e => setSelMemo(e.target.value)}
-                        placeholder="메모 (선택)"
-                        style={{ width:'100%', boxSizing:'border-box', padding:'7px 8px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-                      <button onClick={() => {
-                        const prod = spProds.find(p => p.id === selProductId)
-                        const partName = partsData.find(p => p.id === selPartId)?.name || ''
-                        _setOrderList(prev => {
-                          const existing = prev.find(o => o.partId === selPartId)
-                          if (existing) return prev.map(o => o.partId === selPartId ? { ...o, qty: o.qty + selQty, memo: selMemo || o.memo } : o)
-                          return [...prev, { productId: selProductId, productName: prod?.name || '', stage: Number(selStage), partId: selPartId, partName, qty: selQty, memo: selMemo || '' }]
-                        })
-                        setSelQty(1)
-                        setSelMemo('')
-                        success('목록에 추가되었습니다')
+                          success('부품이 등록되었습니다')
+                        } catch(e) {}
                       }}
-                        style={{ width:'100%', padding:'7px', borderRadius:'7px', background:'#78716c', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                        목록에 추가
+                        style={{ width:'100%', padding:'7px', borderRadius:'7px', background:'#f59e0b', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                        부품 등록
                       </button>
-                    </div>
-                  ) : null}
-                </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
-              </>
+        {/* 주문 패널 — 기존 부품 선택 → 수량/메모 → 목록에 추가 */}
+        {orderOpen && (
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+            {partsLoading ? (
+              <div style={{ fontSize:'12px', color:'#9ca3af', textAlign:'center', padding:'8px' }}>불러오는 중...</div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                <select value={selProductId} onChange={async e => {
+                  const pid = e.target.value
+                  setSelProductId(pid); setSelStage(''); setSelPartId('')
+                  if (!pid) return
+                  try {
+                    const rows = await SupplyParts.byProduct(pid)
+                    setPartsData(prev => [...prev.filter(p => p.productId !== pid), ...(rows || [])])
+                    const stages = [...new Set((rows || []).map(p => Number(p.stage)))].sort((a,b)=>a-b)
+                    setSelStage(stages[0] || '')
+                  } catch(e) {}
+                }}
+                  style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  <option value="">-- 교구 선택 --</option>
+                  {[...new Set(activeStudents.map(s => spItems.find(i => i.studentId === s.id && i.classId === cls.id)?.productId).filter(Boolean))].map(pid => {
+                    const prod = spProds.find(p => p.id === pid)
+                    return <option key={pid} value={pid}>{prod?.name || pid}</option>
+                  })}
+                </select>
+                {selProductId && (
+                  <select value={selStage} onChange={e => { setSelStage(Number(e.target.value)); setSelPartId('') }}
+                    style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    <option value="">-- 단계 선택 --</option>
+                    {(() => {
+                      const fromPlans = SupplyPlans.byProduct(selProductId).filter(pl => (pl.fileType==='session'||pl.type==='session') && pl.stage).map(pl => Number(pl.stage))
+                      const fromProductPlans = SupplyProductPlans.byProduct(selProductId).map(pl => Number(pl.stage))
+                      return [...new Set([...fromProductPlans, ...fromPlans])].sort((a,b)=>a-b).map(st => (
+                        <option key={st} value={st}>{st}단계</option>
+                      ))
+                    })()}
+                  </select>
+                )}
+                {selProductId && selStage !== '' && (
+                  <select value={selPartId} onChange={e => setSelPartId(e.target.value)}
+                    style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    <option value="">-- 부품 선택 --</option>
+                    {(() => {
+                      const seen = new Set()
+                      return partsData.filter(p => p.productId === selProductId && Number(p.stage) === Number(selStage) && (seen.has(p.name) ? false : seen.add(p.name)))
+                    })().map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                )}
+                {selPartId && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                    <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                      <span style={{ fontSize:'12px', color:'#6b7280', whiteSpace:'nowrap' }}>수량</span>
+                      <input type="number" min={1} value={selQty} onChange={e => setSelQty(Math.max(1, Number(e.target.value)))}
+                        style={{ width:'60px', padding:'7px 8px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif' }} />
+                    </div>
+                    <input value={selMemo} onChange={e => setSelMemo(e.target.value)}
+                      placeholder="메모 (선택)"
+                      style={{ width:'100%', boxSizing:'border-box', padding:'7px 8px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                    <button onClick={() => {
+                      const prod = spProds.find(p => p.id === selProductId)
+                      const partName = partsData.find(p => p.id === selPartId)?.name || ''
+                      _setOrderList(prev => {
+                        const existing = prev.find(o => o.partId === selPartId)
+                        if (existing) return prev.map(o => o.partId === selPartId ? { ...o, qty: o.qty + selQty, memo: selMemo || o.memo } : o)
+                        return [...prev, { productId: selProductId, productName: prod?.name || '', stage: Number(selStage), partId: selPartId, partName, qty: selQty, memo: selMemo || '' }]
+                      })
+                      setSelQty(1); setSelMemo('')
+                      success('목록에 추가되었습니다')
+                    }}
+                      style={{ width:'100%', padding:'7px', borderRadius:'7px', background:'#78716c', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      목록에 추가
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
