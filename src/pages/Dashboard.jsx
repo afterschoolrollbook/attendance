@@ -2610,6 +2610,9 @@ export function Dashboard({ user, onNav }) {
   const [showInstallGuide, setShowInstallGuide] = useState(false)
   const [dashScModal, setDashScModal] = useState(null) // 교구 준비/지급 체크 모달
   const [supplyTick, setSupplyTick]   = useState(0)    // 지급완료 후 강제 리렌더용
+  const [editingOrderKey, setEditingOrderKey] = useState(null) // 부품 인라인 수정
+  const [editOrderQty,  setEditOrderQty]  = useState(1)
+  const [editOrderMemo, setEditOrderMemo] = useState('')
   const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches
 
   const handleAddShortcut = () => {
@@ -2934,13 +2937,65 @@ export function Dashboard({ user, onNav }) {
                   <div style={{ padding:'5px 10px', background:'#dcfce7', fontSize:'11px', fontWeight:700, color:'#15803d' }}>
                     {g.productName}
                   </div>
-                  {g.items.map((o, i) => (
-                    <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', borderTop: i > 0 ? '1px solid #f0fdf4' : 'none' }}>
-                      <span style={{ fontSize:'12px', color:'#374151' }}>{o.stage}단계 · {o.partName}</span>
-                      {o.memo && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{o.memo}</span>}
-                      <span style={{ marginLeft:'auto', fontSize:'13px', fontWeight:800, color:'#15803d' }}>{o.qty}개</span>
-                    </div>
-                  ))}
+                  {g.items.map((o, i) => {
+                    const oKey = `${o.productId}__${o.stage}__${o.partId}`
+                    const isEditing = editingOrderKey === oKey
+                    return (
+                      <div key={i}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', borderTop: i > 0 ? '1px solid #f0fdf4' : 'none' }}>
+                          <span style={{ fontSize:'12px', color:'#374151' }}>{o.stage}단계 · {o.partName}</span>
+                          {o.memo && <span style={{ fontSize:'11px', color:'#9ca3af' }}>{o.memo}</span>}
+                          <span style={{ marginLeft:'auto', fontSize:'13px', fontWeight:800, color:'#15803d' }}>{o.qty}개</span>
+                          <button onClick={() => {
+                            if (isEditing) { setEditingOrderKey(null); return }
+                            setEditingOrderKey(oKey)
+                            setEditOrderQty(o.qty)
+                            setEditOrderMemo(o.memo || '')
+                          }}
+                            style={{ fontSize:'12px', lineHeight:1, color: isEditing ? '#3b82f6' : '#9ca3af', background:'none', border:'none', cursor:'pointer', padding:'0 2px' }}>✏️</button>
+                        </div>
+                        {isEditing && (
+                          <div style={{ padding:'8px 10px', background:'#f0fdf4', borderTop:'1px solid #bbf7d0', display:'flex', flexDirection:'column', gap:'6px' }}>
+                            <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+                              <span style={{ fontSize:'11px', color:'#6b7280', whiteSpace:'nowrap' }}>수량</span>
+                              <button onClick={() => setEditOrderQty(q => Math.max(1, q - 1))}
+                                style={{ width:'22px', height:'22px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'13px', cursor:'pointer', lineHeight:1, padding:0 }}>-</button>
+                              <span style={{ fontSize:'12px', fontWeight:700, minWidth:'24px', textAlign:'center' }}>{editOrderQty}</span>
+                              <button onClick={() => setEditOrderQty(q => q + 1)}
+                                style={{ width:'22px', height:'22px', borderRadius:'4px', border:'1px solid #d1d5db', background:'#fff', fontSize:'13px', cursor:'pointer', lineHeight:1, padding:0 }}>+</button>
+                            </div>
+                            <input value={editOrderMemo} onChange={e => setEditOrderMemo(e.target.value)}
+                              placeholder="메모 (선택)"
+                              style={{ width:'100%', boxSizing:'border-box', padding:'5px 8px', borderRadius:'6px', border:'1px solid #86efac', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                            <div style={{ display:'flex', gap:'6px', justifyContent:'flex-end' }}>
+                              <button onClick={() => setEditingOrderKey(null)}
+                                style={{ padding:'4px 10px', borderRadius:'6px', border:'1px solid #d1d5db', background:'#fff', color:'#6b7280', fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
+                              <button onClick={() => {
+                                // o._memoIds 에 속한 각 메모에서 해당 partId 항목 수량/메모 업데이트
+                                const allMemos = LessonMemos.byTeacher(user.id)
+                                o._memoIds.forEach(memoId => {
+                                  const memo = allMemos.find(m => m.id === memoId)
+                                  if (!memo) return
+                                  try {
+                                    const list = JSON.parse(memo.content.slice(PARTS_ORDER_KEY.length))
+                                    const updated = list.map(item =>
+                                      item.partId === o.partId && item.stage === o.stage && item.productId === o.productId
+                                        ? { ...item, qty: editOrderQty, memo: editOrderMemo }
+                                        : item
+                                    )
+                                    LessonMemos.update(memoId, { content: PARTS_ORDER_KEY + JSON.stringify(updated) })
+                                  } catch {}
+                                })
+                                setEditingOrderKey(null)
+                                window.location.reload()
+                              }}
+                                style={{ padding:'4px 12px', borderRadius:'6px', border:'none', background:'#16a34a', color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>저장</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               ))
             })()}
