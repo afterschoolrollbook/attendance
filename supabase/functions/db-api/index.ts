@@ -176,6 +176,16 @@ serve(async (req) => {
       svcKey,
     )
 
+    // ── caller의 custom users 테이블 정보 조회 (level, id)
+    const { data: callerUser } = await supabase
+      .from('users')
+      .select('id, level, role, email')
+      .eq('auth_id', caller.id)
+      .single()
+    const callerId    = callerUser?.id    ?? null
+    const callerLevel = callerUser?.level ?? 0
+    const isAdmin     = callerLevel >= 10
+
     const { action, table, data, id, where, patch } = body
 
     const tbl = TABLE_MAP[table]
@@ -192,17 +202,78 @@ serve(async (req) => {
 
     switch (action) {
       case 'getAll': {
+        // 관리자(level>=10)가 아닌 경우 본인 데이터만 조회 가능한 테이블 목록
+        // key: table명, value: DB상 본인 ID 필터 컬럼명
+        const TEACHER_OWNED: Record<string, string> = {
+          classes:              'teacher_id',
+          students:             'teacher_id',
+          attendance:           'teacher_id',
+          notes:                'teacher_id',
+          attendanceTemplates:  'teacher_id',
+          revenueFees:          'teacherId',
+          revenuePayments:      'teacherId',
+          trainings:            'teacherId',
+          careers:              'teacherId',
+          educations:           'teacherId',
+          certificates:         'teacherId',
+          awards:               'teacherId',
+          jobSubs:              'teacherId',
+          teacherProfiles:      'teacherId',
+          documents:            'teacherId',
+          lessonMemos:          'teacherId',
+          messageGuides:        'teacherId',
+          messageCategories:    'teacherId',
+          supplySubjects:       'teacherId',
+          supplyVendors:        'teacherId',
+          supplyItems:          'teacherId',
+          supplyPlans:          'teacherId',
+          supplyPromos:         'teacherId',
+          supplyProducts:       'teacherId',
+          supplyProductPlans:   'teacherId',
+          supplyStudentProgress:'teacherId',
+          supplyProgressLogs:   'teacherId',
+          supplySessionChecks:  'teacherId',
+          supplyGiven:          'teacherId',
+          customCategories:     'teacherId',
+          teacherServiceConfigs:'teacher_id',
+          parentMembers:        'teacher_id',
+          teacherParentLinks:   'teacher_id',
+          points:               'teacher_id',
+        }
+        // hqVendor 테이블은 vendorId로 필터 (벤더 전용)
+        const VENDOR_OWNED: Record<string, string> = {
+          hqVendorSubjects:  'vendorId',
+          hqVendorProducts:  'vendorId',
+          hqVendorContents:  'vendorId',
+          hqVendorFiles:     'vendorId',
+          hqVendorPrices:    'vendorId',
+          hqVendorStages:    'vendorId',
+          hqVendorQuarters:  'vendorId',
+          hqVendorSessions:  'vendorId',
+        }
+
         // _deleted 컬럼이 없는 테이블은 필터 없이 전체 조회
         const NO_DELETED_TABLES = new Set(['hqVendorPrices', 'supplyGiven', 'supplySchoolPrices', 'supplyParts'])
         let q = supabase.from(tbl).select('*')
         if (!NO_DELETED_TABLES.has(table)) {
           q = q.or('_deleted.is.null,_deleted.eq.false')
         }
-        // attendance는 최근 90일치만 로드 (데이터 누적 시 속도 저하 방지)
+        // attendance는 최근 90일치만 로드
         if (table === 'attendance') {
           const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
           q = q.gte('date', since)
         }
+        // 서버측 본인 데이터 필터링 (관리자 제외)
+        if (!isAdmin && callerId) {
+          if (TEACHER_OWNED[table]) {
+            q = q.eq(TEACHER_OWNED[table], callerId)
+          } else if (VENDOR_OWNED[table]) {
+            // 벤더의 경우 vendorId를 body.vendorId로 받아서 검증
+            const reqVendorId = body.vendorId
+            if (reqVendorId) q = q.eq(VENDOR_OWNED[table], reqVendorId)
+          }
+        }
+
         const { data: rows, error } = await q
         if (error) throw error
         result = rows.map(fromDb)
@@ -302,21 +373,8 @@ serve(async (req) => {
         break
       }
       case 'addColumn': {
-        // 화이트리스트 검증으로 SQL Injection 방어
-        const { column, colType, colDefault } = body
-        const ALLOWED_TYPES = ['boolean', 'text', 'integer', 'bigint', 'numeric', 'timestamptz', 'jsonb', 'uuid']
-        const safeColName = /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(column || '')
-        const safeColType = ALLOWED_TYPES.includes(colType ?? 'boolean')
-        if (!safeColName) throw new Error('유효하지 않은 컬럼명입니다.')
-        if (!safeColType) throw new Error('허용되지 않은 컬럼 타입입니다.')
-        const safeDefault = colDefault === undefined || colDefault === null || typeof colDefault === 'boolean' || typeof colDefault === 'number'
-          ? (colDefault ?? false)
-          : false
-        const sql = `ALTER TABLE "${tbl}" ADD COLUMN IF NOT EXISTS "${column}" ${colType ?? 'boolean'} DEFAULT ${safeDefault}`
-        const { error } = await supabase.rpc('exec_sql', { sql_text: sql })
-        if (error) throw new Error(`addColumn 실패: ${error.message}`)
-        result = { ok: true }
-        break
+        // addColumn은 보안상 제거됨 — 스키마 변경은 마이그레이션으로만 처리
+        throw new Error('addColumn 액션은 지원하지 않습니다. 스키마 변경은 마이그레이션 파일로 처리하세요.')
       }
       default:
         throw new Error(`Unknown action: ${action}`)
