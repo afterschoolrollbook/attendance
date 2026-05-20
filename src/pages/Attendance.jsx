@@ -522,10 +522,9 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                 }}
                   style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                   <option value="">-- 교구 선택 --</option>
-                  {[...new Set(activeStudents.map(s => spItems.find(i => i.studentId === s.id && i.classId === cls.id)?.productId).filter(Boolean))].map(pid => {
-                    const prod = spProds.find(p => p.id === pid)
-                    return <option key={pid} value={pid}>{prod?.name || pid}</option>
-                  })}
+                  {spProds.map(prod => (
+                    <option key={prod.id} value={prod.id}>{prod.name}</option>
+                  ))}
                 </select>
                 {selProductId && (
                   <select value={selStage} onChange={e => { setSelStage(Number(e.target.value)); setSelPartId(''); setAddingNew(false) }}
@@ -593,10 +592,9 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                 }}
                   style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                   <option value="">-- 교구 선택 --</option>
-                  {[...new Set(activeStudents.map(s => spItems.find(i => i.studentId === s.id && i.classId === cls.id)?.productId).filter(Boolean))].map(pid => {
-                    const prod = spProds.find(p => p.id === pid)
-                    return <option key={pid} value={pid}>{prod?.name || pid}</option>
-                  })}
+                  {spProds.map(prod => (
+                    <option key={prod.id} value={prod.id}>{prod.name}</option>
+                  ))}
                 </select>
                 {selProductId && (
                   <select value={selStage} onChange={e => { setSelStage(Number(e.target.value)); setSelPartId('') }}
@@ -636,6 +634,26 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                     <button onClick={() => {
                       const prod = spProds.find(p => p.id === selProductId)
                       const partName = partsData.find(p => p.id === selPartId)?.name || ''
+
+                      // ── 다른 수업 주문 메모에 같은 부품이 이미 있는지 확인
+                      const allMemos = LessonMemos.byTeacher(cls.teacherId)
+                      const otherOrderMemos = allMemos.filter(m =>
+                        m.content?.startsWith(PARTS_ORDER_KEY) &&
+                        m.classId !== cls.id  // 현재 수업 제외
+                      )
+                      let duplicateFound = false
+                      otherOrderMemos.forEach(m => {
+                        try {
+                          const list = JSON.parse(m.content.slice(PARTS_ORDER_KEY.length))
+                          if (list.some(o => o.partId === selPartId)) duplicateFound = true
+                        } catch {}
+                      })
+
+                      if (duplicateFound) {
+                        alert(`⚠️ "${partName}" 은(는) 이미 다른 수업 주문 목록에 있습니다.\n대시보드 상단의 주문 목록을 확인해 주세요.`)
+                        return
+                      }
+
                       _setOrderList(prev => {
                         const existing = prev.find(o => o.partId === selPartId)
                         if (existing) return prev.map(o => o.partId === selPartId ? { ...o, qty: o.qty + selQty, memo: selMemo || o.memo } : o)
@@ -710,10 +728,9 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                         updUI({ _editProductId: pid, _editStage: '', _editPartId: '' })
                       }} style={{ width:'100%', padding:'6px 8px', borderRadius:'6px', border:'1px solid #bae6fd', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                         <option value="">-- 교구 선택 --</option>
-                        {[...new Set(activeStudents.map(s => spItems.find(ii => ii.studentId === s.id && ii.classId === cls.id)?.productId).filter(Boolean))].map(pid => {
-                          const prod = spProds.find(p => p.id === pid)
-                          return <option key={pid} value={pid}>{prod?.name || pid}</option>
-                        })}
+                        {spProds.map(prod => (
+                          <option key={prod.id} value={prod.id}>{prod.name}</option>
+                        ))}
                       </select>
                       {editPid && (
                         <select value={editStage} onChange={e => updUI({ _editStage: Number(e.target.value), _editPartId: '' })}

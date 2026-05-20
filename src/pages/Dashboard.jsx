@@ -2680,7 +2680,7 @@ export function Dashboard({ user, onNav }) {
         list.forEach(o => {
           const key = `${o.productId}__${o.stage}__${o.partId}`
           if (merged[key]) {
-            merged[key].qty += o.qty
+            if (o.qty > merged[key].qty) merged[key].qty = o.qty
             if (!merged[key]._memoIds.includes(m.id)) merged[key]._memoIds.push(m.id)
           } else {
             merged[key] = { ...o, _memoIds: [m.id] }
