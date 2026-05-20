@@ -2678,7 +2678,7 @@ export function Dashboard({ user, onNav }) {
       try {
         const list = JSON.parse(m.content.slice(PARTS_ORDER_KEY.length))
         list.forEach(o => {
-          const key = `${o.productId}__${o.stage}__${o.partId}`
+          const key = `${o.productId}__${o.stage}__${o.partName}`
           if (merged[key]) {
             if (o.qty > merged[key].qty) merged[key].qty = o.qty
             if (!merged[key]._memoIds.includes(m.id)) merged[key]._memoIds.push(m.id)
