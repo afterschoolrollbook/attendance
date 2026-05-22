@@ -1127,6 +1127,22 @@ export function Students({ user, onNav }) {
                               {s.cancel_info?.date && (() => { const [y,m,day]=s.cancel_info.date.split('-'); return `-${y.slice(2)}.${parseInt(m)}.${parseInt(day)}` })()}
                             </span>
                           )}
+                          {(s.status === 'transfer_out' || s.status === 'transfer_in') && (
+                            <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
+                              background: s.status==='transfer_out'?'#f0f9ff':'#ecfdf5',
+                              border: `1px solid ${s.status==='transfer_out'?'#7dd3fc':'#6ee7b7'}`,
+                              color: s.status==='transfer_out'?'#0369a1':'#065f46' }}>
+                              {s.status === 'transfer_out' ? '전학' : '전입'}
+                              {s.transfer_info?.date && (() => { const [y,m,day]=s.transfer_info.date.split('-'); return `-${y.slice(2)}.${parseInt(m)}.${parseInt(day)}` })()}
+                            </span>
+                          )}
+                          {s.status === 'extra_applied' && (
+                            <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
+                              background:'#fffbeb', border:'1px solid #fcd34d', color:'#b45309' }}>
+                              추가신청
+                              {s.transfer_info?.date && (() => { const [y,m,day]=s.transfer_info.date.split('-'); return `-${y.slice(2)}.${parseInt(m)}.${parseInt(day)}` })()}
+                            </span>
+                          )}
                           {(s.relations||[]).map((r, i) => (
                             <span key={i} style={{ fontSize:'11px', fontWeight:600, padding:'1px 7px', borderRadius:'5px',
                               background: r.type === '쌍둥이' ? '#fdf4ff' : r.type === '형제' ? '#eff6ff' : r.type === '남매' ? '#f0fdf4' : '#fff7ed',
@@ -1773,6 +1789,24 @@ export function Students({ user, onNav }) {
                     <textarea value={form.cancel_info?.memo || ''} placeholder="취소 사유"
                       onChange={e => set('cancel_info', { ...form.cancel_info, type: form.status==='cancel_after'?'after':'before', date: form.cancel_info?.date||new Date().toISOString().slice(0,10), memo: e.target.value })}
                       rows={2} style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #fca5a5', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', resize:'none' }} />
+                  </div>
+                )}
+                {(form.status === 'transfer_out' || form.status === 'transfer_in') && (
+                  <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'5px' }}>
+                    <label style={{ fontSize:'12px', color:'#0369a1', fontWeight:600 }}>
+                      {form.status === 'transfer_out' ? '전학 날짜' : '전입 날짜'}
+                    </label>
+                    <input type="date" value={form.transfer_info?.date || new Date().toISOString().slice(0,10)}
+                      onChange={e => set('transfer_info', { ...form.transfer_info, date: e.target.value })}
+                      style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #7dd3fc', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                  </div>
+                )}
+                {form.status === 'extra_applied' && (
+                  <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'5px' }}>
+                    <label style={{ fontSize:'12px', color:'#b45309', fontWeight:600 }}>추가신청 날짜</label>
+                    <input type="date" value={form.transfer_info?.date || new Date().toISOString().slice(0,10)}
+                      onChange={e => set('transfer_info', { ...form.transfer_info, date: e.target.value })}
+                      style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #fcd34d', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
                   </div>
                 )}
               </div>
