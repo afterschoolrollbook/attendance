@@ -1,26 +1,25 @@
 import React, { useEffect } from 'react'
 
 // 카카오 로그인 콜백 페이지
-// 리디렉트 방식: code를 sessionStorage에 저장 → 메인 페이지로 이동
-// 토큰 교환은 메인 페이지(Auth.jsx)에서 처리
+// 팝업 방식: postMessage 후 닫힘
+// 리디렉트 방식: sessionStorage 저장 후 /?kakao_redirect=1 로 이동
 export function KakaoCallback() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const code  = params.get('code')
     const state = params.get('state')
     const error = params.get('error')
+    const isPopup = !!window.opener
 
     if (error || !code) {
-      sessionStorage.setItem('kakao_login_result', JSON.stringify({
-        type: 'kakao_login_fail', error: error || 'no_code'
-      }))
+      const msg = { type: 'kakao_login_fail', error: error || 'no_code' }
+      if (isPopup) { window.opener.postMessage(msg, window.location.origin); window.close() }
+      else { sessionStorage.setItem('kakao_login_result', JSON.stringify(msg)); window.location.href = '/?kakao_redirect=1' }
     } else {
-      sessionStorage.setItem('kakao_login_result', JSON.stringify({
-        type: 'kakao_callback', code, state
-      }))
+      const msg = { type: 'kakao_callback', code, state }
+      if (isPopup) { window.opener.postMessage(msg, window.location.origin); window.close() }
+      else { sessionStorage.setItem('kakao_login_result', JSON.stringify(msg)); window.location.href = '/?kakao_redirect=1' }
     }
-
-    window.location.href = '/'
   }, [])
 
   return (
