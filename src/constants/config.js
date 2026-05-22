@@ -22,7 +22,10 @@ export const STUDENT_STATUS = {
   waiting:   { label: '대기',    color: '#8b5cf6', bg: '#f5f3ff' },  // ✅ 추가
   selected:  { label: '추첨완료', color: '#f97316', bg: '#fff7ed' },
   confirmed: { label: '최종확정', color: '#16a34a', bg: '#f0fdf4' },
-  cancelled: { label: '취소',    color: '#ef4444', bg: '#fef2f2' },
+  cancelled:    { label: '취소',    color: '#ef4444', bg: '#fef2f2' },
+  transfer_out:   { label: '전학',    color: '#0ea5e9', bg: '#f0f9ff' },
+  transfer_in:    { label: '전입',    color: '#10b981', bg: '#ecfdf5' },
+  extra_applied:  { label: '추가신청', color: '#f59e0b', bg: '#fffbeb' },
 }
 
 export const ATTENDANCE_STATUS = {
