@@ -1091,7 +1091,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
     const ch = new BroadcastChannel('progress_screen')
     ch.onmessage = async (e) => {
       console.log('[진도디버그] BroadcastChannel 메시지 수신:', e.data)
-      if (e.data?.type === 'refresh') {
+      if (e.data?.type === 'refresh' && e.data?.source !== 'main') {  // source:'main'은 자기가 보낸 메시지이므로 무시
         if (!cls) return
         console.log('[진도디버그] refreshTablesFromSupabase 호출 시작')
         await refreshTablesFromSupabase('supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
@@ -3145,7 +3145,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
     if (!cls) return
     const ch = new BroadcastChannel('progress_screen')
     ch.onmessage = async (e) => {
-      if (e.data?.type === 'refresh') {
+      if (e.data?.type === 'refresh' && e.data?.source !== 'main') {  // source:'main'은 자기가 보낸 메시지이므로 무시
         await refreshTablesFromSupabase('supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
         setProgTick(t => t+1)
       }
