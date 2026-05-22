@@ -56,6 +56,7 @@ function localDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
+
 // ─── 수업 메모장 패널
 function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, spGiven, onProgOpen, onOpenScreen }) {
   const { success } = useToast()
@@ -1076,11 +1077,10 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
 
   useEffect(() => {
     if (!cls) return
-    const checks = SupplySessionChecks.byTeacher(cls.teacherId||'')
     setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
     setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
     setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
-    setSpChecks(checks)
+    setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
     setSpGiven(SupplyGiven.byTeacher(cls.teacherId||''))
   }, [cls?.id, date, tick])
 
@@ -1088,14 +1088,13 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
   useEffect(() => {
     const ch = new BroadcastChannel('progress_screen')
     ch.onmessage = async (e) => {
-      if (e.data?.type === 'refresh' && e.data?.source !== 'main') {  // source:'main'은 자기가 보낸 메시지이므로 무시
+      if (e.data?.type === 'refresh' && e.data?.source !== 'main') {
         if (!cls) return
         await refreshTablesFromSupabase('supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
-        const freshChecks = SupplySessionChecks.byTeacher(cls.teacherId||'')
         setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
         setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
         setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
-        setSpChecks(freshChecks)
+        setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
         setTick(t => t+1)
       }
     }
@@ -1939,9 +1938,9 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   }
 
   const toggleCheck = async (productId, stage, sessionNo) => {
-    const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)' : '없음(추가예정)')
+    const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
     if (existing) await SupplySessionChecks.delete(existing.id)
-    else await SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() }).filter(c=>c.stage===stage).length)
+    else await SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
     // SupplyStudentProgress, SupplyItems 는 서로 독립적이므로 병렬 처리
     const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
     const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
@@ -3100,6 +3099,7 @@ function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user
   )
 }
 
+
 // ─── 통합 패널 (수강생 명단 + 수업준비메모 + 출석체크 — 모드에 따라 표시)
 function UnifiedPanel({ cls, date, students, user, allClasses }) {
   const today = todayStr()
@@ -3135,7 +3135,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
     if (!cls) return
     const ch = new BroadcastChannel('progress_screen')
     ch.onmessage = async (e) => {
-      if (e.data?.type === 'refresh' && e.data?.source !== 'main') {  // source:'main'은 자기가 보낸 메시지이므로 무시
+      if (e.data?.type === 'refresh') {
         await refreshTablesFromSupabase('supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
         setProgTick(t => t+1)
       }
