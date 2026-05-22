@@ -1,8 +1,7 @@
 import React, { useEffect } from 'react'
 
-// 카카오 로그인 콜백 페이지
-// 리디렉트 방식: code를 sessionStorage에 저장 → 메인 페이지로 이동
-// 토큰 교환은 메인 페이지(Auth.jsx)에서 처리
+// 카카오 로그인 콜백 페이지 (팝업으로 열림)
+// code만 부모창으로 전달하고 닫힘 — 토큰 교환은 부모창(Auth.jsx)에서 처리
 export function KakaoCallback() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -11,16 +10,17 @@ export function KakaoCallback() {
     const error = params.get('error')
 
     if (error || !code) {
-      sessionStorage.setItem('kakao_login_result', JSON.stringify({
-        type: 'kakao_login_fail', error: error || 'no_code'
-      }))
+      window.opener?.postMessage(
+        { type: 'kakao_login_fail', error: error || 'no_code' },
+        window.location.origin
+      )
     } else {
-      sessionStorage.setItem('kakao_login_result', JSON.stringify({
-        type: 'kakao_callback', code, state
-      }))
+      window.opener?.postMessage(
+        { type: 'kakao_callback', code, state },
+        window.location.origin
+      )
     }
-
-    window.location.href = '/'
+    window.close()
   }, [])
 
   return (

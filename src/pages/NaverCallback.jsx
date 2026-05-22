@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import { naverOAuth } from '../lib/supabase.js'
 
 // 네이버 로그인 콜백 페이지
-// 리디렉트 방식: 처리 후 sessionStorage에 결과 저장 → 메인 페이지로 이동
+// 팝업으로 열리고 처리 후 부모 창에 메시지 전송 후 닫힘
 export function NaverCallback() {
   useEffect(() => {
     const run = async () => {
@@ -12,28 +12,33 @@ export function NaverCallback() {
         const state = params.get('state')
         const error = params.get('error')
 
-        if (error || !code || !state) {
-          sessionStorage.setItem('naver_login_result', JSON.stringify({
-            type: 'naver_login_fail', error: error || 'missing_params'
-          }))
-        } else {
-          // Edge Function으로 토큰 교환 + 사용자 정보 조회
-          const data = await naverOAuth(code, state)
-          sessionStorage.setItem('naver_login_result', JSON.stringify({
-            type:    'naver_login_success',
-            email:   data.email   || '',
-            name:    data.name    || '',
-            avatar:  data.avatar  || '',
-            id:      data.providerId,
-            session: data.session || null,
-          }))
+        if (error) {
+          window.opener?.postMessage({ type: 'naver_login_fail', error }, window.location.origin)
+          window.close()
+          return
         }
+
+        if (!code || !state) {
+          window.opener?.postMessage({ type: 'naver_login_fail', error: 'missing_params' }, window.location.origin)
+          window.close()
+          return
+        }
+
+        // Edge Function으로 토큰 교환 + 사용자 정보 조회
+        const data = await naverOAuth(code, state)
+
+        window.opener?.postMessage({
+          type:       'naver_login_success',
+          email:      data.email || '',
+          name:       data.name  || '',
+          avatar:     data.avatar || '',
+          id:         data.providerId,
+          session:    data.session || null,
+        }, window.location.origin)
       } catch (e) {
-        sessionStorage.setItem('naver_login_result', JSON.stringify({
-          type: 'naver_login_fail', error: e.message
-        }))
+        window.opener?.postMessage({ type: 'naver_login_fail', error: e.message }, window.location.origin)
       } finally {
-        window.location.href = '/'
+        window.close()
       }
     }
     run()

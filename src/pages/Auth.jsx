@@ -220,49 +220,45 @@ function useGoogleAuth(onSuccess, clientId) {
 // 카카오 로그인 훅
 function useKakaoAuth(onSuccess, restApiKey) {
   const { error: toastError } = useToast()
-
-  // 리디렉트 후 돌아왔을 때 결과 처리
-  useEffect(() => {
-    const raw = sessionStorage.getItem('kakao_login_result')
-    if (!raw) return
-    sessionStorage.removeItem('kakao_login_result')
-
-    const data = JSON.parse(raw)
-    if (data.type === 'kakao_login_fail') {
-      toastError('카카오 로그인에 실패했습니다.')
-      return
-    }
-
-    const process = async () => {
-      try {
-        const redirectUri = window.location.origin + '/kakao-callback'
-        const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
-        const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-        const res = await fetch(SUPABASE_URL + '/functions/v1/kakao-oauth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON },
-          body: JSON.stringify({ code: data.code, clientId: restApiKey, redirectUri }),
-        })
-        const result = await res.json()
-        if (!result.success) throw new Error(result.error || '카카오 로그인 실패')
-        if (result.session && supabase) {
-          await supabase.auth.setSession(result.session)
-        }
-        onSuccess({ provider: 'kakao', email: result.data.email || '', name: result.data.name || '', avatar: result.data.profile_image || '', providerId: String(result.data.id) })
-      } catch(err) {
-        console.error('카카오 토큰 교환 실패:', err)
-        toastError('카카오 로그인에 실패했습니다: ' + err.message)
-      }
-    }
-    process()
-  }, [])
-
   const loginWithKakao = () => {
     if (!restApiKey) { toastError('카카오 앱 키가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
 
     const redirectUri = window.location.origin + '/kakao-callback'
     const kakaoAuthUrl = 'https://kauth.kakao.com/oauth/authorize?client_id=' + restApiKey + '&redirect_uri=' + encodeURIComponent(redirectUri) + '&response_type=code'
-    window.location.href = kakaoAuthUrl
+    window.open(kakaoAuthUrl, 'kakaoLogin', 'width=500,height=700,left=200,top=100')
+
+    const handleMessage = async (e) => {
+      if (e.origin !== window.location.origin) return
+      if (e.data?.type !== 'kakao_callback' && e.data?.type !== 'kakao_login_fail') return
+      window.removeEventListener('message', handleMessage)
+
+      if (e.data.type === 'kakao_login_fail') {
+        toastError('카카오 로그인에 실패했습니다.')
+        return
+      }
+
+      try {
+        const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || ''
+        const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+        const res = await fetch(SUPABASE_URL + '/functions/v1/kakao-oauth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON },
+          body: JSON.stringify({ code: e.data.code, clientId: restApiKey, redirectUri }),
+        })
+        const data = await res.json()
+        if (!data.success) throw new Error(data.error || '카카오 로그인 실패')
+        // Supabase Auth 세션 설정
+        if (data.session && supabase) {
+          await supabase.auth.setSession(data.session)
+        }
+        onSuccess({ provider: 'kakao', email: data.data.email || '', name: data.data.name || '', avatar: data.data.profile_image || '', providerId: String(data.data.id) })
+      } catch(err) {
+        console.error('카카오 토큰 교환 실패:', err)
+        toastError('카카오 로그인에 실패했습니다: ' + err.message)
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
   }
 
   return loginWithKakao
@@ -270,29 +266,6 @@ function useKakaoAuth(onSuccess, restApiKey) {
 
 function useNaverAuth(onSuccess, clientId) {
   const { error: toastError } = useToast()
-
-  // 리디렉트 후 돌아왔을 때 결과 처리
-  useEffect(() => {
-    const raw = sessionStorage.getItem('naver_login_result')
-    if (!raw) return
-    sessionStorage.removeItem('naver_login_result')
-
-    const data = JSON.parse(raw)
-    if (data.type === 'naver_login_fail') {
-      toastError('네이버 로그인에 실패했습니다.')
-      return
-    }
-
-    const process = async () => {
-      if (data.session && supabase) {
-        await supabase.auth.setSession(data.session)
-      }
-      await initFromSupabase()
-      onSuccess({ provider: 'naver', email: data.email || '', name: data.name || '', avatar: data.avatar || '', providerId: String(data.id) })
-    }
-    process()
-  }, [])
-
   const loginWithNaver = () => {
     if (!clientId) { toastError('네이버 클라이언트 ID가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
 
@@ -302,7 +275,28 @@ function useNaverAuth(onSuccess, clientId) {
       + '&redirect_uri=' + encodeURIComponent(redirectUri)
       + '&response_type=code'
       + '&state=' + state
-    window.location.href = naverAuthUrl
+    window.open(naverAuthUrl, 'naverLogin', 'width=500,height=700,left=200,top=100')
+
+    const handleMessage = async (e) => {
+      if (e.origin !== window.location.origin) return
+      if (e.data?.type !== 'naver_login_success' && e.data?.type !== 'naver_login_fail') return
+      window.removeEventListener('message', handleMessage)
+
+      if (e.data.type === 'naver_login_fail') {
+        toastError('네이버 로그인에 실패했습니다.')
+        return
+      }
+
+      // Supabase Auth 세션 설정
+      if (e.data.session && supabase) {
+        await supabase.auth.setSession(e.data.session)
+      }
+      // 캐시가 비어있을 수 있으므로 기존 회원 조회 전 DB 동기화
+      await initFromSupabase()
+      onSuccess({ provider: 'naver', email: e.data.email || '', name: e.data.name || '', avatar: e.data.avatar || '', providerId: String(e.data.id) })
+    }
+
+    window.addEventListener('message', handleMessage)
   }
 
   return loginWithNaver
