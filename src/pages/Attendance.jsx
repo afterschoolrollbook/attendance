@@ -1088,7 +1088,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
   useEffect(() => {
     const ch = new BroadcastChannel('progress_screen')
     ch.onmessage = async (e) => {
-      if (e.data?.type === 'refresh' && e.data?.source !== 'main') {
+      if (e.data?.type === 'refresh') {
         if (!cls) return
         await refreshTablesFromSupabase('supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
         setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
