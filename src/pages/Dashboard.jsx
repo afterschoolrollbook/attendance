@@ -2613,6 +2613,7 @@ export function Dashboard({ user, onNav }) {
   const [editingOrderKey, setEditingOrderKey] = useState(null) // 부품 인라인 수정
   const [editOrderQty,  setEditOrderQty]  = useState(1)
   const [editOrderMemo, setEditOrderMemo] = useState('')
+  const [orderConfirmModal, setOrderConfirmModal] = useState(null) // { type:'all'|'item', item?:object }
   const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches
 
   const handleAddShortcut = () => {
@@ -2917,13 +2918,9 @@ export function Dashboard({ user, onNav }) {
               <span style={{ fontSize:'16px' }}>🔧</span>
               <span style={{ fontSize:'14px', fontWeight:700, color:'#15803d' }}>필요한 부품</span>
             </div>
-            <button onClick={() => {
-              if (window.confirm('주문완료 처리하면 모든 부품 주문 목록이 삭제됩니다. 계속할까요?')) {
-                allOrderMemoIds.forEach(id => LessonMemos.delete(id))
-                setSupplyTick(t => t + 1)
-              }
-            }} style={{ padding:'5px 14px', borderRadius:'8px', border:'none', background:'#16a34a', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-              ✅ 주문완료
+            <button onClick={() => setOrderConfirmModal({ type: 'all' })}
+              style={{ padding:'5px 14px', borderRadius:'8px', border:'none', background:'#16a34a', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              ✅ 전체주문완료
             </button>
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
@@ -2954,27 +2951,7 @@ export function Dashboard({ user, onNav }) {
                             setEditOrderMemo(o.memo || '')
                           }}
                             style={{ fontSize:'12px', lineHeight:1, color: isEditing ? '#3b82f6' : '#9ca3af', background:'none', border:'none', cursor:'pointer', padding:'0 2px' }}>✏️</button>
-                          <button onClick={() => {
-                            if (!window.confirm(`"${o.partName}" 항목을 완료 처리하고 삭제할까요?`)) return
-                            const allMemos = LessonMemos.byTeacher(user.id)
-                            o._memoIds.forEach(memoId => {
-                              const memo = allMemos.find(m => m.id === memoId)
-                              if (!memo) return
-                              try {
-                                const list = JSON.parse(memo.content.slice(PARTS_ORDER_KEY.length))
-                                const updated = list.filter(item =>
-                                  !(item.partId === o.partId && item.stage === o.stage && item.productId === o.productId)
-                                )
-                                if (updated.length === 0) {
-                                  LessonMemos.delete(memoId)
-                                } else {
-                                  LessonMemos.update(memoId, { content: PARTS_ORDER_KEY + JSON.stringify(updated) })
-                                }
-                              } catch {}
-                            })
-                            setEditingOrderKey(null)
-                            setSupplyTick(t => t + 1)
-                          }}
+                          <button onClick={() => setOrderConfirmModal({ type: 'item', item: o })}
                             title="개별 완료"
                             style={{ fontSize:'11px', lineHeight:1, color:'#fff', background:'#16a34a', border:'none', cursor:'pointer', padding:'3px 7px', borderRadius:'5px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>✓완료</button>
                         </div>
@@ -3026,7 +3003,75 @@ export function Dashboard({ user, onNav }) {
         </div>
       )}
 
-      {settings.supply && supplyAlerts.length > 0 && (
+      {/* 주문완료 확인 모달 (개별/전체) */}
+      {orderConfirmModal && (
+        <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={() => setOrderConfirmModal(null)}>
+          <div style={{ background:'#fff', borderRadius:'20px', width:'340px', maxWidth:'92vw', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}
+            onClick={e => e.stopPropagation()}>
+            {/* 헤더 */}
+            <div style={{ background: orderConfirmModal.type === 'all' ? 'linear-gradient(135deg,#15803d,#16a34a)' : 'linear-gradient(135deg,#166534,#15803d)', padding:'20px 22px 16px' }}>
+              <div style={{ fontSize:'22px', marginBottom:'6px' }}>{orderConfirmModal.type === 'all' ? '✅' : '✓'}</div>
+              <div style={{ fontSize:'16px', fontWeight:800, color:'#fff', lineHeight:1.4 }}>
+                {orderConfirmModal.type === 'all' ? '전체 주문완료' : '개별 완료'}
+              </div>
+            </div>
+            {/* 본문 */}
+            <div style={{ padding:'20px 22px' }}>
+              <div style={{ background:'#f0fdf4', borderRadius:'12px', padding:'14px 16px', marginBottom:'18px', border:'1px solid #bbf7d0', fontSize:'13px', color:'#374151', lineHeight:1.8 }}>
+                {orderConfirmModal.type === 'all' ? (
+                  <>
+                    <div style={{ fontWeight:700, color:'#15803d', marginBottom:'4px' }}>모든 부품 주문 목록이 삭제됩니다.</div>
+                    <div style={{ fontSize:'12px', color:'#6b7280' }}>총 {allOrderItems.length}개 항목이 모두 제거됩니다. 계속할까요?</div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontWeight:700, color:'#15803d', marginBottom:'4px' }}>
+                      {orderConfirmModal.item?.stage}단계 · {orderConfirmModal.item?.partName}
+                    </div>
+                    <div style={{ fontSize:'12px', color:'#6b7280' }}>해당 항목을 완료 처리하고 목록에서 삭제합니다.</div>
+                  </>
+                )}
+              </div>
+              <div style={{ display:'flex', gap:'10px' }}>
+                <button onClick={() => setOrderConfirmModal(null)}
+                  style={{ flex:1, padding:'12px', borderRadius:'10px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontWeight:600, fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  취소
+                </button>
+                <button onClick={() => {
+                  if (orderConfirmModal.type === 'all') {
+                    allOrderMemoIds.forEach(id => LessonMemos.delete(id))
+                  } else {
+                    const o = orderConfirmModal.item
+                    const allMemos = LessonMemos.byTeacher(user.id)
+                    o._memoIds.forEach(memoId => {
+                      const memo = allMemos.find(m => m.id === memoId)
+                      if (!memo) return
+                      try {
+                        const list = JSON.parse(memo.content.slice(PARTS_ORDER_KEY.length))
+                        const updated = list.filter(item =>
+                          !(item.partId === o.partId && item.stage === o.stage && item.productId === o.productId)
+                        )
+                        if (updated.length === 0) {
+                          LessonMemos.delete(memoId)
+                        } else {
+                          LessonMemos.update(memoId, { content: PARTS_ORDER_KEY + JSON.stringify(updated) })
+                        }
+                      } catch {}
+                    })
+                    setEditingOrderKey(null)
+                  }
+                  setSupplyTick(t => t + 1)
+                  setOrderConfirmModal(null)
+                }}
+                  style={{ flex:2, padding:'12px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#15803d,#16a34a)', color:'#fff', fontWeight:700, fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', boxShadow:'0 4px 14px rgba(22,163,74,0.3)' }}>
+                  {orderConfirmModal.type === 'all' ? '✅ 전체 완료' : '✓ 완료 처리'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
         <div style={{ background: '#fef2f2', borderRadius: '12px', border: '1.5px solid #fca5a5', padding: '14px 18px', position: 'relative' }}>
           <button
             onClick={() => hideCard('supply')}
