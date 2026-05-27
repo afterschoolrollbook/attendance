@@ -2954,6 +2954,29 @@ export function Dashboard({ user, onNav }) {
                             setEditOrderMemo(o.memo || '')
                           }}
                             style={{ fontSize:'12px', lineHeight:1, color: isEditing ? '#3b82f6' : '#9ca3af', background:'none', border:'none', cursor:'pointer', padding:'0 2px' }}>✏️</button>
+                          <button onClick={() => {
+                            if (!window.confirm(`"${o.partName}" 항목을 완료 처리하고 삭제할까요?`)) return
+                            const allMemos = LessonMemos.byTeacher(user.id)
+                            o._memoIds.forEach(memoId => {
+                              const memo = allMemos.find(m => m.id === memoId)
+                              if (!memo) return
+                              try {
+                                const list = JSON.parse(memo.content.slice(PARTS_ORDER_KEY.length))
+                                const updated = list.filter(item =>
+                                  !(item.partId === o.partId && item.stage === o.stage && item.productId === o.productId)
+                                )
+                                if (updated.length === 0) {
+                                  LessonMemos.delete(memoId)
+                                } else {
+                                  LessonMemos.update(memoId, { content: PARTS_ORDER_KEY + JSON.stringify(updated) })
+                                }
+                              } catch {}
+                            })
+                            setEditingOrderKey(null)
+                            setSupplyTick(t => t + 1)
+                          }}
+                            title="개별 완료"
+                            style={{ fontSize:'11px', lineHeight:1, color:'#fff', background:'#16a34a', border:'none', cursor:'pointer', padding:'3px 7px', borderRadius:'5px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>✓완료</button>
                         </div>
                         {isEditing && (
                           <div style={{ padding:'8px 10px', background:'#f0fdf4', borderTop:'1px solid #bbf7d0', display:'flex', flexDirection:'column', gap:'6px' }}>
