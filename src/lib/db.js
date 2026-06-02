@@ -328,7 +328,7 @@ const GLOBAL_TABLES = [
   'schoolNotices', 'schoolNoticeSubmits',
 ]
 
-// ─── 초기화: 로그인한 선생님 데이터만 로드 + Realtime 구독
+// ─── 초기화: Supabase에서 데이터 로드 + Realtime 구독
 export async function initFromSupabase(teacherId = null) {
   if (!supabase) return false
 
@@ -336,12 +336,17 @@ export async function initFromSupabase(teacherId = null) {
   unsubscribeAll()
 
   try {
-    // 1) 글로벌 테이블 로드 (users, branches 등 — teacherId 필터 없음)
-    await Promise.all(GLOBAL_TABLES.map(async (t) => {
+    // 전체 테이블 로드 (기존 방식 유지 — 안정성 우선)
+    const ALL_TABLES = [...GLOBAL_TABLES, ...TEACHER_TABLES]
+    await Promise.all(ALL_TABLES.map(async (t) => {
       try {
         const { tbl, fromDb } = getConverters(t)
         let q = supabase.from(tbl).select('*')
         if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
+        if (t === 'attendance') {
+          const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+          q = q.gte('date', since)
+        }
         const { data: rows, error } = await q
         if (error) throw new Error(error.message)
         cache.set(t, (rows || []).map(fromDb).filter(r => r._deleted !== true))
@@ -351,41 +356,7 @@ export async function initFromSupabase(teacherId = null) {
       }
     }))
 
-    // 2) 선생님 전용 테이블 로드 (teacherId 있으면 필터, 없으면 전체)
-    if (teacherId) {
-      await Promise.all(TEACHER_TABLES.map(async (t) => {
-        try {
-          const { tbl, fromDb } = getConverters(t)
-          const isCamel = CAMEL_TABLES.has(t)
-          const teacherCol = isCamel ? 'teacherId' : 'teacher_id'
-
-          let q = supabase.from(tbl).select('*')
-
-          // teacherId 컬럼이 있는 테이블만 필터 적용
-          const noTeacherFilter = new Set(['attendance', 'notes', 'points'])
-          if (!noTeacherFilter.has(t)) {
-            q = q.eq(teacherCol, teacherId)
-          }
-
-          if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
-
-          // attendance는 최근 90일치만
-          if (t === 'attendance') {
-            const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-            q = q.gte('date', since)
-          }
-
-          const { data: rows, error } = await q
-          if (error) throw new Error(error.message)
-          cache.set(t, (rows || []).map(fromDb).filter(r => r._deleted !== true))
-          console.log(`[DB] ${t}: ${cache.get(t).length}건 로드`)
-        } catch (e) {
-          console.warn(`[DB] ${t} 로드 실패:`, e.message)
-        }
-      }))
-    }
-
-    // 3) Settings 동기화 (localStorage)
+    // Settings 동기화 (localStorage)
     try {
       const { data: settings } = await supabase.from('settings').select('*')
       if (Array.isArray(settings)) {
@@ -398,12 +369,8 @@ export async function initFromSupabase(teacherId = null) {
       console.warn('[DB] settings 로드 실패:', e.message)
     }
 
-    // 4) Realtime 구독 시작 — 핵심 테이블 우선
-    const realtimeTables = teacherId
-      ? ['attendance', 'students', 'classes', 'notes', ...TEACHER_TABLES.filter(t => !['attendance','students','classes','notes'].includes(t))]
-      : [...GLOBAL_TABLES, ...TEACHER_TABLES]
-
-    realtimeTables.forEach(t => subscribeTable(t))
+    // Realtime 구독 시작
+    ALL_TABLES.forEach(t => subscribeTable(t))
 
     console.log('[DB] 초기화 완료 — Realtime 구독 활성화')
     return true
