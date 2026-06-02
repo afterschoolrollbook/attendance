@@ -1945,17 +1945,25 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     setChecking(true)
     try {
       const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => Number(c.stage)===Number(stage) && Number(c.sessionNo)===Number(sessionNo))
-      if (existing) await SupplySessionChecks.delete(existing.id)
-      else await SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage: Number(stage), sessionNo: Number(sessionNo), checkedAt: now(), createdAt: now() })
-      // SupplyStudentProgress, SupplyItems 는 서로 독립적이므로 병렬 처리
+      console.log('[toggleCheck]', { productId, stage, sessionNo, existing: !!existing, existingId: existing?.id })
+      if (existing) {
+        console.log('[toggleCheck] DELETE', existing.id)
+        await SupplySessionChecks.delete(existing.id)
+      } else {
+        console.log('[toggleCheck] INSERT')
+        await SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage: Number(stage), sessionNo: Number(sessionNo), checkedAt: now(), createdAt: now() })
+      }
       const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
       const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
+      console.log('[toggleCheck] allChks after:', allChks.length, 'maxSess:', maxSess)
       await Promise.all([
         SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() }),
         si ? SupplyItems.upsert({ ...si, productId, stage, remoteNo: si.remoteNo || '' }) : Promise.resolve(),
       ])
       setTick(t => t + 1)
       onSaved && onSaved()
+    } catch(e) {
+      console.error('[toggleCheck] ERROR', e.message)
     } finally {
       setChecking(false)
     }
