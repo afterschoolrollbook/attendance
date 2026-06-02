@@ -1950,8 +1950,8 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
       SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() }),
       si ? SupplyItems.upsert({ ...si, productId, stage, remoteNo: si.remoteNo || '' }) : Promise.resolve(),
     ])
-    onSaved && onSaved()
     setTick(t => t + 1)
+    onSaved && onSaved()
   }
   const updateCheckDate = async (productId, stage, sessionNo, newDateStr) => {
     const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
