@@ -180,14 +180,13 @@ export function Classes({ user, onNav }) {
       studentA.click()
       URL.revokeObjectURL(studentUrl)
 
-      // ── 2) 교구 설정 내보내기 (TemplatesDB에 저장된 교구 설정)
-      // Classes 파일에서는 수업에 연결된 교구 정보를 별도 보관하지 않으므로
-      // 학교(organization) 기준으로 수업 설정 전체를 저장
+      // ── 2) 수업설정 내보내기 (기본정보 + 수업달력)
       const classPayload = {
         __type: 'classes',
         __version: 1,
         exportedAt: new Date().toISOString(),
         class: {
+          // 기본 정보
           organization:  cls.organization  || '',
           className:     cls.className     || '',
           section:       cls.section       || '',
@@ -210,6 +209,11 @@ export function Classes({ user, onNav }) {
           contactMobile: cls.contactMobile || '',
           alarm:         cls.alarm         || { enabled: false, minutesBefore: 10 },
           alarmEnd:      cls.alarmEnd      || { enabled: false, minutesBefore: 10 },
+          // 수업 달력
+          cancelledDates: cls.cancelledDates || [],
+          makeupDates:    cls.makeupDates    || [],
+          specialPeriods: cls.specialPeriods || [],
+          totalSessions:  cls.totalSessions  || null,
         },
       }
       const classBlob = new Blob([JSON.stringify(classPayload, null, 2)], { type: 'application/json' })
