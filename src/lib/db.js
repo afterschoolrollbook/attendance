@@ -336,7 +336,21 @@ export async function initFromSupabase() {
   return true
 }
 
-// ─── 증분 동기화: 마지막 동기화 이후 변경된 것만 Supabase에서 가져옴
+// updated_at 컬럼이 실제로 있는 테이블만 증분 동기화 가능
+const INCREMENTAL_TABLES = new Set([
+  'users', 'classes', 'students', 'notes',
+  'revenueFees', 'awards', 'branches', 'points',
+  'parentMembers', 'teacherParentLinks',
+  'supplyItems', 'supplyStudentProgress', 'supplyGiven',
+  'supplyParts', 'supplySchoolPrices',
+  'teacherServiceConfigs', 'messageGuides', 'messageCategories',
+  'teacherProfiles', 'documents', 'customCategories', 'lessonMemos',
+  'schoolAdmins', 'schoolAdminAccounts', 'schoolAdminTeachers',
+  'schoolSubjects', 'schoolTeacherInvites',
+  'schoolNotices', 'schoolNoticeSubmits', 'schoolCalendar', 'schoolInfo',
+])
+
+// ─── 동기화: updated_at 있는 테이블만 증분, 나머지는 전체 로드
 export async function syncFromSupabase() {
   if (!supabase) return
 
@@ -345,17 +359,17 @@ export async function syncFromSupabase() {
   await Promise.all(SYNC_TABLES.map(async (t) => {
     try {
       const { tbl, fromDb } = getConverters(t)
-      const lastSync = await getLastSync(t)  // 마지막 동기화 시각
+      const lastSync = await getLastSync(t)
+      const canIncremental = lastSync && INCREMENTAL_TABLES.has(t)
 
       let q = supabase.from(tbl).select('*')
 
-      // 처음이면 전체 로드, 이후엔 변경분만
-      if (lastSync) {
-        // updatedAt이 lastSync 이후인 것만
+      if (canIncremental) {
+        // 증분: 마지막 동기화 이후 변경분만
         const col = CAMEL_TABLES.has(t) ? 'updatedAt' : 'updated_at'
         q = q.gt(col, lastSync)
       } else {
-        // 최초 로드: _deleted 필터 + attendance는 90일치만
+        // 전체 로드
         if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
         if (t === 'attendance') {
           const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -365,31 +379,36 @@ export async function syncFromSupabase() {
 
       const { data: rows, error } = await q
       if (error) throw new Error(error.message)
+
       if (!Array.isArray(rows) || rows.length === 0) {
-        // 변경분 없음 — 동기화 시각만 업데이트
         await setLastSync(t, syncTime)
         return
       }
 
-      // 변경분을 기존 캐시에 머지
       const converted = rows.map(fromDb)
-      const existing  = cache.get(t)
-      const idMap     = new Map(existing.map(r => [r.id, r]))
-      converted.forEach(r => idMap.set(r.id, r))
-      const merged = [...idMap.values()].filter(r => r._deleted !== true)
+      let merged
+
+      if (canIncremental) {
+        // 기존 캐시에 변경분 머지
+        const idMap = new Map(cache.get(t).map(r => [r.id, r]))
+        converted.forEach(r => idMap.set(r.id, r))
+        merged = [...idMap.values()].filter(r => r._deleted !== true)
+      } else {
+        // 전체 교체
+        merged = converted.filter(r => r._deleted !== true)
+      }
 
       cache.set(t, merged)
-      cache.set(t, merged); await saveToIDB(t)  // IndexedDB에도 저장
+      await saveToIDB(t)
       await setLastSync(t, syncTime)
       _emit(t)
 
-      console.log(`[Sync] ${t}: ${converted.length}건 업데이트`)
+      console.log(`[Sync] ${t}: ${converted.length}건 ${canIncremental ? '증분' : '전체'}`)
     } catch (e) {
       console.warn(`[Sync] ${t} 실패:`, e.message)
     }
   }))
 
-  // settings 동기화
   try {
     const { data: settings } = await supabase.from('settings').select('*')
     if (Array.isArray(settings)) {
@@ -400,30 +419,20 @@ export async function syncFromSupabase() {
     }
   } catch {}
 
-  console.log('[Supabase] 증분 동기화 완료')
+  console.log('[Supabase] 동기화 완료')
 }
 
-// ─── 특정 테이블만 증분 동기화 (cross-window 캐시 동기화용)
+// ─── 특정 테이블만 재로드 (cross-window 캐시 동기화용 — 항상 전체 로드)
 export async function refreshTablesFromSupabase(...tables) {
   if (!supabase) return
   await Promise.all(tables.map(async (t) => {
     try {
       const { tbl, fromDb } = getConverters(t)
-      const lastSync = await getLastSync(t)
       let q = supabase.from(tbl).select('*')
-      if (lastSync) {
-        const col = CAMEL_TABLES.has(t) ? 'updatedAt' : 'updated_at'
-        q = q.gt(col, lastSync)
-      } else {
-        if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
-      }
+      if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
       const { data: rows, error } = await q
-      if (error || !Array.isArray(rows) || rows.length === 0) return
-      const converted = rows.map(fromDb)
-      const existing  = cache.get(t)
-      const idMap     = new Map(existing.map(r => [r.id, r]))
-      converted.forEach(r => idMap.set(r.id, r))
-      const merged = [...idMap.values()].filter(r => r._deleted !== true)
+      if (error || !Array.isArray(rows)) return
+      const merged = rows.map(fromDb).filter(r => r._deleted !== true)
       cache.set(t, merged)
       await saveToIDB(t)
       _emit(t)
