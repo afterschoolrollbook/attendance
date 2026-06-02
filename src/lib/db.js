@@ -1,13 +1,11 @@
 /**
- * DB 레이어 — 인메모리 캐시 + Supabase JS 클라이언트 직접 접근
+ * DB 레이어 — 인메모리 캐시 + Supabase Realtime 구독
  *
  * 핵심 원칙:
- *  - Edge Function 없음 → 콜드스타트 문제 없음
- *  - Supabase JS 클라이언트로 DB 직접 접근
- *  - 모든 레코드에 updatedAt 자동 기록
+ *  - Supabase Realtime으로 DB 변경 즉시 캐시 반영 (멀티기기 동기화)
+ *  - 저장 실패 시 캐시 롤백 → UI도 자동 롤백 (됐다안됐다 해결)
+ *  - 로그인 후 해당 선생님 데이터만 로드 (전체 50개 테이블 동시 로드 제거)
  *  - 삭제는 _deleted: true 소프트딜리트
- *  - localStorage 캐시 없음 → 5MB 한도 문제 없음
- *  - 멀티기기(PC/스마트폰) 항상 최신 데이터
  */
 
 import { supabase, isConfigured } from './supabase.js' // 로컬 전용 모드 제거됨 — 항상 Supabase 직접 연결 (isConfigured 분기 없음)
@@ -137,20 +135,16 @@ const cache = {
 }
 
 // ─── 재시도 헬퍼 (네트워크 일시 오류 대응)
+// ※ saveStart/Complete/Error 이벤트는 호출부(insert/update/delete)에서 발생
+//   withRetry는 순수하게 재시도 로직만 담당
 async function withRetry(fn, label, maxRetry = 3) {
-  _emitSaveStart()
   for (let i = 0; i < maxRetry; i++) {
     try {
-      const result = await fn()
-      _emitSaveComplete()
-      return result
+      return await fn()
     } catch (e) {
       const isLast = i === maxRetry - 1
       console.warn(`[DB] ${label} 실패 (${i+1}/${maxRetry}):`, e.message)
-      if (isLast) {
-        _emitSaveError(label, e.message)
-        throw e
-      }
+      if (isLast) throw e
       await new Promise(r => setTimeout(r, 500 * (i + 1)))
     }
   }
@@ -252,40 +246,146 @@ const SYNC_TABLES = [
 // _deleted 컬럼 없는 테이블 (소프트딜리트 미적용)
 const NO_DELETED_TABLES = new Set(['points', 'settings', 'attendance', 'notes', 'attendance_templates', 'ad_slots', 'branches', 'verify_codes'])
 
-// ─── 초기화: Supabase에서 데이터 로드
-export async function initFromSupabase() {
+// ─── Realtime 구독 관리
+const _realtimeChannels = []
+
+// Realtime payload → 캐시에 반영
+function applyRealtimeEvent(table, payload) {
+  const { fromDb } = getConverters(table)
+  const { eventType, new: newRow, old: oldRow } = payload
+
+  const current = cache.get(table)
+
+  if (eventType === 'INSERT') {
+    const converted = fromDb(newRow)
+    // 이미 낙관적으로 추가된 경우 (같은 id) 덮어쓰기
+    const exists = current.find(r => r.id === converted.id)
+    if (exists) {
+      cache.set(table, current.map(r => r.id === converted.id ? converted : r))
+    } else {
+      cache.set(table, [...current, converted])
+    }
+  } else if (eventType === 'UPDATE') {
+    const converted = fromDb(newRow)
+    if (converted._deleted) {
+      cache.set(table, current.filter(r => r.id !== converted.id))
+    } else {
+      cache.set(table, current.map(r => r.id === converted.id ? converted : r))
+    }
+  } else if (eventType === 'DELETE') {
+    cache.set(table, current.filter(r => r.id !== oldRow.id))
+  }
+
+  _emit(table)
+}
+
+// 테이블별 Realtime 구독 시작
+function subscribeTable(table) {
+  if (!supabase) return
+  const { tbl } = getConverters(table)
+  const channel = supabase
+    .channel(`realtime:${tbl}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: tbl },
+      (payload) => applyRealtimeEvent(table, payload)
+    )
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') console.log(`[Realtime] ${tbl} 구독 시작`)
+      if (status === 'CHANNEL_ERROR') console.warn(`[Realtime] ${tbl} 구독 오류`)
+    })
+  _realtimeChannels.push(channel)
+}
+
+// 모든 Realtime 구독 해제 (로그아웃 시)
+export function unsubscribeAll() {
+  _realtimeChannels.forEach(ch => supabase?.removeChannel(ch))
+  _realtimeChannels.length = 0
+  console.log('[Realtime] 모든 구독 해제')
+}
+
+// ─── 로그인한 선생님 데이터만 로드하는 테이블 목록
+// 관리자 전용 테이블(users, branches 등)은 별도 처리
+const TEACHER_TABLES = [
+  'classes', 'students', 'attendance', 'notes',
+  'attendanceTemplates',
+  'revenueFees', 'revenuePayments',
+  'trainings', 'careers', 'educations', 'certificates', 'awards', 'jobSubs',
+  'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
+  'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress', 'supplyProgressLogs', 'supplySessionChecks',
+  'supplyGiven', 'supplyParts',
+  'lessonMemos',
+  'parentMembers', 'teacherParentLinks', 'teacherServiceConfigs',
+  'messageGuides', 'messageCategories',
+  'teacherProfiles',
+  'documents', 'customCategories',
+  'points',
+]
+
+// 전체 로드가 필요한 테이블 (관리자용 / teacherId 필터 없음)
+const GLOBAL_TABLES = [
+  'users', 'branches', 'adSlots',
+  'schoolAdmins', 'schoolAdminAccounts', 'schoolAdminTeachers',
+  'schoolSubjects', 'schoolTeacherInvites',
+  'schoolNotices', 'schoolNoticeSubmits',
+]
+
+// ─── 초기화: 로그인한 선생님 데이터만 로드 + Realtime 구독
+export async function initFromSupabase(teacherId = null) {
   if (!supabase) return false
+
+  // 이전 구독 정리
+  unsubscribeAll()
+
   try {
-    await Promise.all(SYNC_TABLES.map(async (t) => {
+    // 1) 글로벌 테이블 로드 (users, branches 등 — teacherId 필터 없음)
+    await Promise.all(GLOBAL_TABLES.map(async (t) => {
       try {
         const { tbl, fromDb } = getConverters(t)
-
         let q = supabase.from(tbl).select('*')
-
-        // _deleted 컬럼 있는 테이블만 필터 적용
-        if (!NO_DELETED_TABLES.has(t)) {
-          q = q.or('_deleted.is.null,_deleted.eq.false')
-        }
-
-        // attendance는 최근 90일치만 로드
-        if (t === 'attendance') {
-          const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-            .toISOString().slice(0, 10)
-          q = q.gte('date', since)
-        }
-
+        if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
         const { data: rows, error } = await q
         if (error) throw new Error(error.message)
-        if (!Array.isArray(rows)) return
-
-        cache.set(t, rows.map(fromDb).filter(r => r._deleted !== true))
-        console.log(`[Supabase] ${t}: ${cache.get(t).length}건 로드`)
+        cache.set(t, (rows || []).map(fromDb).filter(r => r._deleted !== true))
+        console.log(`[DB] ${t}: ${cache.get(t).length}건 로드`)
       } catch (e) {
-        console.warn(`[Supabase] ${t} 로드 실패:`, e.message)
+        console.warn(`[DB] ${t} 로드 실패:`, e.message)
       }
     }))
 
-    // settings 동기화 (localStorage에 저장 — 용량 작음)
+    // 2) 선생님 전용 테이블 로드 (teacherId 있으면 필터, 없으면 전체)
+    if (teacherId) {
+      await Promise.all(TEACHER_TABLES.map(async (t) => {
+        try {
+          const { tbl, fromDb } = getConverters(t)
+          const isCamel = CAMEL_TABLES.has(t)
+          const teacherCol = isCamel ? 'teacherId' : 'teacher_id'
+
+          let q = supabase.from(tbl).select('*')
+
+          // teacherId 컬럼이 있는 테이블만 필터 적용
+          const noTeacherFilter = new Set(['attendance', 'notes', 'points'])
+          if (!noTeacherFilter.has(t)) {
+            q = q.eq(teacherCol, teacherId)
+          }
+
+          if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
+
+          // attendance는 최근 90일치만
+          if (t === 'attendance') {
+            const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+            q = q.gte('date', since)
+          }
+
+          const { data: rows, error } = await q
+          if (error) throw new Error(error.message)
+          cache.set(t, (rows || []).map(fromDb).filter(r => r._deleted !== true))
+          console.log(`[DB] ${t}: ${cache.get(t).length}건 로드`)
+        } catch (e) {
+          console.warn(`[DB] ${t} 로드 실패:`, e.message)
+        }
+      }))
+    }
+
+    // 3) Settings 동기화 (localStorage)
     try {
       const { data: settings } = await supabase.from('settings').select('*')
       if (Array.isArray(settings)) {
@@ -293,16 +393,22 @@ export async function initFromSupabase() {
           if (!row.key || !row.value) return
           localStorage.setItem('asa_settings_' + row.key, JSON.stringify(row.value))
         })
-        console.log('[Supabase] settings 동기화 완료')
       }
     } catch (e) {
-      console.warn('[Supabase] settings 동기화 실패:', e.message)
+      console.warn('[DB] settings 로드 실패:', e.message)
     }
 
-    console.log('[Supabase] 데이터 동기화 완료')
+    // 4) Realtime 구독 시작 — 핵심 테이블 우선
+    const realtimeTables = teacherId
+      ? ['attendance', 'students', 'classes', 'notes', ...TEACHER_TABLES.filter(t => !['attendance','students','classes','notes'].includes(t))]
+      : [...GLOBAL_TABLES, ...TEACHER_TABLES]
+
+    realtimeTables.forEach(t => subscribeTable(t))
+
+    console.log('[DB] 초기화 완료 — Realtime 구독 활성화')
     return true
   } catch (e) {
-    console.warn('[Supabase] 전체 실패:', e.message)
+    console.warn('[DB] 초기화 실패:', e.message)
     return false
   }
 }
@@ -337,14 +443,19 @@ export const db = {
 
   async insert(t, record) {
     const r = { _deleted: false, ...record, updatedAt: now() }
-    const rows = cache.get(t)
-    rows.push(r)
-    cache.set(t, rows)
+    // 1) 캐시 낙관적 업데이트
+    const snapshot = cache.get(t).slice()  // 롤백용 스냅샷
+    cache.set(t, [...snapshot, r])
     _emit(t)
+    // 2) DB 저장 — 실패 시 롤백
+    _emitSaveStart()
     try {
-      await syncInsert(t, r)
+      await withRetry(() => syncInsert(t, r), `insert/${t}`)
+      _emitSaveComplete()
     } catch (e) {
-      console.warn(`[DB] insert/${t} 실패:`, e.message)
+      cache.set(t, snapshot)  // 롤백
+      _emit(t)
+      _emitSaveError(`insert/${t}`, e.message)
       throw e
     }
     return r
@@ -352,28 +463,36 @@ export const db = {
 
   async update(t, id, patch) {
     const updated = { ...patch, updatedAt: now() }
-    const rows = cache.get(t).map(r => r.id === id ? { ...r, ...updated } : r)
-    cache.set(t, rows)
+    const snapshot = cache.get(t).slice()  // 롤백용 스냅샷
+    cache.set(t, cache.get(t).map(r => r.id === id ? { ...r, ...updated } : r))
     _emit(t)
+    _emitSaveStart()
     try {
-      await syncUpdate(t, id, updated)
+      await withRetry(() => syncUpdate(t, id, updated), `update/${t}`)
+      _emitSaveComplete()
     } catch (e) {
-      console.warn(`[DB] update/${t} 실패:`, e.message)
+      cache.set(t, snapshot)  // 롤백
+      _emit(t)
+      _emitSaveError(`update/${t}`, e.message)
       throw e
     }
-    return rows.find(r => r.id === id)
+    return cache.get(t).find(r => r.id === id)
   },
 
   async delete(t, id) {
-    const rows = cache.get(t).map(r =>
+    const snapshot = cache.get(t).slice()  // 롤백용 스냅샷
+    cache.set(t, cache.get(t).map(r =>
       r.id === id ? { ...r, _deleted: true, updatedAt: now() } : r
-    )
-    cache.set(t, rows)
+    ))
     _emit(t)
+    _emitSaveStart()
     try {
-      await syncDelete(t, id)
+      await withRetry(() => syncDelete(t, id), `delete/${t}`)
+      _emitSaveComplete()
     } catch (e) {
-      console.warn(`[DB] delete/${t} 실패:`, e.message)
+      cache.set(t, snapshot)  // 롤백
+      _emit(t)
+      _emitSaveError(`delete/${t}`, e.message)
       throw e
     }
   },
@@ -427,23 +546,32 @@ export const Attendance = {
       ? { ...ex, ...record, id: ex.id, updatedAt: now() }
       : { _deleted: false, ...record, updatedAt: now() }
 
-    // 캐시 업데이트
+    // 1) 캐시 낙관적 업데이트
+    const snapshot = cache.get('attendance').slice()  // 롤백용 스냅샷
     const rows = cache.get('attendance')
     if (ex) {
       cache.set('attendance', rows.map(r => r.id === ex.id ? merged : r))
     } else {
-      rows.push(merged)
-      cache.set('attendance', rows)
+      cache.set('attendance', [...rows, merged])
     }
     _emit('attendance')
 
-    // withRetry로 Supabase 저장 — onSaveStart/Complete/Error 이벤트 발생
-    await withRetry(async () => {
-      const { error } = await supabase
-        .from('attendance')
-        .upsert(toSnake(merged), { onConflict: 'class_id,student_id,date' })
-      if (error) throw new Error(error.message)
-    }, 'attendance/upsert')
+    // 2) DB 저장 — 실패 시 롤백
+    _emitSaveStart()
+    try {
+      await withRetry(async () => {
+        const { error } = await supabase
+          .from('attendance')
+          .upsert(toSnake(merged), { onConflict: 'class_id,student_id,date' })
+        if (error) throw new Error(error.message)
+      }, 'attendance/upsert')
+      _emitSaveComplete()
+    } catch (e) {
+      cache.set('attendance', snapshot)  // 롤백
+      _emit('attendance')
+      _emitSaveError('attendance/upsert', e.message)
+      throw e
+    }
 
     return merged
   },
