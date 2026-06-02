@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Users } from './lib/db.js'
-import { initFromSupabase } from './lib/db.js'
+import { initFromSupabase, onSaveError } from './lib/db.js'
 import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
 import { Dashboard } from './pages/Dashboard.jsx'
@@ -121,7 +121,15 @@ export default function App() {
   const [dbReady, setDbReady] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { toasts } = useToast()
+  const { toasts, error: toastError } = useToast()
+
+  // 저장 실패 시 토스트 알림
+  useEffect(() => {
+    const unsub = onSaveError((label, msg) => {
+      toastError(`저장 실패 — 네트워크를 확인해주세요 (${msg})`)
+    })
+    return unsub
+  }, [])
   const { confirmDialogProps } = useConfirmDialog()
 
   // ✅ 업체 세션 상태
