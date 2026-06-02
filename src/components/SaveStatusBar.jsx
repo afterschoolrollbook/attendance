@@ -7,22 +7,24 @@ function getDeviceType() {
 }
 
 export function SaveStatusBar({ user }) {
-  const [saveState, setSaveState]         = useState('idle')
-  const [savedTime, setSavedTime]         = useState(null)
-  const [pendingCount, setPendingCount]   = useState(0)
+  const [saveState, setSaveState]             = useState('idle')
+  const [savedTime, setSavedTime]             = useState(null)
+  const [pendingCount, setPendingCount]       = useState(0)
   const [mobileConnected, setMobileConnected] = useState(false)
-  const [mobileCount, setMobileCount]     = useState(0)
-  const [visible, setVisible]             = useState(false)
-  const hideTimerRef = useRef(null)
-  const deviceType   = getDeviceType()
+  const [mobileCount, setMobileCount]         = useState(0)
+  const [collapsed, setCollapsed]             = useState(false)
+  const [pos, setPos]                         = useState({ x: null, y: 16 })
+  const [dragging, setDragging]               = useState(false)
+  const dragOffset = useRef({ x: 0, y: 0 })
+  const barRef     = useRef(null)
+  const deviceType = getDeviceType()
 
-  // ── 저장 이벤트 구독
+  // 저장 이벤트 구독
   useEffect(() => {
     const unsubStart = onSaveStart(() => {
       setPendingCount(c => c + 1)
       setSaveState('saving')
-      setVisible(true)
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+      setCollapsed(false) // 저장 시작하면 자동으로 펼침
     })
     const unsubComplete = onSaveComplete(() => {
       setPendingCount(c => {
@@ -30,7 +32,7 @@ export function SaveStatusBar({ user }) {
         if (next === 0) {
           setSaveState('saved')
           setSavedTime(new Date())
-          hideTimerRef.current = setTimeout(() => setVisible(false), 4000)
+          setTimeout(() => setSaveState('idle'), 4000)
         }
         return next
       })
@@ -38,13 +40,12 @@ export function SaveStatusBar({ user }) {
     const unsubError = onSaveError(() => {
       setPendingCount(c => Math.max(0, c - 1))
       setSaveState('error')
-      setVisible(true)
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+      setCollapsed(false) // 실패하면 자동으로 펼침
     })
     return () => { unsubStart(); unsubComplete(); unsubError() }
   }, [])
 
-  // ── Supabase Presence — 스마트폰 접속 감지
+  // Supabase Presence — 스마트폰 접속 감지
   useEffect(() => {
     if (!supabase || !user?.id) return
     const channel = supabase.channel(`presence:teacher:${user.id}`, {
@@ -65,160 +66,200 @@ export function SaveStatusBar({ user }) {
     return () => { supabase.removeChannel(channel) }
   }, [user?.id])
 
+  // 드래그
+  const startDrag = (clientX, clientY) => {
+    if (!barRef.current) return
+    const rect = barRef.current.getBoundingClientRect()
+    dragOffset.current = { x: clientX - rect.left, y: clientY - rect.top }
+    setDragging(true)
+  }
+
+  useEffect(() => {
+    if (!dragging) return
+    const onMove = (e) => {
+      const cx = e.touches ? e.touches[0].clientX : e.clientX
+      const cy = e.touches ? e.touches[0].clientY : e.clientY
+      setPos({ x: cx - dragOffset.current.x, y: Math.max(0, cy - dragOffset.current.y) })
+    }
+    const onUp = () => setDragging(false)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup',   onUp)
+    window.addEventListener('touchmove', onMove, { passive: true })
+    window.addEventListener('touchend',  onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup',   onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend',  onUp)
+    }
+  }, [dragging])
+
   const fmt = d => d
     ? `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
     : ''
 
-  if (!visible && saveState === 'idle') return null
+  const stateColor = { idle:'rgba(255,255,255,0.4)', saving:'#60a5fa', saved:'#4ade80', error:'#f87171' }
+
+  // 접힌 상태 아이콘
+  const collapseIcon = {
+    idle:   '💾',
+    saving: '⏳',
+    saved:  '✅',
+    error:  '❌',
+  }
+
+  const posStyle = pos.x === null
+    ? { top: pos.y, left: '50%', transform: 'translateX(-50%)' }
+    : { top: pos.y, left: pos.x, transform: 'none' }
+
+  const baseStyle = {
+    position: 'fixed', ...posStyle, zIndex: 99999,
+    background: 'rgba(10,20,30,0.88)',
+    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+    boxShadow: saveState === 'error'
+      ? '0 8px 32px rgba(220,38,38,0.35), inset 0 1px 0 rgba(255,255,255,0.08)'
+      : '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)',
+    border: saveState === 'error'
+      ? '1px solid rgba(220,38,38,0.4)'
+      : '1px solid rgba(255,255,255,0.1)',
+    fontFamily: 'Noto Sans KR, sans-serif',
+    cursor: dragging ? 'grabbing' : 'grab',
+    userSelect: 'none',
+    transition: dragging ? 'none' : 'box-shadow 0.3s, border 0.3s, width 0.25s',
+  }
 
   return (
     <>
       <style>{`
-        @keyframes ssb-slide-down {
-          from { transform: translateY(-110%) translateX(-50%); opacity: 0; }
-          to   { transform: translateY(0)     translateX(-50%); opacity: 1; }
-        }
-        @keyframes ssb-spin {
-          to { transform: rotate(360deg); }
-        }
+        @keyframes ssb-spin { to { transform: rotate(360deg) } }
         @keyframes ssb-pulse-dot {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.6); }
-          50%       { box-shadow: 0 0 0 5px rgba(74,222,128,0); }
+          0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.6); }
+          50%      { box-shadow: 0 0 0 5px rgba(74,222,128,0); }
         }
       `}</style>
 
-      <div style={{
-        position:  'fixed',
-        top:       '16px',
-        left:      '50%',
-        transform: 'translateX(-50%)',
-        zIndex:    99999,
-        animation: 'ssb-slide-down 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
-        display:   'flex',
-        alignItems: 'center',
-        gap:       '10px',
-        padding:   '10px 16px',
-        borderRadius: '14px',
-        background: saveState === 'error'
-          ? 'rgba(30,10,10,0.92)'
-          : 'rgba(10,20,30,0.88)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        boxShadow: saveState === 'error'
-          ? '0 8px 32px rgba(220,38,38,0.35), 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)'
-          : '0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.08)',
-        border: saveState === 'error'
-          ? '1px solid rgba(220,38,38,0.4)'
-          : '1px solid rgba(255,255,255,0.1)',
-        fontFamily: 'Noto Sans KR, sans-serif',
-        minWidth:  '280px',
-        maxWidth:  '520px',
-        whiteSpace: 'nowrap',
-      }}>
-
-        {/* 저장 상태 아이콘 */}
-        {saveState === 'saving' && (
-          <div style={{
-            width: '18px', height: '18px', flexShrink: 0,
-            border: '2px solid rgba(255,255,255,0.15)',
-            borderTop: '2px solid #60a5fa',
+      {/* ── 접힌 상태 — 작은 원형 버튼 */}
+      {collapsed ? (
+        <div
+          ref={barRef}
+          onMouseDown={e => { e.stopPropagation(); startDrag(e.clientX, e.clientY) }}
+          onTouchStart={e => startDrag(e.touches[0].clientX, e.touches[0].clientY)}
+          onClick={() => !dragging && setCollapsed(false)}
+          style={{
+            ...baseStyle,
+            width: '44px', height: '44px',
             borderRadius: '50%',
-            animation: 'ssb-spin 0.7s linear infinite',
-          }} />
-        )}
-        {saveState === 'saved' && (
-          <div style={{
-            width: '20px', height: '20px', flexShrink: 0,
-            borderRadius: '50%', background: 'linear-gradient(135deg,#22c55e,#16a34a)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '11px', boxShadow: '0 0 8px rgba(34,197,94,0.5)',
-          }}>✓</div>
-        )}
-        {saveState === 'error' && (
-          <div style={{
-            width: '20px', height: '20px', flexShrink: 0,
-            borderRadius: '50%', background: 'linear-gradient(135deg,#ef4444,#dc2626)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '11px', boxShadow: '0 0 8px rgba(239,68,68,0.5)',
-          }}>✕</div>
-        )}
-
-        {/* 저장 상태 텍스트 */}
-        <div style={{ display:'flex', flexDirection:'column', gap:'1px' }}>
-          <span style={{
-            fontSize: '13px', fontWeight: 700,
-            color: saveState === 'error' ? '#fca5a5'
-                 : saveState === 'saved' ? '#86efac'
-                 : '#93c5fd',
-          }}>
-            {saveState === 'saving' && `저장 중${pendingCount > 1 ? ` (${pendingCount}건)` : '...'}`}
-            {saveState === 'saved'  && `저장됨`}
-            {saveState === 'error'  && '저장 실패'}
-          </span>
-          {saveState === 'saved' && savedTime && (
-            <span style={{ fontSize:'11px', color:'rgba(255,255,255,0.4)', fontWeight:400 }}>
-              {fmt(savedTime)}
-            </span>
-          )}
-          {saveState === 'error' && (
-            <span style={{ fontSize:'11px', color:'rgba(255,255,255,0.4)' }}>
-              다시 시도해주세요
-            </span>
-          )}
+            fontSize: '20px',
+          }}
+          title="펼치기"
+        >
+          {collapseIcon[saveState]}
         </div>
 
-        {/* 구분선 */}
-        {deviceType === 'pc' && (
-          <div style={{ width:'1px', height:'28px', background:'rgba(255,255,255,0.1)', margin:'0 4px', flexShrink:0 }} />
-        )}
-
-        {/* 스마트폰 접속 여부 (PC에서만 표시) */}
-        {deviceType === 'pc' && (
-          <div style={{ display:'flex', alignItems:'center', gap:'7px' }}>
-            <span style={{ fontSize:'16px' }}>{mobileConnected ? '📱' : '📵'}</span>
-            <div style={{ display:'flex', flexDirection:'column', gap:'1px' }}>
-              <span style={{
-                fontSize: '12px', fontWeight: 600,
-                color: mobileConnected ? '#86efac' : 'rgba(255,255,255,0.4)',
-              }}>
-                {mobileConnected ? `스마트폰 연결됨` : '스마트폰 미연결'}
-              </span>
-              {mobileConnected && (
-                <span style={{ fontSize:'10px', color:'rgba(255,255,255,0.35)' }}>
-                  {mobileCount}대 접속 중
-                </span>
-              )}
-            </div>
-            {mobileConnected && (
-              <div style={{
-                width:'7px', height:'7px', borderRadius:'50%',
-                background:'#4ade80', flexShrink:0,
-                animation:'ssb-pulse-dot 1.8s ease-in-out infinite',
-              }} />
-            )}
-          </div>
-        )}
-
-        {/* 닫기 버튼 */}
-        <button
-          onClick={() => { setVisible(false); setSaveState('idle') }}
+      ) : (
+        /* ── 펼쳐진 상태 */
+        <div
+          ref={barRef}
+          onMouseDown={e => startDrag(e.clientX, e.clientY)}
+          onTouchStart={e => startDrag(e.touches[0].clientX, e.touches[0].clientY)}
           style={{
-            marginLeft: 'auto', flexShrink: 0,
-            width: '22px', height: '22px',
-            borderRadius: '50%',
-            border: '1px solid rgba(255,255,255,0.12)',
-            background: 'rgba(255,255,255,0.06)',
-            color: 'rgba(255,255,255,0.45)',
-            fontSize: '11px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all .15s',
-            fontFamily: 'Noto Sans KR, sans-serif',
-            lineHeight: 1,
+            ...baseStyle,
+            display: 'flex', alignItems: 'center', gap: '10px',
+            padding: '10px 14px', borderRadius: '14px',
+            minWidth: '240px',
           }}
-          onMouseEnter={e => { e.currentTarget.style.background='rgba(255,255,255,0.14)'; e.currentTarget.style.color='#fff' }}
-          onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.06)'; e.currentTarget.style.color='rgba(255,255,255,0.45)' }}
-        >✕</button>
-      </div>
+        >
+          {/* 저장 상태 아이콘 */}
+          {saveState === 'saving' && (
+            <div style={{
+              width:'18px', height:'18px', flexShrink:0,
+              border:'2px solid rgba(255,255,255,0.15)',
+              borderTop:'2px solid #60a5fa', borderRadius:'50%',
+              animation:'ssb-spin 0.7s linear infinite',
+            }} />
+          )}
+          {saveState === 'saved' && (
+            <div style={{
+              width:'20px', height:'20px', flexShrink:0, borderRadius:'50%',
+              background:'linear-gradient(135deg,#22c55e,#16a34a)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:'11px', color:'#fff', fontWeight:700,
+              boxShadow:'0 0 8px rgba(34,197,94,0.5)',
+            }}>✓</div>
+          )}
+          {saveState === 'error' && (
+            <div style={{
+              width:'20px', height:'20px', flexShrink:0, borderRadius:'50%',
+              background:'linear-gradient(135deg,#ef4444,#dc2626)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:'11px', color:'#fff', fontWeight:700,
+            }}>✕</div>
+          )}
+          {saveState === 'idle' && (
+            <div style={{ width:'8px', height:'8px', flexShrink:0, borderRadius:'50%', background:'rgba(255,255,255,0.2)' }} />
+          )}
+
+          {/* 저장 상태 텍스트 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'1px', minWidth:'58px' }}>
+            <span style={{ fontSize:'13px', fontWeight:700, color: stateColor[saveState] }}>
+              {saveState === 'idle'   && '대기 중'}
+              {saveState === 'saving' && `저장 중${pendingCount > 1 ? ` (${pendingCount}건)` : '...'}`}
+              {saveState === 'saved'  && '저장됨'}
+              {saveState === 'error'  && '저장 실패'}
+            </span>
+            <span style={{ fontSize:'10px', color:'rgba(255,255,255,0.3)' }}>
+              {saveState === 'idle'   && '자동저장'}
+              {saveState === 'saved'  && savedTime && fmt(savedTime)}
+              {saveState === 'error'  && '다시 시도해주세요'}
+            </span>
+          </div>
+
+          {/* 구분선 + 스마트폰 (PC만) */}
+          {deviceType === 'pc' && (
+            <>
+              <div style={{ width:'1px', height:'28px', background:'rgba(255,255,255,0.1)', flexShrink:0 }} />
+              <div style={{ display:'flex', alignItems:'center', gap:'7px' }}>
+                <span style={{ fontSize:'15px' }}>{mobileConnected ? '📱' : '📵'}</span>
+                <div style={{ display:'flex', flexDirection:'column', gap:'1px' }}>
+                  <span style={{ fontSize:'12px', fontWeight:600, color: mobileConnected ? '#86efac' : 'rgba(255,255,255,0.3)' }}>
+                    {mobileConnected ? '스마트폰 연결됨' : '스마트폰 미연결'}
+                  </span>
+                  {mobileConnected && (
+                    <span style={{ fontSize:'10px', color:'rgba(255,255,255,0.25)' }}>{mobileCount}대 접속 중</span>
+                  )}
+                </div>
+                {mobileConnected && (
+                  <div style={{
+                    width:'7px', height:'7px', borderRadius:'50%', background:'#4ade80', flexShrink:0,
+                    animation:'ssb-pulse-dot 1.8s ease-in-out infinite',
+                  }} />
+                )}
+              </div>
+            </>
+          )}
+
+          {/* 접기 버튼 */}
+          <button
+            onMouseDown={e => e.stopPropagation()} // 드래그 방지
+            onClick={() => setCollapsed(true)}
+            style={{
+              marginLeft: 'auto', flexShrink:0,
+              width:'24px', height:'24px', borderRadius:'6px',
+              border:'1px solid rgba(255,255,255,0.12)',
+              background:'rgba(255,255,255,0.06)',
+              color:'rgba(255,255,255,0.4)',
+              fontSize:'11px', cursor:'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontFamily:'Noto Sans KR, sans-serif', lineHeight:1,
+              transition:'all .15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background='rgba(255,255,255,0.15)'; e.currentTarget.style.color='#fff' }}
+            onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.06)'; e.currentTarget.style.color='rgba(255,255,255,0.4)' }}
+            title="접기"
+          >▲</button>
+        </div>
+      )}
     </>
   )
 }
