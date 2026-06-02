@@ -644,6 +644,11 @@ export function Students({ user, onNav }) {
       saveData.statusHistory = [...(saveData.statusHistory||[]), { status: saveData.status, changedAt: new Date().toISOString(), memo: `[${tStatus}] ${tDate}` }]
       delete saveData.transfer_info
     }
+    // schedule_change_date도 Supabase 컬럼 없음 — statusHistory에 기록 후 제거
+    if (saveData.schedule_change_date) {
+      saveData.statusHistory = [...(saveData.statusHistory||[]), { status: 'schedule_change', changedAt: new Date().toISOString(), memo: `[스케줄변경] ${saveData.schedule_change_date}` }]
+      delete saveData.schedule_change_date
+    }
 
     if (editId) {
       if (saveData.status === 'cancelled' && !saveData.cancel_info) {
@@ -1134,6 +1139,13 @@ export function Students({ user, onNav }) {
                               {s.cancel_info?.date && (() => { const [y,m,day]=s.cancel_info.date.split('-'); return `-${y.slice(2)}.${parseInt(m)}.${parseInt(day)}` })()}
                             </span>
                           )}
+                          {s.status === 'schedule_change' && (
+                            <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
+                              background:'#f5f3ff', border:'1px solid #c4b5fd', color:'#7c3aed' }}>
+                              📅 스케줄변경
+                              {(() => { const h = (s.statusHistory||[]).slice().reverse().find(h => h.status==='schedule_change'); const m = h?.memo?.match(/\d{4}-\d{2}-\d{2}/); if (!m) return null; const [y,mo,d]=m[0].split('-'); return `-${y.slice(2)}.${parseInt(mo)}.${parseInt(d)}` })()}
+                            </span>
+                          )}
                           {(s.status === 'transfer_out' || s.status === 'transfer_in') && (
                             <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
                               background: s.status==='transfer_out'?'#f0f9ff':'#ecfdf5',
@@ -1208,9 +1220,11 @@ export function Students({ user, onNav }) {
                             {Object.entries(STUDENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                             <option value='cancel_before'>개강전 취소</option>
                             <option value='cancel_after'>개강후 취소</option>
+                            <option value='schedule_change'>스케줄변경</option>
                           </select>
                           {pendingStatuses[s.id] !== undefined && pendingStatuses[s.id] !== s.status &&
-                           pendingStatuses[s.id] !== 'cancel_before' && pendingStatuses[s.id] !== 'cancel_after' && (
+                           pendingStatuses[s.id] !== 'cancel_before' && pendingStatuses[s.id] !== 'cancel_after' &&
+                           pendingStatuses[s.id] !== 'schedule_change' && (
                             <Btn size="sm" onClick={() => {
                               changeStatus(s.id, pendingStatuses[s.id])
                               setPendingStatuses(p => { const n={...p}; delete n[s.id]; return n })
@@ -1218,6 +1232,29 @@ export function Students({ user, onNav }) {
                           )}
                         </div>
                         {/* 취소 선택 시 인라인 날짜+메모 입력 */}
+                        {pendingStatuses[s.id] === 'schedule_change' && (
+                          <div style={{ display:'flex', flexDirection:'column', gap:'5px', padding:'8px 10px', background:'#f5f3ff', borderRadius:'8px', border:'1px solid #c4b5fd' }}>
+                            <label style={{ fontSize:'11px', fontWeight:600, color:'#7c3aed' }}>📅 스케줄변경 날짜</label>
+                            <input type="date" defaultValue={new Date().toISOString().slice(0,10)}
+                              id={`sc-date-${s.id}`}
+                              style={{ padding:'5px 8px', borderRadius:'6px', border:'1px solid #c4b5fd', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }} />
+                            <div style={{ display:'flex', gap:'5px' }}>
+                              <button onClick={() => {
+                                const scDate = document.getElementById(`sc-date-${s.id}`)?.value || new Date().toISOString().slice(0,10)
+                                const st = StudentsDB.find(s.id)
+                                StudentsDB.update(s.id, {
+                                  status: 'schedule_change',
+                                  statusHistory: [...(st?.statusHistory||[]), { status: 'schedule_change', changedAt: now(), memo: `[스케줄변경] ${scDate}` }],
+                                })
+                                setPendingStatuses(p=>{const n={...p};delete n[s.id];return n})
+                                refresh()
+                                showToast('스케줄변경 처리가 완료되었습니다.')
+                              }} style={{ flex:1, padding:'5px', borderRadius:'6px', border:'none', background:'#7c3aed', color:'#fff', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>확인</button>
+                              <button onClick={() => setPendingStatuses(p=>{const n={...p};delete n[s.id];return n})}
+                                style={{ padding:'5px 10px', borderRadius:'6px', border:'1px solid #e5e7eb', background:'#fff', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#6b7280' }}>취소</button>
+                            </div>
+                          </div>
+                        )}
                         {cancelTarget?.id === s.id && (pendingStatuses[s.id] === 'cancel_before' || pendingStatuses[s.id] === 'cancel_after') && (
                           <div style={{ display:'flex', flexDirection:'column', gap:'5px', padding:'8px 10px', background:'#fef2f2', borderRadius:'8px', border:'1px solid #fca5a5' }}>
                             {pendingStatuses[s.id] === 'cancel_after' && (() => {
@@ -1771,6 +1808,7 @@ export function Students({ user, onNav }) {
                   {Object.entries(STUDENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   <option value='cancel_before'>개강전 취소</option>
                   <option value='cancel_after'>개강후 취소</option>
+                  <option value='schedule_change'>스케줄변경</option>
                 </select>
                 {(form.status === 'cancel_before' || form.status === 'cancel_after') && (
                   <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'5px' }}>
@@ -1806,6 +1844,14 @@ export function Students({ user, onNav }) {
                     <input type="date" value={form.transfer_info?.date || new Date().toISOString().slice(0,10)}
                       onChange={e => set('transfer_info', { ...form.transfer_info, date: e.target.value })}
                       style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #7dd3fc', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                  </div>
+                )}
+                {form.status === 'schedule_change' && (
+                  <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'5px' }}>
+                    <label style={{ fontSize:'12px', color:'#7c3aed', fontWeight:600 }}>📅 스케줄변경 날짜</label>
+                    <input type="date" value={form.schedule_change_date || new Date().toISOString().slice(0,10)}
+                      onChange={e => set('schedule_change_date', e.target.value)}
+                      style={{ padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #c4b5fd', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
                   </div>
                 )}
                 {form.status === 'extra_applied' && (

@@ -30,8 +30,9 @@ const ABSENT_REASONS = [
   { value: 'personal',   label: '개인사유' },
   { value: 'unexcused',  label: '무단' },
   { value: 'infection',  label: '법정감염병' },
-  { value: 'transferred', label: '전학' },
-  { value: 'etc',        label: '기타' },
+  { value: 'transferred',     label: '전학' },
+  { value: 'schedule_change', label: '스케줄변경' },
+  { value: 'etc',             label: '기타' },
 ]
 
 const DAYS_KO = ['일','월','화','수','목','금','토']
@@ -2738,9 +2739,14 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         <div style={{ padding: '6px 14px 10px', borderTop: `1px solid ${C.border}`, background: '#fafafa', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ flex: 1, minWidth: '150px' }}>
             <label style={{ fontSize: '11px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '3px' }}>사유</label>
-            <select value={absentReason} onChange={e => {
+            <select value={absentReason.startsWith('schedule_change') ? 'schedule_change' : absentReason} onChange={e => {
               const val = e.target.value
-              setField('absentReason', val)
+              if (val === 'schedule_change') {
+                const today = new Date().toISOString().slice(0,10)
+                setField('absentReason', `schedule_change:${today}`)
+              } else {
+                setField('absentReason', val)
+              }
               if (val === 'transferred') {
                 const today = new Date().toISOString().slice(0,10)
                 const existing = StudentsDB.find(s.id)
@@ -2766,6 +2772,17 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
                   style={{ padding:'4px 8px', borderRadius:'6px', border:'1.5px solid #7dd3fc', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#f0f9ff', color:'#0369a1' }} />
                 <div style={{ fontSize:'10px', color:'#0369a1', background:'#f0f9ff', border:'1px solid #7dd3fc', borderRadius:'5px', padding:'3px 7px', fontWeight:600 }}>
                   전학 처리됨 — 다음 수업부터 명단에서 제외됩니다
+                </div>
+              </div>
+            )}
+            {absentReason.startsWith('schedule_change') && (
+              <div style={{ marginTop:'6px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                <label style={{ fontSize:'10px', fontWeight:600, color:'#7c3aed' }}>📅 스케줄변경 날짜 (이 날짜 다음 수업부터 명단 제외)</label>
+                <input type="date" defaultValue={new Date().toISOString().slice(0,10)}
+                  onChange={e => setField('absentReason', `schedule_change:${e.target.value}`)}
+                  style={{ padding:'4px 8px', borderRadius:'6px', border:'1.5px solid #c4b5fd', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#f5f3ff', color:'#7c3aed' }} />
+                <div style={{ fontSize:'10px', color:'#7c3aed', background:'#f5f3ff', border:'1px solid #c4b5fd', borderRadius:'5px', padding:'3px 7px', fontWeight:600 }}>
+                  스케줄변경 — 지정 날짜 다음 수업부터 명단에서 제외됩니다
                 </div>
               </div>
             )}
@@ -3207,7 +3224,29 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
   }
   const markAll = (status) => activeStudents.forEach(s => mark(s.id, status))
 
-  const activeStudents      = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
+  // 스케줄변경: 해당 수업의 가장 최근 attendance에 schedule_change:날짜가 있고 date > 그 날짜이면 제외
+  const getScheduleChangeDate = (studentId) => {
+    const recs = AttendanceDB.byStudentClass(studentId, cls?.id || '')
+    const rec = recs.slice().sort((a,b) => (b.date||'').localeCompare(a.date||'')).find(r => r.absentReason?.startsWith('schedule_change:'))
+    if (!rec) return null
+    return rec.absentReason.split(':')[1] || null
+  }
+  const activeStudents      = students.filter(s => {
+    if (!['applied','selected','confirmed'].includes(s.status)) return false
+    const scDate = getScheduleChangeDate(s.id)
+    if (scDate && date > scDate) return false
+    return true
+  })
+  const scheduleChangedStudents = students.filter(s => {
+    // attendance 기반 스케줄변경 (날짜 이후 제외)
+    if (['applied','selected','confirmed'].includes(s.status)) {
+      const scDate = getScheduleChangeDate(s.id)
+      if (scDate && date > scDate) return true
+    }
+    // 학생 상태 자체가 schedule_change
+    if (s.status === 'schedule_change') return true
+    return false
+  })
   const inactiveStudents    = students.filter(s => ['cancelled','waiting'].includes(s.status))
   const transferredStudents = students.filter(s => s.status === 'transfer_out')
 
@@ -3298,6 +3337,11 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
               {transferredStudents.length > 0 && (
                 <div style={{ padding:'5px 10px', borderRadius:'7px', background:'#f0f9ff', border:'1px solid #7dd3fc30', fontSize:'12px', fontWeight:600, color:'#0369a1' }}>
                   ✈️ 전학 {transferredStudents.length}명
+                </div>
+              )}
+              {scheduleChangedStudents.length > 0 && (
+                <div style={{ padding:'5px 10px', borderRadius:'7px', background:'#f5f3ff', border:'1px solid #c4b5fd30', fontSize:'12px', fontWeight:600, color:'#7c3aed' }}>
+                  📅 스케줄변경 {scheduleChangedStudents.length}명
                 </div>
               )}
               {(() => {
