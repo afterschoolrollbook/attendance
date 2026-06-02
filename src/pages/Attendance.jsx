@@ -2954,7 +2954,8 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
   const getRec  = (sid) => records.find(r => r.studentId === sid)
   const mark = (studentId, status, extra = {}) => {
     if (isFuture) return
-    const existing = getRec(studentId)
+    // 항상 캐시에서 최신 레코드 직접 조회 (stale closure 방지)
+    const existing = AttendanceDB.find(cls.id, studentId, date)
     AttendanceDB.upsert({
       id: existing?.id || uid(),
       classId: cls.id, studentId, date,
@@ -3179,7 +3180,8 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
   const session = cls ? getSession(cls, date) : null
   const mark = (studentId, status, extra = {}) => {
     if (!cls) return
-    const existing = getRec(studentId)
+    // 항상 캐시에서 최신 레코드 직접 조회 (stale closure 방지)
+    const existing = AttendanceDB.find(cls.id, studentId, date)
     AttendanceDB.upsert({
       id: existing?.id || uid(),
       classId: cls.id, studentId, date,
@@ -3851,7 +3853,8 @@ function MobileAttendance({ user, pageParams = {} }) {
   const getRec   = (sid) => records.find(r => r.studentId === sid)
   const mark = (studentId, status, extra = {}) => {
     if (!selClass || isFuture) return
-    const existing = getRec(studentId)
+    // 항상 캐시에서 최신 레코드 직접 조회 (stale closure 방지)
+    const existing = AttendanceDB.find(selClass.id, studentId, selDate)
     const session  = getSession ? getSession(selClass, selDate) : 0
     AttendanceDB.upsert({
       id: existing?.id || uid(), classId: selClass.id, studentId,
