@@ -199,11 +199,11 @@ async function syncUpdate(table, id, patch) {
 
 async function syncDelete(table, id) {
   if (!supabase) return
-  const { tbl } = getConverters(table)
+  const { tbl, toDb } = getConverters(table)
   await withRetry(async () => {
     const { error } = await supabase
       .from(tbl)
-      .update({ _deleted: true, updated_at: new Date().toISOString() })
+      .update(toDb({ _deleted: true, updatedAt: new Date().toISOString() }))
       .eq('id', id)
     if (error) throw new Error(error.message)
   }, `delete/${table}`)
@@ -476,7 +476,7 @@ export const Settings = {
     localStorage.setItem('asa_settings_' + k, JSON.stringify(val))
     if (supabase) {
       supabase.from('settings')
-        .upsert({ key: k, value: v, updated_at: new Date().toISOString() })
+        .upsert({ key: k, value: v, updated_at: now() })
         .then(() => console.log(`[Settings] "${k}" Supabase 저장 완료`))
         .catch(e => console.warn(`[Settings] "${k}" Supabase 저장 실패:`, e.message))
     }
@@ -551,15 +551,8 @@ export const ParentMembers = {
     const clean = phone?.replace(/[^0-9]/g, '')
     const member = this.findByPhoneAndTeacher(clean, teacherId)
     if (!member) return
-    // 인메모리 캐시 업데이트
+    // db.update가 toSnake 변환 후 Supabase까지 처리
     db.update('parentMembers', member.id, { pushSubscription: subscriptionJson })
-    // Supabase 직접 업데이트 (snake_case 컬럼명)
-    if (supabase) {
-      supabase.from('parent_members')
-        .update({ push_subscription: subscriptionJson })
-        .eq('id', member.id)
-        .catch(e => console.warn('[Push] 구독 저장 실패:', e.message))
-    }
   },
 
   getPushSubscriptions(phone) {
