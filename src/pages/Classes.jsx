@@ -129,6 +129,10 @@ export function Classes({ user, onNav }) {
   const { success, error: toastError } = useToast()
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const allClasses = ClassesDB.byTeacher(user.id)
+  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
+  const classes = selYear ? allClasses.filter(c => c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) : allClasses
+  const t = today()
 
   // ── 수업 템플릿 내보내기 (.after)
   // 수업 카드의 📤 내보내기 버튼 → 수업명_학생.after + 수업명_교구.after 두 파일 생성
@@ -362,11 +366,6 @@ export function Classes({ user, onNav }) {
       toastError('파일을 읽을 수 없습니다: ' + e.message)
     }
   }
-
-  const allClasses = ClassesDB.byTeacher(user.id)
-  const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
-  const classes = selYear ? allClasses.filter(c => c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) : allClasses
-  const t = today()
 
   // 알람: 1분마다 시작/종료 시간 체크
   useEffect(() => {
