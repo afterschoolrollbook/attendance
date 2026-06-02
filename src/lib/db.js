@@ -277,7 +277,7 @@ export async function initFromSupabase() {
             const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
             return q.gte('date', since).order('date', { ascending: false })
           }},
-          supplySessionChecks: { filter: (q) => q.order('checked_at', { ascending: false }) },
+          supplySessionChecks: { filter: (q) => q },
         }
         if (PAGINATED_TABLES[t]) {
           const PAGE = 1000
@@ -285,6 +285,7 @@ export async function initFromSupabase() {
           let from = 0
           while (true) {
             let q = supabase.from(tbl).select('*')
+            if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
             q = PAGINATED_TABLES[t].filter(q)
             q = q.range(from, from + PAGE - 1)
             const { data: page, error: pageErr } = await q
