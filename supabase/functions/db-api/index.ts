@@ -31,93 +31,62 @@ const TABLE_MAP: Record<string, string> = {
   adSlots:              'ad_slots',
   attendanceTemplates:  'attendance_templates',
   settings:             'settings',
-  // 수익 관리
-  revenueFees:          'revenueFees',
-  revenuePayments:      'revenuePayments',
-  // 내 관리 (강사 관련)
+  revenueFees:          'revenue_fees',
+  revenuePayments:      'revenue_payments',
   trainings:            'trainings',
   careers:              'careers',
   educations:           'educations',
   certificates:         'certificates',
   awards:               'awards',
-  jobSubs:              'jobSubs',
-  // 기타
+  jobSubs:              'job_subs',
   branches:             'branches',
   points:               'points',
   parentMembers:        'parent_members',
   teacherParentLinks:   'teacher_parent_links',
-  teacherServiceConfigs: 'teacher_service_configs',   // ← 추가
-  // 교구 관리
-  supplySubjects:         'supplySubjects',
-  supplyVendors:          'supplyVendors',
-  supplyItems:            'supplyItems',
-  supplyPlans:            'supplyPlans',
-  supplyPromos:           'supplyPromos',
-  supplyProducts:         'supplyProducts',
-  supplyProductPlans:     'supplyProductPlans',
-  supplyStudentProgress:  'supplyStudentProgress',
-  supplyProgressLogs:     'supplyProgressLogs',
-  supplySessionChecks:    'supplySessionChecks',
-  // 안내 문구
-  messageGuides:          'messageGuides',
-  messageCategories:      'messageCategories',
-  teacherProfiles:        'teacherProfiles',
-  // 교구업체 관리 (VendorApp)
-  hqVendorSubjects:       'hqVendorSubjects',
-  hqVendorProducts:       'hqVendorProducts',
-  hqVendorStages:         'hqVendorStages',
-  hqVendorContents:       'hqVendorContents',
-  hqVendorQuarters:       'hqVendorQuarters',
-  hqVendorSessions:       'hqVendorSessions',
-  hqVendorFiles:          'hqVendorFiles',
-  hqVendorPrices:         'hqVendorPrices',
-  // 업체 계정 관리
-  hqVendors:              'hqVendors',
-  hqVendorUsers:          'hqVendorUsers',
-  vendorAccounts:         'vendorAccounts',
-  // 학교 담당자
-  schoolAdmins:           'schoolAdmins',
-  schoolAdminAccounts:    'schoolAdminAccounts',
-  schoolAdminTeachers:    'schoolAdminTeachers',
-  schoolSubjects:         'schoolSubjects',        // ← 신규
-  schoolTeacherInvites:   'schoolTeacherInvites',  // ← 신규
-  schoolNotices:          'schoolNotices',
-  schoolNoticeSubmits:    'schoolNoticeSubmits',
-  schoolCalendar:         'schoolCalendar',         // ← 추가
-  schoolInfo:             'schoolInfo',             // ← 추가
-  documents:              'documents',              // ← 방과후 서류
-  customCategories:       'custom_categories',       // ← 커스텀 카테고리
-  lessonMemos:            'lesson_memos',            // ← 수업 메모장
-  blogPosts:              'blog_posts',              // ← SEO 블로그
-  supplyGiven:            'supplyGiven',             // ← 교구 지급 기록
-  supplySchoolPrices:     'supplySchoolPrices',      // ← 학교별 교구 공급가
-  supplyParts:            'supplyParts',             // ← 교구 부품
+  teacherServiceConfigs:'teacher_service_configs',
+  supplySubjects:       'supply_subjects',
+  supplyVendors:        'supply_vendors',
+  supplyItems:          'supply_items',
+  supplyPlans:          'supply_plans',
+  supplyPromos:         'supply_promos',
+  supplyProducts:       'supply_products',
+  supplyProductPlans:   'supply_product_plans',
+  supplyStudentProgress:'supply_student_progress',
+  supplyProgressLogs:   'supply_progress_logs',
+  supplySessionChecks:  'supply_session_checks',
+  messageGuides:        'message_guides',
+  messageCategories:    'message_categories',
+  teacherProfiles:      'teacher_profiles',
+  hqVendors:            'hq_vendors',
+  hqVendorSubjects:     'hq_vendor_subjects',
+  hqVendorProducts:     'hq_vendor_products',
+  hqVendorStages:       'hq_vendor_stages',
+  hqVendorContents:     'hq_vendor_contents',
+  hqVendorQuarters:     'hq_vendor_quarters',
+  hqVendorSessions:     'hq_vendor_sessions',
+  hqVendorFiles:        'hq_vendor_files',
+  hqVendorPrices:       'hq_vendor_prices',
+  hqVendorUsers:        'hq_vendor_users',
+  vendorAccounts:       'vendor_accounts',
+  schoolAdmins:         'school_admins',
+  schoolAdminAccounts:  'school_admin_accounts',
+  schoolAdminTeachers:  'school_admin_teachers',
+  schoolSubjects:       'school_subjects',
+  schoolTeacherInvites: 'school_teacher_invites',
+  schoolNotices:        'school_notices',
+  schoolNoticeSubmits:  'school_notice_submits',
+  schoolCalendar:       'school_calendar',
+  schoolInfo:           'school_info',
+  documents:            'documents',
+  customCategories:     'custom_categories',
+  lessonMemos:          'lesson_memos',
+  blogPosts:            'blog_posts',
+  supplyGiven:          'supply_given',
+  supplySchoolPrices:   'supply_school_prices',
+  supplyParts:          'supply_parts',
 }
 
-// 컬럼이 camelCase로 저장된 테이블 — snake 변환 없이 그대로 사용
-const CAMEL_TABLES = new Set([
-  'revenueFees', 'revenuePayments',
-  'trainings', 'careers', 'educations', 'certificates', 'awards', 'jobSubs',
-  'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
-  'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress',
-  'supplyProgressLogs', 'supplySessionChecks',
-  'messageGuides', 'messageCategories', 'teacherProfiles',
-  'hqVendorSubjects', 'hqVendorProducts', 'hqVendorStages',
-  'hqVendorContents', 'hqVendorQuarters', 'hqVendorSessions', 'hqVendorFiles', 'hqVendorPrices',
-  'hqVendors', 'hqVendorUsers', 'vendorAccounts',
-  'schoolAdmins', 'schoolAdminAccounts', 'schoolAdminTeachers',
-  'schoolSubjects', 'schoolTeacherInvites',  // ← 신규
-  'schoolNotices', 'schoolNoticeSubmits',
-  'schoolCalendar',                          // ← 추가
-  'schoolInfo',                              // ← 추가
-  'documents',                               // ← 방과후 서류
-  'customCategories',                        // ← 커스텀 카테고리
-  'lessonMemos',                             // ← 수업 메모장
-  'blogPosts',                               // ← SEO 블로그
-  'supplyGiven',                             // ← 교구 지급 기록
-  'supplySchoolPrices',                      // ← 학교별 교구 공급가
-  'supplyParts',                             // ← 교구 부품
-])
+
 
 // camelCase → snake_case 변환
 function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
@@ -191,12 +160,8 @@ serve(async (req) => {
     const tbl = TABLE_MAP[table]
     if (!tbl) throw new Error(`Unknown table: ${table}`)
 
-    // camelCase 테이블 여부 확인 (원래 테이블 키로 판단)
-    const isCamelTable = CAMEL_TABLES.has(table)
-
-    // 데이터 변환 함수: camelCase 테이블은 변환 없이 그대로
-    const toDb  = (obj: Record<string, unknown>) => isCamelTable ? obj : toSnake(obj)
-    const fromDb = (obj: Record<string, unknown>) => isCamelTable ? obj : toCamel(obj)
+    const toDb   = toSnake
+    const fromDb = toCamel
 
     let result: unknown
 
@@ -210,31 +175,31 @@ serve(async (req) => {
           attendance:           'teacher_id',
           notes:                'teacher_id',
           attendanceTemplates:  'teacher_id',
-          revenueFees:          'teacherId',
-          revenuePayments:      'teacherId',
-          trainings:            'teacherId',
-          careers:              'teacherId',
-          educations:           'teacherId',
-          certificates:         'teacherId',
-          awards:               'teacherId',
-          jobSubs:              'teacherId',
-          teacherProfiles:      'teacherId',
-          documents:            'teacherId',
-          lessonMemos:          'teacherId',
-          messageGuides:        'teacherId',
-          messageCategories:    'teacherId',
-          supplySubjects:       'teacherId',
-          supplyVendors:        'teacherId',
-          supplyItems:          'teacherId',
-          supplyPlans:          'teacherId',
-          supplyPromos:         'teacherId',
-          supplyProducts:       'teacherId',
-          supplyProductPlans:   'teacherId',
-          supplyStudentProgress:'teacherId',
-          supplyProgressLogs:   'teacherId',
-          supplySessionChecks:  'teacherId',
-          supplyGiven:          'teacherId',
-          customCategories:     'teacherId',
+          revenueFees:          'teacher_id',
+          revenuePayments:      'teacher_id',
+          trainings:            'teacher_id',
+          careers:              'teacher_id',
+          educations:           'teacher_id',
+          certificates:         'teacher_id',
+          awards:               'teacher_id',
+          jobSubs:              'teacher_id',
+          teacherProfiles:      'teacher_id',
+          documents:            'teacher_id',
+          lessonMemos:          'teacher_id',
+          messageGuides:        'teacher_id',
+          messageCategories:    'teacher_id',
+          supplySubjects:       'teacher_id',
+          supplyVendors:        'teacher_id',
+          supplyItems:          'teacher_id',
+          supplyPlans:          'teacher_id',
+          supplyPromos:         'teacher_id',
+          supplyProducts:       'teacher_id',
+          supplyProductPlans:   'teacher_id',
+          supplyStudentProgress:'teacher_id',
+          supplyProgressLogs:   'teacher_id',
+          supplySessionChecks:  'teacher_id',
+          supplyGiven:          'teacher_id',
+          customCategories:     'teacher_id',
           teacherServiceConfigs:'teacher_id',
           parentMembers:        'teacher_id',
           teacherParentLinks:   'teacher_id',
@@ -242,18 +207,18 @@ serve(async (req) => {
         }
         // hqVendor 테이블은 vendorId로 필터 (벤더 전용)
         const VENDOR_OWNED: Record<string, string> = {
-          hqVendorSubjects:  'vendorId',
-          hqVendorProducts:  'vendorId',
-          hqVendorContents:  'vendorId',
-          hqVendorFiles:     'vendorId',
-          hqVendorPrices:    'vendorId',
-          hqVendorStages:    'vendorId',
-          hqVendorQuarters:  'vendorId',
-          hqVendorSessions:  'vendorId',
+          hqVendorSubjects:  'vendor_id',
+          hqVendorProducts:  'vendor_id',
+          hqVendorContents:  'vendor_id',
+          hqVendorFiles:     'vendor_id',
+          hqVendorPrices:    'vendor_id',
+          hqVendorStages:    'vendor_id',
+          hqVendorQuarters:  'vendor_id',
+          hqVendorSessions:  'vendor_id',
         }
 
         // _deleted 컬럼이 없는 테이블은 필터 없이 전체 조회
-        const NO_DELETED_TABLES = new Set(['hqVendorPrices', 'supplyGiven', 'supplySchoolPrices', 'supplyParts'])
+        const NO_DELETED_TABLES = new Set(['points', 'settings', 'attendance', 'notes', 'attendanceTemplates', 'adSlots', 'branches', 'verify_codes', 'revenueFees', 'revenuePayments', 'supplySubjects', 'supplyVendors', 'supplyPlans', 'supplyProducts', 'supplyProductPlans', 'schoolCalendar', 'schoolInfo', 'hqVendors', 'hqVendorSubjects', 'hqVendorProducts', 'hqVendorStages', 'hqVendorContents', 'hqVendorQuarters', 'hqVendorSessions', 'hqVendorFiles', 'hqVendorPrices', 'hqVendorUsers', 'vendorAccounts'])
         let q = supabase.from(tbl).select('*')
         if (!NO_DELETED_TABLES.has(table)) {
           q = q.or('_deleted.is.null,_deleted.eq.false')
@@ -288,7 +253,7 @@ serve(async (req) => {
       case 'where': {
         let q = supabase.from(tbl).select('*')
         for (const [col, val] of Object.entries(where || {})) {
-          const dbCol = isCamelTable ? col : col.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
+          const dbCol = col.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
           q = q.eq(dbCol, val)
         }
         const { data: rows, error } = await q
@@ -325,7 +290,7 @@ serve(async (req) => {
         } else {
           const { error } = await supabase
             .from(tbl)
-            .update({ _deleted: true, updatedAt: new Date().toISOString() })
+            .update({ _deleted: true, updated_at: new Date().toISOString() })
             .eq('id', id)
           if (error) throw error
         }
