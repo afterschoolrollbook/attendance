@@ -372,19 +372,28 @@ export const Attendance = {
   find:           (cid, sid, date) => db.get('attendance').find(a => a.classId === cid && a.studentId === sid && a.date === date),
   async upsert(record) {
     const ex = this.find(record.classId, record.studentId, record.date)
+    const merged = ex
+      ? { ...ex, ...record, id: ex.id, updatedAt: now() }
+      : { _deleted: false, ...record, updatedAt: now() }
+
+    // 캐시 업데이트
+    const rows = cache.get('attendance')
     if (ex) {
-      const updated = { ...ex, ...record, updatedAt: now() }
-      cache.set('attendance', cache.get('attendance').map(r => r.id === ex.id ? updated : r))
-      _emit('attendance')
-      try {
-        await syncAttendanceUpsert(updated)
-      } catch (e) {
-        console.warn('[DB] attendanceUpsert 실패:', e.message)
-        throw e
-      }
-      return updated
+      cache.set('attendance', rows.map(r => r.id === ex.id ? merged : r))
+    } else {
+      rows.push(merged)
+      cache.set('attendance', rows)
     }
-    return db.insert('attendance', record)
+    _emit('attendance')
+
+    // Supabase: 항상 onConflict upsert 사용 (plain insert 금지 — duplicate key 방지)
+    try {
+      await syncAttendanceUpsert(merged)
+    } catch (e) {
+      console.warn('[DB] attendanceUpsert 실패:', e.message)
+      throw e
+    }
+    return merged
   },
   delete: (id) => db.delete('attendance', id),
 }
