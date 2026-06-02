@@ -179,17 +179,11 @@ async function syncInsert(table, data) {
   }, `insert/${table}`)
 }
 
-const UPSERT_CONFLICTS = {
-  supplySessionChecks: 'student_id,class_id,product_id,stage,session_no',
-}
-
 async function syncUpsert(table, data) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
-  const onConflict = UPSERT_CONFLICTS[table]
   await withRetry(async () => {
-    const q = supabase.from(tbl).upsert(toDb(data), onConflict ? { onConflict } : undefined)
-    const { error } = await q
+    const { error } = await supabase.from(tbl).upsert(toDb(data))
     if (error) throw new Error(error.message)
   }, `upsert/${table}`)
 }
