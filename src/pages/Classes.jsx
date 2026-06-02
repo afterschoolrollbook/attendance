@@ -137,51 +137,8 @@ export function Classes({ user, onNav }) {
       const safeName = (str) => (str || '').replace(/[/\\:*?"<>|]/g, '_').trim()
       const label = [cls.days?.join(''), cls.organization, cls.className, cls.section].filter(Boolean).join('_')
 
-      // ── 1) 학생 명단 내보내기
-      const students = StudentsDB.byClass(cls.id)
-      const studentPayload = {
-        __type: 'students',
-        __version: 1,
-        exportedAt: new Date().toISOString(),
-        classMeta: {
-          id:           cls.id,
-          organization: cls.organization,
-          className:    cls.className,
-          section:      cls.section  || '',
-          days:         cls.days     || [],
-          time:         cls.time     || '',
-          timeEnd:      cls.timeEnd  || '',
-          termType:     cls.termType || '',
-        },
-        students: students.map(s => ({
-          name:          s.name,
-          status:        s.status,
-          school:        s.school        || '',
-          grade:         s.grade         || '',
-          classNum:      s.classNum      || '',
-          number:        s.number        || '',
-          parentPhone:   s.parentPhone   || '',
-          studentPhone:  s.studentPhone  || '',
-          contactMethod: s.contactMethod || '',
-          homeReturn:    s.homeReturn    || '',
-          memo:          s.memo          || '',
-          remark:        s.remark        || '',
-          applyOrder:    s.applyOrder    || '',
-          relations:     s.relations     || [],
-          student_careers: s.student_careers || [],
-          statusHistory: s.statusHistory || [],
-        })),
-      }
-      const studentBlob = new Blob([JSON.stringify(studentPayload, null, 2)], { type: 'application/json' })
-      const studentUrl  = URL.createObjectURL(studentBlob)
-      const studentA    = document.createElement('a')
-      studentA.href     = studentUrl
-      studentA.download = `${safeName(label)}_학생.after`
-      studentA.click()
-      URL.revokeObjectURL(studentUrl)
-
-      // ── 2) 수업설정 내보내기 (기본정보 + 수업달력)
-      const classPayload = {
+      // 기본정보 + 수업달력만 내보내기
+      const payload = {
         __type: 'classes',
         __version: 1,
         exportedAt: new Date().toISOString(),
@@ -216,15 +173,14 @@ export function Classes({ user, onNav }) {
           totalSessions:  cls.totalSessions  || null,
         },
       }
-      const classBlob = new Blob([JSON.stringify(classPayload, null, 2)], { type: 'application/json' })
-      const classUrl  = URL.createObjectURL(classBlob)
-      const classA    = document.createElement('a')
-      classA.href     = classUrl
-      classA.download = `${safeName(label)}_수업설정.after`
-      classA.click()
-      URL.revokeObjectURL(classUrl)
-
-      success(`📤 ${safeName(label)}_학생.after / _수업설정.after 저장 완료! (학생 ${students.length}명)`)
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `${safeName(label)}_수업설정.after`
+      a.click()
+      URL.revokeObjectURL(url)
+      success(`📤 ${safeName(label)}_수업설정.after 저장 완료!`)
     } catch (e) {
       toastError('내보내기 실패: ' + e.message)
     }
@@ -323,27 +279,41 @@ export function Classes({ user, onNav }) {
           (skipped > 0 ? ` (중복 ${skipped}명 스킵)` : '')
         )
 
-      // ── 수업 설정 불러오기 → 모달 열고 폼 채우기
+      // ── 수업 설정 불러오기
       } else if (data.__type === 'classes') {
         const c = data.class || {}
-        setForm({
-          ...emptyForm(),
-          ...c,
-          promotionImgs:  c.promotionImgs  || [],
-          noticeFiles:    c.noticeFiles    || [],
-          templateFiles:  c.templateFiles  || [],
-          cancelledDates: c.cancelledDates || [],
-          makeupDates:    c.makeupDates    || [],
-          specialPeriods: c.specialPeriods || [],
-          alarm:    c.alarm    || { enabled: false, minutesBefore: 10 },
-          alarmEnd: c.alarmEnd || { enabled: false, minutesBefore: 10 },
-          periods:  c.periods  || [],
-          termSizes: c.termSizes?.length > 0 ? c.termSizes : [4,4,4,4],
-          termCount: c.termCount || 4,
-        })
-        setEditId(null)
-        setTab('info')
-        setShowModal(true)
+        // 같은 수업 이미 있으면 덮어쓸지 확인
+        const existing = allClasses.find(x =>
+          x.organization === c.organization &&
+          x.className    === c.className &&
+          (x.section     === c.section || (!x.section && !c.section))
+        )
+        if (existing) {
+          ClassesDB.update(existing.id, {
+            ...c,
+            promotionImgs: existing.promotionImgs || [],
+            noticeFiles:   existing.noticeFiles   || [],
+            templateFiles: existing.templateFiles  || [],
+            cancelledDates: existing.cancelledDates || [],
+            makeupDates:   existing.makeupDates    || [],
+            specialPeriods: existing.specialPeriods || [],
+          })
+          success(`✅ [${c.organization} ${c.className}] 수업 설정을 업데이트했습니다.`)
+        } else {
+          ClassesDB.insert({
+            ...c,
+            id:           uid(),
+            teacherId:    user.id,
+            promotionImgs: [],
+            noticeFiles:  [],
+            templateFiles:[],
+            cancelledDates:[],
+            makeupDates:  [],
+            specialPeriods:[],
+            createdAt:    now(),
+          })
+          success(`✅ [${c.organization} ${c.className}] 수업이 새로 등록되었습니다.`)
+        }
 
       } else {
         toastError('지원하지 않는 파일 형식입니다. (_학생.after 또는 _수업설정.after 파일을 선택하세요)')
