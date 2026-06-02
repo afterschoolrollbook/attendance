@@ -379,62 +379,45 @@ export function Students({ user, onNav }) {
       const text = await file.text()
       const data = JSON.parse(text)
       if (data.__type !== 'students') {
-        toastError('학생 명단 파일이 아닙니다. (_학생.after 파일을 선택하세요)')
+        toastError('학생 파일이 아닙니다. (_학생.after 파일을 선택하세요)')
         return
       }
       const meta = data.classMeta || {}
-      // 대상 수업: 현재 ctxClass 선택 중이면 그 수업으로, 없으면 파일 메타로 찾기
-      let targetClassId = ctxClass
-      let targetCls     = classes.find(c => c.id === targetClassId)
+      const s    = data.students?.[0]
+      if (!s) { toastError('학생 데이터가 없습니다.'); return }
+
+      // 수업 찾기 (현재 선택된 수업 우선, 없으면 파일 메타로 찾기)
+      let targetCls = classes.find(c => c.id === ctxClass)
       if (!targetCls) {
         targetCls = classes.find(c =>
           c.organization === meta.organization &&
           c.className    === meta.className &&
           (c.section     === meta.section || (!c.section && !meta.section))
         )
-        targetClassId = targetCls?.id || ''
       }
-      if (!targetClassId || !targetCls) {
-        toastError('학생을 추가할 수업이 없습니다. 먼저 수업을 선택하거나 수업 관리에서 수업을 등록하세요.')
-        return
-      }
-      const existing    = StudentsDB.byClass(targetClassId)
-      const existingKeys = new Set(existing.map(s => `${s.name}__${(s.parentPhone||'').replace(/\D/g,'')}`))
-      let added = 0, skipped = 0
-      for (const s of (data.students || [])) {
-        const key = `${s.name}__${(s.parentPhone||'').replace(/\D/g,'')}`
-        if (existingKeys.has(key)) { skipped++; continue }
-        StudentsDB.insert({
-          id:            uid(),
-          teacherId:     user.id,
-          classIds:      [targetClassId],
-          name:          s.name          || '',
-          status:        s.status        || 'applied',
-          school:        s.school        || targetCls.organization || '',
-          grade:         s.grade         || '',
-          classNum:      s.classNum      || '',
-          number:        s.number        || '',
-          parentPhone:   s.parentPhone   || '',
-          studentPhone:  s.studentPhone  || '',
-          contactMethod: s.contactMethod || '',
-          homeReturn:    s.homeReturn    || '',
-          memo:          s.memo          || '',
-          remark:        s.remark        || '',
-          applyOrder:    s.applyOrder    || '',
-          relations:     s.relations     || [],
-          student_careers: s.student_careers || [],
-          statusHistory: [{ status: s.status || 'applied', changedAt: now(), memo: '템플릿 불러오기' }],
-          movedToManage: false,
-          createdAt:     now(),
-        })
-        existingKeys.add(key)
-        added++
-      }
-      refresh()
-      showToast(
-        `✅ [${targetCls.organization} ${targetCls.className}] 학생 ${added}명 추가` +
-        (skipped > 0 ? ` (중복 ${skipped}명 스킵)` : '')
-      )
+
+      // 폼 채우고 등록 모달 열기
+      setForm({
+        ...emptyStudent(),
+        classIds:      targetCls ? [targetCls.id] : [],
+        school:        s.school        || targetCls?.organization || '',
+        name:          s.name          || '',
+        status:        s.status        || 'applied',
+        grade:         s.grade         || '',
+        classNum:      s.classNum      || '',
+        number:        s.number        || '',
+        parentPhone:   s.parentPhone   || '',
+        studentPhone:  s.studentPhone  || '',
+        contactMethod: s.contactMethod || '',
+        homeReturn:    s.homeReturn    || '',
+        memo:          s.memo          || '',
+        remark:        s.remark        || '',
+        applyOrder:    s.applyOrder    || '',
+        relations:     s.relations     || [],
+        student_careers: s.student_careers || [],
+      })
+      setEditId(null)
+      setShowModal(true)
     } catch (e) {
       toastError('파일을 읽을 수 없습니다: ' + e.message)
     }
