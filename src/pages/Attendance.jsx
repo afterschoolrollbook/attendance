@@ -1092,9 +1092,7 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
     ch.onmessage = async (e) => {
       if (e.data?.type === 'refresh') {
         if (!cls) return
-        if (e.data?.source !== 'main') {
-          await refreshTablesFromSupabase('supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
-        }
+        await refreshTablesFromSupabase('supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
         setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
         setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
         setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
@@ -1947,17 +1945,10 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     setChecking(true)
     try {
       const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => Number(c.stage)===Number(stage) && Number(c.sessionNo)===Number(sessionNo))
-      console.log('[toggleCheck]', { productId, stage, sessionNo, existing: !!existing, existingId: existing?.id })
-      if (existing) {
-        console.log('[toggleCheck] DELETE', existing.id)
-        await SupplySessionChecks.delete(existing.id)
-      } else {
-        console.log('[toggleCheck] INSERT')
-        await SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage: Number(stage), sessionNo: Number(sessionNo), checkedAt: now(), createdAt: now() })
-      }
-      const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
+      if (existing) await SupplySessionChecks.delete(existing.id)
+      else await SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage: Number(stage), sessionNo: Number(sessionNo), checkedAt: now(), createdAt: now() })
+      const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => Number(c.stage)===Number(stage))
       const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
-      console.log('[toggleCheck] allChks after:', allChks.length, 'maxSess:', maxSess)
       await Promise.all([
         SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() }),
         si ? SupplyItems.upsert({ ...si, productId, stage, remoteNo: si.remoteNo || '' }) : Promise.resolve(),
@@ -3204,7 +3195,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
     if (!cls) return
     const ch = new BroadcastChannel('progress_screen')
     ch.onmessage = async (e) => {
-      if (e.data?.type === 'refresh' && e.data?.source !== 'main') {
+      if (e.data?.type === 'refresh') {
         await refreshTablesFromSupabase('supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
         setProgTick(t => t+1)
       }
