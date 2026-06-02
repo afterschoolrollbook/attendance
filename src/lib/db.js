@@ -250,7 +250,7 @@ const SYNC_TABLES = [
 ]
 
 // _deleted 컬럼 없는 테이블 (소프트딜리트 미적용)
-const NO_DELETED_TABLES = new Set(['points', 'settings'])
+const NO_DELETED_TABLES = new Set(['points', 'settings', 'attendance', 'notes', 'attendance_templates', 'ad_slots', 'branches', 'verify_codes'])
 
 // ─── 초기화: Supabase에서 데이터 로드
 export async function initFromSupabase() {
