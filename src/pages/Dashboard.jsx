@@ -3079,7 +3079,7 @@ export function Dashboard({ user, onNav }) {
             style={{ position: 'absolute', top: '10px', right: '12px', width: '22px', height: '22px', borderRadius: '50%', border: '1px solid #fca5a5', background: '#fff', cursor: 'pointer', fontSize: '11px', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >✕</button>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }} onClick={() => onNav('supplies')} style={{ cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
+            <div onClick={() => onNav('supplies')} style={{ cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
               <span style={{ fontSize: '16px' }}>⚠️</span>
               <span style={{ fontSize: '14px', fontWeight: 700, color: C.danger }}>교구 준비 필요 — 이번주 수업</span>
               <span style={{ fontSize: '11px', color: C.primary, fontWeight: 600 }}>바로가기 →</span>
