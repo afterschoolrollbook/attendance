@@ -129,80 +129,11 @@ function _emit(table) {
   _listeners.get('*')?.forEach(fn => fn(table))
 }
 
-// ─── 인메모리 캐시
+// ─── 인메모리 캐시 (localStorage 대신 — 5MB 제한 없음)
 const _cache = {}
 const cache = {
   get(t)    { return _cache[t] || [] },
   set(t, d) { _cache[t] = d },
-}
-
-// ─── IndexedDB 헬퍼 (기기별 로컬 캐시)
-const IDB_NAME    = 'asa_db'
-const IDB_VERSION = 1
-const IDB_STORE   = 'tables'   // { key: 'tableName', value: rows[] }
-const IDB_META    = 'meta'     // { key: 'lastSync_tableName', value: ISO string }
-
-let _idb = null
-async function openIDB() {
-  if (_idb) return _idb
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(IDB_NAME, IDB_VERSION)
-    req.onupgradeneeded = e => {
-      const db = e.target.result
-      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE)
-      if (!db.objectStoreNames.contains(IDB_META))  db.createObjectStore(IDB_META)
-    }
-    req.onsuccess = e => { _idb = e.target.result; resolve(_idb) }
-    req.onerror   = e => reject(e.target.error)
-  })
-}
-
-async function idbGet(store, key) {
-  try {
-    const db  = await openIDB()
-    return new Promise((resolve, reject) => {
-      const tx  = db.transaction(store, 'readonly')
-      const req = tx.objectStore(store).get(key)
-      req.onsuccess = () => resolve(req.result)
-      req.onerror   = () => reject(req.error)
-    })
-  } catch { return undefined }
-}
-
-async function idbSet(store, key, value) {
-  try {
-    const db = await openIDB()
-    return new Promise((resolve, reject) => {
-      const tx  = db.transaction(store, 'readwrite')
-      const req = tx.objectStore(store).put(value, key)
-      req.onsuccess = () => resolve()
-      req.onerror   = () => reject(req.error)
-    })
-  } catch {}
-}
-
-// IndexedDB에서 테이블 로드 → 인메모리 캐시에 적재
-async function loadFromIDB(table) {
-  const rows = await idbGet(IDB_STORE, table)
-  if (Array.isArray(rows) && rows.length > 0) {
-    cache.set(table, rows)
-    return true
-  }
-  return false
-}
-
-// 인메모리 캐시 → IndexedDB 저장
-async function saveToIDB(table) {
-  await idbSet(IDB_STORE, table, cache.get(table))
-}
-// Attendance.upsert에서 직접 캐시 업데이트 후 IDB 저장
-
-// 마지막 동기화 시각 조회/저장
-async function getLastSync(table) {
-  return await idbGet(IDB_META, `lastSync_${table}`)
-}
-async function setLastSync(table, isoStr) {
-  await idbSet(IDB_META, `lastSync_${table}`, isoStr)
 }
 
 // ─── 재시도 헬퍼 (네트워크 일시 오류 대응)
@@ -321,108 +252,63 @@ const SYNC_TABLES = [
 // _deleted 컬럼 없는 테이블 (소프트딜리트 미적용)
 const NO_DELETED_TABLES = new Set(['points', 'settings'])
 
-// ─── 초기화: IndexedDB 먼저 → 변경분만 Supabase에서 증분 동기화
+// ─── 초기화: Supabase에서 데이터 로드
 export async function initFromSupabase() {
   if (!supabase) return false
+  try {
+    await Promise.all(SYNC_TABLES.map(async (t) => {
+      try {
+        const { tbl, fromDb } = getConverters(t)
 
-  // 1단계: IndexedDB에서 즉시 로드 (화면 바로 표시)
-  await Promise.all(SYNC_TABLES.map(t => loadFromIDB(t)))
-  console.log('[IDB] 로컬 캐시 로드 완료')
-  _emit('*')
+        let q = supabase.from(tbl).select('*')
 
-  // 2단계: 백그라운드에서 변경분만 Supabase에서 가져와 업데이트
-  syncFromSupabase().catch(e => console.warn('[Supabase] 증분 동기화 실패:', e.message))
+        // _deleted 컬럼 있는 테이블만 필터 적용
+        if (!NO_DELETED_TABLES.has(t)) {
+          q = q.or('_deleted.is.null,_deleted.eq.false')
+        }
 
-  return true
-}
-
-// updated_at 컬럼이 실제로 있는 테이블만 증분 동기화 가능
-const INCREMENTAL_TABLES = new Set([
-  'users', 'classes', 'students', 'notes',
-  'revenueFees', 'awards', 'branches', 'points',
-  'parentMembers', 'teacherParentLinks',
-  'supplyItems', 'supplyStudentProgress', 'supplyGiven',
-  'supplyParts', 'supplySchoolPrices',
-  'teacherServiceConfigs', 'messageGuides', 'messageCategories',
-  'teacherProfiles', 'documents', 'customCategories', 'lessonMemos',
-  'schoolAdmins', 'schoolAdminAccounts', 'schoolAdminTeachers',
-  'schoolSubjects', 'schoolTeacherInvites',
-  'schoolNotices', 'schoolNoticeSubmits', 'schoolCalendar', 'schoolInfo',
-])
-
-// ─── 동기화: updated_at 있는 테이블만 증분, 나머지는 전체 로드
-export async function syncFromSupabase() {
-  if (!supabase) return
-
-  const syncTime = new Date().toISOString()
-
-  await Promise.all(SYNC_TABLES.map(async (t) => {
-    try {
-      const { tbl, fromDb } = getConverters(t)
-      const lastSync = await getLastSync(t)
-      const canIncremental = lastSync && INCREMENTAL_TABLES.has(t)
-
-      let q = supabase.from(tbl).select('*')
-
-      if (canIncremental) {
-        // 증분: 마지막 동기화 이후 변경분만
-        const col = CAMEL_TABLES.has(t) ? 'updatedAt' : 'updated_at'
-        q = q.gt(col, lastSync)
-      } else {
-        // 전체 로드
-        if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
+        // attendance는 최근 90일치만 로드
         if (t === 'attendance') {
-          const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+          const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+            .toISOString().slice(0, 10)
           q = q.gte('date', since)
         }
+
+        const { data: rows, error } = await q
+        if (error) throw new Error(error.message)
+        if (!Array.isArray(rows)) return
+
+        cache.set(t, rows.map(fromDb).filter(r => r._deleted !== true))
+        console.log(`[Supabase] ${t}: ${cache.get(t).length}건 로드`)
+      } catch (e) {
+        console.warn(`[Supabase] ${t} 로드 실패:`, e.message)
       }
+    }))
 
-      const { data: rows, error } = await q
-      if (error) throw new Error(error.message)
-
-      if (!Array.isArray(rows) || rows.length === 0) {
-        await setLastSync(t, syncTime)
-        return
+    // settings 동기화 (localStorage에 저장 — 용량 작음)
+    try {
+      const { data: settings } = await supabase.from('settings').select('*')
+      if (Array.isArray(settings)) {
+        settings.forEach(row => {
+          if (!row.key || !row.value) return
+          localStorage.setItem('asa_settings_' + row.key, JSON.stringify(row.value))
+        })
+        console.log('[Supabase] settings 동기화 완료')
       }
-
-      const converted = rows.map(fromDb)
-      let merged
-
-      if (canIncremental) {
-        // 기존 캐시에 변경분 머지
-        const idMap = new Map(cache.get(t).map(r => [r.id, r]))
-        converted.forEach(r => idMap.set(r.id, r))
-        merged = [...idMap.values()].filter(r => r._deleted !== true)
-      } else {
-        // 전체 교체
-        merged = converted.filter(r => r._deleted !== true)
-      }
-
-      cache.set(t, merged)
-      await saveToIDB(t)
-      await setLastSync(t, syncTime)
-      _emit(t)
-
-      console.log(`[Sync] ${t}: ${converted.length}건 ${canIncremental ? '증분' : '전체'}`)
     } catch (e) {
-      console.warn(`[Sync] ${t} 실패:`, e.message)
+      console.warn('[Supabase] settings 동기화 실패:', e.message)
     }
-  }))
 
-  try {
-    const { data: settings } = await supabase.from('settings').select('*')
-    if (Array.isArray(settings)) {
-      settings.forEach(row => {
-        if (!row.key || !row.value) return
-        localStorage.setItem('asa_settings_' + row.key, JSON.stringify(row.value))
-      })
-    }
-  } catch {}
-
-  console.log('[Supabase] 동기화 완료')
+    console.log('[Supabase] 데이터 동기화 완료')
+    return true
+  } catch (e) {
+    console.warn('[Supabase] 전체 실패:', e.message)
+    return false
+  }
 }
 
-// ─── 특정 테이블만 재로드 (cross-window 캐시 동기화용 — 항상 전체 로드)
+// ─── 특정 테이블만 Supabase에서 재로드 (cross-window 캐시 동기화용)
+// ProgressWindow처럼 별도 창은 인메모리 캐시가 독립적 → BroadcastChannel 수신 시 호출
 export async function refreshTablesFromSupabase(...tables) {
   if (!supabase) return
   await Promise.all(tables.map(async (t) => {
@@ -432,10 +318,7 @@ export async function refreshTablesFromSupabase(...tables) {
       if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
       const { data: rows, error } = await q
       if (error || !Array.isArray(rows)) return
-      const merged = rows.map(fromDb).filter(r => r._deleted !== true)
-      cache.set(t, merged)
-      await saveToIDB(t)
-      _emit(t)
+      cache.set(t, rows.map(fromDb).filter(r => r._deleted !== true))
     } catch (e) {
       console.warn(`[DB] refreshTables/${t} 실패:`, e.message)
     }
@@ -458,7 +341,6 @@ export const db = {
     rows.push(r)
     cache.set(t, rows)
     _emit(t)
-    saveToIDB(t)  // IndexedDB 업데이트 (백그라운드)
     try {
       await syncInsert(t, r)
     } catch (e) {
@@ -473,7 +355,6 @@ export const db = {
     const rows = cache.get(t).map(r => r.id === id ? { ...r, ...updated } : r)
     cache.set(t, rows)
     _emit(t)
-    saveToIDB(t)  // IndexedDB 업데이트 (백그라운드)
     try {
       await syncUpdate(t, id, updated)
     } catch (e) {
@@ -489,7 +370,6 @@ export const db = {
     )
     cache.set(t, rows)
     _emit(t)
-    saveToIDB(t)  // IndexedDB 업데이트 (백그라운드)
     try {
       await syncDelete(t, id)
     } catch (e) {
@@ -556,9 +436,6 @@ export const Attendance = {
       cache.set('attendance', rows)
     }
     _emit('attendance')
-
-    // IndexedDB 업데이트 (백그라운드)
-    saveToIDB('attendance')
 
     // withRetry로 Supabase 저장 — onSaveStart/Complete/Error 이벤트 발생
     await withRetry(async () => {
