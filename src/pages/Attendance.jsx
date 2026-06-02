@@ -30,6 +30,7 @@ const ABSENT_REASONS = [
   { value: 'personal',   label: '개인사유' },
   { value: 'unexcused',  label: '무단' },
   { value: 'infection',  label: '법정감염병' },
+  { value: 'transferred', label: '전학' },
   { value: 'etc',        label: '기타' },
 ]
 
@@ -2737,9 +2738,26 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         <div style={{ padding: '6px 14px 10px', borderTop: `1px solid ${C.border}`, background: '#fafafa', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ flex: 1, minWidth: '150px' }}>
             <label style={{ fontSize: '11px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '3px' }}>사유</label>
-            <select value={absentReason} onChange={e => setField('absentReason', e.target.value)} style={selSm}>
+            <select value={absentReason} onChange={e => {
+              const val = e.target.value
+              setField('absentReason', val)
+              if (val === 'transferred') {
+                StudentsDB.update(s.id, { status: 'transfer_out', transfer_info: { date: new Date().toISOString().slice(0,10) } })
+              }
+            }} style={selSm}>
               {ABSENT_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
+            {absentReason === 'transferred' && (
+              <div style={{ marginTop:'6px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                <label style={{ fontSize:'10px', fontWeight:600, color:'#0369a1' }}>✈️ 전학 날짜</label>
+                <input type="date" defaultValue={new Date().toISOString().slice(0,10)}
+                  onChange={e => StudentsDB.update(s.id, { status: 'transfer_out', transfer_info: { date: e.target.value } })}
+                  style={{ padding:'4px 8px', borderRadius:'6px', border:'1.5px solid #7dd3fc', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#f0f9ff', color:'#0369a1' }} />
+                <div style={{ fontSize:'10px', color:'#0369a1', background:'#f0f9ff', border:'1px solid #7dd3fc', borderRadius:'5px', padding:'3px 7px', fontWeight:600 }}>
+                  전학 처리됨 — 다음 수업부터 명단에서 제외됩니다
+                </div>
+              </div>
+            )}
           </div>
           <div style={{ flex: 2, minWidth: '200px' }}>
             <label style={{ fontSize: '11px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '3px' }}>연락 내역</label>
@@ -3176,8 +3194,9 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
   }
   const markAll = (status) => activeStudents.forEach(s => mark(s.id, status))
 
-  const activeStudents   = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
-  const inactiveStudents = students.filter(s => ['cancelled','waiting'].includes(s.status))
+  const activeStudents      = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
+  const inactiveStudents    = students.filter(s => ['cancelled','waiting'].includes(s.status))
+  const transferredStudents = students.filter(s => s.status === 'transfer_out')
 
   const counts = { pending:0, present:0, absent:0, late:0, early:0 }
   if (showAttendance) activeStudents.forEach(s => { const st = getRec(s.id)?.status || 'pending'; counts[st]++ })
@@ -3263,6 +3282,11 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                   {v.emoji} {v.label} {counts[k]||0}
                 </div>
               ))}
+              {transferredStudents.length > 0 && (
+                <div style={{ padding:'5px 10px', borderRadius:'7px', background:'#f0f9ff', border:'1px solid #7dd3fc30', fontSize:'12px', fontWeight:600, color:'#0369a1' }}>
+                  ✈️ 전학 {transferredStudents.length}명
+                </div>
+              )}
               {(() => {
                 const cancelAfter = students.filter(s =>
                   s.status === 'cancel_after' ||
