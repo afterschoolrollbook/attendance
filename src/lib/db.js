@@ -65,17 +65,6 @@ const TABLE_MAP = {
   supplyGiven:          'supply_given',
   supplyParts:          'supply_parts',
   supplySchoolPrices:   'supply_school_prices',
-  hqVendors:            'hq_vendors',
-  hqVendorSubjects:     'hq_vendor_subjects',
-  hqVendorProducts:     'hq_vendor_products',
-  hqVendorStages:       'hq_vendor_stages',
-  hqVendorContents:     'hq_vendor_contents',
-  hqVendorQuarters:     'hq_vendor_quarters',
-  hqVendorSessions:     'hq_vendor_sessions',
-  hqVendorFiles:        'hq_vendor_files',
-  hqVendorPrices:       'hq_vendor_prices',
-  hqVendorUsers:        'hq_vendor_users',
-  vendorAccounts:       'vendor_accounts',
 }
 
 // ─── camelCase → snake_case 변환
@@ -239,13 +228,10 @@ const SYNC_TABLES = [
   'supplyGiven',
   'supplyParts',
   'supplySchoolPrices',
-  'hqVendors', 'hqVendorSubjects', 'hqVendorProducts', 'hqVendorStages',
-  'hqVendorContents', 'hqVendorQuarters', 'hqVendorSessions', 'hqVendorFiles',
-  'hqVendorPrices', 'hqVendorUsers', 'vendorAccounts',
 ]
 
 // _deleted 컬럼 없는 테이블 (소프트딜리트 미적용)
-const NO_DELETED_TABLES = new Set(['points', 'settings', 'attendance', 'notes', 'attendance_templates', 'ad_slots', 'branches', 'verify_codes', 'revenueFees', 'revenuePayments', 'supplySubjects', 'supplyVendors', 'supplyPlans', 'supplyProducts', 'supplyProductPlans', 'schoolCalendar', 'schoolInfo', 'hqVendors', 'hqVendorSubjects', 'hqVendorProducts', 'hqVendorStages', 'hqVendorContents', 'hqVendorQuarters', 'hqVendorSessions', 'hqVendorFiles', 'hqVendorPrices', 'hqVendorUsers', 'vendorAccounts'])
+const NO_DELETED_TABLES = new Set(['points', 'settings', 'attendance', 'notes', 'attendance_templates', 'ad_slots', 'branches', 'verify_codes'])
 
 // ─── 초기화: Supabase에서 데이터 로드
 export async function initFromSupabase() {
@@ -270,11 +256,16 @@ export async function initFromSupabase() {
         }
 
         const { data: rows, error } = await q
-        if (error) throw new Error(error.message)
-        if (!Array.isArray(rows)) return
-
+        if (error) {
+          console.error(`[Supabase] ${t} 오류:`, error.message, error.code, error.hint)
+          throw new Error(error.message)
+        }
+        if (!Array.isArray(rows)) {
+          console.warn(`[Supabase] ${t}: rows가 배열이 아님`, rows)
+          return
+        }
         cache.set(t, rows.map(fromDb).filter(r => r._deleted !== true))
-        console.log(`[Supabase] ${t}: ${cache.get(t).length}건 로드`)
+        console.log(`[Supabase] ${t}: ${cache.get(t).length}건 로드 (원본 ${rows.length}건)`)
       } catch (e) {
         console.warn(`[Supabase] ${t} 로드 실패:`, e.message)
       }
