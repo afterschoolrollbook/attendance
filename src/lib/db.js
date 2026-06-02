@@ -271,26 +271,30 @@ export async function initFromSupabase() {
           q = q.or('_deleted.is.null,_deleted.eq.false')
         }
 
-        // attendance는 최근 90일치만 로드 + 페이지네이션 (1000건 제한 대응)
-        if (t === 'attendance') {
-          const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-            .toISOString().slice(0, 10)
+        // 1000건 초과 가능한 테이블 페이지네이션 처리
+        const PAGINATED_TABLES = {
+          attendance: { filter: (q) => {
+            const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+            return q.gte('date', since).order('date', { ascending: false })
+          }},
+          supplySessionChecks: { filter: (q) => q.order('checked_at', { ascending: false }) },
+        }
+        if (PAGINATED_TABLES[t]) {
           const PAGE = 1000
           let allRows = []
           let from = 0
           while (true) {
-            const { data: page, error: pageErr } = await supabase
-              .from(tbl).select('*')
-              .gte('date', since)
-              .order('date', { ascending: false })
-              .range(from, from + PAGE - 1)
+            let q = supabase.from(tbl).select('*')
+            q = PAGINATED_TABLES[t].filter(q)
+            q = q.range(from, from + PAGE - 1)
+            const { data: page, error: pageErr } = await q
             if (pageErr) throw new Error(pageErr.message)
             if (!page || page.length === 0) break
             allRows = allRows.concat(page)
             if (page.length < PAGE) break
             from += PAGE
           }
-          cache.set(t, allRows.map(fromDb))
+          cache.set(t, allRows.map(fromDb).filter(r => r._deleted !== true))
           console.log(`[Supabase] ${t}: ${cache.get(t).length}건 로드`)
           return
         }
