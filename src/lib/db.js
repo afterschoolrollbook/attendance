@@ -136,44 +136,82 @@ const cache = {
   set(t, d) { _cache[t] = d },
 }
 
+// ─── 재시도 헬퍼 (네트워크 일시 오류 대응)
+async function withRetry(fn, label, maxRetry = 3) {
+  for (let i = 0; i < maxRetry; i++) {
+    try {
+      return await fn()
+    } catch (e) {
+      const isLast = i === maxRetry - 1
+      console.warn(`[DB] ${label} 실패 (${i+1}/${maxRetry}):`, e.message)
+      if (isLast) {
+        // 마지막 재시도도 실패 → 사용자에게 알림
+        _emitSaveError(label, e.message)
+        throw e
+      }
+      await new Promise(r => setTimeout(r, 500 * (i + 1))) // 0.5s, 1s 대기 후 재시도
+    }
+  }
+}
+
+// 저장 실패 이벤트 (App에서 토스트로 표시)
+const _saveErrorListeners = new Set()
+export function onSaveError(fn) {
+  _saveErrorListeners.add(fn)
+  return () => _saveErrorListeners.delete(fn)
+}
+function _emitSaveError(label, msg) {
+  _saveErrorListeners.forEach(fn => fn(label, msg))
+}
+
 // ─── Supabase 직접 쓰기 함수들
 async function syncInsert(table, data) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
-  const { error } = await supabase.from(tbl).insert(toDb(data))
-  if (error) throw new Error(error.message)
+  await withRetry(async () => {
+    const { error } = await supabase.from(tbl).insert(toDb(data))
+    if (error) throw new Error(error.message)
+  }, `insert/${table}`)
 }
 
 async function syncUpsert(table, data) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
-  const { error } = await supabase.from(tbl).upsert(toDb(data))
-  if (error) throw new Error(error.message)
+  await withRetry(async () => {
+    const { error } = await supabase.from(tbl).upsert(toDb(data))
+    if (error) throw new Error(error.message)
+  }, `upsert/${table}`)
 }
 
 async function syncUpdate(table, id, patch) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
-  const { error } = await supabase.from(tbl).update(toDb(patch)).eq('id', id)
-  if (error) throw new Error(error.message)
+  await withRetry(async () => {
+    const { error } = await supabase.from(tbl).update(toDb(patch)).eq('id', id)
+    if (error) throw new Error(error.message)
+  }, `update/${table}`)
 }
 
 async function syncDelete(table, id) {
   if (!supabase) return
   const { tbl } = getConverters(table)
-  const { error } = await supabase
-    .from(tbl)
-    .update({ _deleted: true, updatedAt: new Date().toISOString() })
-    .eq('id', id)
-  if (error) throw new Error(error.message)
+  await withRetry(async () => {
+    const { error } = await supabase
+      .from(tbl)
+      .update({ _deleted: true, updatedAt: new Date().toISOString() })
+      .eq('id', id)
+    if (error) throw new Error(error.message)
+  }, `delete/${table}`)
 }
 
 async function syncAttendanceUpsert(data) {
   if (!supabase) return
-  const { error } = await supabase
-    .from('attendance')
-    .upsert(toSnake(data), { onConflict: 'class_id,student_id,date' })
-  if (error) throw new Error(error.message)
+  await withRetry(async () => {
+    const { error } = await supabase
+      .from('attendance')
+      .upsert(toSnake(data), { onConflict: 'class_id,student_id,date' })
+    if (error) throw new Error(error.message)
+  }, 'attendance/upsert')
 }
 
 // ─── 동기화 대상 테이블 목록
