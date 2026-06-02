@@ -113,6 +113,7 @@ export function Classes({ user, onNav }) {
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState(emptyForm())
   const [tab, setTab] = useState('info') // 'info' | 'promo' | 'notice' | 'template' | 'calendar'
+  const importFileRef = React.useRef(null)
   const [deleteId, setDeleteId] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [noticePreview, setNoticePreview] = useState(null)
@@ -128,6 +129,240 @@ export function Classes({ user, onNav }) {
   const { success, error: toastError } = useToast()
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  // ── 수업 템플릿 내보내기 (.after)
+  // 수업 카드의 📤 내보내기 버튼 → 수업명_학생.after + 수업명_교구.after 두 파일 생성
+  const exportTemplate = (cls) => {
+    try {
+      const safeName = (str) => (str || '').replace(/[/\\:*?"<>|]/g, '_').trim()
+      const label = [cls.days?.join(''), cls.organization, cls.className, cls.section].filter(Boolean).join('_')
+
+      // ── 1) 학생 명단 내보내기
+      const students = StudentsDB.byClass(cls.id)
+      const studentPayload = {
+        __type: 'students',
+        __version: 1,
+        exportedAt: new Date().toISOString(),
+        classMeta: {
+          id:           cls.id,
+          organization: cls.organization,
+          className:    cls.className,
+          section:      cls.section  || '',
+          days:         cls.days     || [],
+          time:         cls.time     || '',
+          timeEnd:      cls.timeEnd  || '',
+          termType:     cls.termType || '',
+        },
+        students: students.map(s => ({
+          name:          s.name,
+          status:        s.status,
+          school:        s.school        || '',
+          grade:         s.grade         || '',
+          classNum:      s.classNum      || '',
+          number:        s.number        || '',
+          parentPhone:   s.parentPhone   || '',
+          studentPhone:  s.studentPhone  || '',
+          contactMethod: s.contactMethod || '',
+          homeReturn:    s.homeReturn    || '',
+          memo:          s.memo          || '',
+          remark:        s.remark        || '',
+          applyOrder:    s.applyOrder    || '',
+          relations:     s.relations     || [],
+          student_careers: s.student_careers || [],
+          statusHistory: s.statusHistory || [],
+        })),
+      }
+      const studentBlob = new Blob([JSON.stringify(studentPayload, null, 2)], { type: 'application/json' })
+      const studentUrl  = URL.createObjectURL(studentBlob)
+      const studentA    = document.createElement('a')
+      studentA.href     = studentUrl
+      studentA.download = `${safeName(label)}_학생.after`
+      studentA.click()
+      URL.revokeObjectURL(studentUrl)
+
+      // ── 2) 교구 설정 내보내기 (TemplatesDB에 저장된 교구 설정)
+      // Classes 파일에서는 수업에 연결된 교구 정보를 별도 보관하지 않으므로
+      // 학교(organization) 기준으로 수업 설정 전체를 저장
+      const classPayload = {
+        __type: 'classes',
+        __version: 1,
+        exportedAt: new Date().toISOString(),
+        class: {
+          organization:  cls.organization  || '',
+          className:     cls.className     || '',
+          section:       cls.section       || '',
+          termType:      cls.termType      || 'semester',
+          termCount:     cls.termCount     || 4,
+          termSizes:     cls.termSizes     || [4,4,4,4],
+          periods:       cls.periods       || [],
+          days:          cls.days          || [],
+          repeatType:    cls.repeatType    || 'every',
+          time:          cls.time          || '',
+          timeEnd:       cls.timeEnd       || '',
+          classDuration: cls.classDuration || null,
+          startDate:     cls.startDate     || '',
+          endDate:       cls.endDate       || '',
+          description:   cls.description   || '',
+          officePhone:   cls.officePhone   || '',
+          schoolAddress: cls.schoolAddress || '',
+          classLocation: cls.classLocation || '',
+          contactPhone:  cls.contactPhone  || '',
+          contactMobile: cls.contactMobile || '',
+          alarm:         cls.alarm         || { enabled: false, minutesBefore: 10 },
+          alarmEnd:      cls.alarmEnd      || { enabled: false, minutesBefore: 10 },
+        },
+      }
+      const classBlob = new Blob([JSON.stringify(classPayload, null, 2)], { type: 'application/json' })
+      const classUrl  = URL.createObjectURL(classBlob)
+      const classA    = document.createElement('a')
+      classA.href     = classUrl
+      classA.download = `${safeName(label)}_수업설정.after`
+      classA.click()
+      URL.revokeObjectURL(classUrl)
+
+      success(`📤 ${safeName(label)}_학생.after / _수업설정.after 저장 완료! (학생 ${students.length}명)`)
+    } catch (e) {
+      toastError('내보내기 실패: ' + e.message)
+    }
+  }
+
+  // ── 수업 템플릿 불러오기 (.after)
+  // 📥 템플릿 불러오기 버튼 → 파일 타입에 따라 학생 명단 또는 수업 설정 자동 처리
+  const importTemplate = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+
+      // ── 학생 명단 불러오기
+      if (data.__type === 'students') {
+        const meta = data.classMeta || {}
+        // 대상 수업 찾기: 같은 수업명+단체명 우선, 없으면 새 수업 생성
+        let targetCls = allClasses.find(c =>
+          c.organization === meta.organization &&
+          c.className    === meta.className &&
+          (c.section     === meta.section || (!c.section && !meta.section))
+        )
+
+        if (!targetCls) {
+          // 수업이 없으면 메타 정보로 새 수업 생성
+          const newCls = {
+            id:           uid(),
+            teacherId:    user.id,
+            organization: meta.organization || '',
+            className:    meta.className    || '',
+            section:      meta.section      || '',
+            days:         meta.days         || [],
+            time:         meta.time         || '',
+            timeEnd:      meta.timeEnd      || '',
+            termType:     meta.termType     || 'semester',
+            termCount:    4,
+            termSizes:    [4,4,4,4],
+            periods:      [],
+            repeatType:   'every',
+            startDate:    '',
+            endDate:      '',
+            description:  '',
+            promotionImgs: [],
+            noticeFiles:  [],
+            templateFiles:[],
+            cancelledDates:[],
+            makeupDates:  [],
+            specialPeriods:[],
+            alarm:    { enabled: false, minutesBefore: 10 },
+            alarmEnd: { enabled: false, minutesBefore: 10 },
+            createdAt: now(),
+          }
+          ClassesDB.insert(newCls)
+          targetCls = newCls
+        }
+
+        // 기존 학생 중복 체크 (이름 + 부모전화)
+        const existing = StudentsDB.byClass(targetCls.id)
+        const existingKeys = new Set(existing.map(s => `${s.name}__${(s.parentPhone||'').replace(/\D/g,'')}` ))
+
+        let added = 0, skipped = 0
+        for (const s of (data.students || [])) {
+          const key = `${s.name}__${(s.parentPhone||'').replace(/\D/g,'')}`
+          if (existingKeys.has(key)) { skipped++; continue }
+          StudentsDB.insert({
+            id:           uid(),
+            teacherId:    user.id,
+            classIds:     [targetCls.id],
+            name:          s.name          || '',
+            status:        s.status        || 'applied',
+            school:        s.school        || targetCls.organization || '',
+            grade:         s.grade         || '',
+            classNum:      s.classNum      || '',
+            number:        s.number        || '',
+            parentPhone:   s.parentPhone   || '',
+            studentPhone:  s.studentPhone  || '',
+            contactMethod: s.contactMethod || '',
+            homeReturn:    s.homeReturn    || '',
+            memo:          s.memo          || '',
+            remark:        s.remark        || '',
+            applyOrder:    s.applyOrder    || '',
+            relations:     s.relations     || [],
+            student_careers: s.student_careers || [],
+            statusHistory: [{ status: s.status || 'applied', changedAt: now(), memo: '템플릿 불러오기' }],
+            movedToManage: false,
+            createdAt:     now(),
+          })
+          existingKeys.add(key)
+          added++
+        }
+        success(
+          `✅ [${targetCls.organization} ${targetCls.className}] 학생 ${added}명 추가` +
+          (skipped > 0 ? ` (중복 ${skipped}명 스킵)` : '')
+        )
+
+      // ── 수업 설정 불러오기
+      } else if (data.__type === 'classes') {
+        const c = data.class || {}
+        // 같은 수업 이미 있으면 덮어쓸지 확인
+        const existing = allClasses.find(x =>
+          x.organization === c.organization &&
+          x.className    === c.className &&
+          (x.section     === c.section || (!x.section && !c.section))
+        )
+        if (existing) {
+          ClassesDB.update(existing.id, {
+            ...c,
+            promotionImgs: existing.promotionImgs || [],
+            noticeFiles:   existing.noticeFiles   || [],
+            templateFiles: existing.templateFiles  || [],
+            cancelledDates: existing.cancelledDates || [],
+            makeupDates:   existing.makeupDates    || [],
+            specialPeriods: existing.specialPeriods || [],
+          })
+          success(`✅ [${c.organization} ${c.className}] 수업 설정을 업데이트했습니다.`)
+        } else {
+          ClassesDB.insert({
+            ...c,
+            id:           uid(),
+            teacherId:    user.id,
+            promotionImgs: [],
+            noticeFiles:  [],
+            templateFiles:[],
+            cancelledDates:[],
+            makeupDates:  [],
+            specialPeriods:[],
+            createdAt:    now(),
+          })
+          success(`✅ [${c.organization} ${c.className}] 수업이 새로 등록되었습니다.`)
+        }
+
+      } else {
+        toastError('지원하지 않는 파일 형식입니다. (_학생.after 또는 _수업설정.after 파일을 선택하세요)')
+      }
+    } catch (e) {
+      toastError('파일을 읽을 수 없습니다: ' + e.message)
+    }
+  }
+
   const allClasses = ClassesDB.byTeacher(user.id)
   const years = [...new Set(allClasses.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
   const classes = selYear ? allClasses.filter(c => c.startDate?.startsWith(selYear) || c.endDate?.startsWith(selYear)) : allClasses
@@ -415,10 +650,20 @@ export function Classes({ user, onNav }) {
             style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
         </div>
       )}
+      <input ref={importFileRef} type="file" accept=".after" style={{ display:'none' }} onChange={importTemplate} />
       <PageHeader
         title="수업 관리"
         sub="수업을 등록하고 일정을 관리합니다."
-        right={<Btn onClick={openAdd}>+ 수업 등록</Btn>}
+        right={
+          <div style={{ display:'flex', gap:'8px' }}>
+            <button
+              onClick={() => importFileRef.current?.click()}
+              style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #e5e7eb', background:'#fff', color:'#374151', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              📥 템플릿 불러오기
+            </button>
+            <Btn onClick={openAdd}>+ 수업 등록</Btn>
+          </div>
+        }
       />
 
       {/* 년도 필터 */}
@@ -501,6 +746,7 @@ export function Classes({ user, onNav }) {
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }} onClick={e => e.stopPropagation()}>
                       <Btn size="sm" variant="ghost" onClick={() => openEdit(cls)}>편집</Btn>
                       <Btn size="sm" variant="ghost" onClick={() => openCopy(cls)} style={{ color:'#3b82f6', borderColor:'#93c5fd' }}>복사</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => exportTemplate(cls)} style={{ color:'#16a34a', borderColor:'#86efac' }}>📤 내보내기</Btn>
                       <Btn size="sm" variant="outlineDanger" onClick={() => setDeleteId(cls.id)}>삭제</Btn>
                     </div>
                   </Card>

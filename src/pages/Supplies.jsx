@@ -1247,6 +1247,7 @@ export function Supplies({ user }) {
   const [partsViewStage, setPartsViewStage]   = useState(null)  // null=전체, n=누적탭
 
   const { error: toastError, success } = useToast()
+  const supplyImportRef = useRef()   // 교구 .after 불러오기용
 
   const schoolList = [...new Set(classes.map(c => c.organization).filter(Boolean))]
 
@@ -1291,6 +1292,161 @@ export function Supplies({ user }) {
   }, [])
   useEffect(() => { if (subjects.length > 0 && !selSubject) setSelSubject(subjects[0]) }, [subjects])
   useEffect(() => { setCheckedStudents([]) }, [selClassId, selSubject])
+
+  // ── 교구 설정 내보내기 (.after)
+  const handleExportSupply = () => {
+    try {
+      const payload = {
+        __type: 'supply',
+        __version: 1,
+        exportedAt: new Date().toISOString(),
+        subjects: subjects,
+        vendors: vendorList.map(v => ({
+          _srcId:      v.id,
+          name:        v.name,
+          managerName: v.managerName || '',
+          contact:     v.contact     || '',
+          memo:        v.memo        || '',
+          subjects:    v.subjects    || [],
+        })),
+        products: productList.map(p => ({
+          _srcId:           p.id,
+          _srcVendorId:     p.vendorId,
+          name:             p.name,
+          subject:          p.subject          || '',
+          maxStage:         p.maxStage         || 10,
+          sessionsPerStage: p.sessionsPerStage || 12,
+          alertSession:     p.alertSession     || 3,
+          price:            p.price            || 0,
+          consumerPrice:    p.consumerPrice    || 0,
+          schoolPrice:      p.schoolPrice      || 0,
+          branchPrice:      p.branchPrice      || 0,
+          teacherPrice:     p.teacherPrice     || 0,
+          purchasePrice:    p.purchasePrice    || 0,
+        })),
+        productPlans: productPlanList.map(pl => ({
+          _srcProductId: pl.productId,
+          stage:         pl.stage,
+          sessionNo:     pl.sessionNo,
+          title:         pl.title || '',
+          memo:          pl.memo  || '',
+        })),
+      }
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `교구설정_${new Date().toLocaleDateString('ko-KR').replace(/\. /g,'-').replace('.','')}.after`
+      a.click()
+      URL.revokeObjectURL(url)
+      success(`📤 교구 설정 저장 완료! (업체 ${vendorList.length}개 · 교구 ${productList.length}개)`)
+    } catch (e) {
+      toastError('내보내기 실패: ' + e.message)
+    }
+  }
+
+  // ── 교구 설정 불러오기 (.after)
+  const handleImportSupply = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      if (data.__type !== 'supply') {
+        toastError('교구 설정 파일이 아닙니다. (_교구.after 또는 교구설정.after 파일을 선택하세요)')
+        return
+      }
+
+      // 과목 추가
+      const existingSubjects = SupplySubjects.byTeacher(user.id)
+      ;(data.subjects || []).forEach((name, i) => {
+        if (!existingSubjects.find(s => s.name === name)) {
+          SupplySubjects.insert({ id: uid(), teacherId: user.id, name, sortOrder: existingSubjects.length + i, createdAt: now() })
+        }
+      })
+
+      // 업체 추가 (중복 이름 스킵, srcId → newId 매핑)
+      const existingVendors = SupplyVendors.byTeacher(user.id)
+      const vendorIdMap = {}
+      ;(data.vendors || []).forEach(v => {
+        const dup = existingVendors.find(e => e.name === v.name)
+        if (dup) { vendorIdMap[v._srcId] = dup.id; return }
+        const newId = uid()
+        SupplyVendors.insert({
+          id:          newId,
+          teacherId:   user.id,
+          name:        v.name,
+          managerName: v.managerName || '',
+          contact:     v.contact     || '',
+          memo:        v.memo        || '',
+          subjects:    v.subjects    || [],
+          createdAt:   now(),
+        })
+        vendorIdMap[v._srcId] = newId
+      })
+
+      // 교구 추가 (중복 이름+업체 스킵, srcId → newId 매핑)
+      const existingProducts = SupplyProducts.byTeacher(user.id)
+      const productIdMap = {}
+      let vendorCount = 0, productCount = 0, planCount = 0, skipped = 0
+      vendorCount = Object.keys(vendorIdMap).filter(k => !existingVendors.find(v => v.id === vendorIdMap[k])).length
+
+      ;(data.products || []).forEach(p => {
+        const newVendorId = vendorIdMap[p._srcVendorId] || null
+        const dup = existingProducts.find(e => e.name === p.name && e.vendorId === newVendorId)
+        if (dup) { productIdMap[p._srcId] = dup.id; skipped++; return }
+        const newId = uid()
+        SupplyProducts.insert({
+          id:               newId,
+          teacherId:        user.id,
+          vendorId:         newVendorId,
+          name:             p.name,
+          subject:          p.subject          || '',
+          maxStage:         p.maxStage         || 10,
+          sessionsPerStage: p.sessionsPerStage || 12,
+          alertSession:     p.alertSession     || 3,
+          price:            p.price            || 0,
+          consumerPrice:    p.consumerPrice    || 0,
+          schoolPrice:      p.schoolPrice      || 0,
+          branchPrice:      p.branchPrice      || 0,
+          teacherPrice:     p.teacherPrice     || 0,
+          purchasePrice:    p.purchasePrice    || 0,
+          createdAt:        now(),
+        })
+        productIdMap[p._srcId] = newId
+        productCount++
+      })
+
+      // 차시 계획 추가
+      const existingPlans = SupplyProductPlans.byTeacher(user.id)
+      ;(data.productPlans || []).forEach(pl => {
+        const newProductId = productIdMap[pl._srcProductId]
+        if (!newProductId) return
+        const dup = existingPlans.find(e => e.productId === newProductId && e.stage === pl.stage && e.sessionNo === pl.sessionNo)
+        if (dup) return
+        SupplyProductPlans.insert({
+          id:        uid(),
+          teacherId: user.id,
+          productId: newProductId,
+          stage:     pl.stage,
+          sessionNo: pl.sessionNo,
+          title:     pl.title || '',
+          memo:      pl.memo  || '',
+          createdAt: now(),
+        })
+        planCount++
+      })
+
+      reload()
+      success(
+        `✅ 업체 ${vendorCount}개 · 교구 ${productCount}개 · 차시 ${planCount}개 추가` +
+        (skipped > 0 ? ` (중복 ${skipped}개 스킵)` : '')
+      )
+    } catch (e) {
+      toastError('파일을 읽을 수 없습니다: ' + e.message)
+    }
+  }
 
   const isRobot = selSubject === '로봇'
 
@@ -1883,12 +2039,26 @@ export function Supplies({ user }) {
 
   return (
     <div style={{ padding:'24px', maxWidth:'1200px' }}>
+      {/* 교구 .after 불러오기용 hidden input */}
+      <input ref={supplyImportRef} type="file" accept=".after" style={{ display:'none' }} onChange={handleImportSupply} />
 
       {/* 헤더 */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
         <div>
           <h1 style={{ fontSize:'22px', fontWeight:700, color:C.text, margin:0 }}>🎒 교구 및 지도안 관리</h1>
           <p style={{ fontSize:'14px', color:C.muted, marginTop:'4px' }}>과목별 교구 · 지도안 · 홍보물 · 교구업체 관리</p>
+        </div>
+        <div style={{ display:'flex', gap:'8px' }}>
+          <button
+            onClick={() => supplyImportRef.current?.click()}
+            style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #e5e7eb', background:'#fff', color:'#374151', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            📥 교구 불러오기
+          </button>
+          <button
+            onClick={handleExportSupply}
+            style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #86efac', background:'#f0fdf4', color:'#16a34a', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            📤 교구 내보내기
+          </button>
         </div>
       </div>
 

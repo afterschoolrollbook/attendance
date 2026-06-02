@@ -293,6 +293,7 @@ export function Students({ user, onNav }) {
   const [excelStep,    setExcelStep]    = useState(0)
   const [excelClassId, setExcelClassId] = useState('')
   const fileRef = useRef()
+  const studentImportRef = useRef()   // 학생 명단 .after 불러오기용
 
   // ✅ 대기자 승격 알림 상태
   const [promotedName, setPromotedName] = useState(null)
@@ -313,6 +314,131 @@ export function Students({ user, onNav }) {
   const [cancelTarget, setCancelTarget] = useState(null) // { id, name, pendingStatus }
   const [cancelForm,   setCancelForm]   = useState({ type: 'before', date: '', memo: '', termNum: null })
   const refresh = () => setTick(t => t + 1)
+
+  // ── 학생 명단 내보내기 (.after)
+  const handleExportStudents = () => {
+    if (!ctxClass) { toastError('수업을 먼저 선택하세요.'); return }
+    const cls      = classes.find(c => c.id === ctxClass)
+    const students = StudentsDB.byClass(ctxClass)
+    if (students.length === 0) { toastError('해당 수업에 학생이 없습니다.'); return }
+    try {
+      const safeName = (str) => (str || '').replace(/[/\\:*?"<>|]/g, '_').trim()
+      const label = [cls?.days?.join(''), cls?.organization, cls?.className, cls?.section].filter(Boolean).join('_')
+      const payload = {
+        __type: 'students',
+        __version: 1,
+        exportedAt: new Date().toISOString(),
+        classMeta: {
+          id:           cls?.id,
+          organization: cls?.organization || '',
+          className:    cls?.className    || '',
+          section:      cls?.section      || '',
+          days:         cls?.days         || [],
+          time:         cls?.time         || '',
+          timeEnd:      cls?.timeEnd      || '',
+          termType:     cls?.termType     || '',
+        },
+        students: students.map(s => ({
+          name:          s.name,
+          status:        s.status,
+          school:        s.school        || '',
+          grade:         s.grade         || '',
+          classNum:      s.classNum      || '',
+          number:        s.number        || '',
+          parentPhone:   s.parentPhone   || '',
+          studentPhone:  s.studentPhone  || '',
+          contactMethod: s.contactMethod || '',
+          homeReturn:    s.homeReturn    || '',
+          memo:          s.memo          || '',
+          remark:        s.remark        || '',
+          applyOrder:    s.applyOrder    || '',
+          relations:     s.relations     || [],
+          student_careers: s.student_careers || [],
+          statusHistory: s.statusHistory || [],
+        })),
+      }
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `${safeName(label)}_학생.after`
+      a.click()
+      URL.revokeObjectURL(url)
+      showToast(`📤 ${safeName(label)}_학생.after 저장 완료! (${students.length}명)`)
+    } catch (e) {
+      toastError('내보내기 실패: ' + e.message)
+    }
+  }
+
+  // ── 학생 명단 불러오기 (.after)
+  const handleImportStudents = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      if (data.__type !== 'students') {
+        toastError('학생 명단 파일이 아닙니다. (_학생.after 파일을 선택하세요)')
+        return
+      }
+      const meta = data.classMeta || {}
+      // 대상 수업: 현재 ctxClass 선택 중이면 그 수업으로, 없으면 파일 메타로 찾기
+      let targetClassId = ctxClass
+      let targetCls     = classes.find(c => c.id === targetClassId)
+      if (!targetCls) {
+        targetCls = classes.find(c =>
+          c.organization === meta.organization &&
+          c.className    === meta.className &&
+          (c.section     === meta.section || (!c.section && !meta.section))
+        )
+        targetClassId = targetCls?.id || ''
+      }
+      if (!targetClassId || !targetCls) {
+        toastError('학생을 추가할 수업이 없습니다. 먼저 수업을 선택하거나 수업 관리에서 수업을 등록하세요.')
+        return
+      }
+      const existing    = StudentsDB.byClass(targetClassId)
+      const existingKeys = new Set(existing.map(s => `${s.name}__${(s.parentPhone||'').replace(/\D/g,'')}`))
+      let added = 0, skipped = 0
+      for (const s of (data.students || [])) {
+        const key = `${s.name}__${(s.parentPhone||'').replace(/\D/g,'')}`
+        if (existingKeys.has(key)) { skipped++; continue }
+        StudentsDB.insert({
+          id:            uid(),
+          teacherId:     user.id,
+          classIds:      [targetClassId],
+          name:          s.name          || '',
+          status:        s.status        || 'applied',
+          school:        s.school        || targetCls.organization || '',
+          grade:         s.grade         || '',
+          classNum:      s.classNum      || '',
+          number:        s.number        || '',
+          parentPhone:   s.parentPhone   || '',
+          studentPhone:  s.studentPhone  || '',
+          contactMethod: s.contactMethod || '',
+          homeReturn:    s.homeReturn    || '',
+          memo:          s.memo          || '',
+          remark:        s.remark        || '',
+          applyOrder:    s.applyOrder    || '',
+          relations:     s.relations     || [],
+          student_careers: s.student_careers || [],
+          statusHistory: [{ status: s.status || 'applied', changedAt: now(), memo: '템플릿 불러오기' }],
+          movedToManage: false,
+          createdAt:     now(),
+        })
+        existingKeys.add(key)
+        added++
+      }
+      refresh()
+      showToast(
+        `✅ [${targetCls.organization} ${targetCls.className}] 학생 ${added}명 추가` +
+        (skipped > 0 ? ` (중복 ${skipped}명 스킵)` : '')
+      )
+    } catch (e) {
+      toastError('파일을 읽을 수 없습니다: ' + e.message)
+    }
+  }
 
   // 현재 학기 자동 계산
   const getCurrentTerm = () => {
@@ -883,13 +1009,32 @@ export function Students({ user, onNav }) {
 
   return (
     <div style={{ padding: '28px', maxWidth: '1200px' }}>
+      {/* 학생 명단 .after 불러오기용 hidden input */}
+      <input ref={studentImportRef} type="file" accept=".after" style={{ display:'none' }} onChange={handleImportStudents} />
+
       <PageHeader
         title="학생 관리"
         sub="학교 · 과목 · 반을 먼저 선택하고 학생을 관리하세요."
         right={
-          mainTab === 'manage'
-            ? <Btn variant="ghost" onClick={() => onNav('confirm')}>✅ 최종 확정</Btn>
-            : null
+          <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+            {mainTab === 'manage' && (
+              <>
+                <button
+                  onClick={() => studentImportRef.current?.click()}
+                  style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #e5e7eb', background:'#fff', color:'#374151', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  📥 학생 불러오기
+                </button>
+                {ctxClass && (
+                  <button
+                    onClick={handleExportStudents}
+                    style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #86efac', background:'#f0fdf4', color:'#16a34a', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    📤 학생 내보내기
+                  </button>
+                )}
+                <Btn variant="ghost" onClick={() => onNav('confirm')}>✅ 최종 확정</Btn>
+              </>
+            )}
+          </div>
         }
       />
 
