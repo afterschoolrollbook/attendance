@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Users } from './lib/db.js'
-import { initFromSupabase } from './lib/db.js'
+import { initFromSupabase, onSaveError } from './lib/db.js'
+import { SaveStatusBar } from './components/SaveStatusBar.jsx'
 import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
 import { Dashboard } from './pages/Dashboard.jsx'
@@ -121,7 +122,9 @@ export default function App() {
   const [dbReady, setDbReady] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { toasts } = useToast()
+  const { toasts, error: toastError } = useToast()
+
+  // 저장 실패 — SaveStatusBar에서 표시하므로 토스트 제거
   const { confirmDialogProps } = useConfirmDialog()
 
   // ✅ 업체 세션 상태
@@ -344,18 +347,11 @@ export default function App() {
 
   // ─── 핸들러 (렌더링 직전에 정의) ─────────────────────────────────
 
-  // sessionStorage에 저장 시 민감 필드 제거
-  function safeUser(u) {
-    if (!u) return u
-    const { password, passwordHash, pw, hash, permissionOverrides, ...safe } = u
-    return safe
-  }
-
   function handleLogin(u) {
     // 소셜 로그인 / 회원가입: id가 있는 완전한 user 객체
     if (u.id) {
       setUser(u)
-      sessionStorage.setItem('asa_user', JSON.stringify(safeUser(u)))
+      sessionStorage.setItem('asa_user', JSON.stringify(u))
       const pageParam = new URLSearchParams(search).get('page')
       setPage(pageParam || 'dashboard')
       setPageParams({})
@@ -366,7 +362,7 @@ export default function App() {
     const cached = Users.findByEmail(u.email)
     if (cached) {
       setUser(cached)
-      sessionStorage.setItem('asa_user', JSON.stringify(safeUser(cached)))
+      sessionStorage.setItem('asa_user', JSON.stringify(cached))
       const pageParam = new URLSearchParams(search).get('page')
       setPage(pageParam || 'dashboard')
       setPageParams({})
@@ -382,7 +378,7 @@ export default function App() {
       const fullUser = Users.findByEmail(u.email)
       if (!fullUser) return
       setUser(fullUser)
-      sessionStorage.setItem('asa_user', JSON.stringify(safeUser(fullUser)))
+      sessionStorage.setItem('asa_user', JSON.stringify(fullUser))
       const pageParam = new URLSearchParams(search).get('page')
       setPage(pageParam || 'dashboard')
       setPageParams({})
@@ -393,7 +389,7 @@ export default function App() {
 
   function handleUserUpdate(updatedUser) {
     setUser(updatedUser)
-    sessionStorage.setItem('asa_user', JSON.stringify(safeUser(updatedUser)))
+    sessionStorage.setItem('asa_user', JSON.stringify(updatedUser))
   }
 
   async function handleLogout() {
@@ -416,6 +412,7 @@ export default function App() {
 
   return (
     <div style={{ display:'flex', minHeight:'100vh', background:'#f4f5f7', flexDirection: isMobile ? 'column' : 'row' }}>
+      <SaveStatusBar user={user} />
       {isMobile && <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />}
       <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout}
                mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
