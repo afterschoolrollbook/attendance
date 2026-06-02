@@ -13,7 +13,7 @@
 import { supabase, isConfigured } from './supabase.js' // 로컬 전용 모드 제거됨 — 항상 Supabase 직접 연결 (isConfigured 분기 없음)
 import { uid, now } from './utils.js'
 
-// ─── 실제 DB 테이블 이름 매핑 (논리명 → 실제 테이블명)
+// ─── 실제 DB 테이블 이름 매핑 (논리명 → 실제 테이블명, 전부 snake_case)
 const TABLE_MAP = {
   users:                'users',
   classes:              'classes',
@@ -23,67 +23,49 @@ const TABLE_MAP = {
   adSlots:              'ad_slots',
   attendanceTemplates:  'attendance_templates',
   settings:             'settings',
-  revenueFees:          'revenueFees',
-  revenuePayments:      'revenuePayments',
+  revenueFees:          'revenue_fees',
+  revenuePayments:      'revenue_payments',
   trainings:            'trainings',
   careers:              'careers',
   educations:           'educations',
   certificates:         'certificates',
   awards:               'awards',
-  jobSubs:              'jobSubs',
+  jobSubs:              'job_subs',
   branches:             'branches',
   points:               'points',
   parentMembers:        'parent_members',
   teacherParentLinks:   'teacher_parent_links',
   teacherServiceConfigs:'teacher_service_configs',
-  supplySubjects:       'supplySubjects',
-  supplyVendors:        'supplyVendors',
-  supplyItems:          'supplyItems',
-  supplyPlans:          'supplyPlans',
-  supplyPromos:         'supplyPromos',
-  supplyProducts:       'supplyProducts',
-  supplyProductPlans:   'supplyProductPlans',
-  supplyStudentProgress:'supplyStudentProgress',
-  supplyProgressLogs:   'supplyProgressLogs',
-  supplySessionChecks:  'supplySessionChecks',
-  messageGuides:        'messageGuides',
-  messageCategories:    'messageCategories',
-  teacherProfiles:      'teacherProfiles',
+  supplySubjects:       'supply_subjects',
+  supplyVendors:        'supply_vendors',
+  supplyItems:          'supply_items',
+  supplyPlans:          'supply_plans',
+  supplyPromos:         'supply_promos',
+  supplyProducts:       'supply_products',
+  supplyProductPlans:   'supply_product_plans',
+  supplyStudentProgress:'supply_student_progress',
+  supplyProgressLogs:   'supply_progress_logs',
+  supplySessionChecks:  'supply_session_checks',
+  messageGuides:        'message_guides',
+  messageCategories:    'message_categories',
+  teacherProfiles:      'teacher_profiles',
   documents:            'documents',
   customCategories:     'custom_categories',
   lessonMemos:          'lesson_memos',
-  schoolAdmins:         'schoolAdmins',
-  schoolAdminAccounts:  'schoolAdminAccounts',
-  schoolAdminTeachers:  'schoolAdminTeachers',
-  schoolSubjects:       'schoolSubjects',
-  schoolTeacherInvites: 'schoolTeacherInvites',
-  schoolNotices:        'schoolNotices',
-  schoolNoticeSubmits:  'schoolNoticeSubmits',
-  schoolCalendar:       'schoolCalendar',
-  schoolInfo:           'schoolInfo',
+  schoolAdmins:         'school_admins',
+  schoolAdminAccounts:  'school_admin_accounts',
+  schoolAdminTeachers:  'school_admin_teachers',
+  schoolSubjects:       'school_subjects',
+  schoolTeacherInvites: 'school_teacher_invites',
+  schoolNotices:        'school_notices',
+  schoolNoticeSubmits:  'school_notice_submits',
+  schoolCalendar:       'school_calendar',
+  schoolInfo:           'school_info',
   blogPosts:            'blog_posts',
-  supplyGiven:          'supplyGiven',
-  supplyParts:          'supplyParts',
+  supplyGiven:          'supply_given',
+  supplyParts:          'supply_parts',
+  supplySchoolPrices:   'supply_school_prices',
 }
-
-// ─── camelCase 컬럼 테이블 (변환 없이 그대로 사용)
-const CAMEL_TABLES = new Set([
-  'revenueFees', 'revenuePayments',
-  'trainings', 'careers', 'educations', 'certificates', 'awards', 'jobSubs',
-  'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
-  'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress',
-  'supplyProgressLogs', 'supplySessionChecks',
-  'messageGuides', 'messageCategories', 'teacherProfiles',
-  'schoolAdmins', 'schoolAdminAccounts', 'schoolAdminTeachers',
-  'schoolSubjects', 'schoolTeacherInvites',
-  'schoolNotices', 'schoolNoticeSubmits',
-  'schoolCalendar', 'schoolInfo',
-  'documents',
-  'customCategories',  // ✅ teacherId, sortOrder, createdAt, updatedAt (camelCase)
-  'lessonMemos',       // ✅ teacherId, classId, createdAt, updatedAt (camelCase)
-  'supplyGiven',       // ✅ 교구 지급 기록
-  'supplyParts',       // ✅ 교구 부품
-])
 
 // ─── camelCase → snake_case 변환
 function toSnake(obj) {
@@ -109,11 +91,10 @@ function toCamel(obj) {
 
 // ─── 테이블별 변환 함수 반환
 function getConverters(table) {
-  const isCamel = CAMEL_TABLES.has(table)
   return {
     tbl:    TABLE_MAP[table] || table,
-    toDb:   (obj) => isCamel ? obj : toSnake(obj),
-    fromDb: (obj) => isCamel ? obj : toCamel(obj),
+    toDb:   toSnake,
+    fromDb: toCamel,
   }
 }
 
@@ -211,7 +192,7 @@ async function syncDelete(table, id) {
   await withRetry(async () => {
     const { error } = await supabase
       .from(tbl)
-      .update({ _deleted: true, updatedAt: new Date().toISOString() })
+      .update({ _deleted: true, updated_at: new Date().toISOString() })
       .eq('id', id)
     if (error) throw new Error(error.message)
   }, `delete/${table}`)
@@ -336,7 +317,7 @@ export const db = {
   getOne: (t, id) => cache.get(t).find(r => r.id === id && !r._deleted) || null,
 
   async insert(t, record) {
-    const r = { _deleted: false, ...record, updatedAt: now() }
+    const r = { _deleted: false, ...record, updated_at: now() }
     const rows = cache.get(t)
     rows.push(r)
     cache.set(t, rows)
@@ -351,7 +332,7 @@ export const db = {
   },
 
   async update(t, id, patch) {
-    const updated = { ...patch, updatedAt: now() }
+    const updated = { ...patch, updated_at: now() }
     const rows = cache.get(t).map(r => r.id === id ? { ...r, ...updated } : r)
     cache.set(t, rows)
     _emit(t)
@@ -366,7 +347,7 @@ export const db = {
 
   async delete(t, id) {
     const rows = cache.get(t).map(r =>
-      r.id === id ? { ...r, _deleted: true, updatedAt: now() } : r
+      r.id === id ? { ...r, _deleted: true, updated_at: now() } : r
     )
     cache.set(t, rows)
     _emit(t)
@@ -424,8 +405,8 @@ export const Attendance = {
   async upsert(record) {
     const ex = this.find(record.classId, record.studentId, record.date)
     const merged = ex
-      ? { ...ex, ...record, id: ex.id, updatedAt: now() }
-      : { _deleted: false, ...record, updatedAt: now() }
+      ? { ...ex, ...record, id: ex.id, updated_at: now() }
+      : { _deleted: false, ...record, updated_at: now() }
 
     // 캐시 업데이트
     const rows = cache.get('attendance')
