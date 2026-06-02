@@ -3072,6 +3072,7 @@ export function Dashboard({ user, onNav }) {
           </div>
         </div>
       )}
+      {supplyAlerts.length > 0 && (
         <div style={{ background: '#fef2f2', borderRadius: '12px', border: '1.5px solid #fca5a5', padding: '14px 18px', position: 'relative' }}>
           <button
             onClick={() => hideCard('supply')}
