@@ -637,6 +637,13 @@ export function Students({ user, onNav }) {
     delete saveData._newTimeStart; delete saveData._newTimeEnd
     delete saveData._newTermType; delete saveData._newDays; delete saveData._newRepeatType
     delete saveData._newStartDate; delete saveData._newEndDate
+    // transfer_info는 Supabase 컬럼 없음 — statusHistory에 날짜 기록 후 제거
+    if (saveData.transfer_info) {
+      const tDate = saveData.transfer_info.date || new Date().toISOString().slice(0,10)
+      const tStatus = saveData.status === 'transfer_out' ? '전학' : '전입'
+      saveData.statusHistory = [...(saveData.statusHistory||[]), { status: saveData.status, changedAt: new Date().toISOString(), memo: `[${tStatus}] ${tDate}` }]
+      delete saveData.transfer_info
+    }
 
     if (editId) {
       if (saveData.status === 'cancelled' && !saveData.cancel_info) {
@@ -1133,14 +1140,14 @@ export function Students({ user, onNav }) {
                               border: `1px solid ${s.status==='transfer_out'?'#7dd3fc':'#6ee7b7'}`,
                               color: s.status==='transfer_out'?'#0369a1':'#065f46' }}>
                               {s.status === 'transfer_out' ? '전학' : '전입'}
-                              {s.transfer_info?.date && (() => { const [y,m,day]=s.transfer_info.date.split('-'); return `-${y.slice(2)}.${parseInt(m)}.${parseInt(day)}` })()}
+                              {(() => { const h = (s.statusHistory||[]).slice().reverse().find(h => h.status === s.status && h.memo?.startsWith('[전')); const m = h?.memo?.match(/\d{4}-\d{2}-\d{2}/); if (!m) return null; const [y,mo,d] = m[0].split('-'); return `-${y.slice(2)}.${parseInt(mo)}.${parseInt(d)}` })()}
                             </span>
                           )}
                           {s.status === 'extra_applied' && (
                             <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
                               background:'#fffbeb', border:'1px solid #fcd34d', color:'#b45309' }}>
                               추가신청
-                              {s.transfer_info?.date && (() => { const [y,m,day]=s.transfer_info.date.split('-'); return `-${y.slice(2)}.${parseInt(m)}.${parseInt(day)}` })()}
+                              {(() => { const h = (s.statusHistory||[]).slice().reverse().find(h => h.status === 'extra_applied'); const m = h?.memo?.match(/\d{4}-\d{2}-\d{2}/); if (!m) return null; const [y,mo,d] = m[0].split('-'); return `-${y.slice(2)}.${parseInt(mo)}.${parseInt(d)}` })()}
                             </span>
                           )}
                           {(s.relations||[]).map((r, i) => (

@@ -2742,7 +2742,12 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
               const val = e.target.value
               setField('absentReason', val)
               if (val === 'transferred') {
-                StudentsDB.update(s.id, { status: 'transfer_out', transfer_info: { date: new Date().toISOString().slice(0,10) } })
+                const today = new Date().toISOString().slice(0,10)
+                const existing = StudentsDB.find(s.id)
+                StudentsDB.update(s.id, {
+                  status: 'transfer_out',
+                  statusHistory: [...(existing?.statusHistory||[]), { status: 'transfer_out', changedAt: now(), memo: `[전학] ${today}` }],
+                })
               }
             }} style={selSm}>
               {ABSENT_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
@@ -2751,7 +2756,13 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
               <div style={{ marginTop:'6px', display:'flex', flexDirection:'column', gap:'4px' }}>
                 <label style={{ fontSize:'10px', fontWeight:600, color:'#0369a1' }}>✈️ 전학 날짜</label>
                 <input type="date" defaultValue={new Date().toISOString().slice(0,10)}
-                  onChange={e => StudentsDB.update(s.id, { status: 'transfer_out', transfer_info: { date: e.target.value } })}
+                  onChange={e => {
+                    const existing = StudentsDB.find(s.id)
+                    StudentsDB.update(s.id, {
+                      status: 'transfer_out',
+                      statusHistory: [...(existing?.statusHistory||[]), { status: 'transfer_out', changedAt: now(), memo: `[전학] ${e.target.value}` }],
+                    })
+                  }}
                   style={{ padding:'4px 8px', borderRadius:'6px', border:'1.5px solid #7dd3fc', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#f0f9ff', color:'#0369a1' }} />
                 <div style={{ fontSize:'10px', color:'#0369a1', background:'#f0f9ff', border:'1px solid #7dd3fc', borderRadius:'5px', padding:'3px 7px', fontWeight:600 }}>
                   전학 처리됨 — 다음 수업부터 명단에서 제외됩니다
