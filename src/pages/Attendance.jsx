@@ -1946,7 +1946,11 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     if (checking) return
     setChecking(true)
     try {
-      const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => Number(c.stage)===Number(stage) && Number(c.sessionNo)===Number(sessionNo))
+      const allChecks = SupplySessionChecks.byProductStudent(productId, student.id, classId)
+      console.log('[toggleCheck] 전체 체크 수:', allChecks.length, 'stage:', stage, 'sessionNo:', sessionNo)
+      console.log('[toggleCheck] 샘플:', allChecks.slice(0,2).map(c => ({stage: c.stage, stageType: typeof c.stage, sessionNo: c.sessionNo, sessionNoType: typeof c.sessionNo})))
+      const existing = allChecks.find(c => Number(c.stage)===Number(stage) && Number(c.sessionNo)===Number(sessionNo))
+      console.log('[toggleCheck] existing:', !!existing, existing?.id)
       if (existing) await SupplySessionChecks.delete(existing.id)
       else await SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage: Number(stage), sessionNo: Number(sessionNo), checkedAt: now(), createdAt: now() })
       const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => Number(c.stage)===Number(stage))
