@@ -1939,19 +1939,26 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     onSaved && onSaved()
   }
 
+  const [checking, setChecking] = React.useState(false)
   const toggleCheck = async (productId, stage, sessionNo) => {
-    const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
-    if (existing) await SupplySessionChecks.delete(existing.id)
-    else await SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage, sessionNo, checkedAt: now(), createdAt: now() })
-    // SupplyStudentProgress, SupplyItems 는 서로 독립적이므로 병렬 처리
-    const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
-    const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
-    await Promise.all([
-      SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() }),
-      si ? SupplyItems.upsert({ ...si, productId, stage, remoteNo: si.remoteNo || '' }) : Promise.resolve(),
-    ])
-    setTick(t => t + 1)
-    onSaved && onSaved()
+    if (checking) return
+    setChecking(true)
+    try {
+      const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => Number(c.stage)===Number(stage) && Number(c.sessionNo)===Number(sessionNo))
+      if (existing) await SupplySessionChecks.delete(existing.id)
+      else await SupplySessionChecks.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, stage: Number(stage), sessionNo: Number(sessionNo), checkedAt: now(), createdAt: now() })
+      // SupplyStudentProgress, SupplyItems 는 서로 독립적이므로 병렬 처리
+      const allChks = SupplySessionChecks.byProductStudent(productId, student.id, classId).filter(c => c.stage===stage)
+      const maxSess = allChks.length > 0 ? Math.max(...allChks.map(c => c.sessionNo)) : 1
+      await Promise.all([
+        SupplyStudentProgress.upsert({ id: uid(), teacherId: teacherId||'', studentId: student.id, classId, productId, curStage: stage, curSession: maxSess, updatedAt: now(), createdAt: now() }),
+        si ? SupplyItems.upsert({ ...si, productId, stage, remoteNo: si.remoteNo || '' }) : Promise.resolve(),
+      ])
+      setTick(t => t + 1)
+      onSaved && onSaved()
+    } finally {
+      setChecking(false)
+    }
   }
   const updateCheckDate = async (productId, stage, sessionNo, newDateStr) => {
     const existing = SupplySessionChecks.byProductStudent(productId, student.id, classId).find(c => c.stage===stage && c.sessionNo===sessionNo)
