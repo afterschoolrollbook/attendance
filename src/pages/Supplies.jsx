@@ -2193,12 +2193,31 @@ export function Supplies({ user }) {
         </div>
       </div>
 
-      {/* 과목 탭 */}
-      <div style={{ display:'flex', gap:'6px', marginBottom:'20px', flexWrap:'wrap', alignItems:'center' }}>
-        {subjects.map(s => (
-          <div key={s} style={{ display:'flex', alignItems:'center' }}>
+      {/* 과목 탭 — 드래그로 순서 변경 가능 */}
+      <div style={{ display:'flex', gap:'6px', marginBottom:'20px', flexWrap:'wrap', alignItems:'center' }}
+        onDragOver={e => e.preventDefault()}>
+        {subjects.map((s, idx) => (
+          <div key={s} style={{ display:'flex', alignItems:'center' }}
+            draggable
+            onDragStart={e => { e.dataTransfer.setData('text/plain', String(idx)) }}
+            onDrop={e => {
+              e.preventDefault()
+              const fromIdx = Number(e.dataTransfer.getData('text/plain'))
+              const toIdx   = idx
+              if (fromIdx === toIdx) return
+              const next = [...subjects]
+              const [moved] = next.splice(fromIdx, 1)
+              next.splice(toIdx, 0, moved)
+              // DB sortOrder 업데이트
+              const dbSubjects = SupplySubjects.byTeacher(user.id)
+              next.forEach((name, i) => {
+                const row = dbSubjects.find(r => r.name === name)
+                if (row) SupplySubjects.update(row.id, { sortOrder: i })
+              })
+              reload()
+            }}>
             <button onClick={() => { setSelSubject(s); setSelClassId(''); setInnerTab('supply') }}
-              style={{ padding:'8px 16px', borderRadius: selSubject===s ? '8px 0 0 8px' : '8px', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600, fontSize:'14px', background: selSubject===s ? C.primary : '#f3f4f6', color: selSubject===s ? '#fff' : C.muted, transition:'all .15s' }}>
+              style={{ padding:'8px 16px', borderRadius: selSubject===s ? '8px 0 0 8px' : '8px', border:'none', cursor:'grab', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600, fontSize:'14px', background: selSubject===s ? C.primary : '#f3f4f6', color: selSubject===s ? '#fff' : C.muted, transition:'all .15s', userSelect:'none' }}>
               {s}
             </button>
             {selSubject===s && (
