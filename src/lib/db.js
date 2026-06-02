@@ -173,6 +173,15 @@ function _emitSaveError(label, msg) { _saveErrorListeners.forEach(fn => fn(label
 async function syncInsert(table, data) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
+  // supply_session_checks는 unique constraint가 있으므로 upsert로 처리
+  if (table === 'supplySessionChecks') {
+    await withRetry(async () => {
+      const { error } = await supabase.from(tbl)
+        .upsert(toDb(data), { onConflict: 'student_id,class_id,product_id,stage,session_no' })
+      if (error) throw new Error(error.message)
+    }, `insert/${table}`)
+    return
+  }
   await withRetry(async () => {
     const { error } = await supabase.from(tbl).insert(toDb(data))
     if (error) throw new Error(error.message)
