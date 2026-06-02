@@ -256,11 +256,16 @@ export async function initFromSupabase() {
         }
 
         const { data: rows, error } = await q
-        if (error) throw new Error(error.message)
-        if (!Array.isArray(rows)) return
-
+        if (error) {
+          console.error(`[Supabase] ${t} 오류:`, error.message, error.code, error.hint)
+          throw new Error(error.message)
+        }
+        if (!Array.isArray(rows)) {
+          console.warn(`[Supabase] ${t}: rows가 배열이 아님`, rows)
+          return
+        }
         cache.set(t, rows.map(fromDb).filter(r => r._deleted !== true))
-        console.log(`[Supabase] ${t}: ${cache.get(t).length}건 로드`)
+        console.log(`[Supabase] ${t}: ${cache.get(t).length}건 로드 (원본 ${rows.length}건)`)
       } catch (e) {
         console.warn(`[Supabase] ${t} 로드 실패:`, e.message)
       }
