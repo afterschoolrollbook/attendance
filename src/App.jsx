@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Users } from './lib/db.js'
-import { initFromSupabase, onSaveError } from './lib/db.js'
+import { initFromSupabase, onSaveError, unsubscribeAll } from './lib/db.js'
 import { SaveStatusBar } from './components/SaveStatusBar.jsx'
 import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
@@ -175,7 +175,7 @@ export default function App() {
       const session = await authGetSession()
 
       if (session?.user) {
-        await initFromSupabase()
+        await initFromSupabase(session.user.id)
         const fresh = Users.findByEmail(session.user.email)
         if (fresh) {
           // 접속 기간 만료 체크
@@ -366,7 +366,7 @@ export default function App() {
       const pageParam = new URLSearchParams(search).get('page')
       setPage(pageParam || 'dashboard')
       setPageParams({})
-      initFromSupabase().then(() => {
+      initFromSupabase(cached.id).then(() => {
         const fresh = Users.findByEmail(u.email)
         if (fresh) setUser(fresh)
       })
@@ -374,7 +374,7 @@ export default function App() {
     }
 
     // 캐시에 없으면 sync 후 조회
-    initFromSupabase().then(() => {
+    initFromSupabase(u.id).then(() => {
       const fullUser = Users.findByEmail(u.email)
       if (!fullUser) return
       setUser(fullUser)
@@ -393,6 +393,7 @@ export default function App() {
   }
 
   async function handleLogout() {
+    unsubscribeAll()  // Realtime 구독 해제
     if (isConfigured) await authSignOut()
     setUser(null)
     sessionStorage.removeItem('asa_user')
