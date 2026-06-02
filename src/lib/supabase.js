@@ -25,61 +25,60 @@ const TABLE_MAP = {
   adSlots:              'ad_slots',
   attendanceTemplates:  'attendance_templates',
   settings:             'settings',
-  revenueFees:          'revenueFees',
-  revenuePayments:      'revenuePayments',
+  revenueFees:          'revenue_fees',
+  revenuePayments:      'revenue_payments',
   trainings:            'trainings',
   careers:              'careers',
   educations:           'educations',
   certificates:         'certificates',
   awards:               'awards',
-  jobSubs:              'jobSubs',
+  jobSubs:              'job_subs',
   branches:             'branches',
   points:               'points',
   parentMembers:        'parent_members',
   teacherParentLinks:   'teacher_parent_links',
   teacherServiceConfigs:'teacher_service_configs',
-  supplySubjects:       'supplySubjects',
-  supplyVendors:        'supplyVendors',
-  supplyItems:          'supplyItems',
-  supplyPlans:          'supplyPlans',
-  supplyPromos:         'supplyPromos',
-  supplyProducts:       'supplyProducts',
-  supplyProductPlans:   'supplyProductPlans',
-  supplyStudentProgress:'supplyStudentProgress',
-  supplyProgressLogs:   'supplyProgressLogs',
-  supplySessionChecks:  'supplySessionChecks',
-  messageGuides:        'messageGuides',
-  messageCategories:    'messageCategories',
-  teacherProfiles:      'teacherProfiles',
+  supplySubjects:       'supply_subjects',
+  supplyVendors:        'supply_vendors',
+  supplyItems:          'supply_items',
+  supplyPlans:          'supply_plans',
+  supplyPromos:         'supply_promos',
+  supplyProducts:       'supply_products',
+  supplyProductPlans:   'supply_product_plans',
+  supplyStudentProgress:'supply_student_progress',
+  supplyProgressLogs:   'supply_progress_logs',
+  supplySessionChecks:  'supply_session_checks',
+  messageGuides:        'message_guides',
+  messageCategories:    'message_categories',
+  teacherProfiles:      'teacher_profiles',
   documents:            'documents',
   customCategories:     'custom_categories',
   lessonMemos:          'lesson_memos',
-  schoolAdmins:         'schoolAdmins',
-  schoolAdminAccounts:  'schoolAdminAccounts',
-  schoolAdminTeachers:  'schoolAdminTeachers',
-  schoolSubjects:       'schoolSubjects',
-  schoolTeacherInvites: 'schoolTeacherInvites',
-  schoolNotices:        'schoolNotices',
-  schoolNoticeSubmits:  'schoolNoticeSubmits',
-  schoolCalendar:       'schoolCalendar',
-  schoolInfo:           'schoolInfo',
+  schoolAdmins:         'school_admins',
+  schoolAdminAccounts:  'school_admin_accounts',
+  schoolAdminTeachers:  'school_admin_teachers',
+  schoolSubjects:       'school_subjects',
+  schoolTeacherInvites: 'school_teacher_invites',
+  schoolNotices:        'school_notices',
+  schoolNoticeSubmits:  'school_notice_submits',
+  schoolCalendar:       'school_calendar',
+  schoolInfo:           'school_info',
   blogPosts:            'blog_posts',
+  supplyGiven:          'supply_given',
+  supplyParts:          'supply_parts',
+  supplySchoolPrices:   'supply_school_prices',
+  hqVendors:            'hq_vendors',
+  hqVendorSubjects:     'hq_vendor_subjects',
+  hqVendorProducts:     'hq_vendor_products',
+  hqVendorStages:       'hq_vendor_stages',
+  hqVendorContents:     'hq_vendor_contents',
+  hqVendorQuarters:     'hq_vendor_quarters',
+  hqVendorSessions:     'hq_vendor_sessions',
+  hqVendorFiles:        'hq_vendor_files',
+  hqVendorPrices:       'hq_vendor_prices',
+  hqVendorUsers:        'hq_vendor_users',
+  vendorAccounts:       'vendor_accounts',
 }
-
-// ─── camelCase 컬럼 테이블 (변환 없이 그대로 사용)
-const CAMEL_TABLES = new Set([
-  'revenueFees', 'revenuePayments',
-  'trainings', 'careers', 'educations', 'certificates', 'awards', 'jobSubs',
-  'supplySubjects', 'supplyVendors', 'supplyItems', 'supplyPlans', 'supplyPromos',
-  'supplyProducts', 'supplyProductPlans', 'supplyStudentProgress',
-  'supplyProgressLogs', 'supplySessionChecks',
-  'messageGuides', 'messageCategories', 'teacherProfiles',
-  'schoolAdmins', 'schoolAdminAccounts', 'schoolAdminTeachers',
-  'schoolSubjects', 'schoolTeacherInvites',
-  'schoolNotices', 'schoolNoticeSubmits',
-  'schoolCalendar', 'schoolInfo',
-  'documents',
-])
 
 function toSnake(obj) {
   const result = {}
@@ -100,12 +99,11 @@ function toCamel(obj) {
 }
 
 function getConverters(table) {
-  const isCamel = CAMEL_TABLES.has(table)
   const tbl = TABLE_MAP[table] || table
   return {
     tbl,
-    toDb:   (obj) => isCamel ? obj : toSnake(obj),
-    fromDb: (obj) => isCamel ? obj : toCamel(obj),
+    toDb:   toSnake,
+    fromDb: toCamel,
   }
 }
 
@@ -118,7 +116,7 @@ export async function dbCall(action, table, payload = {}) {
 
   switch (action) {
     case 'getAll': {
-      const NO_DELETED = new Set(['points', 'settings'])
+      const NO_DELETED = new Set(['points', 'settings', 'revenueFees', 'revenuePayments', 'supplySubjects', 'supplyVendors', 'supplyPlans', 'supplyProducts', 'supplyProductPlans', 'schoolCalendar', 'schoolInfo', 'hqVendors', 'hqVendorSubjects', 'hqVendorProducts', 'hqVendorStages', 'hqVendorContents', 'hqVendorQuarters', 'hqVendorSessions', 'hqVendorFiles', 'hqVendorPrices', 'hqVendorUsers', 'vendorAccounts'])
       let q = supabase.from(tbl).select('*')
       if (!NO_DELETED.has(table)) {
         q = q.or('_deleted.is.null,_deleted.eq.false')
@@ -141,7 +139,7 @@ export async function dbCall(action, table, payload = {}) {
     case 'where': {
       let q = supabase.from(tbl).select('*')
       for (const [col, val] of Object.entries(where || {})) {
-        const dbCol = CAMEL_TABLES.has(table) ? col : col.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
+        const dbCol = col.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
         q = q.eq(dbCol, val)
       }
       const { data: rows, error } = await q
@@ -170,7 +168,7 @@ export async function dbCall(action, table, payload = {}) {
     case 'delete': {
       const { error } = await supabase
         .from(tbl)
-        .update({ _deleted: true, updatedAt: new Date().toISOString() })
+        .update({ _deleted: true, updated_at: new Date().toISOString() })
         .eq('id', id)
       if (error) throw new Error(error.message)
       return { deleted: true }
