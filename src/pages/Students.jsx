@@ -2012,6 +2012,58 @@ export function Students({ user, onNav }) {
           </div>
 
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', paddingTop: '16px', marginTop: '4px', borderTop: '1px solid #e5e7eb' }}>
+            {editId && (
+              <button onClick={() => {
+                const s = StudentsDB.byTeacher(user.id).find(x => x.id === editId)
+                if (!s) return
+                const cls = classes.find(c => c.id === s.classIds?.[0])
+                const safeName = (str) => (str || '').replace(/[/\\:*?"<>|]/g, '_').trim()
+                const label = [cls?.days?.join(''), cls?.organization, cls?.className, cls?.section, s.name].filter(Boolean).join('_')
+                const payload = {
+                  __type: 'students',
+                  __version: 1,
+                  exportedAt: new Date().toISOString(),
+                  classMeta: {
+                    id:           cls?.id,
+                    organization: cls?.organization || '',
+                    className:    cls?.className    || '',
+                    section:      cls?.section      || '',
+                    days:         cls?.days         || [],
+                    time:         cls?.time         || '',
+                    timeEnd:      cls?.timeEnd      || '',
+                    termType:     cls?.termType     || '',
+                  },
+                  students: [{
+                    name:          s.name,
+                    status:        s.status,
+                    school:        s.school        || '',
+                    grade:         s.grade         || '',
+                    classNum:      s.classNum      || '',
+                    number:        s.number        || '',
+                    parentPhone:   s.parentPhone   || '',
+                    studentPhone:  s.studentPhone  || '',
+                    contactMethod: s.contactMethod || '',
+                    homeReturn:    s.homeReturn    || '',
+                    memo:          s.memo          || '',
+                    remark:        s.remark        || '',
+                    applyOrder:    s.applyOrder    || '',
+                    relations:     s.relations     || [],
+                    student_careers: s.student_careers || [],
+                    statusHistory: s.statusHistory || [],
+                  }],
+                }
+                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+                const url  = URL.createObjectURL(blob)
+                const a    = document.createElement('a')
+                a.href     = url
+                a.download = `${safeName(label)}_학생.after`
+                a.click()
+                URL.revokeObjectURL(url)
+                showToast(`📤 ${s.name} 내보내기 완료!`)
+              }} style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #86efac', background:'#f0fdf4', color:'#16a34a', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', marginRight:'auto' }}>
+                📤 내보내기
+              </button>
+            )}
             <Btn variant="ghost" onClick={() => setShowModal(false)}>취소</Btn>
             <Btn onClick={save}>{editId ? '저장' : '등록'}</Btn>
           </div>
