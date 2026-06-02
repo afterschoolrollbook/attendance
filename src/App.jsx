@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Users } from './lib/db.js'
 import { initFromSupabase, onSaveError } from './lib/db.js'
+import { SaveStatusBar } from './components/SaveStatusBar.jsx'
 import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
 import { Dashboard } from './pages/Dashboard.jsx'
@@ -123,13 +124,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { toasts, error: toastError } = useToast()
 
-  // 저장 실패 시 토스트 알림
-  useEffect(() => {
-    const unsub = onSaveError((label, msg) => {
-      toastError(`저장 실패 — 네트워크를 확인해주세요 (${msg})`)
-    })
-    return unsub
-  }, [])
+  // 저장 실패 — SaveStatusBar에서 표시하므로 토스트 제거
   const { confirmDialogProps } = useConfirmDialog()
 
   // ✅ 업체 세션 상태
@@ -417,6 +412,7 @@ export default function App() {
 
   return (
     <div style={{ display:'flex', minHeight:'100vh', background:'#f4f5f7', flexDirection: isMobile ? 'column' : 'row' }}>
+      <SaveStatusBar user={user} />
       {isMobile && <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />}
       <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout}
                mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
