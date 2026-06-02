@@ -138,31 +138,44 @@ const cache = {
 
 // ─── 재시도 헬퍼 (네트워크 일시 오류 대응)
 async function withRetry(fn, label, maxRetry = 3) {
+  _emitSaveStart()
   for (let i = 0; i < maxRetry; i++) {
     try {
-      return await fn()
+      const result = await fn()
+      _emitSaveComplete()
+      return result
     } catch (e) {
       const isLast = i === maxRetry - 1
       console.warn(`[DB] ${label} 실패 (${i+1}/${maxRetry}):`, e.message)
       if (isLast) {
-        // 마지막 재시도도 실패 → 사용자에게 알림
         _emitSaveError(label, e.message)
         throw e
       }
-      await new Promise(r => setTimeout(r, 500 * (i + 1))) // 0.5s, 1s 대기 후 재시도
+      await new Promise(r => setTimeout(r, 500 * (i + 1)))
     }
   }
 }
 
-// 저장 실패 이벤트 (App에서 토스트로 표시)
-const _saveErrorListeners = new Set()
+// 저장 상태 이벤트 (SaveStatusBar에서 구독)
+const _saveStartListeners    = new Set()
+const _saveCompleteListeners = new Set()
+const _saveErrorListeners    = new Set()
+
+export function onSaveStart(fn) {
+  _saveStartListeners.add(fn)
+  return () => _saveStartListeners.delete(fn)
+}
+export function onSaveComplete(fn) {
+  _saveCompleteListeners.add(fn)
+  return () => _saveCompleteListeners.delete(fn)
+}
 export function onSaveError(fn) {
   _saveErrorListeners.add(fn)
   return () => _saveErrorListeners.delete(fn)
 }
-function _emitSaveError(label, msg) {
-  _saveErrorListeners.forEach(fn => fn(label, msg))
-}
+function _emitSaveStart()        { _saveStartListeners.forEach(fn => fn()) }
+function _emitSaveComplete()     { _saveCompleteListeners.forEach(fn => fn()) }
+function _emitSaveError(label, msg) { _saveErrorListeners.forEach(fn => fn(label, msg)) }
 
 // ─── Supabase 직접 쓰기 함수들
 async function syncInsert(table, data) {
