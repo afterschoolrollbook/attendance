@@ -179,11 +179,17 @@ async function syncInsert(table, data) {
   }, `insert/${table}`)
 }
 
+const UPSERT_CONFLICTS = {
+  supplySessionChecks: 'student_id,class_id,product_id,stage,session_no',
+}
+
 async function syncUpsert(table, data) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
+  const onConflict = UPSERT_CONFLICTS[table]
   await withRetry(async () => {
-    const { error } = await supabase.from(tbl).upsert(toDb(data))
+    const q = supabase.from(tbl).upsert(toDb(data), onConflict ? { onConflict } : undefined)
+    const { error } = await q
     if (error) throw new Error(error.message)
   }, `upsert/${table}`)
 }
@@ -866,31 +872,12 @@ export const SupplySessionChecks = {
   update:           (id, p)                         => db.update('supplySessionChecks', id, p),
   delete:           (id)                            => db.delete('supplySessionChecks', id),
   async upsert(r) {
-    const record = { ...r, id: r.id || uid() }
-    // 캐시 업데이트
     const existing = db.where('supplySessionChecks', x =>
       x.studentId === r.studentId && x.classId === r.classId &&
       x.productId === r.productId && x.stage === r.stage && x.sessionNo === r.sessionNo
     )[0]
-    if (existing) {
-      const rows = cache.get('supplySessionChecks').map(x => x.id === existing.id ? { ...x, ...record, id: existing.id } : x)
-      cache.set('supplySessionChecks', rows)
-    } else {
-      const rows = cache.get('supplySessionChecks')
-      rows.push(record)
-      cache.set('supplySessionChecks', rows)
-    }
-    _emit('supplySessionChecks')
-    // DB upsert with onConflict
-    if (supabase) {
-      await withRetry(async () => {
-        const { error } = await supabase
-          .from('supply_session_checks')
-          .upsert(toSnake(record), { onConflict: 'student_id,class_id,product_id,stage,session_no' })
-        if (error) throw new Error(error.message)
-      }, 'upsert/supplySessionChecks')
-    }
-    return record
+    if (existing) return await db.update('supplySessionChecks', existing.id, { ...r })
+    return await db.insert('supplySessionChecks', { ...r, id: r.id || uid() })
   },
 }
 
