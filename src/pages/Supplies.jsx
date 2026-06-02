@@ -1247,7 +1247,8 @@ export function Supplies({ user }) {
   const [partsViewStage, setPartsViewStage]   = useState(null)  // null=전체, n=누적탭
 
   const { error: toastError, success } = useToast()
-  const supplyImportRef = useRef()   // 교구 .after 불러오기용
+  const supplyImportRef = useRef()   // 교구 전체 .after 불러오기용
+  const productImportRef = useRef()  // 교구 단품 .after 불러오기용
 
   const schoolList = [...new Set(classes.map(c => c.organization).filter(Boolean))]
 
@@ -1449,6 +1450,135 @@ export function Supplies({ user }) {
   }
 
   const isRobot = selSubject === '로봇'
+
+  // ── 교구 단품 내보내기 (.after) — 교구 카드의 📤 내보내기 버튼
+  const exportProduct = (vendor, product) => {
+    try {
+      const safeName = (str) => (str || '').replace(/[/\\:*?"<>|]/g, '_').trim()
+      const plans = productPlanList.filter(pl => pl.productId === product.id)
+      const payload = {
+        __type: 'supply',
+        __version: 1,
+        exportedAt: new Date().toISOString(),
+        subjects: selSubject ? [selSubject] : [],
+        vendors: [{
+          _srcId:      vendor.id,
+          name:        vendor.name,
+          managerName: vendor.managerName || '',
+          contact:     vendor.contact     || '',
+          memo:        vendor.memo        || '',
+          subjects:    vendor.subjects    || [],
+        }],
+        products: [{
+          _srcId:           product.id,
+          _srcVendorId:     vendor.id,
+          name:             product.name,
+          subject:          product.subject          || '',
+          maxStage:         product.maxStage         || 10,
+          sessionsPerStage: product.sessionsPerStage || 12,
+          alertSession:     product.alertSession     || 3,
+          price:            product.price            || 0,
+          consumerPrice:    product.consumerPrice    || 0,
+          schoolPrice:      product.schoolPrice      || 0,
+          branchPrice:      product.branchPrice      || 0,
+          teacherPrice:     product.teacherPrice     || 0,
+          purchasePrice:    product.purchasePrice    || 0,
+        }],
+        productPlans: plans.map(pl => ({
+          _srcProductId: product.id,
+          stage:         pl.stage,
+          sessionNo:     pl.sessionNo,
+          title:         pl.title || '',
+          memo:          pl.memo  || '',
+        })),
+      }
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `${safeName(vendor.name)}_${safeName(product.name)}_교구.after`
+      a.click()
+      URL.revokeObjectURL(url)
+      success(`📤 ${product.name} 내보내기 완료!`)
+    } catch (err) {
+      toastError('내보내기 실패: ' + err.message)
+    }
+  }
+
+  // ── 교구 단품 불러오기 (.after) → 교구 등록 모달 열고 폼 채우기
+  const handleImportProduct = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      if (data.__type !== 'supply') {
+        toastError('교구 파일이 아닙니다. (_교구.after 파일을 선택하세요)')
+        return
+      }
+      const p = data.products?.[0]
+      const v = data.vendors?.[0]
+      if (!p) { toastError('교구 데이터가 없습니다.'); return }
+
+      // 업체 찾기 (같은 이름 있으면 사용, 없으면 새로 만들 예정)
+      const existingVendor = vendorList.find(ev => ev.name === v?.name)
+      const vendorId = existingVendor?.id || null
+
+      // 차시 타이틀 구성
+      const maxS = p.maxStage || 10
+      const perS = p.sessionsPerStage || 12
+      const titles = {}
+      for (let s = 1; s <= maxS; s++) {
+        const stagePlans = (data.productPlans || [])
+          .filter(pl => pl._srcProductId === p._srcId && pl.stage === s)
+          .sort((a, b) => a.sessionNo - b.sessionNo)
+        titles[s] = Array.from({ length: perS }, (_, i) => ({
+          title: stagePlans[i]?.title || '',
+          memo:  stagePlans[i]?.memo  || '',
+        }))
+      }
+
+      // 업체 없으면 먼저 등록
+      let finalVendorId = vendorId
+      if (!finalVendorId && v) {
+        const newVendorId = uid()
+        SupplyVendors.insert({
+          id:          newVendorId,
+          teacherId:   user.id,
+          name:        v.name,
+          managerName: v.managerName || '',
+          contact:     v.contact     || '',
+          memo:        v.memo        || '',
+          subjects:    v.subjects?.length > 0 ? v.subjects : (selSubject ? [selSubject] : []),
+          createdAt:   now(),
+        })
+        finalVendorId = newVendorId
+        reload()
+      }
+
+      // 교구 등록 모달 열고 폼 채우기
+      setProductVendorId(finalVendorId)
+      setProductForm({
+        id:               null,
+        name:             p.name,
+        maxStage:         maxS,
+        sessionsPerStage: perS,
+        alertSession:     p.alertSession     || 3,
+        subject:          p.subject          || selSubject || '',
+        consumerPrice:    p.consumerPrice    || 0,
+        schoolPrice:      p.schoolPrice      || 0,
+        branchPrice:      p.branchPrice      || 0,
+        teacherPrice:     p.teacherPrice     || 0,
+        purchasePrice:    p.purchasePrice    || 0,
+      })
+      setStageSessionTitles(titles)
+      setProductStageTab(1)
+      setProductModal(true)
+    } catch (err) {
+      toastError('파일을 읽을 수 없습니다: ' + err.message)
+    }
+  }
 
   // ── 교구 배정
   const confirmedStudents = students
@@ -2039,8 +2169,9 @@ export function Supplies({ user }) {
 
   return (
     <div style={{ padding:'24px', maxWidth:'1200px' }}>
-      {/* 교구 .after 불러오기용 hidden input */}
-      <input ref={supplyImportRef} type="file" accept=".after" style={{ display:'none' }} onChange={handleImportSupply} />
+      {/* .after 불러오기용 hidden inputs */}
+      <input ref={supplyImportRef}  type="file" accept=".after" style={{ display:'none' }} onChange={handleImportSupply} />
+      <input ref={productImportRef} type="file" accept=".after" style={{ display:'none' }} onChange={handleImportProduct} />
 
       {/* 헤더 */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px' }}>
@@ -2050,7 +2181,7 @@ export function Supplies({ user }) {
         </div>
         <div style={{ display:'flex', gap:'8px' }}>
           <button
-            onClick={() => supplyImportRef.current?.click()}
+            onClick={() => productImportRef.current?.click()}
             style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #e5e7eb', background:'#fff', color:'#374151', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             📥 교구 불러오기
           </button>
@@ -2697,6 +2828,8 @@ export function Supplies({ user }) {
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                                           <button onClick={() => setPriceModal(p)}
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #f59e0b', background:'#fffbeb', color:'#d97706', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>💰 가격</button>
+                                          <button onClick={() => exportProduct(v, p)}
+                                            style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #86efac', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📤 내보내기</button>
                                           <button onClick={() => downloadProductsExcel(v, [p], productPlanList)}
                                             style={{ padding:'4px 8px', borderRadius:'6px', border:'1px solid #16a34a', background:'#f0fdf4', color:'#16a34a', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>⬇ 다운</button>
                                           <button onClick={() => downloadSampleExcel()}
