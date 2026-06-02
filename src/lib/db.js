@@ -340,11 +340,20 @@ export async function refreshTablesFromSupabase(...tables) {
   await Promise.all(tables.map(async (t) => {
     try {
       const { tbl, fromDb } = getConverters(t)
-      let q = supabase.from(tbl).select('*')
-      if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
-      const { data: rows, error } = await q
-      if (error || !Array.isArray(rows)) return
-      cache.set(t, rows.map(fromDb).filter(r => r._deleted !== true))
+      const PAGE = 1000
+      let allRows = []
+      let from = 0
+      while (true) {
+        let q = supabase.from(tbl).select('*')
+        if (!NO_DELETED_TABLES.has(t)) q = q.or('_deleted.is.null,_deleted.eq.false')
+        q = q.range(from, from + PAGE - 1)
+        const { data: rows, error } = await q
+        if (error || !Array.isArray(rows)) break
+        allRows = allRows.concat(rows)
+        if (rows.length < PAGE) break
+        from += PAGE
+      }
+      cache.set(t, allRows.map(fromDb).filter(r => r._deleted !== true))
     } catch (e) {
       console.warn(`[DB] refreshTables/${t} 실패:`, e.message)
     }
