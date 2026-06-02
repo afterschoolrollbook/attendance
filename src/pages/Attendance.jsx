@@ -3167,6 +3167,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
   const [progStudent,  setProgStudent]  = useState(null)
   const [progProductId,setProgProductId]= useState('')
   const [progTick,     setProgTick]     = useState(0)
+  const [badgeModal,   setBadgeModal]   = useState(null) // { type, students }
   const [spItems,  setSpItems]  = useState(() => cls ? SupplyItems.byTeacher(cls.teacherId||'') : [])
   const [spProds,  setSpProds]  = useState(() => cls ? SupplyProducts.byTeacher(cls.teacherId||'') : [])
   const [spProg,   setSpProg]   = useState(() => cls ? SupplyStudentProgress.byTeacher(cls.teacherId||'') : [])
@@ -3337,18 +3338,36 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
         <>
           <div style={{ display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap', justifyContent:'space-between' }}>
             <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
-              {Object.entries(ATTENDANCE_STATUS).map(([k,v]) => (
-                <div key={k} style={{ padding:'5px 10px', borderRadius:'7px', background:v.bg, border:`1px solid ${v.color}30`, fontSize:'12px', fontWeight:600, color:v.color }}>
-                  {v.emoji} {v.label} {counts[k]||0}
-                </div>
-              ))}
+              {Object.entries(ATTENDANCE_STATUS).map(([k,v]) => {
+                const list = activeStudents.filter(s => (getRec(s.id)?.status || 'pending') === k)
+                return (
+                  <div key={k}
+                    onClick={() => list.length > 0 && setBadgeModal({ type: v.label, color: v.color, bg: v.bg, emoji: v.emoji, students: list })}
+                    style={{ padding:'5px 10px', borderRadius:'7px', background:v.bg, border:`1px solid ${v.color}30`, fontSize:'12px', fontWeight:600, color:v.color, cursor: list.length > 0 ? 'pointer' : 'default', transition:'opacity .15s' }}
+                    onMouseEnter={e => { if(list.length>0) e.currentTarget.style.opacity='0.75' }}
+                    onMouseLeave={e => e.currentTarget.style.opacity='1'}
+                  >
+                    {v.emoji} {v.label} {counts[k]||0}
+                  </div>
+                )
+              })}
               {transferredStudents.length > 0 && (
-                <div style={{ padding:'5px 10px', borderRadius:'7px', background:'#f0f9ff', border:'1px solid #7dd3fc30', fontSize:'12px', fontWeight:600, color:'#0369a1' }}>
+                <div
+                  onClick={() => setBadgeModal({ type: '전학', color:'#0369a1', bg:'#f0f9ff', emoji:'✈️', students: transferredStudents, showDate: true, dateKey: 'transfer_out' })}
+                  style={{ padding:'5px 10px', borderRadius:'7px', background:'#f0f9ff', border:'1px solid #7dd3fc30', fontSize:'12px', fontWeight:600, color:'#0369a1', cursor:'pointer', transition:'opacity .15s' }}
+                  onMouseEnter={e => e.currentTarget.style.opacity='0.75'}
+                  onMouseLeave={e => e.currentTarget.style.opacity='1'}
+                >
                   ✈️ 전학 {transferredStudents.length}명
                 </div>
               )}
               {scheduleChangedStudents.length > 0 && (
-                <div style={{ padding:'5px 10px', borderRadius:'7px', background:'#f5f3ff', border:'1px solid #c4b5fd30', fontSize:'12px', fontWeight:600, color:'#7c3aed' }}>
+                <div
+                  onClick={() => setBadgeModal({ type: '스케줄변경', color:'#7c3aed', bg:'#f5f3ff', emoji:'📅', students: scheduleChangedStudents, showDate: true, dateKey: 'schedule_change' })}
+                  style={{ padding:'5px 10px', borderRadius:'7px', background:'#f5f3ff', border:'1px solid #c4b5fd30', fontSize:'12px', fontWeight:600, color:'#7c3aed', cursor:'pointer', transition:'opacity .15s' }}
+                  onMouseEnter={e => e.currentTarget.style.opacity='0.75'}
+                  onMouseLeave={e => e.currentTarget.style.opacity='1'}
+                >
                   📅 스케줄변경 {scheduleChangedStudents.length}명
                 </div>
               )}
@@ -3518,6 +3537,14 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
 
       {msgStudent  && <MsgModal student={msgStudent} cls={cls} user={user} onClose={() => setMsgStudent(null)} />}
       {selStudent  && <StudentDetailModal student={selStudent} onClose={() => setSelStudent(null)} />}
+      {badgeModal  && (
+        <BadgeDetailModal
+          modal={badgeModal}
+          onClose={() => setBadgeModal(null)}
+          getRec={getRec}
+          allAttendance={AttendanceDB.byStudentClass}
+        />
+      )}
       {progStudent && progProductId && (
         <ProgCheckModal
           student={progStudent}
@@ -3528,6 +3555,119 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
           onSaved={() => { setProgTick(t => t+1); const ch = new BroadcastChannel('progress_screen'); ch.postMessage({ type:'refresh', source:'main' }); ch.close() }}
         />
       )}
+    </div>
+  )
+}
+
+
+// ─── 배지 클릭 상세 모달
+function BadgeDetailModal({ modal, onClose, getRec, allAttendance }) {
+  const { type, color, bg, emoji, students, showDate, dateKey } = modal
+
+  // 전학 날짜 추출 (statusHistory에서)
+  const getTransferDate = (s) => {
+    const h = (s.statusHistory||[]).slice().reverse()
+      .find(h => h.status === 'transfer_out' && h.memo?.startsWith('[전학]'))
+    const m = h?.memo?.match(/\d{4}-\d{2}-\d{2}/)
+    return m ? m[0] : null
+  }
+
+  // 스케줄변경 날짜 추출 (attendance absentReason에서)
+  const getScheduleDate = (s) => {
+    const recs = allAttendance(s.id, s.classIds?.[0] || '')
+    const rec = recs.slice().sort((a,b) => (b.date||'').localeCompare(a.date||''))
+      .find(r => r.absentReason?.startsWith('schedule_change:'))
+    return rec ? rec.absentReason.split(':')[1] : null
+  }
+
+  // 결석 사유 가져오기
+  const getAbsentReason = (s) => {
+    const rec = getRec(s.id)
+    if (!rec?.absentReason) return null
+    const REASON_LABELS = {
+      sick: '질병', field_trip: '현장학습', exp_trip: '체험학습',
+      condolence: '경조사', personal: '개인사유', unexcused: '무단',
+      infection: '법정감염병', transferred: '전학', etc: '기타',
+    }
+    return REASON_LABELS[rec.absentReason] || rec.absentReason
+  }
+
+  const fmtDate = (d) => {
+    if (!d) return '-'
+    const [y,m,day] = d.split('-')
+    return `${y.slice(2)}.${parseInt(m)}.${parseInt(day)}`
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:5000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ background:'#fff', borderRadius:'20px', width:'100%', maxWidth:'440px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}
+      >
+        {/* 헤더 */}
+        <div style={{ padding:'18px 20px', background: bg, borderBottom:`1px solid ${color}20`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+            <span style={{ fontSize:'20px' }}>{emoji}</span>
+            <div>
+              <div style={{ fontSize:'16px', fontWeight:700, color, fontFamily:'Noto Sans KR, sans-serif' }}>
+                {type}
+              </div>
+              <div style={{ fontSize:'12px', color:'#6b7280', fontFamily:'Noto Sans KR, sans-serif' }}>
+                총 {students.length}명
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ width:'28px', height:'28px', borderRadius:'50%', border:'1px solid #e5e7eb', background:'#fff', cursor:'pointer', fontSize:'14px', display:'flex', alignItems:'center', justifyContent:'center', color:'#6b7280' }}
+          >✕</button>
+        </div>
+
+        {/* 학생 목록 */}
+        <div style={{ maxHeight:'420px', overflowY:'auto', padding:'12px 16px', display:'flex', flexDirection:'column', gap:'8px' }}>
+          {students.map((s, i) => {
+            const dateStr = dateKey === 'transfer_out'    ? getTransferDate(s)
+                          : dateKey === 'schedule_change' ? getScheduleDate(s)
+                          : null
+            const reason = getAbsentReason(s)
+            return (
+              <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 14px', borderRadius:'10px', background:'#f9fafb', border:'1px solid #f3f4f6', fontFamily:'Noto Sans KR, sans-serif' }}>
+                {/* 순번 */}
+                <div style={{ width:'22px', height:'22px', borderRadius:'50%', background: color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, color:'#fff', flexShrink:0 }}>
+                  {i+1}
+                </div>
+                {/* 학년·반·번호 */}
+                <div style={{ fontSize:'12px', color:'#9ca3af', minWidth:'70px', flexShrink:0 }}>
+                  {s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}
+                </div>
+                {/* 이름 */}
+                <div style={{ fontSize:'15px', fontWeight:700, color:'#111827', flex:1 }}>
+                  {s.name}
+                </div>
+                {/* 날짜 or 사유 */}
+                <div style={{ textAlign:'right', flexShrink:0 }}>
+                  {dateStr && (
+                    <div style={{ fontSize:'12px', fontWeight:600, color, background:bg, padding:'2px 8px', borderRadius:'6px' }}>
+                      {fmtDate(dateStr)}
+                    </div>
+                  )}
+                  {reason && !dateStr && (
+                    <div style={{ fontSize:'12px', color:'#6b7280' }}>{reason}</div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          {students.length === 0 && (
+            <div style={{ textAlign:'center', padding:'40px', color:'#9ca3af', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif' }}>
+              해당 학생이 없습니다
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
