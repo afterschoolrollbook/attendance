@@ -262,7 +262,7 @@ export async function initFromSupabase() {
           q = q.or('_deleted.is.null,_deleted.eq.false')
         }
 
-        // attendance는 최근 90일치만 로드 + 1000건 초과 대비 페이지네이션
+        // attendance는 최근 90일치만 로드 + 페이지네이션 (1000건 제한 대응)
         if (t === 'attendance') {
           const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
             .toISOString().slice(0, 10)
@@ -271,8 +271,7 @@ export async function initFromSupabase() {
           let from = 0
           while (true) {
             const { data: page, error: pageErr } = await supabase
-              .from(tbl)
-              .select('*')
+              .from(tbl).select('*')
               .gte('date', since)
               .order('date', { ascending: false })
               .range(from, from + PAGE - 1)
@@ -286,6 +285,12 @@ export async function initFromSupabase() {
           console.log(`[Supabase] ${t}: ${cache.get(t).length}건 로드`)
           return
         }
+
+        const { data: rows, error } = await q
+        if (error) throw new Error(error.message)
+        if (!Array.isArray(rows)) return
+
+        cache.set(t, rows.map(fromDb).filter(r => r._deleted !== true))
         console.log(`[Supabase] ${t}: ${cache.get(t).length}건 로드`)
       } catch (e) {
         console.warn(`[Supabase] ${t} 로드 실패:`, e.message)
