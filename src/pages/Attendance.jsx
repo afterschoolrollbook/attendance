@@ -2980,17 +2980,21 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
 
   const records = isFuture ? [] : AttendanceDB.byClassDate(cls.id, date)
   const getRec  = (sid) => records.find(r => r.studentId === sid)
-  const mark = (studentId, status, extra = {}) => {
+  const mark = async (studentId, status, extra = {}) => {
     if (isFuture) return
-    // 항상 캐시에서 최신 레코드 직접 조회 (stale closure 방지)
     const existing = AttendanceDB.find(cls.id, studentId, date)
-    AttendanceDB.upsert({
-      id: existing?.id || uid(),
-      classId: cls.id, studentId, date,
-      session: sessInfo?.session || 0, status,
-      note: existing?.note || '', absentReason: existing?.absentReason || '', homeReturn: existing?.homeReturn || '',
-      ...extra, markedAt: now(),
-    })
+    try {
+      await AttendanceDB.upsert({
+        id: existing?.id || uid(),
+        classId: cls.id, studentId, date,
+        session: sessInfo?.session || 0, status,
+        note: existing?.note || '', absentReason: existing?.absentReason || '', homeReturn: existing?.homeReturn || '',
+        ...extra, markedAt: now(),
+      })
+    } catch (e) {
+      console.error('[출석저장 실패]', e.message)
+      return
+    }
     setTick(t => t + 1)
     pushAttendance(sorted.find(s => s.id === studentId), status, extra)
   }
@@ -3206,19 +3210,23 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
   const records = (cls && showAttendance) ? AttendanceDB.byClassDate(cls.id, date) : []
   const getRec  = (sid) => records.find(r => r.studentId === sid)
   const session = cls ? getSession(cls, date) : null
-  const mark = (studentId, status, extra = {}) => {
+  const mark = async (studentId, status, extra = {}) => {
     if (!cls) return
-    // 항상 캐시에서 최신 레코드 직접 조회 (stale closure 방지)
     const existing = AttendanceDB.find(cls.id, studentId, date)
-    AttendanceDB.upsert({
-      id: existing?.id || uid(),
-      classId: cls.id, studentId, date,
-      session: session || 0, status,
-      note: existing?.note || '',
-      absentReason: existing?.absentReason || '',
-      homeReturn: existing?.homeReturn || '',
-      ...extra, markedAt: now(),
-    })
+    try {
+      await AttendanceDB.upsert({
+        id: existing?.id || uid(),
+        classId: cls.id, studentId, date,
+        session: session || 0, status,
+        note: existing?.note || '',
+        absentReason: existing?.absentReason || '',
+        homeReturn: existing?.homeReturn || '',
+        ...extra, markedAt: now(),
+      })
+    } catch (e) {
+      console.error('[출석저장 실패]', e.message)
+      return
+    }
     setTick(t => t+1)
     pushAttendance(activeStudents.find(s => s.id === studentId), status, extra)
   }
@@ -3906,18 +3914,22 @@ function MobileAttendance({ user, pageParams = {} }) {
 
   const records  = isFuture ? [] : AttendanceDB.byClassDate(selClass?.id||'', selDate)
   const getRec   = (sid) => records.find(r => r.studentId === sid)
-  const mark = (studentId, status, extra = {}) => {
+  const mark = async (studentId, status, extra = {}) => {
     if (!selClass || isFuture) return
-    // 항상 캐시에서 최신 레코드 직접 조회 (stale closure 방지)
     const existing = AttendanceDB.find(selClass.id, studentId, selDate)
     const session  = getSession ? getSession(selClass, selDate) : 0
-    AttendanceDB.upsert({
-      id: existing?.id || uid(), classId: selClass.id, studentId,
-      date: selDate, session: session||0, status,
-      note: existing?.note||'', absentReason: existing?.absentReason||'',
-      homeReturn: existing?.homeReturn||'', markedAt: now(),
-      ...extra,
-    })
+    try {
+      await AttendanceDB.upsert({
+        id: existing?.id || uid(), classId: selClass.id, studentId,
+        date: selDate, session: session||0, status,
+        note: existing?.note||'', absentReason: existing?.absentReason||'',
+        homeReturn: existing?.homeReturn||'', markedAt: now(),
+        ...extra,
+      })
+    } catch (e) {
+      console.error('[출석저장 실패]', e.message)
+      return
+    }
     setTick(t => t+1)
     pushAttendance(students.find(s => s.id === studentId), status, extra)
   }
