@@ -210,11 +210,17 @@ async function syncDelete(table, id) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
   await withRetry(async () => {
-    const { error } = await supabase
-      .from(tbl)
-      .update(toDb({ _deleted: true, updatedAt: new Date().toISOString() }))
-      .eq('id', id)
-    if (error) throw new Error(error.message)
+    // _deleted 컬럼 없는 테이블은 하드딜리트
+    if (NO_DELETED_TABLES.has(table)) {
+      const { error } = await supabase.from(tbl).delete().eq('id', id)
+      if (error) throw new Error(error.message)
+    } else {
+      const { error } = await supabase
+        .from(tbl)
+        .update(toDb({ _deleted: true, updatedAt: new Date().toISOString() }))
+        .eq('id', id)
+      if (error) throw new Error(error.message)
+    }
   }, `delete/${table}`)
 }
 
