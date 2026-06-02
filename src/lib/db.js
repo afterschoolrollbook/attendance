@@ -437,13 +437,14 @@ export const Attendance = {
     }
     _emit('attendance')
 
-    // Supabase: 항상 onConflict upsert 사용 (plain insert 금지 — duplicate key 방지)
-    try {
-      await syncAttendanceUpsert(merged)
-    } catch (e) {
-      console.warn('[DB] attendanceUpsert 실패:', e.message)
-      throw e
-    }
+    // withRetry로 Supabase 저장 — onSaveStart/Complete/Error 이벤트 발생
+    await withRetry(async () => {
+      const { error } = await supabase
+        .from('attendance')
+        .upsert(toSnake(merged), { onConflict: 'class_id,student_id,date' })
+      if (error) throw new Error(error.message)
+    }, 'attendance/upsert')
+
     return merged
   },
   delete: (id) => db.delete('attendance', id),
