@@ -918,7 +918,7 @@ export function ProgressWindow() {
   const DAYS_KO2 = ['일','월','화','수','목','금','토']
   const d = new Date(date + 'T00:00:00')
   const dateLabel = `${d.getMonth()+1}월 ${d.getDate()}일 (${DAYS_KO2[d.getDay()]})`
-  const clsName = (cls?.className||'') + ((cls?.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls?.section ? cls?.section+'반' : '')) ? ' '+(cls?.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls?.section ? cls?.section+'반' : '')) : '')
+  const clsName = (cls?.className||'') + (cls?.section ? ' '+cls.section+'반' : '')
 
   // 진도체크 완료 후 → DB 재계산 + 메인 창에 갱신 신호
   const handleSaved = () => {
@@ -1279,7 +1279,7 @@ function replacePlaceholders(text, student, cls, user) {
   return text
     .replace(/{학생이름}/g, student?.name || '')
     .replace(/{학교명}/g,   cls?.organization || student?.school || '')
-    .replace(/{수업명}/g,   cls ? `${cls.className}${(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}` : '')
+    .replace(/{수업명}/g,   cls ? `${cls.className}${cls.section ? ' '+cls.section+'반' : ''}` : '')
     .replace(/{선생님이름}/g, teacherName)
     .replace(/{선생님닉네임}/g, teacherNickname)
     .replace(/{날짜}/g, dateStr)
@@ -2973,7 +2973,7 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
     { bg:'#fdf4ff', border:'#a855f7', text:'#7e22ce' },
   ]
   const tc = sessInfo ? TERM_COLORS[(sessInfo.termNum - 1) % TERM_COLORS.length] : null
-  const startTime = (cls.sections?.length>0 ? cls.sections[0].time : cls.time) || ''; const endTime = (cls.sections?.length>0 ? cls.sections[0].timeEnd : cls.timeEnd) || ''
+  const startTime = cls.time || ''; const endTime = cls.timeEnd || ''
 
   const activeStudents = allStudents.filter(s =>
     s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status)
@@ -3023,7 +3023,7 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
         <div style={{ flex:1, minWidth:'150px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', marginBottom:'4px' }}>
             <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>수업 과목 · {cls.className}</span>
-            {(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) && <span style={{ fontSize:'12px', background:C.primary, color:'#fff', borderRadius:'6px', padding:'1px 8px', fontWeight:600 }}>{(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))}</span>}
+            {cls.section && <span style={{ fontSize:'12px', background:C.primary, color:'#fff', borderRadius:'6px', padding:'1px 8px', fontWeight:600 }}>{cls.section}반</span>}
             {sessInfo && (
               <>
                 <span style={{ fontSize:'11px', color:C.muted, background:'#f3f4f6', padding:'1px 7px', borderRadius:'5px' }}>{sessInfo.total}차시</span>
@@ -3304,7 +3304,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                 })()}
               </div>
               <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>
-                <span>{cls.organization} · {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) : ''} · {activeStudents.length}명</span>
+                <span>{cls.organization} · {cls.className}{cls.section?' '+cls.section+'반':''} · {activeStudents.length}명</span>
               </div>
             </div>
             <span style={{ fontSize:'12px', padding:'4px 10px', borderRadius:'6px', fontWeight:600,
@@ -3471,7 +3471,10 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
       {/* ── 학생 리스트 — 반별로 섹션 나눠서 표시 */}
       {(() => {
         // 반(section) 기준으로 그룹핑. section 없으면 단일 그룹
-        const sections = [...new Set(activeStudents.map(s => s.section || ''))].sort()
+        const sections = [...new Set(activeStudents.map(s => {
+          const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
+          return sc?.section || ''
+        }))].sort()
 
         const ColHeader = () => (
           <div style={{ display:'grid', gridTemplateColumns:'35px 90px 90px 130px 220px 70px 110px 90px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
@@ -3488,7 +3491,10 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
         )
 
         return sections.map(sec => {
-          const secStudents = activeStudents.filter(s => (s.section || '') === sec).sort((a, b) => {
+          const secStudents = activeStudents.filter(s => {
+            const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
+            return (sc?.section || '') === sec
+          }).sort((a, b) => {
             const g = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (g) return g
             const c = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (c) return c
             const n = parseInt(a.number||'0') - parseInt(b.number||'0'); if (n) return n
@@ -4173,7 +4179,7 @@ function MobileAttendance({ user, pageParams = {} }) {
                 fontSize: '13px', fontWeight: selClassId===cls.id ? 700 : 400,
                 cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', whiteSpace: 'nowrap', flexShrink: 0,
               }}>
-              {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}
+              {cls.className}{cls.section ? ` ${cls.section}반` : ''}
             </button>
           ))}
         </div>
@@ -4388,11 +4394,10 @@ export function Attendance({ user, pageParams = {} }) {
       )].sort()
   // 수업 선택 시 해당 수업의 반 목록 (같은 학교+수업명 내 section 목록)
   // 같은 학교+수업명 내 반 목록 (section 기준)
-  const sections = selClass
-    ? (selClass.sections?.length > 0
-        ? selClass.sections.map(s => s.section).filter(Boolean)
-        : selClass.section ? [selClass.section] : [])
+  const sectionClasses = selClassId
+    ? schoolClasses.filter(c => c.className === selClass?.className && c.organization === selClass?.organization)
     : []
+  const sections = [...new Set(sectionClasses.map(c => c.section).filter(Boolean))]
 
   // 정렬: Students.jsx 와 동일하게 학교→수업→반→학년→학급반→번호→이름
   const sortStudents = (arr) => [...arr].sort((a, b) => {
@@ -4456,9 +4461,14 @@ export function Attendance({ user, pageParams = {} }) {
           : selClass?.organization === s.school
         if (!inClass) return false
       }
-      // 반 필터 - 학생의 section 필드로 필터링
+      // 반 필터
       if (selSection) {
-        if ((s.section || '') !== selSection) return false
+        const sectionCls = sectionClasses.find(c => c.section === selSection)
+        if (sectionCls) {
+          const inSection = s.classIds?.includes(sectionCls.id) ||
+            (!s.classIds?.length && selClass?.organization === s.school)
+          if (!inSection) return false
+        }
       }
     } else {
       // 요일 검색 모드: 요일 필터만 (학교/기간 무시)
@@ -4593,12 +4603,7 @@ export function Attendance({ user, pageParams = {} }) {
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
               <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>수업</label>
-              <select value={selClassId + (selSection ? ':'+selSection : '')} onChange={e => {
-                  const [cid, sec] = e.target.value.split(':')
-                  setSelClassId(cid)
-                  setSelSection(sec || '')
-                  setSelTerm(''); setDateClicked(false); setActiveMode('class'); setSelDay('')
-                }} style={{ ...selSt, width:'100%' }}>
+              <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelSection(''); setSelTerm(''); setDateClicked(false); setActiveMode('class'); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
                 <option value="">전체 수업</option>
                 {[...schoolClasses].sort((a, b) => {
                   const DAY_ORDER = ['월','화','수','목','금','토','일']
@@ -4606,17 +4611,16 @@ export function Attendance({ user, pageParams = {} }) {
                   const bDay = DAY_ORDER.indexOf(b.days?.[0] ?? '')
                   if (aDay !== bDay) return aDay - bDay
                   return (a.section||'').localeCompare(b.section||'', 'ko')
-                }).flatMap(c => {
-                  const secs = c.sections?.length > 0
-                    ? c.sections.map(s => s.section).filter(Boolean)
-                    : c.section ? [c.section] : ['']
-                  return secs.map(sec => (
-                    <option key={c.id+':'+sec} value={c.id+(sec?':'+sec:'')}>{c.className}{sec ? ' '+sec+'반' : ''}</option>
-                  ))
-                })}
+                }).map(c => <option key={c.id} value={c.id}>{c.className}{c.section?' '+c.section+'반':''}</option>)}
               </select>
             </div>
-
+            <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+              <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>반</label>
+              <select value={selSection} onChange={e => setSelSection(e.target.value)} style={{ ...selSt, width:'100%' }} disabled={!selClassId || sections.length === 0}>
+                <option value="">전체 반</option>
+                {sections.map(s => <option key={s} value={s}>{s}반</option>)}
+              </select>
+            </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
               <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>기간</label>
               <select value={selTerm} onChange={e => setSelTerm(e.target.value)} style={{ ...selSt, width:'100%' }}>
@@ -4752,7 +4756,7 @@ export function Attendance({ user, pageParams = {} }) {
                     const cnt = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status)).length
                     return (
                       <div key={cls.id} style={{ padding:'10px 16px', borderRadius:'10px', background:'#fff', border:`1.5px solid ${C.border}`, minWidth:'160px' }}>
-                        <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}</div>
+                        <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{cls.className}{cls.section ? ` ${cls.section}반` : ''}</div>
                         <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>🏫 {cls.organization}</div>
                         <div style={{ fontSize:'13px', fontWeight:700, color:C.primary, marginTop:'4px' }}>👥 {cnt}명</div>
                       </div>
