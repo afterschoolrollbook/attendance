@@ -743,12 +743,15 @@ export function Classes({ user, onNav }) {
                 const hasPromo = cls.promotionImgs?.length > 0
                 const hasTpl = (cls.templateFiles?.length > 0) || !!cls.templateFile
 
-                // 반별 학생수
                 const secs = cls.sections?.length > 0 ? cls.sections : (cls.section ? [{ section: cls.section, time: cls.time, timeEnd: cls.timeEnd }] : [])
                 // 현재 진행중인 분기 찾기
                 const activePeriod = (cls.periods||[]).find(p => p.startDate && p.endDate && t >= p.startDate && t <= p.endDate)
                 const nextPeriod = !activePeriod ? (cls.periods||[]).find(p => p.startDate && p.startDate > t) : null
                 const showPeriod = activePeriod || nextPeriod
+                // 진행중 분기 차시 계산
+                const periodSessions = showPeriod
+                  ? calcSessionDates({ ...cls, startDate: showPeriod.startDate, endDate: showPeriod.endDate }).length
+                  : displaySessions
 
                 return (
                   <Card key={cls.id} onClick={() => openEdit(cls)}>
@@ -771,7 +774,7 @@ export function Classes({ user, onNav }) {
                               const secCount = StudentsDB.byClass(cls.id).filter(st => (st.section || st.classSection) === s.section || secs.length === 1).length
                               return (
                                 <div key={i} style={{ fontSize:'12px', color:'#6b7280', display:'flex', alignItems:'center', gap:'6px' }}>
-                                  {s.section && <span style={{ fontWeight:700, color:'#f97316' }}>{s.section}반</span>}
+                                  <span style={{ fontWeight:700, color:'#f97316', minWidth:'28px' }}>{s.section ? `${s.section}반` : `${i+1}반`}</span>
                                   {s.time && <span>{s.time}{s.timeEnd ? ` ~ ${s.timeEnd}` : ''}</span>}
                                 </div>
                               )
@@ -782,30 +785,34 @@ export function Classes({ user, onNav }) {
                       <Tag color="#f97316" bg="#fff7ed">{cls.days?.join(', ')}</Tag>
                     </div>
 
-                    <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '6px' }}>{cls.organization}</div>
+                    <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>{cls.organization}</div>
 
-                    {/* 현재 진행중 분기 */}
-                    {showPeriod && (
-                      <div style={{ fontSize:'12px', marginBottom:'6px', display:'flex', alignItems:'center', gap:'6px' }}>
-                        <span style={{ fontWeight:700, color: activePeriod ? '#16a34a' : '#f59e0b' }}>{showPeriod.label}</span>
-                        {activePeriod && <span style={{ padding:'1px 6px', borderRadius:'4px', background:'#dcfce7', color:'#16a34a', fontSize:'11px', fontWeight:700 }}>진행중</span>}
-                        {nextPeriod && <span style={{ padding:'1px 6px', borderRadius:'4px', background:'#fef3c7', color:'#f59e0b', fontSize:'11px', fontWeight:700 }}>예정</span>}
-                        <span style={{ color:'#9ca3af' }}>{showPeriod.startDate?.slice(5)} ~ {showPeriod.endDate?.slice(5)}</span>
-                      </div>
-                    )}
+                    {/* 분기 전체 목록 */}
+                    {(cls.periods||[]).filter(p => p.startDate && p.endDate).map((p, i) => {
+                      const isActive = t >= p.startDate && t <= p.endDate
+                      const pSessions = calcSessionDates({ ...cls, startDate: p.startDate, endDate: p.endDate }).length
+                      return (
+                        <div key={i} style={{ fontSize:'12px', display:'flex', alignItems:'center', gap:'6px', marginBottom:'3px',
+                          padding: isActive ? '2px 6px' : '0',
+                          borderRadius: isActive ? '6px' : '0',
+                          background: isActive ? '#f0fdf4' : 'transparent',
+                          border: isActive ? '1px solid #bbf7d0' : 'none',
+                        }}>
+                          <span style={{ fontWeight:700, color: isActive ? '#16a34a' : '#374151' }}>{p.label}</span>
+                          {isActive && <span style={{ padding:'1px 5px', borderRadius:'4px', background:'#16a34a', color:'#fff', fontSize:'10px', fontWeight:700 }}>진행중</span>}
+                          <span style={{ color:'#9ca3af' }}>{p.startDate?.slice(5)} ~ {p.endDate?.slice(5)}</span>
+                          <span style={{ color:'#6b7280', fontWeight:600 }}>({pSessions}차시)</span>
+                        </div>
+                      )
+                    })}
 
-                    <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '10px' }}>
-                      📅 {cls.startDate?.slice(5)} ~ {cls.endDate?.slice(5)}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px', marginTop:'8px' }}>
                       {secs.length > 1 ? secs.map((s,i) => {
-                        const secStudents = StudentsDB.confirmed(cls.id).filter(st => st.section === s.section)
+                        const secStudents = StudentsDB.confirmed(cls.id).filter(st => st.section === s.section || (!st.section && i === 0))
                         return <Tag key={i} color="#3b82f6" bg="#eff6ff">{s.section ? `${s.section}반 ` : ''}{secStudents.length}명</Tag>
                       }) : (
                         <Tag color="#3b82f6" bg="#eff6ff">학생 {studentCount}명</Tag>
                       )}
-                      <Tag color="#16a34a" bg="#f0fdf4">총 {displaySessions}차시</Tag>
                       {upcoming && <Tag color="#f59e0b" bg="#fffbeb">다음 {upcoming.slice(5)}</Tag>}
                       {hasTpl && <Tag color="#8b5cf6" bg="#f5f3ff">양식 ✓</Tag>}
                       {cls.alarm?.enabled && <Tag color="#3b82f6" bg="#eff6ff">🔔 시작 {cls.alarm.minutesBefore}분전</Tag>}
