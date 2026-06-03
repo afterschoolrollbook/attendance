@@ -58,14 +58,15 @@
             const reg = await navigator.serviceWorker.register('/sw.js')
             console.log('[SW] 등록 완료:', reg.scope)
 
-            // 새 SW 감지 → 즉시 교체 후 페이지 자동 새로고침
+            // 새 SW 감지 → 사용자에게 업데이트 알림 (자동 새로고침 X)
             reg.addEventListener('updatefound', () => {
               const newSW = reg.installing
               if (!newSW) return
               newSW.addEventListener('statechange', () => {
                 if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-                  console.log('[SW] 업데이트 감지 — 자동 새로고침')
-                  newSW.postMessage('skipWaiting')
+                  console.log('[SW] 업데이트 감지 — 사용자에게 알림')
+                  // 앱에 업데이트 알림 이벤트 전달
+                  window.dispatchEvent(new CustomEvent('sw-update-ready', { detail: { newSW } }))
                 }
               })
             })
