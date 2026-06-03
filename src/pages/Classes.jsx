@@ -770,12 +770,16 @@ export function Classes({ user, onNav }) {
                         <div style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>{cls.className}</div>
                         {secs.length > 0 && (
                           <div style={{ display:'flex', flexDirection:'column', gap:'2px', marginTop:'3px' }}>
-                            {secs.map((s,i) => (
-                              <div key={i} style={{ fontSize:'12px', color:'#6b7280', display:'flex', alignItems:'center', gap:'6px' }}>
-                                {s.section && <span style={{ fontWeight:700, color:'#f97316', minWidth:'28px' }}>{s.section}반</span>}
-                                {s.time && <span>{s.time}{s.timeEnd ? ` ~ ${s.timeEnd}` : ''}</span>}
-                              </div>
-                            ))}
+                            {secs.map((s,i) => {
+                              const LABELS = ['A','B','C','D','E','F']
+                              const secLabel = s.section || LABELS[i] || String(i+1)
+                              return (
+                                <div key={i} style={{ fontSize:'12px', color:'#6b7280', display:'flex', alignItems:'center', gap:'6px' }}>
+                                  <span style={{ fontWeight:700, color:'#f97316', minWidth:'28px' }}>{secLabel}반</span>
+                                  {s.time && <span>{s.time}{s.timeEnd ? ` ~ ${s.timeEnd}` : ''}</span>}
+                                </div>
+                              )
+                            })}
                           </div>
                         )}
                       </div>
@@ -796,17 +800,19 @@ export function Classes({ user, onNav }) {
                           border: isActive ? '1px solid #bbf7d0' : 'none',
                         }}>
                           <span style={{ fontWeight:700, color: isActive ? '#16a34a' : '#374151' }}>{p.label}</span>
-                          {isActive && <span style={{ padding:'1px 5px', borderRadius:'4px', background:'#16a34a', color:'#fff', fontSize:'10px', fontWeight:700 }}>진행중</span>}
                           <span style={{ color:'#9ca3af' }}>{p.startDate?.slice(5)} ~ {p.endDate?.slice(5)}</span>
                           <span style={{ color:'#6b7280', fontWeight:600 }}>({pSessions}차시)</span>
+                          {isActive && <span style={{ padding:'1px 5px', borderRadius:'4px', background:'#16a34a', color:'#fff', fontSize:'10px', fontWeight:700 }}>진행중</span>}
                         </div>
                       )
                     })}
 
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px', marginTop:'8px' }}>
                       {secs.length > 1 ? secs.map((s,i) => {
+                        const LABELS = ['A','B','C','D','E','F']
+                        const secLabel = s.section || LABELS[i] || String(i+1)
                         const secStudents = StudentsDB.confirmed(cls.id).filter(st => st.section === s.section || (!st.section && i === 0))
-                        return <Tag key={i} color="#3b82f6" bg="#eff6ff">{s.section ? `${s.section}반 ` : ''}{secStudents.length}명</Tag>
+                        return <Tag key={i} color="#3b82f6" bg="#eff6ff">{secLabel}반 {secStudents.length}명</Tag>
                       }) : (
                         <Tag color="#3b82f6" bg="#eff6ff">학생 {studentCount}명</Tag>
                       )}
