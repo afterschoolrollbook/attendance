@@ -431,22 +431,35 @@ export function Classes({ user, onNav }) {
     setShowModal(true)
   }
 
-  // 분기 추가/삭제 시 openPeriods 동기화
+  // 분기 접기/펼치기 초기화
   useEffect(() => {
     const periods = form.periods || []
     if (periods.length === 0) return
     const today = new Date().toISOString().slice(0,10)
     const activeIdx = periods.findIndex(p => p.startDate && p.endDate && today >= p.startDate && today <= p.endDate)
-    const defaultIdx = activeIdx >= 0 ? activeIdx : periods.length - 1
-    setOpenPeriods(prev => {
+    // 모달 열릴 때: 진행중이면 해당 분기만 열기, 없으면 마지막만 열기
+    if (showModal) {
+      const defaultIdx = activeIdx >= 0 ? activeIdx : periods.length - 1
       const next = {}
-      periods.forEach((_, i) => {
-        // 기존에 명시적으로 설정된 값은 유지, 새로 추가된 분기는 마지막이면 열기
-        next[i] = prev[i] !== undefined ? prev[i] : i === defaultIdx
-      })
+      periods.forEach((_, i) => { next[i] = i === defaultIdx })
+      setOpenPeriods(next)
+    }
+  }, [showModal])
+
+  // 분기 추가 시 새로 추가된 분기 자동으로 열기
+  useEffect(() => {
+    const periods = form.periods || []
+    if (periods.length === 0) return
+    setOpenPeriods(prev => {
+      if (Object.keys(prev).length === 0) return prev
+      const next = { ...prev }
+      // 새로 추가된 분기(마지막)는 열기
+      if (prev[periods.length - 1] === undefined) {
+        next[periods.length - 1] = true
+      }
       return next
     })
-  }, [(form.periods || []).length, showModal])
+  }, [(form.periods || []).length])
 
   const save = () => {
     if (!form.organization.trim() || !form.className.trim() || !form.days.length) {
