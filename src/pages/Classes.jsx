@@ -126,16 +126,7 @@ export function Classes({ user, onNav }) {
   const templateRef = useRef()
 
   const [alarmToast, setAlarmToast] = useState(null) // { className, minutesBefore, type: 'start'|'end' }
-  const [openPeriods, setOpenPeriods] = useState(() => {
-    // 진행중인 분기 자동으로 펼치기
-    const today = new Date().toISOString().slice(0,10)
-    const periods = form.periods || []
-    const activeIdx = periods.findIndex(p => p.startDate && p.endDate && today >= p.startDate && today <= p.endDate)
-    const defaultIdx = activeIdx >= 0 ? activeIdx : periods.length - 1
-    const init = {}
-    periods.forEach((_, i) => { init[i] = i === defaultIdx })
-    return init
-  }) // 분기 접기/펼치기 상태
+  const [openPeriods, setOpenPeriods] = useState({}) // 분기 접기/펼치기 상태
   const { success, error: toastError } = useToast()
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
@@ -439,6 +430,23 @@ export function Classes({ user, onNav }) {
     setTab('info')
     setShowModal(true)
   }
+
+  // 분기 추가/삭제 시 openPeriods 동기화
+  useEffect(() => {
+    const periods = form.periods || []
+    if (periods.length === 0) return
+    const today = new Date().toISOString().slice(0,10)
+    const activeIdx = periods.findIndex(p => p.startDate && p.endDate && today >= p.startDate && today <= p.endDate)
+    const defaultIdx = activeIdx >= 0 ? activeIdx : periods.length - 1
+    setOpenPeriods(prev => {
+      const next = {}
+      periods.forEach((_, i) => {
+        // 기존에 명시적으로 설정된 값은 유지, 새로 추가된 분기는 마지막이면 열기
+        next[i] = prev[i] !== undefined ? prev[i] : i === defaultIdx
+      })
+      return next
+    })
+  }, [(form.periods || []).length, showModal])
 
   const save = () => {
     if (!form.organization.trim() || !form.className.trim() || !form.days.length) {
@@ -819,7 +827,7 @@ export function Classes({ user, onNav }) {
               const maxCount = allLabels.length
               const periods = form.periods?.length > 0
                 ? form.periods
-                : allLabels.slice(0, isSemester ? 2 : 4).map(l => emptyPeriod(l))
+                : [emptyPeriod(allLabels[0])]
 
               const setPeriod = (idx, patch) => {
                 const next = periods.map((p, i) => i === idx ? { ...p, ...patch } : p)
@@ -827,7 +835,9 @@ export function Classes({ user, onNav }) {
               }
               const addPeriod = () => {
                 if (periods.length >= maxCount) return
-                set('periods', [...periods, emptyPeriod(allLabels[periods.length])])
+                // form.periods가 비어있으면 현재 periods(기본값 포함)를 먼저 저장
+                const base = form.periods?.length > 0 ? form.periods : periods
+                set('periods', [...base, emptyPeriod(allLabels[base.length])])
               }
               const removePeriod = (idx) => {
                 if (periods.length <= 1) return
