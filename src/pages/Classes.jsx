@@ -126,7 +126,16 @@ export function Classes({ user, onNav }) {
   const templateRef = useRef()
 
   const [alarmToast, setAlarmToast] = useState(null) // { className, minutesBefore, type: 'start'|'end' }
-  const [openPeriods, setOpenPeriods] = useState({}) // 분기 접기/펼치기 상태
+  const [openPeriods, setOpenPeriods] = useState(() => {
+    // 진행중인 분기 자동으로 펼치기
+    const today = new Date().toISOString().slice(0,10)
+    const periods = form.periods || []
+    const activeIdx = periods.findIndex(p => p.startDate && p.endDate && today >= p.startDate && today <= p.endDate)
+    const defaultIdx = activeIdx >= 0 ? activeIdx : periods.length - 1
+    const init = {}
+    periods.forEach((_, i) => { init[i] = i === defaultIdx })
+    return init
+  }) // 분기 접기/펼치기 상태
   const { success, error: toastError } = useToast()
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
@@ -848,18 +857,7 @@ export function Classes({ user, onNav }) {
                   <div style={{ fontSize:'13px', fontWeight:700, color:'#111827' }}>
                     📅 {isSemester ? '학기' : '분기'}별 기간 및 텀 설정
                   </div>
-                  {(() => {
-                    const today = new Date().toISOString().slice(0,10)
-                    const activeIdx = periods.findIndex(p => p.startDate && p.endDate && today >= p.startDate && today <= p.endDate)
-                    const defaultOpenIdx = activeIdx >= 0 ? activeIdx : periods.length - 1
-                    // 처음 렌더 시 기본값 설정
-                    if (Object.keys(openPeriods).length === 0) {
-                      const init = {}
-                      periods.forEach((_, i) => { init[i] = i === defaultOpenIdx })
-                      setTimeout(() => setOpenPeriods(init), 0)
-                    }
-                    return null
-                  })()}
+
                   {periods.map((p, pIdx) => {
                     const today = new Date().toISOString().slice(0,10)
                     const isActive = p.startDate && p.endDate && today >= p.startDate && today <= p.endDate
