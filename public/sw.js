@@ -1,8 +1,16 @@
 // ─── 방과후 출석부 Service Worker ───────────────────────────────────
 // 위치: /public/sw.js  (빌드 시 루트로 복사됨)
 
-self.addEventListener('install', () => self.skipWaiting())
+self.addEventListener('install', () => {
+  // skipWaiting 하지 않음 — index.html에서 사용자 확인 후 교체
+})
+
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()))
+
+// ─── index.html에서 'skipWaiting' 메시지 받으면 교체
+self.addEventListener('message', (e) => {
+  if (e.data === 'skipWaiting') self.skipWaiting()
+})
 
 // ─── 푸시 수신
 self.addEventListener('push', e => {
@@ -28,11 +36,9 @@ self.addEventListener('notificationclick', e => {
   const url = e.notification.data?.url || '/parent-invite'
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
-      // 이미 열린 탭 있으면 포커스
       for (const c of clients) {
         if (c.url.includes(self.location.origin) && 'focus' in c) return c.focus()
       }
-      // 없으면 새 탭
       return self.clients.openWindow(url)
     })
   )
