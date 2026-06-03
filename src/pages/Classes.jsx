@@ -1356,7 +1356,6 @@ export function Classes({ user, onNav }) {
                     .sort((a,b) => a.date.localeCompare(b.date))
                     .map((c) => {
                     const REASON_MAP = { public_holiday:'공휴일', school_holiday:'학교재량휴일', teacher_absent:'강사사정', vacation:'방학 휴강', new_year:'신정', seollal:'설날', independence_day:'삼일절', workers_day:'근로자의날', childrens_day:'어린이날', buddha:'부처님오신날', memorial_day:'현충일', constitution_day:'제헌절', liberation_day:'광복절', chuseok:'추석', national_foundation_day:'개천절', hangul_day:'한글날', christmas:'성탄절', childrens_day_alt:'대체공휴일', election_day:'선거일', etc:'기타' }
-                    const isEditing = editCancelIdx === c.origIdx
                     return (
                     <div key={c.origIdx} style={{ borderRadius:'8px', border:'1px solid #f3f4f6', overflow:'hidden' }}>
                       <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#fff' }}>
@@ -1369,19 +1368,7 @@ export function Classes({ user, onNav }) {
                         <button onClick={() => setForm(f => ({ ...f, cancelledDates: (f.cancelledDates||[]).filter((_,j) => j !== c.origIdx) }))}
                           style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'16px', padding:'0 4px' }}>×</button>
                       </div>
-                      {isEditing && (
-                        <div style={{ display:'flex', gap:'6px', padding:'6px 10px', background:'#f9fafb', borderTop:'1px solid #f3f4f6' }}>
-                          <input value={editCancelMemo} onChange={e => setEditCancelMemo(e.target.value)}
-                            placeholder="사유 입력"
-                            style={{ flex:1, padding:'5px 8px', borderRadius:'6px', border:'1.5px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-                          <button onClick={() => {
-                            setForm(f => ({ ...f, cancelledDates: (f.cancelledDates||[]).map((x,j) => j === c.origIdx ? { ...x, memo: editCancelMemo, reason: 'etc' } : x) }))
-                            setEditCancelIdx(null)
-                          }} style={{ padding:'5px 10px', borderRadius:'6px', background:'#374151', color:'#fff', border:'none', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:700 }}>저장</button>
-                          <button onClick={() => setEditCancelIdx(null)}
-                            style={{ padding:'5px 10px', borderRadius:'6px', background:'none', color:'#9ca3af', border:'1px solid #e5e7eb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
-                        </div>
-                      )}
+
                     </div>
                   )})}
                 </div>
@@ -1392,6 +1379,29 @@ export function Classes({ user, onNav }) {
 
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
           <Btn onClick={save}>{editId === '__copy__' ? '복사 저장' : editId ? '저장' : '등록'}</Btn>
+        </div>
+      </Modal>
+
+      {/* ── 휴일 수정 모달 */}
+      <Modal open={editCancelIdx !== null} onClose={() => setEditCancelIdx(null)} title="휴일 사유 수정" width={360}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+          <div style={{ fontSize:'13px', color:'#6b7280' }}>
+            {editCancelIdx !== null && (form.cancelledDates||[])[editCancelIdx]?.date} 날짜의 사유를 수정합니다.
+          </div>
+          <div>
+            <div style={{ fontSize:'12px', fontWeight:600, color:'#374151', marginBottom:'6px' }}>사유</div>
+            <input value={editCancelMemo} onChange={e => setEditCancelMemo(e.target.value)}
+              placeholder="사유를 입력하세요"
+              style={{ width:'100%', padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb',
+                fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+          </div>
+          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+            <Btn variant="ghost" onClick={() => setEditCancelIdx(null)}>취소</Btn>
+            <Btn onClick={() => {
+              setForm(f => ({ ...f, cancelledDates: (f.cancelledDates||[]).map((x,j) => j === editCancelIdx ? { ...x, memo: editCancelMemo, reason: 'etc' } : x) }))
+              setEditCancelIdx(null)
+            }}>저장</Btn>
+          </div>
         </div>
       </Modal>
 
