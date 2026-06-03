@@ -79,7 +79,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
             school_holiday:'학교재량휴일', teacher_absent:'강사사정',
             vacation:'방학 휴강', etc:'기타'
           }
-          const reasonLabel = REASON_LABELS[cancelInfo?.reason] || cancelInfo?.reason
+          const reasonLabel = CANCEL_REASONS.find(r => r.value === cancelInfo?.reason)?.label || REASON_LABELS[cancelInfo?.reason] || cancelInfo?.reason
           const termNum     = termMap[dateStr]
           const dow = (firstDay + day - 1) % 7
           const isSun = dow === 0, isSat = dow === 6
@@ -95,6 +95,10 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           // 특별 기간 포함 여부 (여러 기간 중 첫 번째 매칭)
           const spMatch = (specialPeriods || []).find(p => dateStr >= p.startDate && dateStr <= p.endDate)
           const spType  = spMatch ? getSpecialPeriodType(spMatch.type) : null
+          // 방학 밑줄 색상
+          const vacUnderline = spMatch?.type === 'summer_vacation' ? '2px solid #ef4444'
+            : spMatch?.type === 'winter_vacation' ? '2px solid #3b82f6'
+            : null
           const spBadge = spType ? (
             <div title={spMatch.label || spType.label} style={{
               fontSize:'8px', color:'#fff', background: spType.color,
@@ -112,11 +116,11 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                   background: inApply ? '#fff7ed' : '#fff7ed',
                   outline: inApply ? '1.5px solid #93c5fd' : '1.5px solid #f97316',
                   outlineOffset:'-1px',
-                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s', ...periodBorder }}>
+                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s', ...periodBorder, ...(vacUnderline ? { borderBottom: vacUnderline } : {}) }}>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'1px' }}>
-                  {isPeriodStart && <span style={{ fontSize:'14px', fontWeight:900, color: periodStartColor, lineHeight:1, letterSpacing:'-1px' }}>[</span>}
+                  {isPeriodStart && <span style={{ fontSize:'10px', fontWeight:900, color: periodStartColor, lineHeight:1 }}>[</span>}
                   <span style={{ fontSize:'12px', fontWeight:700, color: isSun?'#ef4444': isSat?'#3b82f6':'#111827' }}>{day}</span>
-                  {isPeriodEnd && <span style={{ fontSize:'14px', fontWeight:900, color: periodEndColor, lineHeight:1, letterSpacing:'-1px' }}>]</span>}
+                  {isPeriodEnd && <span style={{ fontSize:'10px', fontWeight:900, color: periodEndColor, lineHeight:1 }}>]</span>}
                 </div>
                 <div style={{ fontSize:'10px', color:'#ea580c', fontWeight:700, lineHeight:1.2 }}>수업일</div>
                 <div style={{ fontSize:'9px', color:'#fff', background:'#f97316', borderRadius:'4px',
@@ -134,11 +138,11 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                 title={`보강 ${sessInfo?.total||''}차시: ${makeupInfo?.memo||''} — 클릭하면 삭제`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                   background:'#eff6ff', outline:'1.5px solid #3b82f6', outlineOffset:'-1px',
-                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s', ...periodBorder }}>
+                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s', ...periodBorder, ...(vacUnderline ? { borderBottom: vacUnderline } : {}) }}>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'1px' }}>
-                  {isPeriodStart && <span style={{ fontSize:'14px', fontWeight:900, color: periodStartColor, lineHeight:1, letterSpacing:'-1px' }}>[</span>}
+                  {isPeriodStart && <span style={{ fontSize:'10px', fontWeight:900, color: periodStartColor, lineHeight:1 }}>[</span>}
                   <span style={{ fontSize:'12px', fontWeight:700, color: isSun?'#ef4444': isSat?'#3b82f6':'#1d4ed8' }}>{day}</span>
-                  {isPeriodEnd && <span style={{ fontSize:'14px', fontWeight:900, color: periodEndColor, lineHeight:1, letterSpacing:'-1px' }}>]</span>}
+                  {isPeriodEnd && <span style={{ fontSize:'10px', fontWeight:900, color: periodEndColor, lineHeight:1 }}>]</span>}
                 </div>
                 <div style={{ fontSize:'10px', color:'#3b82f6', fontWeight:700, lineHeight:1.2 }}>보강</div>
                 {makeupInfo?.memo && <div style={{ fontSize:'9px', color:'#93c5fd', lineHeight:1.1 }}>{makeupInfo.memo.slice(0,4)}</div>}
@@ -155,11 +159,11 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                 title={`취소됨: ${reasonLabel||''} — 클릭하면 복원`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                   background:'#fef2f2', outline:'1.5px solid #fca5a5', outlineOffset:'-1px',
-                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s', ...periodBorder }}>
+                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s', ...periodBorder, ...(vacUnderline ? { borderBottom: vacUnderline } : {}) }}>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'1px' }}>
-                  {isPeriodStart && <span style={{ fontSize:'14px', fontWeight:900, color: periodStartColor, lineHeight:1, letterSpacing:'-1px' }}>[</span>}
+                  {isPeriodStart && <span style={{ fontSize:'10px', fontWeight:900, color: periodStartColor, lineHeight:1 }}>[</span>}
                   <span style={{ fontSize:'12px', fontWeight:700, color:'#d1d5db' }}>{day}</span>
-                  {isPeriodEnd && <span style={{ fontSize:'14px', fontWeight:900, color: periodEndColor, lineHeight:1, letterSpacing:'-1px' }}>]</span>}
+                  {isPeriodEnd && <span style={{ fontSize:'10px', fontWeight:900, color: periodEndColor, lineHeight:1 }}>]</span>}
                 </div>
                 <div style={{ fontSize:'9px', color:'#ef4444', lineHeight:1.2 }}>{reasonLabel||'취소'}</div>
                 {applyDot}
@@ -176,11 +180,11 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                 title={`전체 ${sessInfo.total}차시 | ${sessInfo.termNum}텀 ${sessInfo.termSess}차시 — 클릭하면 처리`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                   background: tc.bg, outline:`1.5px solid ${tc.border}`, outlineOffset:'-1px',
-                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s', ...periodBorder }}>
+                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s', ...periodBorder, ...(vacUnderline ? { borderBottom: vacUnderline } : {}) }}>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'1px' }}>
-                  {isPeriodStart && <span style={{ fontSize:'14px', fontWeight:900, color: periodStartColor, lineHeight:1, letterSpacing:'-1px' }}>[</span>}
+                  {isPeriodStart && <span style={{ fontSize:'10px', fontWeight:900, color: periodStartColor, lineHeight:1 }}>[</span>}
                   <span style={{ fontSize:'12px', fontWeight:700, color: isSun?'#ef4444': isSat?'#3b82f6':'#111827' }}>{day}</span>
-                  {isPeriodEnd && <span style={{ fontSize:'14px', fontWeight:900, color: periodEndColor, lineHeight:1, letterSpacing:'-1px' }}>]</span>}
+                  {isPeriodEnd && <span style={{ fontSize:'10px', fontWeight:900, color: periodEndColor, lineHeight:1 }}>]</span>}
                 </div>
                 <div style={{ fontSize:'10px', color: tc.text, fontWeight:700, lineHeight:1.3 }}>
                   {sessInfo.total}차시
@@ -204,13 +208,13 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                 outline: spType ? `1px solid ${spType.border}` : inApply ? '1px solid #bfdbfe' : 'none',
                 textAlign:'center', fontFamily:'Noto Sans KR, sans-serif',
                 color: isSun?'#fca5a5': isSat?'#93c5fd': (spType || inApply) ? '#1d4ed8' : '#9ca3af', fontSize:'12px',
-                transition:'all .12s', ...periodBorder }}
+                transition:'all .12s', ...periodBorder, ...(vacUnderline ? { borderBottom: vacUnderline } : {}) }}
               onMouseEnter={e => e.currentTarget.style.background= spType ? spType.border : inApply ? '#dbeafe' : '#f0fdf4'}
               onMouseLeave={e => e.currentTarget.style.background= spType ? spType.bg : inApply ? '#eff6ff' : 'transparent'}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'1px' }}>
-                {isPeriodStart && <span style={{ fontSize:'14px', fontWeight:900, color: periodStartColor, lineHeight:1, letterSpacing:'-1px' }}>[</span>}
+                {isPeriodStart && <span style={{ fontSize:'10px', fontWeight:900, color: periodStartColor, lineHeight:1 }}>[</span>}
                 <span>{day}</span>
-                {isPeriodEnd && <span style={{ fontSize:'14px', fontWeight:900, color: periodEndColor, lineHeight:1, letterSpacing:'-1px' }}>]</span>}
+                {isPeriodEnd && <span style={{ fontSize:'10px', fontWeight:900, color: periodEndColor, lineHeight:1 }}>]</span>}
               </div>
               {inApply && <div style={{ width:'4px', height:'4px', borderRadius:'50%', background:'#3b82f6', margin:'1px auto 0' }} />}
               {spBadge}
