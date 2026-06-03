@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { calcSessionDates, getDayLabel } from '../lib/utils.js'
 import { CANCEL_REASONS } from '../constants/config.js'
 import { Select, Input, Btn } from '../components/Atoms.jsx'
@@ -817,7 +818,7 @@ export function ClassCalendar({ cls, onUpdate }) {
       </div>
 
       {/* ── 날짜 클릭 팝업 (클릭 위치 옆) ── */}
-      {(showNormalAction || showRegisteredAction || showCancel || showMakeup) && (
+      {(showNormalAction || showRegisteredAction || showCancel || showMakeup) && createPortal(
         <>
           {/* 배경 클릭 시 닫기 */}
           <div onClick={() => { setShowNormalAction(false); setShowRegisteredAction(false); setShowCancel(false); setShowMakeup(false) }}
@@ -952,7 +953,7 @@ export function ClassCalendar({ cls, onUpdate }) {
           )}
           </div>
         </>
-      )}
+      , document.body)}
     </div>
   )
 }
