@@ -4394,14 +4394,11 @@ export function Attendance({ user, pageParams = {} }) {
       )].sort()
   // 수업 선택 시 해당 수업의 반 목록 (같은 학교+수업명 내 section 목록)
   // 같은 학교+수업명 내 반 목록 (section 기준)
-  const sectionClasses = selClassId
-    ? schoolClasses.filter(c => c.className === selClass?.className && c.organization === selClass?.organization)
+  const sections = selClass
+    ? (selClass.sections?.length > 0
+        ? selClass.sections.map(s => s.section).filter(Boolean)
+        : selClass.section ? [selClass.section] : [])
     : []
-  const sections = [...new Set(sectionClasses.flatMap(c => 
-    c.sections?.length > 0 
-      ? c.sections.map(s => s.section).filter(Boolean)
-      : c.section ? [c.section] : []
-  ))]
 
   // 정렬: Students.jsx 와 동일하게 학교→수업→반→학년→학급반→번호→이름
   const sortStudents = (arr) => [...arr].sort((a, b) => {
