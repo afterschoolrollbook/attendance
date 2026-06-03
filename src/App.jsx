@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Users } from './lib/db.js'
-import { initFromSupabase, onSaveError } from './lib/db.js'
+import { initFromSupabase, loadCacheFromIDB, onSaveError } from './lib/db.js'
 import { SaveStatusBar } from './components/SaveStatusBar.jsx'
 import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
@@ -175,6 +175,14 @@ export default function App() {
       const session = await authGetSession()
 
       if (session?.user) {
+        // 1) IndexedDB 캐시 즉시 로드 → 화면 빠르게 표시
+        await loadCacheFromIDB()
+        const cached = Users.findByEmail(session.user.email)
+        if (cached) {
+          setUser(cached)
+          setDbReady(true)
+        }
+        // 2) 백그라운드에서 변경분만 Supabase 로드 (증분 동기화)
         await initFromSupabase()
         const fresh = Users.findByEmail(session.user.email)
         if (fresh) {
