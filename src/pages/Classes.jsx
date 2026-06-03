@@ -181,7 +181,7 @@ export function Classes({ user, onNav }) {
           organization:  cls.organization  || '',
           className:     cls.className     || '',
           section:       cls.section       || '',
-          sections:      cls.sections      || [{ name: 'A', active: true }, { name: 'B', active: true }],
+          sections:      cls.sections      || (cls.section ? [{ name: cls.section, active: true }, { name: 'B', active: true }] : [{ name: 'A', active: true }, { name: 'B', active: true }]),
           termType:      cls.termType      || 'semester',
           termCount:     cls.termCount     || 4,
           termSizes:     cls.termSizes     || [4,4,4,4],
