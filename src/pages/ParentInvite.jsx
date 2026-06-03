@@ -466,12 +466,12 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>
-                      {cls.className}{cls.section ? ` ${cls.section}반` : ''}
+                      {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}
                     </div>
                     <div style={{ fontSize:'11px', color:'#6b7280', marginTop:'1px' }}>
                       {cls.organization && <span>🏫 {cls.organization} · </span>}
                       {t && <span>👩‍🏫 {t.nickname || t.name} 선생님</span>}
-                      {cls.time && <span> · ⏰ {cls.time}</span>}
+                      { (cls.sections?.length>0 ? cls.sections[0].time : cls.time) && <span> · ⏰ { cls.sections?.length>0 ? cls.sections[0].time : cls.time}</span>}
                     </div>
                   </div>
                   {activeTab === cls.id && <span style={{ fontSize:'12px', color:'#f97316', fontWeight:700 }}>✓</span>}
@@ -491,7 +491,7 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
                   color: activeTab===cls.id ? '#fff' : C.muted,
                   fontSize:'13px', fontWeight:700, cursor:'pointer',
                   fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
-                {cls.days?.[0] ? `${cls.days[0]}(${cls.className}${cls.section?' '+cls.section+'반':''})` : cls.className}
+                {cls.days?.[0] ? `${cls.days[0]}(${cls.className}${((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''})` : cls.className}
               </button>
             ))}
           </div>

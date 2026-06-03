@@ -2426,14 +2426,14 @@ function SchoolClassesTab({ session }) {
                           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}>
                             <div>
                               <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>{cls.className}</div>
-                              {cls.section && <div style={{ fontSize:'11px', color:C.muted }}>{cls.section}반</div>}
+                              {(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) && <div style={{ fontSize:'11px', color:C.muted }}>{(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))}</div>}
                             </div>
                             <span style={{ fontSize:'11px', fontWeight:700, background:'#fff7ed', color:'#f97316', padding:'2px 8px', borderRadius:'999px' }}>{cls.days?.join(', ')}</span>
                           </div>
                           <div style={{ fontSize:'12px', color:C.muted, marginBottom:'6px' }}>{cls.organization}</div>
                           <div style={{ fontSize:'11px', color:'#9ca3af', marginBottom:'10px' }}>
                             📅 {cls.startDate?.slice(5)} ~ {cls.endDate?.slice(5)}
-                            {cls.time && ` · 🕐 ${cls.time}`}
+                            { (cls.sections?.length>0 ? cls.sections[0].time : cls.time) && ` · 🕐 ${(cls.sections?.length>0 ? cls.sections.map(s=>(s.section?s.section+'반 ':'')+s.time+(s.timeEnd?' ~ '+s.timeEnd:'')).join(' / ') : (cls.time||'')+(cls.timeEnd?' ~ '+cls.timeEnd:''))}`}
                           </div>
                           <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', marginBottom:'10px' }}>
                             <span style={{ fontSize:'11px', background:'#eff6ff', color:C.primary, padding:'2px 7px', borderRadius:'999px', fontWeight:600 }}>총 {sessions.length}차시</span>

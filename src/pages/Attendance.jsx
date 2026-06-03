@@ -918,7 +918,7 @@ export function ProgressWindow() {
   const DAYS_KO2 = ['일','월','화','수','목','금','토']
   const d = new Date(date + 'T00:00:00')
   const dateLabel = `${d.getMonth()+1}월 ${d.getDate()}일 (${DAYS_KO2[d.getDay()]})`
-  const clsName = (cls?.className||'') + (cls?.section ? ' '+cls.section+'반' : '')
+  const clsName = (cls?.className||'') + ((cls?.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls?.section ? cls?.section+'반' : '')) ? ' '+(cls?.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls?.section ? cls?.section+'반' : '')) : '')
 
   // 진도체크 완료 후 → DB 재계산 + 메인 창에 갱신 신호
   const handleSaved = () => {
@@ -1279,7 +1279,7 @@ function replacePlaceholders(text, student, cls, user) {
   return text
     .replace(/{학생이름}/g, student?.name || '')
     .replace(/{학교명}/g,   cls?.organization || student?.school || '')
-    .replace(/{수업명}/g,   cls ? `${cls.className}${cls.section ? ' '+cls.section+'반' : ''}` : '')
+    .replace(/{수업명}/g,   cls ? `${cls.className}${(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}` : '')
     .replace(/{선생님이름}/g, teacherName)
     .replace(/{선생님닉네임}/g, teacherNickname)
     .replace(/{날짜}/g, dateStr)
@@ -2973,7 +2973,7 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
     { bg:'#fdf4ff', border:'#a855f7', text:'#7e22ce' },
   ]
   const tc = sessInfo ? TERM_COLORS[(sessInfo.termNum - 1) % TERM_COLORS.length] : null
-  const startTime = cls.time || ''; const endTime = cls.timeEnd || ''
+  const startTime = (cls.sections?.length>0 ? cls.sections[0].time : cls.time) || ''; const endTime = (cls.sections?.length>0 ? cls.sections[0].timeEnd : cls.timeEnd) || ''
 
   const activeStudents = allStudents.filter(s =>
     s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status)
@@ -3023,7 +3023,7 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
         <div style={{ flex:1, minWidth:'150px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', marginBottom:'4px' }}>
             <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>수업 과목 · {cls.className}</span>
-            {cls.section && <span style={{ fontSize:'12px', background:C.primary, color:'#fff', borderRadius:'6px', padding:'1px 8px', fontWeight:600 }}>{cls.section}반</span>}
+            {(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) && <span style={{ fontSize:'12px', background:C.primary, color:'#fff', borderRadius:'6px', padding:'1px 8px', fontWeight:600 }}>{(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))}</span>}
             {sessInfo && (
               <>
                 <span style={{ fontSize:'11px', color:C.muted, background:'#f3f4f6', padding:'1px 7px', borderRadius:'5px' }}>{sessInfo.total}차시</span>
@@ -3304,7 +3304,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                 })()}
               </div>
               <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>
-                <span>{cls.organization} · {cls.className}{cls.section?' '+cls.section+'반':''} · {activeStudents.length}명</span>
+                <span>{cls.organization} · {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) : ''} · {activeStudents.length}명</span>
               </div>
             </div>
             <span style={{ fontSize:'12px', padding:'4px 10px', borderRadius:'6px', fontWeight:600,
@@ -4179,7 +4179,7 @@ function MobileAttendance({ user, pageParams = {} }) {
                 fontSize: '13px', fontWeight: selClassId===cls.id ? 700 : 400,
                 cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', whiteSpace: 'nowrap', flexShrink: 0,
               }}>
-              {cls.className}{cls.section ? ` ${cls.section}반` : ''}
+              {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}
             </button>
           ))}
         </div>
@@ -4756,7 +4756,7 @@ export function Attendance({ user, pageParams = {} }) {
                     const cnt = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status)).length
                     return (
                       <div key={cls.id} style={{ padding:'10px 16px', borderRadius:'10px', background:'#fff', border:`1.5px solid ${C.border}`, minWidth:'160px' }}>
-                        <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{cls.className}{cls.section ? ` ${cls.section}반` : ''}</div>
+                        <div style={{ fontSize:'14px', fontWeight:700, color:C.text }}>{cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}</div>
                         <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>🏫 {cls.organization}</div>
                         <div style={{ fontSize:'13px', fontWeight:700, color:C.primary, marginTop:'4px' }}>👥 {cnt}명</div>
                       </div>

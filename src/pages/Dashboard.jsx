@@ -1487,7 +1487,7 @@ function RevenueCard({ user, onHide, onNav, mobile }) {
               const termBorderMap = { unpaid:'#fca5a5', closed:'#86efac', active:'#86efac', upcoming:'#e5e7eb' }
 
               // 학교명/과목·반
-              const classLabel = [cls.className, cls.section ? cls.section + '반' : ''].filter(Boolean).join(' ')
+              const classLabel = [cls.className, (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) || ''].filter(Boolean).join(' ')
               const nameLabel  = cls.organization + (classLabel ? ' / ' + classLabel : '')
 
               return (
@@ -1925,8 +1925,8 @@ function DayDetail({ date, user, classes, onNav }) {
                 { bg:'#fdf4ff', border:'#a855f7', text:'#7e22ce' },
               ]
               const tc        = sessInfo ? TERM_COLORS[(sessInfo.termNum-1) % TERM_COLORS.length] : null
-              const startTime = cls.time || ''
-              const endTime   = cls.timeEnd || ''
+              const startTime = (cls.sections?.length>0 ? cls.sections[0].time : cls.time) || ''
+              const endTime   = (cls.sections?.length>0 ? cls.sections[0].timeEnd : cls.timeEnd) || ''
 
               return (
                 <div key={cls.id} style={{ borderRadius: '10px', border: '1px solid #fed7aa', overflow: 'hidden' }}>
@@ -1934,7 +1934,7 @@ function DayDetail({ date, user, classes, onNav }) {
                     <div style={{ flex: 1, minWidth: '150px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
                         <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>수업 과목 · {cls.className}</span>
-                        {cls.section && <span style={{ fontSize: '12px', background: C.primary, color: '#fff', borderRadius: '6px', padding: '1px 8px', fontWeight: 600 }}>{cls.section}반</span>}
+                        {(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) && <span style={{ fontSize: '12px', background: C.primary, color: '#fff', borderRadius: '6px', padding: '1px 8px', fontWeight: 600 }}>{(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))}</span>}
                         {sessInfo && (
                           <>
                             <span style={{ fontSize: '11px', color: C.muted, background: '#f3f4f6', padding: '1px 7px', borderRadius: '5px' }}>{sessInfo.total}차시</span>
@@ -2463,15 +2463,15 @@ function MobileDashboard({ user, onNav }) {
                         {/* 한줄: 수업명(반) / 학교 / 시간 */}
                         <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
                           <span style={{ fontSize:'15px', fontWeight:700, color:'#111827' }}>
-                            {cls.className}{cls.section ? ` ${cls.section}반` : ''}
+                            {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}
                           </span>
                           {cls.organization && <>
                             <span style={{ color:'#d1d5db' }}>·</span>
                             <span style={{ fontSize:'13px', color:'#6b7280' }}>{cls.organization}</span>
                           </>}
-                          {cls.time && <>
+                          {(cls.sections?.length>0 ? cls.sections[0].time : cls.time) && <>
                             <span style={{ color:'#d1d5db' }}>·</span>
-                            <span style={{ fontSize:'13px', color:'#6b7280' }}>🕐 {cls.time}{cls.timeEnd ? `~${cls.timeEnd}` : ''}</span>
+                            <span style={{ fontSize:'13px', color:'#6b7280' }}>🕐 {(cls.sections?.length>0 ? cls.sections.map(s=>(s.section?s.section+'반 ':'')+s.time+(s.timeEnd?' ~ '+s.timeEnd:'')).join(' / ') : (cls.time||'')+(cls.timeEnd?' ~ '+cls.timeEnd:''))}</span>
                           </>}
                         </div>
                       </div>
@@ -2551,7 +2551,7 @@ function MobileDashboard({ user, onNav }) {
               {alerts.map(({ cls, nextDate, students, total }) => (
                 <div key={cls.id} style={{ marginBottom: '8px' }}>
                   <div style={{ fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '4px' }}>
-                    {cls.organization} · {cls.className}{cls.section?' '+cls.section+'반':''} · {nextDate}
+                    {cls.organization} · {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''} · {nextDate}
                   </div>
                   {students.map(({ s, label, isDone }) => (
                     <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'6px', fontSize:'12px', marginBottom:'3px', flexWrap:'wrap' }}>
@@ -2747,9 +2747,9 @@ export function Dashboard({ user, onNav }) {
   }).sort((a, b) => {
     // 오늘부터 가까운 요일 순
     if (a.daysUntil !== b.daysUntil) return a.daysUntil - b.daysUntil
-    const secCmp = (a.cls.section || '').localeCompare(b.cls.section || '', 'ko')
+    const secCmp = ((a.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (a.cls.section ? a.cls.section+'반' : '')) || '').localeCompare((b.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (b.cls.section ? b.cls.section+'반' : '')) || '', 'ko')
     if (secCmp !== 0) return secCmp
-    return (a.cls.time || '').localeCompare(b.cls.time || '')
+    return ((a.cls.sections?.[0]?.time || a.cls.time) || '').localeCompare((b.cls.sections?.[0]?.time || b.cls.time) || '')
   })
 
   const prevMonth = () => { if (calMonth === 0) { setCalYear(y=>y-1); setCalMonth(11) } else setCalMonth(m=>m-1) }
@@ -3123,7 +3123,7 @@ export function Dashboard({ user, onNav }) {
                       {isOpen && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '8px', marginTop:'4px' }}>
                           {Object.entries(schools).map(([school, items]) => {
-                            const sorted = [...items].sort((a, b) => (a.cls.section || '').localeCompare(b.cls.section || '', 'ko'))
+                            const sorted = [...items].sort((a, b) => ((a.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (a.cls.section ? a.cls.section+'반' : '')) || '').localeCompare((b.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (b.cls.section ? b.cls.section+'반' : '')) || '', 'ko'))
                             const totalAlert = sorted.reduce((sum, i) => sum + i.students.length, 0)
                             return (
                               <div key={school} style={{ background: '#fff', borderRadius: '10px', border: '1px solid #fca5a5', overflow: 'hidden' }}>
@@ -3144,7 +3144,7 @@ export function Dashboard({ user, onNav }) {
                                 {sorted.map(({ cls, students, total }) => (
                                   <div key={cls.id} style={{ borderBottom: '1px solid #fee2e2' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 14px', background: '#fff7ed' }}>
-                                      <span style={{ fontSize: '12px', fontWeight: 700, color: C.primary }}>{cls.className}{cls.section ? ' ' + cls.section + '반' : ''}</span>
+                                      <span style={{ fontSize: '12px', fontWeight: 700, color: C.primary }}>{cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}</span>
                                       <span style={{ fontSize: '11px', color: C.muted }}>{students.length}/{total}명</span>
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 12px' }}>
@@ -3233,7 +3233,7 @@ export function Dashboard({ user, onNav }) {
                       if (!monthDates.length) return null
                       return (
                         <div key={cls.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
-                          <span style={{ color: '#374151' }}>{cls.className}{cls.section ? ' ' + cls.section + '반' : ''}</span>
+                          <span style={{ color: '#374151' }}>{cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}</span>
                           <span style={{ color: C.primary, fontWeight: 700 }}>{monthDates.length}회</span>
                         </div>
                       )

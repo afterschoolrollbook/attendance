@@ -64,7 +64,7 @@ function getClassLabel(cls) {
   const termLabel = cls.periods?.length > 0
     ? cls.periods.map(p => p.label).join('/')
     : ''
-  const base = `${cls.organization || ''} ${cls.className || ''}${cls.section ? ' ' + cls.section : ''}`
+  const base = `${cls.organization || ''} ${cls.className || ''}${(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}`
   return year && termLabel ? `${base} · ${year}년 ${termLabel}` : base
 }
 
@@ -2265,7 +2265,7 @@ export function Supplies({ user }) {
                     return (a.section||'').localeCompare(b.section||'','ko')
                   }).map(cls => (
                     <option key={cls.id} value={cls.id}>
-                      {cls.organization} · {cls.className}{cls.section ? ' '+cls.section : ''}
+                      {cls.organization} · {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) : ''}
                     </option>
                   ))}
                 </select>
@@ -3647,7 +3647,7 @@ export function Supplies({ user }) {
                 ) : (
                   <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
                     {grouped.map(({ cls, studs }) => {
-                      const clsLabel = `${cls.className||''}${cls.section ? ' '+cls.section : ''}`
+                      const clsLabel = `${cls.className||''}${((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) : ''}`
                       return (
                         <div key={cls.id}>
                           {/* 반 헤더 - 특정 반 선택 시 숨김 */}

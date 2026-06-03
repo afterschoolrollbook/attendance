@@ -245,7 +245,7 @@ export function PrintSetup({ user }) {
 
       const selTmpl = templates.find(t => t.id === selectedTemplate)
       const isHwp = selTmpl?.fileType === 'hwp'
-      const className = `${cls.organization} ${cls.className}${cls.section ? ' '+cls.section+'반' : ''}`
+      const className = `${cls.organization} ${cls.className}${((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}`
       const teacherName = user.name || '선생님'
       const DAY_KR = ['일','월','화','수','목','금','토']
 
@@ -258,7 +258,7 @@ export function PrintSetup({ user }) {
 
         // 행 데이터 구성
         const r0 = Array(totalCols).fill('')  // 제목
-        r0[0] = `(      ${cls.organization}      ${cls.section||''}반 )  학 생 출 석 부`
+        r0[0] = `(      ${cls.organization}      ${((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) || ''} )  학 생 출 석 부`
 
         const r1 = Array(totalCols).fill('')  // 기간/강사
         r1[0] = ` • 기간 :  ${cls.startDate} ~ ${cls.endDate}                    • 강사명 :    (인)`
@@ -339,7 +339,7 @@ export function PrintSetup({ user }) {
         ]
 
         XLSX.utils.book_append_sheet(wb, ws, '학생출석부')
-        const filename = `${cls.organization}_${cls.className}${cls.section?'_'+cls.section+'반':''}_출석부_${today()}.xlsx`
+        const filename = `${cls.organization}_${cls.className}${((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? '_'+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}_출석부_${today()}.xlsx`
         XLSX.writeFile(wb, filename)
 
       } else {
@@ -389,7 +389,7 @@ export function PrintSetup({ user }) {
 
     const selTmpl = templates.find(t => t.id === selectedTemplate)
     const isHwp = selTmpl?.fileType === 'hwp'
-    const className = `${cls.organization} ${cls.className}${cls.section ? ' '+cls.section+'반' : ''}`
+    const className = `${cls.organization} ${cls.className}${((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}`
     const teacherName = user.name || '선생님'
     const DAY_KR = ['일','월','화','수','목','금','토']
 
@@ -415,7 +415,7 @@ export function PrintSetup({ user }) {
         </tr>`).join('')
 
       tableHtml = `
-        <h1>( ${cls.organization}  ${cls.section||''}반 )  학생출석부</h1>
+        <h1>( ${cls.organization}  ${((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) || ''} )  학생출석부</h1>
         <div class="info">
           <span>기간: ${cls.startDate} ~ ${cls.endDate}</span>
           <span>강사명: ${teacherName} (인)</span>
@@ -558,7 +558,7 @@ export function PrintSetup({ user }) {
               g.type === 'group'
                 ? <optgroup key={'g'+i} label={g.label} />
                 : <option key={g.cls.id} value={g.cls.id}>
-                    {g.cls.className}{g.cls.section ? ' ' + g.cls.section + '반' : ''}
+                    {g.cls.className}{((g.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (g.cls.section ? g.cls.section+'반' : ''))) ? ' '+(g.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (g.cls.section ? g.cls.section+'반' : '')) : ''}
                     {g.cls.days?.length ? ' (' + g.cls.days.join('') + ')' : ''}
                   </option>
             )

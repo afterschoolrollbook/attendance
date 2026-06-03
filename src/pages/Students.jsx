@@ -1152,7 +1152,7 @@ export function Students({ user, onNav }) {
         const schoolCount = new Set(ctxBase.map(s => (s.classIds||[]).map(cid => classes.find(c=>c.id===cid)?.organization).filter(Boolean)[0] || s.school).filter(Boolean)).size
         const sectionCount = new Set(ctxBase.map(s => {
           const cls = classes.find(c => c.id === s.classIds?.[0])
-          return cls ? (cls.className + (cls.section ? ' '+cls.section+'반' : '')) : null
+          return cls ? (cls.className + ((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : '')) : null
         }).filter(Boolean)).size
         const sep = <span style={{ color:'#d1d5db', margin:'0 4px' }}>·</span>
         return (
@@ -1215,7 +1215,7 @@ export function Students({ user, onNav }) {
                 const sClasses = (s.classIds || []).map(cid => {
                   const cls = classes.find(c => c.id === cid)
                   if (!cls) return null
-                  return cls.className + (cls.section ? ' ' + cls.section + '반' : '')
+                  return cls.className + ((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : '')
                 }).filter(Boolean)
                 // 학교명은 실제 수업 레코드에서 가져옴 (s.school은 캐시라 변경 반영 안 됨)
                 const displaySchool = (s.classIds || []).map(cid => classes.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || ''
@@ -1565,7 +1565,7 @@ export function Students({ user, onNav }) {
                   </thead>
                   <tbody>
                     {newStudents.map((s, i) => {
-                      const sClasses = (s.classIds||[]).map(cid => { const cls=classes.find(c=>c.id===cid); return cls ? cls.className+(cls.section?' '+cls.section+'반':'') : null }).filter(Boolean)
+                      const sClasses = (s.classIds||[]).map(cid => { const cls=classes.find(c=>c.id===cid); return cls ? cls.className+((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))?' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')):'') : null }).filter(Boolean)
                       const displaySchool = (s.classIds||[]).map(cid => classes.find(c=>c.id===cid)?.organization).filter(Boolean)[0] || s.school || ''
                       const isChecked = selectedForMove.includes(s.id)
                       return (

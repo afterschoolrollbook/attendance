@@ -578,7 +578,7 @@ function ParentListTab({ user, config }) {
                 const sClasses = (s.classIds || []).map(cid => {
                   const cls = classes.find(c => c.id === cid)
                   if (!cls) return null
-                  return cls.className + (cls.section ? ' ' + cls.section + '반' : '')
+                  return cls.className + ((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : '')
                 }).filter(Boolean)
                 const displaySchool = (s.classIds || [])
                   .map(cid => classes.find(c => c.id === cid)?.organization)

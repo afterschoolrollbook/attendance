@@ -89,7 +89,7 @@ export function Reports({ user }) {
       ws2['!cols'] = [{ wch:10},{wch:8},{wch:6},{wch:10},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10}]
       XLSX.utils.book_append_sheet(wb, ws2, '통계요약')
 
-      const filename = `${cls.organization}_${cls.className}${cls.section ? '_'+cls.section+'반' : ''}_출석리포트_${today()}.xlsx`
+      const filename = `${cls.organization}_${cls.className}${((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? '_'+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}_출석리포트_${today()}.xlsx`
       XLSX.writeFile(wb, filename)
     } catch (e) {
       toastError('엑셀 다운로드 중 오류가 발생했습니다.')
@@ -103,7 +103,7 @@ export function Reports({ user }) {
   const downloadPDF = () => {
     if (!cls || students.length === 0) return
 
-    const className = `${cls.organization} ${cls.className}${cls.section ? ' '+cls.section+'반' : ''}`
+    const className = `${cls.organization} ${cls.className}${((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}`
 
     // 인쇄용 HTML 생성
     const tableRows = studentStats.map((s, i) => `

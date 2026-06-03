@@ -205,7 +205,7 @@ function SchoolDetail({ selectedSchool, selectedSupport, enriched, allClasses, t
               ) : classGroups.map(({ cls, students }) => (
                 <div key={cls.id} style={{ borderBottom:`1px solid #f3f4f6` }}>
                   <div style={{ padding:'8px 16px', background:'#fff7ed', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                    <span style={{ fontSize:'12px', fontWeight:700, color:'#ea580c' }}>📚 {cls.className}{cls.section?` (${cls.section}반)`:''}</span>
+                    <span style={{ fontSize:'12px', fontWeight:700, color:'#ea580c' }}>📚 {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ` (${((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')))}` : ''}</span>
                     <span style={{ fontSize:'11px', color:C.muted }}>{students.length}명</span>
                   </div>
                   <div style={{ padding:'6px 16px 8px', display:'flex', flexWrap:'wrap', gap:'6px' }}>
