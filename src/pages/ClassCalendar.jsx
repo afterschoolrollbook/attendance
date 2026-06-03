@@ -29,7 +29,7 @@ const SPECIAL_PERIOD_TYPES = [
 ]
 const getSpecialPeriodType = (value) => SPECIAL_PERIOD_TYPES.find(t => t.value === value) || SPECIAL_PERIOD_TYPES[SPECIAL_PERIOD_TYPES.length - 1]
 
-function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, makeupDates, termMap, onDateClick, applyStartAt, applyEndAt, specialPeriods }) {
+function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, makeupDates, termMap, onDateClick, applyStartAt, applyEndAt, specialPeriods, periodRanges }) {
   const firstDay = new Date(year, month, 1).getDay()
   const lastDate = new Date(year, month + 1, 0).getDate()
   const cells = []
@@ -55,6 +55,17 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           const dateStr = year+'-'+String(month+1).padStart(2,'0')+'-'+String(day).padStart(2,'0')
           const sessInfo = sessionMap[dateStr]
           const session  = sessInfo  // 하위 호환
+          // 분기/학기 시작일·종료일 판별
+          const isPeriodStart = (periodRanges || []).some(r => r.start === dateStr)
+          const isPeriodEnd   = (periodRanges || []).some(r => r.end === dateStr)
+          const periodStartColor = (periodRanges || []).find(r => r.start === dateStr)?.color || '#6b7280'
+          const periodEndColor   = (periodRanges || []).find(r => r.end === dateStr)?.color || '#6b7280'
+          // [ ] 세로선 스타일
+          const periodBorder = {
+            ...(isPeriodStart ? { borderLeft: `3px solid ${periodStartColor}`, borderRadius:'0 8px 8px 0', paddingLeft:'1px' } : {}),
+            ...(isPeriodEnd   ? { borderRight:`3px solid ${periodEndColor}`,   borderRadius:'8px 0 0 8px', paddingRight:'1px' } : {}),
+            ...(isPeriodStart && isPeriodEnd ? { borderLeft:`3px solid ${periodStartColor}`, borderRight:`3px solid ${periodEndColor}`, borderRadius:'0', paddingLeft:'1px', paddingRight:'1px' } : {}),
+          }
           const isCancelled = cancelled.has(dateStr)
           const isMakeup    = makeupSet.has(dateStr)
           const isSession   = !!sessInfo && !isCancelled && !isMakeup
@@ -105,7 +116,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                   background: inApply ? '#fff7ed' : '#fff7ed',
                   outline: inApply ? '1.5px solid #93c5fd' : '1.5px solid #f97316',
                   outlineOffset:'-1px',
-                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
+                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s', ...periodBorder }}>
                 <div style={{ fontSize:'12px', fontWeight:700, color: isSun?'#ef4444': isSat?'#3b82f6':'#111827' }}>{day}</div>
                 <div style={{ fontSize:'10px', color:'#ea580c', fontWeight:700, lineHeight:1.2 }}>수업일</div>
                 <div style={{ fontSize:'9px', color:'#fff', background:'#f97316', borderRadius:'4px',
@@ -123,7 +134,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                 title={`보강 ${sessInfo?.total||''}차시: ${makeupInfo?.memo||''} — 클릭하면 삭제`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                   background:'#eff6ff', outline:'1.5px solid #3b82f6', outlineOffset:'-1px',
-                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
+                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s', ...periodBorder }}>
                 <div style={{ fontSize:'12px', fontWeight:700, color: isSun?'#ef4444': isSat?'#3b82f6':'#1d4ed8' }}>{day}</div>
                 <div style={{ fontSize:'10px', color:'#3b82f6', fontWeight:700, lineHeight:1.2 }}>보강</div>
                 {makeupInfo?.memo && <div style={{ fontSize:'9px', color:'#93c5fd', lineHeight:1.1 }}>{makeupInfo.memo.slice(0,4)}</div>}
@@ -140,7 +151,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                 title={`취소됨: ${reasonLabel||''} — 클릭하면 복원`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                   background:'#fef2f2', outline:'1.5px solid #fca5a5', outlineOffset:'-1px',
-                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
+                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s', ...periodBorder }}>
                 <div style={{ fontSize:'12px', fontWeight:700, color:'#d1d5db' }}>{day}</div>
                 <div style={{ fontSize:'9px', color:'#ef4444', lineHeight:1.2 }}>{reasonLabel||'취소'}</div>
                 {applyDot}
@@ -157,7 +168,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                 title={`전체 ${sessInfo.total}차시 | ${sessInfo.termNum}텀 ${sessInfo.termSess}차시 — 클릭하면 처리`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                   background: tc.bg, outline:`1.5px solid ${tc.border}`, outlineOffset:'-1px',
-                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s' }}>
+                  textAlign:'center', fontFamily:'Noto Sans KR, sans-serif', transition:'all .12s', ...periodBorder }}>
                 <div style={{ fontSize:'12px', fontWeight:700, color: isSun?'#ef4444': isSat?'#3b82f6':'#111827' }}>{day}</div>
                 <div style={{ fontSize:'10px', color: tc.text, fontWeight:700, lineHeight:1.3 }}>
                   {sessInfo.total}차시
@@ -181,7 +192,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
                 outline: spType ? `1px solid ${spType.border}` : inApply ? '1px solid #bfdbfe' : 'none',
                 textAlign:'center', fontFamily:'Noto Sans KR, sans-serif',
                 color: isSun?'#fca5a5': isSat?'#93c5fd': (spType || inApply) ? '#1d4ed8' : '#9ca3af', fontSize:'12px',
-                transition:'all .12s' }}
+                transition:'all .12s', ...periodBorder }}
               onMouseEnter={e => e.currentTarget.style.background= spType ? spType.border : inApply ? '#dbeafe' : '#f0fdf4'}
               onMouseLeave={e => e.currentTarget.style.background= spType ? spType.bg : inApply ? '#eff6ff' : 'transparent'}>
               {day}
@@ -430,6 +441,18 @@ export function ClassCalendar({ cls, onUpdate }) {
   const makeupCount = makeupDates.length
   const cancelCount = cancelledDates.length
   const specialPeriods = cls.specialPeriods || []
+
+  // 분기/학기 시작일·종료일 범위 ([ ] 표시용)
+  const periodRanges = cls.periods?.length > 0
+    ? cls.periods.filter(p => p.startDate && p.endDate).map((p, pIdx) => ({
+        start: p.startDate,
+        end:   p.endDate,
+        label: p.label,
+        color: TERM_COLORS[pIdx % TERM_COLORS.length].border,
+      }))
+    : (cls.startDate && cls.endDate
+        ? [{ start: cls.startDate, end: cls.endDate, label: '수업기간', color: TERM_COLORS[0].border }]
+        : [])
 
   const addSpecialPeriod = () => {
     if (!newPeriodStart || !newPeriodEnd) return
@@ -893,6 +916,7 @@ export function ClassCalendar({ cls, onUpdate }) {
               termMap={termMap} onDateClick={handleDateClick}
               applyStartAt={cls.applyStartAt} applyEndAt={cls.applyEndAt}
               specialPeriods={specialPeriods}
+              periodRanges={periodRanges}
             />
           </div>
         ))}
