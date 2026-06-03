@@ -16,45 +16,73 @@ const MAX_TEMPLATE_FILES = 2
 const HOLIDAYS = {
   2025: [
     { date:'2025-01-01', name:'신정 (1/1)' },
-    { date:'2025-01-28', name:'설날 (1/28)' }, { date:'2025-01-29', name:'설날 (1/29)' }, { date:'2025-01-30', name:'설날 (1/30)' },
+    { date:'2025-01-27', name:'설날 연휴 (1/27)' }, { date:'2025-01-28', name:'설날 (1/28)' }, { date:'2025-01-29', name:'설날 (1/29)' }, { date:'2025-01-30', name:'설날 대체 (1/30)' },
     { date:'2025-03-01', name:'삼일절 (3/1)' },
+    { date:'2025-05-01', name:'근로자의날 (5/1)' },
     { date:'2025-05-05', name:'어린이날 (5/5)' },
     { date:'2025-05-06', name:'어린이날 대체 (5/6)' },
     { date:'2025-05-13', name:'부처님오신날 (5/13)' },
     { date:'2025-06-06', name:'현충일 (6/6)' },
+    { date:'2025-07-17', name:'제헌절 (7/17)' },
     { date:'2025-08-15', name:'광복절 (8/15)' },
     { date:'2025-10-03', name:'개천절 (10/3)' },
-    { date:'2025-10-05', name:'추석 (10/5)' }, { date:'2025-10-06', name:'추석 (10/6)' }, { date:'2025-10-07', name:'추석 (10/7)' },
+    { date:'2025-10-05', name:'추석 연휴 (10/5)' }, { date:'2025-10-06', name:'추석 (10/6)' }, { date:'2025-10-07', name:'추석 연휴 (10/7)' },
     { date:'2025-10-08', name:'추석 대체 (10/8)' },
     { date:'2025-10-09', name:'한글날 (10/9)' },
     { date:'2025-12-25', name:'성탄절 (12/25)' },
   ],
   2026: [
     { date:'2026-01-01', name:'신정 (1/1)' },
-    { date:'2026-01-28', name:'설날 (1/28)' }, { date:'2026-01-29', name:'설날 (1/29)' }, { date:'2026-01-30', name:'설날 (1/30)' },
+    { date:'2026-01-28', name:'설날 연휴 (1/28)' }, { date:'2026-01-29', name:'설날 (1/29)' }, { date:'2026-01-30', name:'설날 연휴 (1/30)' },
     { date:'2026-03-01', name:'삼일절 (3/1)' },
+    { date:'2026-05-01', name:'근로자의날 (5/1)' },
     { date:'2026-05-05', name:'어린이날 (5/5)' },
     { date:'2026-05-24', name:'부처님오신날 (5/24)' },
+    { date:'2026-05-25', name:'부처님오신날 대체 (5/25)' },
     { date:'2026-06-03', name:'지방선거일 (6/3)' },
     { date:'2026-06-06', name:'현충일 (6/6)' },
+    { date:'2026-07-17', name:'제헌절 (7/17)' },
     { date:'2026-08-15', name:'광복절 (8/15)' },
-    { date:'2026-09-24', name:'추석 (9/24)' }, { date:'2026-09-25', name:'추석 (9/25)' }, { date:'2026-09-26', name:'추석 (9/26)' },
+    { date:'2026-08-17', name:'광복절 대체 (8/17)' },
+    { date:'2026-09-24', name:'추석 연휴 (9/24)' }, { date:'2026-09-25', name:'추석 (9/25)' }, { date:'2026-09-26', name:'추석 연휴 (9/26)' },
     { date:'2026-10-03', name:'개천절 (10/3)' },
+    { date:'2026-10-05', name:'개천절 대체 (10/5)' },
     { date:'2026-10-09', name:'한글날 (10/9)' },
     { date:'2026-12-25', name:'성탄절 (12/25)' },
   ],
   2027: [
     { date:'2027-01-01', name:'신정 (1/1)' },
-    { date:'2027-02-16', name:'설날 (2/16)' }, { date:'2027-02-17', name:'설날 (2/17)' }, { date:'2027-02-18', name:'설날 (2/18)' },
+    { date:'2027-02-15', name:'설날 연휴 (2/15)' }, { date:'2027-02-16', name:'설날 (2/16)' }, { date:'2027-02-17', name:'설날 연휴 (2/17)' },
     { date:'2027-03-01', name:'삼일절 (3/1)' },
+    { date:'2027-05-01', name:'근로자의날 (5/1)' },
     { date:'2027-05-05', name:'어린이날 (5/5)' },
     { date:'2027-05-13', name:'부처님오신날 (5/13)' },
     { date:'2027-06-06', name:'현충일 (6/6)' },
+    { date:'2027-06-07', name:'현충일 대체 (6/7)' },
+    { date:'2027-07-17', name:'제헌절 (7/17)' },
     { date:'2027-08-15', name:'광복절 (8/15)' },
-    { date:'2027-09-14', name:'추석 (9/14)' }, { date:'2027-09-15', name:'추석 (9/15)' }, { date:'2027-09-16', name:'추석 (9/16)' },
+    { date:'2027-09-03', name:'추석 연휴 (9/3)' }, { date:'2027-09-04', name:'추석 (9/4)' }, { date:'2027-09-05', name:'추석 연휴 (9/5)' },
+    { date:'2027-09-06', name:'추석 대체 (9/6)' },
     { date:'2027-10-03', name:'개천절 (10/3)' },
+    { date:'2027-10-04', name:'개천절 대체 (10/4)' },
     { date:'2027-10-09', name:'한글날 (10/9)' },
+    { date:'2027-10-11', name:'한글날 대체 (10/11)' },
     { date:'2027-12-25', name:'성탄절 (12/25)' },
+  ],
+  2028: [
+    { date:'2028-01-01', name:'신정 (1/1)' },
+    { date:'2028-02-04', name:'설날 연휴 (2/4)' }, { date:'2028-02-05', name:'설날 (2/5)' }, { date:'2028-02-06', name:'설날 연휴 (2/6)' },
+    { date:'2028-03-01', name:'삼일절 (3/1)' },
+    { date:'2028-05-01', name:'근로자의날 (5/1)' },
+    { date:'2028-05-05', name:'어린이날 (5/5)' },
+    { date:'2028-06-01', name:'부처님오신날 (6/1)' },
+    { date:'2028-06-06', name:'현충일 (6/6)' },
+    { date:'2028-07-17', name:'제헌절 (7/17)' },
+    { date:'2028-08-15', name:'광복절 (8/15)' },
+    { date:'2028-09-21', name:'추석 연휴 (9/21)' }, { date:'2028-09-22', name:'추석 (9/22)' }, { date:'2028-09-23', name:'추석 연휴 (9/23)' },
+    { date:'2028-10-03', name:'개천절 (10/3)' },
+    { date:'2028-10-09', name:'한글날 (10/9)' },
+    { date:'2028-12-25', name:'성탄절 (12/25)' },
   ],
 }
 
@@ -1322,14 +1350,25 @@ export function Classes({ user, onNav }) {
               {/* 추가된 휴일 목록 */}
               {(form.cancelledDates||[]).length > 0 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                  {[...(form.cancelledDates||[])].sort((a,b) => a.date.localeCompare(b.date)).map((c, i) => (
+                  {[...(form.cancelledDates||[])].sort((a,b) => a.date.localeCompare(b.date)).map((c, i) => {
+                    const REASON_MAP = { public_holiday:'공휴일', school_holiday:'학교재량휴일', teacher_absent:'강사사정', etc:'기타', childrens_day:'어린이날', childrens_day_alt:'대체공휴일', election_day:'선거일' }
+                    return (
                     <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#fff', borderRadius:'8px', border:'1px solid #f3f4f6' }}>
-                      <span style={{ fontSize:'13px', fontWeight:600, color:'#374151', minWidth:'80px' }}>{c.date.slice(5)}</span>
-                      <span style={{ fontSize:'12px', color:'#6b7280', flex:1 }}>{c.memo || ({public_holiday:'공휴일', school_holiday:'학교재량휴일', teacher_absent:'강사사정', etc:'기타'}[c.reason] || c.reason)}</span>
+                      <span style={{ fontSize:'13px', fontWeight:600, color:'#374151', minWidth:'48px' }}>{c.date.slice(5)}</span>
+                      <span style={{ fontSize:'12px', color:'#6b7280', flex:1 }}>{c.memo || REASON_MAP[c.reason] || c.reason}</span>
+                      {/* 수정 버튼 */}
+                      <button
+                        onClick={() => {
+                          const newMemo = window.prompt('사유를 입력하세요', c.memo || REASON_MAP[c.reason] || '')
+                          if (newMemo === null) return
+                          setForm(f => ({ ...f, cancelledDates: (f.cancelledDates||[]).map((x, j) => j === i ? { ...x, memo: newMemo, reason: 'etc' } : x) }))
+                        }}
+                        style={{ background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:'14px', padding:'0 4px' }}
+                        title="수정">✏️</button>
                       <button onClick={() => setForm(f => ({ ...f, cancelledDates: (f.cancelledDates||[]).filter((_,j) => j !== i) }))}
                         style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'16px', padding:'0 4px' }}>×</button>
                     </div>
-                  ))}
+                  )})}
                 </div>
               )}
             </div>
