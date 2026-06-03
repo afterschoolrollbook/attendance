@@ -21,7 +21,6 @@ const getTermColor = (termNum) => TERM_COLORS[(termNum - 1) % TERM_COLORS.length
 const SPECIAL_PERIOD_TYPES = [
   { value: 'summer_vacation',    label: '여름방학',    color: '#f59e0b', bg: '#fffbeb', border: '#fcd34d', emoji: '☀️' },
   { value: 'winter_vacation',    label: '겨울방학',    color: '#60a5fa', bg: '#eff6ff', border: '#93c5fd', emoji: '❄️' },
-  { value: 'afterschool_vacation', label: '방과후 방학', color: '#10b981', bg: '#ecfdf5', border: '#6ee7b7', emoji: '🏖️' },
   { value: 'parent_observation', label: '학부모 참관', color: '#8b5cf6', bg: '#f5f3ff', border: '#c4b5fd', emoji: '👩‍👧' },
   { value: 'open_class',         label: '공개수업',    color: '#10b981', bg: '#ecfdf5', border: '#6ee7b7', emoji: '🎓' },
   { value: 'exhibition',         label: '전시기간',    color: '#ec4899', bg: '#fdf2f8', border: '#f9a8d4', emoji: '🎨' },
@@ -60,7 +59,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           const isSession   = !!sessInfo && !isCancelled && !isMakeup
           const cancelInfo  = cancelledDates.find(c => c.date === dateStr)
           const makeupInfo  = makeupDates.find(m => m.date === dateStr)
-          const REASON_LABELS = { public_holiday:'공휴일', childrens_day:'어린이날', childrens_day_alt:'대체공휴일', election_day:'선거일', school_holiday:'재량휴일', teacher_absent:'강사사정', etc:'기타' }
+          const REASON_LABELS = { public_holiday:'공휴일', national_holiday:'국경일', new_year:'신정', seollal:'설날', chuseok:'추석', childrens_day:'어린이날', buddha:'부처님오신날', memorial_day:'현충일', constitution_day:'제헌절', workers_day:'근로자의날', christmas:'성탄절', childrens_day_alt:'대체공휴일', election_day:'선거일', school_holiday:'학교재량휴일', teacher_absent:'강사사정', etc:'기타' }
           const reasonLabel = CANCEL_REASONS.find(r => r.value === cancelInfo?.reason)?.label || REASON_LABELS[cancelInfo?.reason] || cancelInfo?.reason
           const termNum     = termMap[dateStr]
           const dow = (firstDay + day - 1) % 7
@@ -77,26 +76,12 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           // 특별 기간 포함 여부 (여러 기간 중 첫 번째 매칭)
           const spMatch = (specialPeriods || []).find(p => dateStr >= p.startDate && dateStr <= p.endDate)
           const spType  = spMatch ? getSpecialPeriodType(spMatch.type) : null
-          // 방과후 방학: 시작일/종료일만 표시
-          const isAfterSchoolVacation = spMatch?.type === 'afterschool_vacation'
-          const isVacationStart = isAfterSchoolVacation && dateStr === spMatch.startDate
-          const isVacationEnd   = isAfterSchoolVacation && dateStr === spMatch.endDate
           const spBadge = spType ? (
-            isAfterSchoolVacation ? (
-              (isVacationStart || isVacationEnd) ? (
-                <div title={isVacationStart ? '방과후 방학 시작' : '방과후 방학 끝'} style={{
-                  fontSize:'8px', color:'#fff', background: spType.color,
-                  borderRadius:'3px', padding:'0 2px', marginTop:'1px',
-                  lineHeight:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
-                }}>{isVacationStart ? '방학▶' : '◀끝'}</div>
-              ) : null
-            ) : (
-              <div title={spMatch.label || spType.label} style={{
-                fontSize:'8px', color:'#fff', background: spType.color,
-                borderRadius:'3px', padding:'0 2px', marginTop:'1px',
-                lineHeight:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
-              }}>{spType.emoji}</div>
-            )
+            <div title={spMatch.label || spType.label} style={{
+              fontSize:'8px', color:'#fff', background: spType.color,
+              borderRadius:'3px', padding:'0 2px', marginTop:'1px',
+              lineHeight:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+            }}>{spType.emoji}</div>
           ) : null
 
           // 수동 추가 수업일 (makeupDates + type:'session')
@@ -237,10 +222,19 @@ export function ClassCalendar({ cls, onUpdate }) {
   const [newPeriodEnd,   setNewPeriodEnd]   = useState('')
 
   const CANCEL_OPTIONS = [
-    { value: 'public_holiday', label: '공휴일' },
-    { value: 'childrens_day', label: '어린이날' },
+    { value: 'public_holiday',  label: '공휴일' },
+    { value: 'national_holiday', label: '국경일 (삼일절/광복절/개천절/한글날)' },
+    { value: 'new_year',        label: '신정 (1/1)' },
+    { value: 'seollal',         label: '설날' },
+    { value: 'chuseok',         label: '추석' },
+    { value: 'childrens_day',   label: '어린이날 (5/5)' },
+    { value: 'buddha',          label: '부처님오신날' },
+    { value: 'memorial_day',    label: '현충일 (6/6)' },
+    { value: 'constitution_day',label: '제헌절 (7/17)' },
+    { value: 'workers_day',     label: '근로자의날 (5/1)' },
+    { value: 'christmas',       label: '성탄절 (12/25)' },
     { value: 'childrens_day_alt', label: '대체공휴일' },
-    { value: 'election_day',   label: '선거일' },
+    { value: 'election_day',    label: '선거일' },
     { value: 'school_holiday', label: '학교재량휴일' },
     { value: 'teacher_absent', label: '강사사정' },
     { value: 'etc',            label: '기타' },
