@@ -338,12 +338,15 @@ export function ClassCalendar({ cls, onUpdate }) {
   }
 
   const handleDateClick = (date, type) => {
+    setShowNormalAction(false)
+    setShowRegisteredAction(false)
+    setShowCancel(false)
+    setShowMakeup(false)
     setSelectedDate(date)
     setClickType(type)
     if (type === 'normal') {
       setShowNormalAction(true)
     } else {
-      // session / cancelled / makeup 모두 동일 모달
       setShowRegisteredAction(true)
     }
   }
