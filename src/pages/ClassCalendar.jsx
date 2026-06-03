@@ -21,6 +21,7 @@ const getTermColor = (termNum) => TERM_COLORS[(termNum - 1) % TERM_COLORS.length
 const SPECIAL_PERIOD_TYPES = [
   { value: 'summer_vacation',    label: '여름방학',    color: '#f59e0b', bg: '#fffbeb', border: '#fcd34d', emoji: '☀️' },
   { value: 'winter_vacation',    label: '겨울방학',    color: '#60a5fa', bg: '#eff6ff', border: '#93c5fd', emoji: '❄️' },
+  { value: 'afterschool_vacation', label: '방과후 방학', color: '#10b981', bg: '#ecfdf5', border: '#6ee7b7', emoji: '🏖️' },
   { value: 'parent_observation', label: '학부모 참관', color: '#8b5cf6', bg: '#f5f3ff', border: '#c4b5fd', emoji: '👩‍👧' },
   { value: 'open_class',         label: '공개수업',    color: '#10b981', bg: '#ecfdf5', border: '#6ee7b7', emoji: '🎓' },
   { value: 'exhibition',         label: '전시기간',    color: '#ec4899', bg: '#fdf2f8', border: '#f9a8d4', emoji: '🎨' },
@@ -76,12 +77,26 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           // 특별 기간 포함 여부 (여러 기간 중 첫 번째 매칭)
           const spMatch = (specialPeriods || []).find(p => dateStr >= p.startDate && dateStr <= p.endDate)
           const spType  = spMatch ? getSpecialPeriodType(spMatch.type) : null
+          // 방과후 방학: 시작일/종료일만 표시
+          const isAfterSchoolVacation = spMatch?.type === 'afterschool_vacation'
+          const isVacationStart = isAfterSchoolVacation && dateStr === spMatch.startDate
+          const isVacationEnd   = isAfterSchoolVacation && dateStr === spMatch.endDate
           const spBadge = spType ? (
-            <div title={spMatch.label || spType.label} style={{
-              fontSize:'8px', color:'#fff', background: spType.color,
-              borderRadius:'3px', padding:'0 2px', marginTop:'1px',
-              lineHeight:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
-            }}>{spType.emoji}</div>
+            isAfterSchoolVacation ? (
+              (isVacationStart || isVacationEnd) ? (
+                <div title={isVacationStart ? '방과후 방학 시작' : '방과후 방학 끝'} style={{
+                  fontSize:'8px', color:'#fff', background: spType.color,
+                  borderRadius:'3px', padding:'0 2px', marginTop:'1px',
+                  lineHeight:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+                }}>{isVacationStart ? '방학▶' : '◀끝'}</div>
+              ) : null
+            ) : (
+              <div title={spMatch.label || spType.label} style={{
+                fontSize:'8px', color:'#fff', background: spType.color,
+                borderRadius:'3px', padding:'0 2px', marginTop:'1px',
+                lineHeight:'13px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+              }}>{spType.emoji}</div>
+            )
           ) : null
 
           // 수동 추가 수업일 (makeupDates + type:'session')
