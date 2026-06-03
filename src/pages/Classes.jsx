@@ -117,7 +117,6 @@ function emptyPeriod(label) {
 function emptyForm() {
   return {
     organization: '', className: '', section: '',
-    sections: [{ name: 'A', active: true }, { name: 'B', active: true }],
     termType: 'semester', termCount: 4, termSizes: [4,4,4,4],
     periods: [], // 학기/분기별 기간 배열 [{ label, startDate, endDate, termCount, termSizes }]
     days: [], repeatType: 'every', time: '', timeEnd: '', classDuration: '',
@@ -181,7 +180,6 @@ export function Classes({ user, onNav }) {
           organization:  cls.organization  || '',
           className:     cls.className     || '',
           section:       cls.section       || '',
-          sections:      cls.sections      || (cls.section ? [{ name: cls.section, active: true }, { name: 'B', active: true }] : [{ name: 'A', active: true }, { name: 'B', active: true }]),
           termType:      cls.termType      || 'semester',
           termCount:     cls.termCount     || 4,
           termSizes:     cls.termSizes     || [4,4,4,4],
@@ -250,7 +248,6 @@ export function Classes({ user, onNav }) {
             organization: meta.organization || '',
             className:    meta.className    || '',
             section:      meta.section      || '',
-          sections:     meta.sections     || [{ name: 'A', active: true }, { name: 'B', active: true }],
             days:         meta.days         || [],
             time:         meta.time         || '',
             timeEnd:      meta.timeEnd      || '',
@@ -428,7 +425,6 @@ export function Classes({ user, onNav }) {
       cancelledDates: cls.cancelledDates || [],
       makeupDates: cls.makeupDates || [],
       specialPeriods: cls.specialPeriods || [],
-      sections: cls.sections || (cls.section ? [{ name: cls.section, active: true }, { name: 'B', active: true }] : [{ name: 'A', active: true }, { name: 'B', active: true }]),
       periods: cls.periods || [],
       termCount: cls.termCount || 4,
       termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
@@ -523,39 +519,12 @@ export function Classes({ user, onNav }) {
       termCount:    autoTermCount,
       classDuration: form.classDuration === '' ? null : Number(form.classDuration),
     }
-    const activeSections = (cleanForm.sections || []).filter(s => s.active)
-
     if (editId && editId !== '__copy__') {
-      if (activeSections.length <= 1) {
-        // 단일 반이거나 반 없음
-        ClassesDB.update(editId, { ...cleanForm, section: activeSections[0]?.name || '' })
-        success('수정이 완료되었습니다.')
-      } else {
-        // 여러 반 — 기존 수업 수정 + 없는 반 추가
-        const existingSections = classes.filter(c =>
-          c.className === cleanForm.className &&
-          c.organization === cleanForm.organization &&
-          c.id !== editId
-        ).map(c => c.section)
-        activeSections.forEach((sec, i) => {
-          const { id: _oldId, ...base } = cleanForm
-          if (i === 0) {
-            ClassesDB.update(editId, { ...base, section: sec.name })
-          } else if (!existingSections.includes(sec.name)) {
-            ClassesDB.insert({ ...base, section: sec.name, id: uid(), teacherId: user.id, createdAt: now() })
-          }
-        })
-        success('수정이 완료되었습니다.')
-      }
+      ClassesDB.update(editId, cleanForm)
+      success('수정이 완료되었습니다.')
     } else {
       const { id: _oldId, ...formWithoutId } = cleanForm
-      if (activeSections.length <= 1) {
-        ClassesDB.insert({ ...formWithoutId, section: activeSections[0]?.name || '', id: uid(), teacherId: user.id, createdAt: now() })
-      } else {
-        activeSections.forEach(sec => {
-          ClassesDB.insert({ ...formWithoutId, section: sec.name, id: uid(), teacherId: user.id, createdAt: now() })
-        })
-      }
+      ClassesDB.insert({ ...formWithoutId, id: uid(), teacherId: user.id, createdAt: now() })
       success('등록이 완료되었습니다.')
     }
     // 저장 후 모달 유지 (X버튼으로만 닫기)
@@ -828,38 +797,7 @@ export function Classes({ user, onNav }) {
               <Input label="수업명(과목)" value={form.className} onChange={v => set('className', v)} required />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize:'12px', fontWeight:500, color:'#111827', display:'block', marginBottom:'6px' }}>반 설정</label>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:'8px', alignItems:'center' }}>
-                  {(form.sections||[]).map((sec, i) => (
-                    <div key={i} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'5px 10px',
-                      borderRadius:'8px', border:`1.5px solid ${sec.active ? '#f97316' : '#e5e7eb'}`,
-                      background: sec.active ? '#fff7ed' : '#f9fafb' }}>
-                      <input type="checkbox" checked={sec.active}
-                        onChange={e => {
-                          const next = [...(form.sections||[])]
-                          next[i] = { ...next[i], active: e.target.checked }
-                          set('sections', next)
-                        }}
-                        style={{ cursor:'pointer', accentColor:'#f97316', width:'14px', height:'14px' }} />
-                      <input value={sec.name}
-                        onChange={e => {
-                          const next = [...(form.sections||[])]
-                          next[i] = { ...next[i], name: e.target.value }
-                          set('sections', next)
-                        }}
-                        style={{ width:'36px', border:'none', background:'transparent', fontSize:'13px',
-                          fontWeight:700, color: sec.active ? '#f97316' : '#9ca3af',
-                          fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center' }} />
-                      <button onClick={() => set('sections', (form.sections||[]).filter((_,j) => j !== i))}
-                        style={{ background:'none', border:'none', color:'#d1d5db', cursor:'pointer', fontSize:'14px', lineHeight:1, padding:'0' }}>×</button>
-                    </div>
-                  ))}
-                  <button onClick={() => set('sections', [...(form.sections||[]), { name: String.fromCharCode(65 + (form.sections||[]).length), active: true }])}
-                    style={{ padding:'5px 10px', borderRadius:'8px', border:'1.5px dashed #d1d5db', background:'none',
-                      fontSize:'12px', color:'#9ca3af', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>+ 반 추가</button>
-                </div>
-              </div>
+              <Input label="반 (선택)" value={form.section} onChange={v => set('section', v)} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '8px', alignItems: 'end' }}>
                 <div>
                   <label style={{ fontSize:'12px', fontWeight:500, color:'#111827', display:'block', marginBottom:'6px' }}>수업 시작시간 (선택)</label>
