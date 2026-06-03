@@ -844,8 +844,10 @@ export function Classes({ user, onNav }) {
               </div>
               {(form.sections||[]).map((sec, idx) => {
                 const setSecField = (field, val) => {
-                  const next = (form.sections||[]).map((s,i) => i===idx ? {...s, [field]: val} : s)
-                  set('sections', next)
+                  setForm(prev => ({
+                    ...prev,
+                    sections: (prev.sections||[]).map((s,i) => i===idx ? {...s, [field]: val} : s)
+                  }))
                 }
                 const calcEnd = (time, dur) => {
                   if (!time || !dur) return
@@ -853,11 +855,14 @@ export function Classes({ user, onNav }) {
                   const total = h*60 + m + parseInt(dur)
                   const eh = Math.floor(total/60)%24
                   const em = total%60
-                  setSecField('timeEnd', `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`)
+                  setForm(prev => ({
+                    ...prev,
+                    sections: (prev.sections||[]).map((s,i) => i===idx ? {...s, timeEnd: `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`} : s)
+                  }))
                 }
                 const SECTION_LABELS = ['A','B','C','D','E','F']
                 return (
-                  <div key={idx} style={{ display:'grid', gridTemplateColumns:'60px 1fr auto 1fr auto', gap:'8px', alignItems:'end', padding:'10px 12px', borderRadius:'10px', border:'1.5px solid #e5e7eb', background:'#fafafa' }}>
+                  <div key={idx} style={{ display:'grid', gridTemplateColumns:'60px 1fr 80px 1fr auto', gap:'8px', alignItems:'end', padding:'10px 12px', borderRadius:'10px', border:'1.5px solid #e5e7eb', background:'#fafafa' }}>
                     <div>
                       <label style={{ fontSize:'11px', fontWeight:600, color:'#6b7280', display:'block', marginBottom:'4px' }}>반</label>
                       <input value={sec.section} onChange={e => setSecField('section', e.target.value)}
@@ -874,7 +879,7 @@ export function Classes({ user, onNav }) {
                       <label style={{ fontSize:'11px', fontWeight:600, color:'#6b7280', display:'block', marginBottom:'4px' }}>수업시간(분)</label>
                       <input type="number" min="1" max="300" value={sec.classDuration||''} placeholder="80"
                         onChange={e => { setSecField('classDuration', e.target.value); calcEnd(sec.time, e.target.value) }}
-                        style={{ width:'68px', padding:'7px 8px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center', background:'#fff' }} />
+                        style={{ width:'100%', padding:'7px 8px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center', background:'#fff', boxSizing:'border-box' }} />
                     </div>
                     <div>
                       <label style={{ fontSize:'11px', fontWeight:600, color:'#6b7280', display:'block', marginBottom:'4px' }}>종료시간</label>
