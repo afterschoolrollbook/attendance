@@ -220,8 +220,10 @@ export function ClassCalendar({ cls, onUpdate }) {
   }
 
   const allSessions   = calcSessionDates(cls)
-  // totalSessions 설정 시 해당 수만큼만 차시 번호 표시, 초과 날짜는 빈 날짜로 표시
-  const sessions      = cls.totalSessions ? allSessions.slice(0, cls.totalSessions) : allSessions
+  // periods 방식이면 totalSessions 무시하고 전체 날짜 사용
+  const sessions = (cls.periods?.length > 0 && cls.periods.some(p => p.startDate && p.endDate))
+    ? allSessions
+    : (cls.totalSessions ? allSessions.slice(0, cls.totalSessions) : allSessions)
   const cancelled     = new Set((cls.cancelledDates || []).map(c => c.date))
   const cancelledDates = cls.cancelledDates || []
   const makeupDates   = cls.makeupDates || []
@@ -243,34 +245,36 @@ export function ClassCalendar({ cls, onUpdate }) {
   let totalIdx = 1
 
   if (cls.periods?.length > 0) {
-    let globalTermNum = 0
-    cls.periods.forEach(p => {
+    // 분기별 독립 텀 (각 분기마다 1텀부터 시작, 색상 오프셋 적용)
+    cls.periods.forEach((p, pIdx) => {
       if (!p.startDate || !p.endDate) return
       const periodSessions = sessions.filter(d => d >= p.startDate && d <= p.endDate)
       const pTermSizes = (p.termSizes?.length > 0)
         ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
         : Array(Number(p.termCount) || 1).fill(4)
+      const pOffset = pIdx * 3
       let cursor = 0
-      pTermSizes.forEach((size) => {
-        globalTermNum++
+      pTermSizes.forEach((size, ti) => {
+        const termNum = pOffset + ti + 1
         let termIdx = 1
         periodSessions.slice(cursor, cursor + size).forEach(d => {
           if (!cancelled.has(d)) {
-            sessionMap[d] = { total: totalIdx++, termNum: globalTermNum, termSess: termIdx++ }
-            termMap[d] = globalTermNum
+            sessionMap[d] = { total: totalIdx++, termNum, termSess: termIdx++ }
+            termMap[d] = termNum
           } else {
-            termMap[d] = globalTermNum
+            termMap[d] = termNum
           }
         })
         cursor += size
       })
       if (cursor < periodSessions.length) {
+        const termNum = pOffset + pTermSizes.length
         let termIdx = 1
         periodSessions.slice(cursor).forEach(d => {
           if (!cancelled.has(d)) {
-            sessionMap[d] = { total: totalIdx++, termNum: globalTermNum, termSess: termIdx++ }
+            sessionMap[d] = { total: totalIdx++, termNum, termSess: termIdx++ }
           }
-          termMap[d] = globalTermNum
+          termMap[d] = termNum
         })
       }
     })
@@ -386,6 +390,24 @@ export function ClassCalendar({ cls, onUpdate }) {
     const active = termSessions.filter(d => !cancelled.has(d)).length
     return { num: ti+1, active, total: size, globalStart, globalEnd }
   })
+  // 분기별 텀 요약 (periods 방식)
+  const periodTermSummary = cls.periods?.length > 0 ? cls.periods.map((p, pIdx) => {
+    if (!p.startDate || !p.endDate) return null
+    const pTermSizes = (p.termSizes?.length > 0)
+      ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
+      : Array(Number(p.termCount) || 1).fill(4)
+    const periodSessions = sessions.filter(d => d >= p.startDate && d <= p.endDate)
+    const pOffset = pIdx * 3
+    return {
+      label: p.label,
+      terms: pTermSizes.map((size, ti) => {
+        const cursor = pTermSizes.slice(0,ti).reduce((a,b)=>a+b,0)
+        const termSessions = periodSessions.slice(cursor, cursor + size)
+        const active = termSessions.filter(d => !cancelled.has(d)).length
+        return { num: pOffset + ti + 1, localNum: ti + 1, active, total: size, globalStart: cursor+1, globalEnd: cursor+size }
+      })
+    }
+  }).filter(Boolean) : []
 
   // ── 유효성 검사 ────────────────────────────────────────────
   const totalConfigured = cls.totalSessions ? Number(cls.totalSessions) : sessions.length
@@ -397,7 +419,20 @@ export function ClassCalendar({ cls, onUpdate }) {
   if (activeCount + makeupCount > totalConfigured) {
     warnings.push(`실제 수업 횟수(${activeCount + makeupCount}회)가 전체 수업일수(${totalConfigured}회)를 초과했습니다.`)
   }
-  if (termSum !== totalConfigured) {
+  if (cls.periods?.length > 0) {
+    cls.periods.forEach(p => {
+      if (!p.startDate || !p.endDate) return
+      const pSessions = sessions.filter(d => d >= p.startDate && d <= p.endDate)
+      const pTermSizes = (p.termSizes?.length > 0)
+        ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
+        : Array(Number(p.termCount) || 1).fill(4)
+      const pTermSum = pTermSizes.reduce((a,b) => a+b, 0)
+      const pActive  = pSessions.filter(d => !cancelled.has(d)).length
+      if (pTermSum !== pActive) {
+        warnings.push(`${p.label} 텀별 차시 합계(${pTermSum}차시)가 실제 수업일수(${pActive}회)와 맞지 않습니다.`)
+      }
+    })
+  } else if (termSum !== totalConfigured) {
     warnings.push(`텀별 차시 합계(${termSum}차시)가 전체 수업일수(${totalConfigured}회)와 맞지 않습니다.`)
   }
 
@@ -570,19 +605,39 @@ export function ClassCalendar({ cls, onUpdate }) {
       </div>
 
       {/* 요약 */}
-      <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'16px', alignItems:'center' }}>
-        {termSummary.map(t => {
-          const tc = getTermColor(t.num)
-          return (
-            <div key={t.num} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px',
-              background: tc.bg, border:`1.5px solid ${tc.border}`, borderRadius:'20px' }}>
-              <span style={{ fontSize:'12px', fontWeight:700, color: tc.text }}>{t.num}텀</span>
-              <span style={{ fontSize:'11px', color:'#6b7280', fontWeight:600 }}>{t.active}회</span>
-              <span style={{ fontSize:'10px', color:'#d1d5db' }}>|</span>
-              <span style={{ fontSize:'10px', color:'#9ca3af' }}>{t.globalStart}~{t.globalEnd}차시</span>
-            </div>
-          )
-        })}
+      <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'16px' }}>
+        {periodTermSummary.length > 0 ? periodTermSummary.map((pg, pgIdx) => (
+          <div key={pgIdx} style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+            <span style={{ fontSize:'12px', fontWeight:700, color:'#6b7280', minWidth:'40px' }}>{pg.label}</span>
+            {pg.terms.map(t => {
+              const tc = getTermColor(t.num)
+              return (
+                <div key={t.num} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px',
+                  background: tc.bg, border:`1.5px solid ${tc.border}`, borderRadius:'20px' }}>
+                  <span style={{ fontSize:'12px', fontWeight:700, color: tc.text }}>{t.localNum}텀</span>
+                  <span style={{ fontSize:'11px', color:'#6b7280', fontWeight:600 }}>{t.active}회</span>
+                  <span style={{ fontSize:'10px', color:'#d1d5db' }}>|</span>
+                  <span style={{ fontSize:'10px', color:'#9ca3af' }}>{t.globalStart}~{t.globalEnd}차시</span>
+                </div>
+              )
+            })}
+          </div>
+        )) : (
+          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
+            {termSummary.map(t => {
+              const tc = getTermColor(t.num)
+              return (
+                <div key={t.num} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px',
+                  background: tc.bg, border:`1.5px solid ${tc.border}`, borderRadius:'20px' }}>
+                  <span style={{ fontSize:'12px', fontWeight:700, color: tc.text }}>{t.num}텀</span>
+                  <span style={{ fontSize:'11px', color:'#6b7280', fontWeight:600 }}>{t.active}회</span>
+                  <span style={{ fontSize:'10px', color:'#d1d5db' }}>|</span>
+                  <span style={{ fontSize:'10px', color:'#9ca3af' }}>{t.globalStart}~{t.globalEnd}차시</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
         <div style={{ display:'flex', gap:'8px', fontSize:'12px', marginLeft:'4px' }}>
           <span style={{ color:'#f97316', fontWeight:600 }}>수업 {activeCount}회</span>
           {cancelCount > 0 && <span style={{ color:'#ef4444' }}>휴일 {cancelCount}회</span>}
@@ -669,7 +724,7 @@ export function ClassCalendar({ cls, onUpdate }) {
             </div>
           </div>
         </div>
-      </Modal>
+      )}
 
       {/* 경고 배너 */}
       {warnings.length > 0 && (
@@ -747,10 +802,12 @@ export function ClassCalendar({ cls, onUpdate }) {
       <Modal
         open={showNormalAction || showRegisteredAction || showCancel || showMakeup}
         onClose={() => { setShowNormalAction(false); setShowRegisteredAction(false); setShowCancel(false); setShowMakeup(false) }}
-        title={`${showCancel ? '🚫 공휴일 처리' : showMakeup ? '🔄 보강일 추가' : showNormalAction ? '📅 날짜 등록' : '📅 날짜 변경'} ${selectedDate || ''} (${selectedDate ? getDayLabel(selectedDate) : ''}요일)`}
+        title={showCancel ? '🚫 공휴일 처리' : showMakeup ? '🔄 보강일 추가' : showNormalAction ? '📅 날짜 등록' : '📅 날짜 변경'}
         width={400}
       >
-        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+        <div style={{ fontSize:'13px', color:'#9ca3af', marginBottom:'12px' }}>
+          {selectedDate} ({selectedDate && getDayLabel(selectedDate)}요일)
+        </div>
 
           {/* 빈 날짜 — 등록 선택 */}
           {showNormalAction && (
@@ -856,7 +913,7 @@ export function ClassCalendar({ cls, onUpdate }) {
             </div>
           )}
         </div>
-      )}
+      </Modal>
     </div>
   )
 }
