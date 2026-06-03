@@ -126,6 +126,7 @@ export function Classes({ user, onNav }) {
   const templateRef = useRef()
 
   const [alarmToast, setAlarmToast] = useState(null) // { className, minutesBefore, type: 'start'|'end' }
+  const [openPeriods, setOpenPeriods] = useState({}) // 분기 접기/펼치기 상태
   const { success, error: toastError } = useToast()
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
@@ -849,24 +850,24 @@ export function Classes({ user, onNav }) {
                   </div>
                   {(() => {
                     const today = new Date().toISOString().slice(0,10)
-                    // 현재 날짜가 속한 분기 인덱스 찾기, 없으면 마지막 분기
-                    const activeIdx = (() => {
-                      const idx = periods.findIndex(p => p.startDate && p.endDate && today >= p.startDate && today <= p.endDate)
-                      return idx >= 0 ? idx : periods.length - 1
-                    })()
+                    const activeIdx = periods.findIndex(p => p.startDate && p.endDate && today >= p.startDate && today <= p.endDate)
+                    const defaultOpenIdx = activeIdx >= 0 ? activeIdx : periods.length - 1
+                    // 처음 렌더 시 기본값 설정
+                    if (Object.keys(openPeriods).length === 0) {
+                      const init = {}
+                      periods.forEach((_, i) => { init[i] = i === defaultOpenIdx })
+                      setTimeout(() => setOpenPeriods(init), 0)
+                    }
                     return null
                   })()}
                   {periods.map((p, pIdx) => {
                     const today = new Date().toISOString().slice(0,10)
                     const isActive = p.startDate && p.endDate && today >= p.startDate && today <= p.endDate
-                    const isLast = pIdx === periods.length - 1
-                    const defaultOpen = isActive || (!periods.some(p => p.startDate && p.endDate && today >= p.startDate && today <= p.endDate) && isLast)
-                    const [open, setOpen] = React.useState(defaultOpen)
                     return (
                     <div key={pIdx} style={{ border:`1.5px solid ${isActive ? '#f97316' : '#e5e7eb'}`, borderRadius:'12px', background: isActive ? '#fff7ed' : '#fafafa', overflow:'hidden' }}>
                       {/* 헤더 — 항상 표시, 클릭으로 접기/펼치기 */}
                       <div
-                        onClick={() => setOpen(o => !o)}
+                        onClick={() => setOpenPeriods(prev => ({ ...prev, [pIdx]: !prev[pIdx] }))}
                         style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', cursor:'pointer', userSelect:'none' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                           <span style={{ fontSize:'13px', fontWeight:700, color: isActive ? '#f97316' : '#6b7280' }}>{p.label}</span>
@@ -880,11 +881,11 @@ export function Classes({ user, onNav }) {
                             <button type="button" onClick={e => { e.stopPropagation(); removePeriod(pIdx) }}
                               style={{ background:'none', border:'none', color:'#9ca3af', fontSize:'18px', cursor:'pointer', lineHeight:1 }}>×</button>
                           )}
-                          <span style={{ color:'#9ca3af', fontSize:'13px' }}>{open ? '▲' : '▼'}</span>
+                          <span style={{ color:'#9ca3af', fontSize:'13px' }}>{openPeriods[pIdx] ? '▲' : '▼'}</span>
                         </div>
                       </div>
                       {/* 내용 — open일 때만 표시 */}
-                      {open && <div style={{ padding:'0 16px 14px', display:'flex', flexDirection:'column', gap:'12px' }}>
+                      {openPeriods[pIdx] && <div style={{ padding:'0 16px 14px', display:'flex', flexDirection:'column', gap:'12px' }}>
                       {/* 기간 */}
                       <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', gap:'8px', alignItems:'center' }}>
                         <div>
