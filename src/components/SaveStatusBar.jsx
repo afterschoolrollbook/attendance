@@ -175,7 +175,12 @@ export function SaveStatusBar({ user }) {
           }}
           title="펼치기"
         >
-          {updateReady ? '🔄' : collapseIcon[saveState]}
+          {updateReady ? (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+          ) : collapseIcon[saveState]}
         </div>
 
       ) : (
@@ -194,7 +199,10 @@ export function SaveStatusBar({ user }) {
           {/* 🔄 업데이트 배너 */}
           {updateReady && (
             <>
-              <div style={{ fontSize:'16px', flexShrink:0 }}>🔄</div>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}>
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
               <div style={{ display:'flex', flexDirection:'column', gap:'1px' }}>
                 <span style={{ fontSize:'13px', fontWeight:700, color:'#fbbf24' }}>새 버전 업데이트</span>
                 <span style={{ fontSize:'10px', color:'rgba(255,255,255,0.4)' }}>지금 적용하면 새로고침됩니다</span>
