@@ -4598,7 +4598,12 @@ export function Attendance({ user, pageParams = {} }) {
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
               <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>수업</label>
-              <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setSelSection(''); setSelTerm(''); setDateClicked(false); setActiveMode('class'); setSelDay('') }} style={{ ...selSt, width:'100%' }}>
+              <select value={selClassId + (selSection ? ':'+selSection : '')} onChange={e => {
+                  const [cid, sec] = e.target.value.split(':')
+                  setSelClassId(cid)
+                  setSelSection(sec || '')
+                  setSelTerm(''); setDateClicked(false); setActiveMode('class'); setSelDay('')
+                }} style={{ ...selSt, width:'100%' }}>
                 <option value="">전체 수업</option>
                 {[...schoolClasses].sort((a, b) => {
                   const DAY_ORDER = ['월','화','수','목','금','토','일']
@@ -4606,19 +4611,17 @@ export function Attendance({ user, pageParams = {} }) {
                   const bDay = DAY_ORDER.indexOf(b.days?.[0] ?? '')
                   if (aDay !== bDay) return aDay - bDay
                   return (a.section||'').localeCompare(b.section||'', 'ko')
-                }).map(c => {
-                  const secLabel = c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')
-                  return <option key={c.id} value={c.id}>{c.className}{secLabel ? ' '+secLabel : ''}</option>
+                }).flatMap(c => {
+                  const secs = c.sections?.length > 0
+                    ? c.sections.map(s => s.section).filter(Boolean)
+                    : c.section ? [c.section] : ['']
+                  return secs.map(sec => (
+                    <option key={c.id+':'+sec} value={c.id+(sec?':'+sec:'')}>{c.className}{sec ? ' '+sec+'반' : ''}</option>
+                  ))
                 })}
               </select>
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-              <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>반</label>
-              <select value={selSection} onChange={e => setSelSection(e.target.value)} style={{ ...selSt, width:'100%' }} disabled={!selClassId || sections.length === 0}>
-                <option value="">전체 반</option>
-                {sections.map(s => <option key={s} value={s}>{s}반</option>)}
-              </select>
-            </div>
+
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
               <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>기간</label>
               <select value={selTerm} onChange={e => setSelTerm(e.target.value)} style={{ ...selSt, width:'100%' }}>
