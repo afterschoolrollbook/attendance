@@ -243,6 +243,7 @@ export function ClassCalendar({ cls, onUpdate }) {
   let totalIdx = 1
 
   if (cls.periods?.length > 0) {
+    // 분기별로 sessions 분리 후 텀 계산
     let globalTermNum = 0
     cls.periods.forEach(p => {
       if (!p.startDate || !p.endDate) return
@@ -264,6 +265,7 @@ export function ClassCalendar({ cls, onUpdate }) {
         })
         cursor += size
       })
+      // 남은 차시
       if (cursor < periodSessions.length) {
         let termIdx = 1
         periodSessions.slice(cursor).forEach(d => {
@@ -448,15 +450,9 @@ export function ClassCalendar({ cls, onUpdate }) {
               </span>
               <span style={{ fontSize:'11px', color:'#93c5fd', marginLeft:'auto' }}>← 기간 수정 시 달력에 자동 반영</span>
             </div>
-            {periods.map((p, pIdx) => {
-              const today = new Date().toISOString().slice(0,10)
-              const isActive = p.startDate && p.endDate && today >= p.startDate && today <= p.endDate
-              return (
-              <div key={pIdx} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 14px', background: isActive ? '#fff7ed' : '#fafafa', border:`1.5px solid ${isActive ? '#f97316' : '#e5e7eb'}`, borderRadius:'10px', flexWrap:'wrap' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'6px', minWidth:'70px' }}>
-                  <span style={{ fontSize:'13px', fontWeight:700, color: isActive ? '#f97316' : '#6b7280' }}>{p.label}</span>
-                  {isActive && <span style={{ fontSize:'10px', background:'#f97316', color:'#fff', borderRadius:'4px', padding:'1px 5px', fontWeight:700 }}>진행중</span>}
-                </div>
+            {periods.map((p, pIdx) => (
+              <div key={pIdx} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 14px', background:'#fafafa', border:'1.5px solid #e5e7eb', borderRadius:'10px', flexWrap:'wrap' }}>
+                <span style={{ fontSize:'13px', fontWeight:700, color:'#f97316', minWidth:'42px' }}>{p.label}</span>
                 <input type="date" value={p.startDate || ''} onChange={e => updatePeriod(pIdx, { startDate: e.target.value })} style={inputSt} />
                 <span style={{ color:'#9ca3af' }}>~</span>
                 <input type="date" value={p.endDate || ''} onChange={e => updatePeriod(pIdx, { endDate: e.target.value })} style={inputSt} />
@@ -489,22 +485,7 @@ export function ClassCalendar({ cls, onUpdate }) {
                   ))}
                 </div>
               </div>
-            )})}
-            {/* 분기 추가 버튼 */}
-            {(() => {
-              const allLabels = isSemester ? ['1학기','2학기','3학기'] : ['1분기','2분기','3분기','4분기']
-              if (periods.length >= allLabels.length) return null
-              const nextLabel = allLabels[periods.length]
-              return (
-                <button type="button" onClick={() => {
-                  const newPeriod = { label: nextLabel, startDate: '', endDate: '', termCount: 1, termSizes: [4] }
-                  const next = [...periods, newPeriod]
-                  onUpdate({ ...cls, periods: next })
-                }} style={{ padding:'9px', borderRadius:'10px', border:'2px dashed #e5e7eb', background:'#fafafa', color:'#9ca3af', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600, width:'100%' }}>
-                  + {nextLabel} 추가
-                </button>
-              )
-            })()}
+            ))}
           </div>
         )
       })()}
