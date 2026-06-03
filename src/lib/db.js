@@ -1,12 +1,13 @@
 /**
- * DB 레이어 — 인메모리 캐시 + Supabase JS 클라이언트 직접 접근
+ * DB 레이어 — IndexedDB 캐시 + 증분 동기화 + Supabase JS 클라이언트
  *
  * 핵심 원칙:
  *  - Edge Function 없음 → 콜드스타트 문제 없음
  *  - Supabase JS 클라이언트로 DB 직접 접근
  *  - 모든 레코드에 updatedAt 자동 기록
  *  - 삭제는 _deleted: true 소프트딜리트
- *  - localStorage 캐시 없음 → 5MB 한도 문제 없음
+ *  - IndexedDB 캐시 → 재접속 시 즉시 화면 표시
+ *  - 증분 동기화 → 변경된 것만 Supabase 로드 (빠름)
  *  - 멀티기기(PC/스마트폰) 항상 최신 데이터
  */
 
@@ -121,11 +122,96 @@ function _emit(table) {
   _listeners.get('*')?.forEach(fn => fn(table))
 }
 
-// ─── 인메모리 캐시 (localStorage 대신 — 5MB 제한 없음)
+// ─── 인메모리 캐시 (빠른 읽기용)
 const _cache = {}
 const cache = {
   get(t)    { return _cache[t] || [] },
   set(t, d) { _cache[t] = d },
+}
+
+// ─── IndexedDB 캐시 (재접속 시 즉시 로드용)
+const IDB_NAME    = 'asa_cache'
+const IDB_VERSION = 1
+const IDB_STORE   = 'tables'
+
+let _idb = null
+
+async function openIDB() {
+  if (_idb) return _idb
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION)
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE)
+      }
+    }
+    req.onsuccess = (e) => { _idb = e.target.result; resolve(_idb) }
+    req.onerror   = (e) => { console.warn('[IDB] 열기 실패:', e.target.error); resolve(null) }
+  })
+}
+
+async function idbGet(table) {
+  try {
+    const db = await openIDB()
+    if (!db) return null
+    return new Promise((resolve) => {
+      const tx  = db.transaction(IDB_STORE, 'readonly')
+      const req = tx.objectStore(IDB_STORE).get(table)
+      req.onsuccess = (e) => resolve(e.target.result || null)
+      req.onerror   = ()  => resolve(null)
+    })
+  } catch { return null }
+}
+
+async function idbSet(table, data) {
+  try {
+    const db = await openIDB()
+    if (!db) return
+    return new Promise((resolve) => {
+      const tx  = db.transaction(IDB_STORE, 'readwrite')
+      tx.objectStore(IDB_STORE).put(data, table)
+      tx.oncomplete = resolve
+      tx.onerror    = resolve
+    })
+  } catch {}
+}
+
+async function idbSetAll(dataMap) {
+  try {
+    const db = await openIDB()
+    if (!db) return
+    return new Promise((resolve) => {
+      const tx    = db.transaction(IDB_STORE, 'readwrite')
+      const store = tx.objectStore(IDB_STORE)
+      for (const [key, val] of Object.entries(dataMap)) store.put(val, key)
+      tx.oncomplete = resolve
+      tx.onerror    = resolve
+    })
+  } catch {}
+}
+
+// IndexedDB 전체 캐시 로드 → 인메모리 캐시에 반영
+export async function loadCacheFromIDB() {
+  const tables = Object.keys(TABLE_MAP)
+  await Promise.all(tables.map(async (t) => {
+    const rows = await idbGet(t)
+    if (Array.isArray(rows) && rows.length > 0) {
+      cache.set(t, rows)
+    }
+  }))
+  console.log('[IDB] 캐시 로드 완료')
+}
+
+// 인메모리 캐시 → IndexedDB에 저장
+async function saveCacheToIDB() {
+  const dataMap = {}
+  for (const t of Object.keys(TABLE_MAP)) {
+    const rows = cache.get(t)
+    if (rows.length > 0) dataMap[t] = rows
+  }
+  await idbSetAll(dataMap)
+  console.log('[IDB] 캐시 저장 완료')
 }
 
 // ─── 재시도 헬퍼 (네트워크 일시 오류 대응)
@@ -262,22 +348,69 @@ const SYNC_TABLES = [
 // _deleted 컬럼 없는 테이블 (소프트딜리트 미적용)
 const NO_DELETED_TABLES = new Set(['points', 'settings', 'attendance', 'notes', 'attendance_templates', 'ad_slots', 'branches', 'verify_codes', 'revenueFees', 'revenuePayments', 'supplySubjects', 'supplyVendors', 'supplyPlans', 'supplyProducts', 'supplyProductPlans', 'schoolCalendar', 'schoolInfo', 'hqVendors', 'hqVendorSubjects', 'hqVendorProducts', 'hqVendorStages', 'hqVendorContents', 'hqVendorQuarters', 'hqVendorSessions', 'hqVendorFiles', 'hqVendorPrices', 'hqVendorUsers', 'vendorAccounts'])
 
-// ─── 초기화: Supabase에서 데이터 로드
+// ─── 마지막 동기화 시각 관리
+const LAST_SYNC_KEY = 'asa_last_sync_at'
+function getLastSyncAt() {
+  try { return localStorage.getItem(LAST_SYNC_KEY) || null } catch { return null }
+}
+function setLastSyncAt(ts) {
+  try { localStorage.setItem(LAST_SYNC_KEY, ts) } catch {}
+}
+
+// ─── 초기화: Supabase에서 데이터 로드 (증분 동기화)
 export async function initFromSupabase() {
   if (!supabase) return false
+
+  const lastSyncAt = getLastSyncAt()
+  const isIncremental = !!lastSyncAt
+  const syncStartedAt = new Date().toISOString()
+
+  console.log(isIncremental
+    ? `[Supabase] 증분 동기화 — ${lastSyncAt} 이후 변경분만 로드`
+    : '[Supabase] 최초 전체 로드')
+
   try {
     await Promise.all(SYNC_TABLES.map(async (t) => {
       try {
         const { tbl, fromDb } = getConverters(t)
 
-        let q = supabase.from(tbl).select('*')
+        // ── 증분 동기화: 마지막 동기화 이후 변경된 것만 로드
+        if (isIncremental) {
+          const PAGE = 1000
+          let allRows = []
+          let from = 0
+          while (true) {
+            let q = supabase.from(tbl).select('*')
+              .gt('updated_at', lastSyncAt)
+              .range(from, from + PAGE - 1)
+            const { data: rows, error } = await q
+            if (error || !Array.isArray(rows)) break
+            allRows = allRows.concat(rows)
+            if (rows.length < PAGE) break
+            from += PAGE
+          }
+          if (allRows.length === 0) return // 변경 없으면 스킵
 
-        // _deleted 컬럼 있는 테이블만 필터 적용
+          // 기존 캐시에 변경분 머지
+          const incoming = allRows.map(fromDb)
+          const existing = cache.get(t)
+          const merged = [...existing]
+          for (const row of incoming) {
+            const idx = merged.findIndex(r => r.id === row.id)
+            if (idx >= 0) merged[idx] = row  // 업데이트
+            else merged.push(row)             // 신규
+          }
+          cache.set(t, merged.filter(r => r._deleted !== true))
+          console.log(`[Supabase] ${t}: ${allRows.length}건 변경 반영`)
+          return
+        }
+
+        // ── 최초 전체 로드 (기존 로직)
+        let q = supabase.from(tbl).select('*')
         if (!NO_DELETED_TABLES.has(t)) {
           q = q.or('_deleted.is.null,_deleted.eq.false')
         }
 
-        // 1000건 초과 가능한 테이블 페이지네이션 처리
         const PAGINATED_TABLES = {
           attendance: { filter: (q) => {
             const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -331,6 +464,9 @@ export async function initFromSupabase() {
       console.warn('[Supabase] settings 동기화 실패:', e.message)
     }
 
+    // 동기화 완료 시각 저장 + IndexedDB에 캐시 보존
+    setLastSyncAt(syncStartedAt)
+    await saveCacheToIDB()
     console.log('[Supabase] 데이터 동기화 완료')
     return true
   } catch (e) {
