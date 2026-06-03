@@ -750,7 +750,7 @@ export function Classes({ user, onNav }) {
                 const showPeriod = activePeriod || nextPeriod
                 // 진행중 분기 차시 계산
                 const periodSessions = showPeriod
-                  ? calcSessionDates({ ...cls, startDate: showPeriod.startDate, endDate: showPeriod.endDate }).length
+                  ? calcSessionDates({ ...cls, periods: [showPeriod] }).length
                   : displaySessions
 
                 return (
@@ -770,15 +770,12 @@ export function Classes({ user, onNav }) {
                         <div style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>{cls.className}</div>
                         {secs.length > 0 && (
                           <div style={{ display:'flex', flexDirection:'column', gap:'2px', marginTop:'3px' }}>
-                            {secs.map((s,i) => {
-                              const secCount = StudentsDB.byClass(cls.id).filter(st => (st.section || st.classSection) === s.section || secs.length === 1).length
-                              return (
-                                <div key={i} style={{ fontSize:'12px', color:'#6b7280', display:'flex', alignItems:'center', gap:'6px' }}>
-                                  <span style={{ fontWeight:700, color:'#f97316', minWidth:'28px' }}>{s.section ? `${s.section}반` : `${i+1}반`}</span>
-                                  {s.time && <span>{s.time}{s.timeEnd ? ` ~ ${s.timeEnd}` : ''}</span>}
-                                </div>
-                              )
-                            })}
+                            {secs.map((s,i) => (
+                              <div key={i} style={{ fontSize:'12px', color:'#6b7280', display:'flex', alignItems:'center', gap:'6px' }}>
+                                {s.section && <span style={{ fontWeight:700, color:'#f97316', minWidth:'28px' }}>{s.section}반</span>}
+                                {s.time && <span>{s.time}{s.timeEnd ? ` ~ ${s.timeEnd}` : ''}</span>}
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -790,7 +787,7 @@ export function Classes({ user, onNav }) {
                     {/* 분기 전체 목록 */}
                     {(cls.periods||[]).filter(p => p.startDate && p.endDate).map((p, i) => {
                       const isActive = t >= p.startDate && t <= p.endDate
-                      const pSessions = calcSessionDates({ ...cls, startDate: p.startDate, endDate: p.endDate }).length
+                      const pSessions = calcSessionDates({ ...cls, periods: [p] }).length
                       return (
                         <div key={i} style={{ fontSize:'12px', display:'flex', alignItems:'center', gap:'6px', marginBottom:'3px',
                           padding: isActive ? '2px 6px' : '0',
