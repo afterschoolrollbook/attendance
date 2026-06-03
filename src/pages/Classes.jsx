@@ -149,6 +149,8 @@ export function Classes({ user, onNav }) {
   const [noticeSearch,   setNoticeSearch]   = useState('')
   const [templateSearch, setTemplateSearch] = useState('')
   const [docPickerTarget, setDocPickerTarget] = useState(null) // 'promo' | 'notice' | 'template'
+  const [editCancelIdx,  setEditCancelIdx]  = useState(null)   // 수정 중인 휴일 인덱스 (원본 기준)
+  const [editCancelMemo, setEditCancelMemo] = useState('')
   const promoRef = useRef()
   const noticeRef = useRef()
   const templateRef = useRef()
@@ -1350,23 +1352,36 @@ export function Classes({ user, onNav }) {
               {/* 추가된 휴일 목록 */}
               {(form.cancelledDates||[]).length > 0 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                  {[...(form.cancelledDates||[])].sort((a,b) => a.date.localeCompare(b.date)).map((c, i) => {
-                    const REASON_MAP = { public_holiday:'공휴일', school_holiday:'학교재량휴일', teacher_absent:'강사사정', etc:'기타', childrens_day:'어린이날', childrens_day_alt:'대체공휴일', election_day:'선거일' }
+                  {[...(form.cancelledDates||[])].map((c, origIdx) => ({ ...c, origIdx }))
+                    .sort((a,b) => a.date.localeCompare(b.date))
+                    .map((c) => {
+                    const REASON_MAP = { public_holiday:'공휴일', school_holiday:'학교재량휴일', teacher_absent:'강사사정', vacation:'방학 휴강', new_year:'신정', seollal:'설날', independence_day:'삼일절', workers_day:'근로자의날', childrens_day:'어린이날', buddha:'부처님오신날', memorial_day:'현충일', constitution_day:'제헌절', liberation_day:'광복절', chuseok:'추석', national_foundation_day:'개천절', hangul_day:'한글날', christmas:'성탄절', childrens_day_alt:'대체공휴일', election_day:'선거일', etc:'기타' }
+                    const isEditing = editCancelIdx === c.origIdx
                     return (
-                    <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#fff', borderRadius:'8px', border:'1px solid #f3f4f6' }}>
-                      <span style={{ fontSize:'13px', fontWeight:600, color:'#374151', minWidth:'48px' }}>{c.date.slice(5)}</span>
-                      <span style={{ fontSize:'12px', color:'#6b7280', flex:1 }}>{c.memo || REASON_MAP[c.reason] || c.reason}</span>
-                      {/* 수정 버튼 */}
-                      <button
-                        onClick={() => {
-                          const newMemo = window.prompt('사유를 입력하세요', c.memo || REASON_MAP[c.reason] || '')
-                          if (newMemo === null) return
-                          setForm(f => ({ ...f, cancelledDates: (f.cancelledDates||[]).map((x, j) => j === i ? { ...x, memo: newMemo, reason: 'etc' } : x) }))
-                        }}
-                        style={{ background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:'14px', padding:'0 4px' }}
-                        title="수정">✏️</button>
-                      <button onClick={() => setForm(f => ({ ...f, cancelledDates: (f.cancelledDates||[]).filter((_,j) => j !== i) }))}
-                        style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'16px', padding:'0 4px' }}>×</button>
+                    <div key={c.origIdx} style={{ borderRadius:'8px', border:'1px solid #f3f4f6', overflow:'hidden' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', background:'#fff' }}>
+                        <span style={{ fontSize:'13px', fontWeight:600, color:'#374151', minWidth:'48px' }}>{c.date.slice(5)}</span>
+                        <span style={{ fontSize:'12px', color:'#6b7280', flex:1 }}>{c.memo || REASON_MAP[c.reason] || c.reason}</span>
+                        <button
+                          onClick={() => { setEditCancelIdx(c.origIdx); setEditCancelMemo(c.memo || REASON_MAP[c.reason] || '') }}
+                          style={{ background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:'14px', padding:'0 4px' }}
+                          title="수정">✏️</button>
+                        <button onClick={() => setForm(f => ({ ...f, cancelledDates: (f.cancelledDates||[]).filter((_,j) => j !== c.origIdx) }))}
+                          style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontSize:'16px', padding:'0 4px' }}>×</button>
+                      </div>
+                      {isEditing && (
+                        <div style={{ display:'flex', gap:'6px', padding:'6px 10px', background:'#f9fafb', borderTop:'1px solid #f3f4f6' }}>
+                          <input value={editCancelMemo} onChange={e => setEditCancelMemo(e.target.value)}
+                            placeholder="사유 입력"
+                            style={{ flex:1, padding:'5px 8px', borderRadius:'6px', border:'1.5px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+                          <button onClick={() => {
+                            setForm(f => ({ ...f, cancelledDates: (f.cancelledDates||[]).map((x,j) => j === c.origIdx ? { ...x, memo: editCancelMemo, reason: 'etc' } : x) }))
+                            setEditCancelIdx(null)
+                          }} style={{ padding:'5px 10px', borderRadius:'6px', background:'#374151', color:'#fff', border:'none', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:700 }}>저장</button>
+                          <button onClick={() => setEditCancelIdx(null)}
+                            style={{ padding:'5px 10px', borderRadius:'6px', background:'none', color:'#9ca3af', border:'1px solid #e5e7eb', fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
+                        </div>
+                      )}
                     </div>
                   )})}
                 </div>
