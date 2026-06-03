@@ -428,6 +428,7 @@ export function Classes({ user, onNav }) {
       cancelledDates: cls.cancelledDates || [],
       makeupDates: cls.makeupDates || [],
       specialPeriods: cls.specialPeriods || [],
+      sections: cls.sections || (cls.section ? [{ name: cls.section, active: true }, { name: 'B', active: true }] : [{ name: 'A', active: true }, { name: 'B', active: true }]),
       periods: cls.periods || [],
       termCount: cls.termCount || 4,
       termSizes: cls.termSizes?.length > 0 ? cls.termSizes : [4,4,4,4],
