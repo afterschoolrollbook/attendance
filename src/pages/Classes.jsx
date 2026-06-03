@@ -143,8 +143,8 @@ function emptyForm() {
 
 // 기존 단일 section/time 데이터 → sections 배열로 변환 (하위호환)
 function toSections(cls) {
-  if (cls.sections?.length > 0) return cls.sections
-  return [{ section: cls.section || '', time: cls.time || '', timeEnd: cls.timeEnd || '', classDuration: cls.classDuration || '' }]
+  if (cls.sections?.length > 0) return cls.sections.map(s => ({ ...s, classDuration: s.classDuration != null ? String(s.classDuration) : '' }))
+  return [{ section: cls.section || '', time: cls.time || '', timeEnd: cls.timeEnd || '', classDuration: cls.classDuration != null ? String(cls.classDuration) : '' }]
 }
 
 export function Classes({ user, onNav }) {
