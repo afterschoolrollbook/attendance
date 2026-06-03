@@ -15,9 +15,30 @@ export function SaveStatusBar({ user }) {
   const [collapsed, setCollapsed]             = useState(false)
   const [pos, setPos]                         = useState({ x: null, y: 16 })
   const [dragging, setDragging]               = useState(false)
+  const [updateReady, setUpdateReady]         = useState(false)
+  const [newSWRef, setNewSWRef]               = useState(null)
   const dragOffset = useRef({ x: 0, y: 0 })
   const barRef     = useRef(null)
   const deviceType = getDeviceType()
+
+  // 업데이트 감지 이벤트 구독
+  useEffect(() => {
+    const handler = (e) => {
+      setUpdateReady(true)
+      setNewSWRef(e.detail?.newSW || null)
+      setCollapsed(false)
+    }
+    window.addEventListener('sw-update-ready', handler)
+    return () => window.removeEventListener('sw-update-ready', handler)
+  }, [])
+
+  const handleUpdate = () => {
+    if (newSWRef) {
+      newSWRef.postMessage('skipWaiting')
+    } else {
+      window.location.reload()
+    }
+  }
 
   // 저장 이벤트 구독
   useEffect(() => {
@@ -154,7 +175,7 @@ export function SaveStatusBar({ user }) {
           }}
           title="펼치기"
         >
-          {collapseIcon[saveState]}
+          {updateReady ? '🔄' : collapseIcon[saveState]}
         </div>
 
       ) : (
@@ -170,6 +191,33 @@ export function SaveStatusBar({ user }) {
             minWidth: '240px',
           }}
         >
+          {/* 🔄 업데이트 배너 */}
+          {updateReady && (
+            <>
+              <div style={{ fontSize:'16px', flexShrink:0 }}>🔄</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'1px' }}>
+                <span style={{ fontSize:'13px', fontWeight:700, color:'#fbbf24' }}>새 버전 업데이트</span>
+                <span style={{ fontSize:'10px', color:'rgba(255,255,255,0.4)' }}>지금 적용하면 새로고침됩니다</span>
+              </div>
+              <button
+                onMouseDown={e => e.stopPropagation()}
+                onClick={handleUpdate}
+                style={{
+                  marginLeft:'auto', flexShrink:0,
+                  padding:'4px 12px', borderRadius:'8px',
+                  border:'1px solid rgba(251,191,36,0.5)',
+                  background:'rgba(251,191,36,0.15)',
+                  color:'#fbbf24', fontSize:'12px', fontWeight:700,
+                  cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif',
+                  transition:'all .15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background='rgba(251,191,36,0.3)' }}
+                onMouseLeave={e => { e.currentTarget.style.background='rgba(251,191,36,0.15)' }}
+              >업데이트</button>
+              <div style={{ width:'1px', height:'28px', background:'rgba(255,255,255,0.1)', flexShrink:0 }} />
+            </>
+          )}
+
           {/* 저장 상태 아이콘 */}
           {saveState === 'saving' && (
             <div style={{
