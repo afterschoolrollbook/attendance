@@ -19,9 +19,8 @@ const getTermColor = (termNum) => TERM_COLORS[(termNum - 1) % TERM_COLORS.length
 
 // 특별 기간 타입
 const SPECIAL_PERIOD_TYPES = [
-  { value: 'summer_vacation',        label: '여름방학',      color: '#f59e0b', bg: '#fffbeb', border: '#fcd34d', emoji: '☀️' },
-  { value: 'winter_vacation',        label: '겨울방학',      color: '#60a5fa', bg: '#eff6ff', border: '#93c5fd', emoji: '❄️' },
-  { value: 'afterschool_vacation',   label: '방과후 방학',   color: '#f97316', bg: '#fff7ed', border: '#fed7aa', emoji: '🏫' },
+  { value: 'summer_vacation',    label: '여름방학',    color: '#f59e0b', bg: '#fffbeb', border: '#fcd34d', emoji: '☀️' },
+  { value: 'winter_vacation',    label: '겨울방학',    color: '#60a5fa', bg: '#eff6ff', border: '#93c5fd', emoji: '❄️' },
   { value: 'parent_observation', label: '학부모 참관', color: '#8b5cf6', bg: '#f5f3ff', border: '#c4b5fd', emoji: '👩‍👧' },
   { value: 'open_class',         label: '공개수업',    color: '#10b981', bg: '#ecfdf5', border: '#6ee7b7', emoji: '🎓' },
   { value: 'exhibition',         label: '전시기간',    color: '#ec4899', bg: '#fdf2f8', border: '#f9a8d4', emoji: '🎨' },
@@ -228,10 +227,13 @@ export function ClassCalendar({ cls, onUpdate }) {
 
   // 특별 기간 관리
   const [showSpecialPeriods, setShowSpecialPeriods] = useState(false)
-  const [newPeriodType,  setNewPeriodType]  = useState('summer_vacation')
-  const [newPeriodLabel, setNewPeriodLabel] = useState('')
-  const [newPeriodStart, setNewPeriodStart] = useState('')
-  const [newPeriodEnd,   setNewPeriodEnd]   = useState('')
+  const [newPeriodType,     setNewPeriodType]     = useState('summer_vacation')
+  const [newPeriodLabel,    setNewPeriodLabel]    = useState('')
+  const [newPeriodStart,    setNewPeriodStart]    = useState('')
+  const [newPeriodEnd,      setNewPeriodEnd]      = useState('')
+  const [newPeriodSuspend,  setNewPeriodSuspend]  = useState(true)
+  const [editingPeriodIdx,  setEditingPeriodIdx]  = useState(null)
+  const [editPeriod,        setEditPeriod]        = useState(null)
 
   const CANCEL_OPTIONS = [
     { value: 'new_year',         label: '신정 (1/1)' },
@@ -341,7 +343,9 @@ export function ClassCalendar({ cls, onUpdate }) {
     }
   }
   // 방학 기간 수업일 자동 휴강 처리
-  const vacationPeriods = (cls.specialPeriods || []).filter(p => p.type === 'summer_vacation' || p.type === 'winter_vacation' || p.type === 'afterschool_vacation')
+  const vacationPeriods = (cls.specialPeriods || []).filter(p =>
+    (p.type === 'summer_vacation' || p.type === 'winter_vacation' || p.type === 'afterschool_vacation') && p.suspend !== false
+  )
   const isInVacation = (dateStr) => vacationPeriods.some(p => dateStr >= p.startDate && dateStr <= p.endDate)
   sessions.forEach(d => {
     if (isInVacation(d) && !cancelled.has(d) && !makeupDates.some(m => m.date === d)) {
@@ -429,12 +433,26 @@ export function ClassCalendar({ cls, onUpdate }) {
     if (!newPeriodStart || !newPeriodEnd) return
     const typeInfo = getSpecialPeriodType(newPeriodType)
     const label = newPeriodType === 'etc' ? (newPeriodLabel.trim() || '기타') : typeInfo.label
-    onUpdate({ ...cls, specialPeriods: [...specialPeriods, { type: newPeriodType, label, startDate: newPeriodStart, endDate: newPeriodEnd }] })
-    setNewPeriodStart(''); setNewPeriodEnd(''); setNewPeriodLabel('')
+    onUpdate({ ...cls, specialPeriods: [...specialPeriods, { type: newPeriodType, label, startDate: newPeriodStart, endDate: newPeriodEnd, suspend: newPeriodSuspend }] })
+    setNewPeriodStart(''); setNewPeriodEnd(''); setNewPeriodLabel(''); setNewPeriodSuspend(true)
   }
 
   const removeSpecialPeriod = (idx) => {
     onUpdate({ ...cls, specialPeriods: specialPeriods.filter((_, i) => i !== idx) })
+  }
+
+  const startEditPeriod = (idx) => {
+    setEditingPeriodIdx(idx)
+    setEditPeriod({ ...specialPeriods[idx] })
+  }
+
+  const saveEditPeriod = () => {
+    if (!editPeriod.startDate || !editPeriod.endDate) return
+    const typeInfo = getSpecialPeriodType(editPeriod.type)
+    const label = editPeriod.type === 'etc' ? (editPeriod.label?.trim() || '기타') : typeInfo.label
+    const updated = specialPeriods.map((sp, i) => i === editingPeriodIdx ? { ...editPeriod, label } : sp)
+    onUpdate({ ...cls, specialPeriods: updated })
+    setEditingPeriodIdx(null); setEditPeriod(null)
   }
 
   const termSummary = termSizes.map((size, ti) => {
@@ -728,17 +746,69 @@ export function ClassCalendar({ cls, onUpdate }) {
 
           {/* 기존 특별기간 목록 */}
           {specialPeriods.length > 0 && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'14px' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'14px' }}>
               {specialPeriods.map((sp, i) => {
                 const spT = getSpecialPeriodType(sp.type)
+                const isEditing = editingPeriodIdx === i
+                const inputSt = { padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #f9a8d4', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#111827' }
+                if (isEditing && editPeriod) {
+                  const edT = getSpecialPeriodType(editPeriod.type)
+                  return (
+                    <div key={i} style={{ padding:'12px', background:'#fff', borderRadius:'10px', border:`1.5px solid ${edT.border}`, display:'flex', flexDirection:'column', gap:'10px' }}>
+                      {/* 타입 선택 */}
+                      <select value={editPeriod.type} onChange={e => setEditPeriod({ ...editPeriod, type: e.target.value })}
+                        style={{ padding:'6px 10px', borderRadius:'8px', border:'1.5px solid #f9a8d4', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#be185d', fontWeight:700, cursor:'pointer' }}>
+                        {SPECIAL_PERIOD_TYPES.map(t => <option key={t.value} value={t.value}>{t.emoji} {t.label}</option>)}
+                      </select>
+                      {editPeriod.type === 'etc' && (
+                        <input type="text" value={editPeriod.label || ''} onChange={e => setEditPeriod({ ...editPeriod, label: e.target.value })}
+                          placeholder="기간 이름 입력" style={{ ...inputSt, width:'140px' }} />
+                      )}
+                      {/* 날짜 */}
+                      <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+                        <input type="date" value={editPeriod.startDate || ''} onChange={e => setEditPeriod({ ...editPeriod, startDate: e.target.value })} style={inputSt} />
+                        <span style={{ color:'#9ca3af' }}>~</span>
+                        <input type="date" value={editPeriod.endDate || ''} onChange={e => setEditPeriod({ ...editPeriod, endDate: e.target.value })} style={inputSt} />
+                      </div>
+                      {/* 휴강 여부 */}
+                      <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                        <span style={{ fontSize:'12px', color:'#6b7280', fontWeight:600 }}>수업 처리:</span>
+                        <button onClick={() => setEditPeriod({ ...editPeriod, suspend: true })}
+                          style={{ padding:'5px 12px', borderRadius:'20px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700,
+                            background: editPeriod.suspend !== false ? '#fef2f2' : '#f3f4f6',
+                            color: editPeriod.suspend !== false ? '#ef4444' : '#9ca3af' }}>
+                          🚫 휴강
+                        </button>
+                        <button onClick={() => setEditPeriod({ ...editPeriod, suspend: false })}
+                          style={{ padding:'5px 12px', borderRadius:'20px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700,
+                            background: editPeriod.suspend === false ? '#f0fdf4' : '#f3f4f6',
+                            color: editPeriod.suspend === false ? '#16a34a' : '#9ca3af' }}>
+                          ✅ 수업 유지
+                        </button>
+                      </div>
+                      {/* 저장/취소 */}
+                      <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+                        <Btn variant="ghost" onClick={() => { setEditingPeriodIdx(null); setEditPeriod(null) }}>취소</Btn>
+                        <Btn onClick={saveEditPeriod} style={{ background:'#ec4899', borderColor:'#ec4899' }}>저장</Btn>
+                      </div>
+                    </div>
+                  )
+                }
                 return (
                   <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px',
                     background:'#fff', borderRadius:'10px', border:`1.5px solid ${spT.border}` }}>
                     <span style={{ fontSize:'15px' }}>{spT.emoji}</span>
                     <span style={{ fontSize:'13px', fontWeight:700, color: spT.color, minWidth:'70px' }}>{sp.label || spT.label}</span>
                     <span style={{ fontSize:'12px', color:'#9ca3af' }}>{sp.startDate?.slice(5)} ~ {sp.endDate?.slice(5)}</span>
+                    <span style={{ marginLeft:'4px', fontSize:'11px', fontWeight:700, padding:'2px 7px', borderRadius:'20px',
+                      background: sp.suspend === false ? '#f0fdf4' : '#fef2f2',
+                      color: sp.suspend === false ? '#16a34a' : '#ef4444' }}>
+                      {sp.suspend === false ? '✅ 수업유지' : '🚫 휴강'}
+                    </span>
+                    <button onClick={() => startEditPeriod(i)}
+                      style={{ marginLeft:'auto', background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'14px', padding:'0 4px', lineHeight:1 }}>✏️</button>
                     <button onClick={() => removeSpecialPeriod(i)}
-                      style={{ marginLeft:'auto', background:'none', border:'none', color:'#f43f5e', cursor:'pointer', fontSize:'16px', padding:'0 4px', lineHeight:1 }}>×</button>
+                      style={{ background:'none', border:'none', color:'#f43f5e', cursor:'pointer', fontSize:'16px', padding:'0 4px', lineHeight:1 }}>×</button>
                   </div>
                 )
               })}
@@ -773,8 +843,24 @@ export function ClassCalendar({ cls, onUpdate }) {
                 min={newPeriodStart || cls.startDate} max={cls.endDate}
                 style={{ padding:'5px 8px', borderRadius:'7px', border:'1.5px solid #f9a8d4',
                   fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', color:'#111827' }} />
+            </div>
+            {/* 휴강 여부 선택 */}
+            <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+              <span style={{ fontSize:'12px', color:'#6b7280', fontWeight:600 }}>수업 처리:</span>
+              <button onClick={() => setNewPeriodSuspend(true)}
+                style={{ padding:'5px 12px', borderRadius:'20px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700,
+                  background: newPeriodSuspend ? '#fef2f2' : '#f3f4f6',
+                  color: newPeriodSuspend ? '#ef4444' : '#9ca3af' }}>
+                🚫 휴강
+              </button>
+              <button onClick={() => setNewPeriodSuspend(false)}
+                style={{ padding:'5px 12px', borderRadius:'20px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700,
+                  background: !newPeriodSuspend ? '#f0fdf4' : '#f3f4f6',
+                  color: !newPeriodSuspend ? '#16a34a' : '#9ca3af' }}>
+                ✅ 수업 유지
+              </button>
               <Btn onClick={addSpecialPeriod} disabled={!newPeriodStart || !newPeriodEnd}
-                style={{ background:'#ec4899', borderColor:'#ec4899' }}>추가</Btn>
+                style={{ marginLeft:'auto', background:'#ec4899', borderColor:'#ec4899' }}>추가</Btn>
             </div>
           </div>
         </div>
