@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB, DocumentsDB, Attendance as AttendanceDB, RevenueFees, RevenuePayments, TeacherParentLinks, SupplyStudentProgress, SupplyProgressLogs, SupplySessionChecks } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB, DocumentsDB, Attendance as AttendanceDB, RevenueFees, RevenuePayments, TeacherParentLinks, SupplyStudentProgress, SupplyProgressLogs, SupplySessionChecks, SupplyItems, SupplyGiven, LessonMemos } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, today } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
 import { ClassCalendar } from '../pages/ClassCalendar.jsx'
@@ -114,12 +114,19 @@ function emptyPeriod(label) {
   return { label, startDate: '', endDate: '', termCount: 1, termSizes: [4] }
 }
 
+function emptySection() {
+  return { section: '', time: '', timeEnd: '', classDuration: '' }
+}
+
 function emptyForm() {
   return {
-    organization: '', className: '', section: '',
+    organization: '', className: '',
+    sections: [emptySection()], // [{ section, time, timeEnd, classDuration }]
+    // 하위호환 (기존 저장 데이터용)
+    section: '', time: '', timeEnd: '', classDuration: '',
     termType: 'semester', termCount: 4, termSizes: [4,4,4,4],
     periods: [], // 학기/분기별 기간 배열 [{ label, startDate, endDate, termCount, termSizes }]
-    days: [], repeatType: 'every', time: '', timeEnd: '', classDuration: '',
+    days: [], repeatType: 'every',
     startDate: '', endDate: '', description: '',
     officePhone: '', schoolAddress: '', classLocation: '',
     contactPhone: '', contactMobile: '',
@@ -134,6 +141,12 @@ function emptyForm() {
   }
 }
 
+// 기존 단일 section/time 데이터 → sections 배열로 변환 (하위호환)
+function toSections(cls) {
+  if (cls.sections?.length > 0) return cls.sections
+  return [{ section: cls.section || '', time: cls.time || '', timeEnd: cls.timeEnd || '', classDuration: cls.classDuration || '' }]
+}
+
 export function Classes({ user, onNav }) {
   const [view,    setView]    = useState('요일별')
   const [selYear, setSelYear] = useState('')
@@ -143,6 +156,7 @@ export function Classes({ user, onNav }) {
   const [tab, setTab] = useState('info') // 'info' | 'promo' | 'notice' | 'template' | 'calendar'
   const importFileRef = React.useRef(null)
   const [deleteId, setDeleteId] = useState(null)
+  const [mergeFrom, setMergeFrom] = useState(null) // 합치기: 소스 수업(B반) id
   const [uploading, setUploading] = useState(false)
   const [noticePreview, setNoticePreview] = useState(null)
   const [promoSearch,    setPromoSearch]    = useState('')
@@ -431,6 +445,7 @@ export function Classes({ user, onNav }) {
       contactPhone: cls.contactPhone || '',
       contactMobile: cls.contactMobile || '',
       classDuration: cls.classDuration || '',
+      sections: toSections(cls),
     })
     setEditId('__copy__')
     setTab('info')
@@ -457,6 +472,7 @@ export function Classes({ user, onNav }) {
       contactPhone: cls.contactPhone || '',
       contactMobile: cls.contactMobile || '',
       classDuration: cls.classDuration || '',
+      sections: toSections(cls),
     })
     setEditId(cls.id)
     setTab('info')
@@ -511,13 +527,22 @@ export function Classes({ user, onNav }) {
       autoTermCount = autoTermSizes.length
     }
 
+    // sections → 첫번째 반을 기존 필드에도 저장 (하위호환)
+    const sections = form.sections?.length > 0 ? form.sections : [{ section: form.section || '', time: form.time || '', timeEnd: form.timeEnd || '', classDuration: form.classDuration || '' }]
+    const firstSec = sections[0] || {}
+
     const cleanForm = {
       ...form,
+      sections,
+      // 하위호환: 첫번째 반 정보를 기존 필드에도 저장
+      section:      firstSec.section      || '',
+      time:         firstSec.time         || '',
+      timeEnd:      firstSec.timeEnd      || '',
       startDate:    autoStart,
       endDate:      autoEnd,
       termSizes:    autoTermSizes,
       termCount:    autoTermCount,
-      classDuration: form.classDuration === '' ? null : Number(form.classDuration),
+      classDuration: firstSec.classDuration === '' ? null : Number(firstSec.classDuration) || null,
     }
     if (editId && editId !== '__copy__') {
       ClassesDB.update(editId, cleanForm)
@@ -547,6 +572,64 @@ export function Classes({ user, onNav }) {
     })
     ClassesDB.delete(cid)
     setDeleteId(null)
+  }
+
+  // ── 반 합치기: fromId(없앨 반) → toId(남길 반)으로 모든 데이터 이전 후 from 삭제
+  const mergeClass = (fromId, toId) => {
+    // 1. 학생 classIds 이전 (이미 toId에 있는 학생은 중복 추가 방지)
+    StudentsDB.byClass(fromId).forEach(s => {
+      const ids = s.classIds || []
+      const next = ids.includes(toId)
+        ? ids.filter(id => id !== fromId)
+        : ids.map(id => id === fromId ? toId : id)
+      StudentsDB.update(s.id, { classIds: next })
+    })
+
+    // 2. 출석 기록 classId 이전
+    AttendanceDB.byClass(fromId).forEach(a => {
+      AttendanceDB.update(a.id, { classId: toId })
+    })
+
+    // 3. 교구 아이템 classId 이전
+    SupplyItems.byClass(fromId).forEach(r => {
+      SupplyItems.update(r.id, { classId: toId })
+    })
+
+    // 4. 교구 학생 진도 classId 이전
+    SupplyStudentProgress.byClass(fromId).forEach(r => {
+      SupplyStudentProgress.update(r.id, { classId: toId })
+    })
+
+    // 5. 진도 로그 classId 이전 (update 없으므로 delete 후 재삽입)
+    SupplyProgressLogs.byTeacher(user.id).filter(r => r.classId === fromId).forEach(r => {
+      SupplyProgressLogs.delete(r.id)
+      SupplyProgressLogs.insert({ ...r, classId: toId })
+    })
+
+    // 6. 세션 체크 classId 이전
+    SupplySessionChecks.byTeacher(user.id).filter(r => r.classId === fromId).forEach(r => {
+      SupplySessionChecks.update(r.id, { classId: toId })
+    })
+
+    // 7. 교구 지급 기록 classId 이전
+    SupplyGiven.byClass(fromId).forEach(r => {
+      SupplyGiven.update(r.id, { classId: toId })
+    })
+
+    // 8. 수업 메모 classId 이전
+    LessonMemos.byTeacher(user.id).filter(r => r.classId === fromId).forEach(r => {
+      LessonMemos.update(r.id, { classId: toId })
+    })
+
+    // 9. from 수업 카드 삭제 (수납/부모링크는 수업 단위라 정리)
+    TeacherParentLinks.unlinkByClass(user.id, fromId)
+    RevenuePayments.byTeacher(user.id).filter(p => p.classId === fromId).forEach(p => RevenuePayments.delete(p.id))
+    const fromFee = RevenueFees.byTeacher(user.id).find(f => f.classId === fromId)
+    if (fromFee) RevenueFees.delete(fromFee.id)
+    ClassesDB.delete(fromId)
+
+    setMergeFrom(null)
+    success('✅ 합치기 완료! 데이터가 성공적으로 이전되었습니다.')
   }
 
   // 홍보물 이미지 — Supabase Storage 업로드
@@ -733,7 +816,20 @@ export function Classes({ user, onNav }) {
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <div>
                         <div style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>{cls.className}</div>
-                        {cls.section && <div style={{ fontSize: '12px', color: '#9ca3af' }}>{cls.section}반</div>}
+                        {(() => {
+                          const secs = cls.sections?.length > 0 ? cls.sections : (cls.section ? [{ section: cls.section, time: cls.time, timeEnd: cls.timeEnd }] : [])
+                          if (secs.length === 0) return null
+                          return (
+                            <div style={{ display:'flex', flexDirection:'column', gap:'2px', marginTop:'3px' }}>
+                              {secs.map((s,i) => (
+                                <div key={i} style={{ fontSize:'12px', color:'#6b7280' }}>
+                                  {s.section && <span style={{ fontWeight:700, color:'#f97316', marginRight:'4px' }}>{s.section}반</span>}
+                                  {s.time && <span>{s.time}{s.timeEnd ? ` ~ ${s.timeEnd}` : ''}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        })()}
                       </div>
                       <Tag color="#f97316" bg="#fff7ed">{cls.days?.join(', ')}</Tag>
                     </div>
@@ -742,7 +838,6 @@ export function Classes({ user, onNav }) {
 
                     <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '10px' }}>
                       📅 {cls.startDate?.slice(5)} ~ {cls.endDate?.slice(5)}
-                      {cls.time && ` · 🕐 ${cls.time}${cls.timeEnd ? ' ~ ' + cls.timeEnd : ''}`}
                     </div>
 
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
@@ -758,6 +853,7 @@ export function Classes({ user, onNav }) {
                       <Btn size="sm" variant="ghost" onClick={() => openEdit(cls)}>편집</Btn>
                       <Btn size="sm" variant="ghost" onClick={() => openCopy(cls)} style={{ color:'#3b82f6', borderColor:'#93c5fd' }}>복사</Btn>
                       <Btn size="sm" variant="ghost" onClick={() => exportTemplate(cls)} style={{ color:'#16a34a', borderColor:'#86efac' }}>📤 내보내기</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => setMergeFrom(cls)} style={{ color:'#7c3aed', borderColor:'#c4b5fd' }}>🔀 합치기</Btn>
                       <Btn size="sm" variant="outlineDanger" onClick={() => setDeleteId(cls.id)}>삭제</Btn>
                     </div>
                   </Card>
@@ -796,49 +892,64 @@ export function Classes({ user, onNav }) {
               <Input label="단체명(학교명)" value={form.organization} onChange={v => set('organization', v)} required />
               <Input label="수업명(과목)" value={form.className} onChange={v => set('className', v)} required />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <Input label="반 (선택)" value={form.section} onChange={v => set('section', v)} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '8px', alignItems: 'end' }}>
-                <div>
-                  <label style={{ fontSize:'12px', fontWeight:500, color:'#111827', display:'block', marginBottom:'6px' }}>수업 시작시간 (선택)</label>
-                  <input type="time" value={form.time}
-                    onChange={e => {
-                      const v = e.target.value
-                      set('time', v)
-                      if (v && form.classDuration) {
-                        const [h, m] = v.split(':').map(Number)
-                        const total = h * 60 + m + parseInt(form.classDuration)
-                        const eh = Math.floor(total / 60) % 24
-                        const em = total % 60
-                        set('timeEnd', `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`)
-                      }
-                    }}
-                    style={{ width:'100%', padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', boxSizing:'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize:'12px', fontWeight:500, color:'#111827', display:'block', marginBottom:'6px' }}>수업시간(분)</label>
-                  <input type="number" min="1" max="300" value={form.classDuration || ''}
-                    placeholder="80"
-                    onChange={e => {
-                      const v = e.target.value
-                      set('classDuration', v)
-                      if (form.time && v) {
-                        const [h, m] = form.time.split(':').map(Number)
-                        const total = h * 60 + m + parseInt(v)
-                        const eh = Math.floor(total / 60) % 24
-                        const em = total % 60
-                        set('timeEnd', `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`)
-                      }
-                    }}
-                    style={{ width:'68px', padding:'7px 8px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center', background:'#fff' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize:'12px', fontWeight:500, color:'#111827', display:'block', marginBottom:'6px' }}>종료시간</label>
-                  <input type="time" value={form.timeEnd}
-                    onChange={e => set('timeEnd', e.target.value)}
-                    style={{ width:'100%', padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background: form.classDuration ? '#f0fdf4' : '#fff', boxSizing:'border-box' }} />
-                </div>
+            {/* ── 반별 시간 설정 */}
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <label style={{ fontSize:'13px', fontWeight:700, color:'#111827' }}>반 설정</label>
+                <button type="button" onClick={() => set('sections', [...(form.sections||[]), emptySection()])}
+                  style={{ padding:'4px 12px', borderRadius:'7px', border:'1.5px solid #f97316', background:'#fff7ed', color:'#f97316', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  + 반 추가
+                </button>
               </div>
+              {(form.sections||[]).map((sec, idx) => {
+                const setSecField = (field, val) => {
+                  const next = (form.sections||[]).map((s,i) => i===idx ? {...s, [field]: val} : s)
+                  set('sections', next)
+                }
+                const calcEnd = (time, dur) => {
+                  if (!time || !dur) return
+                  const [h,m] = time.split(':').map(Number)
+                  const total = h*60 + m + parseInt(dur)
+                  const eh = Math.floor(total/60)%24
+                  const em = total%60
+                  setSecField('timeEnd', `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`)
+                }
+                const SECTION_LABELS = ['A','B','C','D','E','F']
+                return (
+                  <div key={idx} style={{ display:'grid', gridTemplateColumns:'60px 1fr auto 1fr auto', gap:'8px', alignItems:'end', padding:'10px 12px', borderRadius:'10px', border:'1.5px solid #e5e7eb', background:'#fafafa' }}>
+                    <div>
+                      <label style={{ fontSize:'11px', fontWeight:600, color:'#6b7280', display:'block', marginBottom:'4px' }}>반</label>
+                      <input value={sec.section} onChange={e => setSecField('section', e.target.value)}
+                        placeholder={SECTION_LABELS[idx] || String(idx+1)}
+                        style={{ width:'100%', padding:'7px 8px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', boxSizing:'border-box', textAlign:'center', fontWeight:700 }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:'11px', fontWeight:600, color:'#6b7280', display:'block', marginBottom:'4px' }}>시작시간</label>
+                      <input type="time" value={sec.time||''}
+                        onChange={e => { setSecField('time', e.target.value); calcEnd(e.target.value, sec.classDuration) }}
+                        style={{ width:'100%', padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', boxSizing:'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:'11px', fontWeight:600, color:'#6b7280', display:'block', marginBottom:'4px' }}>수업시간(분)</label>
+                      <input type="number" min="1" max="300" value={sec.classDuration||''} placeholder="80"
+                        onChange={e => { setSecField('classDuration', e.target.value); calcEnd(sec.time, e.target.value) }}
+                        style={{ width:'68px', padding:'7px 8px', borderRadius:'8px', border:'1.5px solid #fbd38d', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', textAlign:'center', background:'#fff' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:'11px', fontWeight:600, color:'#6b7280', display:'block', marginBottom:'4px' }}>종료시간</label>
+                      <input type="time" value={sec.timeEnd||''}
+                        onChange={e => setSecField('timeEnd', e.target.value)}
+                        style={{ width:'100%', padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background: sec.classDuration ? '#f0fdf4' : '#fff', boxSizing:'border-box' }} />
+                    </div>
+                    <div style={{ paddingBottom:'2px' }}>
+                      {(form.sections||[]).length > 1 && (
+                        <button type="button" onClick={() => set('sections', (form.sections||[]).filter((_,i)=>i!==idx))}
+                          style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fca5a5', background:'#fff', color:'#ef4444', fontSize:'13px', cursor:'pointer', fontWeight:700 }}>✕</button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
             <Select label="수업 운영 방식" value={form.termType} onChange={v => {
               // 방식 바꿀 때 periods 초기화
@@ -1505,6 +1616,67 @@ export function Classes({ user, onNav }) {
               )}
               <div style={{ display:'flex', justifyContent:'flex-end', paddingTop:'8px', borderTop:'1px solid #e5e7eb' }}>
                 <Btn onClick={() => setDocPickerTarget(null)}>확인</Btn>
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
+
+      {/* 🔀 합치기 모달 */}
+      <Modal open={!!mergeFrom} onClose={() => setMergeFrom(null)} title="반 합치기" width={420}>
+        {mergeFrom && (() => {
+          const candidates = allClasses.filter(c =>
+            c.id !== mergeFrom.id &&
+            c.className === mergeFrom.className &&
+            c.organization === mergeFrom.organization
+          )
+          return (
+            <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+              <div style={{ padding:'12px 14px', borderRadius:'10px', background:'#f5f3ff', border:'1.5px solid #c4b5fd' }}>
+                <div style={{ fontSize:'12px', color:'#7c3aed', fontWeight:700, marginBottom:'4px' }}>없앨 반 (데이터 이전 후 삭제됨)</div>
+                <div style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>
+                  {mergeFrom.className} {mergeFrom.section ? `(${mergeFrom.section}반)` : ''} · {mergeFrom.time}{mergeFrom.timeEnd ? ` ~ ${mergeFrom.timeEnd}` : ''}
+                </div>
+                <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'2px' }}>
+                  학생 {StudentsDB.confirmed(mergeFrom.id).length}명 · 출석 {AttendanceDB.byClass(mergeFrom.id).length}건
+                </div>
+              </div>
+
+              <div style={{ fontSize:'13px', color:'#374151', fontWeight:600 }}>
+                ▼ 어느 반으로 합칠까요? (남길 반 선택)
+              </div>
+
+              {candidates.length === 0 ? (
+                <div style={{ padding:'20px', textAlign:'center', color:'#9ca3af', fontSize:'13px', background:'#f9fafb', borderRadius:'8px' }}>
+                  같은 수업명({mergeFrom.className})의 다른 반이 없습니다.
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                  {candidates.map(target => (
+                    <div key={target.id} style={{
+                      padding:'12px 14px', borderRadius:'10px', border:'1.5px solid #e5e7eb',
+                      background:'#fafafa', cursor:'pointer', transition:'all .15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.border='1.5px solid #7c3aed'; e.currentTarget.style.background='#f5f3ff' }}
+                    onMouseLeave={e => { e.currentTarget.style.border='1.5px solid #e5e7eb'; e.currentTarget.style.background='#fafafa' }}
+                    onClick={() => mergeClass(mergeFrom.id, target.id)}>
+                      <div style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>
+                        {target.className} {target.section ? `(${target.section}반)` : ''} · {target.time}{target.timeEnd ? ` ~ ${target.timeEnd}` : ''}
+                      </div>
+                      <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'2px' }}>
+                        학생 {StudentsDB.confirmed(target.id).length}명 · 출석 {AttendanceDB.byClass(target.id).length}건
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ padding:'10px 12px', borderRadius:'8px', background:'#fef3c7', border:'1px solid #fcd34d', fontSize:'12px', color:'#92400e' }}>
+                ⚠️ 학생·출석·교구·진도·메모 데이터가 선택한 반으로 이전되고, 이 반은 삭제됩니다. 되돌릴 수 없습니다.
+              </div>
+
+              <div style={{ display:'flex', justifyContent:'flex-end' }}>
+                <Btn variant="ghost" onClick={() => setMergeFrom(null)}>취소</Btn>
               </div>
             </div>
           )
