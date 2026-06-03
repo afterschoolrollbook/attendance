@@ -156,7 +156,6 @@ export function Classes({ user, onNav }) {
   const [tab, setTab] = useState('info') // 'info' | 'promo' | 'notice' | 'template' | 'calendar'
   const importFileRef = React.useRef(null)
   const [deleteId, setDeleteId] = useState(null)
-  const [mergeFrom, setMergeFrom] = useState(null) // 합치기: 소스 수업(B반) id
   const [uploading, setUploading] = useState(false)
   const [noticePreview, setNoticePreview] = useState(null)
   const [promoSearch,    setPromoSearch]    = useState('')
@@ -574,63 +573,6 @@ export function Classes({ user, onNav }) {
     setDeleteId(null)
   }
 
-  // ── 반 합치기: fromId(없앨 반) → toId(남길 반)으로 모든 데이터 이전 후 from 삭제
-  const mergeClass = (fromId, toId) => {
-    // 1. 학생 classIds 이전 (이미 toId에 있는 학생은 중복 추가 방지)
-    StudentsDB.byClass(fromId).forEach(s => {
-      const ids = s.classIds || []
-      const next = ids.includes(toId)
-        ? ids.filter(id => id !== fromId)
-        : ids.map(id => id === fromId ? toId : id)
-      StudentsDB.update(s.id, { classIds: next })
-    })
-
-    // 2. 출석 기록 classId 이전
-    AttendanceDB.byClass(fromId).forEach(a => {
-      AttendanceDB.update(a.id, { classId: toId })
-    })
-
-    // 3. 교구 아이템 classId 이전
-    SupplyItems.byClass(fromId).forEach(r => {
-      SupplyItems.update(r.id, { classId: toId })
-    })
-
-    // 4. 교구 학생 진도 classId 이전
-    SupplyStudentProgress.byClass(fromId).forEach(r => {
-      SupplyStudentProgress.update(r.id, { classId: toId })
-    })
-
-    // 5. 진도 로그 classId 이전 (update 없으므로 delete 후 재삽입)
-    SupplyProgressLogs.byTeacher(user.id).filter(r => r.classId === fromId).forEach(r => {
-      SupplyProgressLogs.delete(r.id)
-      SupplyProgressLogs.insert({ ...r, classId: toId })
-    })
-
-    // 6. 세션 체크 classId 이전
-    SupplySessionChecks.byTeacher(user.id).filter(r => r.classId === fromId).forEach(r => {
-      SupplySessionChecks.update(r.id, { classId: toId })
-    })
-
-    // 7. 교구 지급 기록 classId 이전
-    SupplyGiven.byClass(fromId).forEach(r => {
-      SupplyGiven.update(r.id, { classId: toId })
-    })
-
-    // 8. 수업 메모 classId 이전
-    LessonMemos.byTeacher(user.id).filter(r => r.classId === fromId).forEach(r => {
-      LessonMemos.update(r.id, { classId: toId })
-    })
-
-    // 9. from 수업 카드 삭제 (수납/부모링크는 수업 단위라 정리)
-    TeacherParentLinks.unlinkByClass(user.id, fromId)
-    RevenuePayments.byTeacher(user.id).filter(p => p.classId === fromId).forEach(p => RevenuePayments.delete(p.id))
-    const fromFee = RevenueFees.byTeacher(user.id).find(f => f.classId === fromId)
-    if (fromFee) RevenueFees.delete(fromFee.id)
-    ClassesDB.delete(fromId)
-
-    setMergeFrom(null)
-    success('✅ 합치기 완료! 데이터가 성공적으로 이전되었습니다.')
-  }
 
   // 홍보물 이미지 — Supabase Storage 업로드
   const handlePromoFile = async (e) => {
@@ -853,7 +795,6 @@ export function Classes({ user, onNav }) {
                       <Btn size="sm" variant="ghost" onClick={() => openEdit(cls)}>편집</Btn>
                       <Btn size="sm" variant="ghost" onClick={() => openCopy(cls)} style={{ color:'#3b82f6', borderColor:'#93c5fd' }}>복사</Btn>
                       <Btn size="sm" variant="ghost" onClick={() => exportTemplate(cls)} style={{ color:'#16a34a', borderColor:'#86efac' }}>📤 내보내기</Btn>
-                      <Btn size="sm" variant="ghost" onClick={() => setMergeFrom(cls)} style={{ color:'#7c3aed', borderColor:'#c4b5fd' }}>🔀 합치기</Btn>
                       <Btn size="sm" variant="outlineDanger" onClick={() => setDeleteId(cls.id)}>삭제</Btn>
                     </div>
                   </Card>
@@ -1622,66 +1563,6 @@ export function Classes({ user, onNav }) {
         })()}
       </Modal>
 
-      {/* 🔀 합치기 모달 */}
-      <Modal open={!!mergeFrom} onClose={() => setMergeFrom(null)} title="반 합치기" width={420}>
-        {mergeFrom && (() => {
-          const candidates = allClasses.filter(c =>
-            c.id !== mergeFrom.id &&
-            c.className === mergeFrom.className &&
-            c.organization === mergeFrom.organization
-          )
-          return (
-            <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
-              <div style={{ padding:'12px 14px', borderRadius:'10px', background:'#f5f3ff', border:'1.5px solid #c4b5fd' }}>
-                <div style={{ fontSize:'12px', color:'#7c3aed', fontWeight:700, marginBottom:'4px' }}>없앨 반 (데이터 이전 후 삭제됨)</div>
-                <div style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>
-                  {mergeFrom.className} {mergeFrom.section ? `(${mergeFrom.section}반)` : ''} · {mergeFrom.time}{mergeFrom.timeEnd ? ` ~ ${mergeFrom.timeEnd}` : ''}
-                </div>
-                <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'2px' }}>
-                  학생 {StudentsDB.confirmed(mergeFrom.id).length}명 · 출석 {AttendanceDB.byClass(mergeFrom.id).length}건
-                </div>
-              </div>
-
-              <div style={{ fontSize:'13px', color:'#374151', fontWeight:600 }}>
-                ▼ 어느 반으로 합칠까요? (남길 반 선택)
-              </div>
-
-              {candidates.length === 0 ? (
-                <div style={{ padding:'20px', textAlign:'center', color:'#9ca3af', fontSize:'13px', background:'#f9fafb', borderRadius:'8px' }}>
-                  같은 수업명({mergeFrom.className})의 다른 반이 없습니다.
-                </div>
-              ) : (
-                <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-                  {candidates.map(target => (
-                    <div key={target.id} style={{
-                      padding:'12px 14px', borderRadius:'10px', border:'1.5px solid #e5e7eb',
-                      background:'#fafafa', cursor:'pointer', transition:'all .15s',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.border='1.5px solid #7c3aed'; e.currentTarget.style.background='#f5f3ff' }}
-                    onMouseLeave={e => { e.currentTarget.style.border='1.5px solid #e5e7eb'; e.currentTarget.style.background='#fafafa' }}
-                    onClick={() => mergeClass(mergeFrom.id, target.id)}>
-                      <div style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>
-                        {target.className} {target.section ? `(${target.section}반)` : ''} · {target.time}{target.timeEnd ? ` ~ ${target.timeEnd}` : ''}
-                      </div>
-                      <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'2px' }}>
-                        학생 {StudentsDB.confirmed(target.id).length}명 · 출석 {AttendanceDB.byClass(target.id).length}건
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div style={{ padding:'10px 12px', borderRadius:'8px', background:'#fef3c7', border:'1px solid #fcd34d', fontSize:'12px', color:'#92400e' }}>
-                ⚠️ 학생·출석·교구·진도·메모 데이터가 선택한 반으로 이전되고, 이 반은 삭제됩니다. 되돌릴 수 없습니다.
-              </div>
-
-              <div style={{ display:'flex', justifyContent:'flex-end' }}>
-                <Btn variant="ghost" onClick={() => setMergeFrom(null)}>취소</Btn>
-              </div>
-            </div>
-          )
-        })()}
-      </Modal>
 
       {/* 삭제 확인 */}
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="수업 삭제" width={380}>
