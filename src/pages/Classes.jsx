@@ -847,16 +847,44 @@ export function Classes({ user, onNav }) {
                   <div style={{ fontSize:'13px', fontWeight:700, color:'#111827' }}>
                     📅 {isSemester ? '학기' : '분기'}별 기간 및 텀 설정
                   </div>
-                  {periods.map((p, pIdx) => (
-                    <div key={pIdx} style={{ border:'1.5px solid #e5e7eb', borderRadius:'12px', padding:'14px 16px', background:'#fafafa', display:'flex', flexDirection:'column', gap:'12px' }}>
-                      {/* 헤더 */}
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                        <span style={{ fontSize:'13px', fontWeight:700, color:'#f97316' }}>{p.label}</span>
-                        {periods.length > 1 && (
-                          <button type="button" onClick={() => removePeriod(pIdx)}
-                            style={{ background:'none', border:'none', color:'#9ca3af', fontSize:'18px', cursor:'pointer', lineHeight:1 }}>×</button>
-                        )}
+                  {(() => {
+                    const today = new Date().toISOString().slice(0,10)
+                    // 현재 날짜가 속한 분기 인덱스 찾기, 없으면 마지막 분기
+                    const activeIdx = (() => {
+                      const idx = periods.findIndex(p => p.startDate && p.endDate && today >= p.startDate && today <= p.endDate)
+                      return idx >= 0 ? idx : periods.length - 1
+                    })()
+                    return null
+                  })()}
+                  {periods.map((p, pIdx) => {
+                    const today = new Date().toISOString().slice(0,10)
+                    const isActive = p.startDate && p.endDate && today >= p.startDate && today <= p.endDate
+                    const isLast = pIdx === periods.length - 1
+                    const defaultOpen = isActive || (!periods.some(p => p.startDate && p.endDate && today >= p.startDate && today <= p.endDate) && isLast)
+                    const [open, setOpen] = React.useState(defaultOpen)
+                    return (
+                    <div key={pIdx} style={{ border:`1.5px solid ${isActive ? '#f97316' : '#e5e7eb'}`, borderRadius:'12px', background: isActive ? '#fff7ed' : '#fafafa', overflow:'hidden' }}>
+                      {/* 헤더 — 항상 표시, 클릭으로 접기/펼치기 */}
+                      <div
+                        onClick={() => setOpen(o => !o)}
+                        style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', cursor:'pointer', userSelect:'none' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                          <span style={{ fontSize:'13px', fontWeight:700, color: isActive ? '#f97316' : '#6b7280' }}>{p.label}</span>
+                          {isActive && <span style={{ fontSize:'10px', background:'#f97316', color:'#fff', borderRadius:'4px', padding:'1px 6px', fontWeight:700 }}>진행중</span>}
+                          {p.startDate && p.endDate && (
+                            <span style={{ fontSize:'11px', color:'#9ca3af' }}>{p.startDate} ~ {p.endDate}</span>
+                          )}
+                        </div>
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                          {periods.length > 1 && (
+                            <button type="button" onClick={e => { e.stopPropagation(); removePeriod(pIdx) }}
+                              style={{ background:'none', border:'none', color:'#9ca3af', fontSize:'18px', cursor:'pointer', lineHeight:1 }}>×</button>
+                          )}
+                          <span style={{ color:'#9ca3af', fontSize:'13px' }}>{open ? '▲' : '▼'}</span>
+                        </div>
                       </div>
+                      {/* 내용 — open일 때만 표시 */}
+                      {open && <div style={{ padding:'0 16px 14px', display:'flex', flexDirection:'column', gap:'12px' }}>
                       {/* 기간 */}
                       <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', gap:'8px', alignItems:'center' }}>
                         <div>
@@ -907,8 +935,9 @@ export function Classes({ user, onNav }) {
                           </div>
                         </div>
                       </div>
+                      </div>}
                     </div>
-                  ))}
+                  )})}
                   {periods.length < maxCount && (
                     <button type="button" onClick={addPeriod}
                       style={{ padding:'9px', borderRadius:'10px', border:'2px dashed #e5e7eb', background:'#fafafa', color:'#9ca3af', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
