@@ -4456,14 +4456,9 @@ export function Attendance({ user, pageParams = {} }) {
           : selClass?.organization === s.school
         if (!inClass) return false
       }
-      // 반 필터
+      // 반 필터 - 학생의 section 필드로 필터링
       if (selSection) {
-        const sectionCls = sectionClasses.find(c => c.section === selSection)
-        if (sectionCls) {
-          const inSection = s.classIds?.includes(sectionCls.id) ||
-            (!s.classIds?.length && selClass?.organization === s.school)
-          if (!inSection) return false
-        }
+        if ((s.section || '') !== selSection) return false
       }
     } else {
       // 요일 검색 모드: 요일 필터만 (학교/기간 무시)
