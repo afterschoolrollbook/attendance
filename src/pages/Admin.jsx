@@ -543,7 +543,7 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
                       <div>{s.grade}{s.classNum?` ${s.classNum}반`:''}</div>
                     </td>
                     <td style={{ padding:'10px 14px', fontSize:'12px', color:C.muted }}>
-                      {s.classes.map(c => <div key={c.id}>{c.className}{c.section?` ${c.section}반`:''}</div>)}
+                      {s.classes.map(c => <div key={c.id}>{c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}</div>)}
                     </td>
                     <td style={{ padding:'10px 14px' }}>
                       <span style={{ fontSize:'11px', fontWeight:600, padding:'2px 7px', borderRadius:'5px', background:`${STATUS_COLOR[s.status]}18`, color:STATUS_COLOR[s.status] }}>
@@ -707,7 +707,7 @@ function StudentListPanel({ allStudents, allClasses, allTeachers, allBranches, S
                   {s.classes.length > 0
                     ? s.classes.map(c => (
                         <div key={c.id} style={{ whiteSpace:'nowrap' }}>
-                          {c.className}{c.section ? ` ${c.section}반` : ''}
+                          {c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}
                         </div>
                       ))
                     : <span style={{ color:'#d1d5db' }}>—</span>
@@ -1329,7 +1329,7 @@ export function Admin({ user: currentUser }) {
                                 <div key={c.id} style={{ padding: '10px 14px', borderRadius: '8px', background: '#fff', border: '1px solid #e5e7eb' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
                                     <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{c.className || '수업명 미설정'}</span>
-                                    {c.section && <span style={{ fontSize: '11px', color: '#fff', background: '#8b5cf6', padding: '1px 7px', borderRadius: '10px' }}>{c.section}반</span>}
+                                    {(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) && <span style={{ fontSize: '11px', color: '#fff', background: '#8b5cf6', padding: '1px 7px', borderRadius: '10px' }}>{(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))}</span>}
                                   </div>
                                   <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', gap: '10px' }}>
                                     {c.days?.length > 0 && <span>📅 {c.days.join(', ')}</span>}
@@ -1416,7 +1416,7 @@ export function Admin({ user: currentUser }) {
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
                                         {studentClasses.map(c => (
                                           <span key={c.id} style={{ fontSize: '11px', color: '#3b82f6', background: '#eff6ff', padding: '2px 8px', borderRadius: '8px', whiteSpace: 'nowrap' }}>
-                                            {c.className}{c.section ? ` ${c.section}반` : ''}
+                                            {c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}
                                           </span>
                                         ))}
                                       </div>

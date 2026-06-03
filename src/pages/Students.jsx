@@ -535,7 +535,7 @@ export function Students({ user, onNav }) {
   const schools = [...new Set(yearClasses.map(c => c.organization).filter(Boolean))]
   const filteredClasses = sortClasses(ctxSchool ? yearClasses.filter(c => c.organization === ctxSchool) : yearClasses)
   const sections = ctxClass
-    ? [...new Set(classes.filter(c => c.id === ctxClass).map(c => c.section).filter(Boolean))]
+    ? [...new Set(classes.filter(c => c.id === ctxClass).flatMap(c => c.sections?.length>0 ? c.sections.map(s=>s.section).filter(Boolean) : c.section ? [c.section] : []))]
     : []
 
   // movedToManage: false → 학생등록탭, true 또는 undefined(구버전) → 학생관리탭
@@ -1078,7 +1078,7 @@ export function Students({ user, onNav }) {
             <select value={ctxClass} onChange={e => { setCtxClass(e.target.value); setCtxSection('') }} style={selSt}>
               <option value="">전체 과목</option>
               {filteredClasses.map(c => (
-                <option key={c.id} value={c.id}>{c.className}{c.section ? ' ' + c.section + '반' : ''}</option>
+                <option key={c.id} value={c.id}>{c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}</option>
               ))}
             </select>
           </div>
@@ -1133,7 +1133,7 @@ export function Students({ user, onNav }) {
             }} style={{ padding:'6px 12px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }}>
               <option value=''>수업 선택하여 체크</option>
               {filteredClasses.map(c => (
-                <option key={c.id} value={c.id}>{c.organization} · {c.className}{c.section ? ' '+c.section+'반' : ''}</option>
+                <option key={c.id} value={c.id}>{c.organization} · {c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}</option>
               ))}
             </select>
             {selectedForRegister.length > 0 && (
@@ -1648,7 +1648,7 @@ export function Students({ user, onNav }) {
                     return (a.organization||'').localeCompare(b.organization||'','ko')
                   }).map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.organization} · {c.className}{c.section ? ' '+c.section+'반' : ''} {c.days?.length ? '('+c.days.join('')+' '+c.time+')' : ''}
+                      {c.organization} · {c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''} {c.days?.length ? '('+c.days.join('')+' '+c.time+')' : ''}
                     </option>
                   ))}
                 </select>
@@ -1670,7 +1670,7 @@ export function Students({ user, onNav }) {
                   const orgMinDay = (org) => { const d=allClasses.filter(c=>c.organization===org).map(c=>DAY.indexOf(c.days?.[0]??'')).filter(i=>i!==-1); return d.length?Math.min(...d):99 }
                   const orgs = [...new Set(allClasses.map(c => c.organization).filter(Boolean))].sort((a,b)=>orgMinDay(a)-orgMinDay(b)||a.localeCompare(b,'ko'))
                   const classNames = [...new Set(allClasses.filter(c => !form._newOrganization || c.organization === form._newOrganization).map(c => c.className).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
-                  const sections  = [...new Set(allClasses.filter(c => (!form._newOrganization || c.organization === form._newOrganization) && (!form._newClassName || c.className === form._newClassName)).map(c => c.section).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
+                  const sections  = [...new Set(allClasses.filter(c => (!form._newOrganization || c.organization === form._newOrganization) && (!form._newClassName || c.className === form._newClassName)).flatMap(c => c.sections?.length>0 ? c.sections.map(s=>s.section).filter(Boolean) : c.section ? [c.section] : []))].sort((a,b)=>a.localeCompare(b,'ko'))
 
                   const autoMatch = (org, cls, sec) => {
                     const matched = allClasses.find(c => c.organization === org && c.className === cls && (c.section||'') === (sec||''))
@@ -1714,7 +1714,7 @@ export function Students({ user, onNav }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                   {(() => {
                     const allClasses = ClassesDB.byTeacher(user.id)
-                    const sections = [...new Set(allClasses.filter(c => (!form._newOrganization || c.organization === form._newOrganization) && (!form._newClassName || c.className === form._newClassName)).map(c => c.section).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'))
+                    const sections = [...new Set(allClasses.filter(c => (!form._newOrganization || c.organization === form._newOrganization) && (!form._newClassName || c.className === form._newClassName)).flatMap(c => c.sections?.length>0 ? c.sections.map(s=>s.section).filter(Boolean) : c.section ? [c.section] : []))].sort((a,b)=>a.localeCompare(b,'ko'))
                     const autoMatch = (sec) => {
                       const matched = allClasses.find(c => c.organization === form._newOrganization && c.className === form._newClassName && (c.section||'') === (sec||''))
                       if (matched) { set('classIds', [matched.id]); set('school', matched.organization) }
@@ -2271,7 +2271,7 @@ export function Students({ user, onNav }) {
                   <option value="">{hasClasses ? '-- 수업을 선택하세요 --' : '등록된 수업이 없습니다'}</option>
                   {classes.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.organization ? `${c.organization} · ` : ''}{c.className}{c.section ? ` ${c.section}반` : ''}{c.days?.length ? ` (${c.days.join('')})` : ''}
+                      {c.organization ? `${c.organization} · ` : ''}{c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}{c.days?.length ? ` (${c.days.join('')})` : ''}
                     </option>
                   ))}
                 </select>

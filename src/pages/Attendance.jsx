@@ -4397,7 +4397,11 @@ export function Attendance({ user, pageParams = {} }) {
   const sectionClasses = selClassId
     ? schoolClasses.filter(c => c.className === selClass?.className && c.organization === selClass?.organization)
     : []
-  const sections = [...new Set(sectionClasses.map(c => c.section).filter(Boolean))]
+  const sections = [...new Set(sectionClasses.flatMap(c => 
+    c.sections?.length > 0 
+      ? c.sections.map(s => s.section).filter(Boolean)
+      : c.section ? [c.section] : []
+  ))]
 
   // 정렬: Students.jsx 와 동일하게 학교→수업→반→학년→학급반→번호→이름
   const sortStudents = (arr) => [...arr].sort((a, b) => {
@@ -4611,7 +4615,10 @@ export function Attendance({ user, pageParams = {} }) {
                   const bDay = DAY_ORDER.indexOf(b.days?.[0] ?? '')
                   if (aDay !== bDay) return aDay - bDay
                   return (a.section||'').localeCompare(b.section||'', 'ko')
-                }).map(c => <option key={c.id} value={c.id}>{c.className}{c.section?' '+c.section+'반':''}</option>)}
+                }).map(c => {
+                  const secLabel = c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')
+                  return <option key={c.id} value={c.id}>{c.className}{secLabel ? ' '+secLabel : ''}</option>
+                })}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>

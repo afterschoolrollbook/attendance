@@ -480,7 +480,7 @@ function ParentListTab({ user, config }) {
             <select value={ctxClass} onChange={e => setCtxClass(e.target.value)} style={selSt}>
               <option value="">전체 과목</option>
               {filteredClasses.map(c => (
-                <option key={c.id} value={c.id}>{c.className}{c.section ? ' ' + c.section + '반' : ''}</option>
+                <option key={c.id} value={c.id}>{c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}</option>
               ))}
             </select>
           </div>

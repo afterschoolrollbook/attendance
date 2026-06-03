@@ -3588,7 +3588,7 @@ export function Supplies({ user }) {
                     style={{ flex:1, padding:'7px 10px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
                     <option value=''>전체 반</option>
                     {schoolFilteredClasses.map(c => (
-                      <option key={c.id} value={c.id}>{c.className}{c.section ? ' ' + c.section : ''}</option>
+                      <option key={c.id} value={c.id}>{c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}</option>
                     ))}
                   </select>
                   <select value={givenTermFilter} onChange={e => { setGivenTermFilter(e.target.value); setGivenFilter(f => ({ ...f, classId: '' })) }}
