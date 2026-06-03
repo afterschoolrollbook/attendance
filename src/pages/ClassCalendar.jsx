@@ -220,8 +220,10 @@ export function ClassCalendar({ cls, onUpdate }) {
   }
 
   const allSessions   = calcSessionDates(cls)
-  // totalSessions 설정 시 해당 수만큼만 차시 번호 표시, 초과 날짜는 빈 날짜로 표시
-  const sessions      = cls.totalSessions ? allSessions.slice(0, cls.totalSessions) : allSessions
+  // periods 방식이면 totalSessions 무시하고 전체 날짜 사용
+  const sessions = (cls.periods?.length > 0 && cls.periods.some(p => p.startDate && p.endDate))
+    ? allSessions
+    : (cls.totalSessions ? allSessions.slice(0, cls.totalSessions) : allSessions)
   const cancelled     = new Set((cls.cancelledDates || []).map(c => c.date))
   const cancelledDates = cls.cancelledDates || []
   const makeupDates   = cls.makeupDates || []
@@ -243,7 +245,7 @@ export function ClassCalendar({ cls, onUpdate }) {
   let totalIdx = 1
 
   if (cls.periods?.length > 0) {
-    let globalTermNum = 0
+    // 분기별 독립 텀 (각 분기마다 1텀부터 시작)
     cls.periods.forEach(p => {
       if (!p.startDate || !p.endDate) return
       const periodSessions = sessions.filter(d => d >= p.startDate && d <= p.endDate)
@@ -251,26 +253,28 @@ export function ClassCalendar({ cls, onUpdate }) {
         ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
         : Array(Number(p.termCount) || 1).fill(4)
       let cursor = 0
-      pTermSizes.forEach((size) => {
-        globalTermNum++
+      const pOffset = (cls.periods || []).indexOf(p) * 3
+      pTermSizes.forEach((size, ti) => {
         let termIdx = 1
+        const termNum = pOffset + ti + 1
         periodSessions.slice(cursor, cursor + size).forEach(d => {
           if (!cancelled.has(d)) {
-            sessionMap[d] = { total: totalIdx++, termNum: globalTermNum, termSess: termIdx++ }
-            termMap[d] = globalTermNum
+            sessionMap[d] = { total: totalIdx++, termNum, termSess: termIdx++ }
+            termMap[d] = termNum
           } else {
-            termMap[d] = globalTermNum
+            termMap[d] = termNum
           }
         })
         cursor += size
       })
       if (cursor < periodSessions.length) {
+        const termNum = pOffset + pTermSizes.length
         let termIdx = 1
         periodSessions.slice(cursor).forEach(d => {
           if (!cancelled.has(d)) {
-            sessionMap[d] = { total: totalIdx++, termNum: globalTermNum, termSess: termIdx++ }
+            sessionMap[d] = { total: totalIdx++, termNum, termSess: termIdx++ }
           }
-          termMap[d] = globalTermNum
+          termMap[d] = termNum
         })
       }
     })
@@ -567,19 +571,54 @@ export function ClassCalendar({ cls, onUpdate }) {
       </div>
 
       {/* 요약 */}
-      <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'16px', alignItems:'center' }}>
-        {termSummary.map(t => {
-          const tc = getTermColor(t.num)
-          return (
-            <div key={t.num} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px',
-              background: tc.bg, border:`1.5px solid ${tc.border}`, borderRadius:'20px' }}>
-              <span style={{ fontSize:'12px', fontWeight:700, color: tc.text }}>{t.num}텀</span>
-              <span style={{ fontSize:'11px', color:'#6b7280', fontWeight:600 }}>{t.active}회</span>
-              <span style={{ fontSize:'10px', color:'#d1d5db' }}>|</span>
-              <span style={{ fontSize:'10px', color:'#9ca3af' }}>{t.globalStart}~{t.globalEnd}차시</span>
-            </div>
-          )
-        })}
+      <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'16px' }}>
+        {cls.periods?.length > 0 ? (
+          // 분기별로 묶어서 표시
+          cls.periods.map((p, pIdx) => {
+            if (!p.startDate || !p.endDate) return null
+            const pTermSizes = (p.termSizes?.length > 0)
+              ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
+              : Array(Number(p.termCount) || 1).fill(4)
+            const periodSessions = sessions.filter(d => d >= p.startDate && d <= p.endDate)
+            return (
+              <div key={pIdx} style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                <span style={{ fontSize:'12px', fontWeight:700, color:'#6b7280', minWidth:'40px' }}>{p.label}</span>
+                {pTermSizes.map((size, ti) => {
+                  const tc = getTermColor(pIdx * 3 + ti + 1)
+                  const cursor = pTermSizes.slice(0, ti).reduce((a,b)=>a+b, 0)
+                  const termSessions = periodSessions.slice(cursor, cursor + size)
+                  const active = termSessions.filter(d => !cancelled.has(d)).length
+                  const globalStart = pTermSizes.slice(0, ti).reduce((a,b)=>a+b, 0) + 1
+                  const globalEnd = globalStart + size - 1
+                  return (
+                    <div key={ti} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px',
+                      background: tc.bg, border:`1.5px solid ${tc.border}`, borderRadius:'20px' }}>
+                      <span style={{ fontSize:'12px', fontWeight:700, color: tc.text }}>{ti+1}텀</span>
+                      <span style={{ fontSize:'11px', color:'#6b7280', fontWeight:600 }}>{active}회</span>
+                      <span style={{ fontSize:'10px', color:'#d1d5db' }}>|</span>
+                      <span style={{ fontSize:'10px', color:'#9ca3af' }}>{globalStart}~{globalEnd}차시</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })
+        ) : (
+          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' }}>
+            {termSummary.map(t => {
+              const tc = getTermColor(t.num)
+              return (
+                <div key={t.num} style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 12px',
+                  background: tc.bg, border:`1.5px solid ${tc.border}`, borderRadius:'20px' }}>
+                  <span style={{ fontSize:'12px', fontWeight:700, color: tc.text }}>{t.num}텀</span>
+                  <span style={{ fontSize:'11px', color:'#6b7280', fontWeight:600 }}>{t.active}회</span>
+                  <span style={{ fontSize:'10px', color:'#d1d5db' }}>|</span>
+                  <span style={{ fontSize:'10px', color:'#9ca3af' }}>{t.globalStart}~{t.globalEnd}차시</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
         <div style={{ display:'flex', gap:'8px', fontSize:'12px', marginLeft:'4px' }}>
           <span style={{ color:'#f97316', fontWeight:600 }}>수업 {activeCount}회</span>
           {cancelCount > 0 && <span style={{ color:'#ef4444' }}>휴일 {cancelCount}회</span>}
