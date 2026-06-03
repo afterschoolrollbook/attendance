@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { calcSessionDates, getDayLabel } from '../lib/utils.js'
 import { CANCEL_REASONS } from '../constants/config.js'
-import { Select, Input, Btn, Modal } from '../components/Atoms.jsx'
+import { Select, Input, Btn } from '../components/Atoms.jsx'
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -86,7 +86,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           // 수동 추가 수업일 (makeupDates + type:'session')
           if (isMakeup && makeupInfo?.type === 'session') {
             return (
-              <button key={day} onClick={() => onDateClick(dateStr, 'makeup')}
+              <button key={day} onClick={e => onDateClick(dateStr, 'makeup', e)}
                 title={`수업일 ${sessInfo?.total||''}차시: ${makeupInfo?.memo||''} — 클릭하면 변경`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                   background: inApply ? '#fff7ed' : '#fff7ed',
@@ -106,7 +106,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           // 보강일 (정규 수업일 아님)
           if (isMakeup) {
             return (
-              <button key={day} onClick={() => onDateClick(dateStr, 'makeup')}
+              <button key={day} onClick={e => onDateClick(dateStr, 'makeup', e)}
                 title={`보강 ${sessInfo?.total||''}차시: ${makeupInfo?.memo||''} — 클릭하면 삭제`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                   background:'#eff6ff', outline:'1.5px solid #3b82f6', outlineOffset:'-1px',
@@ -123,7 +123,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           // 취소된 수업일
           if (isCancelled) {
             return (
-              <button key={day} onClick={() => onDateClick(dateStr, 'cancelled')}
+              <button key={day} onClick={e => onDateClick(dateStr, 'cancelled', e)}
                 title={`취소됨: ${reasonLabel||''} — 클릭하면 복원`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                   background:'#fef2f2', outline:'1.5px solid #fca5a5', outlineOffset:'-1px',
@@ -140,7 +140,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           if (isSession) {
             const tc = getTermColor(sessInfo.termNum || 1)
             return (
-              <button key={day} onClick={() => onDateClick(dateStr, 'session')}
+              <button key={day} onClick={e => onDateClick(dateStr, 'session', e)}
                 title={`전체 ${sessInfo.total}차시 | ${sessInfo.termNum}텀 ${sessInfo.termSess}차시 — 클릭하면 처리`}
                 style={{ padding:'4px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                   background: tc.bg, outline:`1.5px solid ${tc.border}`, outlineOffset:'-1px',
@@ -161,7 +161,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
 
           // 일반 날짜 — 신청기간 내 날짜는 파란 배경, 특별기간은 해당 색상 배경
           return (
-            <button key={day} onClick={() => onDateClick(dateStr, 'normal')}
+            <button key={day} onClick={e => onDateClick(dateStr, 'normal', e)}
               title={spMatch ? (spMatch.label || spType?.label || '') : inApply ? '신청기간' : '클릭하면 휴일 또는 보강 추가'}
               style={{ padding:'6px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
                 background: spType ? spType.bg : inApply ? '#eff6ff' : 'transparent',
@@ -187,6 +187,22 @@ export function ClassCalendar({ cls, onUpdate }) {
   const [clickType,     setClickType]     = useState(null)  // 'normal' | 'session' | 'cancelled' | 'makeup'
   const [showNormalAction,     setShowNormalAction]     = useState(false)  // 빈 날짜 클릭
   const [showRegisteredAction, setShowRegisteredAction] = useState(false)  // 있는 날짜 클릭
+  const [popupPos, setPopupPos] = useState({ x: 0, y: 0 }) // 팝업 위치
+  const popupDragging = React.useRef(false)
+  const popupDragStart = React.useRef({ mx:0, my:0, px:0, py:0 })
+
+  const handlePopupMouseDown = (e) => {
+    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) return
+    popupDragging.current = true
+    popupDragStart.current = { mx: e.clientX, my: e.clientY, px: popupPos.x, py: popupPos.y }
+    const onMove = (e) => {
+      if (!popupDragging.current) return
+      setPopupPos({ x: popupDragStart.current.px + e.clientX - popupDragStart.current.mx, y: popupDragStart.current.py + e.clientY - popupDragStart.current.my })
+    }
+    const onUp = () => { popupDragging.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
   const [showCancel,    setShowCancel]    = useState(false)
   const [showMakeup,    setShowMakeup]    = useState(false)
   const [reason,        setReason]        = useState('public_holiday')
@@ -220,7 +236,6 @@ export function ClassCalendar({ cls, onUpdate }) {
   }
 
   const allSessions   = calcSessionDates(cls)
-  // periods 방식이면 totalSessions 무시하고 전체 날짜 사용
   const sessions = (cls.periods?.length > 0 && cls.periods.some(p => p.startDate && p.endDate))
     ? allSessions
     : (cls.totalSessions ? allSessions.slice(0, cls.totalSessions) : allSessions)
@@ -245,7 +260,6 @@ export function ClassCalendar({ cls, onUpdate }) {
   let totalIdx = 1
 
   if (cls.periods?.length > 0) {
-    // 분기별 독립 텀 (각 분기마다 1텀부터 시작, 색상 오프셋 적용)
     cls.periods.forEach((p, pIdx) => {
       if (!p.startDate || !p.endDate) return
       const periodSessions = sessions.filter(d => d >= p.startDate && d <= p.endDate)
@@ -341,13 +355,18 @@ export function ClassCalendar({ cls, onUpdate }) {
     return iso.slice(5, 10).replace('-', '/')  // MM/DD 형식
   }
 
-  const handleDateClick = (date, type) => {
+  const handleDateClick = (date, type, e) => {
     setShowNormalAction(false)
     setShowRegisteredAction(false)
     setShowCancel(false)
     setShowMakeup(false)
     setSelectedDate(date)
     setClickType(type)
+    // 클릭한 버튼 위치 기준으로 팝업 위치 계산
+    if (e?.currentTarget) {
+      const rect = e.currentTarget.getBoundingClientRect()
+      setPopupPos({ x: rect.right + 8, y: rect.top })
+    }
     if (type === 'normal') {
       setShowNormalAction(true)
     } else {
@@ -390,7 +409,6 @@ export function ClassCalendar({ cls, onUpdate }) {
     const active = termSessions.filter(d => !cancelled.has(d)).length
     return { num: ti+1, active, total: size, globalStart, globalEnd }
   })
-  // 분기별 텀 요약 (periods 방식)
   const periodTermSummary = cls.periods?.length > 0 ? cls.periods.map((p, pIdx) => {
     if (!p.startDate || !p.endDate) return null
     const pTermSizes = (p.termSizes?.length > 0)
@@ -798,16 +816,36 @@ export function ClassCalendar({ cls, onUpdate }) {
         })}
       </div>
 
-      {/* ── 날짜 클릭 모달 ── */}
-      <Modal
-        open={showNormalAction || showRegisteredAction || showCancel || showMakeup}
-        onClose={() => { setShowNormalAction(false); setShowRegisteredAction(false); setShowCancel(false); setShowMakeup(false) }}
-        title={showCancel ? '🚫 공휴일 처리' : showMakeup ? '🔄 보강일 추가' : showNormalAction ? '📅 날짜 등록' : '📅 날짜 변경'}
-        width={400}
-      >
-        <div style={{ fontSize:'13px', color:'#9ca3af', marginBottom:'12px' }}>
-          {selectedDate} ({selectedDate && getDayLabel(selectedDate)}요일)
-        </div>
+      {/* ── 날짜 클릭 팝업 (클릭 위치 옆) ── */}
+      {(showNormalAction || showRegisteredAction || showCancel || showMakeup) && (
+        <>
+          {/* 배경 클릭 시 닫기 */}
+          <div onClick={() => { setShowNormalAction(false); setShowRegisteredAction(false); setShowCancel(false); setShowMakeup(false) }}
+            style={{ position:'fixed', inset:0, zIndex:9998 }} />
+          <div
+            onMouseDown={handlePopupMouseDown}
+            style={{
+              position:'fixed',
+              left: Math.min(popupPos.x, window.innerWidth - 320),
+              top: Math.max(8, Math.min(popupPos.y, window.innerHeight - 400)),
+              zIndex:9999, width:'300px',
+              borderRadius:'14px', border:'1.5px solid #e5e7eb',
+              background:'#fff', padding:'16px',
+              boxShadow:'0 8px 32px rgba(0,0,0,0.15)',
+              cursor:'grab', userSelect:'none',
+            }}>
+          {/* 헤더 */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+            <div style={{ fontSize:'14px', fontWeight:700, color:'#374151' }}>
+              {showCancel ? '🚫 공휴일 처리' : showMakeup ? '🔄 보강일 추가'
+                : showNormalAction ? '📅 날짜 등록' : '📅 날짜 변경'}
+              <span style={{ fontWeight:400, color:'#9ca3af', marginLeft:'8px', fontSize:'13px' }}>
+                {selectedDate} ({selectedDate && getDayLabel(selectedDate)}요일)
+              </span>
+            </div>
+            <button onClick={() => { setShowNormalAction(false); setShowRegisteredAction(false); setShowCancel(false); setShowMakeup(false) }}
+              style={{ background:'none', border:'none', fontSize:'18px', color:'#9ca3af', cursor:'pointer', lineHeight:1, padding:'0 4px' }}>✕</button>
+          </div>
 
           {/* 빈 날짜 — 등록 선택 */}
           {showNormalAction && (
@@ -912,8 +950,9 @@ export function ClassCalendar({ cls, onUpdate }) {
               </div>
             </div>
           )}
-        </div>
-      </Modal>
+          </div>
+        </>
+      )}
     </div>
   )
 }
