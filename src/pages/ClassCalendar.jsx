@@ -59,7 +59,18 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           const isSession   = !!sessInfo && !isCancelled && !isMakeup
           const cancelInfo  = cancelledDates.find(c => c.date === dateStr)
           const makeupInfo  = makeupDates.find(m => m.date === dateStr)
-          const REASON_LABELS = { public_holiday:'공휴일', national_holiday:'국경일', new_year:'신정', seollal:'설날', chuseok:'추석', childrens_day:'어린이날', buddha:'부처님오신날', memorial_day:'현충일', constitution_day:'제헌절', workers_day:'근로자의날', christmas:'성탄절', childrens_day_alt:'대체공휴일', election_day:'선거일', school_holiday:'학교재량휴일', teacher_absent:'강사사정', etc:'기타' }
+          const REASON_LABELS = {
+            public_holiday:'공휴일', national_holiday:'국경일',
+            new_year:'신정', seollal:'설날', chuseok:'추석',
+            independence_day:'삼일절', liberation_day:'광복절',
+            national_foundation_day:'개천절', hangul_day:'한글날',
+            childrens_day:'어린이날', buddha:'부처님오신날',
+            memorial_day:'현충일', constitution_day:'제헌절',
+            workers_day:'근로자의날', christmas:'성탄절',
+            childrens_day_alt:'대체공휴일', election_day:'선거일',
+            school_holiday:'학교재량휴일', teacher_absent:'강사사정',
+            vacation:'방학 휴강', etc:'기타'
+          }
           const reasonLabel = CANCEL_REASONS.find(r => r.value === cancelInfo?.reason)?.label || REASON_LABELS[cancelInfo?.reason] || cancelInfo?.reason
           const termNum     = termMap[dateStr]
           const dow = (firstDay + day - 1) % 7
@@ -222,22 +233,24 @@ export function ClassCalendar({ cls, onUpdate }) {
   const [newPeriodEnd,   setNewPeriodEnd]   = useState('')
 
   const CANCEL_OPTIONS = [
-    { value: 'public_holiday',  label: '공휴일' },
-    { value: 'national_holiday', label: '국경일 (삼일절/광복절/개천절/한글날)' },
-    { value: 'new_year',        label: '신정 (1/1)' },
-    { value: 'seollal',         label: '설날' },
-    { value: 'chuseok',         label: '추석' },
-    { value: 'childrens_day',   label: '어린이날 (5/5)' },
-    { value: 'buddha',          label: '부처님오신날' },
-    { value: 'memorial_day',    label: '현충일 (6/6)' },
-    { value: 'constitution_day',label: '제헌절 (7/17)' },
-    { value: 'workers_day',     label: '근로자의날 (5/1)' },
-    { value: 'christmas',       label: '성탄절 (12/25)' },
-    { value: 'childrens_day_alt', label: '대체공휴일' },
-    { value: 'election_day',    label: '선거일' },
-    { value: 'school_holiday', label: '학교재량휴일' },
-    { value: 'teacher_absent', label: '강사사정' },
-    { value: 'etc',            label: '기타' },
+    { value: 'new_year',         label: '신정 (1/1)' },
+    { value: 'seollal',          label: '설날' },
+    { value: 'independence_day', label: '삼일절 (3/1)' },
+    { value: 'workers_day',      label: '근로자의날 (5/1)' },
+    { value: 'childrens_day',    label: '어린이날 (5/5)' },
+    { value: 'buddha',           label: '부처님오신날' },
+    { value: 'memorial_day',     label: '현충일 (6/6)' },
+    { value: 'liberation_day',   label: '광복절 (8/15)' },
+    { value: 'chuseok',          label: '추석' },
+    { value: 'national_foundation_day', label: '개천절 (10/3)' },
+    { value: 'hangul_day',       label: '한글날 (10/9)' },
+    { value: 'christmas',        label: '성탄절 (12/25)' },
+    { value: 'childrens_day_alt',label: '대체공휴일' },
+    { value: 'election_day',     label: '선거일' },
+    { value: 'school_holiday',   label: '학교재량휴일' },
+    { value: 'teacher_absent',   label: '강사사정' },
+    { value: 'vacation',         label: '방학 휴강' },
+    { value: 'etc',              label: '기타' },
   ]
 
   const hasPeriods = cls.periods?.length > 0 && cls.periods.some(p => p.startDate && p.endDate)
@@ -326,6 +339,18 @@ export function ClassCalendar({ cls, onUpdate }) {
       })
     }
   }
+  // 방학 기간 수업일 자동 휴강 처리
+  const vacationPeriods = (cls.specialPeriods || []).filter(p => p.type === 'summer_vacation' || p.type === 'winter_vacation')
+  const isInVacation = (dateStr) => vacationPeriods.some(p => dateStr >= p.startDate && dateStr <= p.endDate)
+  sessions.forEach(d => {
+    if (isInVacation(d) && !cancelled.has(d) && !makeupDates.some(m => m.date === d)) {
+      cancelled.add(d)
+      if (!cancelledDates.find(c => c.date === d)) {
+        cancelledDates.push({ date: d, reason: 'vacation', memo: '방학 휴강 (자동)' })
+      }
+    }
+  })
+
   // 보강일
   makeupDates.forEach(m => {
     sessionMap[m.date] = { total: totalIdx++, termNum: 0, termSess: 0, isMakeup: true }
