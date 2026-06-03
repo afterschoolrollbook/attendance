@@ -95,11 +95,14 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           // 특별 기간 포함 여부 (여러 기간 중 첫 번째 매칭)
           const spMatch = (specialPeriods || []).find(p => dateStr >= p.startDate && dateStr <= p.endDate)
           const spType  = spMatch ? getSpecialPeriodType(spMatch.type) : null
-          // 방학 밑줄 색상
+          // 방학 여부 (밑줄만 표시, 배경/뱃지 없음)
+          const isVacation = spMatch?.type === 'summer_vacation' || spMatch?.type === 'winter_vacation'
           const vacUnderline = spMatch?.type === 'summer_vacation' ? '2px solid #ef4444'
             : spMatch?.type === 'winter_vacation' ? '2px solid #3b82f6'
             : null
-          const spBadge = spType ? (
+          // 방학이면 spType 효과 무시
+          const effectiveSpType = isVacation ? null : spType
+          const spBadge = effectiveSpType ? (
             <div title={spMatch.label || spType.label} style={{
               fontSize:'8px', color:'#fff', background: spType.color,
               borderRadius:'3px', padding:'0 2px', marginTop:'1px',
@@ -204,13 +207,13 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
             <button key={day} onClick={e => onDateClick(dateStr, 'normal', e)}
               title={spMatch ? (spMatch.label || spType?.label || '') : inApply ? '신청기간' : '클릭하면 휴일 또는 보강 추가'}
               style={{ padding:'6px 2px', borderRadius:'8px', border:'none', cursor:'pointer',
-                background: spType ? spType.bg : inApply ? '#eff6ff' : 'transparent',
-                outline: spType ? `1px solid ${spType.border}` : inApply ? '1px solid #bfdbfe' : 'none',
+                background: effectiveSpType ? effectiveSpType.bg : inApply ? '#eff6ff' : 'transparent',
+                outline: effectiveSpType ? `1px solid ${effectiveSpType.border}` : inApply ? '1px solid #bfdbfe' : 'none',
                 textAlign:'center', fontFamily:'Noto Sans KR, sans-serif',
-                color: isSun?'#fca5a5': isSat?'#93c5fd': (spType || inApply) ? '#1d4ed8' : '#9ca3af', fontSize:'12px',
+                color: isSun?'#fca5a5': isSat?'#93c5fd': (effectiveSpType || inApply) ? '#1d4ed8' : '#9ca3af', fontSize:'12px',
                 transition:'all .12s', ...periodBorder, ...(vacUnderline ? { borderBottom: vacUnderline } : {}) }}
-              onMouseEnter={e => e.currentTarget.style.background= spType ? spType.border : inApply ? '#dbeafe' : '#f0fdf4'}
-              onMouseLeave={e => e.currentTarget.style.background= spType ? spType.bg : inApply ? '#eff6ff' : 'transparent'}>
+              onMouseEnter={e => e.currentTarget.style.background= effectiveSpType ? effectiveSpType.border : inApply ? '#dbeafe' : '#f0fdf4'}
+              onMouseLeave={e => e.currentTarget.style.background= effectiveSpType ? effectiveSpType.bg : inApply ? '#eff6ff' : 'transparent'}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'1px' }}>
                 {isPeriodStart && <span style={{ fontSize:'10px', fontWeight:900, color: periodStartColor, lineHeight:1 }}>[</span>}
                 <span>{day}</span>
