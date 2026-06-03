@@ -37,10 +37,27 @@ export const ATTENDANCE_STATUS = {
 }
 
 export const CANCEL_REASONS = [
-  { value: 'public_holiday', label: '공휴일' },
-  { value: 'school_holiday', label: '학교재량휴일' },
-  { value: 'teacher_absent', label: '강사 사정' },
-  { value: 'etc', label: '기타' },
+  { value: 'new_year',                label: '신정 (1/1)' },
+  { value: 'seollal',                 label: '설날' },
+  { value: 'independence_day',        label: '삼일절 (3/1)' },
+  { value: 'workers_day',             label: '근로자의날 (5/1)' },
+  { value: 'childrens_day',           label: '어린이날 (5/5)' },
+  { value: 'buddha',                  label: '부처님오신날' },
+  { value: 'memorial_day',            label: '현충일 (6/6)' },
+  { value: 'constitution_day',        label: '제헌절 (7/17)' },
+  { value: 'liberation_day',          label: '광복절 (8/15)' },
+  { value: 'chuseok',                 label: '추석' },
+  { value: 'national_foundation_day', label: '개천절 (10/3)' },
+  { value: 'hangul_day',              label: '한글날 (10/9)' },
+  { value: 'christmas',               label: '성탄절 (12/25)' },
+  { value: 'childrens_day_alt',       label: '대체공휴일' },
+  { value: 'election_day',            label: '선거일' },
+  { value: 'school_holiday',          label: '학교재량휴일' },
+  { value: 'teacher_absent',          label: '강사사정' },
+  { value: 'vacation',                label: '방학 휴강' },
+  { value: 'public_holiday',          label: '공휴일' },
+  { value: 'national_holiday',        label: '국경일' },
+  { value: 'etc',                     label: '기타' },
 ]
 
 export const COLORS = {
