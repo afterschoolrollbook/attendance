@@ -83,7 +83,7 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
             school_holiday:'학교재량휴일', teacher_absent:'강사사정',
             vacation:'방학 휴강', etc:'기타'
           }
-          const reasonLabel = CANCEL_REASONS.find(r => r.value === cancelInfo?.reason)?.label || REASON_LABELS[cancelInfo?.reason] || cancelInfo?.reason
+          const reasonLabel = REASON_LABELS[cancelInfo?.reason] || cancelInfo?.reason
           const termNum     = termMap[dateStr]
           const dow = (firstDay + day - 1) % 7
           const isSun = dow === 0, isSat = dow === 6
