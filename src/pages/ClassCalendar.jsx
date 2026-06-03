@@ -774,18 +774,16 @@ export function ClassCalendar({ cls, onUpdate }) {
                       {/* 휴강 여부 */}
                       <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
                         <span style={{ fontSize:'12px', color:'#6b7280', fontWeight:600 }}>수업 처리:</span>
-                        <button onClick={() => setEditPeriod({ ...editPeriod, suspend: true })}
-                          style={{ padding:'5px 12px', borderRadius:'20px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700,
-                            background: editPeriod.suspend !== false ? '#fef2f2' : '#f3f4f6',
-                            color: editPeriod.suspend !== false ? '#ef4444' : '#9ca3af' }}>
-                          🚫 휴강
-                        </button>
-                        <button onClick={() => setEditPeriod({ ...editPeriod, suspend: false })}
-                          style={{ padding:'5px 12px', borderRadius:'20px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700,
-                            background: editPeriod.suspend === false ? '#f0fdf4' : '#f3f4f6',
-                            color: editPeriod.suspend === false ? '#16a34a' : '#9ca3af' }}>
-                          ✅ 수업 유지
-                        </button>
+                        <select value={editPeriod.suspend === false ? 'keep' : 'suspend'}
+                          onChange={e => setEditPeriod({ ...editPeriod, suspend: e.target.value !== 'keep' })}
+                          style={{ padding:'5px 10px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer',
+                            fontFamily:'Noto Sans KR, sans-serif', outline:'none',
+                            border: editPeriod.suspend === false ? '1.5px solid #6ee7b7' : '1.5px solid #fca5a5',
+                            background: editPeriod.suspend === false ? '#f0fdf4' : '#fef2f2',
+                            color: editPeriod.suspend === false ? '#16a34a' : '#ef4444' }}>
+                          <option value="suspend">🚫 휴강</option>
+                          <option value="keep">✅ 수업 유지</option>
+                        </select>
                       </div>
                       {/* 저장/취소 */}
                       <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
@@ -848,18 +846,16 @@ export function ClassCalendar({ cls, onUpdate }) {
             {/* 휴강 여부 선택 */}
             <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
               <span style={{ fontSize:'12px', color:'#6b7280', fontWeight:600 }}>수업 처리:</span>
-              <button onClick={() => setNewPeriodSuspend(true)}
-                style={{ padding:'5px 12px', borderRadius:'20px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700,
-                  background: newPeriodSuspend ? '#fef2f2' : '#f3f4f6',
-                  color: newPeriodSuspend ? '#ef4444' : '#9ca3af' }}>
-                🚫 휴강
-              </button>
-              <button onClick={() => setNewPeriodSuspend(false)}
-                style={{ padding:'5px 12px', borderRadius:'20px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700,
-                  background: !newPeriodSuspend ? '#f0fdf4' : '#f3f4f6',
-                  color: !newPeriodSuspend ? '#16a34a' : '#9ca3af' }}>
-                ✅ 수업 유지
-              </button>
+              <select value={newPeriodSuspend ? 'suspend' : 'keep'}
+                onChange={e => setNewPeriodSuspend(e.target.value !== 'keep')}
+                style={{ padding:'5px 10px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer',
+                  fontFamily:'Noto Sans KR, sans-serif', outline:'none',
+                  border: newPeriodSuspend ? '1.5px solid #fca5a5' : '1.5px solid #6ee7b7',
+                  background: newPeriodSuspend ? '#fef2f2' : '#f0fdf4',
+                  color: newPeriodSuspend ? '#ef4444' : '#16a34a' }}>
+                <option value="suspend">🚫 휴강</option>
+                <option value="keep">✅ 수업 유지</option>
+              </select>
               <Btn onClick={addSpecialPeriod} disabled={!newPeriodStart || !newPeriodEnd}
                 style={{ marginLeft:'auto', background:'#ec4899', borderColor:'#ec4899' }}>추가</Btn>
             </div>
