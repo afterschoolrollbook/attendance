@@ -296,7 +296,7 @@ export function ClassCalendar({ cls, onUpdate }) {
     ? allSessions
     : (cls.totalSessions ? allSessions.slice(0, cls.totalSessions) : allSessions)
   const cancelled     = new Set((cls.cancelledDates || []).map(c => c.date))
-  const cancelledDates = cls.cancelledDates || []
+  const cancelledDates = [...(cls.cancelledDates || [])]
   const makeupDates   = cls.makeupDates || []
 
   // termSizes: periods 방식이면 각 학기/분기의 termSizes를 이어붙임

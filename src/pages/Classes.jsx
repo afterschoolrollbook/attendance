@@ -149,8 +149,10 @@ export function Classes({ user, onNav }) {
   const [noticeSearch,   setNoticeSearch]   = useState('')
   const [templateSearch, setTemplateSearch] = useState('')
   const [docPickerTarget, setDocPickerTarget] = useState(null) // 'promo' | 'notice' | 'template'
-  const [editCancelIdx,  setEditCancelIdx]  = useState(null)   // 수정 중인 휴일 인덱스 (원본 기준)
+  const [editCancelIdx,  setEditCancelIdx]  = useState(null)
   const [editCancelMemo, setEditCancelMemo] = useState('')
+  const [newCancelDate,  setNewCancelDate]  = useState('')
+  const [newCancelReason,setNewCancelReason]= useState('school_holiday')
   const promoRef = useRef()
   const noticeRef = useRef()
   const templateRef = useRef()
@@ -1320,34 +1322,45 @@ export function Classes({ user, onNav }) {
             {/* 휴일 직접 추가 */}
             <div style={{ background:'#fafafa', borderRadius:'12px', border:'1px solid #e5e7eb', padding:'16px' }}>
               <div style={{ fontSize:'13px', fontWeight:700, color:'#374151', marginBottom:'12px' }}>📌 휴일 직접 추가 (개교기념일 등)</div>
-              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'12px' }}>
-                <input type="date"
+              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'12px', alignItems:'center' }}>
+                <input type="date" value={newCancelDate} onChange={e => setNewCancelDate(e.target.value)}
                   style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}
                   min={form.startDate} max={form.endDate}
-                  onChange={e => {
-                    const date = e.target.value
-                    if (!date) return
-                    const already = (form.cancelledDates||[]).some(c => c.date === date)
-                    if (already) { toastError('이미 추가된 날짜입니다.'); return }
-                    setForm(f => ({ ...f, cancelledDates: [...(f.cancelledDates||[]), { date, reason:'school_holiday', memo:'' }] }))
-                    e.target.value = ''
-                  }}
                 />
-                <select
-                  style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}
-                  onChange={e => {
-                    const date = e.target.value
-                    if (!date) return
-                    const already = (form.cancelledDates||[]).some(c => c.date === date)
-                    if (!already) setForm(f => ({ ...f, cancelledDates: [...(f.cancelledDates||[]), { date, reason:'public_holiday', memo:'공휴일' }] }))
-                    e.target.value = ''
-                  }}
-                  defaultValue="">
-                  <option value="">공휴일 빠른 추가</option>
-                  {(HOLIDAYS[parseInt(form.startDate?.slice(0,4))] || HOLIDAYS[2026]).map(h => (
-                    <option key={h.date} value={h.date}>{h.name}</option>
-                  ))}
+                <select value={newCancelReason} onChange={e => setNewCancelReason(e.target.value)}
+                  style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
+                  <option value="school_holiday">학교재량휴일</option>
+                  <option value="new_year">신정 (1/1)</option>
+                  <option value="seollal">설날</option>
+                  <option value="independence_day">삼일절 (3/1)</option>
+                  <option value="workers_day">근로자의날 (5/1)</option>
+                  <option value="childrens_day">어린이날 (5/5)</option>
+                  <option value="buddha">부처님오신날</option>
+                  <option value="memorial_day">현충일 (6/6)</option>
+                  <option value="constitution_day">제헌절 (7/17)</option>
+                  <option value="liberation_day">광복절 (8/15)</option>
+                  <option value="chuseok">추석</option>
+                  <option value="national_foundation_day">개천절 (10/3)</option>
+                  <option value="hangul_day">한글날 (10/9)</option>
+                  <option value="christmas">성탄절 (12/25)</option>
+                  <option value="childrens_day_alt">대체공휴일</option>
+                  <option value="election_day">선거일</option>
+                  <option value="teacher_absent">강사사정</option>
+                  <option value="etc">기타</option>
                 </select>
+                <button
+                  disabled={!newCancelDate}
+                  onClick={() => {
+                    if (!newCancelDate) return
+                    const already = (form.cancelledDates||[]).some(c => c.date === newCancelDate)
+                    if (already) { toastError('이미 추가된 날짜입니다.'); return }
+                    setForm(f => ({ ...f, cancelledDates: [...(f.cancelledDates||[]), { date: newCancelDate, reason: newCancelReason, memo:'' }] }))
+                    setNewCancelDate('')
+                    setNewCancelReason('school_holiday')
+                  }}
+                  style={{ padding:'7px 14px', borderRadius:'8px', border:'none', background: newCancelDate ? '#374151' : '#e5e7eb',
+                    color: newCancelDate ? '#fff' : '#9ca3af', fontSize:'13px', fontWeight:700, cursor: newCancelDate ? 'pointer' : 'default',
+                    fontFamily:'Noto Sans KR, sans-serif' }}>추가</button>
               </div>
               {/* 추가된 휴일 목록 */}
               {(form.cancelledDates||[]).length > 0 && (
