@@ -3471,10 +3471,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
       {/* ── 학생 리스트 — 반별로 섹션 나눠서 표시 */}
       {(() => {
         // 반(section) 기준으로 그룹핑. section 없으면 단일 그룹
-        const sections = [...new Set(activeStudents.map(s => {
-          const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
-          return sc?.section || ''
-        }))].sort()
+        const sections = [...new Set(activeStudents.map(s => s.section || ''))].sort()
 
         const ColHeader = () => (
           <div style={{ display:'grid', gridTemplateColumns:'35px 90px 90px 130px 220px 70px 110px 90px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
@@ -3491,10 +3488,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
         )
 
         return sections.map(sec => {
-          const secStudents = activeStudents.filter(s => {
-            const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
-            return (sc?.section || '') === sec
-          }).sort((a, b) => {
+          const secStudents = activeStudents.filter(s => (s.section || '') === sec).sort((a, b) => {
             const g = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (g) return g
             const c = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (c) return c
             const n = parseInt(a.number||'0') - parseInt(b.number||'0'); if (n) return n
