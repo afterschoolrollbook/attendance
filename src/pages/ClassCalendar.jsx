@@ -60,8 +60,12 @@ function MonthCalendar({ year, month, sessionMap, cancelled, cancelledDates, mak
           const isPeriodEnd   = (periodRanges || []).some(r => r.end === dateStr)
           const periodStartColor = (periodRanges || []).find(r => r.start === dateStr)?.color || '#6b7280'
           const periodEndColor   = (periodRanges || []).find(r => r.end === dateStr)?.color || '#6b7280'
-          // [ ] 기호 표시용 (스타일 없음)
-          const periodBorder = {}
+          // 분기 시작/종료 세로선
+          const periodBorder = {
+            ...(isPeriodStart && isPeriodEnd ? { borderLeft:`3px solid ${periodStartColor}`, borderRight:`3px solid ${periodEndColor}` } :
+               isPeriodStart ? { borderLeft:`3px solid ${periodStartColor}` } :
+               isPeriodEnd   ? { borderRight:`3px solid ${periodEndColor}` } : {}),
+          }
           const isCancelled = cancelled.has(dateStr)
           const isMakeup    = makeupSet.has(dateStr)
           const isSession   = !!sessInfo && !isCancelled && !isMakeup
