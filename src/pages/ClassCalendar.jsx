@@ -244,6 +244,7 @@ export function ClassCalendar({ cls, onUpdate }) {
     { value: 'childrens_day',    label: '어린이날 (5/5)' },
     { value: 'buddha',           label: '부처님오신날' },
     { value: 'memorial_day',     label: '현충일 (6/6)' },
+    { value: 'constitution_day', label: '제헌절 (7/17)' },
     { value: 'liberation_day',   label: '광복절 (8/15)' },
     { value: 'chuseok',          label: '추석' },
     { value: 'national_foundation_day', label: '개천절 (10/3)' },
