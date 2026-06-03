@@ -19,9 +19,10 @@ const getTermColor = (termNum) => TERM_COLORS[(termNum - 1) % TERM_COLORS.length
 
 // 특별 기간 타입
 const SPECIAL_PERIOD_TYPES = [
-  { value: 'summer_vacation',    label: '여름방학',    color: '#f59e0b', bg: '#fffbeb', border: '#fcd34d', emoji: '☀️' },
-  { value: 'winter_vacation',    label: '겨울방학',    color: '#60a5fa', bg: '#eff6ff', border: '#93c5fd', emoji: '❄️' },
-  { value: 'parent_observation', label: '학부모 참관', color: '#8b5cf6', bg: '#f5f3ff', border: '#c4b5fd', emoji: '👩‍👧' },
+  { value: 'summer_vacation',      label: '여름방학',    color: '#f59e0b', bg: '#fffbeb', border: '#fcd34d', emoji: '☀️' },
+  { value: 'winter_vacation',      label: '겨울방학',    color: '#60a5fa', bg: '#eff6ff', border: '#93c5fd', emoji: '❄️' },
+  { value: 'afterschool_vacation', label: '방과후 방학', color: '#f97316', bg: '#fff7ed', border: '#fed7aa', emoji: '🏫' },
+  { value: 'parent_observation',   label: '학부모 참관', color: '#8b5cf6', bg: '#f5f3ff', border: '#c4b5fd', emoji: '👩‍👧' },
   { value: 'open_class',         label: '공개수업',    color: '#10b981', bg: '#ecfdf5', border: '#6ee7b7', emoji: '🎓' },
   { value: 'exhibition',         label: '전시기간',    color: '#ec4899', bg: '#fdf2f8', border: '#f9a8d4', emoji: '🎨' },
   { value: 'etc',                label: '기타',        color: '#6b7280', bg: '#f9fafb', border: '#d1d5db', emoji: '📌' },
