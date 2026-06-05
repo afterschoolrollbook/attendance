@@ -1066,7 +1066,7 @@ export function ProgressWindow() {
 }
 
 // ─── 수업 메모장 래퍼
-function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
+function LessonMemoPanelWrapper({ cls, date, classId, selSection, onProgClose }) {
   const [spItems,  setSpItems]  = useState(() => cls ? SupplyItems.byTeacher(cls.teacherId||'') : [])
   const [spProds,  setSpProds]  = useState(() => cls ? SupplyProducts.byTeacher(cls.teacherId||'') : [])
   const [spProg,   setSpProg]   = useState(() => cls ? SupplyStudentProgress.byTeacher(cls.teacherId||'') : [])
@@ -1118,7 +1118,11 @@ function LessonMemoPanelWrapper({ cls, date, classId, onProgClose }) {
     return () => ready.close()
   }, [])
 
-  const students = cls ? StudentsDB.byClass(cls.id) : []
+  const allClassStudents = cls ? StudentsDB.byClass(cls.id) : []
+  // selSection이 있으면 해당 반 학생만 (현재방식: s.section / 예전방식: cls.section)
+  const students = selSection
+    ? allClassStudents.filter(s => (s.section || '') === selSection)
+    : allClassStudents
   if (!cls || !classId) return null
 
   return (
@@ -3310,7 +3314,12 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                 })()}
               </div>
               <div style={{ fontSize:'13px', color:C.muted, marginTop:'3px' }}>
-                <span>{cls.organization} · {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) : ''} · {activeStudents.length}명</span>
+                {/* 선택된 반만 표시: students의 section 필드 기준 (현재방식) 또는 cls.section (예전방식) */}
+                {(() => {
+                  const activeSecs = [...new Set(activeStudents.map(s => s.section || cls.section || ''))].filter(Boolean).sort()
+                  const secLabel = activeSecs.length > 0 ? activeSecs.map(s => s+'반').join('·') : (cls.section ? cls.section+'반' : '')
+                  return <span>{cls.organization} · {cls.className}{secLabel ? ' ' + secLabel : ''} · {activeStudents.length}명</span>
+                })()}
               </div>
             </div>
             <span style={{ fontSize:'12px', padding:'4px 10px', borderRadius:'6px', fontWeight:600,
@@ -4832,7 +4841,7 @@ export function Attendance({ user, pageParams = {} }) {
               })}
             </div>
           )}
-          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} key={selDate+selClassId} onProgClose={() => setRightPanelTick(t => t+1)} />
+          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} selSection={selSectionParsed} key={selDate+selClassId+selSectionParsed} onProgClose={() => setRightPanelTick(t => t+1)} />
         </div>
 
         {/* 오른쪽 패널 */}
