@@ -317,9 +317,9 @@ export function Students({ user, onNav }) {
 
   // ── 학생 명단 내보내기 (.after)
   const handleExportStudents = () => {
-    if (!ctxClass) { toastError('수업을 먼저 선택하세요.'); return }
-    const cls      = classes.find(c => c.id === ctxClass)
-    const students = StudentsDB.byClass(ctxClass)
+    if (!ctxClassId) { toastError('수업을 먼저 선택하세요.'); return }
+    const cls      = classes.find(c => c.id === ctxClassId)
+    const students = StudentsDB.byClass(ctxClassId)
     if (students.length === 0) { toastError('해당 수업에 학생이 없습니다.'); return }
     try {
       const safeName = (str) => (str || '').replace(/[/\\:*?"<>|]/g, '_').trim()
@@ -387,7 +387,7 @@ export function Students({ user, onNav }) {
       if (!s) { toastError('학생 데이터가 없습니다.'); return }
 
       // 수업 찾기 (현재 선택된 수업 우선, 없으면 파일 메타로 찾기)
-      let targetCls = classes.find(c => c.id === ctxClass)
+      let targetCls = classes.find(c => c.id === ctxClassId)
       if (!targetCls) {
         targetCls = classes.find(c =>
           c.organization === meta.organization &&
@@ -534,9 +534,26 @@ export function Students({ user, onNav }) {
   const yearClasses = ctxYear ? classes.filter(c => c.startDate?.startsWith(ctxYear) || c.endDate?.startsWith(ctxYear)) : classes
   const schools = [...new Set(yearClasses.map(c => c.organization).filter(Boolean))]
   const filteredClasses = sortClasses(ctxSchool ? yearClasses.filter(c => c.organization === ctxSchool) : yearClasses)
-  const sections = ctxClass
-    ? [...new Set(classes.filter(c => c.id === ctxClass).flatMap(c => c.sections?.length>0 ? c.sections.map(s=>s.section).filter(Boolean) : c.section ? [c.section] : []))]
-    : []
+
+  // 과목 드롭다운: 반이 여러 개면 반별로 펼쳐서 옵션 생성 (value: "classId" or "classId::반이름")
+  const classOptions = filteredClasses.flatMap(c => {
+    const secs = c.sections?.filter(s => s.section) || []
+    if (secs.length > 1) {
+      return secs.map(s => ({
+        value: c.id + '::' + s.section,
+        label: c.className + ' ' + s.section + '반',
+        classId: c.id,
+        section: s.section,
+      }))
+    }
+    return [{ value: c.id, label: c.className + (c.section ? ' ' + c.section + '반' : ''), classId: c.id, section: '' }]
+  })
+
+  // ctxClass 파싱: "classId::반이름" 또는 "classId"
+  const ctxClassId  = ctxClass.includes('::') ? ctxClass.split('::')[0] : ctxClass
+  const ctxClassSec = ctxClass.includes('::') ? ctxClass.split('::')[1] : ''
+
+  const sections = [] // 별도 반 드롭다운 불필요 (과목 드롭다운에 통합)
 
   // movedToManage: false → 학생등록탭, true 또는 undefined(구버전) → 학생관리탭
   const managedStudents = allStudents.filter(s => s.movedToManage !== false)
@@ -546,12 +563,12 @@ export function Students({ user, onNav }) {
       const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
       if (!inYear) return false
     }
-    if (ctxClass && !s.classIds?.includes(ctxClass)) return false
+    if (ctxClassId && !s.classIds?.includes(ctxClassId)) return false
     if (ctxSchool) {
       const actualSchool = (s.classIds || []).map(cid => classes.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || ''
       if (actualSchool !== ctxSchool) return false
     }
-    if (ctxSection && s.classNum !== ctxSection) return false
+    if (ctxClassSec && s.section !== ctxClassSec) return false
     if (statusFilter !== 'all' && s.status !== statusFilter && !(statusFilter === 'cancelled' && (s.status === 'cancel_before' || s.status === 'cancel_after'))) return false
     return true
   }).sort((a, b) => {
@@ -615,12 +632,12 @@ export function Students({ user, onNav }) {
       const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
       if (!inYear) return false
     }
-    if (ctxClass && !s.classIds?.includes(ctxClass)) return false
+    if (ctxClassId && !s.classIds?.includes(ctxClassId)) return false
     if (ctxSchool) {
       const actualSchool = (s.classIds || []).map(cid => classes.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || ''
       if (actualSchool !== ctxSchool) return false
     }
-    if (ctxSection && s.classNum !== ctxSection) return false
+    if (ctxClassSec && s.section !== ctxClassSec) return false
     return true
   })
   const statusCounts = {
@@ -633,14 +650,15 @@ export function Students({ user, onNav }) {
   }
 
   const openAdd = () => {
-    const cls = classes.find(c => c.id === ctxClass)
+    const cls = classes.find(c => c.id === ctxClassId)
     const curTerm = getCurrentTerm()
     setForm({
       ...emptyStudent(),
       student_careers: [curTerm],
       school: ctxSchool || cls?.organization || '',
-      classIds: ctxClass ? [ctxClass] : (pinned.classId ? form.classIds : []),
-      classNum: pinned.classNum ? form.classNum : (ctxSection || ''),
+      classIds: ctxClassId ? [ctxClassId] : (pinned.classId ? form.classIds : []),
+      classNum: pinned.classNum ? form.classNum : '',
+      section: ctxClassSec || '',
       _newOrganization: pinned.organization ? form._newOrganization : '',
       _newClassName:    pinned.className    ? form._newClassName    : '',
       _newSection:      pinned.section      ? form._newSection      : '',
@@ -988,7 +1006,7 @@ export function Students({ user, onNav }) {
     refresh()
   }
 
-  const selectedCls = classes.find(c => c.id === ctxClass)
+  const selectedCls = classes.find(c => c.id === ctxClassId)
 
   return (
     <div style={{ padding: '28px', maxWidth: '1200px' }}>
@@ -1007,7 +1025,7 @@ export function Students({ user, onNav }) {
                   style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #e5e7eb', background:'#fff', color:'#374151', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                   📥 학생 불러오기
                 </button>
-                {ctxClass && (
+                {ctxClassId && (
                   <button
                     onClick={handleExportStudents}
                     style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #86efac', background:'#f0fdf4', color:'#16a34a', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
@@ -1074,29 +1092,19 @@ export function Students({ user, onNav }) {
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>과목</label>
+            <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>과목 · 반</label>
             <select value={ctxClass} onChange={e => { setCtxClass(e.target.value); setCtxSection('') }} style={selSt}>
               <option value="">전체 과목</option>
-              {filteredClasses.map(c => (
-                <option key={c.id} value={c.id}>{c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}</option>
+              {classOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </div>
-          {sections.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>반</label>
-              <select value={ctxSection} onChange={e => setCtxSection(e.target.value)} style={selSt}>
-                <option value="">전체 반</option>
-                {sections.map(s => <option key={s} value={s}>{s}반</option>)}
-              </select>
-            </div>
-          )}
-          {(ctxYear || ctxSchool || ctxClass) && (
+          {(ctxYear || ctxSchool || ctxClassId) && (
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1px' }}>
               {ctxYear && <Tag color="#059669" bg="#ecfdf5" size="md">📅 {ctxYear}년</Tag>}
               {ctxSchool && <Tag color="#3b82f6" bg="#eff6ff" size="md">🏫 {ctxSchool}</Tag>}
-              {ctxClass && selectedCls && <Tag color="#f97316" bg="#fff7ed" size="md">📚 {selectedCls.className}</Tag>}
-              {ctxSection && <Tag color="#8b5cf6" bg="#f5f3ff" size="md">📋 {ctxSection}반</Tag>}
+              {ctxClassId && selectedCls && <Tag color="#f97316" bg="#fff7ed" size="md">📚 {selectedCls.className}{ctxClassSec ? ' ' + ctxClassSec + '반' : ''}</Tag>}
               <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxClass(''); setCtxSection('') }}
                 style={{ fontSize: '11px', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'Noto Sans KR, sans-serif' }}>초기화</button>
             </div>
