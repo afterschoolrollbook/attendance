@@ -110,8 +110,8 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   const [partsLoading, setPartsLoading]     = useState(false)
   // 진도 섹션 접기/펼치기 상태 (기본: 펼침)
   const [openSections, setOpenSections] = useState({
-    교구지급: true, 교구준비: true, 미지급: true, 확인필요: true,
-    추가지급: true, 미입금: true, 미체크: true,
+    교구지급: false, 교구준비: false, 미지급: false, 확인필요: false,
+    추가지급: false, 미입금: false, 미체크: false,
   })
   const toggleSection = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
 
@@ -1070,7 +1070,7 @@ export function ProgressWindow() {
 }
 
 // ─── 수업 메모장 래퍼
-function LessonMemoPanelWrapper({ cls, date, classId, selSection, onProgClose }) {
+function LessonMemoPanelWrapper({ cls, date, classId, selSection, filteredStudents, onProgClose }) {
   const [spItems,  setSpItems]  = useState(() => cls ? SupplyItems.byTeacher(cls.teacherId||'') : [])
   const [spProds,  setSpProds]  = useState(() => cls ? SupplyProducts.byTeacher(cls.teacherId||'') : [])
   const [spProg,   setSpProg]   = useState(() => cls ? SupplyStudentProgress.byTeacher(cls.teacherId||'') : [])
@@ -1122,11 +1122,10 @@ function LessonMemoPanelWrapper({ cls, date, classId, selSection, onProgClose })
     return () => ready.close()
   }, [])
 
+  // PC Attendance의 students (이미 반/수업 필터 적용됨)를 그대로 사용
+  // filteredStudents가 없으면 cls.id 기준 전체
   const allClassStudents = cls ? StudentsDB.byClass(cls.id) : []
-  // selSection이 있으면 해당 반 학생만 (현재방식: s.section / 예전방식: cls.section)
-  const students = selSection
-    ? allClassStudents.filter(s => (s.section || '') === selSection)
-    : allClassStudents
+  const students = filteredStudents || allClassStudents
   if (!cls || !classId) return null
 
   return (
@@ -4845,7 +4844,7 @@ export function Attendance({ user, pageParams = {} }) {
               })}
             </div>
           )}
-          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} selSection={selSectionParsed} key={selDate+selClassId} onProgClose={() => setRightPanelTick(t => t+1)} />
+          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} selSection={selSectionParsed} filteredStudents={students} key={selDate+selClassId} onProgClose={() => setRightPanelTick(t => t+1)} />
         </div>
 
         {/* 오른쪽 패널 */}
