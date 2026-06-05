@@ -568,7 +568,7 @@ export function Students({ user, onNav }) {
       const actualSchool = (s.classIds || []).map(cid => classes.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || ''
       if (actualSchool !== ctxSchool) return false
     }
-    if (ctxClassSec && s.section !== ctxClassSec) return false
+    if (ctxClassSec && s.section && s.section !== ctxClassSec) return false
     if (statusFilter !== 'all' && s.status !== statusFilter && !(statusFilter === 'cancelled' && (s.status === 'cancel_before' || s.status === 'cancel_after'))) return false
     return true
   }).sort((a, b) => {
@@ -637,7 +637,7 @@ export function Students({ user, onNav }) {
       const actualSchool = (s.classIds || []).map(cid => classes.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || ''
       if (actualSchool !== ctxSchool) return false
     }
-    if (ctxClassSec && s.section !== ctxClassSec) return false
+    if (ctxClassSec && s.section && s.section !== ctxClassSec) return false
     return true
   })
   const statusCounts = {
@@ -1644,6 +1644,7 @@ export function Students({ user, onNav }) {
                     const cid = e.target.value
                     const cls = ClassesDB.byTeacher(user.id).find(c => c.id === cid)
                     set('classIds', cid ? [cid] : [])
+                    set('section', '')
                     if (cls?.organization) set('school', cls.organization)
                   }}
                   style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', color:'#111827', outline:'none', cursor:'pointer' }}>
@@ -1656,10 +1657,27 @@ export function Students({ user, onNav }) {
                     return (a.organization||'').localeCompare(b.organization||'','ko')
                   }).map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.organization} · {c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''} {c.days?.length ? '('+c.days.join('')+' '+c.time+')' : ''}
+                      {c.organization} · {c.className} {c.days?.length ? '('+c.days.join('')+' '+c.time+')' : ''}
                     </option>
                   ))}
                 </select>
+                {/* 선택한 수업에 반이 여러 개면 반 선택 드롭다운 표시 */}
+                {(() => {
+                  const selCls = classes.find(c => c.id === (form.classIds?.[0] || ''))
+                  const secs = selCls?.sections?.filter(s => s.section) || []
+                  if (secs.length < 2) return null
+                  return (
+                    <select
+                      value={form.section || ''}
+                      onChange={e => set('section', e.target.value)}
+                      style={{ width:'100%', marginTop:'8px', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #f97316', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff7ed', color:'#c2410c', outline:'none', cursor:'pointer', fontWeight:600 }}>
+                      <option value=''>-- 반 선택 --</option>
+                      {secs.map(s => (
+                        <option key={s.section} value={s.section}>{s.section}반 ({s.time}{s.timeEnd ? ' ~ ' + s.timeEnd : ''})</option>
+                      ))}
+                    </select>
+                  )
+                })()}
               </div>
             )}
 
