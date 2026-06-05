@@ -1049,7 +1049,11 @@ export const SupplyGiven = {
   bySchool:     (schoolName)    => db.where('supplyGiven', r => r.schoolName === schoolName),
   byStudentClass: (studentId, classId) => db.where('supplyGiven', r => r.studentId === studentId && r.classId === classId),
   find:         (id)            => db.getOne('supplyGiven', id),
-  insert:       (r)             => db.insert('supplyGiven', { ...r, id: r.id || uid() }),
+  insert:       (r)             => {
+    // className은 supply_given 테이블에 컬럼 없음 → 제거 후 저장
+    const { className: _removed, ...rest } = r
+    return db.insert('supplyGiven', { ...rest, id: rest.id || uid() })
+  },
   update:       (id, p)         => db.update('supplyGiven', id, p),
   delete:       (id)            => db.delete('supplyGiven', id),
 }
