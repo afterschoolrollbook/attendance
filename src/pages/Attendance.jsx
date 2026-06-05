@@ -110,8 +110,8 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   const [partsLoading, setPartsLoading]     = useState(false)
   // 진도 섹션 접기/펼치기 상태 (기본: 펼침)
   const [openSections, setOpenSections] = useState({
-    교구지급: false, 교구준비: false, 미지급: false, 확인필요: false,
-    추가지급: false, 미입금: false, 미체크: false,
+    교구지급: true, 교구준비: true, 미지급: true, 확인필요: true,
+    추가지급: true, 미입금: true, 미체크: true,
   })
   const toggleSection = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
 
@@ -151,7 +151,10 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
 
   const activeStudents = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
   const studentProgList = activeStudents.map(s => {
+    // classId가 통합카드 id와 다를 수 있음 (구버전 별도카드 → 통합카드 이동)
+    // 우선 현재 cls.id로 찾고, 없으면 학생의 classIds 중 아무 카드로 찾음
     const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)
+      || spItems.find(i => i.studentId === s.id && s.classIds?.includes(i.classId))
     if (!si?.productId) return null
     const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
     const curStage = prog?.curStage || si.stage || 1
@@ -235,7 +238,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                     {prod?.name} {curStage}단계
                   </div>
                   {items.map(({ s, todayChecks, allChecks, lastModelTitle }) => (
-                    <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
+                    <div key={s.id} onClick={() => onProgOpen(s, (spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)||spItems.find(i=>i.studentId===s.id&&s.classIds?.includes(i.classId)))?.productId)}
                       style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f0fdf4', border:'1px solid #86efac', marginBottom:'3px', cursor:'pointer' }}>
                       <span style={{ fontSize:'13px', fontWeight:700, color:'#16a34a' }}>{s.name}</span>
                       <span style={{ marginLeft:'auto', fontSize:'11px', fontWeight:700, color:'#16a34a' }}>+{todayChecks.length}차시 ({allChecks.length}차시)</span>
@@ -266,6 +269,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
             // ── 2. 교구 준비 필요
             const supplyAlertList = activeStudents.flatMap(s => {
               const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)
+                || spItems.find(i => i.studentId === s.id && s.classIds?.includes(i.classId))
               if (!si?.productId) return []
               const prod = spProds.find(p => p.id === si.productId)
               if (!prod) return []
@@ -365,7 +369,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                           {prod?.name} {curStage}단계
                         </div>
                         {items.map(({ s, lastModelTitle }) => (
-                          <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)?.productId)}
+                          <div key={s.id} onClick={() => onProgOpen(s, (spItems.find(i => i.studentId===s.id&&i.classId===cls?.id)||spItems.find(i=>i.studentId===s.id&&s.classIds?.includes(i.classId)))?.productId)}
                             style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f9fafb', border:'1px solid #e5e7eb', marginBottom:'3px', cursor:'pointer' }}>
                             <span style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>{s.name}</span>
                             {lastModelTitle && <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{lastModelTitle}</span>}
@@ -4841,7 +4845,7 @@ export function Attendance({ user, pageParams = {} }) {
               })}
             </div>
           )}
-          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} selSection={selSectionParsed} key={selDate+selClassId+selSectionParsed} onProgClose={() => setRightPanelTick(t => t+1)} />
+          <LessonMemoPanelWrapper cls={selClass||null} date={selDate} classId={selClassId} selSection={selSectionParsed} key={selDate+selClassId} onProgClose={() => setRightPanelTick(t => t+1)} />
         </div>
 
         {/* 오른쪽 패널 */}
