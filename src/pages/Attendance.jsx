@@ -3470,8 +3470,10 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
 
       {/* ── 학생 리스트 — 반별로 섹션 나눠서 표시 */}
       {(() => {
-        // 반(section) 기준으로 그룹핑. section 없으면 단일 그룹
+        // 반(section) 기준으로 그룹핑
+        // 현재방식: 학생의 section 필드 / 예전방식: 수업카드의 section
         const sections = [...new Set(activeStudents.map(s => {
+          if (s.section) return s.section
           const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
           return sc?.section || ''
         }))].sort()
@@ -3492,6 +3494,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
 
         return sections.map(sec => {
           const secStudents = activeStudents.filter(s => {
+            if (s.section) return s.section === sec
             const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
             return (sc?.section || '') === sec
           }).sort((a, b) => {
@@ -3521,6 +3524,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                 </div>
               )}
               {inactiveStudents.filter(s => {
+                if (s.section) return s.section === sec
                 const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
                 return (sc?.section || '') === sec
               }).length > 0 && (
@@ -3535,6 +3539,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
                   {showInactive && (
                     <div style={{ display:'flex', flexDirection:'column', gap:'5px', padding:'0 8px 8px' }}>
                       {inactiveStudents.filter(s => {
+                        if (s.section) return s.section === sec
                         const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
                         return (sc?.section || '') === sec
                       }).map((s,i) => <InactiveStudentRow key={s.id} s={s} idx={i} />)}
@@ -4054,9 +4059,19 @@ function MobileAttendance({ user, pageParams = {} }) {
   const spProg   = SupplyStudentProgress.byTeacher(user.id)
   const spChecks = SupplySessionChecks.byTeacher ? SupplySessionChecks.byTeacher(user.id) : []
 
+  // 달력 출석부용 selSection 상태
+  const calSelSection = selClass?.sections?.filter(s=>s.section).length > 1 ? selSection : ''
+
   const students = selClass
-    ? [...allStudents.filter(s => s.classIds?.includes(selClass.id) && ['applied','selected','confirmed'].includes(s.status))]
-        .sort((a,b) => {
+    ? [...allStudents.filter(s => {
+        if (!s.classIds?.includes(selClass.id)) return false
+        if (!['applied','selected','confirmed'].includes(s.status)) return false
+        // 반 필터: 선택한 수업에 여러 반이 있고 반을 선택했으면 해당 반만
+        if (calSelSection) {
+          if (s.section) return s.section === calSelSection
+        }
+        return true
+      })].sort((a,b) => {
           const g = parseInt(a.grade||0)-parseInt(b.grade||0); if(g) return g
           const c = parseInt(a.classNum||0)-parseInt(b.classNum||0); if(c) return c
           const n = parseInt(a.number||0)-parseInt(b.number||0); if(n) return n
@@ -4397,11 +4412,16 @@ export function Attendance({ user, pageParams = {} }) {
   const sectionClasses = selClassId
     ? schoolClasses.filter(c => c.className === selClass?.className && c.organization === selClass?.organization)
     : []
-  const sections = [...new Set(sectionClasses.flatMap(c => 
-    c.sections?.length > 0 
-      ? c.sections.map(s => s.section).filter(Boolean)
-      : c.section ? [c.section] : []
-  ))]
+  const sections = [...new Set([
+    // 현재방식: 선택한 수업카드의 sections 배열에서 반 목록
+    ...(selClass?.sections?.filter(s => s.section).map(s => s.section) || []),
+    // 예전방식: 같은 학교+수업명의 별도 수업카드들의 section
+    ...sectionClasses.flatMap(c =>
+      c.sections?.length > 0
+        ? c.sections.map(s => s.section).filter(Boolean)
+        : c.section ? [c.section] : []
+    ),
+  ])].sort()
 
   // 정렬: Students.jsx 와 동일하게 학교→수업→반→학년→학급반→번호→이름
   const sortStudents = (arr) => [...arr].sort((a, b) => {
@@ -4465,13 +4485,19 @@ export function Attendance({ user, pageParams = {} }) {
           : selClass?.organization === s.school
         if (!inClass) return false
       }
-      // 반 필터
+      // 반 필터 (예전방식: 수업카드 자체가 반 / 현재방식: 학생 section 필드)
       if (selSection) {
-        const sectionCls = sectionClasses.find(c => c.section === selSection)
-        if (sectionCls) {
-          const inSection = s.classIds?.includes(sectionCls.id) ||
-            (!s.classIds?.length && selClass?.organization === s.school)
-          if (!inSection) return false
+        // 현재방식: 학생에 section 필드가 있으면 그걸로 비교
+        if (s.section) {
+          if (s.section !== selSection) return false
+        } else {
+          // 예전방식: 수업카드 자체의 section으로 비교
+          const sectionCls = sectionClasses.find(c => c.section === selSection)
+          if (sectionCls) {
+            const inSection = s.classIds?.includes(sectionCls.id) ||
+              (!s.classIds?.length && selClass?.organization === s.school)
+            if (!inSection) return false
+          }
         }
       }
     } else {
