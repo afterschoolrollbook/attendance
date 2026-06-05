@@ -1592,7 +1592,8 @@ export function Supplies({ user }) {
       // section 필터: selSectionParsed 있으면 학생 section 또는 수업카드 section과 매칭
       if (selSectionParsed) {
         const studentSec = s.section || ''
-        if (studentSec !== selSectionParsed) return false
+        // section 필드 있으면 비교, 없으면 통과 (구버전 학생 대응)
+        if (studentSec && studentSec !== selSectionParsed) return false
       }
       return true
     })
@@ -1608,7 +1609,7 @@ export function Supplies({ user }) {
   const allChecked = confirmedStudents.length > 0 && checkedStudents.length === confirmedStudents.length
   const toggleAll  = () => setCheckedStudents(allChecked ? [] : confirmedStudents.map(s=>s.id))
   const toggleOne  = (id) => setCheckedStudents(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id])
-  const getStudentSupply = (sid) => itemList.find(i => i.classId===selClassIdParsed && i.studentId===sid) || { name:'', stage:'' }
+  const getStudentSupply = (sid) => itemList.find(i => i.classId===selClassIdParsed && i.studentId===sid) || itemList.find(i => i.studentId===sid) || { name:'', stage:'' }
 
   // 로봇 교구 목록 (과목 필터)
   const robotProducts = productList.filter(p => {
@@ -2333,7 +2334,7 @@ export function Supplies({ user }) {
                       ) : (() => {
                         const selClass   = classes.find(c => c.id === selClassIdParsed)
                         const school     = selClass?.organization || '-'
-                        const classLabel = `${selClass?.className || ''}${selClass?.section ? ' '+selClass.section : ''}`
+                        const classLabel = `${selClass?.className || ''}${selSectionParsed ? ' '+selSectionParsed+'반' : (selClass?.section ? ' '+selClass.section+'반' : '')}`
                         const cols = '32px 100px 90px 56px 44px 40px 1fr 1fr 62px 72px 110px 52px'
 
                         // ── 특이사항 뱃지 헬퍼 (교구준비·미지급·준비·추가지급·미입금·확인필요)
