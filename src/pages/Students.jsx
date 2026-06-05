@@ -568,7 +568,7 @@ export function Students({ user, onNav }) {
       const actualSchool = (s.classIds || []).map(cid => classes.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || ''
       if (actualSchool !== ctxSchool) return false
     }
-    if (ctxClassSec && s.section && s.section !== ctxClassSec) return false
+    if (ctxClassSec && s.section !== ctxClassSec) return false
     if (statusFilter !== 'all' && s.status !== statusFilter && !(statusFilter === 'cancelled' && (s.status === 'cancel_before' || s.status === 'cancel_after'))) return false
     return true
   }).sort((a, b) => {
@@ -637,7 +637,7 @@ export function Students({ user, onNav }) {
       const actualSchool = (s.classIds || []).map(cid => classes.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || ''
       if (actualSchool !== ctxSchool) return false
     }
-    if (ctxClassSec && s.section && s.section !== ctxClassSec) return false
+    if (ctxClassSec && s.section !== ctxClassSec) return false
     return true
   })
   const statusCounts = {
