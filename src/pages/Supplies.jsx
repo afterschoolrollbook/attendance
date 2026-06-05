@@ -1172,8 +1172,12 @@ export function Supplies({ user }) {
   const [innerTab, setInnerTab]       = useState('supply')
   // 교구(로봇) 탭 내부 뷰: 'assign'=교구배정, 'progress'=진도체크
   const [robotView, setRobotView]     = useState('assign')
-  const [selClassId, setSelClassId]   = useState('')
+  const [selClassId, setSelClassId]   = useState('')  // 'classId' 또는 'classId::section'
   const [checkedStudents, setCheckedStudents] = useState([])
+
+  // selClassId 파싱: 'classId::section' → { classId, selSection }
+  const selClassIdParsed   = selClassId.includes('::') ? selClassId.split('::')[0] : selClassId
+  const selSectionParsed   = selClassId.includes('::') ? selClassId.split('::')[1] : ''
 
   // 교구 설정 모달
   const [supplyModal, setSupplyModal] = useState(false)
@@ -1582,7 +1586,16 @@ export function Supplies({ user }) {
 
   // ── 교구 배정
   const confirmedStudents = students
-    .filter(s => s.classIds?.includes(selClassId) && s.status === 'confirmed')
+    .filter(s => {
+      if (!s.classIds?.includes(selClassIdParsed)) return false
+      if (s.status !== 'confirmed') return false
+      // section 필터: selSectionParsed 있으면 학생 section 또는 수업카드 section과 매칭
+      if (selSectionParsed) {
+        const studentSec = s.section || ''
+        if (studentSec !== selSectionParsed) return false
+      }
+      return true
+    })
     .sort((a, b) => {
       const gradeCmp = parseInt(a.grade||'0') - parseInt(b.grade||'0')
       if (gradeCmp !== 0) return gradeCmp
@@ -1595,7 +1608,7 @@ export function Supplies({ user }) {
   const allChecked = confirmedStudents.length > 0 && checkedStudents.length === confirmedStudents.length
   const toggleAll  = () => setCheckedStudents(allChecked ? [] : confirmedStudents.map(s=>s.id))
   const toggleOne  = (id) => setCheckedStudents(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id])
-  const getStudentSupply = (sid) => itemList.find(i => i.classId===selClassId && i.studentId===sid) || { name:'', stage:'' }
+  const getStudentSupply = (sid) => itemList.find(i => i.classId===selClassIdParsed && i.studentId===sid) || { name:'', stage:'' }
 
   // 로봇 교구 목록 (과목 필터)
   const robotProducts = productList.filter(p => {
@@ -1621,7 +1634,7 @@ export function Supplies({ user }) {
     const finalName = supplyForm.productId ? (product?.name || supplyForm.name) : supplyForm.name
     for (const sid of checkedStudents) {
       await SupplyItems.upsert({
-        id: uid(), teacherId: user.id, classId: selClassId, studentId: sid,
+        id: uid(), teacherId: user.id, classId: selClassIdParsed, studentId: sid,
         subject: selSubject,
         name: finalName,
         productId: supplyForm.productId || null,
@@ -1642,19 +1655,19 @@ export function Supplies({ user }) {
 
   // ── 진도 체크 헬퍼
   const getStudentChecks = (studentId, productId) =>
-    checkList.filter(c => c.studentId===studentId && c.classId===selClassId && c.productId===productId)
+    checkList.filter(c => c.studentId===studentId && c.classId===selClassIdParsed && c.productId===productId)
 
   const getProgress = (studentId, productId) =>
-    progressList.find(p => p.studentId===studentId && p.classId===selClassId && p.productId===productId)
+    progressList.find(p => p.studentId===studentId && p.classId===selClassIdParsed && p.productId===productId)
 
   // 평균 진도 계산
   const avgProgress = useMemo(() => {
-    if (!selClassId) return {}
+    if (!selClassIdParsed) return {}
     const result = {}
     robotProducts.forEach(product => {
       const progresses = confirmedStudents.map(s => {
-        const checks = checkList.filter(c => c.studentId===s.id && c.classId===selClassId && c.productId===product.id)
-        const prog = progressList.find(p => p.studentId===s.id && p.classId===selClassId && p.productId===product.id)
+        const checks = checkList.filter(c => c.studentId===s.id && c.classId===selClassIdParsed && c.productId===product.id)
+        const prog = progressList.find(p => p.studentId===s.id && p.classId===selClassIdParsed && p.productId===product.id)
         if (!prog) return 0
         const stageChecks = checks.filter(c => c.stage === prog.curStage).length
         return (prog.curStage - 1) * (product.sessionsPerStage || 12) + stageChecks
@@ -1668,19 +1681,19 @@ export function Supplies({ user }) {
   // 진도 체크 토글
   const toggleCheck = async (studentId, productId, stage, sessionNo) => {
     const existing = checkList.find(c =>
-      c.studentId===studentId && c.classId===selClassId && c.productId===productId &&
+      c.studentId===studentId && c.classId===selClassIdParsed && c.productId===productId &&
       c.stage===stage && c.sessionNo===sessionNo
     )
     if (existing) {
       await SupplySessionChecks.delete(existing.id)
     } else {
       await SupplySessionChecks.upsert({
-        id: uid(), teacherId: user.id, studentId, classId: selClassId,
+        id: uid(), teacherId: user.id, studentId, classId: selClassIdParsed,
         productId, stage, sessionNo, checkedAt: now(), createdAt: now(),
       })
     }
     // 진도 업데이트: 현재 단계에서 체크된 최대 차시 기준
-    const allChecks = SupplySessionChecks.byProductStudent(productId, studentId, selClassId)
+    const allChecks = SupplySessionChecks.byProductStudent(productId, studentId, selClassIdParsed)
     const stageChecks = allChecks.filter(c => c.stage === stage)
     const maxSession = stageChecks.length > 0 ? Math.max(...stageChecks.map(c=>c.sessionNo)) : 1
     await SupplyStudentProgress.upsert({
@@ -2250,7 +2263,7 @@ export function Supplies({ user }) {
               {/* 수업 선택 */}
               <div style={{ marginBottom:'16px' }}>
                 <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>수업 선택</label>
-                <select value={selClassId} onChange={e => setSelClassId(e.target.value)}
+                <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setCheckedStudents([]) }}
                   style={{ ...iStyle, width:'auto', minWidth:'300px' }}>
                   <option value=''>-- 수업을 선택하세요 --</option>
                   {[...classes].sort((a, b) => {
@@ -2263,11 +2276,21 @@ export function Supplies({ user }) {
                     const classCmp = (a.className||'').localeCompare(b.className||'','ko')
                     if (classCmp !== 0) return classCmp
                     return (a.section||'').localeCompare(b.section||'','ko')
-                  }).map(cls => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.organization} · {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) : ''}
-                    </option>
-                  ))}
+                  }).flatMap(cls => {
+                    // sections 배열이 여러 반이면 반별로 분리 옵션 생성 (Students.jsx와 동일)
+                    const secs = cls.sections?.filter(s => s.section) || []
+                    if (secs.length > 1) {
+                      return secs.map(s => (
+                        <option key={cls.id + '::' + s.section} value={cls.id + '::' + s.section}>
+                          {cls.organization} · {cls.className} {s.section}반
+                        </option>
+                      ))
+                    }
+                    const secLabel = (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))
+                    return [<option key={cls.id} value={cls.id}>
+                      {cls.organization} · {cls.className}{secLabel ? ' ' + secLabel : ''}
+                    </option>]
+                  })}
                 </select>
               </div>
 
@@ -2308,16 +2331,16 @@ export function Supplies({ user }) {
                       {confirmedStudents.length === 0 ? (
                         <div style={{ textAlign:'center', padding:'40px', color:C.muted, fontSize:'14px' }}>확정된 학생이 없습니다</div>
                       ) : (() => {
-                        const selClass   = classes.find(c => c.id === selClassId)
+                        const selClass   = classes.find(c => c.id === selClassIdParsed)
                         const school     = selClass?.organization || '-'
                         const classLabel = `${selClass?.className || ''}${selClass?.section ? ' '+selClass.section : ''}`
                         const cols = '32px 100px 90px 56px 44px 40px 1fr 1fr 62px 72px 110px 52px'
 
                         // ── 특이사항 뱃지 헬퍼 (교구준비·미지급·준비·추가지급·미입금·확인필요)
                         const getStatusBadges = (studentId) => {
-                          const sg = givenList.filter(g => g.studentId === studentId && g.classId === selClassId)
+                          const sg = givenList.filter(g => g.studentId === studentId && g.classId === selClassIdParsed)
                           const badges = []
-                          const prog0 = progressList.find(p => p.studentId === studentId && p.classId === selClassId)
+                          const prog0 = progressList.find(p => p.studentId === studentId && p.classId === selClassIdParsed)
                           if (prog0?.supplyReady) badges.push({ label:'교구준비', bg:'#fef9c3', color:'#92400e', border:'#fde047' })
                           const seenSS = new Set(); const seenBS = new Set()
                           sg.forEach(g => {
@@ -2354,10 +2377,10 @@ export function Supplies({ user }) {
                               const isChecked = checkedStudents.includes(s.id)
                               const product   = productList.find(p => p.id === supply.productId)
                               const sps       = product?.sessionsPerStage || 12
-                              const prog      = progressList.find(p => p.studentId===s.id && p.classId===selClassId && p.productId===supply.productId)
+                              const prog      = progressList.find(p => p.studentId===s.id && p.classId===selClassIdParsed && p.productId===supply.productId)
                               const curStage  = prog?.curStage || (supply.stage ? Number(supply.stage) : null)
                               const stageChecks = curStage
-                                ? checkList.filter(c => c.studentId===s.id && c.classId===selClassId && c.productId===supply.productId && c.stage===curStage).length
+                                ? checkList.filter(c => c.studentId===s.id && c.classId===selClassIdParsed && c.productId===supply.productId && c.stage===curStage).length
                                 : 0
                               const hasSupply = !!supply.name
                               return (
@@ -2377,7 +2400,7 @@ export function Supplies({ user }) {
                                       const alertSess2 = product?.alertSession || 3
                                       const isDone2 = stageChecks >= actualSess2
                                       const isAlert2 = stageChecks >= (actualSess2 - alertSess2) && !isDone2
-                                      const progRec = progressList.find(p => p.studentId===s.id && p.classId===selClassId && p.productId===supply.productId)
+                                      const progRec = progressList.find(p => p.studentId===s.id && p.classId===selClassIdParsed && p.productId===supply.productId)
                                       if ((!isDone2 && !isAlert2) || progRec?.supplyDelivered) return null
                                       const nextProd2 = progRec?.nextProductId ? productList.find(p => p.id === progRec.nextProductId) : null
                                       const alertLabel2 = isDone2
@@ -2385,7 +2408,7 @@ export function Supplies({ user }) {
                                         : (nextProd2 ? `${nextProd2.name} ${progRec?.nextStage||1}단계 준비 필요` : `${product?.name} ${curStage+1}단계 준비 필요`)
                                       return (
                                         <div
-                                          onClick={e => { e.stopPropagation(); setSupplyCheckModal({ studentId:s.id, classId:selClassId, productId:supply.productId, alertLabel:alertLabel2, studentName:s.name }) }}
+                                          onClick={e => { e.stopPropagation(); setSupplyCheckModal({ studentId:s.id, classId:selClassIdParsed, productId:supply.productId, alertLabel:alertLabel2, studentName:s.name }) }}
                                           style={{ marginBottom:'3px', fontSize:'10px', fontWeight:700, color:'#ef4444', background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'4px', padding:'2px 6px', whiteSpace:'nowrap', display:'inline-block', cursor:'pointer' }}>
                                           ⚠️ {alertLabel2}
                                         </div>
@@ -2570,8 +2593,8 @@ export function Supplies({ user }) {
                                                 <div style={{ display:'flex', alignItems:'center', gap:'4px', minWidth:'50px', flexWrap:'wrap' }}>
                                                   <span style={{ fontSize:'13px', fontWeight:700, color: hasTodayCheck ? '#16a34a' : C.text }}>{s.name}</span>
                                                   {(() => {
-                                                    const sg = givenList.filter(g => g.studentId === s.id && g.classId === selClassId)
-                                                    const prog0 = progressList.find(p => p.studentId === s.id && p.classId === selClassId)
+                                                    const sg = givenList.filter(g => g.studentId === s.id && g.classId === selClassIdParsed)
+                                                    const prog0 = progressList.find(p => p.studentId === s.id && p.classId === selClassIdParsed)
                                                     const badges = []
                                                     if (prog0?.supplyReady) badges.push({ label:'교구준비', bg:'#fef9c3', color:'#92400e', border:'#fde047' })
                                                     const seenSS = new Set(); const seenBS = new Set()
@@ -2593,8 +2616,8 @@ export function Supplies({ user }) {
                                                 <select value={supply.productId || ''} onClick={e => e.stopPropagation()}
                                                   onChange={async e => {
                                                     const newPid = e.target.value; if (!newPid) return
-                                                    await SupplyItems.upsert({ ...supply, id: supply.id || uid(), teacherId: user.id, classId: selClassId, studentId: s.id, productId: newPid, stage: 1, remoteNo: supply.remoteNo || '', createdAt: supply.createdAt || now() })
-                                                    await SupplyStudentProgress.upsert({ id: uid(), teacherId: user.id, studentId: s.id, classId: selClassId, productId: newPid, curStage: 1, curSession: 1, updatedAt: now(), createdAt: now() })
+                                                    await SupplyItems.upsert({ ...supply, id: supply.id || uid(), teacherId: user.id, classId: selClassIdParsed, studentId: s.id, productId: newPid, stage: 1, remoteNo: supply.remoteNo || '', createdAt: supply.createdAt || now() })
+                                                    await SupplyStudentProgress.upsert({ id: uid(), teacherId: user.id, studentId: s.id, classId: selClassIdParsed, productId: newPid, curStage: 1, curSession: 1, updatedAt: now(), createdAt: now() })
                                                     reload()
                                                   }}
                                                   style={{ padding:'3px 6px', borderRadius:'6px', border:'1.5px solid #e5e7eb', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none', maxWidth:'100px' }}>
@@ -2604,8 +2627,8 @@ export function Supplies({ user }) {
                                                 <select value={curStage} onClick={e => e.stopPropagation()}
                                                   onChange={async e => {
                                                     const newStage = Number(e.target.value)
-                                                    await SupplyItems.upsert({ ...supply, id: supply.id || uid(), teacherId: user.id, classId: selClassId, studentId: s.id, productId: supply.productId, stage: newStage, remoteNo: supply.remoteNo || '', createdAt: supply.createdAt || now() })
-                                                    await SupplyStudentProgress.upsert({ id: uid(), teacherId: user.id, studentId: s.id, classId: selClassId, productId: supply.productId, curStage: newStage, curSession: 1, updatedAt: now(), createdAt: now() })
+                                                    await SupplyItems.upsert({ ...supply, id: supply.id || uid(), teacherId: user.id, classId: selClassIdParsed, studentId: s.id, productId: supply.productId, stage: newStage, remoteNo: supply.remoteNo || '', createdAt: supply.createdAt || now() })
+                                                    await SupplyStudentProgress.upsert({ id: uid(), teacherId: user.id, studentId: s.id, classId: selClassIdParsed, productId: supply.productId, curStage: newStage, curSession: 1, updatedAt: now(), createdAt: now() })
                                                     reload()
                                                   }}
                                                   style={{ padding:'3px 6px', borderRadius:'6px', border:'1.5px solid #e5e7eb', fontSize:'11px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', cursor:'pointer', outline:'none', width:'64px' }}>
@@ -2648,7 +2671,7 @@ export function Supplies({ user }) {
                                   <div style={{ padding:'10px 18px', display:'flex', flexDirection:'column', gap:'6px' }}>
                                     {unassigned.map(s => (
                                       <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 14px', background:'#fff', borderRadius:'9px', border:`1px solid #fed7aa`, cursor:'pointer' }}
-                                        onClick={() => { setProgressStudent({ ...s, _clsId: selClassId }); setProgressProductId(''); setProgressModal(true) }}>
+                                        onClick={() => { setProgressStudent({ ...s, _clsId: selClassIdParsed }); setProgressProductId(''); setProgressModal(true) }}>
                                         <div style={{ flex:1 }}>
                                           <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>
                                             {s.name}
