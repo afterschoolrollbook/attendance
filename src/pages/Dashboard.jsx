@@ -1980,7 +1980,15 @@ function DayDetail({ date, user, classes, onNav }) {
                       absent:  { label: '결석', color: '#ef4444', bg: '#fef2f2' },
                     }
 
+                    // 반별 그룹핑 (현재방식: 학생 section 필드 / 예전방식: 수업카드 section)
+                    const secGroups = [...new Set(students.map(s => s.section || ''))].sort()
                     return (
+                      <div>
+                      {secGroups.map(sec => {
+                        const secStudents = students.filter(s => (s.section || '') === sec)
+                        return (
+                      <div key={sec||'all'}>
+                        {sec && <div style={{ padding:'6px 14px', background:'#f0fdf4', fontSize:'12px', fontWeight:700, color:'#15803d', borderTop:'1px solid #e5e7eb' }}>{sec}반 ({secStudents.length}명)</div>}
                       <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                         <thead>
                           <tr style={{ background: '#f9fafb', borderTop: '1px solid #f3f4f6' }}>
@@ -1990,7 +1998,7 @@ function DayDetail({ date, user, classes, onNav }) {
                           </tr>
                         </thead>
                         <tbody>
-                          {students.map((stu, idx) => {
+                          {secStudents.map((stu, idx) => {
                             const ar  = attRecords.find(a => a.studentId === stu.id)
                             const ac  = S[ar?.status] || { label: '', color: '#9ca3af', bg: 'transparent' }
                             const si  = spItems.find(i => i.studentId === stu.id && i.classId === cls.id)
@@ -2081,6 +2089,10 @@ function DayDetail({ date, user, classes, onNav }) {
                           })}
                         </tbody>
                       </table>
+                      </div>
+                        )
+                      })}
+                      </div>
                     )
                   })()}
 
