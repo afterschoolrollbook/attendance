@@ -4819,7 +4819,7 @@ export function Attendance({ user, pageParams = {} }) {
             <div style={{ marginTop:'14px', padding:'12px 14px', background:'#fff7ed', borderRadius:'10px' }}>
               <div style={{ fontSize:'12px', fontWeight:700, color:'#92400e', marginBottom:'6px' }}>이달 수업 {monthSessions.length}회</div>
               {monthSessions.slice(0,8).map(d => {
-                const recs = AttendanceDB.byClassDate(selClassIdParsedM, d)
+                const recs = AttendanceDB.byClassDate(selClassIdParsed, d)
                 const done = recs.filter(r => r.status !== 'pending').length
                 const isPast_ = d <= today
                 return (
