@@ -4239,7 +4239,7 @@ function MobileAttendance({ user, pageParams = {} }) {
                 {cls.className}{secLabel}
               </button>
             )]
-          ))}
+          })}
         </div>
       )}
 
