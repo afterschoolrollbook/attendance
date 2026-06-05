@@ -1906,8 +1906,20 @@ function DayDetail({ date, user, classes, onNav }) {
           </div>
 
           <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {schoolClasses.map(cls => {
-              const students = StudentsDB.confirmed(cls.id).sort((a, b) => {
+            {schoolClasses.flatMap(cls => {
+              // 통합카드(sections 2개 이상)이면 반별로 분리
+              const secs = cls.sections?.filter(s => s.section) || []
+              if (secs.length > 1) {
+                return secs.map(sec => ({ ...cls, _selSection: sec.section, _secTime: sec.time, _secTimeEnd: sec.timeEnd }))
+              }
+              return [{ ...cls, _selSection: cls.section || '', _secTime: cls.time, _secTimeEnd: cls.timeEnd }]
+            }).map(cls => {
+              const selSection = cls._selSection
+              const allStudents = StudentsDB.confirmed(cls.id)
+              const students = (selSection
+                ? allStudents.filter(s => (s.section || '') === selSection)
+                : allStudents
+              ).sort((a, b) => {
                 const g = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (g !== 0) return g
                 const c = parseInt(a.classNum||'0') - parseInt(b.classNum||'0'); if (c !== 0) return c
                 const n = parseInt(a.number||'0') - parseInt(b.number||'0'); if (n !== 0) return n
@@ -1929,12 +1941,12 @@ function DayDetail({ date, user, classes, onNav }) {
               const endTime   = (cls.sections?.length>0 ? cls.sections[0].timeEnd : cls.timeEnd) || ''
 
               return (
-                <div key={cls.id} style={{ borderRadius: '10px', border: '1px solid #fed7aa', overflow: 'hidden' }}>
+                <div key={cls.id + (cls._selSection||'')} style={{ borderRadius: '10px', border: '1px solid #fed7aa', overflow: 'hidden' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: '#fff7ed', gap: '12px', flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: '150px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
                         <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>수업 과목 · {cls.className}</span>
-                        {(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) && <span style={{ fontSize: '12px', background: C.primary, color: '#fff', borderRadius: '6px', padding: '1px 8px', fontWeight: 600 }}>{(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))}</span>}
+                        {(cls._selSection || (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) && <span style={{ fontSize: '12px', background: C.primary, color: '#fff', borderRadius: '6px', padding: '1px 8px', fontWeight: 600 }}>{cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))}</span>}
                         {sessInfo && (
                           <>
                             <span style={{ fontSize: '11px', color: C.muted, background: '#f3f4f6', padding: '1px 7px', borderRadius: '5px' }}>{sessInfo.total}차시</span>
