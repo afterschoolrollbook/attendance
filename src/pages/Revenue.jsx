@@ -111,47 +111,77 @@ export function Revenue({ user }) {
 
   const sorted = useMemo(() => {
     const DAY_ORDER = ['월','화','수','목','금','토','일']
-    return [...classes].sort((a, b) => {
+    // 통합카드(sections 2개 이상)는 반별로 분리
+    const expanded = classes.flatMap(cls => {
+      const secs = cls.sections?.filter(s => s.section) || []
+      if (secs.length > 1) {
+        return secs.map(sec => ({
+          ...cls,
+          _selSection: sec.section,
+          _secTime: sec.time,
+          _secTimeEnd: sec.timeEnd,
+        }))
+      }
+      return [{ ...cls, _selSection: cls.section || '', _secTime: cls.time, _secTimeEnd: cls.timeEnd }]
+    })
+    return expanded.sort((a, b) => {
       const aDay = DAY_ORDER.indexOf(a.days?.[0] ?? '')
       const bDay = DAY_ORDER.indexOf(b.days?.[0] ?? '')
       const dayCmp = (aDay===-1?99:aDay) - (bDay===-1?99:bDay)
       if (dayCmp !== 0) return dayCmp
-      // 같은 요일이면 시간순
-      const timeCmp = (a.time||'').localeCompare(b.time||'')
+      const timeCmp = (a._secTime||a.time||'').localeCompare(b._secTime||b.time||'')
       if (timeCmp !== 0) return timeCmp
-      // 같은 시간이면 학교명순
       const schoolCmp = (a.organization||'').localeCompare(b.organization||'', 'ko')
       if (schoolCmp !== 0) return schoolCmp
-      // 반(A→B)순
-      return (a.section||'').localeCompare(b.section||'')
+      return (a._selSection||'').localeCompare(b._selSection||'')
     })
   }, [classes])
 
   const confirmedCount = useMemo(() => {
     const m = {}
-    classes.forEach(c => {
-      m[c.id] = students.filter(s => s.classIds?.includes(c.id) && s.status === 'confirmed').length
+    sorted.forEach(cls => {
+      const key = cls.id + (cls._selSection ? '::' + cls._selSection : '')
+      const sec = cls._selSection
+      m[key] = students.filter(s => {
+        if (!s.classIds?.includes(cls.id)) return false
+        if (s.status !== 'confirmed') return false
+        if (sec) return (s.section || '') === sec
+        return true
+      }).length
     })
     return m
-  }, [classes, students])
+  }, [sorted, students])
 
   // 취소 인원 (cancelled)
   const cancelledCount = useMemo(() => {
     const m = {}
-    classes.forEach(c => {
-      m[c.id] = students.filter(s => s.classIds?.includes(c.id) && s.status === 'cancelled').length
+    sorted.forEach(cls => {
+      const key = cls.id + (cls._selSection ? '::' + cls._selSection : '')
+      const sec = cls._selSection
+      m[key] = students.filter(s => {
+        if (!s.classIds?.includes(cls.id)) return false
+        if (s.status !== 'cancelled') return false
+        if (sec) return (s.section || '') === sec
+        return true
+      }).length
     })
     return m
-  }, [classes, students])
+  }, [sorted, students])
 
   // 신청 인원 (applied + selected + confirmed + cancelled = 처음 신청한 전체)
   const appliedCount = useMemo(() => {
     const m = {}
-    classes.forEach(c => {
-      m[c.id] = students.filter(s => s.classIds?.includes(c.id)).length
+    sorted.forEach(cls => {
+      const key = cls.id + (cls._selSection ? '::' + cls._selSection : '')
+      const sec = cls._selSection
+      m[key] = students.filter(s => {
+        if (!s.classIds?.includes(cls.id)) return false
+        if (sec) return (s.section || '') === sec
+        return true
+      }).length
     })
     return m
-  }, [classes, students])
+  }, [sorted, students])
 
   const feeMap = useMemo(() => {
     const m = {}; fees.forEach(f => { m[f.classId] = f }); return m
@@ -174,7 +204,7 @@ export function Revenue({ user }) {
     const result = {}
     sorted.forEach(cls => {
       const fee = feeMap[cls.id]
-      const cnt = confirmedCount[cls.id] || 0
+      const cnt = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0
       if (!fee || !cnt) return
       const terms = getTerms(cls)
       const addedDates = new Set()
@@ -212,7 +242,7 @@ export function Revenue({ user }) {
     const map = {}
     sorted.forEach(cls => {
       const fee = feeMap[cls.id]
-      const cnt = confirmedCount[cls.id] || 0
+      const cnt = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0
       const clsPays = payByClass[cls.id] || []
       const terms = getTerms(cls)
 
@@ -249,7 +279,7 @@ export function Revenue({ user }) {
     const list = []
     sorted.forEach(cls => {
       const fee = feeMap[cls.id]
-      const cnt = confirmedCount[cls.id] || 0
+      const cnt = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0
       if (!fee || !cnt) return
       const terms = getTerms(cls)
       const clsPays = payByClass[cls.id] || []
@@ -277,8 +307,8 @@ export function Revenue({ user }) {
             cls, term, fee, cnt,
             expected, paid, unpaid,
             termStatus: status,
-            startApplied: appliedCount[cls.id] || cnt,
-            cancelled: cancelledCount[cls.id] || 0,
+            startApplied: appliedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || cnt,
+            cancelled: cancelledCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0,
             confirmed: cnt,
           })
         }
@@ -298,7 +328,7 @@ export function Revenue({ user }) {
     let expected = 0, paid = 0
     sorted.forEach(cls => {
       const fee = feeMap[cls.id]
-      const cnt = confirmedCount[cls.id] || 0
+      const cnt = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0
       if (!fee || !cnt) return
       const terms = getTerms(cls)
       const clsPays = payByClass[cls.id] || []
@@ -544,7 +574,7 @@ export function Revenue({ user }) {
                       style={{ padding:'10px 12px', borderRadius:'10px', background:'#fff', border:`1px solid ${item.termStatus==='current'?'#86efac':'#fca5a5'}`, cursor:'pointer' }}>
                       <div>
                           <div style={{ fontSize:'13px', fontWeight:700, color:C.text, display:'flex', alignItems:'center', flexWrap:'nowrap', gap:'4px' }}>
-                            <span style={{ whiteSpace:'nowrap' }}>{item.cls.organization} · {item.cls.className}{((item.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (item.cls.section ? item.cls.section+'반' : '')))?' '+((item.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (item.cls.section ? item.cls.section+'반' : ''))) :''}</span>
+                            <span style={{ whiteSpace:'nowrap' }}>{item.cls.organization} · {item.cls.className}{((item.cls._selSection ? item.cls._selSection+'반' : (item.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (item.cls.section ? item.cls.section+'반' : ''))))?' '+((item.cls._selSection ? item.cls._selSection+'반' : (item.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (item.cls.section ? item.cls.section+'반' : '')))) :''}</span>
                             <span style={{ fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px', whiteSpace:'nowrap', flexShrink:0 }}>{item.term.label} {item.term.sessions.length}회</span>
                             {item.termStatus==='current'
                               ? <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'1px 6px', whiteSpace:'nowrap', flexShrink:0 }}>진행중</span>
@@ -614,7 +644,7 @@ export function Revenue({ user }) {
                 const monthItems = []
                 sorted.forEach(cls => {
                   const fee = feeMap[cls.id]
-                  const cnt = confirmedCount[cls.id] || 0
+                  const cnt = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0
                   const terms = getTerms(cls)
                   terms.forEach(term => {
                     const monthSessions = term.sessions.filter(d => d.slice(0,7) === curYM)
@@ -639,7 +669,7 @@ export function Revenue({ user }) {
                       <div key={i} style={{ padding:'8px 10px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fafafa', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                         <div>
                           <div style={{ fontSize:'12px', fontWeight:700, color:C.text }}>
-                            {item.cls.organization} · {item.cls.className}{((item.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (item.cls.section ? item.cls.section+'반' : '')))?' '+((item.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (item.cls.section ? item.cls.section+'반' : ''))) :''}
+                            {item.cls.organization} · {item.cls.className}{((item.cls._selSection ? item.cls._selSection+'반' : (item.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (item.cls.section ? item.cls.section+'반' : ''))))?' '+((item.cls._selSection ? item.cls._selSection+'반' : (item.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (item.cls.section ? item.cls.section+'반' : '')))) :''}
                           </div>
                           <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
                             {item.term.label} · {item.monthSessions.length}회 · {item.cnt}명
@@ -731,7 +761,7 @@ export function Revenue({ user }) {
         // 전체 합계
         let totalAllExpected=0, totalAllPaid=0
         sorted.forEach(cls => {
-          const fee=feeMap[cls.id], cnt=confirmedCount[cls.id]||0
+          const fee=feeMap[cls.id], cnt=confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')]||0
           if(!fee||!cnt) return
           getTerms(cls).forEach(term => {
             const ps=perSessionFee(fee,term,cls)
@@ -755,7 +785,7 @@ export function Revenue({ user }) {
                 // 이 텀 번호를 가진 모든 수업+텀 row 수집
                 const rows = []
                 sorted.forEach(cls => {
-                  const fee=feeMap[cls.id], cnt=confirmedCount[cls.id]||0
+                  const fee=feeMap[cls.id], cnt=confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')]||0
                   const terms=getTerms(cls)
                   const term=terms.find(t=>t.termNo===termNo)
                   if(!term) return
@@ -833,7 +863,7 @@ export function Revenue({ user }) {
                                 style={{ padding:'10px 14px', background:hasUnpaidRow?'#fef2f2':'#fafafa', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px', cursor:'pointer' }}>
                                 <div>
                                   <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
-                                    🏫 {cls.organization} · {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')))?' '+((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))):''}
+                                    🏫 {cls.organization} · {cls.className}{((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))))?' '+((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')))):''}
                                     <span style={{ marginLeft:'6px', fontSize:'11px', color:C.muted, fontWeight:400 }}>{termType}</span>
                                   </div>
                                   <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
@@ -895,7 +925,7 @@ export function Revenue({ user }) {
                 <div style={{ fontSize:'15px', fontWeight:600 }}>등록된 수업이 없습니다</div>
               </div>
             : sorted.map(cls => {
-                const fee=feeMap[cls.id], cnt=confirmedCount[cls.id]||0
+                const fee=feeMap[cls.id], cnt=confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')]||0
                 const sessions=calcSessionDates(cls)
                 const terms=getTerms(cls)
                 const clsPays=(payByClass[cls.id]||[]).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
@@ -909,7 +939,7 @@ export function Revenue({ user }) {
                     <div style={{ padding:'14px 20px', background:'#fafafa', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'10px' }}>
                       <div>
                         <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>
-                          🏫 {cls.organization} · {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')))?' '+((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))):''}
+                          🏫 {cls.organization} · {cls.className}{((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))))?' '+((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')))):''}
                           {(cls.sections?.length>0 ? cls.sections[0].time : cls.time)&&<span style={{ fontSize:'12px', color:C.muted, fontWeight:400, marginLeft:'8px' }}>{cls.sections?.length>0 ? cls.sections.map(s=>(s.section?s.section+'반 ':'')+s.time+(s.timeEnd?' ~ '+s.timeEnd:'')).join(' / ') : cls.time+(cls.timeEnd?' ~ '+cls.timeEnd:'')}</span>}
                         </div>
                         <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>
@@ -1116,7 +1146,7 @@ export function Revenue({ user }) {
                         : sorted.map(cls=>{
                           const isSel = (payForm.classIds||[]).includes(cls.id)
                           const f = feeMap[cls.id]
-                          const c = confirmedCount[cls.id]||0
+                          const c = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')]||0
                           const clsTerms = getTerms(cls)
                           const lastEndedNo = clsTerms.filter(t=>t.endDate&&t.endDate<payDate).reduce((mx,t)=>Math.max(mx,t.termNo),0)
                           const curTerm = clsTerms.find(t=>t.termNo===lastEndedNo+1)||clsTerms.find(t=>t.startDate<=payDate&&t.endDate>=payDate)||clsTerms[0]
@@ -1137,7 +1167,7 @@ export function Revenue({ user }) {
                               </div>
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:'14px', fontWeight:700, color:isSel?C.primary:C.text }}>
-                                  {cls.organization} · {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')))?' '+((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))):''}
+                                  {cls.organization} · {cls.className}{((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))))?' '+((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')))):''}
                                 </div>
                                 <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
                                   현재 {c}명{(cls.sections?.length>0?cls.sections[0].time:cls.time)?` · ${cls.sections?.length>0 ? cls.sections.map(s=>(s.section?s.section+'반 ':'')+s.time+(s.timeEnd?' ~ '+s.timeEnd:'')).join(' / ') : cls.time+(cls.timeEnd?' ~ '+cls.timeEnd:'')}`:''}{f?` · ${fmt(f.amount)}원/${f.feeType==='per_session'?'회':'텀'}`:''}
@@ -1293,7 +1323,7 @@ export function Revenue({ user }) {
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                         <div style={{ flex:1 }}>
                           <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
-                            🏫 {cls?`${cls.organization} · ${cls.className}${((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')))?' '+((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))):''}`:' 수업 미상'}
+                            🏫 {cls?`${cls.organization} · ${cls.className}${((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))))?' '+((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')))):''}`:' 수업 미상'}
                           </div>
                           <div style={{ display:'flex', alignItems:'center', gap:'6px', marginTop:'4px', flexWrap:'wrap' }}>
                             {p.termNo&&<span style={{ fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 5px' }}>{p.termNo}텀</span>}
