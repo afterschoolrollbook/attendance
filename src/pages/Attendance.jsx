@@ -2975,6 +2975,8 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
   const tc = sessInfo ? TERM_COLORS[(sessInfo.termNum - 1) % TERM_COLORS.length] : null
   const startTime = (cls.sections?.length>0 ? cls.sections[0].time : cls.time) || ''; const endTime = (cls.sections?.length>0 ? cls.sections[0].timeEnd : cls.timeEnd) || ''
 
+  // 반별 그룹핑을 위해 section 기준으로 정렬
+  // 현재방식: 학생의 section 필드 / 예전방식: 수업카드의 section
   const activeStudents = allStudents.filter(s =>
     s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status)
   )
@@ -2982,6 +2984,10 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
     s.classIds?.includes(cls.id) && ['cancelled','waiting'].includes(s.status)
   )
   const sorted = [...activeStudents].sort((a, b) => {
+    // section 먼저 정렬 (A반 → C반 등)
+    const aSec = a.section || allClasses?.find?.(c => a.classIds?.includes(c.id))?.section || ''
+    const bSec = b.section || allClasses?.find?.(c => b.classIds?.includes(c.id))?.section || ''
+    const secCmp = aSec.localeCompare(bSec, 'ko'); if (secCmp) return secCmp
     const g = parseInt(a.grade||'0') - parseInt(b.grade||'0'); if (g) return g
     const c = parseInt(a.classNum||0) - parseInt(b.classNum||0); if (c) return c
     const n = parseInt(a.number||0) - parseInt(b.number||0); if (n) return n
@@ -4047,7 +4053,11 @@ function MobileAttendance({ user, pageParams = {} }) {
     if (!selClassId && dayClasses.length > 0) setSelClassId(dayClasses[0].id)
   }, [selDate])
 
-  const selClass  = allClasses.find(c => c.id === selClassId)
+  // selClassId 파싱: 'classId::반' 형태 (Students.jsx 동일 방식)
+  const selClassIdParsedM = selClassId.includes('::') ? selClassId.split('::')[0] : selClassId
+  const selSectionParsedM = selClassId.includes('::') ? selClassId.split('::')[1] : selSection
+
+  const selClass  = allClasses.find(c => c.id === selClassIdParsedM)
   const isFuture  = selDate > today
 
   // 달력 점 표시용 날짜
@@ -4059,16 +4069,23 @@ function MobileAttendance({ user, pageParams = {} }) {
   const spProg   = SupplyStudentProgress.byTeacher(user.id)
   const spChecks = SupplySessionChecks.byTeacher ? SupplySessionChecks.byTeacher(user.id) : []
 
-  // 달력 출석부용 selSection 상태
-  const calSelSection = selClass?.sections?.filter(s=>s.section).length > 1 ? selSection : ''
+  // 반 필터: 수업 드롭다운 '::' 파싱값 우선, 없으면 별도 selSection
+  const calSelSection = selSectionParsedM
 
   const students = selClass
     ? [...allStudents.filter(s => {
         if (!s.classIds?.includes(selClass.id)) return false
         if (!['applied','selected','confirmed'].includes(s.status)) return false
-        // 반 필터: 선택한 수업에 여러 반이 있고 반을 선택했으면 해당 반만
+        // 반 필터 (현재방식: 학생 section / 예전방식: 수업카드 section)
         if (calSelSection) {
-          if (s.section) return s.section === calSelSection
+          const studentSec = s.section || ''
+          if (studentSec) {
+            if (studentSec !== calSelSection) return false
+          } else {
+            // 예전방식: 수업카드 자체 section 비교
+            const cls = allClasses.find(c => s.classIds?.includes(c.id) && c.section === calSelSection)
+            if (!cls) return false
+          }
         }
         return true
       })].sort((a,b) => {
@@ -4181,21 +4198,47 @@ function MobileAttendance({ user, pageParams = {} }) {
         )}
       </div>
 
-      {/* 수업 탭 (A반/B반 등) */}
+      {/* 수업 탭 (A반/B반 등) — sections > 1이면 반별로 분리 버튼 */}
       {dayClasses.length > 0 && (
         <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
-          {dayClasses.map(cls => (
-            <button key={cls.id} onClick={() => setSelClassId(cls.id)}
-              style={{
-                padding: '8px 16px', borderRadius: '10px', border: '1.5px solid',
-                borderColor: selClassId===cls.id ? '#f97316' : '#e5e7eb',
-                background: selClassId===cls.id ? '#fff7ed' : '#fff',
-                color: selClassId===cls.id ? '#f97316' : '#6b7280',
-                fontSize: '13px', fontWeight: selClassId===cls.id ? 700 : 400,
-                cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', whiteSpace: 'nowrap', flexShrink: 0,
-              }}>
-              {cls.className}{((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : ''}
-            </button>
+          {dayClasses.flatMap(cls => {
+            const secs = cls.sections?.filter(s => s.section) || []
+            if (secs.length > 1) {
+              // 통합카드: 반별 분리 버튼
+              return secs.map(s => {
+                const val = cls.id + '::' + s.section
+                const isActive = selClassId === val
+                return (
+                  <button key={val} onClick={() => setSelClassId(val)}
+                    style={{
+                      padding: '8px 16px', borderRadius: '10px', border: '1.5px solid',
+                      borderColor: isActive ? '#f97316' : '#e5e7eb',
+                      background: isActive ? '#fff7ed' : '#fff',
+                      color: isActive ? '#f97316' : '#6b7280',
+                      fontSize: '13px', fontWeight: isActive ? 700 : 400,
+                      cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', whiteSpace: 'nowrap', flexShrink: 0,
+                    }}>
+                    {cls.className} {s.section}반
+                  </button>
+                )
+              })
+            }
+            // 단일 반 or 반 없음
+            const secLabel = cls.section ? ' ' + cls.section + '반' : ''
+            const isActive = selClassIdParsedM === cls.id
+            return [(
+              <button key={cls.id} onClick={() => setSelClassId(cls.id)}
+                style={{
+                  padding: '8px 16px', borderRadius: '10px', border: '1.5px solid',
+                  borderColor: isActive ? '#f97316' : '#e5e7eb',
+                  background: isActive ? '#fff7ed' : '#fff',
+                  color: isActive ? '#f97316' : '#6b7280',
+                  fontSize: '13px', fontWeight: isActive ? 700 : 400,
+                  cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', whiteSpace: 'nowrap', flexShrink: 0,
+                }}>
+                {cls.className}{secLabel}
+              </button>
+            )]
           ))}
         </div>
       )}
@@ -4391,7 +4434,11 @@ export function Attendance({ user, pageParams = {} }) {
     }
     return true
   }))
-  const selClass = allClasses.find(c => c.id === selClassId)
+  // selClassId 파싱: 'classId::반' 또는 'classId'  (Students.jsx와 동일 방식)
+  const selClassIdParsed = selClassId.includes('::') ? selClassId.split('::')[0] : selClassId
+  const selSectionParsed = selClassId.includes('::') ? selClassId.split('::')[1] : selSection
+
+  const selClass = allClasses.find(c => c.id === selClassIdParsed)
   // 달력 표시용 수업일: 선택된 수업이 있으면 그 수업일만, 없으면 필터된 전체 수업일 합산
   const sessionDates = selClass
     ? calcSessionDates(selClass)
@@ -4409,7 +4456,7 @@ export function Attendance({ user, pageParams = {} }) {
       )].sort()
   // 수업 선택 시 해당 수업의 반 목록 (같은 학교+수업명 내 section 목록)
   // 같은 학교+수업명 내 반 목록 (section 기준)
-  const sectionClasses = selClassId
+  const sectionClasses = selClassIdParsed
     ? schoolClasses.filter(c => c.className === selClass?.className && c.organization === selClass?.organization)
     : []
   const sections = [...new Set([
@@ -4479,20 +4526,20 @@ export function Attendance({ user, pageParams = {} }) {
         if (actualSchool !== selSchool) return false
       }
       // 수업 필터
-      if (selClassId) {
+      if (selClassIdParsed) {
         const inClass = hasClassIds
-          ? s.classIds.includes(selClassId)
+          ? s.classIds.includes(selClassIdParsed)
           : selClass?.organization === s.school
         if (!inClass) return false
       }
-      // 반 필터 (예전방식: 수업카드 자체가 반 / 현재방식: 학생 section 필드)
-      if (selSection) {
+      // 반 필터: selSectionParsed = 수업드롭다운 '::' 파싱값 또는 별도 반 드롭다운값
+      if (selSectionParsed) {
         // 현재방식: 학생에 section 필드가 있으면 그걸로 비교
         if (s.section) {
-          if (s.section !== selSection) return false
+          if (s.section !== selSectionParsed) return false
         } else {
           // 예전방식: 수업카드 자체의 section으로 비교
-          const sectionCls = sectionClasses.find(c => c.section === selSection)
+          const sectionCls = sectionClasses.find(c => c.section === selSectionParsed)
           if (sectionCls) {
             const inSection = s.classIds?.includes(sectionCls.id) ||
               (!s.classIds?.length && selClass?.organization === s.school)
@@ -4641,19 +4688,31 @@ export function Attendance({ user, pageParams = {} }) {
                   const bDay = DAY_ORDER.indexOf(b.days?.[0] ?? '')
                   if (aDay !== bDay) return aDay - bDay
                   return (a.section||'').localeCompare(b.section||'', 'ko')
-                }).map(c => {
-                  const secLabel = c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')
-                  return <option key={c.id} value={c.id}>{c.className}{secLabel ? ' '+secLabel : ''}</option>
+                }).flatMap(c => {
+                  // sections 배열에 반이 2개 이상이면 반별로 분리 옵션 (Students.jsx 동일 방식)
+                  const secs = c.sections?.filter(s => s.section) || []
+                  if (secs.length > 1) {
+                    return secs.map(s => (
+                      <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
+                        {c.className} {s.section}반
+                      </option>
+                    ))
+                  }
+                  const secLabel = (c.section ? c.section + '반' : '')
+                  return [<option key={c.id} value={c.id}>{c.className}{secLabel ? ' ' + secLabel : ''}</option>]
                 })}
               </select>
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-              <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>반</label>
-              <select value={selSection} onChange={e => setSelSection(e.target.value)} style={{ ...selSt, width:'100%' }} disabled={!selClassId || sections.length === 0}>
-                <option value="">전체 반</option>
-                {sections.map(s => <option key={s} value={s}>{s}반</option>)}
-              </select>
-            </div>
+            {/* 반 드롭다운: 수업 드롭다운에서 이미 반을 선택한 경우(::) 숨김, 단일 반 수업카드는 표시 */}
+            {!selClassId.includes('::') && sections.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>반</label>
+                <select value={selSection} onChange={e => setSelSection(e.target.value)} style={{ ...selSt, width:'100%' }}>
+                  <option value="">전체 반</option>
+                  {sections.map(s => <option key={s} value={s}>{s}반</option>)}
+                </select>
+              </div>
+            )}
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
               <label style={{ fontSize:'11px', fontWeight:600, color:C.muted }}>기간</label>
               <select value={selTerm} onChange={e => setSelTerm(e.target.value)} style={{ ...selSt, width:'100%' }}>
@@ -4760,7 +4819,7 @@ export function Attendance({ user, pageParams = {} }) {
             <div style={{ marginTop:'14px', padding:'12px 14px', background:'#fff7ed', borderRadius:'10px' }}>
               <div style={{ fontSize:'12px', fontWeight:700, color:'#92400e', marginBottom:'6px' }}>이달 수업 {monthSessions.length}회</div>
               {monthSessions.slice(0,8).map(d => {
-                const recs = AttendanceDB.byClassDate(selClassId, d)
+                const recs = AttendanceDB.byClassDate(selClassIdParsedM, d)
                 const done = recs.filter(r => r.status !== 'pending').length
                 const isPast_ = d <= today
                 return (
