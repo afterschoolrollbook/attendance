@@ -153,9 +153,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   const studentProgList = activeStudents.map(s => {
     // classId가 통합카드 id와 다를 수 있음 (구버전 별도카드 → 통합카드 이동)
     // 우선 현재 cls.id로 찾고, 없으면 학생의 classIds 중 아무 카드로 찾음
-    const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)  // 1. 통합카드id
-      || spItems.find(i => i.studentId === s.id && s.classIds?.includes(i.classId))  // 2. 학생 classIds 중
-      || spItems.find(i => i.studentId === s.id)  // 3. studentId만 (구버전 카드 id 불일치 대응)
+    const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)
     if (!si?.productId) return null
     const prog = spProg.find(p => p.studentId === s.id && p.productId === si.productId)
     const curStage = prog?.curStage || si.stage || 1
@@ -239,7 +237,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                     {prod?.name} {curStage}단계
                   </div>
                   {items.map(({ s, todayChecks, allChecks, lastModelTitle }) => (
-                    <div key={s.id} onClick={() => onProgOpen(s, (spItems.find(i=>i.studentId===s.id&&i.classId===cls?.id)||spItems.find(i=>i.studentId===s.id&&s.classIds?.includes(i.classId))||spItems.find(i=>i.studentId===s.id))?.productId)}
+                    <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i=>i.studentId===s.id&&i.classId===cls?.id)?.productId)}
                       style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f0fdf4', border:'1px solid #86efac', marginBottom:'3px', cursor:'pointer' }}>
                       <span style={{ fontSize:'13px', fontWeight:700, color:'#16a34a' }}>{s.name}</span>
                       <span style={{ marginLeft:'auto', fontSize:'11px', fontWeight:700, color:'#16a34a' }}>+{todayChecks.length}차시 ({allChecks.length}차시)</span>
@@ -270,8 +268,6 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
             // ── 2. 교구 준비 필요
             const supplyAlertList = activeStudents.flatMap(s => {
               const si = spItems.find(i => i.studentId === s.id && i.classId === cls?.id)
-                || spItems.find(i => i.studentId === s.id && s.classIds?.includes(i.classId))
-                || spItems.find(i => i.studentId === s.id)
               if (!si?.productId) return []
               const prod = spProds.find(p => p.id === si.productId)
               if (!prod) return []
@@ -371,7 +367,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                           {prod?.name} {curStage}단계
                         </div>
                         {items.map(({ s, lastModelTitle }) => (
-                          <div key={s.id} onClick={() => onProgOpen(s, (spItems.find(i=>i.studentId===s.id&&i.classId===cls?.id)||spItems.find(i=>i.studentId===s.id&&s.classIds?.includes(i.classId))||spItems.find(i=>i.studentId===s.id))?.productId)}
+                          <div key={s.id} onClick={() => onProgOpen(s, spItems.find(i=>i.studentId===s.id&&i.classId===cls?.id)?.productId)}
                             style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f9fafb', border:'1px solid #e5e7eb', marginBottom:'3px', cursor:'pointer' }}>
                             <span style={{ fontSize:'13px', fontWeight:600, color:'#374151' }}>{s.name}</span>
                             {lastModelTitle && <span style={{ marginLeft:'auto', fontSize:'11px', color:'#9ca3af' }}>{lastModelTitle}</span>}
