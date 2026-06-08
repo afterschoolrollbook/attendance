@@ -11,12 +11,15 @@ export function NaverCallback() {
       const code  = params.get('code')
       const state = params.get('state')
       const error = params.get('error')
-      const isPopup = !!window.opener
+
+      // window.opener는 cross-origin 리디렉트 후 null이 될 수 있으므로
+      // window.name으로 팝업 여부를 판단 (loginWithNaver에서 'naverLogin'으로 지정)
+      const isPopup = window.name === 'naverLogin'
 
       try {
         if (error || !code || !state) {
           const msg = { type: 'naver_login_fail', error: error || 'missing_params' }
-          if (isPopup) { window.opener.postMessage(msg, window.location.origin); window.close() }
+          if (isPopup && window.opener) { window.opener.postMessage(msg, window.location.origin); window.close() }
           else { sessionStorage.setItem('naver_login_result', JSON.stringify(msg)); window.location.href = '/?naver_redirect=1' }
           return
         }
@@ -28,12 +31,12 @@ export function NaverCallback() {
           avatar: data.avatar || '', id: data.providerId,
           session: data.session || null,
         }
-        if (isPopup) { window.opener.postMessage(msg, window.location.origin); window.close() }
+        if (isPopup && window.opener) { window.opener.postMessage(msg, window.location.origin); window.close() }
         else { sessionStorage.setItem('naver_login_result', JSON.stringify(msg)); window.location.href = '/?naver_redirect=1' }
 
       } catch (e) {
         const msg = { type: 'naver_login_fail', error: e.message }
-        if (isPopup) { window.opener?.postMessage(msg, window.location.origin); window.close() }
+        if (isPopup && window.opener) { window.opener.postMessage(msg, window.location.origin); window.close() }
         else { sessionStorage.setItem('naver_login_result', JSON.stringify(msg)); window.location.href = '/?naver_redirect=1' }
       }
     }
