@@ -1140,18 +1140,18 @@ export function Students({ user, onNav }) {
               }
             }} style={{ padding:'6px 12px', borderRadius:'7px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }}>
               <option value=''>수업 선택하여 체크</option>
-              {filteredClasses.flatMap(c => {{
-                  const secs = c.sections?.filter(s => s.section) || []
-                  if (secs.length > 1) {{
-                    return secs.map(s => (
-                      <option key={{c.id + '::' + s.section}} value={{c.id + '::' + s.section}}>
-                        {{c.organization}} · {{c.className}} {{s.section}}반
-                      </option>
-                    ))
-                  }}
-                  const secLabel = (c.section ? ' ' + c.section + '반' : '')
-                  return [<option key={{c.id}} value={{c.id}}>{{c.organization}} · {{c.className}}{{secLabel}}</option>]
-                }})}
+              {filteredClasses.flatMap(c => {
+                const secs = c.sections?.filter(s => s.section) || []
+                if (secs.length > 1) {
+                  return secs.map(s => (
+                    <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
+                      {c.organization} · {c.className} {s.section}반
+                    </option>
+                  ))
+                }
+                const secLabel = (c.section ? ' ' + c.section + '반' : '')
+                return [<option key={c.id} value={c.id}>{c.organization} · {c.className}{secLabel}</option>]
+              })}
             </select>
             {selectedForRegister.length > 0 && (
               <button onClick={() => moveBackToRegister(selectedForRegister)}
