@@ -331,12 +331,6 @@ function useNaverAuth(onSuccess, clientId) {
     const popup = window.open(naverAuthUrl, 'naverLogin', 'width=500,height=700,left=200,top=100')
     console.log('[NAVER DEBUG] 팝업 결과', popup)
 
-    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-      console.log('[NAVER DEBUG] 팝업 차단됨 → 리디렉트로 전환')
-      window.location.href = naverAuthUrl + '&naver_redirect=1'
-      return
-    }
-
     const handleMessage = async (e) => {
       if (e.origin !== window.location.origin) return
       if (e.data?.type !== 'naver_login_success' && e.data?.type !== 'naver_login_fail') return
@@ -351,11 +345,11 @@ function useNaverAuth(onSuccess, clientId) {
     window.addEventListener('message', handleMessage)
 
     const popupCheck = setInterval(() => {
-      console.log('[NAVER DEBUG] 팝업 상태 체크', popup.closed)
-      if (popup.closed) {
-        console.log('[NAVER DEBUG] 팝업 닫힘 감지 → 리스너 정리')
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
         clearInterval(popupCheck)
         window.removeEventListener('message', handleMessage)
+        console.log('[NAVER DEBUG] 팝업 차단됨 또는 닫힘 → 리디렉트로 전환')
+        window.location.href = naverAuthUrl + '&naver_redirect=1'
       }
     }, 500)
   }
