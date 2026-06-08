@@ -717,7 +717,10 @@ export function Auth({ onLogin }) {
   }
 
   // 소셜 로그인 콜백
-  const handleSocialSuccess = (profile) => {
+  const handleSocialSuccess = async (profile) => {
+    // 캐시가 비어있을 수 있으므로 DB에서 최신 데이터 로드 후 찾기
+    await initFromSupabase()
+
     const email = profile.email?.toLowerCase() || ''
 
     // 1) providerId로 먼저 찾기 (네이버/카카오/구글 모두 동일)
