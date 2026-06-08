@@ -28,7 +28,7 @@ export function NaverCallback() {
         const msg = {
           type: 'naver_login_success',
           email: data.email || '', name: data.name || '',
-          avatar: data.avatar || '', id: data.providerId,
+          avatar: data.avatar || '', id: data.id || data.providerId,
           session: data.session || null,
         }
         if (isPopup && window.opener) { window.opener.postMessage(msg, window.location.origin); window.close() }
