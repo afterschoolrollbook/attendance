@@ -3127,16 +3127,18 @@ export function Supplies({ user }) {
               classes.map(c => [getTermLabel(c), getTermLabel(c)])
             ).values()].sort().reverse()
 
+            const givenFilterClassId  = givenFilter.classId.includes('::') ? givenFilter.classId.split('::')[0] : givenFilter.classId
+            const givenFilterClassSec = givenFilter.classId.includes('::') ? givenFilter.classId.split('::')[1] : ''
             const filteredClasses = classes.filter(c =>
                   getTermLabel(c) === givenTermFilter &&
                   (!givenFilter.school || c.organization === givenFilter.school) &&
-                  (!givenFilter.classId || c.id === givenFilter.classId)
+                  (!givenFilterClassId || c.id === givenFilterClassId)
                 )
 
             const stuList = []
             filteredClasses.forEach(cls => {
               const clsStudents = students
-                .filter(s => s.classIds?.includes(cls.id) && s.status === 'confirmed')
+                .filter(s => s.classIds?.includes(cls.id) && s.status === 'confirmed' && (!givenFilterClassSec || s.section === givenFilterClassSec))
                 .sort((a, b) => {
                   const gradeCmp = parseInt(a.grade||'0') - parseInt(b.grade||'0')
                   if (gradeCmp !== 0) return gradeCmp
@@ -3611,9 +3613,18 @@ export function Supplies({ user }) {
                   <select value={givenFilter.classId} onChange={e => setGivenFilter(f => ({ ...f, classId: e.target.value }))}
                     style={{ flex:1, padding:'7px 10px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>
                     <option value=''>전체 반</option>
-                    {schoolFilteredClasses.map(c => (
-                      <option key={c.id} value={c.id}>{c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}</option>
-                    ))}
+                    {schoolFilteredClasses.flatMap(c => {
+                      const secs = c.sections?.filter(s => s.section) || []
+                      if (secs.length > 1) {
+                        return secs.map(s => (
+                          <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
+                            {c.className} {s.section}반
+                          </option>
+                        ))
+                      }
+                      const secLabel = c.section ? ' ' + c.section + '반' : ''
+                      return [<option key={c.id} value={c.id}>{c.className}{secLabel}</option>]
+                    })}
                   </select>
                   <select value={givenTermFilter} onChange={e => { setGivenTermFilter(e.target.value); setGivenFilter(f => ({ ...f, classId: '' })) }}
                     style={{ flex:1, padding:'7px 10px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }}>

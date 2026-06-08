@@ -1232,7 +1232,9 @@ export function Students({ user, onNav }) {
                 const sClasses = (s.classIds || []).map(cid => {
                   const cls = classes.find(c => c.id === cid)
                   if (!cls) return null
-                  return cls.className + ((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) ? ' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')) : '')
+                  // 학생 개인 section 우선, 없으면 통합카드 전체 반 표시
+                  const secLabel = s.section ? s.section + '반' : (cls.sections?.filter(sc=>sc.section).map(sc=>sc.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))
+                  return cls.className + (secLabel ? ' ' + secLabel : '')
                 }).filter(Boolean)
                 // 학교명은 실제 수업 레코드에서 가져옴 (s.school은 캐시라 변경 반영 안 됨)
                 const displaySchool = (s.classIds || []).map(cid => classes.find(c => c.id === cid)?.organization).filter(Boolean)[0] || s.school || ''
