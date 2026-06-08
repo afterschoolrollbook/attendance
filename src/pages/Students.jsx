@@ -447,6 +447,27 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
       <div style={{ background:'#fff', borderRadius:'14px', border:'1.5px solid #f97316', padding:'16px 20px', marginBottom:'16px' }}>
           <div style={{ fontSize:'12px', fontWeight:700, color:'#f97316', marginBottom:'10px', letterSpacing:'0.05em' }}>📌 수강이력 기록</div>
           <div style={{ display:'flex', gap:'8px', alignItems:'flex-end', flexWrap:'wrap' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
+              <select value={tsYear} onChange={e => setTsYear(e.target.value)} style={sst}>
+                <option value=''>-- 선택 --</option>
+                {years.map(y => <option key={y} value={y}>{y}년도</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>구분</label>
+              <select value={tsTermType} onChange={e => { setTsTermType(e.target.value); setTsTerm('1') }} style={sst}>
+                <option value='quarter'>분기제</option>
+                <option value='semester'>학기제</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>{tsTermLabel}</label>
+              <select value={tsTerm} onChange={e => setTsTerm(e.target.value)}
+                style={{ ...sst, border:'1.5px solid #f97316', background:'#fff7ed' }}>
+                {termOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
             <button onClick={doTermSet}
               disabled={tsChecked.size === 0 || !tsYear}
               style={{
