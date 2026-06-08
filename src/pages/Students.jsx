@@ -125,7 +125,7 @@ function emptyStudent() {
 // 학생 경력 컴포넌트
 function CareerAdder({ careers, onChange, isEdit }) {
   const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: currentYear - 2021 }, (_, i) => String(2022 + i)).reverse()
+  const years = Array.from({ length: currentYear - 2021 + 1 }, (_, i) => String(2022 + i)).reverse()
   const [termType, setTermType] = React.useState('semester')
   const [year, setYear] = React.useState(String(currentYear))
   const [term, setTerm] = React.useState('1')
@@ -265,7 +265,7 @@ function promoteNextWaiting(classId) {
 
 function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
   const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: currentYear - 2021 }, (_, i) => String(2022 + i)).reverse()
+  const years = Array.from({ length: currentYear - 2021 + 1 }, (_, i) => String(2022 + i)).reverse()
 
   const [tsClassId, setTsClassId] = React.useState('')
   const [tsYear, setTsYear] = React.useState(String(currentYear))
@@ -343,70 +343,62 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
 
   return (
     <div>
-      {/* 설정 패널 */}
+      {/* 설정 패널 - 1행: 수업 선택 */}
       <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', padding:'16px 20px', marginBottom:'16px' }}>
         <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'10px', letterSpacing:'0.05em' }}>📍 텀 설정</div>
-        <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'flex-end' }}>
-          {/* 수업 선택 */}
-          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업 선택</label>
-            <select value={tsClassId} onChange={e => { setTsClassId(e.target.value); setTsChecked(new Set()) }}
-              style={{ ...sst, minWidth:'220px' }}>
-              <option value=''>-- 수업 선택 --</option>
-              {[...classes].sort((a, b) => {
-                const DAY_ORDER = ['월','화','수','목','금','토','일']
-                const aDay = DAY_ORDER.indexOf((a.days?.[0]) || '')
-                const bDay = DAY_ORDER.indexOf((b.days?.[0]) || '')
-                if (aDay !== bDay) return (aDay === -1 ? 99 : aDay) - (bDay === -1 ? 99 : bDay)
-                return (a.organization || '').localeCompare(b.organization || '', 'ko')
-              }).flatMap(c => {
-                const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
-                const secs = [...(c.sections?.filter(s => s.section) || [])].sort((a, b) =>
-                  (a.section || '').localeCompare(b.section || '', 'ko'))
-                if (secs.length > 1) {
-                  return secs.map(s => (
-                    <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
-                      {dayLabel}{c.organization} {c.className} {s.section}반
-                    </option>
-                  ))
-                }
-                const secLabel = c.section ? ' ' + c.section + '반' : ''
-                return [<option key={c.id} value={c.id}>{dayLabel}{c.organization} {c.className}{secLabel}</option>]
-              })}
-            </select>
-          </div>
 
-          {/* 년도 */}
-          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
-            <select value={tsYear} onChange={e => setTsYear(e.target.value)} style={sst}>
-              {years.map(y => <option key={y} value={y}>{y}년도</option>)}
-            </select>
-          </div>
-
-          {/* 학기/분기 타입 */}
-          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>구분</label>
-            <select value={tsTermType} onChange={e => { setTsTermType(e.target.value); setTsTerm('1') }} style={sst}>
-              <option value='quarter'>분기제</option>
-              <option value='semester'>학기제</option>
-            </select>
-          </div>
-
-          {/* 분기/학기 번호 */}
-          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>{tsTermLabel}</label>
-            <select value={tsTerm} onChange={e => setTsTerm(e.target.value)}
-              style={{ ...sst, border:'1.5px solid #f97316', background:'#fff7ed' }}>
-              {termOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
+        {/* 1행: 수업 선택 */}
+        <div style={{ marginBottom: tsClassIdParsed ? '12px' : '0' }}>
+          <label style={{ fontSize:'12px', fontWeight:500, color:'#374151', display:'block', marginBottom:'5px' }}>수업 선택</label>
+          <select value={tsClassId} onChange={e => { setTsClassId(e.target.value); setTsChecked(new Set()) }}
+            style={{ ...sst, minWidth:'220px' }}>
+            <option value=''>-- 수업 선택 --</option>
+            {[...classes].sort((a, b) => {
+              const DAY_ORDER = ['월','화','수','목','금','토','일']
+              const aDay = DAY_ORDER.indexOf((a.days?.[0]) || '')
+              const bDay = DAY_ORDER.indexOf((b.days?.[0]) || '')
+              if (aDay !== bDay) return (aDay === -1 ? 99 : aDay) - (bDay === -1 ? 99 : bDay)
+              return (a.organization || '').localeCompare(b.organization || '', 'ko')
+            }).flatMap(c => {
+              const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
+              const secs = [...(c.sections?.filter(s => s.section) || [])].sort((a, b) =>
+                (a.section || '').localeCompare(b.section || '', 'ko'))
+              if (secs.length > 1) {
+                return secs.map(s => (
+                  <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
+                    {dayLabel}{c.organization} {c.className} {s.section}반
+                  </option>
+                ))
+              }
+              const secLabel = c.section ? ' ' + c.section + '반' : ''
+              return [<option key={c.id} value={c.id}>{dayLabel}{c.organization} {c.className}{secLabel}</option>]
+            })}
+          </select>
         </div>
 
-        {/* 선택 미리보기 */}
-        {tsYear && tsTerm && (
-          <div style={{ marginTop:'12px', padding:'8px 14px', borderRadius:'8px', background:'#f0fdf4', border:'1px solid #86efac', fontSize:'12px', color:'#15803d', fontWeight:600, display:'inline-flex', alignItems:'center', gap:'6px' }}>
-            📌 기록될 텀: <span style={{ color:'#166534' }}>{tsYear}년도 / {tsTermType === 'semester' ? '학기제' : '분기제'} / {tsTerm}{tsTermLabel}</span>
+        {/* 2행: 수업 선택 후에만 년도/구분/분기 표시 */}
+        {tsClassIdParsed && (
+          <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'flex-end' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
+              <select value={tsYear} onChange={e => setTsYear(e.target.value)} style={sst}>
+                {years.map(y => <option key={y} value={y}>{y}년도</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>구분</label>
+              <select value={tsTermType} onChange={e => { setTsTermType(e.target.value); setTsTerm('1') }} style={sst}>
+                <option value='quarter'>분기제</option>
+                <option value='semester'>학기제</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>{tsTermLabel}</label>
+              <select value={tsTerm} onChange={e => setTsTerm(e.target.value)}
+                style={{ ...sst, border:'1.5px solid #f97316', background:'#fff7ed' }}>
+                {termOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
           </div>
         )}
       </div>
@@ -421,7 +413,7 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
                 onChange={toggleAll}
                 style={{ width:'16px', height:'16px', accentColor:'#f97316', cursor:'pointer' }} />
               <span style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>
-                수강이력 없는 학생 <span style={{ color:'#f97316' }}>{tsStudents.length}명</span>
+                학생 <span style={{ color:'#f97316' }}>{tsStudents.length}명</span>
               </span>
               {tsChecked.size > 0 && (
                 <span style={{ fontSize:'13px', color:'#f97316', fontWeight:600 }}>{tsChecked.size}명 선택됨</span>
