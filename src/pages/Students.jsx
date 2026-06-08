@@ -409,8 +409,7 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
       </div>
 
       {/* 저장 카드 - 항상 표시 */}
-      {tsClassIdParsed && (
-        <div style={{ background:'#fff', borderRadius:'14px', border:'1.5px solid #f97316', padding:'16px 20px', marginBottom:'16px' }}>
+      <div style={{ background:'#fff', borderRadius:'14px', border:'1.5px solid #f97316', padding:'16px 20px', marginBottom:'16px' }}>
           <div style={{ fontSize:'12px', fontWeight:700, color:'#f97316', marginBottom:'10px', letterSpacing:'0.05em' }}>📌 수강이력 기록</div>
           <div style={{ display:'flex', gap:'8px', alignItems:'flex-end', flexWrap:'wrap' }}>
             <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
@@ -447,7 +446,6 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
             </button>
           </div>
         </div>
-      )}
 
       {/* 학생 목록 */}
       {tsClassIdParsed && (
@@ -690,8 +688,7 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
       </div>
 
       {/* 이월 카드 - 항상 표시 */}
-      {rvClassIdParsed && (
-        <div style={{ background:'#fff', borderRadius:'14px', border:'1.5px solid #f97316', padding:'16px 20px', marginBottom:'16px' }}>
+      <div style={{ background:'#fff', borderRadius:'14px', border:'1.5px solid #f97316', padding:'16px 20px', marginBottom:'16px' }}>
           <div style={{ fontSize:'12px', fontWeight:700, color:'#f97316', marginBottom:'10px', letterSpacing:'0.05em' }}>🔄 이월 설정</div>
           <div style={{ display:'flex', gap:'8px', alignItems:'flex-end', flexWrap:'wrap' }}>
             <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
@@ -728,7 +725,6 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
             </button>
           </div>
         </div>
-      )}
 
       {/* 학생 목록 */}
       {rvClassIdParsed && (
