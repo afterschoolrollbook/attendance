@@ -316,7 +316,11 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
   const tsStudents = tsClassIdParsed
     ? StudentsDB.confirmed(tsClassIdParsed)
         .filter(s => !tsSectionParsed || s.section === tsSectionParsed)
-        .filter(s => (s.activeTerm || '1') === tsTerm)
+        .filter(s => {
+          const careers = s.student_careers || []
+          if (careers.length === 0) return tsTerm === '1'
+          return careers.some(c => String(c.term) === String(tsTerm) && c.termType === tsTermType)
+        })
         .sort((a, b) => {
           const SECTION_ORDER = ['A','B','C','D','E','F']
           const aS = SECTION_ORDER.indexOf((a.section||'').toUpperCase())
