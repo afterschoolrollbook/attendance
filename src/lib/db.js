@@ -201,9 +201,10 @@ export async function loadCacheFromIDB() {
     if (Array.isArray(rows) && rows.length > 0) {
       cache.set(t, rows.filter(r => r._deleted !== true))
       totalRows += rows.length
+      _emit(t)
     }
   }))
-  // IndexedDB가 비어있으면 lastSyncAt 초기화 → 전체 로드
+  // IDB가 비어있으면 lastSyncAt 초기화 → 전체 로드
   if (totalRows === 0) {
     try { localStorage.removeItem('asa_last_sync_at') } catch {}
     console.log('[IDB] 캐시 비어있음 → 전체 로드로 전환')
