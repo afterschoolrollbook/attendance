@@ -547,12 +547,19 @@ export function Classes({ user, onNav }) {
     }
     if (editId && editId !== '__copy__') {
       ClassesDB.update(editId, cleanForm)
-      // 반 이름이 변경된 경우 학생 section 필드도 업데이트
+      // 반 이름이 변경/삭제된 경우 학생 section 필드 업데이트
       const oldSecs = oldSectionsRef.current
       const newSecs = sections
       oldSecs.forEach((oldSec, i) => {
+        if (!oldSec.section) return
         const newSec = newSecs[i]
-        if (oldSec.section && newSec?.section && oldSec.section !== newSec.section) {
+        if (!newSec || !newSec.section) {
+          // 반이 삭제된 경우 → 해당 학생 section 초기화
+          StudentsDB.byClass(editId)
+            .filter(s => s.section === oldSec.section)
+            .forEach(s => StudentsDB.update(s.id, { section: '' }))
+        } else if (oldSec.section !== newSec.section) {
+          // 반 이름이 변경된 경우 → 새 이름으로 업데이트
           StudentsDB.byClass(editId)
             .filter(s => s.section === oldSec.section)
             .forEach(s => StudentsDB.update(s.id, { section: newSec.section }))
@@ -941,7 +948,15 @@ export function Classes({ user, onNav }) {
                     </div>
                     <div style={{ paddingBottom:'2px' }}>
                       {(form.sections||[]).length > 1 && (
-                        <button type="button" onClick={() => set('sections', (form.sections||[]).filter((_,i)=>i!==idx))}
+                        <button type="button" onClick={() => {
+                          const removedSection = (form.sections||[])[idx]?.section
+                          if (editId && editId !== '__copy__' && removedSection) {
+                            StudentsDB.byClass(editId)
+                              .filter(s => s.section === removedSection)
+                              .forEach(s => StudentsDB.update(s.id, { section: '' }))
+                          }
+                          set('sections', (form.sections||[]).filter((_,i)=>i!==idx))
+                        }}
                           style={{ padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #fca5a5', background:'#fff', color:'#ef4444', fontSize:'13px', cursor:'pointer', fontWeight:700 }}>✕</button>
                       )}
                     </div>
