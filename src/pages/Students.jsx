@@ -343,7 +343,7 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
 
   return (
     <div>
-      {/* 설정 패널 - 1행: 수업 선택 */}
+      {/* 설정 패널 */}
       <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', padding:'16px 20px', marginBottom:'16px' }}>
         <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'10px', letterSpacing:'0.05em' }}>📍 텀 설정</div>
 
@@ -413,7 +413,7 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
                 onChange={toggleAll}
                 style={{ width:'16px', height:'16px', accentColor:'#f97316', cursor:'pointer' }} />
               <span style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>
-                학생 <span style={{ color:'#f97316' }}>{tsStudents.length}명</span>
+                수강이력 없는 학생 <span style={{ color:'#f97316' }}>{tsStudents.length}명</span>
               </span>
               {tsChecked.size > 0 && (
                 <span style={{ fontSize:'13px', color:'#f97316', fontWeight:600 }}>{tsChecked.size}명 선택됨</span>
@@ -558,65 +558,65 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
       {/* 수업 선택 */}
       <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', padding:'16px 20px', marginBottom:'16px' }}>
         <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'10px', letterSpacing:'0.05em' }}>📍 이월 설정</div>
-        <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'flex-end' }}>
-          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업 선택</label>
-            <select value={rvClassId} onChange={e => { setRvClassId(e.target.value); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }}
-              style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'220px' }}>
-              <option value=''>-- 수업 선택 --</option>
-              {[...classes].sort((a, b) => {
-                const DAY_ORDER = ['월','화','수','목','금','토','일']
-                const aDay = DAY_ORDER.indexOf((a.days?.[0]) || '')
-                const bDay = DAY_ORDER.indexOf((b.days?.[0]) || '')
-                if (aDay !== bDay) return (aDay === -1 ? 99 : aDay) - (bDay === -1 ? 99 : bDay)
-                return (a.organization || '').localeCompare(b.organization || '', 'ko')
-              }).flatMap(c => {
-                const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
-                const secs = [...(c.sections?.filter(s => s.section) || [])].sort((a, b) =>
-                  (a.section || '').localeCompare(b.section || '', 'ko'))
-                if (secs.length > 1) {
-                  return secs.map(s => (
-                    <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
-                      {dayLabel}{c.organization} {c.className} {s.section}반
-                    </option>
-                  ))
-                }
-                const secLabel = c.section ? ' ' + c.section + '반' : ''
-                return [<option key={c.id} value={c.id}>{dayLabel}{c.organization} {c.className}{secLabel}</option>]
-              })}
-            </select>
-          </div>
-
-          {rvCls && (
-            <>
-              <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-                <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>현재 텀 (이월 전)</label>
-                <select value={rvFromTerm} onChange={e => { setRvFromTerm(e.target.value); setRvChecked(new Set()) }}
-                  style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
-                  <option value=''>전체</option>
-                  {rvPeriods.map((p, i) => (
-                    <option key={i} value={String(i + 1)}>{p.label || `${i+1}${rvTermLabel}`}</option>
-                  ))}
-                  {rvPeriods.length === 0 && <option value='1'>1{rvTermLabel}</option>}
-                </select>
-              </div>
-              <div style={{ display:'flex', alignItems:'center', paddingBottom:'6px', color:'#9ca3af', fontSize:'18px' }}>→</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-                <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>이월할 텀</label>
-                <select value={rvToTerm} onChange={e => setRvToTerm(e.target.value)}
-                  style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #f97316', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff7ed', outline:'none' }}>
-                  <option value=''>-- 선택 --</option>
-                  {rvPeriods.map((p, i) => (
-                    <option key={i} value={String(i + 1)}>{p.label || `${i+1}${rvTermLabel}`}</option>
-                  ))}
-                  {rvPeriods.length === 0 && [2,3,4].map(n => (
-                    <option key={n} value={String(n)}>{n}{rvTermLabel}</option>
-                  ))}
-                </select>
-              </div>
-            </>
-          )}
+        {/* 1행: 수업 선택 */}
+        <div style={{ marginBottom: rvCls ? '12px' : '0' }}>
+          <label style={{ fontSize:'12px', fontWeight:500, color:'#374151', display:'block', marginBottom:'5px' }}>수업 선택</label>
+          <select value={rvClassId} onChange={e => { setRvClassId(e.target.value); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }}
+            style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'220px' }}>
+            <option value=''>-- 수업 선택 --</option>
+            {[...classes].sort((a, b) => {
+              const DAY_ORDER = ['월','화','수','목','금','토','일']
+              const aDay = DAY_ORDER.indexOf((a.days?.[0]) || '')
+              const bDay = DAY_ORDER.indexOf((b.days?.[0]) || '')
+              if (aDay !== bDay) return (aDay === -1 ? 99 : aDay) - (bDay === -1 ? 99 : bDay)
+              return (a.organization || '').localeCompare(b.organization || '', 'ko')
+            }).flatMap(c => {
+              const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
+              const secs = [...(c.sections?.filter(s => s.section) || [])].sort((a, b) =>
+                (a.section || '').localeCompare(b.section || '', 'ko'))
+              if (secs.length > 1) {
+                return secs.map(s => (
+                  <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
+                    {dayLabel}{c.organization} {c.className} {s.section}반
+                  </option>
+                ))
+              }
+              const secLabel = c.section ? ' ' + c.section + '반' : ''
+              return [<option key={c.id} value={c.id}>{dayLabel}{c.organization} {c.className}{secLabel}</option>]
+            })}
+          </select>
         </div>
+
+        {/* 2행: 수업 선택 후에만 현재텀/이월텀 표시 */}
+        {rvCls && (
+          <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'flex-end' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>현재 텀 (이월 전)</label>
+              <select value={rvFromTerm} onChange={e => { setRvFromTerm(e.target.value); setRvChecked(new Set()) }}
+                style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
+                <option value=''>전체</option>
+                {rvPeriods.map((p, i) => (
+                  <option key={i} value={String(i + 1)}>{p.label || `${i+1}${rvTermLabel}`}</option>
+                ))}
+                {rvPeriods.length === 0 && <option value='1'>1{rvTermLabel}</option>}
+              </select>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', paddingBottom:'6px', color:'#9ca3af', fontSize:'18px' }}>→</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>이월할 텀</label>
+              <select value={rvToTerm} onChange={e => setRvToTerm(e.target.value)}
+                style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #f97316', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff7ed', outline:'none' }}>
+                <option value=''>-- 선택 --</option>
+                {rvPeriods.map((p, i) => (
+                  <option key={i} value={String(i + 1)}>{p.label || `${i+1}${rvTermLabel}`}</option>
+                ))}
+                {rvPeriods.length === 0 && [2,3,4].map(n => (
+                  <option key={n} value={String(n)}>{n}{rvTermLabel}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 학생 목록 */}
