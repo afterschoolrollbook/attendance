@@ -143,7 +143,7 @@ function CareerAdder({ careers, onChange, isEdit }) {
     if (dup) return
     const tLabel = termType === 'semester' ? `${term}학기` : `${term}분기`
     const typeLabel = termType === 'semester' ? '학기제' : '분기제'
-    onChange([...careers, { year, termType, term, label: `${year.slice(2)}년도 / ${typeLabel} / ${tLabel}` }])
+    onChange([...careers, { year, termType, term, label: `${year.slice(2)}년도 / ${typeLabel} / ${tLabel}` }]) // label unused, rendered dynamically
   }
 
   const sst = { padding:'7px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }
@@ -261,6 +261,21 @@ function promoteNextWaiting(classId) {
     }],
   })
   return next
+}
+
+// 수강이력 표시: 26년도 / 분기제 / 1분기 → 2분기
+function formatCareers(careers) {
+  if (!careers || careers.length === 0) return null
+  const sorted = [...careers].sort((a, b) => a.year !== b.year ? a.year - b.year : Number(a.term) - Number(b.term))
+  const groups = {}
+  for (const c of sorted) {
+    const typeLabel = c.termType === 'semester' ? '학기제' : '분기제'
+    const termLabel = c.termType === 'semester' ? '학기' : '분기'
+    const key = `${c.year?.slice(2)}년도 / ${typeLabel}`
+    if (!groups[key]) groups[key] = []
+    groups[key].push(`${c.term}${termLabel}`)
+  }
+  return Object.entries(groups).map(([key, terms]) => `${key} / ${terms.join(' / ')}`).join(' | ')
 }
 
 function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
@@ -505,7 +520,7 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
                       <td style={{ padding:'10px 14px', fontSize:'12px', color:'#6b7280' }}>
                         {(() => {
                           const c = (s.student_careers || []).slice().sort((a,b) => a.year !== b.year ? a.year-b.year : Number(a.term)-Number(b.term))
-                          return c.length > 0 ? c.map(x => x.label || `${x.year?.slice(2)}년/${x.term}분기`).join(' → ') : <span style={{ color:'#d1d5db' }}>-</span>
+                          return c.length > 0 ? formatCareers(c) : <span style={{ color:'#d1d5db' }}>-</span>
                         })()}
                       </td>
                     </tr>
@@ -784,7 +799,7 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
                         </span>
                       </td>
                       <td style={{ padding:'10px 14px', fontSize:'12px', color:'#6b7280' }}>
-                        {careers.length > 0 ? careers.map(c => c.label || `${c.year?.slice(2)}년 ${c.term}${rvTermLabel}`).join(' → ') : '-'}
+                        {formatCareers(careers) || '-'}
                       </td>
                     </tr>
                   )
