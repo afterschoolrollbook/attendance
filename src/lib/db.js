@@ -93,11 +93,12 @@ function toSnake(obj) {
 }
 
 // ─── snake_case → camelCase 변환
+const KEEP_SNAKE_FIELDS = new Set(['student_careers'])
 function toCamel(obj) {
   const result = {}
   for (const [k, v] of Object.entries(obj)) {
-    // _deleted, _deleted_at 등 언더스코어로 시작하는 특수 필드는 변환하지 않음
-    const camel = k.startsWith('_') ? k : k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+    // _deleted, _deleted_at 등 언더스코어로 시작하는 특수 필드 및 student_careers는 변환하지 않음
+    const camel = k.startsWith('_') || KEEP_SNAKE_FIELDS.has(k) ? k : k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
     result[camel] = Array.isArray(v)
       ? v.map(item => item !== null && typeof item === 'object' ? toCamel(item) : item)
       : v !== null && typeof v === 'object'
