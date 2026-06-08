@@ -4958,7 +4958,7 @@ export function Attendance({ user, pageParams = {} }) {
               <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} key={selDate+selClassId+rightPanelTick} />
             )
           ) : (
-            <DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} user={user} key={selDate} />
+            <>{console.log('[DEBUG] selDate:',selDate,'selTerm:',selTerm,'selSchool:',selSchool,'activeMode:',activeMode)}{console.log('[DEBUG] allClasses:',allClasses.length,'schoolClasses:',schoolClasses.length)}{console.log('[DEBUG] schoolClasses detail:',schoolClasses.map(c=>c.className+' org:'+c.organization+' startDate:'+c.startDate+' endDate:'+c.endDate+' periods:'+JSON.stringify(c.periods)))}<DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} user={user} key={selDate} /></>
           )}
         </div>
       </div>
