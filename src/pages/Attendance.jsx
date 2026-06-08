@@ -211,15 +211,20 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
               onClick={() => {
                 const payload = { cls, date }
                 onOpenScreen && onOpenScreen(payload)
-                const ch = new BroadcastChannel('progress_screen')
-                ch.postMessage(payload)
-                ch.close()
                 const url = window.location.origin + window.location.pathname + '?progress_screen=1'
                 const existing = window._progressWindow
                 if (existing && !existing.closed) {
                   existing.focus()
+                  const ch = new BroadcastChannel('progress_screen')
+                  ch.postMessage(payload)
+                  ch.close()
                 } else {
                   window._progressWindow = window.open(url, 'progress_screen', 'width=640,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes')
+                  setTimeout(() => {
+                    const ch = new BroadcastChannel('progress_screen')
+                    ch.postMessage(payload)
+                    ch.close()
+                  }, 800)
                 }
               }}
               style={{ fontSize:'11px', fontWeight:700, color:C.primary, background:'#fff7ed', border:`1px solid ${C.primary}`, borderRadius:'8px', padding:'2px 8px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
