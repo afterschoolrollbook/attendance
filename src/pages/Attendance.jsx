@@ -3181,7 +3181,7 @@ function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user
           </div>
           <div style={{ padding:'12px 16px' }}>
             {classes.map(cls => {
-              const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before'].includes(s.status))
+              const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before'].includes(s.status) && isInCurrentTerm(s, cls, date))
               return <UnifiedPanel key={cls.id + date} cls={cls} date={date} students={clsStudents} user={user} allClasses={allClasses} />
             })}
           </div>
@@ -4937,7 +4937,7 @@ export function Attendance({ user, pageParams = {} }) {
               ) : (
                 <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
                   {schoolClasses.map(cls => {
-                    const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before'].includes(s.status))
+                    const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before'].includes(s.status) && isInCurrentTerm(s, cls, selDate))
                     return <UnifiedPanel key={cls.id + selDate + rightPanelTick} cls={cls} date={selDate} students={clsStudents} user={user} allClasses={allClasses} />
                   })}
                 </div>
