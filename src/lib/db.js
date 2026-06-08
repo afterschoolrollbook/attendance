@@ -94,7 +94,8 @@ function toSnake(obj) {
 function toCamel(obj) {
   const result = {}
   for (const [k, v] of Object.entries(obj)) {
-    const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+    // _deleted, _deleted_at 등 언더스코어로 시작하는 특수 필드는 변환하지 않음
+    const camel = k.startsWith('_') ? k : k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
     result[camel] = v !== null && typeof v === 'object' && !Array.isArray(v)
       ? toCamel(v) : v
   }
