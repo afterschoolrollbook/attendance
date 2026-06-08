@@ -383,8 +383,7 @@ export async function initFromSupabase() {
         const { tbl, fromDb } = getConverters(t)
 
         // ── 증분 동기화: 마지막 동기화 이후 변경된 것만 로드
-        // users/students는 항상 전체 로드
-        if (isIncremental && t !== 'students' && t !== 'users') {
+        if (isIncremental) {
           const PAGE = 1000
           let allRows = []
           let from = 0
