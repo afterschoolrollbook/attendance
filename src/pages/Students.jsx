@@ -267,12 +267,17 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: currentYear - 2021 + 1 }, (_, i) => String(2022 + i)).reverse()
 
-  const [tsClassId, setTsClassId] = React.useState('')
+  const [tsSchool, setTsSchool] = React.useState('')
   const [tsYear, setTsYear] = React.useState(String(currentYear))
+  const [tsClassId, setTsClassId] = React.useState('')
   const [tsTermType, setTsTermType] = React.useState('quarter')
   const [tsTerm, setTsTerm] = React.useState('1')
   const [tsChecked, setTsChecked] = React.useState(new Set())
   const [tsDone, setTsDone] = React.useState(false)
+
+  const tsSchools = [...new Set(classes.map(c => c.organization).filter(Boolean))].sort((a,b) => a.localeCompare(b,'ko'))
+  const tsYearClasses = tsSchool ? classes.filter(c => c.organization === tsSchool) : []
+  const tsFilteredClasses = tsYear ? tsYearClasses.filter(c => c.startDate?.slice(0,4) === tsYear) : tsYearClasses
 
   const tsClassIdParsed = tsClassId.includes('::') ? tsClassId.split('::')[0] : tsClassId
   const tsSectionParsed = tsClassId.includes('::') ? tsClassId.split('::')[1] : ''
@@ -343,35 +348,53 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
 
   return (
     <div>
-      {/* 수업 선택 패널 */}
+      {/* 설정 패널: 학교 → 년도 → 분기/학기 */}
       <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', padding:'16px 20px', marginBottom:'16px' }}>
         <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'10px', letterSpacing:'0.05em' }}>📍 텀 설정</div>
-        <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-          <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업 선택</label>
-          <select value={tsClassId} onChange={e => { setTsClassId(e.target.value); setTsChecked(new Set()) }}
-            style={{ ...sst, minWidth:'220px' }}>
-            <option value=''>-- 수업 선택 --</option>
-            {[...classes].sort((a, b) => {
-              const DAY_ORDER = ['월','화','수','목','금','토','일']
-              const aDay = DAY_ORDER.indexOf((a.days?.[0]) || '')
-              const bDay = DAY_ORDER.indexOf((b.days?.[0]) || '')
-              if (aDay !== bDay) return (aDay === -1 ? 99 : aDay) - (bDay === -1 ? 99 : bDay)
-              return (a.organization || '').localeCompare(b.organization || '', 'ko')
-            }).flatMap(c => {
-              const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
-              const secs = [...(c.sections?.filter(s => s.section) || [])].sort((a, b) =>
-                (a.section || '').localeCompare(b.section || '', 'ko'))
-              if (secs.length > 1) {
-                return secs.map(s => (
-                  <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
-                    {dayLabel}{c.organization} {c.className} {s.section}반
-                  </option>
-                ))
-              }
-              const secLabel = c.section ? ' ' + c.section + '반' : ''
-              return [<option key={c.id} value={c.id}>{dayLabel}{c.organization} {c.className}{secLabel}</option>]
-            })}
-          </select>
+        <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'flex-end' }}>
+
+          {/* 1. 학교 선택 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>학교</label>
+            <select value={tsSchool} onChange={e => { setTsSchool(e.target.value); setTsClassId(''); setTsChecked(new Set()) }} style={{ ...sst, minWidth:'160px' }}>
+              <option value=''>-- 학교 선택 --</option>
+              {tsSchools.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* 2. 년도 선택 (학교 선택 후) */}
+          {tsSchool && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
+              <select value={tsYear} onChange={e => { setTsYear(e.target.value); setTsClassId(''); setTsChecked(new Set()) }} style={sst}>
+                <option value=''>-- 년도 선택 --</option>
+                {years.map(y => <option key={y} value={y}>{y}년도</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* 3. 수업 선택 (년도 선택 후) */}
+          {tsSchool && tsYear && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업</label>
+              <select value={tsClassId} onChange={e => { setTsClassId(e.target.value); setTsChecked(new Set()) }} style={{ ...sst, minWidth:'180px' }}>
+                <option value=''>-- 수업 선택 --</option>
+                {tsFilteredClasses.flatMap(c => {
+                  const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
+                  const secs = [...(c.sections?.filter(s => s.section) || [])].sort((a,b) => (a.section||'').localeCompare(b.section||'','ko'))
+                  if (secs.length > 1) {
+                    return secs.map(s => (
+                      <option key={c.id+'::'+s.section} value={c.id+'::'+s.section}>
+                        {dayLabel}{c.className} {s.section}반
+                      </option>
+                    ))
+                  }
+                  const secLabel = c.section ? ' ' + c.section + '반' : ''
+                  return [<option key={c.id} value={c.id}>{dayLabel}{c.className}{secLabel}</option>]
+                })}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -391,9 +414,9 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
                 <span style={{ fontSize:'13px', color:'#f97316', fontWeight:600 }}>{tsChecked.size}명 선택됨</span>
               )}
             </div>
-            {/* 학생 체크 후 년도/구분/분기 + 저장버튼 */}
+            {/* 학생 체크 후 기록할 년도/분기 + 저장버튼 */}
             {tsChecked.size > 0 && (
-              <div style={{ display:'flex', gap:'8px', alignItems:'flex-end', flexWrap:'wrap' }}>
+              <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
                 <select value={tsYear} onChange={e => setTsYear(e.target.value)} style={sst}>
                   {years.map(y => <option key={y} value={y}>{y}년도</option>)}
                 </select>
@@ -467,11 +490,20 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
 }
 
 function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
+  const currentYear = new Date().getFullYear()
+  const years = Array.from({ length: currentYear - 2021 + 1 }, (_, i) => String(2022 + i)).reverse()
+
+  const [rvSchool, setRvSchool] = React.useState('')
+  const [rvYear, setRvYear] = React.useState('')
   const [rvClassId, setRvClassId] = React.useState('')
   const [rvFromTerm, setRvFromTerm] = React.useState('')
   const [rvToTerm, setRvToTerm] = React.useState('')
   const [rvChecked, setRvChecked] = React.useState(new Set())
   const [rvDone, setRvDone] = React.useState(false)
+
+  const rvSchools = [...new Set(classes.map(c => c.organization).filter(Boolean))].sort((a,b) => a.localeCompare(b,'ko'))
+  const rvYearClasses = rvSchool ? classes.filter(c => c.organization === rvSchool) : []
+  const rvFilteredClasses = rvYear ? rvYearClasses.filter(c => c.startDate?.slice(0,4) === rvYear) : rvYearClasses
 
   const rvClassIdParsed = rvClassId.includes('::') ? rvClassId.split('::')[0] : rvClassId
   const rvSectionParsed = rvClassId.includes('::') ? rvClassId.split('::')[1] : ''
@@ -539,42 +571,58 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
 
   return (
     <div>
-      {/* 수업 선택 */}
+      {/* 설정 패널: 학교 → 년도 → 수업 */}
       <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', padding:'16px 20px', marginBottom:'16px' }}>
         <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'10px', letterSpacing:'0.05em' }}>📍 이월 설정</div>
         <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'flex-end' }}>
+
+          {/* 1. 학교 선택 */}
           <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업 선택</label>
-            <select value={rvClassId} onChange={e => { setRvClassId(e.target.value); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }}
-              style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'220px' }}>
-              <option value=''>-- 수업 선택 --</option>
-              {[...classes].sort((a, b) => {
-                const DAY_ORDER = ['월','화','수','목','금','토','일']
-                const aDay = DAY_ORDER.indexOf((a.days?.[0]) || '')
-                const bDay = DAY_ORDER.indexOf((b.days?.[0]) || '')
-                if (aDay !== bDay) return (aDay === -1 ? 99 : aDay) - (bDay === -1 ? 99 : bDay)
-                return (a.organization || '').localeCompare(b.organization || '', 'ko')
-              }).flatMap(c => {
-                const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
-                const secs = [...(c.sections?.filter(s => s.section) || [])].sort((a, b) =>
-                  (a.section || '').localeCompare(b.section || '', 'ko'))
-                if (secs.length > 1) {
-                  return secs.map(s => (
-                    <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
-                      {dayLabel}{c.organization} {c.className} {s.section}반
-                    </option>
-                  ))
-                }
-                const secLabel = c.section ? ' ' + c.section + '반' : ''
-                return [<option key={c.id} value={c.id}>{dayLabel}{c.organization} {c.className}{secLabel}</option>]
-              })}
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>학교</label>
+            <select value={rvSchool} onChange={e => { setRvSchool(e.target.value); setRvYear(''); setRvClassId(''); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'160px' }}>
+              <option value=''>-- 학교 선택 --</option>
+              {rvSchools.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
 
-          {/* 수업 선택 후 현재텀 필터만 표시 */}
+          {/* 2. 년도 선택 */}
+          {rvSchool && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
+              <select value={rvYear} onChange={e => { setRvYear(e.target.value); setRvClassId(''); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
+                <option value=''>-- 년도 선택 --</option>
+                {years.map(y => <option key={y} value={y}>{y}년도</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* 3. 수업 선택 */}
+          {rvSchool && rvYear && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업</label>
+              <select value={rvClassId} onChange={e => { setRvClassId(e.target.value); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'180px' }}>
+                <option value=''>-- 수업 선택 --</option>
+                {rvFilteredClasses.flatMap(c => {
+                  const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
+                  const secs = [...(c.sections?.filter(s => s.section) || [])].sort((a,b) => (a.section||'').localeCompare(b.section||'','ko'))
+                  if (secs.length > 1) {
+                    return secs.map(s => (
+                      <option key={c.id+'::'+s.section} value={c.id+'::'+s.section}>
+                        {dayLabel}{c.className} {s.section}반
+                      </option>
+                    ))
+                  }
+                  const secLabel = c.section ? ' ' + c.section + '반' : ''
+                  return [<option key={c.id} value={c.id}>{dayLabel}{c.className}{secLabel}</option>]
+                })}
+              </select>
+            </div>
+          )}
+
+          {/* 4. 현재 텀 필터 (수업 선택 후) */}
           {rvCls && (
             <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>현재 텀 (이월 전)</label>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>현재 텀</label>
               <select value={rvFromTerm} onChange={e => { setRvFromTerm(e.target.value); setRvChecked(new Set()) }}
                 style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
                 <option value=''>전체</option>
