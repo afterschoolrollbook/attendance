@@ -502,7 +502,12 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
                           ? <span style={{ padding:'3px 10px', borderRadius:'6px', background:'#eff6ff', color:'#2563eb', fontWeight:700, fontSize:'13px' }}>{curTerm}{tsTermLabel}</span>
                           : <span style={{ color:'#d1d5db', fontSize:'13px' }}>-</span>}
                       </td>
-                      <td style={{ padding:'10px 14px', fontSize:'12px', color:'#d1d5db' }}>-</td>
+                      <td style={{ padding:'10px 14px', fontSize:'12px', color:'#6b7280' }}>
+                        {(() => {
+                          const c = (s.student_careers || []).slice().sort((a,b) => a.year !== b.year ? a.year-b.year : Number(a.term)-Number(b.term))
+                          return c.length > 0 ? c.map(x => x.label || `${x.year?.slice(2)}년/${x.term}분기`).join(' → ') : <span style={{ color:'#d1d5db' }}>-</span>
+                        })()}
+                      </td>
                     </tr>
                   )
                 })}
