@@ -137,13 +137,15 @@ function isGarbled(str) {
 
 
 // Google 로그인 훅
+// 전역 플래그 - 컴포넌트 리마운트 시에도 중복 초기화 방지
+let _googleGsiInitialized = false
+
 function useGoogleAuth(onSuccess, clientId) {
   const loginBtnRef    = useRef()
   const registerBtnRef = useRef()
-  const initialized    = useRef(false)
 
   const renderButtons = () => {
-    if (!window.google?.accounts?.id || !initialized.current) return
+    if (!window.google?.accounts?.id || !_googleGsiInitialized) return
     const configs = [
       { ref: loginBtnRef,    text: 'continue_with' },
       { ref: registerBtnRef, text: 'signup_with'   },
@@ -164,8 +166,8 @@ function useGoogleAuth(onSuccess, clientId) {
 
     const initGoogle = () => {
       if (!window.google?.accounts?.id) return
-      if (!initialized.current) {
-        initialized.current = true
+      if (!_googleGsiInitialized) {
+        _googleGsiInitialized = true
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: (res) => {
