@@ -4118,6 +4118,7 @@ function MobileAttendance({ user, pageParams = {} }) {
             if (!cls) return false
           }
         }
+        if (!isInCurrentTerm(s, selClass, selDate)) return false
         return true
       })].sort((a,b) => {
           const g = parseInt(a.grade||0)-parseInt(b.grade||0); if(g) return g
