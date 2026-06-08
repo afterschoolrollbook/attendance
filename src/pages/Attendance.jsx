@@ -58,6 +58,18 @@ function localDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
+// 분기 필터 헬퍼 - 선택 날짜 기준 현재 분기의 학생인지 확인
+function isInCurrentTerm(s, cls, date) {
+  const periods = cls?.periods?.filter(p => p.startDate && p.endDate) || []
+  if (periods.length <= 1) return true
+  const activePeriodIdx = periods.findIndex(p => date >= p.startDate && date <= p.endDate)
+  if (activePeriodIdx < 0) return true
+  const currentTermNum = String(activePeriodIdx + 1)
+  const careers = s.student_careers || []
+  if (careers.length === 0) return true
+  return careers.some(c => String(c.term) === currentTermNum)
+}
+
 
 // ─── 수업 메모장 패널
 function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, spGiven, onProgOpen, onOpenScreen, selSection }) {
@@ -875,7 +887,8 @@ export function ProgressWindow() {
   const students = StudentsDB.byClass(cls.id)
   const activeStudents = students.filter(s =>
     ['applied','selected','confirmed'].includes(s.status) &&
-    (!selSection || s.section === selSection)
+    (!selSection || s.section === selSection) &&
+    isInCurrentTerm(s, cls, date)
   )
 
   const studentProgList = activeStudents.map(s => {
@@ -2990,7 +3003,7 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
   // 반별 그룹핑을 위해 section 기준으로 정렬
   // 현재방식: 학생의 section 필드 / 예전방식: 수업카드의 section
   const activeStudents = allStudents.filter(s =>
-    s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status)
+    s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status) && isInCurrentTerm(s, cls, date)
   )
   const inactiveStudents = allStudents.filter(s =>
     s.classIds?.includes(cls.id) && ['cancelled','waiting'].includes(s.status)
@@ -3274,6 +3287,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
     if (!['applied','selected','confirmed'].includes(s.status)) return false
     const scDate = getScheduleChangeDate(s.id)
     if (scDate && date > scDate) return false
+    if (!isInCurrentTerm(s, cls, date)) return false
     return true
   })
   const scheduleChangedStudents = students.filter(s => {
@@ -4581,19 +4595,20 @@ export function Attendance({ user, pageParams = {} }) {
           }
         }
       }
-      // activeTerm 필터: student_careers 기록 기준으로 해당 분기에 표시
-      // activeTerm 값으로 학생의 careers에 해당 분기 기록이 있으면 표시
+      // activeTerm 필터: 선택된 날짜가 속한 분기의 student_careers가 있는 학생만 표시
       if (selClass) {
         const periods = selClass.periods?.filter(p => p.startDate && p.endDate) || []
         if (periods.length > 1) {
-          const careers = s.student_careers || []
-          const activeTermNum = s.activeTerm ? String(s.activeTerm) : '1'
-          if (careers.length > 0) {
-            // careers에 activeTerm 분기 기록이 있는 학생만 표시
-            const hasCurrent = careers.some(c => String(c.term) === activeTermNum)
-            if (!hasCurrent) return false
+          const dateStr = selDate || new Date().toISOString().slice(0, 10)
+          const activePeriodIdx = periods.findIndex(p => dateStr >= p.startDate && dateStr <= p.endDate)
+          if (activePeriodIdx >= 0) {
+            const currentTermNum = String(activePeriodIdx + 1)
+            const careers = s.student_careers || []
+            if (careers.length > 0) {
+              const hasCurrent = careers.some(c => String(c.term) === currentTermNum)
+              if (!hasCurrent) return false
+            }
           }
-          // careers 없는 학생은 모든 분기에 표시 (이전 데이터 호환)
         }
       }
     } else {
