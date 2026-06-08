@@ -195,12 +195,19 @@ async function idbSetAll(dataMap) {
 // IndexedDB 전체 캐시 로드 → 인메모리 캐시에 반영
 export async function loadCacheFromIDB() {
   const tables = Object.keys(TABLE_MAP)
+  let totalRows = 0
   await Promise.all(tables.map(async (t) => {
     const rows = await idbGet(t)
     if (Array.isArray(rows) && rows.length > 0) {
       cache.set(t, rows.filter(r => r._deleted !== true))
+      totalRows += rows.length
     }
   }))
+  // IndexedDB가 비어있으면 lastSyncAt 초기화 → 전체 로드
+  if (totalRows === 0) {
+    try { localStorage.removeItem('asa_last_sync_at') } catch {}
+    console.log('[IDB] 캐시 비어있음 → 전체 로드로 전환')
+  }
   console.log('[IDB] 캐시 로드 완료')
 }
 
@@ -376,7 +383,8 @@ export async function initFromSupabase() {
         const { tbl, fromDb } = getConverters(t)
 
         // ── 증분 동기화: 마지막 동기화 이후 변경된 것만 로드
-        if (isIncremental) {
+        // users/students는 항상 전체 로드
+        if (isIncremental && t !== 'students' && t !== 'users') {
           const PAGE = 1000
           let allRows = []
           let from = 0
