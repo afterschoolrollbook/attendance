@@ -729,22 +729,42 @@ export function Auth({ onLogin }) {
   }
 
   // 소셜 로그인 콜백
-  const handleSocialSuccess = (profile) => {
+  const handleSocialSuccess = async (profile) => {
     const email = profile.email?.toLowerCase() || ''
+    let existing = null
 
-    // 1) providerId로 먼저 찾기 (네이버/카카오/구글 모두 동일)
-    let existing = profile.providerId ? findByProviderId(profile.provider, profile.providerId) : null
-
-    // 2) 못 찾으면 이메일로도 찾기
-    if (!existing && email && !isFakeEmail(email)) {
-      existing = Users.findByEmail(email)
+    // Supabase에서 직접 조회
+    if (supabase) {
+      try {
+        const toCamel = (obj) => {
+          if (!obj) return null
+          const result = {}
+          for (const [k, v] of Object.entries(obj)) {
+            const camel = k.startsWith('_') ? k : k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+            result[camel] = Array.isArray(v) ? v : (v !== null && typeof v === 'object' ? toCamel(v) : v)
+          }
+          return result
+        }
+        // providerId로 찾기
+        if (profile.providerId) {
+          const { data } = await supabase.from('users').select('*').eq('provider_id', String(profile.providerId)).maybeSingle()
+          if (data) existing = toCamel(data)
+        }
+        // 이메일로 찾기
+        if (!existing && email && !isFakeEmail(email)) {
+          const { data } = await supabase.from('users').select('*').eq('email', email).maybeSingle()
+          if (data) existing = toCamel(data)
+        }
+      } catch (e) {
+        console.warn('[Auth] Supabase 직접 조회 실패:', e.message)
+      }
     }
 
     if (existing) {
       // providerId 없거나 undefined면 자동 업데이트 (다음 로그인부터 providerId로 찾음)
       if (profile.providerId && (!existing.providerId || existing.providerId === 'undefined')) {
         Users.update(existing.id, { providerId: profile.providerId, provider: profile.provider })
-        existing = Users.find(existing.id)
+        existing = Users.find(existing.id) || existing
       }
       // 이름/전화번호 없으면 프로필 입력
       if (isGarbled(existing.name) || !existing.phone) {
