@@ -263,6 +263,229 @@ function promoteNextWaiting(classId) {
   return next
 }
 
+function TermSetTab({ classes, toastError, showToast, refresh }) {
+  const currentYear = new Date().getFullYear()
+  const years = Array.from({ length: currentYear - 2021 }, (_, i) => String(2022 + i)).reverse()
+
+  const [tsClassId, setTsClassId] = React.useState('')
+  const [tsYear, setTsYear] = React.useState(String(currentYear))
+  const [tsTermType, setTsTermType] = React.useState('quarter')
+  const [tsTerm, setTsTerm] = React.useState('1')
+  const [tsChecked, setTsChecked] = React.useState(new Set())
+  const [tsDone, setTsDone] = React.useState(false)
+
+  const tsClassIdParsed = tsClassId.includes('::') ? tsClassId.split('::')[0] : tsClassId
+  const tsSectionParsed = tsClassId.includes('::') ? tsClassId.split('::')[1] : ''
+  const tsCls = classes.find(c => c.id === tsClassIdParsed)
+  const tsTermLabel = tsTermType === 'semester' ? '학기' : '분기'
+
+  const tsStudents = tsClassIdParsed
+    ? StudentsDB.confirmed(tsClassIdParsed)
+        .filter(s => !tsSectionParsed || s.section === tsSectionParsed)
+        .sort((a, b) => {
+          const SECTION_ORDER = ['A','B','C','D','E','F']
+          const aS = SECTION_ORDER.indexOf((a.section||'').toUpperCase())
+          const bS = SECTION_ORDER.indexOf((b.section||'').toUpperCase())
+          if (aS !== bS) return (aS === -1 ? 99 : aS) - (bS === -1 ? 99 : bS)
+          const aG = parseInt(a.grade) || 99, bG = parseInt(b.grade) || 99
+          if (aG !== bG) return aG - bG
+          return (a.name || '').localeCompare(b.name || '', 'ko')
+        })
+    : []
+
+  const semOpts = [{ value:'1', label:'1학기' }, { value:'2', label:'2학기' }]
+  const qtrOpts = [{ value:'1', label:'1분기' }, { value:'2', label:'2분기' }, { value:'3', label:'3분기' }, { value:'4', label:'4분기' }]
+  const termOpts = tsTermType === 'semester' ? semOpts : qtrOpts
+
+  const toggleAll = () => {
+    if (tsChecked.size === tsStudents.length) setTsChecked(new Set())
+    else setTsChecked(new Set(tsStudents.map(s => s.id)))
+  }
+
+  const doTermSet = async () => {
+    if (!tsYear) { toastError('년도를 선택하세요.'); return }
+    if (!tsTerm) { toastError('분기/학기를 선택하세요.'); return }
+    if (tsChecked.size === 0) { toastError('학생을 선택하세요.'); return }
+    const tLabel = tsTermType === 'semester' ? `${tsTerm}학기` : `${tsTerm}분기`
+    const typeLabel = tsTermType === 'semester' ? '학기제' : '분기제'
+    const newCareer = {
+      year: tsYear,
+      termType: tsTermType,
+      term: tsTerm,
+      label: `${tsYear.slice(2)}년도 / ${typeLabel} / ${tLabel}`,
+    }
+    for (const s of tsStudents) {
+      if (!tsChecked.has(s.id)) continue
+      const existingCareers = s.student_careers || []
+      const alreadyHas = existingCareers.some(c => c.year === tsYear && c.term === tsTerm && c.termType === tsTermType)
+      await StudentsDB.update(s.id, {
+        activeTerm: tsTerm,
+        student_careers: alreadyHas ? existingCareers : [...existingCareers, newCareer],
+        statusHistory: [...(s.statusHistory || []), {
+          status: 'term_set',
+          changedAt: now(),
+          memo: `[텀 설정] ${tsYear}년도 ${typeLabel} ${tLabel}`,
+        }],
+      })
+    }
+    showToast(`✅ ${tsChecked.size}명에게 ${tsYear.slice(2)}년 ${tLabel} 수강이력이 등록되었습니다.`)
+    setTsChecked(new Set())
+    setTsDone(true)
+    refresh && refresh()
+    setTimeout(() => setTsDone(false), 3000)
+  }
+
+  const sst = { padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }
+
+  return (
+    <div>
+      {/* 설정 패널 */}
+      <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', padding:'16px 20px', marginBottom:'16px' }}>
+        <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'10px', letterSpacing:'0.05em' }}>📍 텀 설정</div>
+        <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'flex-end' }}>
+          {/* 수업 선택 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업 선택</label>
+            <select value={tsClassId} onChange={e => { setTsClassId(e.target.value); setTsChecked(new Set()) }}
+              style={{ ...sst, minWidth:'220px' }}>
+              <option value=''>-- 수업 선택 --</option>
+              {[...classes].sort((a, b) => {
+                const DAY_ORDER = ['월','화','수','목','금','토','일']
+                const aDay = DAY_ORDER.indexOf((a.days?.[0]) || '')
+                const bDay = DAY_ORDER.indexOf((b.days?.[0]) || '')
+                if (aDay !== bDay) return (aDay === -1 ? 99 : aDay) - (bDay === -1 ? 99 : bDay)
+                return (a.organization || '').localeCompare(b.organization || '', 'ko')
+              }).flatMap(c => {
+                const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
+                const secs = [...(c.sections?.filter(s => s.section) || [])].sort((a, b) =>
+                  (a.section || '').localeCompare(b.section || '', 'ko'))
+                if (secs.length > 1) {
+                  return secs.map(s => (
+                    <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
+                      {dayLabel}{c.organization} {c.className} {s.section}반
+                    </option>
+                  ))
+                }
+                const secLabel = c.section ? ' ' + c.section + '반' : ''
+                return [<option key={c.id} value={c.id}>{dayLabel}{c.organization} {c.className}{secLabel}</option>]
+              })}
+            </select>
+          </div>
+
+          {/* 년도 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
+            <select value={tsYear} onChange={e => setTsYear(e.target.value)} style={sst}>
+              {years.map(y => <option key={y} value={y}>{y}년도</option>)}
+            </select>
+          </div>
+
+          {/* 학기/분기 타입 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>구분</label>
+            <select value={tsTermType} onChange={e => { setTsTermType(e.target.value); setTsTerm('1') }} style={sst}>
+              <option value='quarter'>분기제</option>
+              <option value='semester'>학기제</option>
+            </select>
+          </div>
+
+          {/* 분기/학기 번호 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>{tsTermLabel}</label>
+            <select value={tsTerm} onChange={e => setTsTerm(e.target.value)}
+              style={{ ...sst, border:'1.5px solid #f97316', background:'#fff7ed' }}>
+              {termOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* 선택 미리보기 */}
+        {tsYear && tsTerm && (
+          <div style={{ marginTop:'12px', padding:'8px 14px', borderRadius:'8px', background:'#f0fdf4', border:'1px solid #86efac', fontSize:'12px', color:'#15803d', fontWeight:600, display:'inline-flex', alignItems:'center', gap:'6px' }}>
+            📌 기록될 텀: <span style={{ color:'#166534' }}>{tsYear}년도 / {tsTermType === 'semester' ? '학기제' : '분기제'} / {tsTerm}{tsTermLabel}</span>
+          </div>
+        )}
+      </div>
+
+      {/* 학생 목록 */}
+      {tsClassIdParsed && (
+        <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', overflow:'hidden' }}>
+          <div style={{ padding:'14px 20px', borderBottom:'1px solid #f3f4f6', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+              <input type='checkbox'
+                checked={tsStudents.length > 0 && tsChecked.size === tsStudents.length}
+                onChange={toggleAll}
+                style={{ width:'16px', height:'16px', accentColor:'#f97316', cursor:'pointer' }} />
+              <span style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>
+                수강이력 없는 학생 <span style={{ color:'#f97316' }}>{tsStudents.length}명</span>
+              </span>
+              {tsChecked.size > 0 && (
+                <span style={{ fontSize:'13px', color:'#f97316', fontWeight:600 }}>{tsChecked.size}명 선택됨</span>
+              )}
+            </div>
+            <button onClick={doTermSet}
+              disabled={tsChecked.size === 0}
+              style={{
+                padding:'8px 20px', borderRadius:'9px', border:'none',
+                cursor: tsChecked.size > 0 ? 'pointer' : 'not-allowed',
+                background: tsChecked.size > 0 ? '#f97316' : '#e5e7eb',
+                color: tsChecked.size > 0 ? '#fff' : '#9ca3af',
+                fontSize:'13px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif',
+                transition:'all .15s',
+              }}>
+              📌 텀 기록하기
+            </button>
+          </div>
+
+          {tsStudents.length === 0 ? (
+            <div style={{ padding:'40px', textAlign:'center', color:'#9ca3af', fontSize:'14px' }}>
+              {tsClassIdParsed ? '수강이력이 없는 학생이 없습니다 🎉' : '수업을 먼저 선택해주세요'}
+            </div>
+          ) : (
+            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <thead>
+                <tr style={{ background:'#f9fafb' }}>
+                  {['', '반', '학년/반/번호', '이름', '현재 텀', '수강 이력'].map(h => (
+                    <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', borderBottom:'1px solid #f3f4f6' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tsStudents.map((s, i) => {
+                  const curTerm = s.activeTerm || '-'
+                  return (
+                    <tr key={s.id} style={{ borderBottom:'1px solid #f3f4f6', background: tsChecked.has(s.id) ? '#fff7ed' : i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      <td style={{ padding:'10px 14px' }}>
+                        <input type='checkbox'
+                          checked={tsChecked.has(s.id)}
+                          onChange={() => setTsChecked(prev => { const n = new Set(prev); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n })}
+                          style={{ width:'16px', height:'16px', accentColor:'#f97316', cursor:'pointer' }} />
+                      </td>
+                      <td style={{ padding:'10px 14px', fontSize:'13px', color:'#374151' }}>
+                        {s.section ? <span style={{ padding:'2px 8px', borderRadius:'5px', background:'#fff7ed', color:'#f97316', fontWeight:700, fontSize:'12px' }}>{s.section}반</span> : '-'}
+                      </td>
+                      <td style={{ padding:'10px 14px', fontSize:'13px', color:'#374151' }}>
+                        {s.grade || '-'}학년 {s.classNum || '-'}반 {s.number || '-'}번
+                      </td>
+                      <td style={{ padding:'10px 14px', fontSize:'14px', fontWeight:700, color:'#111827' }}>{s.name}</td>
+                      <td style={{ padding:'10px 14px' }}>
+                        {curTerm !== '-'
+                          ? <span style={{ padding:'3px 10px', borderRadius:'6px', background:'#eff6ff', color:'#2563eb', fontWeight:700, fontSize:'13px' }}>{curTerm}{tsTermLabel}</span>
+                          : <span style={{ color:'#d1d5db', fontSize:'13px' }}>-</span>}
+                      </td>
+                      <td style={{ padding:'10px 14px', fontSize:'12px', color:'#d1d5db' }}>-</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function RolloverTab({ classes, toastError, showToast, refresh }) {
   const [rvClassId, setRvClassId] = React.useState('')
   const [rvFromTerm, setRvFromTerm] = React.useState('')
@@ -1284,6 +1507,7 @@ export function Students({ user, onNav }) {
           { key: 'manage',   label: '📋 학생 관리' },
           { key: 'register', label: '➕ 학생 등록' },
           { key: 'rollover', label: '🔄 텀 이월관리' },
+          { key: 'termset',  label: '📌 텀 설정' },
         ].map(t => (
           <button key={t.key} onClick={() => setMainTab(t.key)} style={{
             padding: '10px 20px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer',
@@ -1745,6 +1969,16 @@ export function Students({ user, onNav }) {
       {/* ── 탭3: 다음 텀 이월 */}
       {mainTab === 'rollover' && (
         <RolloverTab
+          classes={classes}
+          toastError={toastError}
+          showToast={showToast}
+          refresh={refresh}
+        />
+      )}
+
+      {/* ── 탭4: 텀 설정 */}
+      {mainTab === 'termset' && (
+        <TermSetTab
           classes={classes}
           toastError={toastError}
           showToast={showToast}
