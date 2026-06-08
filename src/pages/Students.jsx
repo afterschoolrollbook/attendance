@@ -286,6 +286,10 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
     const bi = DAY_ORDER_TS.findIndex(d => (tsSchoolDayMap[b]||new Set()).has(d))
     return (ai===-1?99:ai) - (bi===-1?99:bi) || a.localeCompare(b,'ko')
   })
+  const getTsSchoolDayLabel = (s) => {
+    const days = DAY_ORDER_TS.filter(d => (tsSchoolDayMap[s]||new Set()).has(d))
+    return days.length ? `(${days.join('·')}) ` : ''
+  }
   const tsYearClasses = tsSchool ? classes.filter(c => c.organization === tsSchool) : []
   const tsFilteredClasses = tsYear ? tsYearClasses.filter(c => c.startDate?.slice(0,4) === tsYear) : tsYearClasses
 
@@ -368,7 +372,7 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
             <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>학교</label>
             <select value={tsSchool} onChange={e => { setTsSchool(e.target.value); setTsClassId(''); setTsChecked(new Set()) }} style={{ ...sst, minWidth:'160px' }}>
               <option value=''>-- 학교 선택 --</option>
-              {tsSchools.map(s => <option key={s} value={s}>{s}</option>)}
+              {tsSchools.map(s => <option key={s} value={s}>{getTsSchoolDayLabel(s)}{s}</option>)}
             </select>
           </div>
 
@@ -518,6 +522,10 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
     const bi = DAY_ORDER_RV.findIndex(d => (rvSchoolDayMap[b]||new Set()).has(d))
     return (ai===-1?99:ai) - (bi===-1?99:bi) || a.localeCompare(b,'ko')
   })
+  const getRvSchoolDayLabel = (s) => {
+    const days = DAY_ORDER_RV.filter(d => (rvSchoolDayMap[s]||new Set()).has(d))
+    return days.length ? `(${days.join('·')}) ` : ''
+  }
   const rvYearClasses = rvSchool ? classes.filter(c => c.organization === rvSchool) : []
   const rvFilteredClasses = rvYear ? rvYearClasses.filter(c => c.startDate?.slice(0,4) === rvYear) : rvYearClasses
 
@@ -556,25 +564,38 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
     if (!rvToTerm) { toastError('이월할 텀을 선택하세요.'); return }
     if (rvChecked.size === 0) { toastError('이월할 학생을 선택하세요.'); return }
     const toTermNum = rvToTerm
-    const toLabel = rvCls?.termType === 'semester' ? `${toTermNum}학기` : `${toTermNum}분기`
+    const fromTermNum = rvFromTerm || '1'
+    const termType = rvCls?.termType || 'quarter'
+    const typeLabel = termType === 'semester' ? '학기제' : '분기제'
+    const termLabel = termType === 'semester' ? '학기' : '분기'
     const toYear = new Date().getFullYear().toString()
-    const newCareer = {
+
+    const makeCareer = (termNum) => ({
       year: toYear,
-      termType: rvCls?.termType || 'semester',
-      term: toTermNum,
-      label: `${toYear.slice(2)}년도 / ${rvCls?.termType === 'semester' ? '학기제' : '분기제'} / ${toLabel}`,
-    }
+      termType,
+      term: termNum,
+      label: `${toYear.slice(2)}년도 / ${typeLabel} / ${termNum}${termLabel}`,
+    })
+
     for (const s of rvStudents) {
       if (!rvChecked.has(s.id)) continue
-      const existingCareers = s.student_careers || []
-      const alreadyHas = existingCareers.some(c => c.year === newCareer.year && c.term === newCareer.term && c.termType === newCareer.termType)
+      let careers = [...(s.student_careers || [])]
+
+      // fromTerm 기록 없으면 먼저 추가
+      const hasFrom = careers.some(c => c.year === toYear && c.term === fromTermNum && c.termType === termType)
+      if (!hasFrom) careers = [...careers, makeCareer(fromTermNum)]
+
+      // toTerm 기록 없으면 추가
+      const hasTo = careers.some(c => c.year === toYear && c.term === toTermNum && c.termType === termType)
+      if (!hasTo) careers = [...careers, makeCareer(toTermNum)]
+
       await StudentsDB.update(s.id, {
         activeTerm: toTermNum,
-        student_careers: alreadyHas ? existingCareers : [...existingCareers, newCareer],
+        student_careers: careers,
         statusHistory: [...(s.statusHistory || []), {
           status: 'rollover',
           changedAt: now(),
-          memo: `[텀 이월] ${rvFromTerm || '1'}${rvTermLabel} → ${toTermNum}${rvTermLabel}`,
+          memo: `[텀 이월] ${fromTermNum}${termLabel} → ${toTermNum}${termLabel}`,
         }],
       })
     }
@@ -597,7 +618,7 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
             <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>학교</label>
             <select value={rvSchool} onChange={e => { setRvSchool(e.target.value); setRvYear(''); setRvClassId(''); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'160px' }}>
               <option value=''>-- 학교 선택 --</option>
-              {rvSchools.map(s => <option key={s} value={s}>{s}</option>)}
+              {rvSchools.map(s => <option key={s} value={s}>{getRvSchoolDayLabel(s)}{s}</option>)}
             </select>
           </div>
 
