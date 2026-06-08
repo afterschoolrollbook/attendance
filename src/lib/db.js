@@ -519,6 +519,7 @@ export const db = {
     rows.push(r)
     cache.set(t, rows)
     _emit(t)
+    idbSet(t, rows) // IndexedDB 즉시 반영 (새로고침 후에도 유지)
     try {
       await syncInsert(t, r)
     } catch (e) {
@@ -533,6 +534,7 @@ export const db = {
     const rows = cache.get(t).map(r => r.id === id ? { ...r, ...updated } : r)
     cache.set(t, rows)
     _emit(t)
+    idbSet(t, rows) // IndexedDB 즉시 반영 (새로고침 후에도 유지)
     try {
       await syncUpdate(t, id, updated)
     } catch (e) {
@@ -548,6 +550,7 @@ export const db = {
     )
     cache.set(t, rows)
     _emit(t)
+    idbSet(t, rows) // IndexedDB 즉시 반영 (새로고침 후 삭제 유지)
     try {
       await syncDelete(t, id)
     } catch (e) {
