@@ -84,10 +84,8 @@ function toSnake(obj) {
   const result = {}
   for (const [k, v] of Object.entries(obj)) {
     const snake = k.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
-    result[snake] = Array.isArray(v)
-      ? v.map(item => item !== null && typeof item === 'object' ? toSnake(item) : item)
-      : v !== null && typeof v === 'object'
-        ? toSnake(v) : v
+    result[snake] = v !== null && typeof v === 'object' && !Array.isArray(v)
+      ? toSnake(v) : v
   }
   return result
 }
@@ -98,10 +96,8 @@ function toCamel(obj) {
   for (const [k, v] of Object.entries(obj)) {
     // _deleted, _deleted_at 등 언더스코어로 시작하는 특수 필드는 변환하지 않음
     const camel = k.startsWith('_') ? k : k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
-    result[camel] = Array.isArray(v)
-      ? v.map(item => item !== null && typeof item === 'object' ? toCamel(item) : item)
-      : v !== null && typeof v === 'object'
-        ? toCamel(v) : v
+    result[camel] = v !== null && typeof v === 'object' && !Array.isArray(v)
+      ? toCamel(v) : v
   }
   return result
 }
@@ -541,9 +537,11 @@ export const db = {
     _emit(t)
     idbSet(t, rows.filter(r => r._deleted !== true)) // IndexedDB 즉시 반영 (_deleted 제외)
     try {
+      console.log(`[DB] update/${t} id=${id} patch=`, JSON.stringify(patch))
       await syncUpdate(t, id, updated)
+      console.log(`[DB] update/${t} 성공`)
     } catch (e) {
-      console.warn(`[DB] update/${t} 실패:`, e.message)
+      console.error(`[DB] update/${t} 실패:`, e.message, e)
       throw e
     }
     return rows.find(r => r.id === id)
