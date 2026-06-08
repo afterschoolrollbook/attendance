@@ -401,6 +401,7 @@ export async function initFromSupabase() {
             else merged.push(row)             // 신규
           }
           cache.set(t, merged.filter(r => r._deleted !== true))
+          _emit(t)  // UI 리렌더링 트리거 (삭제/변경사항 반영)
           console.log(`[Supabase] ${t}: ${allRows.length}건 변경 반영`)
           return
         }
