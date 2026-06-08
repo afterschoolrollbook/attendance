@@ -336,12 +336,20 @@ function useNaverAuth(onSuccess, clientId) {
       if (e.origin !== window.location.origin) return
       if (e.data?.type !== 'naver_login_success' && e.data?.type !== 'naver_login_fail') return
       window.removeEventListener('message', handleMessage)
+      clearInterval(popupCheck)
       if (e.data.type === 'naver_login_fail') { toastError('네이버 로그인에 실패했습니다.'); return }
       if (e.data.session && supabase) { await supabase.auth.setSession(e.data.session) }
       await initFromSupabase()
       onSuccess({ provider: 'naver', email: e.data.email || '', name: e.data.name || '', avatar: e.data.avatar || '', providerId: String(e.data.id) })
     }
     window.addEventListener('message', handleMessage)
+
+    const popupCheck = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(popupCheck)
+        window.removeEventListener('message', handleMessage)
+      }
+    }, 500)
   }
 
   return loginWithNaver
