@@ -4448,6 +4448,9 @@ export function Attendance({ user, pageParams = {} }) {
     const nextY = String(Number(selYear) + 1)
     const from = selTerm === 's2' ? y + r[0] : selYear + r[0]
     const to   = selTerm === 's2' ? nextY + r[1] : selYear + r[1]
+    if (cls.periods?.length > 0) {
+      return cls.periods.some(p => p.startDate && p.endDate && p.startDate <= to && p.endDate >= from)
+    }
     return (cls.startDate || '') <= to && (cls.endDate || '') >= from
   }
 
