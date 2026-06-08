@@ -4564,14 +4564,15 @@ export function Attendance({ user, pageParams = {} }) {
           }
         }
       }
-      // activeTerm 필터: selClass가 있고 학생에 activeTerm이 있으면 현재 기간에 맞는 학생만 표시
+      // activeTerm 필터: 이월 기능을 사용한 학생(activeTerm 있음)만 현재 텀과 비교
+      // activeTerm이 없는 기존 학생은 필터 없이 항상 표시
       if (selClass && s.activeTerm) {
-        // 현재 날짜가 속한 기간 인덱스 계산
         const todayStr = new Date().toISOString().slice(0,10)
         const periods = selClass.periods?.filter(p => p.startDate && p.endDate) || []
         if (periods.length > 0) {
           const activePeriodIdx = periods.findIndex(p => todayStr >= p.startDate && todayStr <= p.endDate)
           const currentTermNum = activePeriodIdx >= 0 ? String(activePeriodIdx + 1) : null
+          // 현재 진행중인 텀과 학생의 activeTerm이 다르면 제외
           if (currentTermNum && s.activeTerm !== currentTermNum) return false
         }
       }

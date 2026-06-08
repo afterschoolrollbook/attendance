@@ -835,10 +835,15 @@ export function Classes({ user, onNav }) {
 
                     <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>{cls.organization}</div>
 
-                    {/* 분기 전체 목록 */}
+                    {/* 분기 전체 목록 — 각 분기 오른쪽에 해당 분기 학생 수 표시 */}
                     {(cls.periods||[]).filter(p => p.startDate && p.endDate).map((p, i) => {
                       const isActive = t >= p.startDate && t <= p.endDate
                       const pSessions = calcSessionDates({ ...cls, periods: [p] }).length
+                      const termNum = String(i + 1)
+                      // 해당 분기 학생 수: activeTerm === termNum 이거나 activeTerm 없는 학생(1분기 기본)
+                      const pStudents = StudentsDB.confirmed(cls.id).filter(st =>
+                        st.activeTerm === termNum || (!st.activeTerm && i === 0)
+                      )
                       return (
                         <div key={i} style={{ fontSize:'12px', display:'flex', alignItems:'center', gap:'6px', marginBottom:'3px',
                           padding: isActive ? '2px 6px' : '0',
@@ -850,19 +855,20 @@ export function Classes({ user, onNav }) {
                           <span style={{ color:'#9ca3af' }}>{p.startDate?.slice(5)} ~ {p.endDate?.slice(5)}</span>
                           <span style={{ color:'#6b7280', fontWeight:600 }}>({pSessions}차시)</span>
                           {isActive && <span style={{ padding:'1px 5px', borderRadius:'4px', background:'#16a34a', color:'#fff', fontSize:'10px', fontWeight:700 }}>진행중</span>}
+                          {/* 반별 학생 수 */}
+                          {secs.length > 1 ? secs.map((s, si) => {
+                            const LABELS = ['A','B','C','D','E','F']
+                            const secLabel = s.section || LABELS[si] || String(si+1)
+                            const cnt = pStudents.filter(st => st.section === s.section || (!st.section && si === 0)).length
+                            return <span key={si} style={{ padding:'1px 6px', borderRadius:'4px', background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:600 }}>{secLabel}반 {cnt}명</span>
+                          }) : (
+                            <span style={{ padding:'1px 6px', borderRadius:'4px', background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:600 }}>학생 {pStudents.length}명</span>
+                          )}
                         </div>
                       )
                     })}
 
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px', marginTop:'8px' }}>
-                      {secs.length > 1 ? secs.map((s,i) => {
-                        const LABELS = ['A','B','C','D','E','F']
-                        const secLabel = s.section || LABELS[i] || String(i+1)
-                        const secStudents = StudentsDB.confirmed(cls.id).filter(st => st.section === s.section || (!st.section && i === 0))
-                        return <Tag key={i} color="#3b82f6" bg="#eff6ff">{secLabel}반 {secStudents.length}명</Tag>
-                      }) : (
-                        <Tag color="#3b82f6" bg="#eff6ff">학생 {studentCount}명</Tag>
-                      )}
                       {upcoming && <Tag color="#f59e0b" bg="#fffbeb">다음 {upcoming.slice(5)}</Tag>}
                       {hasTpl && <Tag color="#8b5cf6" bg="#f5f3ff">양식 ✓</Tag>}
                       {cls.alarm?.enabled && <Tag color="#3b82f6" bg="#eff6ff">🔔 시작 {cls.alarm.minutesBefore}분전</Tag>}
