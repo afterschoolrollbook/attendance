@@ -290,6 +290,11 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
   const [tsChecked, setTsChecked] = React.useState(new Set())
   const [tsDone, setTsDone] = React.useState(false)
 
+  // 수강이력 기록 카드 전용 state (팀 설정과 독립)
+  const [recYear, setRecYear] = React.useState(String(new Date().getFullYear()))
+  const [recTermType, setRecTermType] = React.useState('quarter')
+  const [recTerm, setRecTerm] = React.useState('1')
+
   const DAY_ORDER_TS = ['월','화','수','목','금','토','일']
   const tsSchoolDayMap = {}
   classes.forEach(c => {
@@ -345,33 +350,38 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
     else setTsChecked(new Set(tsStudents.map(s => s.id)))
   }
 
+  const recTermOpts = recTermType === 'semester'
+    ? [{ value:'1', label:'1학기' }, { value:'2', label:'2학기' }]
+    : [{ value:'1', label:'1분기' }, { value:'2', label:'2분기' }, { value:'3', label:'3분기' }, { value:'4', label:'4분기' }]
+  const recTermLabel = recTermType === 'semester' ? '학기' : '분기'
+
   const doTermSet = async () => {
-    if (!tsYear) { toastError('년도를 선택하세요.'); return }
-    if (!tsTerm) { toastError('분기/학기를 선택하세요.'); return }
+    if (!recYear) { toastError('년도를 선택하세요.'); return }
+    if (!recTerm) { toastError('분기/학기를 선택하세요.'); return }
     if (tsChecked.size === 0) { toastError('학생을 선택하세요.'); return }
-    const tLabel = tsTermType === 'semester' ? `${tsTerm}학기` : `${tsTerm}분기`
-    const typeLabel = tsTermType === 'semester' ? '학기제' : '분기제'
+    const tLabel = recTermType === 'semester' ? `${recTerm}학기` : `${recTerm}분기`
+    const typeLabel = recTermType === 'semester' ? '학기제' : '분기제'
     const newCareer = {
-      year: tsYear,
-      termType: tsTermType,
-      term: tsTerm,
-      label: `${tsYear.slice(2)}년도 / ${typeLabel} / ${tLabel}`,
+      year: recYear,
+      termType: recTermType,
+      term: recTerm,
+      label: `${recYear.slice(2)}년도 / ${typeLabel} / ${tLabel}`,
     }
     for (const s of tsStudents) {
       if (!tsChecked.has(s.id)) continue
       const existingCareers = s.student_careers || []
-      const alreadyHas = existingCareers.some(c => c.year === tsYear && c.term === tsTerm && c.termType === tsTermType)
+      const alreadyHas = existingCareers.some(c => c.year === recYear && c.term === recTerm && c.termType === recTermType)
       await StudentsDB.update(s.id, {
-        activeTerm: tsTerm,
+        activeTerm: recTerm,
         student_careers: alreadyHas ? existingCareers : [...existingCareers, newCareer],
         statusHistory: [...(s.statusHistory || []), {
           status: 'term_set',
           changedAt: now(),
-          memo: `[텀 설정] ${tsYear}년도 ${typeLabel} ${tLabel}`,
+          memo: `[텀 설정] ${recYear}년도 ${typeLabel} ${tLabel}`,
         }],
       })
     }
-    showToast(`✅ ${tsChecked.size}명에게 ${tsYear.slice(2)}년 ${tLabel} 수강이력이 등록되었습니다.`)
+    showToast(`✅ ${tsChecked.size}명에게 ${recYear.slice(2)}년 ${tLabel} 수강이력이 등록되었습니다.`)
     setTsChecked(new Set())
     setTsDone(true)
     refresh && refresh()
@@ -449,32 +459,32 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
           <div style={{ display:'flex', gap:'8px', alignItems:'flex-end', flexWrap:'wrap' }}>
             <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
               <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
-              <select value={tsYear} onChange={e => setTsYear(e.target.value)} style={sst}>
+              <select value={recYear} onChange={e => setRecYear(e.target.value)} style={sst}>
                 <option value=''>-- 선택 --</option>
                 {years.map(y => <option key={y} value={y}>{y}년도</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
               <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>구분</label>
-              <select value={tsTermType} onChange={e => { setTsTermType(e.target.value); setTsTerm('1') }} style={sst}>
+              <select value={recTermType} onChange={e => { setRecTermType(e.target.value); setRecTerm('1') }} style={sst}>
                 <option value='quarter'>분기제</option>
                 <option value='semester'>학기제</option>
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>{tsTermLabel}</label>
-              <select value={tsTerm} onChange={e => setTsTerm(e.target.value)}
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>{recTermLabel}</label>
+              <select value={recTerm} onChange={e => setRecTerm(e.target.value)}
                 style={{ ...sst, border:'1.5px solid #f97316', background:'#fff7ed' }}>
-                {termOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {recTermOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <button onClick={doTermSet}
-              disabled={tsChecked.size === 0 || !tsYear}
+              disabled={tsChecked.size === 0 || !recYear}
               style={{
                 padding:'8px 20px', borderRadius:'9px', border:'none',
-                cursor: tsChecked.size > 0 && tsYear ? 'pointer' : 'not-allowed',
-                background: tsChecked.size > 0 && tsYear ? '#f97316' : '#e5e7eb',
-                color: tsChecked.size > 0 && tsYear ? '#fff' : '#9ca3af',
+                cursor: tsChecked.size > 0 && recYear ? 'pointer' : 'not-allowed',
+                background: tsChecked.size > 0 && recYear ? '#f97316' : '#e5e7eb',
+                color: tsChecked.size > 0 && recYear ? '#fff' : '#9ca3af',
                 fontSize:'13px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif',
               }}>
               📌 {tsChecked.size > 0 ? `${tsChecked.size}명 기록하기` : '학생을 선택하세요'}
@@ -678,7 +688,7 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
           {/* 1. 학교 선택 */}
           <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
             <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>학교</label>
-            <select value={rvSchool} onChange={e => { setRvSchool(e.target.value); setRvYear(''); setRvClassId(''); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'160px' }}>
+            <select value={rvSchool} onChange={e => { setRvSchool(e.target.value); setRvYear(''); setRvClassId(''); setRvFromTerm('1'); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'160px' }}>
               <option value=''>-- 학교 선택 --</option>
               {rvSchools.map(s => <option key={s} value={s}>{getRvSchoolDayLabel(s)}{s}</option>)}
             </select>
@@ -687,7 +697,7 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
           {/* 2. 년도 선택 - 처음부터 표시 */}
           <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
             <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
-            <select value={rvYear} onChange={e => { setRvYear(e.target.value); setRvClassId(''); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
+            <select value={rvYear} onChange={e => { setRvYear(e.target.value); setRvClassId(''); setRvFromTerm('1'); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
               <option value=''>-- 년도 선택 --</option>
               {years.map(y => <option key={y} value={y}>{y}년도</option>)}
             </select>
