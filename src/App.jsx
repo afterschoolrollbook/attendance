@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Users } from './lib/db.js'
 import { initFromSupabase, loadCacheFromIDB, onSaveError } from './lib/db.js'
 import { SaveStatusBar } from './components/SaveStatusBar.jsx'
-import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail } from './lib/supabase.js'
+import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail, dbCall } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
 import { Dashboard } from './pages/Dashboard.jsx'
 import { Classes } from './pages/Classes.jsx'
@@ -355,7 +355,7 @@ export default function App() {
 
   // ─── 핸들러 (렌더링 직전에 정의) ─────────────────────────────────
 
-  function handleLogin(u) {
+  async function handleLogin(u) {
     // 소셜 로그인 / 회원가입: id가 있는 완전한 user 객체
     if (u.id) {
       setUser(u)
@@ -366,14 +366,19 @@ export default function App() {
       return
     }
 
-    // 이메일/비밀번호 로그인: 캐시 먼저 확인 후 바로 로그인, 백그라운드 sync
-    const cached = Users.findByEmail(u.email)
-    if (cached) {
-      setUser(cached)
-      sessionStorage.setItem('asa_user', JSON.stringify(cached))
+    const doLogin = (foundUser) => {
+      setUser(foundUser)
+      sessionStorage.setItem('asa_user', JSON.stringify(foundUser))
       const pageParam = new URLSearchParams(search).get('page')
       setPage(pageParam || 'dashboard')
       setPageParams({})
+    }
+
+    // 1) 캐시(로컬 메모리) 먼저 확인
+    const cached = Users.findByEmail(u.email)
+    if (cached) {
+      doLogin(cached)
+      // 백그라운드 sync
       initFromSupabase().then(() => {
         const fresh = Users.findByEmail(u.email)
         if (fresh) setUser(fresh)
@@ -381,18 +386,20 @@ export default function App() {
       return
     }
 
-    // 캐시에 없으면 sync 후 조회
-    initFromSupabase().then(() => {
-      const fullUser = Users.findByEmail(u.email)
-      if (!fullUser) return
-      setUser(fullUser)
-      sessionStorage.setItem('asa_user', JSON.stringify(fullUser))
-      const pageParam = new URLSearchParams(search).get('page')
-      setPage(pageParam || 'dashboard')
-      setPageParams({})
-    }).catch(err => {
-      console.error('[handleLogin] initFromSupabase 에러:', err)
-    })
+    // 2) 캐시 미스 → Supabase sync 후 재조회
+    try {
+      await initFromSupabase()
+      const fresh = Users.findByEmail(u.email)
+      if (fresh) { doLogin(fresh); return }
+
+      // 3) 그래도 없으면 Supabase users 테이블 직접 조회
+      const fromDb = await dbCall('findByEmail', 'users', { d: { email: u.email } })
+      if (fromDb) { doLogin(fromDb); return }
+
+      console.error('[handleLogin] users 테이블에서도 유저를 찾을 수 없음:', u.email)
+    } catch (err) {
+      console.error('[handleLogin] 에러:', err)
+    }
   }
 
   function handleUserUpdate(updatedUser) {
