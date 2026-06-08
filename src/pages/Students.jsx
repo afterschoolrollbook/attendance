@@ -1283,7 +1283,7 @@ export function Students({ user, onNav }) {
         {[
           { key: 'manage',   label: '📋 학생 관리' },
           { key: 'register', label: '➕ 학생 등록' },
-          { key: 'rollover', label: '🔄 다음 텀 이월' },
+          { key: 'rollover', label: '🔄 텀 이월관리' },
         ].map(t => (
           <button key={t.key} onClick={() => setMainTab(t.key)} style={{
             padding: '10px 20px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer',
