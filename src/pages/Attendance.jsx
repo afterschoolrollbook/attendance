@@ -928,7 +928,7 @@ export function ProgressWindow() {
   const DAYS_KO2 = ['일','월','화','수','목','금','토']
   const d = new Date(date + 'T00:00:00')
   const dateLabel = `${d.getMonth()+1}월 ${d.getDate()}일 (${DAYS_KO2[d.getDay()]})`
-  const clsName = (cls?.className||'') + ((cls?.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls?.section ? cls?.section+'반' : '')) ? ' '+(cls?.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls?.section ? cls?.section+'반' : '')) : '')
+  const clsName = (cls?.className||'') + (selSection ? ` ${selSection}반` : ((cls?.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls?.section ? cls?.section+'반' : '')) ? ' '+(cls?.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls?.section ? cls?.section+'반' : '')) : ''))
 
   // 진도체크 완료 후 → DB 재계산 + 메인 창에 갱신 신호
   const handleSaved = () => {
@@ -1085,8 +1085,6 @@ function LessonMemoPanelWrapper({ cls, date, classId, selSection, filteredStuden
   const [progStudent, setProgStudent] = useState(null)
   const [progProductId, setProgProductId] = useState('')
   const [tick, setTick] = useState(0)
-  const lastPayloadRef = useRef(null)
-
   useEffect(() => {
     if (!cls) return
     setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
