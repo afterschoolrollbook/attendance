@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB, DocumentsDB, Attendance as AttendanceDB, RevenueFees, RevenuePayments, TeacherParentLinks, SupplyStudentProgress, SupplyProgressLogs, SupplySessionChecks, SupplyItems, SupplyGiven, LessonMemos } from '../lib/db.js'
+import { Classes as ClassesDB, Students as StudentsDB, Templates as TemplatesDB, DocumentsDB, Attendance as AttendanceDB, RevenueFees, RevenuePayments, TeacherParentLinks, SupplyStudentProgress, SupplyProgressLogs, SupplySessionChecks, SupplyItems, SupplyGiven, LessonMemos, onDbChange } from '../lib/db.js'
 import { uid, now, calcSessionDates, sortClasses, today } from '../lib/utils.js'
 import { Btn, Card, Modal, Input, Select, Textarea, DayPicker, Tag, EmptyState, PageHeader } from '../components/Atoms.jsx'
 import { ClassCalendar } from '../pages/ClassCalendar.jsx'
@@ -176,6 +176,13 @@ export function Classes({ user, onNav }) {
   const [openPeriods, setOpenPeriods] = useState({}) // 분기 접기/펼치기 상태
   const { success, error: toastError } = useToast()
 
+
+  // DB 변경(증분 동기화 포함) 시 자동 리렌더링
+  useEffect(() => {
+    const unsub1 = onDbChange("classes",  () => setTick(t => t + 1))
+    const unsub2 = onDbChange("students", () => setTick(t => t + 1))
+    return () => { unsub1(); unsub2() }
+  }, [])
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
   // ── 수업 템플릿 내보내기 (.after)
