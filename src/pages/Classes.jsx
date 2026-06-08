@@ -558,14 +558,22 @@ export function Classes({ user, onNav }) {
   const del = () => {
     if (!deleteId) return
     const cid = deleteId
+    // 학부모 연결 해제
     TeacherParentLinks.unlinkByClass(user.id, cid)
+    // 출결 기록 삭제
     AttendanceDB.byClass(cid).forEach(a => AttendanceDB.delete(a.id))
-    RevenuePayments.byClass(cid).forEach(p => RevenuePayments.delete(p.id))
-    const fee = RevenueFees.byClass(cid)
-    if (fee) RevenueFees.delete(fee.id)
+    // 수납 기록 삭제 (byClass 없으므로 byTeacher 후 필터)
+    RevenuePayments.byTeacher(user.id).filter(p => p.classId === cid).forEach(p => RevenuePayments.delete(p.id))
+    RevenueFees.byTeacher(user.id).filter(f => f.classId === cid).forEach(f => RevenueFees.delete(f.id))
+    // 교구 진도 기록 삭제
+    SupplyItems.byClass(cid).forEach(i => SupplyItems.delete(i.id))
     SupplyStudentProgress.byClass(cid).forEach(p => SupplyStudentProgress.delete(p.id))
-    if (SupplyProgressLogs.byClass) SupplyProgressLogs.byClass(cid).forEach(l => SupplyProgressLogs.delete(l.id))
-    if (SupplySessionChecks.byClass) SupplySessionChecks.byClass(cid).forEach(c => SupplySessionChecks.delete(c.id))
+    SupplyGiven.byClass(cid).forEach(g => SupplyGiven.delete(g.id))
+    SupplyProgressLogs.byTeacher(user.id).filter(l => l.classId === cid).forEach(l => SupplyProgressLogs.delete(l.id))
+    SupplySessionChecks.byTeacher(user.id).filter(c => c.classId === cid).forEach(c => SupplySessionChecks.delete(c.id))
+    // 수업 메모 삭제
+    LessonMemos.byTeacher(user.id).filter(m => m.classId === cid).forEach(m => LessonMemos.delete(m.id))
+    // 학생 수업 배정 해제
     StudentsDB.byClass(cid).forEach(s => {
       StudentsDB.update(s.id, { classIds: (s.classIds || []).filter(id => id !== cid) })
     })
