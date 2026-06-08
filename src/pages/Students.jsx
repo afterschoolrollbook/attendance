@@ -756,6 +756,14 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>구분</label>
+              <select value={rvTermType} onChange={e => { setRvTermType(e.target.value); setRvToTerm('') }}
+                style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
+                <option value='quarter'>분기제</option>
+                <option value='semester'>학기제</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
               <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>이월할 텀</label>
               <select value={rvToTerm} onChange={e => setRvToTerm(e.target.value)}
                 style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #f97316', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff7ed', outline:'none' }}>
