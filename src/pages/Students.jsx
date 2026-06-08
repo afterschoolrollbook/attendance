@@ -289,7 +289,11 @@ function TermSetTab({ classes, toastError, showToast, refresh }) {
           if (aS !== bS) return (aS === -1 ? 99 : aS) - (bS === -1 ? 99 : bS)
           const aG = parseInt(a.grade) || 99, bG = parseInt(b.grade) || 99
           if (aG !== bG) return aG - bG
-          return (a.name || '').localeCompare(b.name || '', 'ko')
+          const aCN = parseInt(a.classNum) || 99, bCN = parseInt(b.classNum) || 99
+          if (aCN !== bCN) return aCN - bCN
+          const aN = parseInt(a.number) || 99, bN = parseInt(b.number) || 99
+          if (aN !== bN) return aN - bN
+          return (a.name || '').localeCompare(b.name || '', 'ko', { numeric: true })
         })
     : []
 
@@ -511,7 +515,11 @@ function RolloverTab({ classes, toastError, showToast, refresh }) {
           if (aS !== bS) return (aS === -1 ? 99 : aS) - (bS === -1 ? 99 : bS)
           const aG = parseInt(a.grade) || 99, bG = parseInt(b.grade) || 99
           if (aG !== bG) return aG - bG
-          return (a.name || '').localeCompare(b.name || '', 'ko')
+          const aCN = parseInt(a.classNum) || 99, bCN = parseInt(b.classNum) || 99
+          if (aCN !== bCN) return aCN - bCN
+          const aN = parseInt(a.number) || 99, bN = parseInt(b.number) || 99
+          if (aN !== bN) return aN - bN
+          return (a.name || '').localeCompare(b.name || '', 'ko', { numeric: true })
         })
     : []
 
