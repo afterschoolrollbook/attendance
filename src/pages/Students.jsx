@@ -760,11 +760,8 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
               <select value={rvToTerm} onChange={e => setRvToTerm(e.target.value)}
                 style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #f97316', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff7ed', outline:'none' }}>
                 <option value=''>-- 선택 --</option>
-                {rvPeriods.map((p, i) => (
-                  <option key={i} value={String(i + 1)}>{p.label || `${i+1}${rvTermLabel}`}</option>
-                ))}
-                {rvPeriods.length === 0 && [1,2,3,4].map(n => (
-                  <option key={n} value={String(n)}>{n}{rvTermLabel}</option>
+                {rvTermOpts.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             </div>
