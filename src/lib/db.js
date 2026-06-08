@@ -195,20 +195,12 @@ async function idbSetAll(dataMap) {
 // IndexedDB 전체 캐시 로드 → 인메모리 캐시에 반영
 export async function loadCacheFromIDB() {
   const tables = Object.keys(TABLE_MAP)
-  let totalRows = 0
   await Promise.all(tables.map(async (t) => {
     const rows = await idbGet(t)
     if (Array.isArray(rows) && rows.length > 0) {
       cache.set(t, rows.filter(r => r._deleted !== true))
-      totalRows += rows.length
-      _emit(t)
     }
   }))
-  // IDB가 비어있으면 lastSyncAt 초기화 → 전체 로드
-  if (totalRows === 0) {
-    try { localStorage.removeItem('asa_last_sync_at') } catch {}
-    console.log('[IDB] 캐시 비어있음 → 전체 로드로 전환')
-  }
   console.log('[IDB] 캐시 로드 완료')
 }
 
@@ -371,7 +363,9 @@ export async function initFromSupabase() {
   if (!supabase) return false
 
   const lastSyncAt = getLastSyncAt()
-  const isIncremental = !!lastSyncAt
+  // IDB 캐시가 비어있으면 전체 로드
+  const idbEmpty = Object.keys(TABLE_MAP).every(t => cache.get(t).length === 0)
+  const isIncremental = !!lastSyncAt && !idbEmpty
   const syncStartedAt = new Date().toISOString()
 
   console.log(isIncremental
