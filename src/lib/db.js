@@ -96,8 +96,10 @@ function toCamel(obj) {
   for (const [k, v] of Object.entries(obj)) {
     // _deleted, _deleted_at 등 언더스코어로 시작하는 특수 필드는 변환하지 않음
     const camel = k.startsWith('_') ? k : k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
-    result[camel] = v !== null && typeof v === 'object' && !Array.isArray(v)
-      ? toCamel(v) : v
+    result[camel] = Array.isArray(v)
+      ? v.map(item => item !== null && typeof item === 'object' ? toCamel(item) : item)
+      : v !== null && typeof v === 'object'
+        ? toCamel(v) : v
   }
   return result
 }
@@ -195,12 +197,19 @@ async function idbSetAll(dataMap) {
 // IndexedDB 전체 캐시 로드 → 인메모리 캐시에 반영
 export async function loadCacheFromIDB() {
   const tables = Object.keys(TABLE_MAP)
+  let totalRows = 0
   await Promise.all(tables.map(async (t) => {
     const rows = await idbGet(t)
     if (Array.isArray(rows) && rows.length > 0) {
       cache.set(t, rows.filter(r => r._deleted !== true))
+      totalRows += rows.length
+      _emit(t)
     }
   }))
+  if (totalRows === 0) {
+    try { localStorage.removeItem('asa_last_sync_at') } catch {}
+    console.log('[IDB] 캐시 비어있음 → 전체 로드로 전환')
+  }
   console.log('[IDB] 캐시 로드 완료')
 }
 
@@ -363,7 +372,6 @@ export async function initFromSupabase() {
   if (!supabase) return false
 
   const lastSyncAt = getLastSyncAt()
-  // IDB 캐시가 비어있으면 전체 로드
   const idbEmpty = Object.keys(TABLE_MAP).every(t => cache.get(t).length === 0)
   const isIncremental = !!lastSyncAt && !idbEmpty
   const syncStartedAt = new Date().toISOString()
