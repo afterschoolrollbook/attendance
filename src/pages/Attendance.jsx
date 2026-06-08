@@ -4564,6 +4564,17 @@ export function Attendance({ user, pageParams = {} }) {
           }
         }
       }
+      // activeTerm 필터: selClass가 있고 학생에 activeTerm이 있으면 현재 기간에 맞는 학생만 표시
+      if (selClass && s.activeTerm) {
+        // 현재 날짜가 속한 기간 인덱스 계산
+        const todayStr = new Date().toISOString().slice(0,10)
+        const periods = selClass.periods?.filter(p => p.startDate && p.endDate) || []
+        if (periods.length > 0) {
+          const activePeriodIdx = periods.findIndex(p => todayStr >= p.startDate && todayStr <= p.endDate)
+          const currentTermNum = activePeriodIdx >= 0 ? String(activePeriodIdx + 1) : null
+          if (currentTermNum && s.activeTerm !== currentTermNum) return false
+        }
+      }
     } else {
       // 요일 검색 모드: 요일 필터만 (학교/기간 무시)
       if (selDay) {

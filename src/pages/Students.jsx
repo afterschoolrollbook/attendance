@@ -446,7 +446,7 @@ export function Students({ user, onNav }) {
   const [pendingStatuses, setPendingStatuses] = useState({})
   const [lastAddedId, setLastAddedId] = useState(null)
   const [addView, setAddView] = useState(false)
-  const [mainTab, setMainTab] = useState('manage') // 'manage' | 'register'
+  const [mainTab, setMainTab] = useState('manage') // 'manage' | 'register' | 'rollover'
   const [selectedForMove, setSelectedForMove] = useState([]) // 탭2에서 선택된 학생 id 목록
   const [selectedForRegister, setSelectedForRegister] = useState([]) // 탭1에서 탭2로 보낼 학생 id 목록
   const [classFilterForMove, setClassFilterForMove] = useState('') // 탭1 이동용 수업 필터
@@ -1061,6 +1061,7 @@ export function Students({ user, onNav }) {
         {[
           { key: 'manage',   label: '📋 학생 관리' },
           { key: 'register', label: '➕ 학생 등록' },
+          { key: 'rollover', label: '🔄 다음 텀 이월' },
         ].map(t => (
           <button key={t.key} onClick={() => setMainTab(t.key)} style={{
             padding: '10px 20px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer',
@@ -1518,6 +1519,230 @@ export function Students({ user, onNav }) {
 
       </>)}
 
+
+      {/* ── 탭3: 다음 텀 이월 */}
+      {mainTab === 'rollover' && (() => {
+        // 이월 대상 수업 선택 상태
+        const [rvClassId, setRvClassId] = React.useState('')
+        const [rvFromTerm, setRvFromTerm] = React.useState('')
+        const [rvToTerm, setRvToTerm] = React.useState('')
+        const [rvChecked, setRvChecked] = React.useState(new Set())
+        const [rvDone, setRvDone] = React.useState(false)
+
+        // 선택된 수업
+        const rvClassIdParsed = rvClassId.includes('::') ? rvClassId.split('::')[0] : rvClassId
+        const rvSectionParsed = rvClassId.includes('::') ? rvClassId.split('::')[1] : ''
+        const rvCls = classes.find(c => c.id === rvClassIdParsed)
+
+        // 수업의 분기/학기 목록
+        const rvPeriods = rvCls?.periods?.filter(p => p.startDate && p.endDate) || []
+        const rvTermLabel = rvCls?.termType === 'semester' ? '학기' : '분기'
+
+        // 이월 대상 학생 (fromTerm activeTerm 기준)
+        const rvStudents = rvClassIdParsed
+          ? StudentsDB.confirmed(rvClassIdParsed)
+              .filter(s => !rvSectionParsed || s.section === rvSectionParsed)
+              .filter(s => !rvFromTerm || (s.activeTerm || '1') === rvFromTerm)
+              .sort((a, b) => {
+                const SECTION_ORDER = ['A','B','C','D','E','F']
+                const aS = SECTION_ORDER.indexOf((a.section||'').toUpperCase())
+                const bS = SECTION_ORDER.indexOf((b.section||'').toUpperCase())
+                if (aS !== bS) return (aS === -1 ? 99 : aS) - (bS === -1 ? 99 : bS)
+                const aG = parseInt(a.grade) || 99, bG = parseInt(b.grade) || 99
+                if (aG !== bG) return aG - bG
+                const aCN = parseInt(a.classNum) || 99, bCN = parseInt(b.classNum) || 99
+                if (aCN !== bCN) return aCN - bCN
+                const aN = parseInt(a.number) || 99, bN = parseInt(b.number) || 99
+                if (aN !== bN) return aN - bN
+                return (a.name || '').localeCompare(b.name || '', 'ko')
+              })
+          : []
+
+        const toggleAll = () => {
+          if (rvChecked.size === rvStudents.length) setRvChecked(new Set())
+          else setRvChecked(new Set(rvStudents.map(s => s.id)))
+        }
+
+        const doRollover = async () => {
+          if (!rvToTerm) { toastError('이월할 텀을 선택하세요.'); return }
+          if (rvChecked.size === 0) { toastError('이월할 학생을 선택하세요.'); return }
+          const toTermNum = rvToTerm
+          const toLabel = rvCls?.termType === 'semester' ? `${toTermNum}학기` : `${toTermNum}분기`
+          const toYear = new Date().getFullYear().toString()
+          const newCareer = {
+            year: toYear,
+            termType: rvCls?.termType || 'semester',
+            term: toTermNum,
+            label: `${toYear.slice(2)}년도 / ${rvCls?.termType === 'semester' ? '학기제' : '분기제'} / ${toLabel}`,
+          }
+          for (const s of rvStudents) {
+            if (!rvChecked.has(s.id)) continue
+            const existingCareers = s.student_careers || []
+            const alreadyHas = existingCareers.some(c => c.year === newCareer.year && c.term === newCareer.term && c.termType === newCareer.termType)
+            await StudentsDB.update(s.id, {
+              activeTerm: toTermNum,
+              student_careers: alreadyHas ? existingCareers : [...existingCareers, newCareer],
+              statusHistory: [...(s.statusHistory || []), {
+                status: 'rollover',
+                changedAt: now(),
+                memo: `[텀 이월] ${rvFromTerm || '1'}${rvTermLabel} → ${toTermNum}${rvTermLabel}`,
+              }],
+            })
+          }
+          success(`✅ ${rvChecked.size}명이 ${toTermNum}${rvTermLabel}로 이월되었습니다.`)
+          setRvChecked(new Set())
+          setRvDone(true)
+          setTimeout(() => setRvDone(false), 3000)
+        }
+
+        return (
+          <div>
+            {/* 수업 선택 */}
+            <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', padding:'16px 20px', marginBottom:'16px' }}>
+              <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'10px', letterSpacing:'0.05em' }}>📍 이월 설정</div>
+              <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'flex-end' }}>
+                <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+                  <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업 선택</label>
+                  <select value={rvClassId} onChange={e => { setRvClassId(e.target.value); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }}
+                    style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'220px' }}>
+                    <option value=''>-- 수업 선택 --</option>
+                    {classes.flatMap(c => {
+                      const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
+                      const secs = c.sections?.filter(s => s.section) || []
+                      if (secs.length > 1) {
+                        return secs.map(s => (
+                          <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
+                            {dayLabel}{c.organization} {c.className} {s.section}반
+                          </option>
+                        ))
+                      }
+                      const secLabel = c.section ? ' ' + c.section + '반' : ''
+                      return [<option key={c.id} value={c.id}>{dayLabel}{c.organization} {c.className}{secLabel}</option>]
+                    })}
+                  </select>
+                </div>
+
+                {rvCls && (
+                  <>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+                      <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>현재 텀 (이월 전)</label>
+                      <select value={rvFromTerm} onChange={e => { setRvFromTerm(e.target.value); setRvChecked(new Set()) }}
+                        style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
+                        <option value=''>전체</option>
+                        {rvPeriods.map((p, i) => (
+                          <option key={i} value={String(i + 1)}>{p.label || `${i+1}${rvTermLabel}`}</option>
+                        ))}
+                        {rvPeriods.length === 0 && <option value='1'>1{rvTermLabel}</option>}
+                      </select>
+                    </div>
+                    <div style={{ display:'flex', alignItems:'center', paddingBottom:'6px', color:'#9ca3af', fontSize:'18px' }}>→</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+                      <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>이월할 텀</label>
+                      <select value={rvToTerm} onChange={e => setRvToTerm(e.target.value)}
+                        style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #f97316', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff7ed', outline:'none' }}>
+                        <option value=''>-- 선택 --</option>
+                        {rvPeriods.map((p, i) => (
+                          <option key={i} value={String(i + 1)}>{p.label || `${i+1}${rvTermLabel}`}</option>
+                        ))}
+                        {rvPeriods.length === 0 && [2,3,4].map(n => (
+                          <option key={n} value={String(n)}>{n}{rvTermLabel}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* 학생 목록 */}
+            {rvClassIdParsed && (
+              <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', overflow:'hidden' }}>
+                <div style={{ padding:'14px 20px', borderBottom:'1px solid #f3f4f6', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                    <input type='checkbox'
+                      checked={rvStudents.length > 0 && rvChecked.size === rvStudents.length}
+                      onChange={toggleAll}
+                      style={{ width:'16px', height:'16px', accentColor:'#f97316', cursor:'pointer' }} />
+                    <span style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>
+                      {rvFromTerm ? `${rvFromTerm}${rvTermLabel} 학생` : '전체 학생'} {rvStudents.length}명
+                    </span>
+                    <span style={{ fontSize:'13px', color:'#f97316', fontWeight:600 }}>
+                      {rvChecked.size > 0 ? `${rvChecked.size}명 선택됨` : ''}
+                    </span>
+                  </div>
+                  <button onClick={doRollover}
+                    disabled={rvChecked.size === 0 || !rvToTerm}
+                    style={{
+                      padding:'8px 20px', borderRadius:'9px', border:'none', cursor: rvChecked.size > 0 && rvToTerm ? 'pointer' : 'not-allowed',
+                      background: rvChecked.size > 0 && rvToTerm ? '#f97316' : '#e5e7eb',
+                      color: rvChecked.size > 0 && rvToTerm ? '#fff' : '#9ca3af',
+                      fontSize:'13px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif',
+                      transition:'all .15s',
+                    }}>
+                    🔄 {rvToTerm ? `${rvToTerm}${rvTermLabel}로 이월` : '이월'}
+                  </button>
+                </div>
+
+                {rvStudents.length === 0 ? (
+                  <div style={{ padding:'40px', textAlign:'center', color:'#9ca3af', fontSize:'14px' }}>
+                    해당 조건의 학생이 없습니다
+                  </div>
+                ) : (
+                  <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                    <thead>
+                      <tr style={{ background:'#f9fafb' }}>
+                        {['', '반', '학년/반/번호', '이름', '현재 텀', '수강 이력'].map(h => (
+                          <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', borderBottom:'1px solid #f3f4f6' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rvStudents.map((s, i) => {
+                        const curTerm = s.activeTerm || '1'
+                        const careers = (s.student_careers || []).slice().sort((a,b) => a.year !== b.year ? a.year-b.year : Number(a.term)-Number(b.term))
+                        return (
+                          <tr key={s.id} style={{ borderBottom:'1px solid #f3f4f6', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                            <td style={{ padding:'10px 14px' }}>
+                              <input type='checkbox'
+                                checked={rvChecked.has(s.id)}
+                                onChange={() => setRvChecked(prev => { const n = new Set(prev); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n })}
+                                style={{ width:'16px', height:'16px', accentColor:'#f97316', cursor:'pointer' }} />
+                            </td>
+                            <td style={{ padding:'10px 14px', fontSize:'13px', color:'#374151' }}>
+                              {s.section ? <span style={{ padding:'2px 8px', borderRadius:'5px', background:'#fff7ed', color:'#f97316', fontWeight:700, fontSize:'12px' }}>{s.section}반</span> : '-'}
+                            </td>
+                            <td style={{ padding:'10px 14px', fontSize:'13px', color:'#374151' }}>
+                              {s.grade || '-'}학년 {s.classNum || '-'}반 {s.number || '-'}번
+                            </td>
+                            <td style={{ padding:'10px 14px', fontSize:'14px', fontWeight:700, color:'#111827' }}>{s.name}</td>
+                            <td style={{ padding:'10px 14px' }}>
+                              <span style={{ padding:'3px 10px', borderRadius:'6px', background:'#eff6ff', color:'#2563eb', fontWeight:700, fontSize:'13px' }}>
+                                {curTerm}{rvTermLabel}
+                              </span>
+                            </td>
+                            <td style={{ padding:'10px 14px', fontSize:'12px', color:'#6b7280' }}>
+                              {careers.length > 0 ? careers.map(c => c.label || `${c.year?.slice(2)}년 ${c.term}${rvTermLabel}`).join(' → ') : '-'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+
+            {!rvClassIdParsed && (
+              <div style={{ padding:'60px', textAlign:'center', color:'#9ca3af' }}>
+                <div style={{ fontSize:'40px', marginBottom:'12px' }}>🔄</div>
+                <div style={{ fontSize:'16px', fontWeight:700, color:'#374151', marginBottom:'6px' }}>수업을 선택하세요</div>
+                <div style={{ fontSize:'13px' }}>이월할 수업을 선택하면 학생 목록이 표시됩니다</div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {/* ── 탭2: 학생 등록 */}
       {mainTab === 'register' && (() => {
         const newStudents = [...registerStudents].sort((a,b) => {
@@ -1855,7 +2080,51 @@ export function Students({ user, onNav }) {
               <Select label="학년" value={form.grade} onChange={v => set('grade', v)} options={GRADES.map(g => ({ value: g, label: g }))} required />
               <Input label="학급 반" value={form.classNum} onChange={v => set('classNum', v)} />
               <Input label="번호" value={form.number} onChange={v => set('number', v)} />
-              <Input label="이름" value={form.name} onChange={v => set('name', v)} required />
+              <div style={{ position:'relative' }}>
+                <Input label="이름" value={form.name} onChange={v => { set('name', v); }} required />
+                {/* 이름+전화 자동완성 힌트 */}
+                {!editId && form.name.trim().length >= 1 && (() => {
+                  const nameMatches = allStudents.filter(s =>
+                    s.name.includes(form.name.trim()) &&
+                    (!form.parentPhone || s.parentPhone?.replace(/[^0-9]/g,'').includes(form.parentPhone.replace(/[^0-9]/g,'')))
+                  ).slice(0, 5)
+                  if (nameMatches.length === 0) return null
+                  return (
+                    <div style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:200, background:'#fff', border:'1.5px solid #f97316', borderRadius:'10px', boxShadow:'0 4px 16px rgba(0,0,0,0.12)', marginTop:'2px', overflow:'hidden' }}>
+                      <div style={{ padding:'6px 10px', fontSize:'11px', color:'#f97316', fontWeight:700, background:'#fff7ed', borderBottom:'1px solid #fed7aa' }}>📋 기존 학생 — 선택하면 자동 입력</div>
+                      {nameMatches.map(s => {
+                        const cls = classes.find(c => c.id === s.classIds?.[0])
+                        const careers = (s.student_careers || []).slice().sort((a,b) => a.year!==b.year?a.year-b.year:Number(a.term)-Number(b.term))
+                        return (
+                          <div key={s.id} onClick={() => {
+                            set('name', s.name)
+                            set('parentPhone', s.parentPhone || '')
+                            set('studentPhone', s.studentPhone || '')
+                            set('grade', s.grade || '')
+                            set('classNum', s.classNum || '')
+                            set('memo', s.memo || '')
+                            set('student_careers', s.student_careers || [])
+                          }}
+                            style={{ padding:'8px 12px', cursor:'pointer', borderBottom:'1px solid #f3f4f6', display:'flex', alignItems:'center', gap:'8px' }}
+                            onMouseEnter={e => e.currentTarget.style.background='#fff7ed'}
+                            onMouseLeave={e => e.currentTarget.style.background='#fff'}>
+                            <div style={{ flex:1 }}>
+                              <span style={{ fontWeight:700, fontSize:'14px', color:'#111827' }}>{s.name}</span>
+                              <span style={{ marginLeft:'8px', fontSize:'12px', color:'#6b7280' }}>{s.grade ? s.grade+'학년' : ''} {fmtPhone(s.parentPhone)}</span>
+                              {cls && <span style={{ marginLeft:'6px', fontSize:'11px', color:'#9ca3af' }}>{cls.organization} {cls.className}</span>}
+                            </div>
+                            {careers.length > 0 && (
+                              <span style={{ fontSize:'11px', color:'#f97316', background:'#fff7ed', padding:'2px 6px', borderRadius:'5px', fontWeight:600, whiteSpace:'nowrap' }}>
+                                {careers.length}회 수강
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
               <Input label="신청 순번" value={form.applyOrder} onChange={v => set('applyOrder', v)} />
