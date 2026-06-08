@@ -716,7 +716,7 @@ function ParentListTab({ user, config }) {
                       {s.parentPhone ? (
                         <button onClick={() => setInviteTarget(s)}
                           style={{
-                            padding:'5px 10px', borderRadius:'7px', border:'none', cursor:'pointer',
+                            padding:'5px 10px', borderRadius:'7px', cursor:'pointer',
                             fontFamily:'Noto Sans KR, sans-serif', fontSize:'12px', fontWeight:700, whiteSpace:'nowrap',
                             background: s.joined ? '#f0fdf4' : s.invited ? '#eff6ff' : '#fff7ed',
                             color:      s.joined ? '#16a34a' : s.invited ? '#3b82f6' : C.primary,
