@@ -4553,20 +4553,14 @@ export function Attendance({ user, pageParams = {} }) {
           : termCls.some(c => c.organization === s.school)
         if (!inTerm) return false
 
-        // periods 기반 수업이고 학생에 activeTerm이 있으면 → selTerm과 periods 인덱스 매칭
+        // periods 기반 수업이고 학생에 activeTerm이 있으면 → 선택된 날짜가 속한 period 인덱스로 매칭
         if (selClass && s.activeTerm) {
           const periods = selClass.periods?.filter(p => p.startDate && p.endDate) || []
           if (periods.length > 0) {
-            const r = TERM_RANGES[selTerm]
-            if (r) {
-              const y = selTerm === 's2' ? String(Number(selYear)) : selYear
-              const nextY = String(Number(selYear) + 1)
-              const from = selTerm === 's2' ? y + r[0] : selYear + r[0]
-              const to   = selTerm === 's2' ? nextY + r[1] : selYear + r[1]
-              const matchIdx = periods.findIndex(p => p.startDate <= to && p.endDate >= from)
-              const matchTermNum = matchIdx >= 0 ? String(matchIdx + 1) : null
-              if (matchTermNum && s.activeTerm !== matchTermNum) return false
-            }
+            const dateStr = selDate || new Date().toISOString().slice(0,10)
+            const matchIdx = periods.findIndex(p => dateStr >= p.startDate && dateStr <= p.endDate)
+            const matchTermNum = matchIdx >= 0 ? String(matchIdx + 1) : null
+            if (matchTermNum && s.activeTerm !== matchTermNum) return false
           }
         }
       }
