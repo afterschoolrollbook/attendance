@@ -351,6 +351,28 @@ function ParentListTab({ user, config }) {
     if (ctxStatus === 'not_joined') return !s.joined && !s.withdrawn
     if (ctxStatus === 'withdrawn')  return s.withdrawn
     return true
+  }).sort((a, b) => {
+    // 1) 반(section): A반 → B반 → ... → 없음
+    const SECTION_ORDER = ['A','B','C','D','E','F']
+    const aSecIdx = SECTION_ORDER.indexOf((a.section||'').toUpperCase())
+    const bSecIdx = SECTION_ORDER.indexOf((b.section||'').toUpperCase())
+    const aS = aSecIdx === -1 ? 99 : aSecIdx
+    const bS = bSecIdx === -1 ? 99 : bSecIdx
+    if (aS !== bS) return aS - bS
+    // 2) 학년
+    const aGrade = parseInt(a.grade) || 99
+    const bGrade = parseInt(b.grade) || 99
+    if (aGrade !== bGrade) return aGrade - bGrade
+    // 3) 학급 반
+    const aClassNum = parseInt(a.classNum) || 99
+    const bClassNum = parseInt(b.classNum) || 99
+    if (aClassNum !== bClassNum) return aClassNum - bClassNum
+    // 4) 번호
+    const aNum = parseInt(a.number) || 99
+    const bNum = parseInt(b.number) || 99
+    if (aNum !== bNum) return aNum - bNum
+    // 5) 이름 ㄱㄴㄷ순
+    return (a.name || '').localeCompare(b.name || '', 'ko')
   })
 
   const bulkInvite = () => {
