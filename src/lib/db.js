@@ -96,8 +96,10 @@ function toCamel(obj) {
   for (const [k, v] of Object.entries(obj)) {
     // _deleted, _deleted_at 등 언더스코어로 시작하는 특수 필드는 변환하지 않음
     const camel = k.startsWith('_') ? k : k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
-    result[camel] = v !== null && typeof v === 'object' && !Array.isArray(v)
-      ? toCamel(v) : v
+    result[camel] = Array.isArray(v)
+      ? v.map(item => item !== null && typeof item === 'object' ? toCamel(item) : item)
+      : v !== null && typeof v === 'object'
+        ? toCamel(v) : v
   }
   return result
 }
