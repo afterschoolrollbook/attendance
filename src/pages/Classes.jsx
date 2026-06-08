@@ -152,6 +152,7 @@ export function Classes({ user, onNav }) {
   const [selYear, setSelYear] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editId, setEditId] = useState(null)
+  const oldSectionsRef = useRef([]) // 편집 시작 시점의 반 목록 저장
   const [form, setForm] = useState(emptyForm())
   const [tab, setTab] = useState('info') // 'info' | 'promo' | 'notice' | 'template' | 'calendar'
   const importFileRef = React.useRef(null)
@@ -473,6 +474,7 @@ export function Classes({ user, onNav }) {
       classDuration: cls.classDuration || '',
       sections: toSections(cls),
     })
+    oldSectionsRef.current = toSections(cls) // 이전 반 목록 저장
     setEditId(cls.id)
     setTab('info')
     setShowModal(true)
@@ -545,6 +547,17 @@ export function Classes({ user, onNav }) {
     }
     if (editId && editId !== '__copy__') {
       ClassesDB.update(editId, cleanForm)
+      // 반 이름이 변경된 경우 학생 section 필드도 업데이트
+      const oldSecs = oldSectionsRef.current
+      const newSecs = sections
+      oldSecs.forEach((oldSec, i) => {
+        const newSec = newSecs[i]
+        if (oldSec.section && newSec?.section && oldSec.section !== newSec.section) {
+          StudentsDB.byClass(editId)
+            .filter(s => s.section === oldSec.section)
+            .forEach(s => StudentsDB.update(s.id, { section: newSec.section }))
+        }
+      })
       success('수정이 완료되었습니다.')
     } else {
       const { id: _oldId, ...formWithoutId } = cleanForm
