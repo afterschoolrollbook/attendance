@@ -84,8 +84,10 @@ function toSnake(obj) {
   const result = {}
   for (const [k, v] of Object.entries(obj)) {
     const snake = k.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
-    result[snake] = v !== null && typeof v === 'object' && !Array.isArray(v)
-      ? toSnake(v) : v
+    result[snake] = Array.isArray(v)
+      ? v.map(item => item !== null && typeof item === 'object' ? toSnake(item) : item)
+      : v !== null && typeof v === 'object'
+        ? toSnake(v) : v
   }
   return result
 }
