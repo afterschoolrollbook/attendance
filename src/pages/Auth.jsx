@@ -325,9 +325,13 @@ function useNaverAuth(onSuccess, clientId) {
       + '&response_type=code'
       + '&state=' + state
 
-    // 팝업 시도 → 차단되면 리디렉트로 자동 전환
+    console.log('[NAVER DEBUG] 로그인 시작', { clientId, redirectUri, state })
+
     const popup = window.open(naverAuthUrl, 'naverLogin', 'width=500,height=700,left=200,top=100')
+    console.log('[NAVER DEBUG] 팝업 결과', popup)
+
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      console.log('[NAVER DEBUG] 팝업 차단됨 → 리디렉트로 전환')
       window.location.href = naverAuthUrl + '&naver_redirect=1'
       return
     }
@@ -335,6 +339,7 @@ function useNaverAuth(onSuccess, clientId) {
     const handleMessage = async (e) => {
       if (e.origin !== window.location.origin) return
       if (e.data?.type !== 'naver_login_success' && e.data?.type !== 'naver_login_fail') return
+      console.log('[NAVER DEBUG] 메시지 수신', e.data)
       window.removeEventListener('message', handleMessage)
       clearInterval(popupCheck)
       if (e.data.type === 'naver_login_fail') { toastError('네이버 로그인에 실패했습니다.'); return }
@@ -345,7 +350,9 @@ function useNaverAuth(onSuccess, clientId) {
     window.addEventListener('message', handleMessage)
 
     const popupCheck = setInterval(() => {
+      console.log('[NAVER DEBUG] 팝업 상태 체크', popup.closed)
       if (popup.closed) {
+        console.log('[NAVER DEBUG] 팝업 닫힘 감지 → 리스너 정리')
         clearInterval(popupCheck)
         window.removeEventListener('message', handleMessage)
       }
