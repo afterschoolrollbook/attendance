@@ -157,6 +157,7 @@ export function Classes({ user, onNav }) {
   const [tab, setTab] = useState('info') // 'info' | 'promo' | 'notice' | 'template' | 'calendar'
   const importFileRef = React.useRef(null)
   const [deleteId, setDeleteId] = useState(null)
+  const [tick, setTick] = useState(0)
   const [uploading, setUploading] = useState(false)
   const [noticePreview, setNoticePreview] = useState(null)
   const [promoSearch,    setPromoSearch]    = useState('')
@@ -598,12 +599,18 @@ export function Classes({ user, onNav }) {
     SupplySessionChecks.byTeacher(user.id).filter(c => c.classId === cid).forEach(c => SupplySessionChecks.delete(c.id))
     // 수업 메모 삭제
     LessonMemos.byTeacher(user.id).filter(m => m.classId === cid).forEach(m => LessonMemos.delete(m.id))
-    // 학생 수업 배정 해제
+    // 학생 수업 배정 해제 + section 초기화
+    const deletedCls = ClassesDB.find(cid)
+    const deletedSection = deletedCls?.section || ''
     StudentsDB.byClass(cid).forEach(s => {
-      StudentsDB.update(s.id, { classIds: (s.classIds || []).filter(id => id !== cid) })
+      const newClassIds = (s.classIds || []).filter(id => id !== cid)
+      // 예전방식: 삭제된 카드의 section과 학생 section이 같으면 초기화
+      const newSection = (deletedSection && s.section === deletedSection) ? '' : s.section
+      StudentsDB.update(s.id, { classIds: newClassIds, section: newSection })
     })
     ClassesDB.delete(cid)
     setDeleteId(null)
+    setTick(t => t + 1)
   }
 
 
