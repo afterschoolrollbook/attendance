@@ -23,9 +23,12 @@ export function Reports({ user }) {
     if (d !== 0) return d
     return (a.section||'').localeCompare(b.section||'', 'ko')
   })
-  const cls = classes.find(c => c.id === selectedClass)
+  // selectedClass: 'classId::반이름' 또는 'classId'
+  const selClassId  = selectedClass.includes('::') ? selectedClass.split('::')[0] : selectedClass
+  const selClassSec = selectedClass.includes('::') ? selectedClass.split('::')[1] : ''
+  const cls = classes.find(c => c.id === selClassId)
   const parseGrade = g => parseInt((g||'').replace(/[^0-9]/g,'')) || 99
-  const students = (selectedClass ? StudentsDB.confirmed(selectedClass) : []).slice().sort((a, b) => {
+  const students = (selClassId ? StudentsDB.confirmed(selClassId).filter(s => !selClassSec || s.section === selClassSec) : []).slice().sort((a, b) => {
     const gCmp = parseGrade(a.grade) - parseGrade(b.grade)
     if (gCmp !== 0) return gCmp
     const cCmp = (parseInt(a.classNum)||99) - (parseInt(b.classNum)||99)
@@ -39,7 +42,7 @@ export function Reports({ user }) {
 
   // 학생별 출석 통계
   const studentStats = students.map(s => {
-    const records = AttendanceDB.byStudentClass(s.id, selectedClass).filter(r => pastSessions.includes(r.date))
+    const records = AttendanceDB.byStudentClass(s.id, selClassId).filter(r => pastSessions.includes(r.date))
     const present = records.filter(r => r.status === 'present').length
     const absent  = records.filter(r => r.status === 'absent').length
     const late    = records.filter(r => r.status === 'late').length
@@ -49,7 +52,7 @@ export function Reports({ user }) {
   })
 
   const getAttStatus = (studentId, date) => {
-    const records = AttendanceDB.byClassDate(selectedClass, date)
+    const records = AttendanceDB.byClassDate(selClassId, date)
     return records.find(r => r.studentId === studentId)?.status || 'pending'
   }
 
@@ -184,9 +187,18 @@ export function Reports({ user }) {
         <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
           style={{ padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', background: '#fff', outline: 'none', cursor: 'pointer', minWidth: '280px' }}>
           <option value="">-- 수업을 선택하세요 --</option>
-          {classes.map(c => (
-            <option key={c.id} value={c.id}>{c.organization} {c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}</option>
-          ))}
+          {classes.flatMap(c => {
+            const secs = c.sections?.filter(s => s.section) || []
+            if (secs.length > 1) {
+              return secs.map(s => (
+                <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
+                  {c.organization} {c.className} {s.section}반
+                </option>
+              ))
+            }
+            const secLabel = c.section ? ' ' + c.section + '반' : ''
+            return [<option key={c.id} value={c.id}>{c.organization} {c.className}{secLabel}</option>]
+          })}
         </select>
 
         {/* ✅ 다운로드 버튼 (수업 선택 후 활성화) */}

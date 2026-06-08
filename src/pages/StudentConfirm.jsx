@@ -477,10 +477,13 @@ export function StudentConfirm({ user }) {
     if (d!==0) return d
     return (a.section||'').localeCompare(b.section||'','ko')
   })
-  const cls = classes.find(c => c.id===selectedClass)
+  // selectedClass: 'classId::반이름' 또는 'classId'
+  const selClassId  = selectedClass.includes('::') ? selectedClass.split('::')[0] : selectedClass
+  const selClassSec = selectedClass.includes('::') ? selectedClass.split('::')[1] : ''
+  const cls = classes.find(c => c.id===selClassId)
 
-  const allStudents = selectedClass
-    ? StudentsDB.byClass(selectedClass).filter(s => s.status!=='cancelled')
+  const allStudents = selClassId
+    ? StudentsDB.byClass(selClassId).filter(s => s.status!=='cancelled' && (!selClassSec || s.section === selClassSec))
     : []
 
   const toggleCheck = id => setChecked(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n })
@@ -528,9 +531,18 @@ export function StudentConfirm({ user }) {
           <select value={selectedClass} onChange={e=>{ setSelectedClass(e.target.value); setChecked(new Set()); setPhase('setup') }}
             style={{ flex:1, maxWidth:'360px', padding:'9px 13px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }}>
             <option value="">-- 수업을 선택하세요 --</option>
-            {classes.map(c => (
-              <option key={c.id} value={c.id}>{c.organization} {c.className}{c.section?' '+c.section+'반':''}</option>
-            ))}
+            {classes.flatMap(c => {
+              const secs = c.sections?.filter(s => s.section) || []
+              if (secs.length > 1) {
+                return secs.map(s => (
+                  <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
+                    {c.organization} {c.className} {s.section}반
+                  </option>
+                ))
+              }
+              const secLabel = c.section ? ' ' + c.section + '반' : ''
+              return [<option key={c.id} value={c.id}>{c.organization} {c.className}{secLabel}</option>]
+            })}
           </select>
         </div>
       </Card>

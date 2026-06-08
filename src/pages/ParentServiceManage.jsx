@@ -281,7 +281,10 @@ function ParentListTab({ user, config }) {
       const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
       if (!inYear) return false
     }
-    if (ctxClass  && !s.classIds?.includes(ctxClass))    return false
+    const ctxClassId2  = ctxClass.includes('::') ? ctxClass.split('::')[0] : ctxClass
+    const ctxClassSec2 = ctxClass.includes('::') ? ctxClass.split('::')[1] : ''
+    if (ctxClassId2 && !s.classIds?.includes(ctxClassId2)) return false
+    if (ctxClassSec2 && s.section !== ctxClassSec2) return false
     if (ctxSchool) {
       const actualSchool = (s.classIds || [])
         .map(cid => classes.find(c => c.id === cid)?.organization)
@@ -479,9 +482,18 @@ function ParentListTab({ user, config }) {
             <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>과목</label>
             <select value={ctxClass} onChange={e => setCtxClass(e.target.value)} style={selSt}>
               <option value="">전체 과목</option>
-              {filteredClasses.map(c => (
-                <option key={c.id} value={c.id}>{c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}</option>
-              ))}
+              {filteredClasses.flatMap(c => {
+                const secs = c.sections?.filter(s => s.section) || []
+                if (secs.length > 1) {
+                  return secs.map(s => (
+                    <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
+                      {c.className} {s.section}반
+                    </option>
+                  ))
+                }
+                const secLabel = c.section ? ' ' + c.section + '반' : ''
+                return [<option key={c.id} value={c.id}>{c.className}{secLabel}</option>]
+              })}
             </select>
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
