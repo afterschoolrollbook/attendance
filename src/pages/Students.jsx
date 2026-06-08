@@ -562,7 +562,8 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
   const [rvSchool, setRvSchool] = React.useState('')
   const [rvYear, setRvYear] = React.useState('')
   const [rvClassId, setRvClassId] = React.useState('')
-  const [rvFromTerm, setRvFromTerm] = React.useState('')
+  const [rvFromTerm, setRvFromTerm] = React.useState('1')
+  const [rvTermType, setRvTermType] = React.useState('quarter')
   const [rvToTerm, setRvToTerm] = React.useState('')
   const [rvToYear, setRvToYear] = React.useState('')
   const [rvChecked, setRvChecked] = React.useState(new Set())
@@ -591,12 +592,19 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
   const rvCls = classes.find(c => c.id === rvClassIdParsed)
 
   const rvPeriods = rvCls?.periods?.filter(p => p.startDate && p.endDate) || []
-  const rvTermLabel = rvCls?.termType === 'semester' ? '학기' : '분기'
+  const rvTermLabel = rvTermType === 'semester' ? '학기' : '분기'
+  const rvTermOpts = rvTermType === 'semester'
+    ? [{value:'1',label:'1학기'},{value:'2',label:'2학기'}]
+    : [{value:'1',label:'1분기'},{value:'2',label:'2분기'},{value:'3',label:'3분기'},{value:'4',label:'4분기'}]
 
   const rvStudents = rvClassIdParsed
     ? StudentsDB.confirmed(rvClassIdParsed)
         .filter(s => !rvSectionParsed || s.section === rvSectionParsed)
-        .filter(s => !rvFromTerm || (s.activeTerm || '1') === rvFromTerm)
+        .filter(s => {
+          const careers = s.student_careers || []
+          if (careers.length === 0) return rvFromTerm === '1'
+          return careers.some(c => String(c.term) === String(rvFromTerm) && c.termType === rvTermType)
+        })
         .sort((a, b) => {
           const SECTION_ORDER = ['A','B','C','D','E','F']
           const aS = SECTION_ORDER.indexOf((a.section||'').toUpperCase())
@@ -685,10 +693,27 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
             </select>
           </div>
 
-          {/* 3. 수업 선택 */}
+          {/* 3. 구분 선택 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>구분</label>
+            <select value={rvTermType} onChange={e => { setRvTermType(e.target.value); setRvFromTerm('1'); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
+              <option value='quarter'>분기제</option>
+              <option value='semester'>학기제</option>
+            </select>
+          </div>
+
+          {/* 4. 분기 선택 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>{rvTermLabel}</label>
+            <select value={rvFromTerm} onChange={e => { setRvFromTerm(e.target.value); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #f97316', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff7ed', outline:'none' }}>
+              {rvTermOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          {/* 5. 수업 선택 */}
           <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
               <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업</label>
-              <select value={rvClassId} onChange={e => { setRvClassId(e.target.value); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'180px' }}>
+              <select value={rvClassId} onChange={e => { setRvClassId(e.target.value); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'180px' }}>
                 <option value=''>-- 수업 선택 --</option>
                 {rvFilteredClasses.flatMap(c => {
                   const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
@@ -705,21 +730,6 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
                 })}
               </select>
             </div>
-
-          {/* 4. 현재 텀 필터 (수업 선택 후) */}
-          {rvCls && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>현재 텀</label>
-              <select value={rvFromTerm} onChange={e => { setRvFromTerm(e.target.value); setRvChecked(new Set()) }}
-                style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
-                <option value=''>전체</option>
-                {rvPeriods.map((p, i) => (
-                  <option key={i} value={String(i + 1)}>{p.label || `${i+1}${rvTermLabel}`}</option>
-                ))}
-                {rvPeriods.length === 0 && <option value='1'>1{rvTermLabel}</option>}
-              </select>
-            </div>
-          )}
         </div>
       </div>
 
