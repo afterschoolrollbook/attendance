@@ -197,7 +197,7 @@ export async function loadCacheFromIDB() {
   await Promise.all(tables.map(async (t) => {
     const rows = await idbGet(t)
     if (Array.isArray(rows) && rows.length > 0) {
-      cache.set(t, rows)
+      cache.set(t, rows.filter(r => r._deleted !== true))
     }
   }))
   console.log('[IDB] 캐시 로드 완료')
@@ -207,7 +207,7 @@ export async function loadCacheFromIDB() {
 async function saveCacheToIDB() {
   const dataMap = {}
   for (const t of Object.keys(TABLE_MAP)) {
-    const rows = cache.get(t)
+    const rows = cache.get(t).filter(r => r._deleted !== true)
     if (rows.length > 0) dataMap[t] = rows
   }
   await idbSetAll(dataMap)
@@ -519,7 +519,7 @@ export const db = {
     rows.push(r)
     cache.set(t, rows)
     _emit(t)
-    idbSet(t, rows) // IndexedDB 즉시 반영 (새로고침 후에도 유지)
+    idbSet(t, rows.filter(r => r._deleted !== true)) // IndexedDB 즉시 반영 (_deleted 제외)
     try {
       await syncInsert(t, r)
     } catch (e) {
@@ -534,7 +534,7 @@ export const db = {
     const rows = cache.get(t).map(r => r.id === id ? { ...r, ...updated } : r)
     cache.set(t, rows)
     _emit(t)
-    idbSet(t, rows) // IndexedDB 즉시 반영 (새로고침 후에도 유지)
+    idbSet(t, rows.filter(r => r._deleted !== true)) // IndexedDB 즉시 반영 (_deleted 제외)
     try {
       await syncUpdate(t, id, updated)
     } catch (e) {
@@ -550,7 +550,7 @@ export const db = {
     )
     cache.set(t, rows)
     _emit(t)
-    idbSet(t, rows) // IndexedDB 즉시 반영 (새로고침 후 삭제 유지)
+    idbSet(t, rows.filter(r => r._deleted !== true)) // IndexedDB 즉시 반영 (삭제 항목 제외)
     try {
       await syncDelete(t, id)
     } catch (e) {
