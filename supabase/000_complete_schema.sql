@@ -1051,3 +1051,49 @@ drop function if exists _rename_col_if_exists(text, text, text);
 -- AND table_name ~ '[A-Z]'  -- camelCase 테이블이 남아있으면 여기 표시됨
 -- ORDER BY table_name;
 
+
+-- ============================================================
+-- 다음 텀 이월 기능 (추가)
+-- ============================================================
+
+-- students.active_term: 현재 활성 텀 번호
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name   = 'students'
+      and column_name  = 'active_term'
+  ) then
+    alter table students add column active_term text default null;
+    comment on column students.active_term is '현재 활성 텀 번호 (1/2/3/4). NULL이면 이월 미적용';
+  end if;
+end $$;
+
+-- students.student_careers (없는 경우 안전장치)
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name   = 'students'
+      and column_name  = 'student_careers'
+  ) then
+    alter table students add column student_careers jsonb default '[]'::jsonb;
+  end if;
+end $$;
+
+-- students.status_history (없는 경우 안전장치)
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name   = 'students'
+      and column_name  = 'status_history'
+  ) then
+    alter table students add column status_history jsonb default '[]'::jsonb;
+  end if;
+end $$;
+
+-- 인덱스
+create index if not exists idx_students_updated_at on students(updated_at);
+create index if not exists idx_students_active_term on students(active_term) where active_term is not null;
+create index if not exists idx_students_teacher_id  on students(teacher_id);
