@@ -275,7 +275,17 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
   const [tsChecked, setTsChecked] = React.useState(new Set())
   const [tsDone, setTsDone] = React.useState(false)
 
-  const tsSchools = [...new Set(classes.map(c => c.organization).filter(Boolean))].sort((a,b) => a.localeCompare(b,'ko'))
+  const DAY_ORDER_TS = ['월','화','수','목','금','토','일']
+  const tsSchoolDayMap = {}
+  classes.forEach(c => {
+    if (!tsSchoolDayMap[c.organization]) tsSchoolDayMap[c.organization] = new Set()
+    ;(c.days || []).forEach(d => tsSchoolDayMap[c.organization].add(d))
+  })
+  const tsSchools = [...new Set(classes.map(c => c.organization).filter(Boolean))].sort((a,b) => {
+    const ai = DAY_ORDER_TS.findIndex(d => (tsSchoolDayMap[a]||new Set()).has(d))
+    const bi = DAY_ORDER_TS.findIndex(d => (tsSchoolDayMap[b]||new Set()).has(d))
+    return (ai===-1?99:ai) - (bi===-1?99:bi) || a.localeCompare(b,'ko')
+  })
   const tsYearClasses = tsSchool ? classes.filter(c => c.organization === tsSchool) : []
   const tsFilteredClasses = tsYear ? tsYearClasses.filter(c => c.startDate?.slice(0,4) === tsYear) : tsYearClasses
 
@@ -362,20 +372,17 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
             </select>
           </div>
 
-          {/* 2. 년도 선택 (학교 선택 후) */}
-          {tsSchool && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
-              <select value={tsYear} onChange={e => { setTsYear(e.target.value); setTsClassId(''); setTsChecked(new Set()) }} style={sst}>
-                <option value=''>-- 년도 선택 --</option>
-                {years.map(y => <option key={y} value={y}>{y}년도</option>)}
-              </select>
-            </div>
-          )}
+          {/* 2. 년도 선택 - 처음부터 표시 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
+            <select value={tsYear} onChange={e => { setTsYear(e.target.value); setTsClassId(''); setTsChecked(new Set()) }} style={sst}>
+              <option value=''>-- 년도 선택 --</option>
+              {years.map(y => <option key={y} value={y}>{y}년도</option>)}
+            </select>
+          </div>
 
-          {/* 3. 수업 선택 (년도 선택 후) */}
-          {tsSchool && tsYear && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+          {/* 3. 수업 선택 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
               <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업</label>
               <select value={tsClassId} onChange={e => { setTsClassId(e.target.value); setTsChecked(new Set()) }} style={{ ...sst, minWidth:'180px' }}>
                 <option value=''>-- 수업 선택 --</option>
@@ -394,7 +401,6 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
                 })}
               </select>
             </div>
-          )}
         </div>
       </div>
 
@@ -501,7 +507,17 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
   const [rvChecked, setRvChecked] = React.useState(new Set())
   const [rvDone, setRvDone] = React.useState(false)
 
-  const rvSchools = [...new Set(classes.map(c => c.organization).filter(Boolean))].sort((a,b) => a.localeCompare(b,'ko'))
+  const DAY_ORDER_RV = ['월','화','수','목','금','토','일']
+  const rvSchoolDayMap = {}
+  classes.forEach(c => {
+    if (!rvSchoolDayMap[c.organization]) rvSchoolDayMap[c.organization] = new Set()
+    ;(c.days || []).forEach(d => rvSchoolDayMap[c.organization].add(d))
+  })
+  const rvSchools = [...new Set(classes.map(c => c.organization).filter(Boolean))].sort((a,b) => {
+    const ai = DAY_ORDER_RV.findIndex(d => (rvSchoolDayMap[a]||new Set()).has(d))
+    const bi = DAY_ORDER_RV.findIndex(d => (rvSchoolDayMap[b]||new Set()).has(d))
+    return (ai===-1?99:ai) - (bi===-1?99:bi) || a.localeCompare(b,'ko')
+  })
   const rvYearClasses = rvSchool ? classes.filter(c => c.organization === rvSchool) : []
   const rvFilteredClasses = rvYear ? rvYearClasses.filter(c => c.startDate?.slice(0,4) === rvYear) : rvYearClasses
 
@@ -585,20 +601,17 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
             </select>
           </div>
 
-          {/* 2. 년도 선택 */}
-          {rvSchool && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-              <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
-              <select value={rvYear} onChange={e => { setRvYear(e.target.value); setRvClassId(''); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
-                <option value=''>-- 년도 선택 --</option>
-                {years.map(y => <option key={y} value={y}>{y}년도</option>)}
-              </select>
-            </div>
-          )}
+          {/* 2. 년도 선택 - 처음부터 표시 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
+            <select value={rvYear} onChange={e => { setRvYear(e.target.value); setRvClassId(''); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
+              <option value=''>-- 년도 선택 --</option>
+              {years.map(y => <option key={y} value={y}>{y}년도</option>)}
+            </select>
+          </div>
 
           {/* 3. 수업 선택 */}
-          {rvSchool && rvYear && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
               <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업</label>
               <select value={rvClassId} onChange={e => { setRvClassId(e.target.value); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }} style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'180px' }}>
                 <option value=''>-- 수업 선택 --</option>
@@ -617,7 +630,6 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
                 })}
               </select>
             </div>
-          )}
 
           {/* 4. 현재 텀 필터 (수업 선택 후) */}
           {rvCls && (
