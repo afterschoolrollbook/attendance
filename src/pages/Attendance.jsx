@@ -4949,10 +4949,10 @@ export function Attendance({ user, pageParams = {} }) {
                 <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
               </div>
             ) : (
-              <>{console.log("[DEBUG-CLASS] selClassId:",selClassId,"selDate:",selDate,"selTerm:",selTerm,"selSchool:",selSchool,"isSessionDate:",isSessionDate,"dateClicked:",dateClicked,"students.length:",students.length,"selClass:",selClass?.className,selClass?.startDate,selClass?.endDate,"periods:",JSON.stringify(selClass?.periods))}<UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} key={selDate+selClassId+rightPanelTick} /></>
+              <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} key={selDate+selClassId+rightPanelTick} />
             )
           ) : (
-            <>{console.log('[DEBUG] selDate:',selDate,'selTerm:',selTerm,'selSchool:',selSchool,'activeMode:',activeMode)}{console.log('[DEBUG] allClasses:',allClasses.length,'schoolClasses:',schoolClasses.length)}{console.log('[DEBUG] schoolClasses detail:',schoolClasses.map(c=>c.className+' org:'+c.organization+' startDate:'+c.startDate+' endDate:'+c.endDate+' periods:'+JSON.stringify(c.periods)))}<DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} user={user} key={selDate} /></>
+            <DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} user={user} key={selDate} />
           )}
         </div>
       </div>
