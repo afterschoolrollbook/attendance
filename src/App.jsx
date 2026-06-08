@@ -386,19 +386,28 @@ export default function App() {
       return
     }
 
-    // 2) 캐시 미스 → Supabase sync 후 재조회
+    // 2) 캐시 미스 → users 테이블만 직접 조회 (전체 sync 기다리지 않음)
+    // dbCall 내부에서 const { data: d } = payload 로 받으므로 data 키로 전달
+    try {
+      const fromDb = await dbCall('findByEmail', 'users', { data: { email: u.email } })
+      if (fromDb) {
+        doLogin(fromDb)
+        // 백그라운드에서 전체 sync
+        initFromSupabase().catch(e => console.warn('[handleLogin] 백그라운드 sync 실패:', e.message))
+        return
+      }
+    } catch (err) {
+      console.warn('[handleLogin] 직접 조회 실패, 전체 sync 시도:', err.message)
+    }
+
+    // 3) 직접 조회 실패 시 전체 sync 후 재조회 (최후 수단)
     try {
       await initFromSupabase()
       const fresh = Users.findByEmail(u.email)
       if (fresh) { doLogin(fresh); return }
-
-      // 3) 그래도 없으면 Supabase users 테이블 직접 조회
-      const fromDb = await dbCall('findByEmail', 'users', { d: { email: u.email } })
-      if (fromDb) { doLogin(fromDb); return }
-
-      console.error('[handleLogin] users 테이블에서도 유저를 찾을 수 없음:', u.email)
-    } catch (err) {
-      console.error('[handleLogin] 에러:', err)
+      console.error('[handleLogin] users 테이블에서 유저를 찾을 수 없음:', u.email)
+    } catch (e2) {
+      console.error('[handleLogin] sync 실패:', e2.message)
     }
   }
 
