@@ -316,6 +316,7 @@ function useNaverAuth(onSuccess, clientId) {
   }, [])
 
   const loginWithNaver = () => {
+    console.log("[NAVER DEBUG] 버튼 클릭됨", { clientId })
     if (!clientId) { toastError('네이버 클라이언트 ID가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
 
     const state = Math.random().toString(36).substring(2, 15)
