@@ -60,7 +60,7 @@ function localDateStr(d) {
 
 
 // ─── 수업 메모장 패널
-function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, spGiven, onProgOpen, onOpenScreen }) {
+function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, spGiven, onProgOpen, onOpenScreen, selSection }) {
   const { success } = useToast()
   const [memos, setMemos] = useState(() => cls ? LessonMemos.byClassDate(cls.id, date).filter(m => !m.content?.startsWith('__PARTS_ORDER__:')) : [])
   const [memoText, setMemoText] = useState('')
@@ -209,17 +209,22 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
           {studentProgList.length > 0 && (
             <button
               onClick={() => {
-                const payload = { cls, date }
+                const payload = { cls, date, selSection }
                 onOpenScreen && onOpenScreen(payload)
-                const ch = new BroadcastChannel('progress_screen')
-                ch.postMessage(payload)
-                ch.close()
                 const url = window.location.origin + window.location.pathname + '?progress_screen=1'
                 const existing = window._progressWindow
                 if (existing && !existing.closed) {
                   existing.focus()
+                  const ch = new BroadcastChannel('progress_screen')
+                  ch.postMessage(payload)
+                  ch.close()
                 } else {
                   window._progressWindow = window.open(url, 'progress_screen', 'width=640,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes')
+                  setTimeout(() => {
+                    const ch = new BroadcastChannel('progress_screen')
+                    ch.postMessage(payload)
+                    ch.close()
+                  }, 800)
                 }
               }}
               style={{ fontSize:'11px', fontWeight:700, color:C.primary, background:'#fff7ed', border:`1px solid ${C.primary}`, borderRadius:'8px', padding:'2px 8px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
@@ -860,7 +865,7 @@ export function ProgressWindow() {
     </div>
   )
 
-  const { cls, date } = meta
+  const { cls, date, selSection } = meta
 
   // DB 직접 조회 (tick 변경 시 재계산)
   const spItems  = SupplyItems.byTeacher(cls.teacherId||'')
@@ -868,7 +873,10 @@ export function ProgressWindow() {
   const spProg   = SupplyStudentProgress.byTeacher(cls.teacherId||'')
   const spChecks = SupplySessionChecks.byTeacher(cls.teacherId||'')
   const students = StudentsDB.byClass(cls.id)
-  const activeStudents = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
+  const activeStudents = students.filter(s =>
+    ['applied','selected','confirmed'].includes(s.status) &&
+    (!selSection || s.section === selSection)
+  )
 
   const studentProgList = activeStudents.map(s => {
     const si = spItems.find(i => i.studentId === s.id && i.classId === cls.id)
@@ -920,7 +928,7 @@ export function ProgressWindow() {
   const DAYS_KO2 = ['일','월','화','수','목','금','토']
   const d = new Date(date + 'T00:00:00')
   const dateLabel = `${d.getMonth()+1}월 ${d.getDate()}일 (${DAYS_KO2[d.getDay()]})`
-  const clsName = (cls?.className||'') + ((cls?.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls?.section ? cls?.section+'반' : '')) ? ' '+(cls?.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls?.section ? cls?.section+'반' : '')) : '')
+  const clsName = (cls?.className||'') + (selSection ? ` ${selSection}반` : ((cls?.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls?.section ? cls?.section+'반' : '')) ? ' '+(cls?.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls?.section ? cls?.section+'반' : '')) : ''))
 
   // 진도체크 완료 후 → DB 재계산 + 메인 창에 갱신 신호
   const handleSaved = () => {
@@ -1077,7 +1085,6 @@ function LessonMemoPanelWrapper({ cls, date, classId, selSection, filteredStuden
   const [progStudent, setProgStudent] = useState(null)
   const [progProductId, setProgProductId] = useState('')
   const [tick, setTick] = useState(0)
-  const lastPayloadRef = useRef(null)
 
   useEffect(() => {
     if (!cls) return
@@ -1107,18 +1114,17 @@ function LessonMemoPanelWrapper({ cls, date, classId, selSection, filteredStuden
     return () => ch.close()
   }, [cls?.id])
 
-  // 별도 창이 열리면 즉시 최신 메타 재전송
+  // 별도 창이 열리면 즉시 최신 메타 재전송 (cls/date/selSection 변경 시마다 재등록)
   useEffect(() => {
+    if (!cls) return
     const ready = new BroadcastChannel('progress_screen_ready')
     ready.onmessage = () => {
-      if (lastPayloadRef.current) {
-        const ch = new BroadcastChannel('progress_screen')
-        ch.postMessage(lastPayloadRef.current)
-        ch.close()
-      }
+      const ch = new BroadcastChannel('progress_screen')
+      ch.postMessage({ cls, date, selSection })
+      ch.close()
     }
     return () => ready.close()
-  }, [])
+  }, [cls?.id, date, selSection])
 
   // PC Attendance의 students (이미 반/수업 필터 적용됨)를 그대로 사용
   // filteredStudents가 없으면 cls.id 기준 전체
@@ -1132,7 +1138,8 @@ function LessonMemoPanelWrapper({ cls, date, classId, selSection, filteredStuden
         cls={cls} date={date} students={students}
         spItems={spItems} spProds={spProds} spProg={spProg} spChecks={spChecks} spGiven={spGiven}
         onProgOpen={(s, pid) => { setProgStudent({...s, _clsId: cls.id}); setProgProductId(pid) }}
-        onOpenScreen={(payload) => { lastPayloadRef.current = payload }}
+        onOpenScreen={null}
+        selSection={selSection}
       />
       {progStudent && ReactDOM.createPortal(
         <ProgCheckModal
