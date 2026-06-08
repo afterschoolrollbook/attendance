@@ -288,10 +288,6 @@ function RolloverTab({ classes, toastError, showToast, refresh }) {
           if (aS !== bS) return (aS === -1 ? 99 : aS) - (bS === -1 ? 99 : bS)
           const aG = parseInt(a.grade) || 99, bG = parseInt(b.grade) || 99
           if (aG !== bG) return aG - bG
-          const aCN = parseInt(a.classNum) || 99, bCN = parseInt(b.classNum) || 99
-          if (aCN !== bCN) return aCN - bCN
-          const aN = parseInt(a.number) || 99, bN = parseInt(b.number) || 99
-          if (aN !== bN) return aN - bN
           return (a.name || '').localeCompare(b.name || '', 'ko')
         })
     : []
@@ -345,9 +341,16 @@ function RolloverTab({ classes, toastError, showToast, refresh }) {
             <select value={rvClassId} onChange={e => { setRvClassId(e.target.value); setRvFromTerm(''); setRvToTerm(''); setRvChecked(new Set()) }}
               style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', minWidth:'220px' }}>
               <option value=''>-- 수업 선택 --</option>
-              {classes.flatMap(c => {
+              {[...classes].sort((a, b) => {
+                const DAY_ORDER = ['월','화','수','목','금','토','일']
+                const aDay = DAY_ORDER.indexOf((a.days?.[0]) || '')
+                const bDay = DAY_ORDER.indexOf((b.days?.[0]) || '')
+                if (aDay !== bDay) return (aDay === -1 ? 99 : aDay) - (bDay === -1 ? 99 : bDay)
+                return (a.organization || '').localeCompare(b.organization || '', 'ko')
+              }).flatMap(c => {
                 const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
-                const secs = c.sections?.filter(s => s.section) || []
+                const secs = [...(c.sections?.filter(s => s.section) || [])].sort((a, b) =>
+                  (a.section || '').localeCompare(b.section || '', 'ko'))
                 if (secs.length > 1) {
                   return secs.map(s => (
                     <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
