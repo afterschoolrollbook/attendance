@@ -760,10 +760,24 @@ export function Auth({ onLogin }) {
     }
   }
 
-  // 이메일 인증 완료 → 프로필 입력 (인증된 이메일을 profile에 반영)
+  // 이메일 인증 완료 → 기존 회원이면 바로 로그인, 아니면 프로필 입력
   const handleEmailVerified = (verifiedEmail) => {
-    if (verifiedEmail) {
-      setPendingSocialProfile(prev => ({ ...prev, email: verifiedEmail }))
+    const email = verifiedEmail || pendingSocialProfile?.email
+    if (email) {
+      setPendingSocialProfile(prev => ({ ...prev, email }))
+      const existingByEmail = Users.findByEmail(email)
+      if (existingByEmail) {
+        if (pendingSocialProfile?.providerId) {
+          Users.update(existingByEmail.id, {
+            provider: pendingSocialProfile.provider,
+            providerId: pendingSocialProfile.providerId,
+          })
+        }
+        setSocialStep(null)
+        setPendingSocialProfile(null)
+        onLogin(Users.find(existingByEmail.id) || existingByEmail)
+        return
+      }
     }
     setSocialStep('profile')
   }
