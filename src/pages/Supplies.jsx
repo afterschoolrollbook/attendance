@@ -2280,16 +2280,17 @@ export function Supplies({ user }) {
                   }).flatMap(cls => {
                     // sections 배열이 여러 반이면 반별로 분리 옵션 생성 (Students.jsx와 동일)
                     const secs = cls.sections?.filter(s => s.section) || []
+                    const dayLabel = cls.days?.length ? `(${cls.days.join('·')}) ` : ''
                     if (secs.length > 1) {
                       return secs.map(s => (
                         <option key={cls.id + '::' + s.section} value={cls.id + '::' + s.section}>
-                          {cls.organization} · {cls.className} {s.section}반
+                          {dayLabel}{cls.organization} · {cls.className} {s.section}반
                         </option>
                       ))
                     }
                     const secLabel = (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))
                     return [<option key={cls.id} value={cls.id}>
-                      {cls.organization} · {cls.className}{secLabel ? ' ' + secLabel : ''}
+                      {dayLabel}{cls.organization} · {cls.className}{secLabel ? ' ' + secLabel : ''}
                     </option>]
                   })}
                 </select>

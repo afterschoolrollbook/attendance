@@ -273,6 +273,15 @@ function ParentListTab({ user, config }) {
   const schools = [...new Set(yearClasses.map(c => c.organization).filter(Boolean))]
   const filteredClasses = sortClasses(ctxSchool ? yearClasses.filter(c => c.organization === ctxSchool) : yearClasses)
 
+  // 학교별 대표 요일 계산 (월~금 중 가장 먼저 나오는 요일)
+  const DAY_ORDER_LABEL = ['월','화','수','목','금','토','일']
+  const getSchoolDayLabel = (schoolName) => {
+    const schoolClasses = yearClasses.filter(c => c.organization === schoolName)
+    const days = schoolClasses.flatMap(c => c.days || [])
+    const sorted = [...new Set(days)].sort((a, b) => DAY_ORDER_LABEL.indexOf(a) - DAY_ORDER_LABEL.indexOf(b))
+    return sorted.length > 0 ? `(${sorted.join('·')}) ` : ''
+  }
+
   // 학부모 전화번호가 있는 confirmed 학생만
   const allStudents = StudentsDB.byTeacher(teacherId)
   const withPhone = allStudents.filter(s => {
@@ -497,7 +506,13 @@ function ParentListTab({ user, config }) {
             <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>학교</label>
             <select value={ctxSchool} onChange={e => { setCtxSchool(e.target.value); setCtxClass('') }} style={selSt}>
               <option value="">전체 학교</option>
-              {schools.map(s => <option key={s} value={s}>{s}</option>)}
+              {schools.sort((a, b) => {
+                const aDay = yearClasses.filter(c => c.organization === a).flatMap(c => c.days||[])[0] || 'ㅎ'
+                const bDay = yearClasses.filter(c => c.organization === b).flatMap(c => c.days||[])[0] || 'ㅎ'
+                const ai = DAY_ORDER_LABEL.indexOf(aDay), bi = DAY_ORDER_LABEL.indexOf(bDay)
+                if (ai !== bi) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+                return a.localeCompare(b, 'ko')
+              }).map(s => <option key={s} value={s}>{getSchoolDayLabel(s)}{s}</option>)}
             </select>
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>

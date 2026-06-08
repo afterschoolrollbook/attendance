@@ -4689,9 +4689,16 @@ export function Attendance({ user, pageParams = {} }) {
                     const days = DAY_ORDER.filter(d => (schoolDaysMap[s] || new Set()).has(d))
                     return days.length > 0 ? `(${days.join(',')}) ` : ''
                   }
-                  return [...new Set(filteredCls.map(c => c.organization).filter(Boolean))].map(s => (
-                    <option key={s} value={s}>{getDayLabel(s)}{s}</option>
-                  ))
+                  return [...new Set(filteredCls.map(c => c.organization).filter(Boolean))]
+                    .sort((a, b) => {
+                      const ai = DAY_ORDER.findIndex(d => (schoolDaysMap[a]||new Set()).has(d))
+                      const bi = DAY_ORDER.findIndex(d => (schoolDaysMap[b]||new Set()).has(d))
+                      const as_ = ai === -1 ? 99 : ai, bs_ = bi === -1 ? 99 : bi
+                      return as_ !== bs_ ? as_ - bs_ : a.localeCompare(b, 'ko')
+                    })
+                    .map(s => (
+                      <option key={s} value={s}>{getDayLabel(s)}{s}</option>
+                    ))
                 })()}
               </select>
             </div>

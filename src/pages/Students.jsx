@@ -533,6 +533,23 @@ export function Students({ user, onNav }) {
   const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
   const yearClasses = ctxYear ? classes.filter(c => c.startDate?.startsWith(ctxYear) || c.endDate?.startsWith(ctxYear)) : classes
   const schools = [...new Set(yearClasses.map(c => c.organization).filter(Boolean))]
+  const DAY_ORDER_SCH = ['월','화','수','목','금','토','일']
+  const schoolDaysMapSch = {}
+  yearClasses.forEach(c => {
+    if (!c.organization) return
+    if (!schoolDaysMapSch[c.organization]) schoolDaysMapSch[c.organization] = new Set()
+    ;(c.days || []).forEach(d => schoolDaysMapSch[c.organization].add(d))
+  })
+  const getSchoolDayLabelSch = (s) => {
+    const days = DAY_ORDER_SCH.filter(d => (schoolDaysMapSch[s] || new Set()).has(d))
+    return days.length > 0 ? `(${days.join('·')}) ` : ''
+  }
+  const schoolsSorted = [...schools].sort((a, b) => {
+    const ai = DAY_ORDER_SCH.findIndex(d => (schoolDaysMapSch[a]||new Set()).has(d))
+    const bi = DAY_ORDER_SCH.findIndex(d => (schoolDaysMapSch[b]||new Set()).has(d))
+    const as_ = ai === -1 ? 99 : ai, bs_ = bi === -1 ? 99 : bi
+    return as_ !== bs_ ? as_ - bs_ : a.localeCompare(b, 'ko')
+  })
   const filteredClasses = sortClasses(ctxSchool ? yearClasses.filter(c => c.organization === ctxSchool) : yearClasses)
 
   // 과목 드롭다운: 반이 여러 개면 반별로 펼쳐서 옵션 생성 (value: "classId" or "classId::반이름")
@@ -1088,7 +1105,7 @@ export function Students({ user, onNav }) {
             <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>학교</label>
             <select value={ctxSchool} onChange={e => { setCtxSchool(e.target.value); setCtxClass(''); setCtxSection('') }} style={selSt}>
               <option value="">전체 학교</option>
-              {schools.map(s => <option key={s} value={s}>{s}</option>)}
+              {schoolsSorted.map(s => <option key={s} value={s}>{getSchoolDayLabelSch(s)}{s}</option>)}
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
