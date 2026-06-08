@@ -532,25 +532,38 @@ function RolloverTab({ classes, toastError, showToast, refresh }) {
     if (!rvToTerm) { toastError('이월할 텀을 선택하세요.'); return }
     if (rvChecked.size === 0) { toastError('이월할 학생을 선택하세요.'); return }
     const toTermNum = rvToTerm
-    const toLabel = rvCls?.termType === 'semester' ? `${toTermNum}학기` : `${toTermNum}분기`
+    const fromTermNum = rvFromTerm || '1'
+    const termType = rvCls?.termType || 'quarter'
+    const typeLabel = termType === 'semester' ? '학기제' : '분기제'
+    const termLabel = termType === 'semester' ? '학기' : '분기'
     const toYear = new Date().getFullYear().toString()
-    const newCareer = {
+
+    const makeCareer = (termNum) => ({
       year: toYear,
-      termType: rvCls?.termType || 'semester',
-      term: toTermNum,
-      label: `${toYear.slice(2)}년도 / ${rvCls?.termType === 'semester' ? '학기제' : '분기제'} / ${toLabel}`,
-    }
+      termType,
+      term: termNum,
+      label: `${toYear.slice(2)}년도 / ${typeLabel} / ${termNum}${termLabel}`,
+    })
+
     for (const s of rvStudents) {
       if (!rvChecked.has(s.id)) continue
-      const existingCareers = s.student_careers || []
-      const alreadyHas = existingCareers.some(c => c.year === newCareer.year && c.term === newCareer.term && c.termType === newCareer.termType)
+      let careers = [...(s.student_careers || [])]
+
+      // fromTerm 기록이 없으면 먼저 추가
+      const hasFrom = careers.some(c => c.year === toYear && c.term === fromTermNum && c.termType === termType)
+      if (!hasFrom) careers = [...careers, makeCareer(fromTermNum)]
+
+      // toTerm 기록이 없으면 추가
+      const hasTo = careers.some(c => c.year === toYear && c.term === toTermNum && c.termType === termType)
+      if (!hasTo) careers = [...careers, makeCareer(toTermNum)]
+
       await StudentsDB.update(s.id, {
         activeTerm: toTermNum,
-        student_careers: alreadyHas ? existingCareers : [...existingCareers, newCareer],
+        student_careers: careers,
         statusHistory: [...(s.statusHistory || []), {
           status: 'rollover',
           changedAt: now(),
-          memo: `[텀 이월] ${rvFromTerm || '1'}${rvTermLabel} → ${toTermNum}${rvTermLabel}`,
+          memo: `[텀 이월] ${fromTermNum}${termLabel} → ${toTermNum}${termLabel}`,
         }],
       })
     }
