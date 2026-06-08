@@ -781,7 +781,7 @@ export function Classes({ user, onNav }) {
             <div style={{ fontSize: '12px', fontWeight: 700, color: '#9ca3af', marginBottom: '10px', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               {view === '요일별' ? `${group} 수업` : group}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '14px' }}>
               {grouped[group].map(cls => {
                 const sessions = calcSessionDates(cls)
                 const displaySessions = cls.totalSessions || sessions.length
@@ -851,7 +851,7 @@ export function Classes({ user, onNav }) {
                           borderRadius: isActive ? '8px' : '0',
                           background: isActive ? '#f0fdf4' : 'transparent',
                           border: isActive ? '1px solid #bbf7d0' : 'none',
-                          margin: isActive ? '2px -2px' : '0',
+                          margin: isActive ? '2px 0' : '0',
                         }}>
                           <span style={{ fontWeight:700, color: isActive ? '#16a34a' : '#374151', whiteSpace:'nowrap', minWidth:'30px' }}>{p.label}</span>
                           <span style={{ color:'#9ca3af', whiteSpace:'nowrap' }}>{p.startDate?.slice(5)}~{p.endDate?.slice(5)}</span>
