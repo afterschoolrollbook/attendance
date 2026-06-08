@@ -845,25 +845,28 @@ export function Classes({ user, onNav }) {
                         st.activeTerm === termNum || (!st.activeTerm && i === 0)
                       )
                       return (
-                        <div key={i} style={{ fontSize:'12px', display:'flex', alignItems:'center', gap:'6px', marginBottom:'3px',
-                          padding: isActive ? '2px 6px' : '0',
-                          borderRadius: isActive ? '6px' : '0',
+                        <div key={i} style={{
+                          fontSize:'12px', display:'flex', alignItems:'center', flexWrap:'nowrap', gap:'5px', marginBottom:'4px',
+                          padding: isActive ? '4px 8px' : '2px 0',
+                          borderRadius: isActive ? '8px' : '0',
                           background: isActive ? '#f0fdf4' : 'transparent',
                           border: isActive ? '1px solid #bbf7d0' : 'none',
+                          margin: isActive ? '2px -2px' : '0',
                         }}>
-                          <span style={{ fontWeight:700, color: isActive ? '#16a34a' : '#374151' }}>{p.label}</span>
-                          <span style={{ color:'#9ca3af' }}>{p.startDate?.slice(5)} ~ {p.endDate?.slice(5)}</span>
-                          <span style={{ color:'#6b7280', fontWeight:600 }}>({pSessions}차시)</span>
-                          {isActive && <span style={{ padding:'1px 5px', borderRadius:'4px', background:'#16a34a', color:'#fff', fontSize:'10px', fontWeight:700 }}>진행중</span>}
-                          {/* 반별 학생 수 */}
-                          {secs.length > 1 ? secs.map((s, si) => {
-                            const LABELS = ['A','B','C','D','E','F']
-                            const secLabel = s.section || LABELS[si] || String(si+1)
-                            const cnt = pStudents.filter(st => st.section === s.section || (!st.section && si === 0)).length
-                            return <span key={si} style={{ padding:'1px 6px', borderRadius:'4px', background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:600 }}>{secLabel}반 {cnt}명</span>
-                          }) : (
-                            <span style={{ padding:'1px 6px', borderRadius:'4px', background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:600 }}>학생 {pStudents.length}명</span>
-                          )}
+                          <span style={{ fontWeight:700, color: isActive ? '#16a34a' : '#374151', whiteSpace:'nowrap', minWidth:'30px' }}>{p.label}</span>
+                          <span style={{ color:'#9ca3af', whiteSpace:'nowrap' }}>{p.startDate?.slice(5)}~{p.endDate?.slice(5)}</span>
+                          <span style={{ color:'#6b7280', fontWeight:600, whiteSpace:'nowrap' }}>({pSessions}차시)</span>
+                          {isActive && <span style={{ padding:'1px 5px', borderRadius:'4px', background:'#16a34a', color:'#fff', fontSize:'10px', fontWeight:700, whiteSpace:'nowrap' }}>진행중</span>}
+                          <span style={{ marginLeft:'auto', display:'flex', gap:'4px', flexShrink:0 }}>
+                            {secs.length > 1 ? secs.map((s, si) => {
+                              const LABELS = ['A','B','C','D','E','F']
+                              const secLabel = s.section || LABELS[si] || String(si+1)
+                              const cnt = pStudents.filter(st => st.section === s.section || (!st.section && si === 0)).length
+                              return <span key={si} style={{ padding:'1px 6px', borderRadius:'4px', background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:600, whiteSpace:'nowrap' }}>{secLabel}반 {cnt}명</span>
+                            }) : (
+                              <span style={{ padding:'1px 6px', borderRadius:'4px', background:'#eff6ff', color:'#3b82f6', fontSize:'11px', fontWeight:600, whiteSpace:'nowrap' }}>학생 {pStudents.length}명</span>
+                            )}
+                          </span>
                         </div>
                       )
                     })}
