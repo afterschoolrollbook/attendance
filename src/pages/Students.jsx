@@ -268,7 +268,7 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
   const years = Array.from({ length: currentYear - 2021 + 1 }, (_, i) => String(2022 + i)).reverse()
 
   const [tsSchool, setTsSchool] = React.useState('')
-  const [tsYear, setTsYear] = React.useState(String(currentYear))
+  const [tsYear, setTsYear] = React.useState(String(new Date().getFullYear()))
   const [tsClassId, setTsClassId] = React.useState('')
   const [tsTermType, setTsTermType] = React.useState('quarter')
   const [tsTerm, setTsTerm] = React.useState('1')
@@ -290,7 +290,7 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
     const days = DAY_ORDER_TS.filter(d => (tsSchoolDayMap[s]||new Set()).has(d))
     return days.length ? `(${days.join('·')}) ` : ''
   }
-  const tsYearClasses = tsSchool ? classes.filter(c => c.organization === tsSchool) : []
+  const tsYearClasses = tsSchool ? classes.filter(c => c.organization === tsSchool) : classes
   const tsFilteredClasses = tsYear ? tsYearClasses.filter(c => c.startDate?.slice(0,4) === tsYear) : tsYearClasses
 
   const tsClassIdParsed = tsClassId.includes('::') ? tsClassId.split('::')[0] : tsClassId
@@ -508,6 +508,7 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
   const [rvClassId, setRvClassId] = React.useState('')
   const [rvFromTerm, setRvFromTerm] = React.useState('')
   const [rvToTerm, setRvToTerm] = React.useState('')
+  const [rvToYear, setRvToYear] = React.useState('')
   const [rvChecked, setRvChecked] = React.useState(new Set())
   const [rvDone, setRvDone] = React.useState(false)
 
@@ -526,7 +527,7 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
     const days = DAY_ORDER_RV.filter(d => (rvSchoolDayMap[s]||new Set()).has(d))
     return days.length ? `(${days.join('·')}) ` : ''
   }
-  const rvYearClasses = rvSchool ? classes.filter(c => c.organization === rvSchool) : []
+  const rvYearClasses = rvSchool ? classes.filter(c => c.organization === rvSchool) : classes
   const rvFilteredClasses = rvYear ? rvYearClasses.filter(c => c.startDate?.slice(0,4) === rvYear) : rvYearClasses
 
   const rvClassIdParsed = rvClassId.includes('::') ? rvClassId.split('::')[0] : rvClassId
@@ -568,7 +569,7 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
     const termType = rvCls?.termType || 'quarter'
     const typeLabel = termType === 'semester' ? '학기제' : '분기제'
     const termLabel = termType === 'semester' ? '학기' : '분기'
-    const toYear = new Date().getFullYear().toString()
+    const toYear = rvToYear || new Date().getFullYear().toString()
 
     const makeCareer = (termNum) => ({
       year: toYear,
@@ -685,10 +686,15 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
                 <span style={{ fontSize:'13px', color:'#f97316', fontWeight:600 }}>{rvChecked.size}명 선택됨</span>
               )}
             </div>
-            {/* 체크 후 이월할 텀 + 버튼 */}
+            {/* 체크 후 이월할 년도+텀 + 버튼 */}
             {rvChecked.size > 0 && (
               <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
                 <span style={{ color:'#9ca3af', fontSize:'18px' }}>→</span>
+                <select value={rvToYear} onChange={e => setRvToYear(e.target.value)}
+                  style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none' }}>
+                  <option value=''>년도</option>
+                  {years.map(y => <option key={y} value={y}>{y}년도</option>)}
+                </select>
                 <select value={rvToTerm} onChange={e => setRvToTerm(e.target.value)}
                   style={{ padding:'7px 12px', borderRadius:'8px', border:'1.5px solid #f97316', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff7ed', outline:'none' }}>
                   <option value=''>이월할 텀</option>
