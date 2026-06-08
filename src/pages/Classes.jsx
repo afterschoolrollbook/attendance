@@ -554,7 +554,7 @@ export function Classes({ user, onNav }) {
       classDuration: firstSec.classDuration === '' ? null : Number(firstSec.classDuration) || null,
     }
     if (editId && editId !== '__copy__') {
-      ClassesDB.update(editId, cleanForm)
+      await ClassesDB.update(editId, cleanForm)
       // 반 이름이 변경/삭제된 경우 학생 section 필드 업데이트
       const oldSecs = oldSectionsRef.current
       const newSecs = sections
@@ -581,14 +581,14 @@ export function Classes({ user, onNav }) {
       success('수정이 완료되었습니다.')
     } else {
       const { id: _oldId, ...formWithoutId } = cleanForm
-      ClassesDB.insert({ ...formWithoutId, id: uid(), teacherId: user.id, createdAt: now() })
+      await ClassesDB.insert({ ...formWithoutId, id: uid(), teacherId: user.id, createdAt: now() })
       success('등록이 완료되었습니다.')
     }
     // 저장 후 모달 유지 (X버튼으로만 닫기)
     // setShowModal(false)
   }
 
-  const del = () => {
+  const del = async () => {
     if (!deleteId) return
     const cid = deleteId
     // 학부모 연결 해제
@@ -615,7 +615,7 @@ export function Classes({ user, onNav }) {
       const newSection = (deletedSection && s.section === deletedSection) ? '' : s.section
       StudentsDB.update(s.id, { classIds: newClassIds, section: newSection })
     })
-    ClassesDB.delete(cid)
+    await ClassesDB.delete(cid)
     setDeleteId(null)
     setTick(t => t + 1)
   }
