@@ -112,9 +112,32 @@ function getNthWeekday(date) {
 
 // 특정 날짜의 차시 번호
 export function getSession(cls, date) {
+  // periods 방식: 해당 날짜가 속한 분기/학기 내에서만 순번 계산
+  if (cls.periods?.length > 0) {
+    const period = cls.periods.find(p =>
+      p.startDate && p.endDate && date >= p.startDate && date <= p.endDate
+    )
+    if (!period) return null
+    const periodDates = calcSessionDates({ ...cls, periods: [period] })
+    const cancelled = new Set((cls.cancelledDates || []).map(c => c.date))
+    let idx = 0
+    for (const d of periodDates) {
+      if (cancelled.has(d)) continue
+      idx++
+      if (d === date) return idx
+    }
+    return null
+  }
+  // 기존 방식
   const dates = calcSessionDates(cls)
-  const idx = dates.indexOf(date)
-  return idx === -1 ? null : idx + 1
+  const cancelled = new Set((cls.cancelledDates || []).map(c => c.date))
+  let idx = 0
+  for (const d of dates) {
+    if (cancelled.has(d)) continue
+    idx++
+    if (d === date) return idx
+  }
+  return null
 }
 
 // 특정 날짜의 상세 차시 정보 { total, termNum, termSess }
@@ -122,42 +145,37 @@ export function getSessionInfo(cls, date) {
   const sessions = calcSessionDates(cls)
   const cancelled = new Set((cls.cancelledDates || []).map(c => c.date))
 
-  // periods 방식: 날짜가 속한 분기를 먼저 찾고, 그 분기 안에서 텀 번호 계산
+  // periods 방식: 날짜가 속한 분기를 먼저 찾고, 그 분기 안에서만 계산
   if (cls.periods?.length > 0) {
-    // 전체 차시 순번(total)은 전체 sessions 기준으로 계산
-    const validSessions = sessions.filter(d => !cancelled.has(d))
-    const totalIdx = validSessions.indexOf(date) + 1
-    if (totalIdx === 0) return null
-
     // 날짜가 속한 분기 찾기
     const periodIdx = cls.periods.findIndex(p =>
       p.startDate && p.endDate && date >= p.startDate && date <= p.endDate
     )
-    if (periodIdx < 0) return { total: totalIdx, termNum: 1, termSess: 1 }
+    if (periodIdx < 0) return null
 
     // 해당 분기의 수업 날짜만 계산
     const period = cls.periods[periodIdx]
     const periodSessions = calcSessionDates({ ...cls, periods: [period] })
-    const periodCancelled = cancelled
     const periodTermSizes = (period.termSizes?.length > 0)
       ? period.termSizes.slice(0, period.termCount || period.termSizes.length).map(n => Number(n) || 4)
       : Array(Number(period.termCount) || 1).fill(4)
 
-    // 해당 분기 안에서 텀 번호 계산
-    let cursor = 0
+    // total: 해당 분기 내 차시 순번 (1부터 시작)
+    // termNum, termSess: 분기 내 텀 번호와 텀 내 차시
+    let totalIdx = 1, cursor = 0
     for (let ti = 0; ti < periodTermSizes.length; ti++) {
       const size = periodTermSizes[ti]
       let termIdx = 1
       const slice = periodSessions.slice(cursor, cursor + size)
       for (const d of slice) {
-        if (!periodCancelled.has(d)) {
+        if (!cancelled.has(d)) {
           if (d === date) return { total: totalIdx, termNum: ti + 1, termSess: termIdx }
-          termIdx++
+          totalIdx++; termIdx++
         }
       }
       cursor += size
     }
-    return { total: totalIdx, termNum: 1, termSess: 1 }
+    return null
   }
 
   // 기존 방식 (periods 없음)
