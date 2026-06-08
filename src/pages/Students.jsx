@@ -604,10 +604,6 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
       if (!rvChecked.has(s.id)) continue
       let careers = [...(s.student_careers || [])]
 
-      // fromTerm 기록 없으면 먼저 추가
-      const hasFrom = careers.some(c => c.year === toYear && c.term === fromTermNum && c.termType === termType)
-      if (!hasFrom) careers = [...careers, makeCareer(fromTermNum)]
-
       // toTerm 기록 없으면 추가
       const hasTo = careers.some(c => c.year === toYear && c.term === toTermNum && c.termType === termType)
       if (!hasTo) careers = [...careers, makeCareer(toTermNum)]

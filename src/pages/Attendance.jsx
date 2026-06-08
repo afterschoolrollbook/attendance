@@ -4582,24 +4582,18 @@ export function Attendance({ user, pageParams = {} }) {
         }
       }
       // activeTerm 필터: student_careers 기록 기준으로 해당 분기에 표시
-      // 현재 진행중인 분기를 찾아서, 학생의 careers에 그 분기 기록이 있으면 표시
+      // activeTerm 값으로 학생의 careers에 해당 분기 기록이 있으면 표시
       if (selClass) {
         const periods = selClass.periods?.filter(p => p.startDate && p.endDate) || []
         if (periods.length > 1) {
-          const todayStr = new Date().toISOString().slice(0,10)
-          const activePeriodIdx = periods.findIndex(p => todayStr >= p.startDate && todayStr <= p.endDate)
-          const currentTermNum = activePeriodIdx >= 0 ? String(activePeriodIdx + 1) : null
-          if (currentTermNum) {
-            const careers = s.student_careers || []
-            if (careers.length > 0) {
-              // careers에 현재 분기 기록이 있는 학생만 표시
-              const hasCurrent = careers.some(c => String(c.term) === currentTermNum)
-              if (!hasCurrent) return false
-            } else {
-              // careers 없는 학생 = 이월 안 한 학생 → 1분기에만
-              if (currentTermNum !== '1') return false
-            }
+          const careers = s.student_careers || []
+          const activeTermNum = s.activeTerm ? String(s.activeTerm) : '1'
+          if (careers.length > 0) {
+            // careers에 activeTerm 분기 기록이 있는 학생만 표시
+            const hasCurrent = careers.some(c => String(c.term) === activeTermNum)
+            if (!hasCurrent) return false
           }
+          // careers 없는 학생은 모든 분기에 표시 (이전 데이터 호환)
         }
       }
     } else {
