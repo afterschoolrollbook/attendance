@@ -497,7 +497,7 @@ export function Classes({ user, onNav }) {
     })
   }, [(form.periods || []).length, showModal])
 
-  const save = () => {
+  const save = async () => {
     if (!form.organization.trim() || !form.className.trim() || !form.days.length) {
       toastError('필수 항목을 입력하세요 (단체명, 수업명, 요일).')
       return
@@ -550,21 +550,26 @@ export function Classes({ user, onNav }) {
       // 반 이름이 변경/삭제된 경우 학생 section 필드 업데이트
       const oldSecs = oldSectionsRef.current
       const newSecs = sections
-      oldSecs.forEach((oldSec, i) => {
-        if (!oldSec.section) return
+      for (let i = 0; i < oldSecs.length; i++) {
+        const oldSec = oldSecs[i]
+        if (!oldSec.section) continue
         const newSec = newSecs[i]
         if (!newSec || !newSec.section) {
           // 반이 삭제된 경우 → 해당 학생 section 초기화
-          StudentsDB.byClass(editId)
-            .filter(s => s.section === oldSec.section)
-            .forEach(s => StudentsDB.update(s.id, { section: '' }))
+          await Promise.all(
+            StudentsDB.byClass(editId)
+              .filter(s => s.section === oldSec.section)
+              .map(s => StudentsDB.update(s.id, { section: '' }))
+          )
         } else if (oldSec.section !== newSec.section) {
           // 반 이름이 변경된 경우 → 새 이름으로 업데이트
-          StudentsDB.byClass(editId)
-            .filter(s => s.section === oldSec.section)
-            .forEach(s => StudentsDB.update(s.id, { section: newSec.section }))
+          await Promise.all(
+            StudentsDB.byClass(editId)
+              .filter(s => s.section === oldSec.section)
+              .map(s => StudentsDB.update(s.id, { section: newSec.section }))
+          )
         }
-      })
+      }
       success('수정이 완료되었습니다.')
     } else {
       const { id: _oldId, ...formWithoutId } = cleanForm
@@ -948,12 +953,14 @@ export function Classes({ user, onNav }) {
                     </div>
                     <div style={{ paddingBottom:'2px' }}>
                       {(form.sections||[]).length > 1 && (
-                        <button type="button" onClick={() => {
+                        <button type="button" onClick={async () => {
                           const removedSection = (form.sections||[])[idx]?.section
                           if (editId && editId !== '__copy__' && removedSection) {
-                            StudentsDB.byClass(editId)
-                              .filter(s => s.section === removedSection)
-                              .forEach(s => StudentsDB.update(s.id, { section: '' }))
+                            await Promise.all(
+                              StudentsDB.byClass(editId)
+                                .filter(s => s.section === removedSection)
+                                .map(s => StudentsDB.update(s.id, { section: '' }))
+                            )
                           }
                           set('sections', (form.sections||[]).filter((_,i)=>i!==idx))
                         }}
