@@ -897,7 +897,7 @@ function SuppliesProgCheckModal({ student, initialProductId, productList, produc
           const stage = selStage
           const stagePlans = (productPlanList || []).filter(p => p.productId === selProductId && p.stage === stage).sort((a,b) => a.sessionNo-b.sessionNo)
           const sessions = stagePlans.length > 0 ? stagePlans
-            : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
+            : [{ id:`d_${stage}_0`, stage, sessionNo:0, dummy:true }, ...Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))]
           const stageChecks = SupplySessionChecks.byProductStudent(selProductId, student.id, classId).filter(c => c.stage===stage)
           const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
           const cnt = stageChecks.length
@@ -1537,10 +1537,15 @@ export function Supplies({ user }) {
         const stagePlans = (data.productPlans || [])
           .filter(pl => pl._srcProductId === p._srcId && pl.stage === s)
           .sort((a, b) => a.sessionNo - b.sessionNo)
-        titles[s] = Array.from({ length: perS }, (_, i) => ({
-          title: stagePlans[i]?.title || '',
-          memo:  stagePlans[i]?.memo  || '',
-        }))
+        const zeroStagePlan = stagePlans.find(p => p.sessionNo === 0)
+        const restStagePlans = stagePlans.filter(p => p.sessionNo > 0)
+        titles[s] = [
+          { title: zeroStagePlan?.title || '', memo: zeroStagePlan?.memo || '' },
+          ...Array.from({ length: perS }, (_, i) => ({
+            title: restStagePlans[i]?.title || '',
+            memo:  restStagePlans[i]?.memo  || '',
+          }))
+        ]
       }
 
       // 업체 없으면 먼저 등록
@@ -1860,10 +1865,16 @@ export function Supplies({ user }) {
           const plans = (productPlanList || [])
             .filter(p => p.productId === existingProduct.id && p.stage === s)
             .sort((a,b) => a.sessionNo - b.sessionNo)
-          titles[s] = Array.from({ length: perS }, (_, i) => ({
-            title: plans[i]?.title || '',
-            memo:  plans[i]?.memo  || '',
-          }))
+          // 0차시를 맨 앞에, 이후 1차시부터 sessionsPerStage개
+          const zeroPlan = plans.find(p => p.sessionNo === 0)
+          const restPlans = plans.filter(p => p.sessionNo > 0)
+          titles[s] = [
+            { title: zeroPlan?.title || '', memo: zeroPlan?.memo || '' },
+            ...Array.from({ length: perS }, (_, i) => ({
+              title: restPlans[i]?.title || '',
+              memo:  restPlans[i]?.memo  || '',
+            }))
+          ]
         }
         setProductForm({ id: existingProduct.id, name: existingProduct.name, maxStage: maxS, sessionsPerStage: perS, alertSession: existingProduct.alertSession||3, subject: existingProduct.subject||'', consumerPrice: existingProduct.consumerPrice||0, schoolPrice: existingProduct.schoolPrice||0, branchPrice: existingProduct.branchPrice||0, teacherPrice: existingProduct.teacherPrice||0, purchasePrice: existingProduct.purchasePrice||0 })
         setStageSessionTitles(titles)
@@ -1871,7 +1882,8 @@ export function Supplies({ user }) {
         const cnt = 12
         const titles = {}
         for (let s = 1; s <= 10; s++) {
-          titles[s] = Array.from({length: cnt}, () => ({ title:'', memo:'' }))
+          // 0차시 포함: 총 cnt+1개 (0차시 + 1~cnt차시)
+          titles[s] = Array.from({length: cnt + 1}, () => ({ title:'', memo:'' }))
         }
         setProductForm({ id:null, name:'', maxStage:10, sessionsPerStage:cnt, alertSession:3, subject: selSubject||'' })
         setStageSessionTitles(titles)
@@ -1926,7 +1938,7 @@ export function Supplies({ user }) {
         const t = typeof item === 'string' ? item : (item?.title || '')
         const m = typeof item === 'string' ? '' : (item?.memo || '')
         if (!t.trim()) return
-        const sessionNo = idx + 1
+        const sessionNo = idx
         const existing = productPlanList.find(p =>
           p.productId === productId && p.stage === stage && p.sessionNo === sessionNo
         )
@@ -1955,7 +1967,12 @@ export function Supplies({ user }) {
     const list = productPlanList.filter(p=>p.productId===productId && p.stage===stage).sort((a,b)=>a.sessionNo-b.sessionNo)
     setSessionPlanTarget({ productId, stage })
     setSessionPlanList(list)
-    setSessionPlanEdits(list.map(p => ({ id:p.id, sessionNo:p.sessionNo, title:p.title||'', memo:p.memo||'', _isNew:false })))
+    let edits = list.map(p => ({ id:p.id, sessionNo:p.sessionNo, title:p.title||'', memo:p.memo||'', _isNew:false }))
+    // 0차시가 없으면 맨 앞에 추가
+    if (!edits.some(e => e.sessionNo === 0)) {
+      edits = [{ id:uid(), sessionNo:0, title:'', memo:'', _isNew:true }, ...edits]
+    }
+    setSessionPlanEdits(edits)
     setSessionPlanModal(true)
   }
   const saveSessionPlan = async () => {
@@ -4224,7 +4241,7 @@ export function Supplies({ user }) {
 
                 {/* 차시 목록 */}
                 <div style={{ padding:'8px 14px', display:'flex', flexDirection:'column', gap:'5px', maxHeight:'220px', overflowY:'auto' }}>
-                  {(stageSessionTitles[productStageTab] || Array.from({length: productForm.sessionsPerStage}, () => ({title:'', memo:''}))).map((item, idx) => {
+                  {(stageSessionTitles[productStageTab] || Array.from({length: productForm.sessionsPerStage + 1}, () => ({title:'', memo:''}))).map((item, idx) => {
                     const t = typeof item === 'string' ? item : (item?.title || '')
                     const m = typeof item === 'string' ? '' : (item?.memo || '')
                     const updateItem = (field, val) => {
@@ -4236,7 +4253,7 @@ export function Supplies({ user }) {
                     }
                     return (
                       <div key={idx} style={{ display:'grid', gridTemplateColumns:'46px 1fr 1fr 28px', gap:'6px', alignItems:'center' }}>
-                        <span style={{ fontSize:'12px', fontWeight:700, color:C.primary }}>{idx+1}차시</span>
+                        <span style={{ fontSize:'12px', fontWeight:700, color:C.primary }}>{idx}차시</span>
                         <input value={t} onChange={e => updateItem('title', e.target.value)}
                           placeholder="제목 (선택)"
                           style={{ ...iStyle, padding:'5px 8px', fontSize:'12px' }} />
@@ -4256,7 +4273,7 @@ export function Supplies({ user }) {
                 {/* 차시 추가 버튼 */}
                 <div style={{ padding:'8px 14px', borderTop:`1px solid ${C.border}` }}>
                   <button onClick={() => setStageSessionTitles(prev => {
-                    const cur = [...(prev[productStageTab] || Array.from({length: productForm.sessionsPerStage}, () => ({title:'', memo:''})))]
+                    const cur = [...(prev[productStageTab] || Array.from({length: productForm.sessionsPerStage + 1}, () => ({title:'', memo:''})))]
                     cur.push({ title:'', memo:'' })
                     return {...prev, [productStageTab]: cur}
                   })} style={{ width:'100%', padding:'7px', borderRadius:'7px', border:`1.5px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
@@ -4331,7 +4348,7 @@ export function Supplies({ user }) {
                 <div style={{ padding:'8px 14px', borderTop:`1px solid ${C.border}` }}>
                   <button onClick={() => setSessionPlanEdits(prev => [
                     ...prev,
-                    { id:uid(), sessionNo:prev.length+1, title:'', memo:'', _isNew:true }
+                    { id:uid(), sessionNo:prev.length, title:'', memo:'', _isNew:true }
                   ])} style={{ width:'100%', padding:'7px', borderRadius:'7px', border:`1.5px dashed ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
                     + 차시 추가
                   </button>
