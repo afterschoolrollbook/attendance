@@ -139,17 +139,17 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
     return unsub
   }, [cls?.id, date])
 
-  // 다른 기기 변경사항 폴링 (30초마다 Supabase 재조회)
+  // 다른 기기 변경사항 폴링 (30초마다 Supabase 재조회) — supply 포함
   useEffect(() => {
     if (!cls) return
     const poll = async () => {
-      await refreshTablesFromSupabase('lessonMemos')
+      await refreshTablesFromSupabase('lessonMemos', 'supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
       const all = LessonMemos.byClassDate(cls.id, date)
       setMemos(all.filter(m => !m.content?.startsWith(PARTS_ORDER_KEY)))
       const saved = all.find(m => m.content?.startsWith(PARTS_ORDER_KEY))
       if (saved) { try { const p = JSON.parse(saved.content.slice(PARTS_ORDER_KEY.length)); orderListRef.current = p; setOrderList(p) } catch {} }
     }
-    const timer = setInterval(poll, 30000)
+    const timer = setInterval(poll, 10000)
     return () => clearInterval(timer)
   }, [cls?.id, date])
 
@@ -294,7 +294,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
               const alertSess = prod.alertSession || 3
               const curStage = prog?.curStage || si.stage || 1
               const stagePlans = SupplyProductPlans.byProductStage(si.productId, curStage)
-              const actualSessions = stagePlans.length > 0 ? stagePlans.length : spp + 1
+              const actualSessions = stagePlans.length > 0 ? stagePlans.length : spp
               const chk = spChecks.filter(c => c.studentId === s.id && c.productId === si.productId && c.stage === curStage).length
               const isDone = chk >= actualSessions
               const isAlert = chk >= (actualSessions - alertSess) && !isDone
@@ -869,6 +869,21 @@ export function ProgressWindow() {
     return () => ch.close()
   }, [])
 
+  // supply 테이블 실시간 구독 — 메인 창에서 체크해도 수업화면 즉시 반영
+  useEffect(() => {
+    if (!meta?.cls) return
+    const doRefresh = async () => {
+      await refreshTablesFromSupabase('supplySessionChecks', 'supplyStudentProgress', 'supplyItems', 'supplyProducts')
+      setTick(t => t + 1)
+      setLastUpdated(new Date())
+    }
+    const unsubs = [
+      onDbChange('supplySessionChecks', doRefresh),
+      onDbChange('supplyStudentProgress', doRefresh),
+    ]
+    return () => unsubs.forEach(u => u && u())
+  }, [meta?.cls?.id])
+
   if (!meta) return (
     <div style={{ height:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#f9fafb', fontFamily:'Noto Sans KR, sans-serif' }}>
       <div style={{ fontSize:'48px', marginBottom:'16px' }}>🖥️</div>
@@ -1107,6 +1122,26 @@ function LessonMemoPanelWrapper({ cls, date, classId, selSection, filteredStuden
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
     setSpGiven(SupplyGiven.byTeacher(cls.teacherId||''))
   }, [cls?.id, date, tick])
+
+  // supply 테이블 실시간 구독 — 어느 화면에서 저장해도 왼쪽 패널 즉시 반영
+  useEffect(() => {
+    if (!cls) return
+    const refresh = () => {
+      setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
+      setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
+      setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
+      setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+      setSpGiven(SupplyGiven.byTeacher(cls.teacherId||''))
+      setTick(t => t + 1)
+    }
+    const unsubs = [
+      onDbChange('supplySessionChecks', refresh),
+      onDbChange('supplyStudentProgress', refresh),
+      onDbChange('supplyItems', refresh),
+      onDbChange('supplyProducts', refresh),
+    ]
+    return () => unsubs.forEach(u => u && u())
+  }, [cls?.id])
 
   // 수업화면(별도 창)에서 진도체크 시 왼쪽 패널 갱신
   useEffect(() => {
@@ -2058,12 +2093,12 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
           const stage = selStage
           const stagePlans = SupplyProductPlans.byProductStage(selProductId, stage).sort((a,b) => a.sessionNo-b.sessionNo)
           const sessions = stagePlans.length > 0 ? stagePlans
-            : [{ id:`d_${stage}_0`, stage, sessionNo:0, dummy:true }, ...Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))]
+            : Array.from({ length: spp }, (_, i) => ({ id:`d_${stage}_${i+1}`, stage, sessionNo:i+1, dummy:true }))
           const stageChecks = SupplySessionChecks.byProductStudent(selProductId, student.id, classId).filter(c => c.stage===stage)
           const checkedNos = new Set(stageChecks.map(c => c.sessionNo))
           const cnt = stageChecks.length
-          const actualSessions = sessions.length > 0 ? sessions.length : spp + 1
-          const isDone = cnt >= actualSessions
+          const isDone = cnt >= spp
+          const actualSessions = sessions.length > 0 ? sessions.length : spp
           const isAlert = cnt >= (actualSessions - alertSess) && !isDone
           return (
             <div style={{ border:`1px solid ${isDone?'#86efac':isAlert?'#fde68a':'#e5e7eb'}`, borderRadius:'10px', overflow:'hidden' }}>
@@ -2400,7 +2435,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
             const _spp2 = _prod2?.sessionsPerStage || 12
             const _chk2 = SupplySessionChecks.byProductStudent(_si2.productId, s.id, _cid2).filter(c => c.stage === _cs2).length
             const _plans2 = SupplyProductPlans.byProductStage(_si2.productId, _cs2)
-            const _actual2 = _plans2.length > 0 ? _plans2.length : _spp2 + 1
+            const _actual2 = _plans2.length > 0 ? _plans2.length : _spp2
             const _alert2 = _prod2?.alertSession || 3
             const _done2 = _chk2 >= _actual2
             const _near2 = _chk2 >= (_actual2 - _alert2) && !_done2
@@ -2469,7 +2504,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
           const chk = SupplySessionChecks.byProductStudent(si.productId, s.id, _cid).filter(c => c.stage === curStage).length
           const pct = Math.min(Math.round(chk/spp*100),100)
           const stagePlans = SupplyProductPlans.byProductStage(si.productId, curStage)
-          const actualSess = stagePlans.length > 0 ? stagePlans.length : spp + 1
+          const actualSess = stagePlans.length > 0 ? stagePlans.length : spp
           const alertSess = prod?.alertSession || 3
           const isDone = chk >= actualSess
           const isAlert = chk >= (actualSess - alertSess) && !isDone
@@ -2542,7 +2577,7 @@ function FutureStudentRow({ s, idx, onMsgOpen, onStudentClick, classId, onProgOp
         const _spp3 = _prod3?.sessionsPerStage || 12
         const _chk3 = SupplySessionChecks.byProductStudent(_si3.productId, s.id, _cid3).filter(c => c.stage === _cs3).length
         const _plans3 = SupplyProductPlans.byProductStage(_si3.productId, _cs3)
-        const _actual3 = _plans3.length > 0 ? _plans3.length : _spp3 + 1
+        const _actual3 = _plans3.length > 0 ? _plans3.length : _spp3
         const _np3 = _prog3?.nextProductId ? (spProds||[]).find(p => p.id === _prog3.nextProductId) : null
         const _done3 = _chk3 >= _actual3
         const _lbl3 = _done3
@@ -2588,7 +2623,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
   const _spp = _prod?.sessionsPerStage || 12
   const _chk = _si?.productId ? spChecks.filter(c => c.studentId === s.id && c.productId === _si.productId && c.stage === _curStage).length : 0
   const _stagePlans = _si?.productId ? SupplyProductPlans.byProductStage(_si.productId, _curStage) : []
-  const _actualSess = _stagePlans.length > 0 ? _stagePlans.length : _spp + 1
+  const _actualSess = _stagePlans.length > 0 ? _stagePlans.length : _spp
   const _alertSess = _prod?.alertSession || 3
   const _supplyDone = _si?.productId ? _chk >= _actualSess : false
   const _supplyAlert = _si?.productId ? (_chk >= (_actualSess - _alertSess) && !_supplyDone) : false
@@ -2684,7 +2719,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
           const chk = spChecks.filter(c => c.studentId === s.id && c.productId === si.productId && c.stage === curStage).length
           const pct = Math.min(Math.round(chk/spp*100),100)
           const stagePlans = SupplyProductPlans.byProductStage(si.productId, curStage)
-          const actualSess = stagePlans.length > 0 ? stagePlans.length : spp + 1
+          const actualSess = stagePlans.length > 0 ? stagePlans.length : spp
           const alertSess = prod?.alertSession || 3
           const isDone = chk >= actualSess
           const isAlert = chk >= (actualSess - alertSess) && !isDone
@@ -3221,6 +3256,25 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
     setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
   }, [progTick])
+
+  // supply 테이블 실시간 구독 — 어느 화면에서 저장해도 즉시 반영
+  useEffect(() => {
+    if (!cls) return
+    const refresh = () => {
+      setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
+      setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
+      setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
+      setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+      setProgTick(t => t + 1)
+    }
+    const unsubs = [
+      onDbChange('supplySessionChecks', refresh),
+      onDbChange('supplyStudentProgress', refresh),
+      onDbChange('supplyItems', refresh),
+      onDbChange('supplyProducts', refresh),
+    ]
+    return () => unsubs.forEach(u => u && u())
+  }, [cls?.id])
 
   // 수업화면(별도 창) 및 왼쪽 패널 진도체크 시 오른쪽 패널 갱신
   // setProgTick만 호출 → 리마운트 없이 데이터만 갱신 (모달 유지됨)
