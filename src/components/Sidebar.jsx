@@ -49,7 +49,7 @@ function getMenuConfig() {
   return JSON.parse(localStorage.getItem(KEY_MENU) || '{"training":true,"certificates":true,"career":true,"awards":true,"proposals":true,"jobs":true}')
 }
 
-export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onClose }) {
+export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onClose, onGoLanding }) {
   const adSlot     = AdSlots.all().find(s => s.id === 'sidebar_bottom')
   const menuCfg    = getMenuConfig()
   const levelNames = getLevelNames()
@@ -159,7 +159,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
         boxShadow: open ? '4px 0 24px rgba(0,0,0,0.35)' : 'none',
       }}>
         <div style={{ padding:'18px 16px 16px', borderBottom:'1px solid #27272a', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+          <div onClick={onGoLanding} style={{ display:'flex', alignItems:'center', gap:'8px', cursor: onGoLanding ? 'pointer' : 'default' }}>
             <span style={{ fontSize:'20px' }}>📋</span>
             <span style={{ fontSize:'14px', fontWeight:700, color:'#fff' }}>방과후 출석부</span>
           </div>
@@ -187,7 +187,9 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
       position:'sticky', top:0, overflow:'hidden',
     }}>
       <div style={{ padding:'24px 20px 20px', borderBottom:'1px solid #27272a' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+        <div onClick={onGoLanding} style={{ display:'flex', alignItems:'center', gap:'10px', cursor: onGoLanding ? 'pointer' : 'default', borderRadius:'8px', transition:'background .15s' }}
+          onMouseEnter={e=>{ if(onGoLanding) e.currentTarget.style.background='#27272a' }}
+          onMouseLeave={e=>{ e.currentTarget.style.background='transparent' }}>
           <span style={{ fontSize:'22px' }}>📋</span>
           <div>
             <div style={{ fontSize:'15px', fontWeight:700, color:'#fff' }}>방과후 출석부</div>
