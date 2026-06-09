@@ -3330,17 +3330,12 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
   }
   const markAll = (status) => activeStudents.forEach(s => mark(s.id, status))
 
-  // 스케줄변경 날짜: attendance.absentReason 또는 students.statusHistory 둘 다 확인
+  // 스케줄변경: 해당 수업의 가장 최근 attendance에 schedule_change:날짜가 있고 date > 그 날짜이면 제외
   const getScheduleChangeDate = (studentId) => {
-    // 1. attendance에서 먼저
     const recs = AttendanceDB.byStudentClass(studentId, cls?.id || '')
     const rec = recs.slice().sort((a,b) => (b.date||'').localeCompare(a.date||'')).find(r => r.absentReason?.startsWith('schedule_change:'))
-    if (rec) return rec.absentReason.split(':')[1] || null
-    // 2. statusHistory에서 (Students.jsx 직접 처리 케이스)
-    const s = students.find(st => st.id === studentId)
-    const h = (s?.statusHistory||[]).slice().reverse().find(h => h.status === 'schedule_change')
-    const m = h?.memo?.match(/\d{4}-\d{2}-\d{2}/)
-    return m ? m[0] : null
+    if (!rec) return null
+    return rec.absentReason.split(':')[1] || null
   }
   const activeStudents      = students.filter(s => {
     if (!['applied','selected','confirmed'].includes(s.status)) return false
@@ -3667,7 +3662,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
           onDeleteSchedule={(s) => {
             const recs = AttendanceDB.byStudentClass(s.id, cls?.id || '')
             const rec = recs.slice().sort((a,b) => (b.date||'').localeCompare(a.date||'')).find(r => r.absentReason?.startsWith('schedule_change:'))
-            if (rec) AttendanceDB.update(rec.id, { absentReason: '', status: 'absent' })
+            if (rec) AttendanceDB.upsert({ ...rec, absentReason: '', status: 'absent' })
             const existing = StudentsDB.find(s.id)
             if (existing && existing.status === 'schedule_change') {
               StudentsDB.update(s.id, { status: 'confirmed' })
@@ -3706,15 +3701,10 @@ function BadgeDetailModal({ modal, onClose, getRec, allAttendance, onStudentClic
 
   // 스케줄변경 날짜 추출 (attendance absentReason에서)
   const getScheduleDate = (s) => {
-    // 1. attendance.absentReason에서 먼저 찾기
     const recs = allAttendance(s.id, s.classIds?.[0] || '')
     const rec = recs.slice().sort((a,b) => (b.date||'').localeCompare(a.date||''))
       .find(r => r.absentReason?.startsWith('schedule_change:'))
-    if (rec) return rec.absentReason.split(':')[1]
-    // 2. 없으면 students.statusHistory에서 찾기 (Students.jsx에서 직접 처리한 경우)
-    const h = (s.statusHistory||[]).slice().reverse().find(h => h.status === 'schedule_change')
-    const m = h?.memo?.match(/\d{4}-\d{2}-\d{2}/)
-    return m ? m[0] : null
+    return rec ? rec.absentReason.split(':')[1] : null
   }
 
   // 결석 사유 가져오기
