@@ -571,9 +571,7 @@ export const db = {
     _emit(t)
     idbSet(t, rows.filter(r => r._deleted !== true)) // IndexedDB 즉시 반영 (_deleted 제외)
     try {
-      console.log(`[DB] update/${t} id=${id} patch=`, JSON.stringify(patch))
       await syncUpdate(t, id, updated)
-      console.log(`[DB] update/${t} 성공`)
     } catch (e) {
       console.error(`[DB] update/${t} 실패:`, e.message, e)
       throw e
