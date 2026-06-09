@@ -866,7 +866,7 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
   )
 }
 
-export function Students({ user, onNav }) {
+export function Students({ user, onNav, pageParams = {} }) {
   const classes = ClassesDB.byTeacher(user.id)
 
   // 기존 '1학년' 형태 grade 데이터 → 숫자로 마이그레이션
@@ -878,6 +878,15 @@ export function Students({ user, onNav }) {
       }
     })
   }, [])
+
+  // 출석부 등 외부에서 editStudentId 전달 시 자동으로 편집 모달 열기
+  React.useEffect(() => {
+    if (!pageParams.editStudentId) return
+    const s = StudentsDB.find(pageParams.editStudentId)
+    if (s) openEdit(s)
+  // openEdit은 함수 선언 이후 정의되지만 useEffect는 mount 후 실행되므로 문제없음
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageParams.editStudentId])
 
   const [ctxYear,    setCtxYear]    = useState('')
   const [ctxSchool,  setCtxSchool]  = useState('')
@@ -1293,12 +1302,8 @@ export function Students({ user, onNav }) {
     const curT = getCurrentTerm()
     const alreadyHasCurrent = existingCareers.some(c => c.year === curT.year && c.termType === curT.termType && c.term === curT.term)
     const careersWithCurrent = alreadyHasCurrent ? existingCareers : [...existingCareers, curT]
-    // statusHistory에서 schedule_change_date 복원
-    const scHistory = (s.statusHistory||[]).slice().reverse().find(h => h.status === 'schedule_change')
-    const scDate = scHistory?.memo?.match(/\d{4}-\d{2}-\d{2}/)?.[0] || ''
     setForm({
       ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [], student_careers: careersWithCurrent,
-      schedule_change_date: s.status === 'schedule_change' ? scDate : '',
       _newOrganization: cls?.organization || '',
       _newClassName:    cls?.className    || '',
       _newSection:      cls?.section      || '',
