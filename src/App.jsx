@@ -325,6 +325,7 @@ export default function App() {
       <LandingPage
         onGoLogin={() => { setLandingTarget('login'); setShowLanding(false) }}
         onGoSignup={() => { setLandingTarget('signup'); setShowLanding(false) }}
+        onGoBlog={() => { window.location.href = '/blog' }}
       />
     )
   }
