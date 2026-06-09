@@ -320,12 +320,13 @@ export default function App() {
   if (pathname === '/parent-login')  return <ParentLogin />
 
   // ── 랜딩 페이지 ─────────────────────────────────────────────────
-  if (!user && showLanding) {
+  if (showLanding) {
     return (
       <LandingPage
         onGoLogin={() => { setLandingTarget('login'); setShowLanding(false) }}
         onGoSignup={() => { setLandingTarget('signup'); setShowLanding(false) }}
         onGoBlog={() => { window.location.href = '/blog' }}
+        onGoDashboard={user ? () => setShowLanding(false) : null}
       />
     )
   }
@@ -453,7 +454,8 @@ export default function App() {
       <SaveStatusBar user={user} />
       {isMobile && <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />}
       <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout}
-               mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+               mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)}
+               onGoLanding={() => setShowLanding(true)} />
       <main style={{ flex:1, height:'100vh', overflowY:'auto', paddingTop: isMobile ? '52px' : 0, paddingBottom: isMobile ? '60px' : 0 }}>
         {renderPage()}
       </main>
