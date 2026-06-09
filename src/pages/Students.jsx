@@ -1403,18 +1403,18 @@ export function Students({ user, onNav, pageParams = {} }) {
     delete saveData._newTimeStart; delete saveData._newTimeEnd
     delete saveData._newTermType; delete saveData._newDays; delete saveData._newRepeatType
     delete saveData._newStartDate; delete saveData._newEndDate
-    // transfer_info는 Supabase 컬럼 없음 — statusHistory에 날짜 기록 후 제거
+    // transfer_info는 Supabase 컬럼 없음 — statusHistory에 날짜 기록 후 반드시 제거
     if (saveData.transfer_info) {
       const tDate = saveData.transfer_info.date || new Date().toISOString().slice(0,10)
       const tStatus = saveData.status === 'transfer_out' ? '전학' : '전입'
       saveData.statusHistory = [...(saveData.statusHistory||[]), { status: saveData.status, changedAt: new Date().toISOString(), memo: `[${tStatus}] ${tDate}` }]
-      delete saveData.transfer_info
     }
-    // schedule_change_date도 Supabase 컬럼 없음 — statusHistory에 기록 후 제거
+    delete saveData.transfer_info  // 값 유무 상관없이 항상 제거
+    // schedule_change_date도 Supabase 컬럼 없음 — statusHistory에 기록 후 반드시 제거
     if (saveData.schedule_change_date) {
       saveData.statusHistory = [...(saveData.statusHistory||[]), { status: 'schedule_change', changedAt: new Date().toISOString(), memo: `[스케줄변경] ${saveData.schedule_change_date}` }]
-      delete saveData.schedule_change_date
     }
+    delete saveData.schedule_change_date  // 값 유무 상관없이 항상 제거
 
     if (editId) {
       if (saveData.status === 'cancelled' && !saveData.cancel_info) {
