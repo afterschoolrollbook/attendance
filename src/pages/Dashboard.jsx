@@ -1932,7 +1932,7 @@ function DayDetail({ date, user, classes, onNav }) {
               return [{ ...cls, _selSection: cls.section || '', _secTime: cls.time, _secTimeEnd: cls.timeEnd }]
             }).map(cls => {
               const selSection = cls._selSection
-              const allStudents = StudentsDB.confirmed(cls.id)
+              const allStudents = confirmedForDate(cls, date)
               const students = (selSection
                 ? allStudents.filter(s => (s.section || '') === selSection)
                 : allStudents
