@@ -603,8 +603,8 @@ function SocialProfileForm({ profile, onComplete }) {
 }
 
 // ─── 메인 Auth 컴포넌트
-export function Auth({ onLogin }) {
-  const [mode, setMode] = useState('login') // 'login' | 'register' | 'findId' | 'findPw'
+export function Auth({ onLogin, initialTab }) {
+  const [mode, setMode] = useState(initialTab === 'signup' ? 'register' : 'login') // 'login' | 'register' | 'findId' | 'findPw'
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({ name: '', email: '', pw: '', pw2: '', phone: '' })
   const [emailChecked, setEmailChecked] = useState(false)
