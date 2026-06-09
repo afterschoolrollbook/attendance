@@ -3178,7 +3178,7 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
 }
 
 // ─── 날짜별 전체 출석 패널 (대시보드 스타일, 네비게이션 없음)
-function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user, onNav }) {
+function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user }) {
   const dayClasses = sortClasses(schoolClasses.filter(cls => calcSessionDates(cls).includes(date)))
 
   if (dayClasses.length === 0) {
@@ -3217,7 +3217,7 @@ function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user
           <div style={{ padding:'12px 16px' }}>
             {classes.map(cls => {
               const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before'].includes(s.status) && isInCurrentTerm(s, cls, date))
-              return <UnifiedPanel key={cls.id + date} cls={cls} date={date} students={clsStudents} user={user} allClasses={allClasses} onNav={onNav} />
+              return <UnifiedPanel key={cls.id + date} cls={cls} date={date} students={clsStudents} user={user} allClasses={allClasses} />
             })}
           </div>
         </div>
@@ -3228,7 +3228,7 @@ function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user
 
 
 // ─── 통합 패널 (수강생 명단 + 수업준비메모 + 출석체크 — 모드에 따라 표시)
-function UnifiedPanel({ cls, date, students, user, allClasses, onNav }) {
+function UnifiedPanel({ cls, date, students, user, allClasses }) {
   const today = todayStr()
   const isSessionDate = cls ? calcSessionDates(cls).includes(date) : false
   const isFuture = date > today
@@ -3330,12 +3330,17 @@ function UnifiedPanel({ cls, date, students, user, allClasses, onNav }) {
   }
   const markAll = (status) => activeStudents.forEach(s => mark(s.id, status))
 
-  // 스케줄변경: 해당 수업의 가장 최근 attendance에 schedule_change:날짜가 있고 date > 그 날짜이면 제외
+  // 스케줄변경 날짜: attendance.absentReason 또는 students.statusHistory 둘 다 확인
   const getScheduleChangeDate = (studentId) => {
+    // 1. attendance에서 먼저
     const recs = AttendanceDB.byStudentClass(studentId, cls?.id || '')
     const rec = recs.slice().sort((a,b) => (b.date||'').localeCompare(a.date||'')).find(r => r.absentReason?.startsWith('schedule_change:'))
-    if (!rec) return null
-    return rec.absentReason.split(':')[1] || null
+    if (rec) return rec.absentReason.split(':')[1] || null
+    // 2. statusHistory에서 (Students.jsx 직접 처리 케이스)
+    const s = students.find(st => st.id === studentId)
+    const h = (s?.statusHistory||[]).slice().reverse().find(h => h.status === 'schedule_change')
+    const m = h?.memo?.match(/\d{4}-\d{2}-\d{2}/)
+    return m ? m[0] : null
   }
   const activeStudents      = students.filter(s => {
     if (!['applied','selected','confirmed'].includes(s.status)) return false
@@ -3701,10 +3706,15 @@ function BadgeDetailModal({ modal, onClose, getRec, allAttendance, onStudentClic
 
   // 스케줄변경 날짜 추출 (attendance absentReason에서)
   const getScheduleDate = (s) => {
+    // 1. attendance.absentReason에서 먼저 찾기
     const recs = allAttendance(s.id, s.classIds?.[0] || '')
     const rec = recs.slice().sort((a,b) => (b.date||'').localeCompare(a.date||''))
       .find(r => r.absentReason?.startsWith('schedule_change:'))
-    return rec ? rec.absentReason.split(':')[1] : null
+    if (rec) return rec.absentReason.split(':')[1]
+    // 2. 없으면 students.statusHistory에서 찾기 (Students.jsx에서 직접 처리한 경우)
+    const h = (s.statusHistory||[]).slice().reverse().find(h => h.status === 'schedule_change')
+    const m = h?.memo?.match(/\d{4}-\d{2}-\d{2}/)
+    return m ? m[0] : null
   }
 
   // 결석 사유 가져오기
@@ -5050,7 +5060,7 @@ export function Attendance({ user, pageParams = {}, onNav }) {
                 <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
                   {schoolClasses.map(cls => {
                     const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before'].includes(s.status) && isInCurrentTerm(s, cls, selDate))
-                    return <UnifiedPanel key={cls.id + selDate + rightPanelTick} cls={cls} date={selDate} students={clsStudents} user={user} allClasses={allClasses} onNav={onNav} />
+                    return <UnifiedPanel key={cls.id + selDate + rightPanelTick} cls={cls} date={selDate} students={clsStudents} user={user} allClasses={allClasses} />
                   })}
                 </div>
               )}
@@ -5063,10 +5073,10 @@ export function Attendance({ user, pageParams = {}, onNav }) {
                 <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
               </div>
             ) : (
-              <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} onNav={onNav} key={selDate+selClassId+rightPanelTick} />
+              <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} key={selDate+selClassId+rightPanelTick} />
             )
           ) : (
-            <DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} user={user} onNav={onNav} key={selDate} />
+            <DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} user={user} key={selDate} />
           )}
         </div>
       </div>
