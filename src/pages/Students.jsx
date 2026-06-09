@@ -1312,7 +1312,7 @@ export function Students({ user, onNav, pageParams = {} }) {
     const trDate = trHistory?.memo?.match(/\d{4}-\d{2}-\d{2}/)?.[0] || new Date().toISOString().slice(0,10)
     setForm({
       ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [], student_careers: careersWithCurrent,
-      schedule_change_date: s.status === 'schedule_change' ? scDate : '',
+      schedule_change_date: s.status === 'schedule_change' ? (scDate || new Date().toISOString().slice(0,10)) : '',
       transfer_info: (s.status === 'transfer_out' || s.status === 'transfer_in') ? { date: trDate } : (s.transfer_info || null),
       _newOrganization: cls?.organization || '',
       _newClassName:    cls?.className    || '',
@@ -1412,7 +1412,8 @@ export function Students({ user, onNav, pageParams = {} }) {
     delete saveData.transfer_info  // 값 유무 상관없이 항상 제거
     // schedule_change_date도 Supabase 컬럼 없음 — statusHistory에 기록 후 반드시 제거
     if (saveData.schedule_change_date) {
-      saveData.statusHistory = [...(saveData.statusHistory||[]), { status: 'schedule_change', changedAt: new Date().toISOString(), memo: `[스케줄변경] ${saveData.schedule_change_date}` }]
+      const prevHistory = (saveData.statusHistory||[]).filter(h => h.status !== 'schedule_change')
+      saveData.statusHistory = [...prevHistory, { status: 'schedule_change', changedAt: new Date().toISOString(), memo: `[스케줄변경] ${saveData.schedule_change_date}` }]
     }
     delete saveData.schedule_change_date  // 값 유무 상관없이 항상 제거
 
