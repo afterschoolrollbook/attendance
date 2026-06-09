@@ -3178,7 +3178,7 @@ function ClassAttendanceSection({ cls, date, allStudents, user }) {
 }
 
 // ─── 날짜별 전체 출석 패널 (대시보드 스타일, 네비게이션 없음)
-function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user }) {
+function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user, onNav }) {
   const dayClasses = sortClasses(schoolClasses.filter(cls => calcSessionDates(cls).includes(date)))
 
   if (dayClasses.length === 0) {
@@ -3217,7 +3217,7 @@ function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user
           <div style={{ padding:'12px 16px' }}>
             {classes.map(cls => {
               const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before'].includes(s.status) && isInCurrentTerm(s, cls, date))
-              return <UnifiedPanel key={cls.id + date} cls={cls} date={date} students={clsStudents} user={user} allClasses={allClasses} />
+              return <UnifiedPanel key={cls.id + date} cls={cls} date={date} students={clsStudents} user={user} allClasses={allClasses} onNav={onNav} />
             })}
           </div>
         </div>
@@ -3228,7 +3228,7 @@ function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user
 
 
 // ─── 통합 패널 (수강생 명단 + 수업준비메모 + 출석체크 — 모드에 따라 표시)
-function UnifiedPanel({ cls, date, students, user, allClasses }) {
+function UnifiedPanel({ cls, date, students, user, allClasses, onNav }) {
   const today = todayStr()
   const isSessionDate = cls ? calcSessionDates(cls).includes(date) : false
   const isFuture = date > today
@@ -5050,7 +5050,7 @@ export function Attendance({ user, pageParams = {}, onNav }) {
                 <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
                   {schoolClasses.map(cls => {
                     const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before'].includes(s.status) && isInCurrentTerm(s, cls, selDate))
-                    return <UnifiedPanel key={cls.id + selDate + rightPanelTick} cls={cls} date={selDate} students={clsStudents} user={user} allClasses={allClasses} />
+                    return <UnifiedPanel key={cls.id + selDate + rightPanelTick} cls={cls} date={selDate} students={clsStudents} user={user} allClasses={allClasses} onNav={onNav} />
                   })}
                 </div>
               )}
@@ -5063,10 +5063,10 @@ export function Attendance({ user, pageParams = {}, onNav }) {
                 <div style={{ fontSize:'13px', marginTop:'6px' }}>달력에서 수업일(점 표시)을 선택하세요</div>
               </div>
             ) : (
-              <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} key={selDate+selClassId+rightPanelTick} />
+              <UnifiedPanel cls={selClass||null} date={selDate} students={students} user={user} allClasses={allClasses} onNav={onNav} key={selDate+selClassId+rightPanelTick} />
             )
           ) : (
-            <DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} user={user} key={selDate} />
+            <DayAttendancePanel date={selDate} allClasses={allClasses} allStudents={allStudents} schoolClasses={schoolClasses} user={user} onNav={onNav} key={selDate} />
           )}
         </div>
       </div>
