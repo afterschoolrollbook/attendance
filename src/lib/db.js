@@ -272,17 +272,17 @@ function _emitSaveError(label, msg) { _saveErrorListeners.forEach(fn => fn(label
 async function syncInsert(table, data) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
-  // supply_session_checks는 unique constraint가 있으므로 upsert로 처리
+  const cleanData = stripVirtualFields(table, data)
   if (table === 'supplySessionChecks') {
     await withRetry(async () => {
       const { error } = await supabase.from(tbl)
-        .upsert(toDb(data), { onConflict: 'student_id,class_id,product_id,stage,session_no' })
+        .upsert(toDb(cleanData), { onConflict: 'student_id,class_id,product_id,stage,session_no' })
       if (error) throw new Error(error.message)
     }, `insert/${table}`)
     return
   }
   await withRetry(async () => {
-    const { error } = await supabase.from(tbl).insert(toDb(data))
+    const { error } = await supabase.from(tbl).insert(toDb(cleanData))
     if (error) throw new Error(error.message)
   }, `insert/${table}`)
 }
@@ -290,17 +290,38 @@ async function syncInsert(table, data) {
 async function syncUpsert(table, data) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
+  const cleanData = stripVirtualFields(table, data)
   await withRetry(async () => {
-    const { error } = await supabase.from(tbl).upsert(toDb(data))
+    const { error } = await supabase.from(tbl).upsert(toDb(cleanData))
     if (error) throw new Error(error.message)
   }, `upsert/${table}`)
+}
+
+// DB 컬럼이 없는 가상 필드 — Supabase 전송 전 제거
+const VIRTUAL_FIELDS = {
+  students: new Set([
+    'scheduleChangeDate', 'schedule_change_date',
+    'transferInfo',       'transfer_info',
+    'cancelInfo',         'cancel_info',
+    '_newOrganization', '_newClassName', '_newSection',
+    '_newTimeStart', '_newTimeEnd', '_newTermType',
+    '_newDays', '_newRepeatType', '_newStartDate', '_newEndDate',
+  ]),
+}
+function stripVirtualFields(table, obj) {
+  const vf = VIRTUAL_FIELDS[table]
+  if (!vf) return obj
+  const result = { ...obj }
+  for (const key of vf) delete result[key]
+  return result
 }
 
 async function syncUpdate(table, id, patch) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
+  const cleanPatch = stripVirtualFields(table, patch)
   await withRetry(async () => {
-    const { error } = await supabase.from(tbl).update(toDb(patch)).eq('id', id)
+    const { error } = await supabase.from(tbl).update(toDb(cleanPatch)).eq('id', id)
     if (error) throw new Error(error.message)
   }, `update/${table}`)
 }
