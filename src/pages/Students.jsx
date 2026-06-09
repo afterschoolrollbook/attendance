@@ -1302,8 +1302,18 @@ export function Students({ user, onNav, pageParams = {} }) {
     const curT = getCurrentTerm()
     const alreadyHasCurrent = existingCareers.some(c => c.year === curT.year && c.termType === curT.termType && c.term === curT.term)
     const careersWithCurrent = alreadyHasCurrent ? existingCareers : [...existingCareers, curT]
+    // statusHistory에서 스케줄변경 날짜 복원
+    const scHistory = (s.statusHistory||[]).slice().reverse().find(h => h.status === 'schedule_change')
+    const scDate = scHistory?.memo?.match(/\d{4}-\d{2}-\d{2}/)?.[0] || ''
+    // statusHistory에서 전학/전입 날짜 복원
+    const trHistory = (s.statusHistory||[]).slice().reverse().find(h =>
+      (h.status === 'transfer_out' || h.status === 'transfer_in') && h.memo?.match(/\d{4}-\d{2}-\d{2}/)
+    )
+    const trDate = trHistory?.memo?.match(/\d{4}-\d{2}-\d{2}/)?.[0] || new Date().toISOString().slice(0,10)
     setForm({
       ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [], student_careers: careersWithCurrent,
+      schedule_change_date: s.status === 'schedule_change' ? scDate : '',
+      transfer_info: (s.status === 'transfer_out' || s.status === 'transfer_in') ? { date: trDate } : (s.transfer_info || null),
       _newOrganization: cls?.organization || '',
       _newClassName:    cls?.className    || '',
       _newSection:      cls?.section      || '',
