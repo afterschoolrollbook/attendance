@@ -3726,48 +3726,36 @@ function BadgeDetailModal({ modal, onClose, getRec, allAttendance, onStudentClic
   }
 
   return (
-    <div
-      onClick={onClose}
-      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:5000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}
-    >
+    <>
       <div
-        onClick={e => e.stopPropagation()}
-        style={{ background:'#fff', borderRadius:'20px', width:'100%', maxWidth:'440px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}
+        onClick={onClose}
+        style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:5000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px' }}
       >
-        {/* 헤더 */}
-        <div style={{ padding:'18px 20px', background: bg, borderBottom:`1px solid ${color}20`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-            <span style={{ fontSize:'20px' }}>{emoji}</span>
-            <div>
-              <div style={{ fontSize:'16px', fontWeight:700, color, fontFamily:'Noto Sans KR, sans-serif' }}>
-                {type}
-              </div>
-              <div style={{ fontSize:'12px', color:'#6b7280', fontFamily:'Noto Sans KR, sans-serif' }}>
-                총 {students.length}명
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ background:'#fff', borderRadius:'20px', width:'100%', maxWidth:'440px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}
+        >
+          {/* 헤더 */}
+          <div style={{ padding:'18px 20px', background: bg, borderBottom:`1px solid ${color}20`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+              <span style={{ fontSize:'20px' }}>{emoji}</span>
+              <div>
+                <div style={{ fontSize:'16px', fontWeight:700, color, fontFamily:'Noto Sans KR, sans-serif' }}>
+                  {type}
+                </div>
+                <div style={{ fontSize:'12px', color:'#6b7280', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  총 {students.length}명
+                </div>
               </div>
             </div>
+            <button
+              onClick={onClose}
+              style={{ width:'28px', height:'28px', borderRadius:'50%', border:'1px solid #e5e7eb', background:'#fff', cursor:'pointer', fontSize:'14px', display:'flex', alignItems:'center', justifyContent:'center', color:'#6b7280' }}
+            >✕</button>
           </div>
-          <button
-            onClick={onClose}
-            style={{ width:'28px', height:'28px', borderRadius:'50%', border:'1px solid #e5e7eb', background:'#fff', cursor:'pointer', fontSize:'14px', display:'flex', alignItems:'center', justifyContent:'center', color:'#6b7280' }}
-          >✕</button>
-        </div>
 
-        {/* 학생 목록 */}
-        <div style={{ maxHeight:'420px', overflowY:'auto', padding:'12px 16px', display:'flex', flexDirection:'column', gap:'8px' }}>
-          {/* 스케줄변경 해제 확인 */}
-          {confirmDelete && (
-            <div style={{ padding:'12px 14px', borderRadius:'10px', background:'#fef2f2', border:'1px solid #fca5a5', fontFamily:'Noto Sans KR, sans-serif' }}>
-              <div style={{ fontSize:'13px', fontWeight:700, color:'#ef4444', marginBottom:'6px' }}>🗑 <b>{confirmDelete.name}</b>의 스케줄변경을 해제할까요?</div>
-              <div style={{ fontSize:'11px', color:'#6b7280', marginBottom:'10px' }}>해제하면 이 학생이 출석부 명단에 다시 나타납니다.</div>
-              <div style={{ display:'flex', gap:'8px' }}>
-                <button onClick={() => { onDeleteSchedule && onDeleteSchedule(confirmDelete); setConfirmDelete(null) }}
-                  style={{ flex:1, padding:'7px', borderRadius:'7px', border:'none', background:'#ef4444', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>해제</button>
-                <button onClick={() => setConfirmDelete(null)}
-                  style={{ flex:1, padding:'7px', borderRadius:'7px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
-              </div>
-            </div>
-          )}
+          {/* 학생 목록 */}
+          <div style={{ maxHeight:'420px', overflowY:'auto', padding:'12px 16px', display:'flex', flexDirection:'column', gap:'8px' }}>
           {students.map((s, i) => {
             const dateStr = dateKey === 'transfer_out'    ? getTransferDate(s)
                           : dateKey === 'schedule_change' ? getScheduleDate(s)
@@ -3817,9 +3805,38 @@ function BadgeDetailModal({ modal, onClose, getRec, allAttendance, onStudentClic
               해당 학생이 없습니다
             </div>
           )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* 스케줄변경 해제 확인 — 독립 오버레이 (클릭 막힘 없음) */}
+      {confirmDelete && (
+        <div style={{ position:'fixed', inset:0, zIndex:6000, display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}
+          onClick={() => setConfirmDelete(null)}>
+          <div style={{ background:'#fff', borderRadius:'16px', padding:'22px', maxWidth:'320px', width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', fontFamily:'Noto Sans KR, sans-serif' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:'14px', fontWeight:700, color:'#ef4444', marginBottom:'8px' }}>
+              🗑 <b>{confirmDelete.name}</b>의 스케줄변경을 해제할까요?
+            </div>
+            <div style={{ fontSize:'12px', color:'#6b7280', marginBottom:'16px' }}>
+              해제하면 이 학생이 출석부 명단에 다시 나타납니다.
+            </div>
+            <div style={{ display:'flex', gap:'8px' }}>
+              <button
+                onClick={() => { onDeleteSchedule && onDeleteSchedule(confirmDelete); setConfirmDelete(null) }}
+                style={{ flex:1, padding:'10px', borderRadius:'9px', border:'none', background:'#ef4444', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                해제
+              </button>
+              <button
+                onClick={() => setConfirmDelete(null)}
+                style={{ flex:1, padding:'10px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
