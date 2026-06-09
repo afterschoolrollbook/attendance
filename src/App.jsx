@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import LandingPage from './pages/LandingPage.jsx'
 import { Users } from './lib/db.js'
 import { initFromSupabase, loadCacheFromIDB, onSaveError } from './lib/db.js'
 import { SaveStatusBar } from './components/SaveStatusBar.jsx'
@@ -117,6 +118,8 @@ function MobileBottomNav({ currentPage, onNav }) {
 
 export default function App() {
   const [user, setUser] = useState(null)
+  const [showLanding, setShowLanding] = useState(true)   // ← 랜딩 페이지 표시 여부
+  const [landingTarget, setLandingTarget] = useState('login') // 'login' | 'signup'
   const [page, setPage] = useState('dashboard')
   const [pageParams, setPageParams] = useState({})
   const [dbReady, setDbReady] = useState(false)
@@ -316,7 +319,17 @@ export default function App() {
   if (pathname === '/parent-invite') return <ParentInvite />
   if (pathname === '/parent-login')  return <ParentLogin />
 
-  if (!user) return <Auth onLogin={handleLogin} />
+  // ── 랜딩 페이지 ─────────────────────────────────────────────────
+  if (!user && showLanding) {
+    return (
+      <LandingPage
+        onGoLogin={() => { setLandingTarget('login'); setShowLanding(false) }}
+        onGoSignup={() => { setLandingTarget('signup'); setShowLanding(false) }}
+      />
+    )
+  }
+
+  if (!user) return <Auth onLogin={handleLogin} initialTab={landingTarget} />
 
   const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate }
 
