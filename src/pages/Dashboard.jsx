@@ -23,6 +23,23 @@ function todayStr() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
+
+// periods 방식 수업에서 특정 날짜 기준 현재 period index(1부터) 반환
+function getActivePeriodNum(cls, dateStr) {
+  const periods = cls.periods?.filter(p => p.startDate && p.endDate) || []
+  if (!periods.length) return null
+  const idx = periods.findIndex(p => dateStr >= p.startDate && dateStr <= p.endDate)
+  return idx >= 0 ? String(idx + 1) : null
+}
+
+// periods 방식 수업에서 현재 날짜 기준 수강중인 학생만 필터
+function confirmedForDate(cls, dateStr) {
+  const all = StudentsDB.confirmed(cls.id)
+  const activePeriodNum = getActivePeriodNum(cls, dateStr)
+  if (!activePeriodNum) return all  // periods 없으면 전체 반환
+  return all.filter(s => !s.activeTerm || s.activeTerm === activePeriodNum)
+}
+
 function formatDateKo(dateStr) {
   const d = new Date(dateStr + 'T00:00:00')
   return `${d.getFullYear()%100}년 ${d.getMonth()+1}월 ${d.getDate()}일 ${DAYS_KO[d.getDay()]}요일`
@@ -2539,7 +2556,7 @@ function MobileDashboard({ user, onNav }) {
           const alerts = classes.flatMap(cls => {
             const upcoming = calcSessionDates(cls).filter(d => d >= today && d <= weekEndStr)
             if (!upcoming.length) return []
-            const confirmed = StudentsDB.confirmed(cls.id)
+            const confirmed = confirmedForDate(cls, upcoming[0])
             if (!confirmed.length) return []
             const supplyData   = SupplyItems.byClass(cls.id)
             const supplyProg   = SupplyStudentProgress.byClass(cls.id)
@@ -2721,7 +2738,8 @@ export function Dashboard({ user, onNav }) {
   const [expandedDays, setExpandedDays] = useState(() => new Set())
 
   const supplyAlerts = classes.flatMap(cls => {
-    const confirmed  = StudentsDB.confirmed(cls.id)
+    const nextDate = calcSessionDates(cls).find(d => d >= today)
+    const confirmed  = confirmedForDate(cls, nextDate || today)
     if (!confirmed.length) return []
     const supplyData = SupplyItems.byClass(cls.id)
     const supplyProg = SupplyStudentProgress.byClass(cls.id)
