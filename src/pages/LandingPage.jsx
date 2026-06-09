@@ -93,10 +93,10 @@ const STEPS = [
 ]
 
 const STATS = [
-  { value: '5,000+', label: '가입 선생님' },
-  { value: '200,000+', label: '등록 학생 수' },
-  { value: '98%', label: '재이용률' },
-  { value: '무료', label: '기본 사용료' },
+  { icon: '👩\u200d🏫', label: '현직 방과후 강사가\n직접 만들었어요' },
+  { icon: '✅', label: '실제 강사들이\n사용 중이에요' },
+  { icon: '💡', label: '현장의 불편함을\n직접 해결했어요' },
+  { icon: '🎉', label: '베타 오픈 중\n지금 무료예요' },
 ]
 
 export default function LandingPage({ onGoLogin, onGoSignup }) {
@@ -133,6 +133,11 @@ export default function LandingPage({ onGoLogin, onGoSignup }) {
               fontSize: '18px', boxShadow: '0 2px 8px rgba(249,115,22,0.35)',
             }}>📋</div>
             <span style={{ fontSize: '17px', fontWeight: 800, color: C.text, letterSpacing: '-0.3px' }}>방과후 출석부</span>
+            <span style={{
+              fontSize: '10px', fontWeight: 700, color: C.primary,
+              background: C.primaryLight, border: `1px solid ${C.primaryBorder}`,
+              padding: '2px 7px', borderRadius: '100px', letterSpacing: '0.5px',
+            }}>BETA</span>
           </div>
 
           {/* 데스크탑 메뉴 */}
@@ -200,7 +205,7 @@ export default function LandingPage({ onGoLogin, onGoSignup }) {
             fontSize: '13px', color: C.primary, fontWeight: 600, marginBottom: '28px',
           }}>
             <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: C.primary, display: 'inline-block', animation: 'pulse 2s infinite' }} />
-            방과후 선생님을 위한 무료 출석 관리 서비스
+            🎉 베타 오픈 중 — 지금 무료로 사용해보세요!
           </div>
 
           {/* 메인 타이틀 */}
@@ -291,9 +296,9 @@ export default function LandingPage({ onGoLogin, onGoSignup }) {
           gap: '20px', textAlign: 'center',
         }}>
           {STATS.map(s => (
-            <div key={s.label}>
-              <div style={{ fontSize: 'clamp(24px, 4vw, 36px)', fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>{s.value}</div>
-              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)', marginTop: '4px' }}>{s.label}</div>
+            <div key={s.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+              <div style={{ fontSize: 'clamp(28px, 4vw, 40px)' }}>{s.icon}</div>
+              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.92)', lineHeight: 1.6, textAlign: 'center', whiteSpace: 'pre-line', fontWeight: 600 }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -390,8 +395,8 @@ export default function LandingPage({ onGoLogin, onGoSignup }) {
             지금 바로 시작해보세요
           </h2>
           <p style={{ fontSize: '15px', color: C.muted, lineHeight: 1.8, marginBottom: '36px' }}>
-            수천 명의 방과후 선생님이 이미 사용하고 있어요.<br />
-            무료 가입 후 바로 출석부를 만들어보세요!
+            베타 오픈 기간 중 기본 기능을 무료로 이용하실 수 있어요.<br />
+            지금 가입하고 편리한 출석 관리를 경험해보세요!
           </p>
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
             <button
