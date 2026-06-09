@@ -1293,8 +1293,12 @@ export function Students({ user, onNav }) {
     const curT = getCurrentTerm()
     const alreadyHasCurrent = existingCareers.some(c => c.year === curT.year && c.termType === curT.termType && c.term === curT.term)
     const careersWithCurrent = alreadyHasCurrent ? existingCareers : [...existingCareers, curT]
+    // statusHistory에서 schedule_change_date 복원
+    const scHistory = (s.statusHistory||[]).slice().reverse().find(h => h.status === 'schedule_change')
+    const scDate = scHistory?.memo?.match(/\d{4}-\d{2}-\d{2}/)?.[0] || ''
     setForm({
       ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [], student_careers: careersWithCurrent,
+      schedule_change_date: s.status === 'schedule_change' ? scDate : '',
       _newOrganization: cls?.organization || '',
       _newClassName:    cls?.className    || '',
       _newSection:      cls?.section      || '',

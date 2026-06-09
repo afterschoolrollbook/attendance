@@ -2814,8 +2814,23 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
               if (val === 'schedule_change') {
                 const today = new Date().toISOString().slice(0,10)
                 setField('absentReason', `schedule_change:${today}`)
+                // students 테이블 status도 schedule_change로 동기화
+                const existing = StudentsDB.find(s.id)
+                if (existing) {
+                  StudentsDB.update(s.id, {
+                    status: 'schedule_change',
+                    statusHistory: [...(existing.statusHistory||[]), { status: 'schedule_change', changedAt: now(), memo: `[스케줄변경] ${today}` }],
+                  })
+                }
               } else {
                 setField('absentReason', val)
+                // schedule_change 해제 시 students 상태 복원
+                if (absentReason.startsWith('schedule_change')) {
+                  const existing = StudentsDB.find(s.id)
+                  if (existing && existing.status === 'schedule_change') {
+                    StudentsDB.update(s.id, { status: 'confirmed' })
+                  }
+                }
               }
               if (val === 'transferred') {
                 const today = new Date().toISOString().slice(0,10)
@@ -2849,7 +2864,18 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
               <div style={{ marginTop:'6px', display:'flex', flexDirection:'column', gap:'4px' }}>
                 <label style={{ fontSize:'10px', fontWeight:600, color:'#7c3aed' }}>📅 스케줄변경 날짜 (이 날짜 다음 수업부터 명단 제외)</label>
                 <input type="date" defaultValue={new Date().toISOString().slice(0,10)}
-                  onChange={e => setField('absentReason', `schedule_change:${e.target.value}`)}
+                  onChange={e => {
+                    const newDate = e.target.value
+                    setField('absentReason', `schedule_change:${newDate}`)
+                    // statusHistory 날짜도 업데이트
+                    const existing = StudentsDB.find(s.id)
+                    if (existing && existing.status === 'schedule_change') {
+                      const prevHistory = (existing.statusHistory||[]).filter(h => h.status !== 'schedule_change')
+                      StudentsDB.update(s.id, {
+                        statusHistory: [...prevHistory, { status: 'schedule_change', changedAt: now(), memo: `[스케줄변경] ${newDate}` }],
+                      })
+                    }
+                  }}
                   style={{ padding:'4px 8px', borderRadius:'6px', border:'1.5px solid #c4b5fd', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#f5f3ff', color:'#7c3aed' }} />
                 <div style={{ fontSize:'10px', color:'#7c3aed', background:'#f5f3ff', border:'1px solid #c4b5fd', borderRadius:'5px', padding:'3px 7px', fontWeight:600 }}>
                   스케줄변경 — 지정 날짜 다음 수업부터 명단에서 제외됩니다
@@ -3651,6 +3677,20 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
           onClose={() => setBadgeModal(null)}
           getRec={getRec}
           allAttendance={AttendanceDB.byStudentClass}
+          onStudentClick={(s) => { setBadgeModal(null); setSelStudent(s) }}
+          onDeleteSchedule={(s) => {
+            // attendance 레코드에서 schedule_change 제거
+            const recs = AttendanceDB.byStudentClass(s.id, cls?.id || '')
+            const rec = recs.slice().sort((a,b) => (b.date||'').localeCompare(a.date||'')).find(r => r.absentReason?.startsWith('schedule_change:'))
+            if (rec) AttendanceDB.update(rec.id, { absentReason: '', status: 'absent' })
+            // students 테이블 status도 confirmed로 복원
+            const existing = StudentsDB.find(s.id)
+            if (existing && existing.status === 'schedule_change') {
+              StudentsDB.update(s.id, { status: 'confirmed' })
+            }
+            setBadgeModal(null)
+            setTick && setTick(t => t+1)
+          }}
         />
       )}
       {progStudent && progProductId && (
@@ -3669,8 +3709,9 @@ function UnifiedPanel({ cls, date, students, user, allClasses }) {
 
 
 // ─── 배지 클릭 상세 모달
-function BadgeDetailModal({ modal, onClose, getRec, allAttendance }) {
+function BadgeDetailModal({ modal, onClose, getRec, allAttendance, onStudentClick, onDeleteSchedule }) {
   const { type, color, bg, emoji, students, showDate, dateKey } = modal
+  const [confirmDelete, setConfirmDelete] = React.useState(null)
 
   // 전학 날짜 추출 (statusHistory에서)
   const getTransferDate = (s) => {
@@ -3736,13 +3777,27 @@ function BadgeDetailModal({ modal, onClose, getRec, allAttendance }) {
 
         {/* 학생 목록 */}
         <div style={{ maxHeight:'420px', overflowY:'auto', padding:'12px 16px', display:'flex', flexDirection:'column', gap:'8px' }}>
+          {/* 삭제 확인 */}
+          {confirmDelete && (
+            <div style={{ padding:'12px 14px', borderRadius:'10px', background:'#fef2f2', border:'1px solid #fca5a5', fontFamily:'Noto Sans KR, sans-serif' }}>
+              <div style={{ fontSize:'13px', fontWeight:700, color:'#ef4444', marginBottom:'6px' }}>🗑 <b>{confirmDelete.name}</b>의 스케줄변경을 해제할까요?</div>
+              <div style={{ fontSize:'11px', color:'#6b7280', marginBottom:'10px' }}>해제하면 이 학생이 출석부 명단에 다시 나타납니다.</div>
+              <div style={{ display:'flex', gap:'8px' }}>
+                <button onClick={() => { onDeleteSchedule && onDeleteSchedule(confirmDelete); setConfirmDelete(null) }}
+                  style={{ flex:1, padding:'7px', borderRadius:'7px', border:'none', background:'#ef4444', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>해제</button>
+                <button onClick={() => setConfirmDelete(null)}
+                  style={{ flex:1, padding:'7px', borderRadius:'7px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>
+              </div>
+            </div>
+          )}
           {students.map((s, i) => {
             const dateStr = dateKey === 'transfer_out'    ? getTransferDate(s)
                           : dateKey === 'schedule_change' ? getScheduleDate(s)
                           : null
             const reason = getAbsentReason(s)
+            const isScheduleChange = dateKey === 'schedule_change'
             return (
-              <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 14px', borderRadius:'10px', background:'#f9fafb', border:'1px solid #f3f4f6', fontFamily:'Noto Sans KR, sans-serif' }}>
+              <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', borderRadius:'10px', background:'#f9fafb', border:'1px solid #f3f4f6', fontFamily:'Noto Sans KR, sans-serif' }}>
                 {/* 순번 */}
                 <div style={{ width:'22px', height:'22px', borderRadius:'50%', background: color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, color:'#fff', flexShrink:0 }}>
                   {i+1}
@@ -3751,12 +3806,15 @@ function BadgeDetailModal({ modal, onClose, getRec, allAttendance }) {
                 <div style={{ fontSize:'12px', color:'#9ca3af', minWidth:'70px', flexShrink:0 }}>
                   {s.grade ? s.grade+'학년' : ''}{s.classNum ? ' '+s.classNum+'반' : ''}{s.number ? ' '+s.number+'번' : ''}
                 </div>
-                {/* 이름 */}
-                <div style={{ fontSize:'15px', fontWeight:700, color:'#111827', flex:1 }}>
+                {/* 이름 — 클릭 시 상세보기 */}
+                <div
+                  onClick={() => onStudentClick && onStudentClick(s)}
+                  style={{ fontSize:'15px', fontWeight:700, color: onStudentClick ? '#7c3aed' : '#111827', flex:1, cursor: onStudentClick ? 'pointer' : 'default', textDecoration: onStudentClick ? 'underline' : 'none', textUnderlineOffset:'2px' }}
+                >
                   {s.name}
                 </div>
-                {/* 날짜 or 사유 */}
-                <div style={{ textAlign:'right', flexShrink:0 }}>
+                {/* 날짜 + 삭제 버튼 */}
+                <div style={{ display:'flex', alignItems:'center', gap:'6px', flexShrink:0 }}>
                   {dateStr && (
                     <div style={{ fontSize:'12px', fontWeight:600, color, background:bg, padding:'2px 8px', borderRadius:'6px' }}>
                       {fmtDate(dateStr)}
@@ -3764,6 +3822,12 @@ function BadgeDetailModal({ modal, onClose, getRec, allAttendance }) {
                   )}
                   {reason && !dateStr && (
                     <div style={{ fontSize:'12px', color:'#6b7280' }}>{reason}</div>
+                  )}
+                  {isScheduleChange && onDeleteSchedule && (
+                    <button onClick={() => setConfirmDelete(s)}
+                      style={{ padding:'3px 8px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                      해제
+                    </button>
                   )}
                 </div>
               </div>
