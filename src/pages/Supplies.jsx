@@ -2406,9 +2406,10 @@ export function Supplies({ user }) {
                               const supply    = getStudentSupply(s.id)
                               const isChecked = checkedStudents.includes(s.id)
                               const product   = productList.find(p => p.id === supply.productId)
-                              const sps       = product?.sessionsPerStage || 12
                               const prog      = progressList.find(p => p.studentId===s.id && p.classId===selClassIdParsed && p.productId===supply.productId)
                               const curStage  = prog?.curStage || (supply.stage ? Number(supply.stage) : null)
+                              const stagePlans = curStage ? productPlanList.filter(p => p.productId===supply.productId && p.stage===curStage) : []
+                              const sps       = Math.max(product?.sessionsPerStage || 12, stagePlans.length)
                               const stageChecks = curStage
                                 ? checkList.filter(c => c.studentId===s.id && c.classId===selClassIdParsed && c.productId===supply.productId && c.stage===curStage).length
                                 : 0
