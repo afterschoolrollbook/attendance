@@ -100,6 +100,26 @@ function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
   return result
 }
 
+// 테이블별 타입 불일치 방어: 빈 문자열을 null로 변환 (Supabase는 boolean/timestamptz에 "" 거부)
+const BOOLEAN_COLS: Record<string, string[]> = {
+  students: ['parent_joined', 'moved_to_manage'],
+}
+const NULLABLE_COLS: Record<string, string[]> = {
+  students: ['parent_invite_sent_at', 'student_start_date', 'student_end_date', 'updated_at'],
+}
+function sanitize(obj: Record<string, unknown>, tbl: string): Record<string, unknown> {
+  const result = { ...obj }
+  const boolCols = BOOLEAN_COLS[tbl] || []
+  const nullCols  = NULLABLE_COLS[tbl] || []
+  for (const col of boolCols) {
+    if (col in result) result[col] = !!result[col]
+  }
+  for (const col of nullCols) {
+    if (col in result && (result[col] === '' || result[col] === false)) result[col] = null
+  }
+  return result
+}
+
 // snake_case → camelCase 변환
 function toCamel(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
@@ -262,21 +282,21 @@ serve(async (req) => {
         break
       }
       case 'insert': {
-        const dbData = toDb(data)
+        const dbData = sanitize(toDb(data), tbl)
         const { data: rows, error } = await supabase.from(tbl).insert(dbData).select()
         if (error) throw error
         result = rows && rows.length > 0 ? fromDb(rows[0]) : null
         break
       }
       case 'upsert': {
-        const dbData = toDb(data)
+        const dbData = sanitize(toDb(data), tbl)
         const { data: rows, error } = await supabase.from(tbl).upsert(dbData).select()
         if (error) throw error
         result = rows && rows.length > 0 ? fromDb(rows[0]) : null
         break
       }
       case 'update': {
-        const dbPatch = toDb(patch)
+        const dbPatch = sanitize(toDb(patch), tbl)
         const { data: rows, error } = await supabase.from(tbl).update(dbPatch).eq('id', id).select()
         if (error) throw error
         result = rows && rows.length > 0 ? fromDb(rows[0]) : null
