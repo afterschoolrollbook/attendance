@@ -2131,18 +2131,23 @@ export function Students({ user, onNav, pageParams = {} }) {
                           )}
                           {(() => {
                             const careers = s.student_careers || []
-                            const isNew = careers.length <= 1
+                            const isUnclassified = careers.length === 0
+                            const isNew = !isUnclassified && careers.length <= 1
                             const isOpen = inlineCareerOpen === s.id
+                            const badgeBg    = isUnclassified ? '#f9fafb' : isNew ? '#eff6ff' : '#f0fdf4'
+                            const badgeBorder= isUnclassified ? '#e5e7eb' : isNew ? '#bfdbfe' : '#86efac'
+                            const badgeColor = isUnclassified ? '#9ca3af' : isNew ? '#1d4ed8' : '#15803d'
+                            const badgeLabel = isUnclassified ? '미분류' : isNew ? '신규' : '기존'
                             return (<>
                               <span
                                 onClick={() => setInlineCareerOpen(isOpen ? null : s.id)}
                                 style={{ fontSize:'11px', fontWeight:700, padding:'1px 7px', borderRadius:'5px',
-                                  background: isNew ? '#eff6ff' : '#f0fdf4',
-                                  border: `1px solid ${isNew ? '#bfdbfe' : '#86efac'}`,
-                                  color: isNew ? '#1d4ed8' : '#15803d',
+                                  background: badgeBg,
+                                  border: `1px solid ${badgeBorder}`,
+                                  color: badgeColor,
                                   cursor: 'pointer', userSelect: 'none',
                                 }}>
-                                {isNew ? '신규' : '기존'}
+                                {badgeLabel}
                               </span>
                               {isOpen && (
                                 <div style={{ marginTop:'6px', padding:'10px', borderRadius:'10px', border:'1.5px solid #e5e7eb', background:'#fafafa', minWidth:'260px' }}
