@@ -1356,7 +1356,16 @@ export function Students({ user, onNav, pageParams = {} }) {
         if (!hasCareer) return false
       }
     }
-    if (statusFilter !== 'all' && s.status !== statusFilter && !(statusFilter === 'cancelled' && (s.status === 'cancel_before' || s.status === 'cancel_after'))) return false
+    if (statusFilter === 'career_new') {
+      const careers = s.student_careers || []
+      if (careers.length !== 1) return false
+    } else if (statusFilter === 'career_existing') {
+      const careers = s.student_careers || []
+      if (careers.length <= 1) return false
+    } else if (statusFilter === 'career_unclassified') {
+      const careers = s.student_careers || []
+      if (careers.length !== 0) return false
+    } else if (statusFilter !== 'all' && s.status !== statusFilter && !(statusFilter === 'cancelled' && (s.status === 'cancel_before' || s.status === 'cancel_after'))) return false
     return true
   }).sort((a, b) => {
     // 정렬: 학교 → 수업/반 → 학년 → 반 → 번호 → 이름
@@ -1446,6 +1455,9 @@ export function Students({ user, onNav, pageParams = {} }) {
     confirmed: ctxBase.filter(s => s.status === 'confirmed').length,
     waiting:   ctxBase.filter(s => s.status === 'waiting').length,
     cancelled: ctxBase.filter(s => s.status === 'cancelled' || s.status === 'cancel_before' || s.status === 'cancel_after').length,
+    career_new:          ctxBase.filter(s => (s.student_careers || []).length === 1).length,
+    career_existing:     ctxBase.filter(s => (s.student_careers || []).length > 1).length,
+    career_unclassified: ctxBase.filter(s => (s.student_careers || []).length === 0).length,
   }
 
   const openAdd = () => {
@@ -1965,6 +1977,9 @@ export function Students({ user, onNav, pageParams = {} }) {
               <option value="cancel_before">개강전 취소</option>
               <option value="cancel_after">개강후 취소</option>
               <option value="schedule_change">스케줄변경</option>
+              <option value="career_new">신규</option>
+              <option value="career_existing">기존</option>
+              <option value="career_unclassified">미분류</option>
             </select>
           </div>
           {(ctxYear || ctxSchool || ctxClassId || ctxTermType) && (
@@ -2060,6 +2075,9 @@ export function Students({ user, onNav, pageParams = {} }) {
             { key: 'selected',  label: `추첨완료 ${statusCounts.selected}` },
             { key: 'confirmed', label: `확정 ${statusCounts.confirmed}` },
             { key: 'cancelled', label: `취소 ${statusCounts.cancelled}` },
+            { key: 'career_unclassified', label: `미분류 ${statusCounts.career_unclassified}` },
+            { key: 'career_new',          label: `신규 ${statusCounts.career_new}` },
+            { key: 'career_existing',     label: `기존 ${statusCounts.career_existing}` },
           ].map(f => (
             <button key={f.key} onClick={() => setStatusFilter(f.key)} style={{
               padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer',
