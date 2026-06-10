@@ -138,11 +138,11 @@ function emptyStudent() {
 
 // 관계 추가 입력 컴포넌트
 // 학생 경력 컴포넌트
-function CareerAdder({ careers, onChange, isEdit }) {
+function CareerAdder({ careers, onChange, isEdit, defaultTermType }) {
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: currentYear - 2021 + 1 }, (_, i) => String(2022 + i)).reverse()
   const lastCareer = [...careers].sort((a,b) => a.year !== b.year ? a.year-b.year : Number(a.term)-Number(b.term)).slice(-1)[0]
-  const [termType, setTermType] = React.useState(() => (lastCareer?.termType || lastCareer?.term_type) || 'semester')
+  const [termType, setTermType] = React.useState(() => defaultTermType || (lastCareer?.termType || lastCareer?.term_type) || 'semester')
   const [year, setYear] = React.useState(String(currentYear))
   const [term, setTerm] = React.useState('1')
 
@@ -2834,7 +2834,7 @@ export function Students({ user, onNav, pageParams = {} }) {
             {/* 경력 */}
             <div>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '8px' }}>📅 학생 경력</label>
-              <CareerAdder careers={form.student_careers || []} onChange={v => set('student_careers', v)} isEdit={!!editId} />
+              <CareerAdder careers={form.student_careers || []} onChange={v => set('student_careers', v)} isEdit={!!editId} defaultTermType={form._newTermType || 'semester'} />
             </div>
 
             {/* 가족/관계 */}
