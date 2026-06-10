@@ -140,7 +140,8 @@ function emptyStudent() {
 function CareerAdder({ careers, onChange, isEdit }) {
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: currentYear - 2021 + 1 }, (_, i) => String(2022 + i)).reverse()
-  const [termType, setTermType] = React.useState('semester')
+  const lastCareer = [...careers].sort((a,b) => a.year !== b.year ? a.year-b.year : Number(a.term)-Number(b.term)).slice(-1)[0]
+  const [termType, setTermType] = React.useState(() => (lastCareer?.termType || lastCareer?.term_type) || 'semester')
   const [year, setYear] = React.useState(String(currentYear))
   const [term, setTerm] = React.useState('1')
 
