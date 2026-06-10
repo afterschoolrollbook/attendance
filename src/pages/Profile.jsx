@@ -1,11 +1,66 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Users } from '../lib/db.js'
-import { now } from '../lib/utils.js'
-import { sendEmail, isConfigured } from '../lib/supabase.js'
+import { now, uid } from '../lib/utils.js'
+import { sendEmail, isConfigured, dbCall, authSignIn, authUpdatePassword } from '../lib/supabase.js'
 import { Btn, Input, Card, PageHeader } from '../components/Atoms.jsx'
-import { authSignIn, authUpdatePassword } from '../lib/supabase.js'
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316', success:'#16a34a', danger:'#ef4444' }
+
+// ─── 블로그 관련 유틸
+const BLOG_CATEGORIES = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
+
+function slugify(text) {
+  return text.toLowerCase().replace(/[^a-z0-9가-힣\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim()
+}
+
+function sanitizeHtml(html) {
+  if (typeof window !== 'undefined' && window.DOMPurify) {
+    return window.DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['p','br','b','strong','i','em','u','h1','h2','h3','ul','ol','li','blockquote','code','pre','hr','a','img'],
+      ALLOWED_ATTR: ['href','src','alt','target','rel'],
+    })
+  }
+  return html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
+}
+
+function parseMarkdown(md) {
+  if (!md) return ''
+  const html = md
+    .replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>').replace(/^## (.+)$/gm, '<h2>$1</h2>').replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/^---$/gm, '<hr>').replace(/^\- (.+)$/gm, '<li>$1</li>').replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    .split('\n\n').map(p => p.trim()).filter(Boolean)
+    .map(p => /^<(h[1-3]|ul|ol|li|pre|blockquote|hr)/.test(p) ? p : `<p>${p.replace(/\n/g, '<br>')}</p>`)
+    .join('\n')
+  return sanitizeHtml(html)
+}
+
+const mdPreviewStyles = `
+  .md-preview h1 { font-size:20px;font-weight:800;margin:16px 0 8px;color:#111827; }
+  .md-preview h2 { font-size:17px;font-weight:700;margin:14px 0 6px;color:#1f2937;border-bottom:2px solid #f3f4f6;padding-bottom:4px; }
+  .md-preview h3 { font-size:15px;font-weight:700;margin:12px 0 4px;color:#374151; }
+  .md-preview p  { margin:8px 0;line-height:1.8;color:#374151; }
+  .md-preview ul,ol { padding-left:20px;margin:8px 0; }
+  .md-preview li { margin:4px 0;line-height:1.7; }
+  .md-preview strong { font-weight:700;color:#111827; }
+  .md-preview em { font-style:italic; }
+  .md-preview code { background:#f3f4f6;padding:2px 5px;border-radius:4px;font-size:12px;color:#e11d48; }
+  .md-preview pre { background:#1f2937;color:#f9fafb;padding:12px 16px;border-radius:8px;overflow-x:auto;margin:12px 0; }
+  .md-preview blockquote { border-left:4px solid #f97316;padding:6px 12px;background:#fff7ed;margin:12px 0;border-radius:0 6px 6px 0;color:#92400e;font-style:italic; }
+  .md-preview a { color:#f97316;text-decoration:underline; }
+  .md-preview hr { border:none;border-top:2px solid #f3f4f6;margin:16px 0; }
+  .md-preview img { max-width:100%;border-radius:8px;margin:4px 0; }
+`
+
+const emptyBlogForm = (authorName) => ({
+  title: '', slug: '', summary: '', content: '', category: '', tags: '',
+  coverImage: '', author: authorName || '', status: 'draft',
+  publishedAt: new Date().toISOString().slice(0, 10),
+})
 
 function genCode() { return String(Math.floor(100000 + Math.random() * 900000)) }
 
@@ -162,10 +217,81 @@ export function Profile({ user, onUserUpdate, onNav }) {
   const [pwMsg,     setPwMsg]     = useState(null)
   const [verifyMsg, setVerifyMsg] = useState(null)
 
+  // ── 블로그
+  const [blogView,    setBlogView]    = useState('list') // 'list' | 'edit'
+  const [blogPosts,   setBlogPosts]   = useState([])
+  const [blogForm,    setBlogForm]    = useState(emptyBlogForm(user.name))
+  const [blogEditId,  setBlogEditId]  = useState(null)
+  const [blogPreview, setBlogPreview] = useState(false)
+  const [blogLoading, setBlogLoading] = useState(false)
+  const [blogMsg,     setBlogMsg]     = useState(null)
+
   const imgRef = useRef()
 
   // 페이지 진입 시 즉시 본인 인증 요구
   useEffect(() => { setShowVerify(true) }, [])
+  useEffect(() => { if (verified) loadMyPosts() }, [verified])
+
+  const loadMyPosts = async () => {
+    try {
+      const rows = await dbCall('getAll', 'blogPosts')
+      const mine = (rows || []).filter(p => p.authorId === user.id || p.author === user.name)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      setBlogPosts(mine)
+    } catch { /* 조용히 실패 */ }
+  }
+
+  const handleBlogNew = () => {
+    setBlogForm(emptyBlogForm(user.name))
+    setBlogEditId(null); setBlogPreview(false); setBlogView('edit')
+  }
+
+  const handleBlogEdit = (post) => {
+    setBlogForm({
+      title: post.title||'', slug: post.slug||'', summary: post.summary||'',
+      content: post.content||'', category: post.category||'',
+      tags: (post.tags||[]).join(', '), coverImage: post.coverImage||'',
+      author: post.author||user.name, status: post.status||'draft',
+      publishedAt: post.publishedAt ? post.publishedAt.slice(0,10) : new Date().toISOString().slice(0,10),
+    })
+    setBlogEditId(post.id); setBlogPreview(false); setBlogView('edit')
+  }
+
+  const handleBlogDelete = async (post) => {
+    if (!window.confirm(`"${post.title}" 을(를) 삭제하시겠습니까?`)) return
+    try {
+      await dbCall('delete', 'blogPosts', { id: post.id })
+      loadMyPosts()
+    } catch { flash(setBlogMsg, false, '삭제 실패') }
+  }
+
+  const handleBlogSave = async (status) => {
+    if (!blogForm.title.trim()) { flash(setBlogMsg, false, '제목을 입력해주세요'); return }
+    if (!blogForm.content.trim()) { flash(setBlogMsg, false, '내용을 입력해주세요'); return }
+    setBlogLoading(true)
+    try {
+      const slug = blogForm.slug.trim() || slugify(blogForm.title)
+      const tags = blogForm.tags ? blogForm.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+      const finalStatus = status || blogForm.status
+      const payload = {
+        id: blogEditId || uid(),
+        type: 'blog',
+        title: blogForm.title.trim(), slug, summary: blogForm.summary.trim(),
+        content: blogForm.content, category: blogForm.category, tags,
+        coverImage: blogForm.coverImage.trim(), author: blogForm.author.trim(),
+        authorId: user.id,
+        status: finalStatus,
+        publishedAt: finalStatus === 'published' ? (blogForm.publishedAt ? new Date(blogForm.publishedAt).toISOString() : now()) : null,
+        updatedAt: now(),
+        createdAt: blogEditId ? undefined : now(),
+      }
+      if (blogEditId) await dbCall('update', 'blogPosts', { id: blogEditId, patch: payload })
+      else await dbCall('insert', 'blogPosts', payload)
+      flash(setBlogMsg, true, finalStatus === 'published' ? '발행되었습니다! 🎉' : '임시저장되었습니다.')
+      loadMyPosts(); setBlogView('list')
+    } catch (e) { flash(setBlogMsg, false, '저장 실패: ' + e.message) }
+    setBlogLoading(false)
+  }
 
   const flash = (setter, ok, msg) => {
     setter({ ok, msg })
@@ -369,6 +495,164 @@ export function Profile({ user, onUserUpdate, onNav }) {
             </div>
           </div>
         </Card>
+      )}
+
+      {/* ── 블로그 글 작성 */}
+      {verified && (
+        <div style={{ marginTop:'24px' }}>
+          <style>{mdPreviewStyles}</style>
+
+          {blogView === 'list' ? (
+            <Card>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px', flexWrap:'wrap', gap:'10px' }}>
+                <div>
+                  <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>✍️ 내 블로그 글</div>
+                  <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>직접 작성한 블로그 글을 관리하세요.</div>
+                </div>
+                <Btn onClick={handleBlogNew} size="sm">+ 새 글 작성</Btn>
+              </div>
+
+              {blogMsg && <Msg data={blogMsg} />}
+
+              {blogPosts.length === 0 ? (
+                <div style={{ textAlign:'center', padding:'36px 20px', background:'#f9fafb', borderRadius:'12px', border:`1px dashed ${C.border}`, color:C.muted }}>
+                  <div style={{ fontSize:'32px', marginBottom:'8px' }}>✍️</div>
+                  <div style={{ fontSize:'14px', fontWeight:600 }}>아직 작성된 글이 없어요</div>
+                  <div style={{ fontSize:'12px', marginTop:'4px' }}>첫 번째 블로그 글을 써보세요!</div>
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                  {blogPosts.map(post => (
+                    <div key={post.id} style={{ background:'#f9fafb', borderRadius:'10px', border:`1.5px solid ${C.border}`, padding:'12px 16px', display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap' }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'3px', flexWrap:'wrap' }}>
+                          <span style={{ fontSize:'11px', fontWeight:700, borderRadius:'999px', padding:'2px 9px', background:post.status==='published'?'#f0fdf4':'#f9fafb', color:post.status==='published'?'#16a34a':'#9ca3af', border:`1px solid ${post.status==='published'?'#86efac':'#e5e7eb'}` }}>
+                            {post.status==='published' ? '✅ 발행' : '📝 임시'}
+                          </span>
+                          {post.category && <span style={{ fontSize:'11px', color:C.muted, background:'#f3f4f6', borderRadius:'4px', padding:'2px 7px' }}>{post.category}</span>}
+                        </div>
+                        <div style={{ fontSize:'14px', fontWeight:700, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{post.title}</div>
+                        <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
+                          {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('ko-KR') : '날짜 없음'}
+                        </div>
+                      </div>
+                      <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+                        {post.status==='published' && (
+                          <a href={`/blog/${post.slug||post.id}`} target="_blank"
+                            style={{ padding:'5px 11px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>보기</a>
+                        )}
+                        <button onClick={() => handleBlogEdit(post)}
+                          style={{ padding:'5px 13px', borderRadius:'7px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                        <button onClick={() => handleBlogDelete(post)}
+                          style={{ padding:'5px 11px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          ) : (
+            <Card>
+              {/* 에디터 헤더 */}
+              <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'18px', flexWrap:'wrap' }}>
+                <button onClick={() => setBlogView('list')}
+                  style={{ background:'none', border:'none', cursor:'pointer', color:C.muted, fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', padding:0 }}>← 목록</button>
+                <div style={{ fontSize:'17px', fontWeight:700, color:C.text, flex:1 }}>
+                  {blogEditId ? '글 수정' : '📝 새 블로그 글 작성'}
+                </div>
+                <button onClick={() => setBlogPreview(v => !v)}
+                  style={{ padding:'6px 14px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:blogPreview?'#f3f4f6':'#fff', color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  {blogPreview ? '✏️ 편집' : '👁 미리보기'}
+                </button>
+                <button onClick={() => handleBlogSave('draft')} disabled={blogLoading}
+                  style={{ padding:'6px 14px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  임시저장
+                </button>
+                <button onClick={() => handleBlogSave('published')} disabled={blogLoading}
+                  style={{ padding:'6px 18px', borderRadius:'8px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  {blogLoading ? '저장 중...' : '🚀 발행'}
+                </button>
+              </div>
+
+              {blogMsg && <div style={{ marginBottom:'12px' }}><Msg data={blogMsg} /></div>}
+
+              <div style={{ display:'grid', gridTemplateColumns:blogPreview?'1fr 1fr':'1fr', gap:'20px' }}>
+                <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                  {/* 제목 */}
+                  <input value={blogForm.title}
+                    onChange={e => setBlogForm(v => ({ ...v, title:e.target.value, slug:v.slug||slugify(e.target.value) }))}
+                    placeholder="제목을 입력하세요"
+                    style={{ width:'100%', padding:'11px 13px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'17px', fontWeight:700, fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+
+                  {/* slug / 카테고리 / 발행일 */}
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px' }}>
+                    <div>
+                      <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>URL 슬러그</label>
+                      <input value={blogForm.slug} onChange={e => setBlogForm(v => ({ ...v, slug:e.target.value }))} placeholder="url-slug"
+                        style={{ width:'100%', padding:'8px 11px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>카테고리</label>
+                      <select value={blogForm.category} onChange={e => setBlogForm(v => ({ ...v, category:e.target.value }))}
+                        style={{ width:'100%', padding:'8px 11px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff', boxSizing:'border-box' }}>
+                        <option value="">카테고리 선택</option>
+                        {BLOG_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>발행일</label>
+                      <input type="date" value={blogForm.publishedAt} onChange={e => setBlogForm(v => ({ ...v, publishedAt:e.target.value }))}
+                        style={{ width:'100%', padding:'8px 11px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+                    </div>
+                  </div>
+
+                  {/* 요약 */}
+                  <div>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>요약 (선택)</label>
+                    <textarea value={blogForm.summary} onChange={e => setBlogForm(v => ({ ...v, summary:e.target.value }))} rows={2}
+                      placeholder="검색엔진에 표시될 요약 문구 (200자 이내)"
+                      style={{ width:'100%', padding:'8px 11px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', resize:'vertical', boxSizing:'border-box' }} maxLength={200} />
+                  </div>
+
+                  {/* 커버 이미지 */}
+                  <div>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>커버 이미지 URL (선택)</label>
+                    <input value={blogForm.coverImage} onChange={e => setBlogForm(v => ({ ...v, coverImage:e.target.value }))} placeholder="https://..."
+                      style={{ width:'100%', padding:'8px 11px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+                  </div>
+
+                  {/* 태그 */}
+                  <div>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>태그 (쉼표로 구분)</label>
+                    <input value={blogForm.tags} onChange={e => setBlogForm(v => ({ ...v, tags:e.target.value }))} placeholder="출석관리, 방과후, 팁"
+                      style={{ width:'100%', padding:'8px 11px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }} />
+                  </div>
+
+                  {/* 본문 */}
+                  <div>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>본문 (마크다운)</label>
+                    <textarea value={blogForm.content} onChange={e => setBlogForm(v => ({ ...v, content:e.target.value }))} rows={20}
+                      placeholder={`# 제목\n\n본문을 마크다운으로 작성하세요.\n\n## 소제목\n\n- 항목 1\n- 항목 2\n\n**굵게** *기울임* \`코드\``}
+                      style={{ width:'100%', padding:'10px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'monospace', lineHeight:1.7, outline:'none', resize:'vertical', boxSizing:'border-box' }} />
+                  </div>
+                </div>
+
+                {/* 미리보기 */}
+                {blogPreview && (
+                  <div style={{ borderLeft:`2px solid ${C.border}`, paddingLeft:'20px' }}>
+                    <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'12px' }}>👁 미리보기</div>
+                    {blogForm.coverImage && (
+                      <img src={blogForm.coverImage} alt="커버" style={{ width:'100%', borderRadius:'10px', marginBottom:'12px', objectFit:'cover', maxHeight:'200px' }} />
+                    )}
+                    <h1 style={{ fontSize:'20px', fontWeight:800, color:C.text, marginBottom:'8px' }}>{blogForm.title || '(제목 없음)'}</h1>
+                    {blogForm.summary && <p style={{ fontSize:'13px', color:C.muted, marginBottom:'12px', fontStyle:'italic' }}>{blogForm.summary}</p>}
+                    <div className="md-preview" dangerouslySetInnerHTML={{ __html: parseMarkdown(blogForm.content) }} />
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+        </div>
       )}
 
       {showVerify && <VerifyModal user={user} onVerified={handleVerified} onClose={handleClose} />}

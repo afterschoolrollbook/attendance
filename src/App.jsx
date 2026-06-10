@@ -354,12 +354,14 @@ export default function App() {
   if (pathname === '/parent-login')  return <ParentLogin />
 
   // ── 랜딩 페이지 ─────────────────────────────────────────────────
-  if (!user && showLanding) {
+  if (showLanding && (!user || page === 'landing')) {
     return (
       <LandingPage
         onGoLogin={() => { setLandingTarget('login'); setShowLanding(false) }}
         onGoSignup={() => { setLandingTarget('signup'); setShowLanding(false) }}
         onGoBlog={() => { window.location.href = '/blog' }}
+        onGoDashboard={user ? () => { setShowLanding(false); setPage('dashboard') } : undefined}
+        onGoProfile={user ? () => { setShowLanding(false); setPage('profile') } : undefined}
       />
     )
   }
