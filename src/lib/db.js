@@ -109,28 +109,41 @@ function toCamel(obj) {
 
 // ─── students 테이블: Supabase pull 후 string 필드 null-safe 정규화
 // homeReturn 등 나중에 추가된 필드가 null로 들어와도 string method가 터지지 않도록 보장
+const STRING_FIELDS_STUDENT = [
+  'homeReturn','section','parentPhone','name','school',
+  'memo','applyOrder','remark','grade','classNum','number',
+  'status','parentInviteSentAt','studentStartDate','studentEndDate',
+]
 function normalizeStudent(raw) {
   const s = toCamel(raw)
-  if (s.homeReturn == null)      s.homeReturn      = ''
-  if (s.section    == null)      s.section         = ''
-  if (s.parentPhone == null)     s.parentPhone     = ''
-  if (s.name       == null)      s.name            = ''
-  if (s.school     == null)      s.school          = ''
-  if (s.memo       == null)      s.memo            = ''
-  if (s.applyOrder == null)      s.applyOrder      = ''
-  if (!Array.isArray(s.classIds))  s.classIds      = s.classIds ? [s.classIds] : []
-  if (!Array.isArray(s.relations)) s.relations     = []
-  if (!Array.isArray(s.student_careers)) s.student_careers = []
-  if (!Array.isArray(s.statusHistory))   s.statusHistory   = []
+  STRING_FIELDS_STUDENT.forEach(f => { if (s[f] == null || typeof s[f] !== 'string') s[f] = '' })
+  if (!Array.isArray(s.classIds))            s.classIds        = s.classIds ? [s.classIds] : []
+  if (!Array.isArray(s.relations))           s.relations       = []
+  if (!Array.isArray(s.student_careers))     s.student_careers = []
+  if (!Array.isArray(s.statusHistory))       s.statusHistory   = []
   return s
+}
+
+// ─── classes 테이블: section 필드가 배열로 잘못 저장된 경우 방어
+function normalizeClass(raw) {
+  const c = toCamel(raw)
+  if (c.section == null || typeof c.section !== 'string') c.section = ''
+  if (c.time    == null || typeof c.time    !== 'string') c.time    = ''
+  if (c.timeEnd == null || typeof c.timeEnd !== 'string') c.timeEnd = ''
+  if (!Array.isArray(c.sections))  c.sections  = []
+  if (!Array.isArray(c.days))      c.days       = []
+  return c
 }
 
 // ─── 테이블별 변환 함수 반환
 function getConverters(table) {
+  const fromDb = table === 'students' ? normalizeStudent
+               : table === 'classes'  ? normalizeClass
+               : toCamel
   return {
-    tbl:    TABLE_MAP[table] || table,
-    toDb:   toSnake,
-    fromDb: table === 'students' ? normalizeStudent : toCamel,
+    tbl:  TABLE_MAP[table] || table,
+    toDb: toSnake,
+    fromDb,
   }
 }
 
