@@ -1985,18 +1985,14 @@ export function Supplies({ user }) {
       const editIds = sessionPlanEdits.filter(e=>!e._isNew).map(e=>e.id)
       sessionPlanList.forEach(o => { if (!editIds.includes(o.id)) SupplyProductPlans.delete(o.id) })
       // 추가/수정
-      // [DEBUG] 저장 전 payload 확인
-      console.log('[DEBUG] saveSessionPlan edits:', JSON.stringify(sessionPlanEdits.map(e => ({ sessionNo: e.sessionNo, title: e.title, _isNew: e._isNew }))))
       sessionPlanEdits.forEach(e => {
         if (e._isNew) {
-          const record = {
+          SupplyProductPlans.insert({
             id: e.id, teacherId: user.id,
             productId: sessionPlanTarget.productId,
             stage: sessionPlanTarget.stage,
             sessionNo: e.sessionNo, title: e.title, memo: e.memo||'', createdAt: now(),
-          }
-          console.log('[DEBUG] insert:', JSON.stringify(record))
-          SupplyProductPlans.insert(record).catch(err => console.error('[DEBUG] insert 실패:', err))
+          })
         } else {
           SupplyProductPlans.update(e.id, { sessionNo:e.sessionNo, title:e.title, memo:e.memo||'' })
         }
@@ -2012,6 +2008,14 @@ export function Supplies({ user }) {
             sessionNo: 1, title: `${sessionPlanTarget.stage}단계 1차시`,
             memo: '', fileUrl: null, fileName: null, createdAt: now(),
           })
+        }
+      }
+      // 실제 저장된 차시 수로 sessionsPerStage 자동 업데이트
+      const actualCount = sessionPlanEdits.filter(e => e.title?.trim()).length
+      if (actualCount > 0) {
+        const product = productList.find(p => p.id === sessionPlanTarget.productId)
+        if (product && actualCount !== product.sessionsPerStage) {
+          SupplyProducts.update(sessionPlanTarget.productId, { sessionsPerStage: actualCount })
         }
       }
       reload()
@@ -4021,7 +4025,7 @@ export function Supplies({ user }) {
                 return (
                   <div style={{ border:`1px solid ${C.border}`, borderRadius:'8px', overflow:'hidden' }}>
                     <div style={{ padding:'8px 12px', background:'#f0fdf4', borderBottom:`1px solid #86efac`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                      <span style={{ fontSize:'12px', fontWeight:600, color:C.success }}>✅ {supplyForm.stage}단계 차시 제목 {plans.length}/{sessionsPerStage}개 등록됨</span>
+                      <span style={{ fontSize:'12px', fontWeight:600, color:C.success }}>✅ {supplyForm.stage}단계 차시 제목 {plans.length}/{Math.max(plans.length, sessionsPerStage)}개 등록됨</span>
                       <button
                         onClick={() => { setSupplyModal(false); setInnerTab('vendor'); openSessionPlan(supplyForm.productId, supplyForm.stage) }}
                         style={{ fontSize:'11px', color:C.muted, background:'none', border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', textDecoration:'underline' }}>
