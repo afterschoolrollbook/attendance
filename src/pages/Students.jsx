@@ -2463,13 +2463,7 @@ export function Students({ user, onNav, pageParams = {} }) {
                                 style={{ padding:'5px 10px', borderRadius:'6px', border:'none', background:'#f97316', color:'#fff', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
                                 관리로 이동 →
                               </button>
-                              <button onClick={() => {
-                                if (window.confirm(`"${s.name}" 학생을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
-                                  StudentsDB.delete(s.id)
-                                  setSelectedForMove(p => p.filter(id => id !== s.id))
-                                  refresh()
-                                }
-                              }}
+                              <button onClick={() => setDeleteTarget({ id: s.id, name: s.name })}
                                 style={{ padding:'5px 10px', borderRadius:'6px', border:'1.5px solid #fca5a5', background:'#fff', color:'#ef4444', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
                                 삭제
                               </button>
