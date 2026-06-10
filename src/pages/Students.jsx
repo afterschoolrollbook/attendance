@@ -126,6 +126,7 @@ function emptyStudent() {
     school: '', grade: '', classNum: '', number: '', name: '',
     parentPhone: '', studentPhone: '', classIds: [], status: 'applied', memo: '', contactMethod: '',
     applyOrder: '', remark: '', relations: [], student_careers: [],
+    homeReturn: '', parentJoined: false, parentInviteSentAt: '',
     // 수업 직접 입력용
     _newOrganization: '', _newClassName: '', _newSection: '',
     _newTimeStart: '', _newTimeEnd: '',
