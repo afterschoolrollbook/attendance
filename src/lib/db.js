@@ -299,11 +299,27 @@ function _emitSaveStart()        { _saveStartListeners.forEach(fn => fn()) }
 function _emitSaveComplete()     { _saveCompleteListeners.forEach(fn => fn()) }
 function _emitSaveError(label, msg) { _saveErrorListeners.forEach(fn => fn(label, msg)) }
 
+// ─── students 테이블 boolean 컬럼 안전 변환
+// parent_joined, moved_to_manage 컬럼은 반드시 true/false여야 함
+// 빈 문자열(""), null, undefined 등이 들어오면 PostgreSQL이 "invalid input syntax for type boolean" 오류를 냄
+function sanitizeStudentBooleans(data) {
+  const BOOL_FIELDS = ['parentJoined', 'movedToManage']
+  const result = { ...data }
+  for (const f of BOOL_FIELDS) {
+    if (f in result) result[f] = !!result[f]
+    // snake_case 버전도 방어
+    const snake = f.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
+    if (snake in result) result[snake] = !!result[snake]
+  }
+  return result
+}
+
 // ─── Supabase 직접 쓰기 함수들
 async function syncInsert(table, data) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
-  const cleanData = stripVirtualFields(table, data)
+  const sanitized  = table === 'students' ? sanitizeStudentBooleans(data) : data
+  const cleanData = stripVirtualFields(table, sanitized)
   if (table === 'supplySessionChecks') {
     await withRetry(async () => {
       const { error } = await supabase.from(tbl)
@@ -350,7 +366,8 @@ function stripVirtualFields(table, obj) {
 async function syncUpdate(table, id, patch) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
-  const cleanPatch = stripVirtualFields(table, patch)
+  const sanitized  = table === 'students' ? sanitizeStudentBooleans(patch) : patch
+  const cleanPatch = stripVirtualFields(table, sanitized)
   await withRetry(async () => {
     const { error } = await supabase.from(tbl).update(toDb(cleanPatch)).eq('id', id)
     if (error) throw new Error(error.message)
