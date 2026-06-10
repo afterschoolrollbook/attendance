@@ -80,8 +80,9 @@ function SyncScrollTable({ children }) {
 
 // ── 귀가방법 인라인 편집 셀 (출석부와 동일한 UX)
 function HomeReturnCell({ studentId, homeReturn, onUpdate }) {
-  const [hrType, setHrType] = React.useState(() => homeReturn.startsWith('학원') ? '학원' : homeReturn)
-  const [hrMemo, setHrMemo] = React.useState(() => homeReturn.startsWith('학원-') ? homeReturn.slice(3) : '')
+  const hr = homeReturn ?? ''
+  const [hrType, setHrType] = React.useState(() => hr.startsWith('학원') ? '학원' : hr)
+  const [hrMemo, setHrMemo] = React.useState(() => hr.startsWith('학원-') ? hr.slice(3) : '')
 
   const save = (type, memo) => {
     let val = ''
@@ -898,6 +899,16 @@ export function Students({ user, onNav, pageParams = {} }) {
     })
   }, [])
 
+  // homeReturn 필드 없는 구 데이터 → 빈 문자열로 마이그레이션
+  React.useEffect(() => {
+    const all = StudentsDB.byTeacher(user.id)
+    all.forEach(s => {
+      if (s.homeReturn == null) {
+        StudentsDB.update(s.id, { homeReturn: '' })
+      }
+    })
+  }, [])
+
   // 출석부 등 외부에서 editStudentId 전달 시 자동으로 편집 모달 열기
   React.useEffect(() => {
     if (!pageParams.editStudentId) return
@@ -1427,6 +1438,7 @@ export function Students({ user, onNav, pageParams = {} }) {
     const trDate = trHistory?.memo?.match(/\d{4}-\d{2}-\d{2}/)?.[0] || new Date().toISOString().slice(0,10)
     setForm({
       ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [], student_careers: careersWithCurrent,
+      homeReturn: s.homeReturn || '',
       schedule_change_date: s.status === 'schedule_change' ? (scDate || new Date().toISOString().slice(0,10)) : '',
       transfer_info: (s.status === 'transfer_out' || s.status === 'transfer_in') ? { date: trDate } : (s.transfer_info || null),
       _newOrganization: cls?.organization || '',
