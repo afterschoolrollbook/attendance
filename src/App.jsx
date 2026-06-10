@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import LandingPage from './pages/LandingPage.jsx'
 import { Users, Students as StudentsDB, Classes as ClassesDB } from './lib/db.js'
-import { initFromSupabase, loadCacheFromIDB, onSaveError, onDbChange } from './lib/db.js'
+import { initFromSupabase, loadCacheFromIDB, onSaveError, onDbChange, startSyncRetry, stopSyncRetry } from './lib/db.js'
 import { SaveStatusBar } from './components/SaveStatusBar.jsx'
 import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail, dbCall } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
@@ -187,6 +187,7 @@ export default function App() {
         }
         // 2) 백그라운드에서 변경분만 Supabase 로드 (증분 동기화)
         await initFromSupabase()
+        startSyncRetry() // 미완료 작업 자동 재시도 시작
 
         // ── 전역 데이터 마이그레이션: 앱 시작 시 1회 실행
         // 나중에 추가된 필드가 null인 구 데이터를 정규화하여 string method 에러 방지
@@ -429,6 +430,7 @@ export default function App() {
       initFromSupabase().then(() => {
         const fresh = Users.findByEmail(u.email)
         if (fresh) setUser(fresh)
+        startSyncRetry()
       })
       return
     }
