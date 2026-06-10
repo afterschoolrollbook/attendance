@@ -100,22 +100,24 @@ function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
   return result
 }
 
-// 테이블별 타입 불일치 방어: 빈 문자열을 null로 변환 (Supabase는 boolean/timestamptz에 "" 거부)
+// 테이블별 타입 불일치 방어: '' / false / undefined → boolean은 false, timestamp는 null
 const BOOLEAN_COLS: Record<string, string[]> = {
   students: ['parent_joined', 'moved_to_manage'],
 }
 const NULLABLE_COLS: Record<string, string[]> = {
-  students: ['parent_invite_sent_at', 'student_start_date', 'student_end_date', 'updated_at'],
+  students: ['parent_invite_sent_at', 'student_start_date', 'student_end_date', 'updated_at', 'created_at'],
 }
 function sanitize(obj: Record<string, unknown>, tbl: string): Record<string, unknown> {
   const result = { ...obj }
   const boolCols = BOOLEAN_COLS[tbl] || []
   const nullCols  = NULLABLE_COLS[tbl] || []
   for (const col of boolCols) {
-    if (col in result) result[col] = !!result[col]
+    // '', null, undefined, 0 → false; 그 외 → !!value
+    result[col] = !!result[col]
   }
   for (const col of nullCols) {
-    if (col in result && (result[col] === '' || result[col] === false)) result[col] = null
+    // '', false, null, undefined → null; 유효한 날짜 문자열만 통과
+    if (col in result && !result[col] && result[col] !== 0) result[col] = null
   }
   return result
 }
