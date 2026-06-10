@@ -1906,13 +1906,6 @@ export function Students({ user, onNav, pageParams = {} }) {
         <div style={{ fontSize: '12px', fontWeight: 700, color: '#9ca3af', marginBottom: '10px', letterSpacing: '0.05em' }}>📍 학생 보기 범위 선택</div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>년도</label>
-            <select value={ctxYear} onChange={e => { setCtxYear(e.target.value); setCtxSchool(''); setCtxClass(''); setCtxSection(''); setCtxTerm('') }} style={selSt}>
-              <option value="">전체 년도</option>
-              {years.map(y => <option key={y} value={y}>{y}년</option>)}
-            </select>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>학교</label>
             <select value={ctxSchool} onChange={e => { setCtxSchool(e.target.value); setCtxClass(''); setCtxSection('') }} style={selSt}>
               <option value="">전체 학교</option>
@@ -1920,16 +1913,14 @@ export function Students({ user, onNav, pageParams = {} }) {
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>과목 · 반</label>
-            <select value={ctxClass} onChange={e => { setCtxClass(e.target.value); setCtxSection('') }} style={selSt}>
-              <option value="">전체 과목</option>
-              {classOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
+            <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>년도</label>
+            <select value={ctxYear} onChange={e => { setCtxYear(e.target.value); setCtxClass(''); setCtxSection(''); setCtxTerm('') }} style={selSt}>
+              <option value="">전체 년도</option>
+              {years.map(y => <option key={y} value={y}>{y}년</option>)}
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>학기 · 분기</label>
+            <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>구분</label>
             <select value={ctxTermType} onChange={e => { setCtxTermType(e.target.value); setCtxTerm('') }} style={selSt}>
               <option value="">전체</option>
               <option value="semester">학기제</option>
@@ -1948,12 +1939,21 @@ export function Students({ user, onNav, pageParams = {} }) {
               </select>
             </div>
           )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>수업</label>
+            <select value={ctxClass} onChange={e => { setCtxClass(e.target.value); setCtxSection('') }} style={selSt}>
+              <option value="">전체 수업</option>
+              {classOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
           {(ctxYear || ctxSchool || ctxClassId || ctxTermType) && (
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1px' }}>
-              {ctxYear && <Tag color="#059669" bg="#ecfdf5" size="md">📅 {ctxYear}년</Tag>}
               {ctxSchool && <Tag color="#3b82f6" bg="#eff6ff" size="md">🏫 {ctxSchool}</Tag>}
-              {ctxClassId && selectedCls && <Tag color="#f97316" bg="#fff7ed" size="md">📚 {selectedCls.className}{ctxClassSec ? ' ' + ctxClassSec + '반' : ''}</Tag>}
+              {ctxYear && <Tag color="#059669" bg="#ecfdf5" size="md">📅 {ctxYear}년</Tag>}
               {ctxTermType && <Tag color="#8b5cf6" bg="#f5f3ff" size="md">{ctxTermType === 'semester' ? '학기제' : '분기제'}{ctxTerm ? ` ${ctxTerm}${ctxTermType === 'semester' ? '학기' : '분기'}` : ''}</Tag>}
+              {ctxClassId && selectedCls && <Tag color="#f97316" bg="#fff7ed" size="md">📚 {selectedCls.className}{ctxClassSec ? ' ' + ctxClassSec + '반' : ''}</Tag>}
               <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxClass(''); setCtxSection(''); setCtxTermType(''); setCtxTerm('') }}
                 style={{ fontSize: '11px', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'Noto Sans KR, sans-serif' }}>초기화</button>
             </div>
