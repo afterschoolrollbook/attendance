@@ -2313,7 +2313,27 @@ export function Supplies({ user }) {
                     <label style={{ fontSize:'11px', fontWeight:500, color:'#374151' }}>학교</label>
                     <select value={supplyFilterSchool} onChange={e => { setSupplyFilterSchool(e.target.value); setSelClassId(''); setCheckedStudents([]) }} style={{ ...iStyle, width:'auto' }}>
                       <option value=''>전체 학교</option>
-                      {[...new Set(classes.map(c => c.organization).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko')).map(s => <option key={s} value={s}>{s}</option>)}
+                      {(() => {
+                        const DAY_ORDER = ['월','화','수','목','금','토','일']
+                        const schoolDayMap = {}
+                        classes.forEach(c => {
+                          if (!c.organization) return
+                          if (!schoolDayMap[c.organization]) schoolDayMap[c.organization] = new Set()
+                          ;(c.days||[]).forEach(d => schoolDayMap[c.organization].add(d))
+                        })
+                        return [...new Set(classes.map(c => c.organization).filter(Boolean))]
+                          .sort((a, b) => {
+                            const ai = DAY_ORDER.findIndex(d => (schoolDayMap[a]||new Set()).has(d))
+                            const bi = DAY_ORDER.findIndex(d => (schoolDayMap[b]||new Set()).has(d))
+                            const as_ = ai === -1 ? 99 : ai, bs_ = bi === -1 ? 99 : bi
+                            return as_ !== bs_ ? as_ - bs_ : a.localeCompare(b, 'ko')
+                          })
+                          .map(s => {
+                            const days = DAY_ORDER.filter(d => (schoolDayMap[s]||new Set()).has(d))
+                            const label = days.length > 0 ? `(${days.join('·')}) ${s}` : s
+                            return <option key={s} value={s}>{label}</option>
+                          })
+                      })()}
                     </select>
                   </div>
                   {/* 년도 */}
