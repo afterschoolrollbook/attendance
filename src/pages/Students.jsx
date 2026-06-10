@@ -139,7 +139,7 @@ function CareerAdder({ careers, onChange, isEdit }) {
   const sorted = [...careers].sort((a,b) => a.year !== b.year ? a.year-b.year : Number(a.term)-Number(b.term))
 
   const add = () => {
-    const dup = careers.find(c => c.year === year && c.termType === termType && c.term === term)
+    const dup = careers.find(c => c.year === year && (c.termType || c.term_type) === termType && c.term === term)
     if (dup) return
     const tLabel = termType === 'semester' ? `${term}학기` : `${term}분기`
     const typeLabel = termType === 'semester' ? '학기제' : '분기제'
@@ -166,17 +166,20 @@ function CareerAdder({ careers, onChange, isEdit }) {
       {/* 수강 이력 목록 */}
       {sorted.length > 0 && (
         <div style={{ display:'flex', flexWrap:'wrap', gap:'5px' }}>
-          {sorted.map((c, i) => (
+          {sorted.map((c, i) => {
+            const origIdx = careers.findIndex(x => x.year === c.year && (x.termType || x.term_type) === (c.termType || c.term_type) && x.term === c.term)
+            return (
             <span key={i} style={{ display:'inline-flex', alignItems:'center', gap:'4px', padding:'3px 10px', borderRadius:'20px', fontSize:'12px', fontWeight:600,
               background: i === sorted.length-1 ? '#fff7ed' : '#f9fafb',
               border: `1px solid ${i === sorted.length-1 ? '#fed7aa' : '#e5e7eb'}`,
               color: i === sorted.length-1 ? '#c2410c' : '#374151' }}>
               {c.label}
               {i === sorted.length-1 && <span style={{ fontSize:'10px', color:'#f97316' }}>현재</span>}
-              <button onClick={() => onChange(careers.filter((item) => item !== c))}
+              <button onClick={() => onChange(careers.filter((_, j) => j !== origIdx))}
                 style={{ background:'none', border:'none', cursor:'pointer', fontSize:'13px', lineHeight:1, padding:0, color:'inherit', opacity:0.5 }}>×</button>
             </span>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -269,8 +272,8 @@ function formatCareers(careers) {
   const sorted = [...careers].sort((a, b) => a.year !== b.year ? a.year - b.year : Number(a.term) - Number(b.term))
   const groups = {}
   for (const c of sorted) {
-    const typeLabel = c.termType === 'semester' ? '학기제' : '분기제'
-    const termLabel = c.termType === 'semester' ? '학기' : '분기'
+    const typeLabel = (c.termType || c.term_type) === 'semester' ? '학기제' : '분기제'
+    const termLabel = (c.termType || c.term_type) === 'semester' ? '학기' : '분기'
     const key = `${c.year?.slice(2)}년도 / ${typeLabel}`
     if (!groups[key]) groups[key] = []
     groups[key].push(`${c.term}${termLabel}`)
@@ -324,7 +327,7 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
         .filter(s => {
           const careers = s.student_careers || []
           if (careers.length === 0) return tsTerm === '1'
-          return careers.some(c => String(c.term) === String(tsTerm) && c.termType === tsTermType)
+          return careers.some(c => String(c.term) === String(tsTerm) && (c.termType || c.term_type) === tsTermType)
         })
         .sort((a, b) => {
           const SECTION_ORDER = ['A','B','C','D','E','F']
@@ -370,7 +373,7 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
     for (const s of tsStudents) {
       if (!tsChecked.has(s.id)) continue
       const existingCareers = s.student_careers || []
-      const alreadyHas = existingCareers.some(c => c.year === recYear && c.term === recTerm && c.termType === recTermType)
+      const alreadyHas = existingCareers.some(c => c.year === recYear && c.term === recTerm && (c.termType || c.term_type) === recTermType)
       await StudentsDB.update(s.id, {
         activeTerm: recTerm,
         student_careers: alreadyHas ? existingCareers : [...existingCareers, newCareer],
@@ -613,7 +616,7 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
         .filter(s => {
           const careers = s.student_careers || []
           if (careers.length === 0) return rvFromTerm === '1'
-          return careers.some(c => String(c.term) === String(rvFromTerm) && c.termType === rvTermType)
+          return careers.some(c => String(c.term) === String(rvFromTerm) && (c.termType || c.term_type) === rvTermType)
         })
         .sort((a, b) => {
           const SECTION_ORDER = ['A','B','C','D','E','F']
@@ -658,7 +661,7 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
       let careers = [...(s.student_careers || [])]
 
       // toTerm 기록 없으면 추가
-      const hasTo = careers.some(c => c.year === toYear && c.term === toTermNum && c.termType === termType)
+      const hasTo = careers.some(c => c.year === toYear && c.term === toTermNum && (c.termType || c.term_type) === termType)
       if (!hasTo) careers = [...careers, makeCareer(toTermNum)]
 
       await StudentsDB.update(s.id, {
@@ -1299,9 +1302,7 @@ export function Students({ user, onNav, pageParams = {} }) {
   const openEdit = (s) => {
     const cls = s.classIds?.length > 0 ? ClassesDB.byTeacher(user.id).find(c => c.id === s.classIds[0]) : null
     const existingCareers = s.student_careers || []
-    const curT = getCurrentTerm()
-    const alreadyHasCurrent = existingCareers.some(c => c.year === curT.year && c.termType === curT.termType && c.term === curT.term)
-    const careersWithCurrent = alreadyHasCurrent ? existingCareers : [...existingCareers, curT]
+    const careersWithCurrent = existingCareers
     // statusHistory에서 스케줄변경 날짜 복원
     const scHistory = (s.statusHistory||[]).slice().reverse().find(h => h.status === 'schedule_change')
     const scDate = scHistory?.memo?.match(/\d{4}-\d{2}-\d{2}/)?.[0] || ''
