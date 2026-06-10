@@ -1293,7 +1293,10 @@ export function Supplies({ user }) {
     const u3 = onDbChange('supplySessionChecks',   reload)
     const u4 = onDbChange('supplyGiven',           reload)
     const u5 = onDbChange('supplySchoolPrices',    reload)
-    return () => { u1(); u2(); u3(); u4(); u5() }
+    // 출석부(수업화면 포함) 진도체크 시 갱신 신호 수신
+    const ch = new BroadcastChannel('progress_screen')
+    ch.onmessage = (e) => { if (e.data?.type === 'refresh') reload() }
+    return () => { u1(); u2(); u3(); u4(); u5(); ch.close() }
   }, [])
   useEffect(() => { if (subjects.length > 0 && !selSubject) setSelSubject(subjects[0]) }, [subjects])
   useEffect(() => { setCheckedStudents([]) }, [selClassId, selSubject])
@@ -1982,14 +1985,18 @@ export function Supplies({ user }) {
       const editIds = sessionPlanEdits.filter(e=>!e._isNew).map(e=>e.id)
       sessionPlanList.forEach(o => { if (!editIds.includes(o.id)) SupplyProductPlans.delete(o.id) })
       // 추가/수정
+      // [DEBUG] 저장 전 payload 확인
+      console.log('[DEBUG] saveSessionPlan edits:', JSON.stringify(sessionPlanEdits.map(e => ({ sessionNo: e.sessionNo, title: e.title, _isNew: e._isNew }))))
       sessionPlanEdits.forEach(e => {
         if (e._isNew) {
-          SupplyProductPlans.insert({
+          const record = {
             id: e.id, teacherId: user.id,
             productId: sessionPlanTarget.productId,
             stage: sessionPlanTarget.stage,
             sessionNo: e.sessionNo, title: e.title, memo: e.memo||'', createdAt: now(),
-          })
+          }
+          console.log('[DEBUG] insert:', JSON.stringify(record))
+          SupplyProductPlans.insert(record).catch(err => console.error('[DEBUG] insert 실패:', err))
         } else {
           SupplyProductPlans.update(e.id, { sessionNo:e.sessionNo, title:e.title, memo:e.memo||'' })
         }
@@ -4065,7 +4072,13 @@ export function Supplies({ user }) {
           selClassId={selClassId}
           classes={classes}
           onClose={() => setProgressModal(false)}
-          onSaved={() => { reload(); }}
+          onSaved={() => {
+            reload()
+            // 수업화면(별도창) 및 출석부 패널에 갱신 신호 전송
+            const ch = new BroadcastChannel('progress_screen')
+            ch.postMessage({ type: 'refresh', source: 'supplies' })
+            ch.close()
+          }}
         />
       )}
 
