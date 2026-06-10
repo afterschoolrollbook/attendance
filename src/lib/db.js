@@ -347,7 +347,13 @@ async function syncInsert(table, data) {
   }
   await withRetry(async () => {
     const { error } = await supabase.from(tbl).insert(toDb(cleanData))
-    if (error) throw new Error(error.message)
+    if (error) {
+      // [DEBUG] Supabase 전체 에러 정보 출력 (어느 컬럼인지 확인용 — 확인 후 제거)
+      if (table === 'students') {
+        console.error('[DEBUG] Supabase 에러 전체:', JSON.stringify(error, null, 2))
+      }
+      throw new Error(error.message)
+    }
   }, `insert/${table}`)
 }
 
