@@ -107,12 +107,30 @@ function toCamel(obj) {
   return result
 }
 
+// ─── students 테이블: Supabase pull 후 string 필드 null-safe 정규화
+// homeReturn 등 나중에 추가된 필드가 null로 들어와도 string method가 터지지 않도록 보장
+function normalizeStudent(raw) {
+  const s = toCamel(raw)
+  if (s.homeReturn == null)      s.homeReturn      = ''
+  if (s.section    == null)      s.section         = ''
+  if (s.parentPhone == null)     s.parentPhone     = ''
+  if (s.name       == null)      s.name            = ''
+  if (s.school     == null)      s.school          = ''
+  if (s.memo       == null)      s.memo            = ''
+  if (s.applyOrder == null)      s.applyOrder      = ''
+  if (!Array.isArray(s.classIds))  s.classIds      = s.classIds ? [s.classIds] : []
+  if (!Array.isArray(s.relations)) s.relations     = []
+  if (!Array.isArray(s.student_careers)) s.student_careers = []
+  if (!Array.isArray(s.statusHistory))   s.statusHistory   = []
+  return s
+}
+
 // ─── 테이블별 변환 함수 반환
 function getConverters(table) {
   return {
     tbl:    TABLE_MAP[table] || table,
     toDb:   toSnake,
-    fromDb: toCamel,
+    fromDb: table === 'students' ? normalizeStudent : toCamel,
   }
 }
 
