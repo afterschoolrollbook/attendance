@@ -2423,7 +2423,15 @@ export function Supplies({ user }) {
                       <label style={{ fontSize:'11px', fontWeight:500, color:'#374151' }}>단계</label>
                       <select value={supplyFilterStage} onChange={e => setSupplyFilterStage(e.target.value)} style={{ ...iStyle, width:'auto' }}>
                         <option value=''>전체 단계</option>
-                        {Array.from({ length: productList.find(p=>p.id===supplyFilterProduct)?.maxStage || 10 }, (_,i) => i+1).map(s => <option key={s} value={String(s)}>{s}단계</option>)}
+                        {(() => {
+                          const registeredStages = [...new Set(
+                            productPlanList.filter(p => p.productId === supplyFilterProduct).map(p => p.stage)
+                          )].sort((a,b) => a-b)
+                          const stages = registeredStages.length > 0
+                            ? registeredStages
+                            : Array.from({ length: productList.find(p=>p.id===supplyFilterProduct)?.maxStage || 10 }, (_,i) => i+1)
+                          return stages.map(s => <option key={s} value={String(s)}>{s}단계</option>)
+                        })()}
                       </select>
                     </div>
                   )}
