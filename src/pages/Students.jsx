@@ -1439,11 +1439,14 @@ export function Students({ user, onNav, pageParams = {} }) {
     setForm({
       ...s, memo: s.memo || '', applyOrder: s.applyOrder || '', relations: s.relations || [], student_careers: careersWithCurrent,
       homeReturn: s.homeReturn || '',
+      // section은 학생 레코드(s.section)가 정답 — cls.section은 구방식 필드라 신뢰 불가
+      section:          s.section          || '',
       schedule_change_date: s.status === 'schedule_change' ? (scDate || new Date().toISOString().slice(0,10)) : '',
       transfer_info: (s.status === 'transfer_out' || s.status === 'transfer_in') ? { date: trDate } : (s.transfer_info || null),
       _newOrganization: cls?.organization || '',
       _newClassName:    cls?.className    || '',
-      _newSection:      cls?.section      || '',
+      // _newSection도 학생의 s.section 기준으로 복원 (cls.section은 구방식)
+      _newSection:      s.section          || '',
       _newTimeStart:    cls?.time         || '',
       _newTimeEnd:      cls?.timeEnd      || '',
       _newTermType:     cls?.termType     || 'semester',
@@ -1527,6 +1530,10 @@ export function Students({ user, onNav, pageParams = {} }) {
       if (cls?.organization) form.school = cls.organization
     }
 
+    // section 최종 동기화: 직접입력 영역(_newSection)이 있으면 우선 반영
+    if (form._newSection?.trim()) {
+      form.section = form._newSection.trim()
+    }
     const saveData = { ...form, classIds }
     delete saveData._newOrganization; delete saveData._newClassName; delete saveData._newSection
     delete saveData._newTimeStart; delete saveData._newTimeEnd
@@ -2452,43 +2459,58 @@ export function Students({ user, onNav, pageParams = {} }) {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <div style={{ fontSize: '12px', color: '#ea580c', fontWeight: 600 }}>📚 수강할 수업 선택 (복수 선택 가능)</div>
                 </div>
-                <select
-                  value={form.classIds?.[0] || ''}
-                  onChange={e => {
-                    const cid = e.target.value
-                    const cls = ClassesDB.byTeacher(user.id).find(c => c.id === cid)
-                    set('classIds', cid ? [cid] : [])
-                    set('section', '')
-                    if (cls?.organization) set('school', cls.organization)
-                  }}
-                  style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', color:'#111827', outline:'none', cursor:'pointer' }}>
-                  <option value=''>{editId ? '-- 수업 변경 또는 선택 해제 후 직접 입력 --' : '-- 수업 선택 --'}</option>
-                  {[...classes].sort((a,b) => {
+                {/* 수업+반을 하나의 드롭다운으로 통합: sections 배열이 있는 클래스는 반별로 분리 */}
+                {(() => {
+                  // 현재 선택값: classId::section 또는 classId 형태로 관리
+                  const currentVal = form.classIds?.[0]
+                    ? (form.section ? form.classIds[0] + '::' + form.section : form.classIds[0])
+                    : ''
+                  const sorted = [...classes].sort((a,b) => {
                     const DAY=['월','화','수','목','금','토','일']
                     const aDay=DAY.indexOf(a.days?.[0]??''); const bDay=DAY.indexOf(b.days?.[0]??'')
                     const d=(aDay===-1?99:aDay)-(bDay===-1?99:bDay)
                     if(d!==0) return d
                     return (a.organization||'').localeCompare(b.organization||'','ko')
-                  }).map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.organization} · {c.className} {c.days?.length ? '('+c.days.join('')+' '+c.time+')' : ''}
-                    </option>
-                  ))}
-                </select>
-                {/* 선택한 수업에 반이 여러 개면 반 선택 드롭다운 표시 */}
-                {(() => {
-                  const selCls = classes.find(c => c.id === (form.classIds?.[0] || ''))
-                  const secs = selCls?.sections?.filter(s => s.section) || []
-                  if (secs.length < 2) return null
+                  })
                   return (
                     <select
-                      value={form.section || ''}
-                      onChange={e => set('section', e.target.value)}
-                      style={{ width:'100%', marginTop:'8px', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #f97316', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff7ed', color:'#c2410c', outline:'none', cursor:'pointer', fontWeight:600 }}>
-                      <option value=''>-- 반 선택 --</option>
-                      {secs.map(s => (
-                        <option key={s.section} value={s.section}>{s.section}반 ({s.time}{s.timeEnd ? ' ~ ' + s.timeEnd : ''})</option>
-                      ))}
+                      value={currentVal}
+                      onChange={e => {
+                        const val = e.target.value
+                        if (!val) {
+                          set('classIds', []); set('section', '')
+                          return
+                        }
+                        const [cid, sec] = val.includes('::') ? val.split('::') : [val, '']
+                        const cls = ClassesDB.byTeacher(user.id).find(c => c.id === cid)
+                        set('classIds', [cid])
+                        set('section', sec || '')
+                        set('_newSection', sec || '')
+                        if (cls?.organization) set('school', cls.organization)
+                        if (cls?.organization) set('_newOrganization', cls.organization)
+                        if (cls?.className)    set('_newClassName', cls.className)
+                      }}
+                      style={{ width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', color:'#111827', outline:'none', cursor:'pointer' }}>
+                      <option value=''>{editId ? '-- 수업 변경 또는 선택 해제 후 직접 입력 --' : '-- 수업 선택 --'}</option>
+                      {sorted.flatMap(c => {
+                        const dayStr = c.days?.length ? '('+c.days.join('')+' '+c.time+')' : ''
+                        const secs = (c.sections?.filter(s => s.section) || []).sort((a,b)=>(a.section||'').localeCompare(b.section||'','ko'))
+                        if (secs.length > 1) {
+                          // sections 배열 방식 — 반별로 옵션 분리
+                          return secs.map(s => (
+                            <option key={c.id+'::'+s.section} value={c.id+'::'+s.section}>
+                              {c.organization} · {c.className} {s.section}반 {dayStr ? dayStr.replace(c.time, s.time||c.time) : ''}
+                            </option>
+                          ))
+                        }
+                        // 단일 반 또는 반 없음
+                        const secLabel = c.section ? ' ' + c.section + '반' : ''
+                        return [(
+                          <option key={c.id} value={c.id}>
+                            {c.organization} · {c.className}{secLabel} {dayStr}
+                          </option>
+                        )]
+                      })}
                     </select>
                   )
                 })()}
@@ -2514,7 +2536,7 @@ export function Students({ user, onNav, pageParams = {} }) {
 
                   const autoMatch = (org, cls, sec) => {
                     const matched = allClasses.find(c => c.organization === org && c.className === cls && (c.section||'') === (sec||''))
-                    if (matched) { set('classIds', [matched.id]); set('school', matched.organization) }
+                    if (matched) { set('classIds', [matched.id]); set('school', matched.organization); set('section', sec || '') }
                     else set('classIds', [])
                   }
                   const selSt = { width:'100%', padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }
@@ -2553,7 +2575,7 @@ export function Students({ user, onNav, pageParams = {} }) {
                     const sections = [...new Set(allClasses.filter(c => (!form._newOrganization || c.organization === form._newOrganization) && (!form._newClassName || c.className === form._newClassName)).flatMap(c => c.sections?.length>0 ? c.sections.map(s=>s.section).filter(Boolean) : c.section ? [c.section] : []))].sort((a,b)=>a.localeCompare(b,'ko'))
                     const autoMatch = (sec) => {
                       const matched = allClasses.find(c => c.organization === form._newOrganization && c.className === form._newClassName && (c.section||'') === (sec||''))
-                      if (matched) { set('classIds', [matched.id]); set('school', matched.organization) }
+                      if (matched) { set('classIds', [matched.id]); set('school', matched.organization); set('section', sec || '') }
                       else set('classIds', [])
                     }
                     const selSt = { width:'100%', padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', outline:'none', cursor:'pointer' }
