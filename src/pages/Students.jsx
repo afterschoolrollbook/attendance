@@ -929,7 +929,8 @@ export function Students({ user, onNav, pageParams = {} }) {
   const [sortOrder,    setSortOrder]    = useState('name')
 
   const [showModal, setShowModal] = useState(false)
-  const [inlineCareerOpen, setInlineCareerOpen] = useState(null) // 열린 학생 id
+  const [careerModalStudent, setCareerModalStudent] = useState(null)
+  const [careerModalStudent_UNUSED, setCareerModalStudent] = useState(null) // 수강이력 모달 학생
   const [editId,    setEditId]    = useState(null)
   const [form,      setForm]      = useState(emptyStudent())
 
@@ -1957,6 +1958,16 @@ export function Students({ user, onNav, pageParams = {} }) {
               ))}
             </select>
           </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>상태</label>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={selSt}>
+              <option value="all">전체</option>
+              {Object.entries(STUDENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              <option value="cancel_before">개강전 취소</option>
+              <option value="cancel_after">개강후 취소</option>
+              <option value="schedule_change">스케줄변경</option>
+            </select>
+          </div>
           {(ctxYear || ctxSchool || ctxClassId || ctxTermType) && (
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1px' }}>
               {ctxSchool && <Tag color="#3b82f6" bg="#eff6ff" size="md">🏫 {ctxSchool}</Tag>}
@@ -2133,14 +2144,13 @@ export function Students({ user, onNav, pageParams = {} }) {
                             const careers = s.student_careers || []
                             const isUnclassified = careers.length === 0
                             const isNew = !isUnclassified && careers.length <= 1
-                            const isOpen = inlineCareerOpen === s.id
                             const badgeBg    = isUnclassified ? '#f9fafb' : isNew ? '#eff6ff' : '#f0fdf4'
                             const badgeBorder= isUnclassified ? '#e5e7eb' : isNew ? '#bfdbfe' : '#86efac'
                             const badgeColor = isUnclassified ? '#9ca3af' : isNew ? '#1d4ed8' : '#15803d'
                             const badgeLabel = isUnclassified ? '미분류' : isNew ? '신규' : '기존'
-                            return (<>
+                            return (
                               <span
-                                onClick={() => setInlineCareerOpen(isOpen ? null : s.id)}
+                                onClick={() => setCareerModalStudent(s)}
                                 style={{ fontSize:'11px', fontWeight:700, padding:'1px 7px', borderRadius:'5px',
                                   background: badgeBg,
                                   border: `1px solid ${badgeBorder}`,
@@ -2149,18 +2159,7 @@ export function Students({ user, onNav, pageParams = {} }) {
                                 }}>
                                 {badgeLabel}
                               </span>
-                              {isOpen && (
-                                <div style={{ marginTop:'6px', padding:'10px', borderRadius:'10px', border:'1.5px solid #e5e7eb', background:'#fafafa', minWidth:'260px' }}
-                                  onClick={e => e.stopPropagation()}>
-                                  <CareerAdder
-                                    careers={careers}
-                                    onChange={v => { StudentsDB.update(s.id, { student_careers: v }); refresh() }}
-                                    isEdit={true}
-                                    defaultTermType='quarter'
-                                  />
-                                </div>
-                              )}
-                            </>)
+                            )
                           })()}
                           {(s.status === 'cancel_before' || s.status === 'cancel_after') && (
                             <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
@@ -3177,6 +3176,23 @@ export function Students({ user, onNav, pageParams = {} }) {
             </div>
           )
         })()}
+      </Modal>
+
+      {/* 수강이력 설정 모달 */}
+      <Modal open={!!careerModalStudent} onClose={() => { setCareerModalStudent(null); refresh() }} title={`${careerModalStudent?.name || ''} 수강이력 설정`} width={460}>
+        {careerModalStudent && (
+          <div style={{ padding:'8px 0' }}>
+            <CareerAdder
+              careers={careerModalStudent.student_careers || []}
+              onChange={v => {
+                StudentsDB.update(careerModalStudent.id, { student_careers: v })
+                setCareerModalStudent(prev => ({ ...prev, student_careers: v }))
+              }}
+              isEdit={true}
+              defaultTermType='quarter'
+            />
+          </div>
+        )}
       </Modal>
 
       {/* 취소 처리 모달 */}
