@@ -992,6 +992,9 @@ export function Students({ user, onNav, pageParams = {} }) {
           time:         cls?.time         || '',
           timeEnd:      cls?.timeEnd      || '',
           termType:     cls?.termType     || '',
+          repeatType:   cls?.repeatType   || '',
+          startDate:    cls?.startDate    || '',
+          endDate:      cls?.endDate      || '',
         },
         students: students.map(s => {
           const row = {}
@@ -3141,46 +3144,69 @@ export function Students({ user, onNav, pageParams = {} }) {
             </button>
           </div>
           {/* 항목 체크박스 */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-            {[
-              { key:'name',              label:'이름' },
-              { key:'grade',             label:'학년' },
-              { key:'classNum',          label:'학급 반' },
-              { key:'number',            label:'번호' },
-              { key:'section',           label:'수업 반 (A반/B반)' },
-              { key:'school',            label:'학교' },
-              { key:'applyOrder',        label:'신청 순번' },
-              { key:'status',            label:'상태' },
-              { key:'parentPhone',       label:'학부모 전화번호' },
-              { key:'studentPhone',      label:'학생 전화번호' },
-              { key:'contactMethod',     label:'주연락방법' },
-              { key:'homeReturn',        label:'귀가방법' },
-              { key:'memo',              label:'특이사항 메모' },
-              { key:'remark',            label:'비고' },
-              { key:'parentInviteSentAt',label:'출결초대 발송' },
-              { key:'parentJoined',      label:'학부모 앱 가입' },
-              { key:'activeTerm',        label:'현재 텀' },
-              { key:'student_careers',   label:'학생 경력' },
-              { key:'relations',         label:'가족 관계' },
-              { key:'cancel_info',       label:'취소 정보' },
-              { key:'statusHistory',     label:'상태 변경 이력' },
-              { key:'studentStartDate',  label:'이 학생의 시작일' },
-              { key:'studentEndDate',    label:'이 학생의 종료일' },
-              { key:'createdAt',         label:'신청일' },
-            ].map(({ key, label, required }) => (
-              <label key={key} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', borderRadius:'8px',
-                background: exportFields[key] ? '#fff7ed' : '#f9fafb',
-                border: `1px solid ${exportFields[key] ? '#fed7aa' : '#e5e7eb'}`,
-                cursor:'pointer', userSelect:'none' }}>
-                <input type="checkbox" checked={!!exportFields[key]}
-                  onChange={e => setExportFields(f => ({ ...f, [key]: e.target.checked }))}
-                  style={{ accentColor:'#f97316', width:'15px', height:'15px', cursor:'pointer' }} />
-                <span style={{ fontSize:'13px', color: exportFields[key] ? '#c2410c' : '#6b7280', fontWeight: exportFields[key] ? 600 : 400 }}>
-                  {label}
-                </span>
-              </label>
-            ))}
-          </div>
+          {(() => {
+            const sections = [
+              {
+                title: '🏫 학교 정보',
+                items: [
+                  { key:'school',            label:'학교' },
+                  { key:'section',           label:'수업 반 (A반/B반)' },
+                ]
+              },
+              {
+                title: '📅 수업 정보',
+                items: [
+                  { key:'studentStartDate',  label:'이 학생의 시작일' },
+                  { key:'studentEndDate',    label:'이 학생의 종료일' },
+                  { key:'activeTerm',        label:'현재 텀' },
+                  { key:'student_careers',   label:'학생 경력' },
+                  { key:'status',            label:'수강 상태' },
+                  { key:'cancel_info',       label:'취소 정보' },
+                  { key:'statusHistory',     label:'상태 변경 이력' },
+                ]
+              },
+              {
+                title: '👤 학생 정보',
+                items: [
+                  { key:'name',              label:'이름' },
+                  { key:'grade',             label:'학년' },
+                  { key:'classNum',          label:'학급 반' },
+                  { key:'number',            label:'번호' },
+                  { key:'applyOrder',        label:'신청 순번' },
+                  { key:'createdAt',         label:'신청일' },
+                  { key:'parentPhone',       label:'학부모 전화번호' },
+                  { key:'studentPhone',      label:'학생 전화번호' },
+                  { key:'contactMethod',     label:'주연락방법' },
+                  { key:'homeReturn',        label:'귀가방법' },
+                  { key:'memo',              label:'특이사항 메모' },
+                  { key:'remark',            label:'비고' },
+                  { key:'parentInviteSentAt',label:'출결초대 발송' },
+                  { key:'parentJoined',      label:'학부모 앱 가입' },
+                  { key:'relations',         label:'가족 관계' },
+                ]
+              },
+            ]
+            return sections.map(sec => (
+              <div key={sec.title} style={{ marginBottom:'12px' }}>
+                <div style={{ fontSize:'11px', fontWeight:700, color:'#9ca3af', marginBottom:'6px', letterSpacing:'0.05em' }}>{sec.title}</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px' }}>
+                  {sec.items.map(({ key, label }) => (
+                    <label key={key} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 12px', borderRadius:'8px',
+                      background: exportFields[key] ? '#fff7ed' : '#f9fafb',
+                      border: `1px solid ${exportFields[key] ? '#fed7aa' : '#e5e7eb'}`,
+                      cursor:'pointer', userSelect:'none' }}>
+                      <input type="checkbox" checked={!!exportFields[key]}
+                        onChange={e => setExportFields(f => ({ ...f, [key]: e.target.checked }))}
+                        style={{ accentColor:'#f97316', width:'15px', height:'15px', cursor:'pointer' }} />
+                      <span style={{ fontSize:'13px', color: exportFields[key] ? '#c2410c' : '#6b7280', fontWeight: exportFields[key] ? 600 : 400 }}>
+                        {label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))
+          })()}
           <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', paddingTop:'4px', borderTop:'1px solid #e5e7eb' }}>
             <Btn variant="ghost" onClick={() => setShowExportModal(false)}>취소</Btn>
             <Btn onClick={() => doExport(exportFields)}>📤 내보내기</Btn>
