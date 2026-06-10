@@ -1561,18 +1561,15 @@ export function Students({ user, onNav, pageParams = {} }) {
     delete saveData._newTimeStart; delete saveData._newTimeEnd
     delete saveData._newTermType; delete saveData._newDays; delete saveData._newRepeatType
     delete saveData._newStartDate; delete saveData._newEndDate
-    // ── boolean 컬럼: 반드시 true/false
-    saveData.parentJoined  = !!saveData.parentJoined
-    saveData.movedToManage = !!saveData.movedToManage
-    // ── timestamptz/date 컬럼: '', false, undefined, null → null
-    ;['parentInviteSentAt','studentStartDate','studentEndDate','createdAt','updatedAt'].forEach(f => {
-      if (!saveData[f] && saveData[f] !== 0) saveData[f] = null
-    })
-    // ── string 컬럼: null/undefined/false → ''
-    ;['homeReturn','section','parentPhone','studentPhone','memo','remark','applyOrder',
-      'school','grade','classNum','number','name','status','contactMethod','activeTerm'].forEach(f => {
-      if (saveData[f] == null || typeof saveData[f] !== 'string') saveData[f] = ''
-    })
+    // ── boolean 컬럼: 반드시 true/false (빈 문자열이나 null 허용 안 됨)
+    saveData.parentJoined    = !!saveData.parentJoined
+    saveData.movedToManage   = !!saveData.movedToManage
+    // ── timestamptz/date 컬럼: 빈 문자열 → null (Supabase는 "" 거부)
+    const NULLABLE_TIMESTAMP = ['parentInviteSentAt', 'studentStartDate', 'studentEndDate', 'createdAt', 'updatedAt']
+    NULLABLE_TIMESTAMP.forEach(f => { if (saveData[f] === '' || saveData[f] === false) saveData[f] = null })
+    // ── 기타 잘못된 타입 방어: string이어야 하는데 false/null이 들어온 경우
+    const MUST_STRING = ['homeReturn','section','parentPhone','studentPhone','memo','remark','applyOrder','school','grade','classNum','number','name','status','contactMethod','activeTerm']
+    MUST_STRING.forEach(f => { if (saveData[f] == null || typeof saveData[f] !== 'string') saveData[f] = '' })
     // studentStartDate/studentEndDate는 학생 레코드에 저장
     // transfer_info는 Supabase 컬럼 없음 — statusHistory에 날짜 기록 후 반드시 제거
     if (saveData.transfer_info) {
@@ -2465,6 +2462,16 @@ export function Students({ user, onNav, pageParams = {} }) {
                               <button onClick={() => moveToManage([s.id])}
                                 style={{ padding:'5px 10px', borderRadius:'6px', border:'none', background:'#f97316', color:'#fff', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
                                 관리로 이동 →
+                              </button>
+                              <button onClick={() => {
+                                if (window.confirm(`"${s.name}" 학생을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+                                  StudentsDB.delete(s.id)
+                                  setSelectedForMove(p => p.filter(id => id !== s.id))
+                                  refresh()
+                                }
+                              }}
+                                style={{ padding:'5px 10px', borderRadius:'6px', border:'1.5px solid #fca5a5', background:'#fff', color:'#ef4444', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                                삭제
                               </button>
                             </div>
                           </td>
