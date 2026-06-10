@@ -1426,6 +1426,8 @@ export function Students({ user, onNav, pageParams = {} }) {
 
   const openEdit = (s) => {
     const cls = s.classIds?.length > 0 ? ClassesDB.byTeacher(user.id).find(c => c.id === s.classIds[0]) : null
+    // sections 배열 방식: 학생의 반(s.section)에 맞는 section 항목의 시간을 우선 사용
+    const secEntry = s.section && cls?.sections?.find(sc => sc.section === s.section)
     const existingCareers = s.student_careers || []
     const careersWithCurrent = existingCareers
     // statusHistory에서 스케줄변경 날짜 복원
@@ -1447,8 +1449,9 @@ export function Students({ user, onNav, pageParams = {} }) {
       _newClassName:    cls?.className    || '',
       // _newSection도 학생의 s.section 기준으로 복원 (cls.section은 구방식)
       _newSection:      s.section          || '',
-      _newTimeStart:    cls?.time         || '',
-      _newTimeEnd:      cls?.timeEnd      || '',
+      // 반별 시간 우선(secEntry), 없으면 클래스 기본 시간
+      _newTimeStart:    secEntry?.time    || cls?.time    || '',
+      _newTimeEnd:      secEntry?.timeEnd || cls?.timeEnd || '',
       _newTermType:     cls?.termType     || 'semester',
       _newDays:         cls?.days         || [],
       _newRepeatType:   cls?.repeatType   || 'every',
@@ -2483,9 +2486,13 @@ export function Students({ user, onNav, pageParams = {} }) {
                         }
                         const [cid, sec] = val.includes('::') ? val.split('::') : [val, '']
                         const cls = ClassesDB.byTeacher(user.id).find(c => c.id === cid)
+                        // 반별 시간: sections 배열에서 해당 반 찾아서 시간 업데이트
+                        const secEntry = sec && cls?.sections?.find(sc => sc.section === sec)
                         set('classIds', [cid])
                         set('section', sec || '')
                         set('_newSection', sec || '')
+                        set('_newTimeStart', secEntry?.time    || cls?.time    || '')
+                        set('_newTimeEnd',   secEntry?.timeEnd || cls?.timeEnd || '')
                         if (cls?.organization) set('school', cls.organization)
                         if (cls?.organization) set('_newOrganization', cls.organization)
                         if (cls?.className)    set('_newClassName', cls.className)
