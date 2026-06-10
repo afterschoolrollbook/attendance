@@ -131,6 +131,7 @@ function emptyStudent() {
     _newTimeStart: '', _newTimeEnd: '',
     _newTermType: 'semester', _newDays: [], _newRepeatType: 'every',
     _newStartDate: '', _newEndDate: '',
+    studentStartDate: '', studentEndDate: '',
   }
 }
 
@@ -1406,6 +1407,8 @@ export function Students({ user, onNav, pageParams = {} }) {
       _newRepeatType:   cls?.repeatType   || 'every',
       _newStartDate:    cls?.startDate    || '',
       _newEndDate:      cls?.endDate      || '',
+      studentStartDate: s.studentStartDate || '',
+      studentEndDate:   s.studentEndDate   || '',
     })
     setEditId(s.id)
     setShowModal(true)
@@ -1485,6 +1488,7 @@ export function Students({ user, onNav, pageParams = {} }) {
     delete saveData._newTimeStart; delete saveData._newTimeEnd
     delete saveData._newTermType; delete saveData._newDays; delete saveData._newRepeatType
     delete saveData._newStartDate; delete saveData._newEndDate
+    // studentStartDate/studentEndDate는 학생 레코드에 저장
     // transfer_info는 Supabase 컬럼 없음 — statusHistory에 날짜 기록 후 반드시 제거
     if (saveData.transfer_info) {
       const tDate = saveData.transfer_info.date || new Date().toISOString().slice(0,10)
@@ -2567,9 +2571,60 @@ export function Students({ user, onNav, pageParams = {} }) {
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <Input label="수업 시작일" value={form._newStartDate} onChange={v => set('_newStartDate', v)} type="date" />
-                  <Input label="수업 종료일" value={form._newEndDate} onChange={v => set('_newEndDate', v)} type="date" />
+                  <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+                    <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업 시작일</label>
+                    <Input value={form._newStartDate} onChange={v => set('_newStartDate', v)} type="date" />
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+                    <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업 종료일</label>
+                    <Input value={form._newEndDate} onChange={v => set('_newEndDate', v)} type="date" />
+                  </div>
                 </div>
+                {/* 분기 선택 — 수업이 매칭되고 periods가 있을 때 */}
+                {(() => {
+                  const matchedCls = form.classIds?.[0]
+                    ? classes.find(c => c.id === form.classIds[0])
+                    : classes.find(c =>
+                        c.organization === form._newOrganization?.trim() &&
+                        c.className === form._newClassName?.trim() &&
+                        (!form._newSection || c.section === form._newSection?.trim())
+                      )
+                  const periods = matchedCls?.periods?.filter(p => p.startDate && p.endDate) || []
+                  if (periods.length === 0) return null
+                  return (
+                    <div style={{ marginTop:'10px', padding:'12px 14px', background:'#eff6ff', borderRadius:'10px', border:'1.5px solid #bfdbfe' }}>
+                      <div style={{ fontSize:'12px', fontWeight:700, color:'#1d4ed8', marginBottom:'10px' }}>📅 이 학생의 시작 분기 선택</div>
+                      <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                        {periods.map((p, i) => {
+                          const label = `${i+1}분기 (${p.startDate} ~ ${p.endDate})`
+                          const isSelected = form.studentStartDate === p.startDate
+                          return (
+                            <button key={i} type="button"
+                              onClick={() => { set('studentStartDate', p.startDate); set('studentEndDate', p.endDate) }}
+                              style={{ padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:isSelected?700:400,
+                                border:`1.5px solid ${isSelected?'#2563eb':'#bfdbfe'}`,
+                                background:isSelected?'#2563eb':'#fff',
+                                color:isSelected?'#fff':'#374151',
+                                cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                              {label}
+                            </button>
+                          )
+                        })}
+                        {form.studentStartDate && (
+                          <button type="button" onClick={() => { set('studentStartDate', ''); set('studentEndDate', '') }}
+                            style={{ padding:'7px 10px', borderRadius:'8px', fontSize:'12px', border:'1.5px solid #e5e7eb', background:'#fff', color:'#9ca3af', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                            선택 해제
+                          </button>
+                        )}
+                      </div>
+                      {form.studentStartDate && (
+                        <div style={{ marginTop:'8px', fontSize:'12px', color:'#2563eb', fontWeight:600 }}>
+                          ✅ {form.studentStartDate} 부터 시작
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             )}
           </div>
