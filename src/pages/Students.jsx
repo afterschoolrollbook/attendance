@@ -1424,6 +1424,18 @@ export function Students({ user, onNav, pageParams = {} }) {
       if (actualSchool !== ctxSchool) return false
     }
     if (ctxClassSec && s.section !== ctxClassSec) return false
+    if (ctxTermType && ctxTerm) {
+      const careers = s.student_careers || []
+      if (careers.length === 0) {
+        if (String(ctxTerm) !== '1') return false
+      } else {
+        const hasCareer = careers.some(c =>
+          (c.termType || c.term_type) === ctxTermType &&
+          String(c.term) === String(ctxTerm)
+        )
+        if (!hasCareer) return false
+      }
+    }
     return true
   })
   const statusCounts = {
