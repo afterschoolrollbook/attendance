@@ -922,6 +922,8 @@ export function Students({ user, onNav, pageParams = {} }) {
   const [ctxSchool,  setCtxSchool]  = useState('')
   const [ctxClass,   setCtxClass]   = useState('')
   const [ctxSection, setCtxSection] = useState('')
+  const [ctxTermType, setCtxTermType] = useState('') // 'semester' | 'quarter' | ''
+  const [ctxTerm,     setCtxTerm]     = useState('') // '1' | '2' | '3' | '4' | ''
 
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortOrder,    setSortOrder]    = useState('name')
@@ -1341,6 +1343,14 @@ export function Students({ user, onNav, pageParams = {} }) {
       if (actualSchool !== ctxSchool) return false
     }
     if (ctxClassSec && s.section !== ctxClassSec) return false
+    if (ctxTermType && ctxTerm) {
+      const hasCareer = (s.student_careers || []).some(c =>
+        (c.termType || c.term_type) === ctxTermType &&
+        String(c.term) === String(ctxTerm) &&
+        (!ctxYear || c.year === ctxYear)
+      )
+      if (!hasCareer) return false
+    }
     if (statusFilter !== 'all' && s.status !== statusFilter && !(statusFilter === 'cancelled' && (s.status === 'cancel_before' || s.status === 'cancel_after'))) return false
     return true
   }).sort((a, b) => {
@@ -1891,7 +1901,7 @@ export function Students({ user, onNav, pageParams = {} }) {
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>년도</label>
-            <select value={ctxYear} onChange={e => { setCtxYear(e.target.value); setCtxSchool(''); setCtxClass(''); setCtxSection('') }} style={selSt}>
+            <select value={ctxYear} onChange={e => { setCtxYear(e.target.value); setCtxSchool(''); setCtxClass(''); setCtxSection(''); setCtxTerm('') }} style={selSt}>
               <option value="">전체 년도</option>
               {years.map(y => <option key={y} value={y}>{y}년</option>)}
             </select>
@@ -1912,12 +1922,33 @@ export function Students({ user, onNav, pageParams = {} }) {
               ))}
             </select>
           </div>
-          {(ctxYear || ctxSchool || ctxClassId) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>학기 · 분기</label>
+            <select value={ctxTermType} onChange={e => { setCtxTermType(e.target.value); setCtxTerm('') }} style={selSt}>
+              <option value="">전체</option>
+              <option value="semester">학기제</option>
+              <option value="quarter">분기제</option>
+            </select>
+          </div>
+          {ctxTermType && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>{ctxTermType === 'semester' ? '학기' : '분기'}</label>
+              <select value={ctxTerm} onChange={e => setCtxTerm(e.target.value)} style={selSt}>
+                <option value="">전체</option>
+                {ctxTermType === 'semester'
+                  ? [1,2].map(n => <option key={n} value={String(n)}>{n}학기</option>)
+                  : [1,2,3,4].map(n => <option key={n} value={String(n)}>{n}분기</option>)
+                }
+              </select>
+            </div>
+          )}
+          {(ctxYear || ctxSchool || ctxClassId || ctxTermType) && (
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1px' }}>
               {ctxYear && <Tag color="#059669" bg="#ecfdf5" size="md">📅 {ctxYear}년</Tag>}
               {ctxSchool && <Tag color="#3b82f6" bg="#eff6ff" size="md">🏫 {ctxSchool}</Tag>}
               {ctxClassId && selectedCls && <Tag color="#f97316" bg="#fff7ed" size="md">📚 {selectedCls.className}{ctxClassSec ? ' ' + ctxClassSec + '반' : ''}</Tag>}
-              <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxClass(''); setCtxSection('') }}
+              {ctxTermType && <Tag color="#8b5cf6" bg="#f5f3ff" size="md">{ctxTermType === 'semester' ? '학기제' : '분기제'}{ctxTerm ? ` ${ctxTerm}${ctxTermType === 'semester' ? '학기' : '분기'}` : ''}</Tag>}
+              <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxClass(''); setCtxSection(''); setCtxTermType(''); setCtxTerm('') }}
                 style={{ fontSize: '11px', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'Noto Sans KR, sans-serif' }}>초기화</button>
             </div>
           )}
