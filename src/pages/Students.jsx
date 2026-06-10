@@ -929,6 +929,7 @@ export function Students({ user, onNav, pageParams = {} }) {
     activeTerm: true, student_careers: false,
     relations: false, cancel_info: false, statusHistory: false,
     studentStartDate: true, studentEndDate: true,
+    createdAt: true,
   })
   const [showExcel,    setShowExcel]    = useState(false)
   const [excelPreview, setExcelPreview] = useState([])
@@ -1017,6 +1018,7 @@ export function Students({ user, onNav, pageParams = {} }) {
           if (fields.statusHistory)    row.statusHistory    = s.statusHistory || []
           if (fields.studentStartDate) row.studentStartDate = s.studentStartDate || ''
           if (fields.studentEndDate)   row.studentEndDate   = s.studentEndDate   || ''
+          if (fields.createdAt)        row.createdAt        = s.createdAt        || ''
           return row
         }),
       }
@@ -3151,8 +3153,9 @@ export function Students({ user, onNav, pageParams = {} }) {
               { key:'relations',         label:'가족 관계' },
               { key:'cancel_info',       label:'취소 정보' },
               { key:'statusHistory',     label:'상태 변경 이력' },
-              { key:'studentStartDate',  label:'학생 시작일' },
-              { key:'studentEndDate',    label:'학생 종료일' },
+              { key:'studentStartDate',  label:'이 학생의 시작일' },
+              { key:'studentEndDate',    label:'이 학생의 종료일' },
+              { key:'createdAt',         label:'신청일' },
             ].map(({ key, label, required }) => (
               <label key={key} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', borderRadius:'8px',
                 background: exportFields[key] ? '#fff7ed' : '#f9fafb',
