@@ -1367,7 +1367,7 @@ export function Students({ user, onNav, pageParams = {} }) {
     const curTerm = getCurrentTerm()
     setForm({
       ...emptyStudent(),
-      student_careers: [curTerm],
+      student_careers: [],
       school: ctxSchool || cls?.organization || '',
       classIds: ctxClassId ? [ctxClassId] : (pinned.classId ? form.classIds : []),
       classNum: pinned.classNum ? form.classNum : '',
