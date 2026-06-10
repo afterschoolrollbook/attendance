@@ -933,6 +933,7 @@ export function Students({ user, onNav, pageParams = {} }) {
   const [excelClassId, setExcelClassId] = useState('')
   const fileRef = useRef()
   const studentImportRef = useRef()   // 학생 명단 .after 불러오기용
+  const editImportRef    = useRef()   // 편집 모달 내 불러오기용
 
   // ✅ 대기자 승격 알림 상태
   const [promotedName, setPromotedName] = useState(null)
@@ -1076,6 +1077,43 @@ export function Students({ user, onNav, pageParams = {} }) {
       })
       setEditId(null)
       setShowModal(true)
+    } catch (e) {
+      toastError('파일을 읽을 수 없습니다: ' + e.message)
+    }
+  }
+
+  // ── 편집 모달 내 불러오기 (.after) — 현재 editId 유지하며 폼만 덮어씀
+  const handleEditImport = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      if (data.__type !== 'students') {
+        toastError('학생 파일이 아닙니다. (_학생.after 파일을 선택하세요)')
+        return
+      }
+      const s = data.students?.[0]
+      if (!s) { toastError('학생 데이터가 없습니다.'); return }
+      setForm(prev => ({
+        ...prev,
+        name:          s.name          || prev.name,
+        status:        s.status        || prev.status,
+        grade:         s.grade         || prev.grade,
+        classNum:      s.classNum      || prev.classNum,
+        number:        s.number        || prev.number,
+        parentPhone:   s.parentPhone   || prev.parentPhone,
+        studentPhone:  s.studentPhone  || prev.studentPhone,
+        contactMethod: s.contactMethod || prev.contactMethod,
+        homeReturn:    s.homeReturn    || prev.homeReturn,
+        memo:          s.memo          || prev.memo,
+        remark:        s.remark        || prev.remark,
+        applyOrder:    s.applyOrder    || prev.applyOrder,
+        relations:     s.relations?.length ? s.relations : prev.relations,
+        student_careers: s.student_careers?.length ? s.student_careers : prev.student_careers,
+      }))
+      showToast('불러오기 완료! 저장 버튼을 눌러 적용하세요.')
     } catch (e) {
       toastError('파일을 읽을 수 없습니다: ' + e.message)
     }
@@ -1696,6 +1734,7 @@ export function Students({ user, onNav, pageParams = {} }) {
     <div style={{ padding: '28px', maxWidth: '1200px' }}>
       {/* 학생 명단 .after 불러오기용 hidden input */}
       <input ref={studentImportRef} type="file" accept=".after" style={{ display:'none' }} onChange={handleImportStudents} />
+      <input ref={editImportRef}    type="file" accept=".after" style={{ display:'none' }} onChange={handleEditImport} />
 
       <PageHeader
         title="학생 관리"
@@ -2359,18 +2398,11 @@ export function Students({ user, onNav, pageParams = {} }) {
           <div style={{ background: '#fffbf5', border: '1.5px solid #fed7aa', borderRadius: '12px', padding: '16px 18px', marginBottom: '2px' }}>
             <div style={{ fontSize: '12px', fontWeight: 700, color: '#ea580c', marginBottom: '12px', letterSpacing: '0.05em' }}>📚 수업 정보</div>
 
-            {/* 등록된 수업 선택 버튼 */}
-            {classes.length > 0 && (
+            {/* 등록된 수업 선택 버튼 — 편집 시에만 표시 */}
+            {editId && classes.length > 0 && (
               <div style={{ marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <div style={{ fontSize: '12px', color: '#ea580c', fontWeight: 600 }}>📚 수강할 수업 선택 <span style={{ color: '#ef4444' }}>*필수</span> (복수 선택 가능)</div>
-                  {!editId && (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: pinned.classId ? '#f97316' : '#9ca3af', cursor: 'pointer', userSelect: 'none' }}>
-                      <input type="checkbox" checked={pinned.classId} onChange={e => setPinned(p => ({ ...p, classId: e.target.checked }))}
-                        style={{ accentColor: '#f97316', width: '14px', height: '14px', cursor: 'pointer' }} />
-                      🔒 고정
-                    </label>
-                  )}
+                  <div style={{ fontSize: '12px', color: '#ea580c', fontWeight: 600 }}>📚 수강할 수업 선택 (복수 선택 가능)</div>
                 </div>
                 <select
                   value={form.classIds?.[0] || ''}
@@ -2415,14 +2447,14 @@ export function Students({ user, onNav, pageParams = {} }) {
               </div>
             )}
 
-            {/* 수업 직접 입력 — 등록/편집 모두 표시 */}
+            {/* 수업 직접 입력 */}
             {(
-              <div style={{ borderTop: classes.length > 0 ? '1px dashed #fcd34d' : 'none', paddingTop: classes.length > 0 ? '12px' : '0' }}>
-                <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '10px' }}>
-                  {classes.length > 0
-                    ? '— 또는 새 수업 정보 직접 입력 (저장 시 수업 자동 등록) —'
-                    : '수업 정보를 입력하면 저장 시 수업이 자동으로 등록됩니다.'}
-                </div>
+              <div style={{ borderTop: editId && classes.length > 0 ? '1px dashed #fcd34d' : 'none', paddingTop: editId && classes.length > 0 ? '12px' : '0' }}>
+                {editId && classes.length > 0 && (
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '10px' }}>
+                    — 또는 새 수업 정보 직접 입력 (저장 시 수업 자동 등록) —
+                  </div>
+                )}
                 {/* 학교명 / 수업명 / 반 — 기존 데이터 드롭다운 + 직접입력 병행 */}
                 {(() => {
                   const allClasses = ClassesDB.byTeacher(user.id)
@@ -2443,9 +2475,7 @@ export function Students({ user, onNav, pageParams = {} }) {
                   <div>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
                       <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>단체명(학교명)</label>
-                      {!editId && <label style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11px', color: pinned.organization?'#f97316':'#9ca3af', cursor:'pointer' }}>
-                        <input type="checkbox" checked={pinned.organization} onChange={e => setPinned(p=>({...p, organization:e.target.checked}))} style={{ accentColor:'#f97316', width:'12px', height:'12px', cursor:'pointer' }} />🔒
-                      </label>}
+
                     </div>
                     <select style={selSt} value={form._newOrganization} onChange={e => { set('_newOrganization', e.target.value); set('_newClassName',''); set('_newSection',''); set('classIds',[]); }}>
                       <option value=''>-- 선택 --</option>
@@ -2457,9 +2487,7 @@ export function Students({ user, onNav, pageParams = {} }) {
                   <div>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
                       <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업명(과목)</label>
-                      {!editId && <label style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11px', color: pinned.className?'#f97316':'#9ca3af', cursor:'pointer' }}>
-                        <input type="checkbox" checked={pinned.className} onChange={e => setPinned(p=>({...p, className:e.target.checked}))} style={{ accentColor:'#f97316', width:'12px', height:'12px', cursor:'pointer' }} />🔒
-                      </label>}
+
                     </div>
                     <select style={selSt} value={form._newClassName} onChange={e => { set('_newClassName', e.target.value); set('_newSection',''); autoMatch(form._newOrganization, e.target.value, '') }}>
                       <option value=''>-- 선택 --</option>
@@ -2485,9 +2513,7 @@ export function Students({ user, onNav, pageParams = {} }) {
                   <div>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'5px' }}>
                       <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>반 (선택)</label>
-                      {!editId && <label style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11px', color: pinned.section?'#f97316':'#9ca3af', cursor:'pointer' }}>
-                        <input type="checkbox" checked={pinned.section} onChange={e => setPinned(p=>({...p, section:e.target.checked}))} style={{ accentColor:'#f97316', width:'12px', height:'12px', cursor:'pointer' }} />🔒
-                      </label>}
+
                     </div>
                     {sections.length > 0 && (
                       <select style={selSt} value={form._newSection} onChange={e => { set('_newSection', e.target.value); autoMatch(e.target.value) }}>
@@ -2800,14 +2826,20 @@ export function Students({ user, onNav, pageParams = {} }) {
 
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', paddingTop: '16px', marginTop: '4px', borderTop: '1px solid #e5e7eb' }}>
             {editId && (
-              <button onClick={() => {
-                const s = StudentsDB.byTeacher(user.id).find(x => x.id === editId)
-                if (!s) return
-                setExportTargetStudent(s)
-                setShowExportModal(true)
-              }} style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #86efac', background:'#f0fdf4', color:'#16a34a', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', marginRight:'auto' }}>
-                📤 내보내기
-              </button>
+              <div style={{ display:'flex', gap:'8px', marginRight:'auto' }}>
+                <button onClick={() => {
+                  const s = StudentsDB.byTeacher(user.id).find(x => x.id === editId)
+                  if (!s) return
+                  setExportTargetStudent(s)
+                  setShowExportModal(true)
+                }} style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #86efac', background:'#f0fdf4', color:'#16a34a', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  📤 내보내기
+                </button>
+                <button onClick={() => editImportRef.current?.click()}
+                  style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #bfdbfe', background:'#eff6ff', color:'#2563eb', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  📥 불러오기
+                </button>
+              </div>
             )}
             {!editId && (
               <button onClick={() => studentImportRef.current?.click()}
