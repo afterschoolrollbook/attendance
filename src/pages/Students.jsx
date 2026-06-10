@@ -123,7 +123,7 @@ function HomeReturnCell({ studentId, homeReturn, onUpdate }) {
 
 function emptyStudent() {
   return {
-    school: '', grade: '1', classNum: '', number: '', name: '',
+    school: '', grade: '', classNum: '', number: '', name: '',
     parentPhone: '', studentPhone: '', classIds: [], status: 'applied', memo: '', contactMethod: '',
     applyOrder: '', remark: '', relations: [], student_careers: [],
     // 수업 직접 입력용
@@ -927,6 +927,7 @@ export function Students({ user, onNav, pageParams = {} }) {
     parentInviteSentAt: false, parentJoined: false,
     activeTerm: true, student_careers: false,
     relations: false, cancel_info: false, statusHistory: false,
+    studentStartDate: true, studentEndDate: true,
   })
   const [showExcel,    setShowExcel]    = useState(false)
   const [excelPreview, setExcelPreview] = useState([])
@@ -1013,6 +1014,8 @@ export function Students({ user, onNav, pageParams = {} }) {
           if (fields.relations)        row.relations        = s.relations || []
           if (fields.cancel_info)      row.cancel_info      = s.cancel_info || null
           if (fields.statusHistory)    row.statusHistory    = s.statusHistory || []
+          if (fields.studentStartDate) row.studentStartDate = s.studentStartDate || ''
+          if (fields.studentEndDate)   row.studentEndDate   = s.studentEndDate   || ''
           return row
         }),
       }
@@ -1075,6 +1078,8 @@ export function Students({ user, onNav, pageParams = {} }) {
         applyOrder:    s.applyOrder    || '',
         relations:     s.relations     || [],
         student_careers: s.student_careers || [],
+        studentStartDate: s.studentStartDate || '',
+        studentEndDate:   s.studentEndDate   || '',
       })
       setEditId(null)
       setShowModal(true)
@@ -2589,14 +2594,32 @@ export function Students({ user, onNav, pageParams = {} }) {
                         c.className === form._newClassName?.trim() &&
                         (!form._newSection || c.section === form._newSection?.trim())
                       )
+                  const termType = matchedCls?.termType || 'semester'
+                  const isSemester = termType === 'semester'
                   const periods = matchedCls?.periods?.filter(p => p.startDate && p.endDate) || []
-                  if (periods.length === 0) return null
+                  const termLabel = isSemester ? '학기' : '분기'
+
+                  // periods 없는 학기제: 수업 startDate~endDate 기준으로 1학기/2학기 표시
+                  const fallbackPeriods = periods.length === 0 && matchedCls ? (() => {
+                    if (isSemester) {
+                      return [
+                        { label: `1학기`, startDate: matchedCls.startDate || '', endDate: '' },
+                        { label: `2학기`, startDate: '', endDate: matchedCls.endDate || '' },
+                      ].filter(p => p.startDate || p.endDate)
+                    }
+                    return []
+                  })() : []
+
+                  const displayPeriods = periods.length > 0
+                    ? periods.map((p, i) => ({ label: `${i+1}${termLabel} (${p.startDate} ~ ${p.endDate})`, startDate: p.startDate, endDate: p.endDate }))
+                    : fallbackPeriods
+
+                  if (displayPeriods.length === 0) return null
                   return (
                     <div style={{ marginTop:'10px', padding:'12px 14px', background:'#eff6ff', borderRadius:'10px', border:'1.5px solid #bfdbfe' }}>
-                      <div style={{ fontSize:'12px', fontWeight:700, color:'#1d4ed8', marginBottom:'10px' }}>📅 이 학생의 시작 분기 선택</div>
+                      <div style={{ fontSize:'12px', fontWeight:700, color:'#1d4ed8', marginBottom:'10px' }}>📅 이 학생의 시작 {termLabel} 선택</div>
                       <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-                        {periods.map((p, i) => {
-                          const label = `${i+1}분기 (${p.startDate} ~ ${p.endDate})`
+                        {displayPeriods.map((p, i) => {
                           const isSelected = form.studentStartDate === p.startDate
                           return (
                             <button key={i} type="button"
@@ -2606,7 +2629,7 @@ export function Students({ user, onNav, pageParams = {} }) {
                                 background:isSelected?'#2563eb':'#fff',
                                 color:isSelected?'#fff':'#374151',
                                 cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                              {label}
+                              {p.label}
                             </button>
                           )
                         })}
@@ -3127,6 +3150,8 @@ export function Students({ user, onNav, pageParams = {} }) {
               { key:'relations',         label:'가족 관계' },
               { key:'cancel_info',       label:'취소 정보' },
               { key:'statusHistory',     label:'상태 변경 이력' },
+              { key:'studentStartDate',  label:'학생 시작일' },
+              { key:'studentEndDate',    label:'학생 종료일' },
             ].map(({ key, label, required }) => (
               <label key={key} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', borderRadius:'8px',
                 background: exportFields[key] ? '#fff7ed' : '#f9fafb',
