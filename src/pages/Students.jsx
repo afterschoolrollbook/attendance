@@ -2995,7 +2995,12 @@ export function Students({ user, onNav, pageParams = {} }) {
             {/* 경력 */}
             <div>
               <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '8px' }}>📅 학생 경력</label>
-              <CareerAdder careers={form.student_careers || []} onChange={v => set('student_careers', v)} isEdit={!!editId} defaultTermType={form._newTermType || 'semester'} />
+              <CareerAdder careers={form.student_careers || []} onChange={v => {
+                set('student_careers', v)
+                const sorted = [...v].sort((a, b) => a.year !== b.year ? a.year - b.year : Number(a.term) - Number(b.term))
+                const latest = sorted[sorted.length - 1]
+                if (latest) set('activeTerm', String(latest.term))
+              }} isEdit={!!editId} defaultTermType={form._newTermType || 'semester'} />
             </div>
 
             {/* 가족/관계 */}
@@ -3202,7 +3207,11 @@ export function Students({ user, onNav, pageParams = {} }) {
             <CareerAdder
               careers={careerModalStudent.student_careers || []}
               onChange={v => {
-                StudentsDB.update(careerModalStudent.id, { student_careers: v })
+                // 가장 최신 수강이력의 term을 activeTerm으로 동기화
+                const sorted = [...v].sort((a, b) => a.year !== b.year ? a.year - b.year : Number(a.term) - Number(b.term))
+                const latest = sorted[sorted.length - 1]
+                const activeTerm = latest ? String(latest.term) : null
+                StudentsDB.update(careerModalStudent.id, { student_careers: v, activeTerm })
                 setCareerModalStudent(prev => ({ ...prev, student_careers: v }))
               }}
               isEdit={true}
