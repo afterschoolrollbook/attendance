@@ -2809,6 +2809,12 @@ export function Students({ user, onNav, pageParams = {} }) {
                 📤 내보내기
               </button>
             )}
+            {!editId && (
+              <button onClick={() => studentImportRef.current?.click()}
+                style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #bfdbfe', background:'#eff6ff', color:'#2563eb', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', marginRight:'auto' }}>
+                📥 불러오기
+              </button>
+            )}
             <Btn variant="ghost" onClick={() => setShowModal(false)}>취소</Btn>
             <Btn onClick={save}>{editId ? '저장' : '등록'}</Btn>
           </div>
