@@ -929,6 +929,7 @@ export function Students({ user, onNav, pageParams = {} }) {
   const [sortOrder,    setSortOrder]    = useState('name')
 
   const [showModal, setShowModal] = useState(false)
+  const [inlineCareerOpen, setInlineCareerOpen] = useState(null) // 열린 학생 id
   const [editId,    setEditId]    = useState(null)
   const [form,      setForm]      = useState(emptyStudent())
 
@@ -2128,45 +2129,33 @@ export function Students({ user, onNav, pageParams = {} }) {
                           {s.remark && (
                             <span style={{ fontSize:'11px', background:'#eff6ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{s.remark}</span>
                           )}
-                          {(s.student_careers?.length > 0 || ctxTermType) && (() => {
+                          {(() => {
                             const careers = s.student_careers || []
-                            const isNew = ctxTermType && ctxTerm
-                              ? !careers.some(c => (c.termType || c.term_type) === ctxTermType && String(c.term) === String(ctxTerm))
-                              : careers.length <= 1
-                            const canToggle = !!(ctxTermType && ctxTerm)
-                            const handleToggle = () => {
-                              if (!canToggle) return
-                              const year = ctxYear || String(new Date().getFullYear())
-                              const typeLabel = ctxTermType === 'semester' ? '학기제' : '분기제'
-                              const tLabel = ctxTermType === 'semester' ? `${ctxTerm}학기` : `${ctxTerm}분기`
-                              if (isNew) {
-                                const alreadyHas = careers.some(c => c.year === year && String(c.term) === String(ctxTerm) && (c.termType || c.term_type) === ctxTermType)
-                                if (alreadyHas) return
-                                const newCareer = { year, termType: ctxTermType, term: ctxTerm, label: `${year.slice(2)}년도 / ${typeLabel} / ${tLabel}` }
-                                StudentsDB.update(s.id, {
-                                  activeTerm: ctxTerm,
-                                  student_careers: [...careers, newCareer],
-                                })
-                              } else {
-                                const updated = careers.filter(c => !(String(c.term) === String(ctxTerm) && (c.termType || c.term_type) === ctxTermType && (!ctxYear || c.year === ctxYear)))
-                                StudentsDB.update(s.id, { student_careers: updated })
-                              }
-                              refresh()
-                            }
-                            return (
+                            const isNew = careers.length <= 1
+                            const isOpen = inlineCareerOpen === s.id
+                            return (<>
                               <span
-                                onClick={canToggle ? handleToggle : undefined}
-                                title={canToggle ? (isNew ? '클릭 → 기존으로 변경' : '클릭 → 신규로 변경') : ''}
+                                onClick={() => setInlineCareerOpen(isOpen ? null : s.id)}
                                 style={{ fontSize:'11px', fontWeight:700, padding:'1px 7px', borderRadius:'5px',
                                   background: isNew ? '#eff6ff' : '#f0fdf4',
                                   border: `1px solid ${isNew ? '#bfdbfe' : '#86efac'}`,
                                   color: isNew ? '#1d4ed8' : '#15803d',
-                                  cursor: canToggle ? 'pointer' : 'default',
-                                  userSelect: 'none',
+                                  cursor: 'pointer', userSelect: 'none',
                                 }}>
                                 {isNew ? '신규' : '기존'}
                               </span>
-                            )
+                              {isOpen && (
+                                <div style={{ marginTop:'6px', padding:'10px', borderRadius:'10px', border:'1.5px solid #e5e7eb', background:'#fafafa', minWidth:'260px' }}
+                                  onClick={e => e.stopPropagation()}>
+                                  <CareerAdder
+                                    careers={careers}
+                                    onChange={v => { StudentsDB.update(s.id, { student_careers: v }); refresh() }}
+                                    isEdit={true}
+                                    defaultTermType='quarter'
+                                  />
+                                </div>
+                              )}
+                            </>)
                           })()}
                           {(s.status === 'cancel_before' || s.status === 'cancel_after') && (
                             <span style={{ fontSize:'11px', fontWeight:700, padding:'1px 8px', borderRadius:'5px',
