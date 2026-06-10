@@ -1344,12 +1344,18 @@ export function Students({ user, onNav, pageParams = {} }) {
     }
     if (ctxClassSec && s.section !== ctxClassSec) return false
     if (ctxTermType && ctxTerm) {
-      const hasCareer = (s.student_careers || []).some(c =>
-        (c.termType || c.term_type) === ctxTermType &&
-        String(c.term) === String(ctxTerm) &&
-        (!ctxYear || c.year === ctxYear)
-      )
-      if (!hasCareer) return false
+      const careers = s.student_careers || []
+      if (careers.length === 0) {
+        // 수강이력 없으면 1분기/1학기로 간주 (텀이월관리와 동일)
+        if (String(ctxTerm) !== '1') return false
+      } else {
+        const hasCareer = careers.some(c =>
+          (c.termType || c.term_type) === ctxTermType &&
+          String(c.term) === String(ctxTerm) &&
+          (!ctxYear || c.year === ctxYear)
+        )
+        if (!hasCareer) return false
+      }
     }
     if (statusFilter !== 'all' && s.status !== statusFilter && !(statusFilter === 'cancelled' && (s.status === 'cancel_before' || s.status === 'cancel_after'))) return false
     return true
