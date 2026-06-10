@@ -919,13 +919,13 @@ export function Students({ user, onNav, pageParams = {} }) {
   const [showExportModal, setShowExportModal] = useState(false)
   const [exportTargetStudent, setExportTargetStudent] = useState(null) // null=전체, object=단일학생
   const [exportFields,    setExportFields]    = useState({
-    name: true, status: true, grade: true, classNum: true, number: true,
-    section: true, school: true, applyOrder: true,
-    parentPhone: true, studentPhone: true, contactMethod: true,
-    homeReturn: true, memo: true, remark: true,
-    parentInviteSentAt: true, parentJoined: true,
-    activeTerm: true, student_careers: true,
-    relations: true, cancel_info: true, statusHistory: true,
+    name: true, status: false, grade: true, classNum: true, number: true,
+    section: true, school: true, applyOrder: false,
+    parentPhone: true, studentPhone: false, contactMethod: false,
+    homeReturn: false, memo: false, remark: false,
+    parentInviteSentAt: false, parentJoined: false,
+    activeTerm: true, student_careers: false,
+    relations: false, cancel_info: false, statusHistory: false,
   })
   const [showExcel,    setShowExcel]    = useState(false)
   const [excelPreview, setExcelPreview] = useState([])
@@ -2245,6 +2245,15 @@ export function Students({ user, onNav, pageParams = {} }) {
                 <div style={{ textAlign:'center' }}>
                   <div style={{ fontSize:'15px', fontWeight:700, color:'#ea580c' }}>학생 단건 등록</div>
                   <div style={{ fontSize:'12px', color:'#9a3412', marginTop:'3px' }}>학생 정보를 직접 입력하여 등록합니다</div>
+                </div>
+              </div>
+              <div onClick={() => studentImportRef.current?.click()} style={{ flex:1, minWidth:'200px', padding:'24px', borderRadius:'16px', border:'2px dashed #3b82f6', background:'#eff6ff', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'10px', transition:'all .15s' }}
+                onMouseEnter={e=>{e.currentTarget.style.background='#dbeafe'; e.currentTarget.style.borderColor='#2563eb'}}
+                onMouseLeave={e=>{e.currentTarget.style.background='#eff6ff'; e.currentTarget.style.borderColor='#3b82f6'}}>
+                <span style={{ fontSize:'36px' }}>📥</span>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:'15px', fontWeight:700, color:'#2563eb' }}>학생 불러오기</div>
+                  <div style={{ fontSize:'12px', color:'#1e40af', marginTop:'3px' }}>.after 파일로 학생을 불러옵니다</div>
                 </div>
               </div>
               <div onClick={() => { setExcelStep(0); setExcelClassId(''); setShowExcel(true) }} style={{ flex:1, minWidth:'200px', padding:'24px', borderRadius:'16px', border:'2px dashed #16a34a', background:'#f0fdf4', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'10px', transition:'all .15s' }}
