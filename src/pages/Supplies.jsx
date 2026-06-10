@@ -1179,12 +1179,6 @@ export function Supplies({ user }) {
   const [supplyFilterTerm,     setSupplyFilterTerm]     = useState('1')
   const [supplyFilterProduct,  setSupplyFilterProduct]  = useState('')
   const [supplyFilterStage,    setSupplyFilterStage]    = useState('')
-  const [supplyFilterSchool,   setSupplyFilterSchool]   = useState('')
-  const [supplyFilterYear,     setSupplyFilterYear]     = useState('')
-  const [supplyFilterTermType, setSupplyFilterTermType] = useState('quarter')
-  const [supplyFilterTerm,     setSupplyFilterTerm]     = useState('1')
-  const [supplyFilterProduct,  setSupplyFilterProduct]  = useState('')
-  const [supplyFilterStage,    setSupplyFilterStage]    = useState('')
   const [checkedStudents, setCheckedStudents] = useState([])
 
   // selClassId 파싱: 'classId::section' → { classId, selSection }
