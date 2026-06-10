@@ -300,10 +300,10 @@ function _emitSaveComplete()     { _saveCompleteListeners.forEach(fn => fn()) }
 function _emitSaveError(label, msg) { _saveErrorListeners.forEach(fn => fn(label, msg)) }
 
 // ─── students 테이블 boolean 컬럼 안전 변환
-// parent_joined, moved_to_manage 컬럼은 반드시 true/false여야 함
+// parent_joined, moved_to_manage, _deleted 컬럼은 반드시 true/false여야 함
 // 빈 문자열(""), null, undefined 등이 들어오면 PostgreSQL이 "invalid input syntax for type boolean" 오류를 냄
 function sanitizeStudentBooleans(data) {
-  const BOOL_FIELDS = ['parentJoined', 'movedToManage']
+  const BOOL_FIELDS = ['parentJoined', 'movedToManage', '_deleted']
   const result = { ...data }
   for (const f of BOOL_FIELDS) {
     if (f in result) result[f] = !!result[f]
@@ -597,7 +597,7 @@ export const db = {
   getOne: (t, id) => cache.get(t).find(r => r.id === id && !r._deleted) || null,
 
   async insert(t, record) {
-    const r = { _deleted: false, ...record, updated_at: now() }
+    const r = { ...record, _deleted: false, updated_at: now() }
     const rows = cache.get(t)
     rows.push(r)
     cache.set(t, rows)
