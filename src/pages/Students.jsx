@@ -930,7 +930,6 @@ export function Students({ user, onNav, pageParams = {} }) {
 
   const [showModal, setShowModal] = useState(false)
   const [careerModalStudent, setCareerModalStudent] = useState(null)
-  const [careerModalStudent_UNUSED, setCareerModalStudent] = useState(null) // 수강이력 모달 학생
   const [editId,    setEditId]    = useState(null)
   const [form,      setForm]      = useState(emptyStudent())
 
