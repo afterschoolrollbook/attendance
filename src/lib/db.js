@@ -172,8 +172,9 @@ const cache = {
 
 // ─── IndexedDB 캐시 (재접속 시 즉시 로드용)
 const IDB_NAME    = 'asa_cache'
-const IDB_VERSION = 1
+const IDB_VERSION = 2          // pending_ops store 추가로 버전 업
 const IDB_STORE   = 'tables'
+const PENDING_STORE = 'asa_pending_ops'
 
 let _idb = null
 
@@ -185,6 +186,10 @@ async function openIDB() {
       const db = e.target.result
       if (!db.objectStoreNames.contains(IDB_STORE)) {
         db.createObjectStore(IDB_STORE)
+      }
+      // 미완료 작업 큐 store
+      if (!db.objectStoreNames.contains(PENDING_STORE)) {
+        db.createObjectStore(PENDING_STORE, { keyPath: 'qid' })
       }
     }
     req.onsuccess = (e) => { _idb = e.target.result; resolve(_idb) }
@@ -591,9 +596,83 @@ export async function refreshTablesFromSupabase(...tables) {
   }))
 }
 
-// 호환성 유지용 빈 함수 (기존 코드에서 호출해도 에러 안 남)
-export function startSyncRetry() {}
-export function stopSyncRetry() {}
+// ─── 실패한 Supabase 작업 큐 (IndexedDB에 영구 저장 → 재시도)
+async function pendingEnqueue(op) {
+  try {
+    const db = await openIDB()
+    await new Promise((res, rej) => {
+      const tx = db.transaction(PENDING_STORE, 'readwrite')
+      tx.objectStore(PENDING_STORE).put(op)
+      tx.oncomplete = res
+      tx.onerror    = () => rej(tx.error)
+    })
+  } catch (e) {
+    console.warn('[PendingQueue] enqueue 실패:', e.message)
+  }
+}
+
+async function pendingDequeue(id) {
+  try {
+    const db = await openIDB()
+    await new Promise((res, rej) => {
+      const tx = db.transaction(PENDING_STORE, 'readwrite')
+      tx.objectStore(PENDING_STORE).delete(id)
+      tx.oncomplete = res
+      tx.onerror    = () => rej(tx.error)
+    })
+  } catch (e) {
+    console.warn('[PendingQueue] dequeue 실패:', e.message)
+  }
+}
+
+async function pendingGetAll() {
+  try {
+    const db = await openIDB()
+    return await new Promise((res, rej) => {
+      const tx = db.transaction(PENDING_STORE, 'readonly')
+      const req = tx.objectStore(PENDING_STORE).getAll()
+      req.onsuccess = () => res(req.result || [])
+      req.onerror   = () => rej(req.error)
+    })
+  } catch (e) {
+    console.warn('[PendingQueue] getAll 실패:', e.message)
+    return []
+  }
+}
+
+async function flushPendingOps() {
+  if (!supabase) return
+  const ops = await pendingGetAll()
+  if (ops.length === 0) return
+  console.log(`[PendingQueue] 미완료 작업 ${ops.length}건 재시도`)
+  for (const op of ops) {
+    try {
+      if (op.type === 'insert') await syncInsert(op.table, op.data)
+      if (op.type === 'update') await syncUpdate(op.table, op.id, op.data)
+      if (op.type === 'delete') await syncDelete(op.table, op.id)
+      await pendingDequeue(op.qid)
+      console.log(`[PendingQueue] 성공: ${op.type}/${op.table} (${op.qid})`)
+      _emitSaveComplete()
+    } catch (e) {
+      console.warn(`[PendingQueue] 재시도 실패: ${op.type}/${op.table}:`, e.message)
+    }
+  }
+}
+
+let _retryTimer = null
+export function startSyncRetry() {
+  if (_retryTimer) return
+  // 30초마다 미완료 작업 재시도
+  _retryTimer = setInterval(flushPendingOps, 30_000)
+  // 온라인 복구 시 즉시 재시도
+  window.addEventListener('online', flushPendingOps)
+  // 앱 시작 시 바로 한 번 실행
+  flushPendingOps()
+}
+export function stopSyncRetry() {
+  if (_retryTimer) { clearInterval(_retryTimer); _retryTimer = null }
+  window.removeEventListener('online', flushPendingOps)
+}
 
 // ─── 핵심 DB 메서드
 export const db = {
@@ -607,11 +686,13 @@ export const db = {
     rows.push(r)
     cache.set(t, rows)
     _emit(t)
-    idbSet(t, rows.filter(r => r._deleted !== true)) // IndexedDB 즉시 반영 (_deleted 제외)
+    idbSet(t, rows.filter(r => r._deleted !== true))
     try {
       await syncInsert(t, r)
     } catch (e) {
-      console.warn(`[DB] insert/${t} 실패:`, e.message)
+      console.warn(`[DB] insert/${t} 실패 → 대기열 저장:`, e.message)
+      await pendingEnqueue({ qid: `insert_${t}_${r.id}`, type: 'insert', table: t, data: r })
+      _emitSaveError(`insert/${t}`, e.message)
       throw e
     }
     return r
@@ -622,11 +703,13 @@ export const db = {
     const rows = cache.get(t).map(r => r.id === id ? { ...r, ...updated } : r)
     cache.set(t, rows)
     _emit(t)
-    idbSet(t, rows.filter(r => r._deleted !== true)) // IndexedDB 즉시 반영 (_deleted 제외)
+    idbSet(t, rows.filter(r => r._deleted !== true))
     try {
       await syncUpdate(t, id, updated)
     } catch (e) {
-      console.error(`[DB] update/${t} 실패:`, e.message, e)
+      console.error(`[DB] update/${t} 실패 → 대기열 저장:`, e.message, e)
+      await pendingEnqueue({ qid: `update_${t}_${id}_${Date.now()}`, type: 'update', table: t, id, data: updated })
+      _emitSaveError(`update/${t}`, e.message)
       throw e
     }
     return rows.find(r => r.id === id)
@@ -638,11 +721,13 @@ export const db = {
     )
     cache.set(t, rows)
     _emit(t)
-    idbSet(t, rows.filter(r => r._deleted !== true)) // IndexedDB 즉시 반영 (삭제 항목 제외)
+    idbSet(t, rows.filter(r => r._deleted !== true))
     try {
       await syncDelete(t, id)
     } catch (e) {
-      console.warn(`[DB] delete/${t} 실패:`, e.message)
+      console.warn(`[DB] delete/${t} 실패 → 대기열 저장:`, e.message)
+      await pendingEnqueue({ qid: `delete_${t}_${id}`, type: 'delete', table: t, id })
+      _emitSaveError(`delete/${t}`, e.message)
       throw e
     }
   },
