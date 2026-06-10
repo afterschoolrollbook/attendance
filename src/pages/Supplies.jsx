@@ -1611,6 +1611,19 @@ export function Supplies({ user }) {
         const studentSec = s.section || ''
         if (studentSec && studentSec !== selSectionParsed) return false
       }
+      // 분기 필터 - student_careers 기준
+      if (supplyFilterTerm) {
+        const careers = s.student_careers || []
+        if (careers.length === 0) {
+          if (String(supplyFilterTerm) !== '1') return false
+        } else {
+          const hasCareer = careers.some(c =>
+            (c.termType || c.term_type) === supplyFilterTermType &&
+            String(c.term) === String(supplyFilterTerm)
+          )
+          if (!hasCareer) return false
+        }
+      }
       // 교구 필터
       if (supplyFilterProduct) {
         const si = itemList.find(i => i.studentId===s.id && i.classId===selClassIdParsed)
