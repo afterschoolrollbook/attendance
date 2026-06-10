@@ -539,7 +539,7 @@ function TermSetTab({ classes, toastError, showToast, refresh, tick }) {
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr style={{ background:'#f9fafb' }}>
-                  {['', '반', '학년/반/번호', '이름', '현재 텀', '수강 이력'].map(h => (
+                  {['', '반', '학년/반/번호', '이름', `현재 ${tsTermLabel}`, '수강 이력'].map(h => (
                     <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', borderBottom:'1px solid #f3f4f6' }}>{h}</th>
                   ))}
                 </tr>
@@ -834,7 +834,7 @@ function RolloverTab({ classes, toastError, showToast, refresh, tick }) {
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr style={{ background:'#f9fafb' }}>
-                  {['', '반', '학년/반/번호', '이름', '현재 텀', '수강 이력'].map(h => (
+                  {['', '반', '학년/반/번호', '이름', `현재 ${rvTermLabel}`, '수강 이력'].map(h => (
                     <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:'12px', fontWeight:600, color:'#6b7280', borderBottom:'1px solid #f3f4f6' }}>{h}</th>
                   ))}
                 </tr>
