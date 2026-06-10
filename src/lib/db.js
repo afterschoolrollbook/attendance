@@ -379,8 +379,18 @@ async function syncUpdate(table, id, patch) {
   const sanitized  = table === 'students' ? sanitizeStudentBooleans(patch) : patch
   const cleanPatch = stripVirtualFields(table, sanitized)
   await withRetry(async () => {
-    const { error } = await supabase.from(tbl).update(toDb(cleanPatch)).eq('id', id)
+    // update 시도 → 실제로 반영된 행이 0개면 DB에 없는 것 → insert로 전환
+    const { data: updated, error } = await supabase
+      .from(tbl).update(toDb(cleanPatch)).eq('id', id).select('id')
     if (error) throw new Error(error.message)
+    if (!updated || updated.length === 0) {
+      // DB에 해당 row가 없음 → 로컬 캐시에서 전체 레코드 가져와서 insert
+      const fullRecord = cache.get(table).find(r => r.id === id)
+      if (fullRecord) {
+        console.log(`[DB] update/${table} row 없음 → insert로 전환: ${id}`)
+        await syncInsert(table, fullRecord)
+      }
+    }
   }, `update/${table}`)
 }
 
@@ -558,6 +568,10 @@ export async function initFromSupabase() {
       console.warn('[Supabase] settings 동기화 실패:', e.message)
     }
 
+    // ── 고아 레코드 복구: 로컬 캐시에 있지만 Supabase에 없는 항목 자동 insert
+    // (Supabase 저장 실패 후 로컬에만 남은 데이터 복구)
+    await syncOrphanRecords()
+
     // 동기화 완료 시각 저장 + IndexedDB에 캐시 보존
     setLastSyncAt(syncStartedAt)
     await saveCacheToIDB()
@@ -566,6 +580,38 @@ export async function initFromSupabase() {
   } catch (e) {
     console.warn('[Supabase] 전체 실패:', e.message)
     return false
+  }
+}
+
+// ── 로컬에만 있고 Supabase에 없는 레코드 감지 → 자동 insert (고아 레코드 복구)
+const ORPHAN_SYNC_TABLES = ['students', 'classes', 'attendance', 'notes']
+async function syncOrphanRecords() {
+  if (!supabase) return
+  for (const t of ORPHAN_SYNC_TABLES) {
+    try {
+      const localRows = cache.get(t).filter(r => r._deleted !== true)
+      if (localRows.length === 0) continue
+      const { tbl } = getConverters(t)
+      // Supabase에서 해당 테이블의 id 목록만 조회
+      const { data: remoteRows, error } = await supabase.from(tbl).select('id')
+      if (error || !Array.isArray(remoteRows)) continue
+      const remoteIds = new Set(remoteRows.map(r => r.id))
+      // 로컬에는 있는데 Supabase에 없는 것 → insert
+      const orphans = localRows.filter(r => !remoteIds.has(r.id))
+      if (orphans.length === 0) continue
+      console.log(`[OrphanSync] ${t}: ${orphans.length}건 누락 감지 → insert 시도`)
+      for (const r of orphans) {
+        try {
+          await syncInsert(t, r)
+          console.log(`[OrphanSync] ${t} insert 성공: ${r.id}`)
+        } catch (e) {
+          console.warn(`[OrphanSync] ${t} insert 실패: ${r.id}`, e.message)
+          await pendingEnqueue({ qid: `insert_${t}_${r.id}`, type: 'insert', table: t, data: r })
+        }
+      }
+    } catch (e) {
+      console.warn(`[OrphanSync] ${t} 처리 실패:`, e.message)
+    }
   }
 }
 
