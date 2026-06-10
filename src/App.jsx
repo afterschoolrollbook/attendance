@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import LandingPage from './pages/LandingPage.jsx'
-import { Users } from './lib/db.js'
-import { initFromSupabase, loadCacheFromIDB, onSaveError } from './lib/db.js'
+import { Users, Students as StudentsDB } from './lib/db.js'
+import { initFromSupabase, loadCacheFromIDB, onSaveError, onDbChange } from './lib/db.js'
 import { SaveStatusBar } from './components/SaveStatusBar.jsx'
 import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail, dbCall } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
@@ -187,6 +187,19 @@ export default function App() {
         }
         // 2) 백그라운드에서 변경분만 Supabase 로드 (증분 동기화)
         await initFromSupabase()
+
+        // ── 전역 데이터 마이그레이션: 앱 시작 시 1회 실행
+        // 나중에 추가된 필드가 null인 구 데이터를 정규화하여 string method 에러 방지
+        ;(async () => {
+          const allStudents = StudentsDB.all()
+          allStudents.forEach(s => {
+            const patch = {}
+            if (s.homeReturn == null) patch.homeReturn = ''
+            if (s.section    == null) patch.section    = ''
+            if (Object.keys(patch).length > 0) StudentsDB.update(s.id, patch)
+          })
+        })()
+
         const fresh = Users.findByEmail(session.user.email)
         if (fresh) {
           // 접속 기간 만료 체크
@@ -238,7 +251,15 @@ export default function App() {
         sessionStorage.removeItem('asa_user')
       }
     })
-    return unsubscribe
+    // users 테이블 변경 감지 → level/verified 등 갱신 즉시 반영
+    const unsubUsers = onDbChange('users', () => {
+      setUser(prev => {
+        if (!prev) return prev
+        const fresh = Users.find(prev.id)
+        return fresh || prev
+      })
+    })
+    return () => { unsubscribe(); unsubUsers() }
   }, [])
 
   // 뒤로가기/앞으로가기 감지
@@ -320,13 +341,12 @@ export default function App() {
   if (pathname === '/parent-login')  return <ParentLogin />
 
   // ── 랜딩 페이지 ─────────────────────────────────────────────────
-  if (showLanding) {
+  if (!user && showLanding) {
     return (
       <LandingPage
         onGoLogin={() => { setLandingTarget('login'); setShowLanding(false) }}
         onGoSignup={() => { setLandingTarget('signup'); setShowLanding(false) }}
         onGoBlog={() => { window.location.href = '/blog' }}
-        onGoDashboard={user ? () => setShowLanding(false) : null}
       />
     )
   }
@@ -454,8 +474,7 @@ export default function App() {
       <SaveStatusBar user={user} />
       {isMobile && <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />}
       <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout}
-               mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)}
-               onGoLanding={() => setShowLanding(true)} />
+               mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <main style={{ flex:1, height:'100vh', overflowY:'auto', paddingTop: isMobile ? '52px' : 0, paddingBottom: isMobile ? '60px' : 0 }}>
         {renderPage()}
       </main>
