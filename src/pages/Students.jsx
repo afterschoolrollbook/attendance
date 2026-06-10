@@ -173,7 +173,7 @@ function CareerAdder({ careers, onChange, isEdit }) {
               color: i === sorted.length-1 ? '#c2410c' : '#374151' }}>
               {c.label}
               {i === sorted.length-1 && <span style={{ fontSize:'10px', color:'#f97316' }}>현재</span>}
-              <button onClick={() => onChange(careers.filter((_,j) => careers.indexOf(c) !== j))}
+              <button onClick={() => onChange(careers.filter((item) => item !== c))}
                 style={{ background:'none', border:'none', cursor:'pointer', fontSize:'13px', lineHeight:1, padding:0, color:'inherit', opacity:0.5 }}>×</button>
             </span>
           ))}
