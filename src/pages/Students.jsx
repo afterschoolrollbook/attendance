@@ -1066,12 +1066,13 @@ export function Students({ user, onNav, pageParams = {} }) {
       setForm({
         ...emptyStudent(),
         classIds:      targetCls ? [targetCls.id] : [],
-        school:        s.school        || targetCls?.organization || '',
+        school:        s.school        || targetCls?.organization || meta.organization || '',
         name:          s.name          || '',
         status:        s.status        || 'applied',
         grade:         s.grade         || '',
         classNum:      s.classNum      || '',
         number:        s.number        || '',
+        section:       s.section       || meta.section || '',
         parentPhone:   s.parentPhone   || '',
         studentPhone:  s.studentPhone  || '',
         contactMethod: s.contactMethod || '',
@@ -1083,6 +1084,16 @@ export function Students({ user, onNav, pageParams = {} }) {
         student_careers: s.student_careers || [],
         studentStartDate: s.studentStartDate || '',
         studentEndDate:   s.studentEndDate   || '',
+        _newOrganization: meta.organization  || '',
+        _newClassName:    meta.className     || '',
+        _newSection:      meta.section       || '',
+        _newTimeStart:    meta.time          || '',
+        _newTimeEnd:      meta.timeEnd       || '',
+        _newTermType:     meta.termType      || 'semester',
+        _newDays:         meta.days          || [],
+        _newRepeatType:   meta.repeatType    || 'every',
+        _newStartDate:    meta.startDate     || '',
+        _newEndDate:      meta.endDate       || '',
       })
       setEditId(null)
       setShowModal(true)
