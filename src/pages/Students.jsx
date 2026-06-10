@@ -1001,6 +1001,8 @@ export function Students({ user, onNav, pageParams = {} }) {
           organization: cls?.organization || '',
           className:    cls?.className    || '',
           section:      cls?.section      || '',
+          // 신방식: sections 배열 전체 포함 (반별 시간 포함)
+          sections:     cls?.sections     || [],
           days:         cls?.days         || [],
           time:         cls?.time         || '',
           timeEnd:      cls?.timeEnd      || '',
@@ -1078,13 +1080,25 @@ export function Students({ user, onNav, pageParams = {} }) {
 
       // 수업 찾기 (현재 선택된 수업 우선, 없으면 파일 메타로 찾기)
       let targetCls = classes.find(c => c.id === ctxClassId)
+      if (!targetCls && meta.id) {
+        targetCls = classes.find(c => c.id === meta.id)
+      }
       if (!targetCls) {
         targetCls = classes.find(c =>
           c.organization === meta.organization &&
           c.className    === meta.className &&
-          (c.section     === meta.section || (!c.section && !meta.section))
+          // 신방식: sections 배열 안에 해당 반이 있으면 매칭
+          (c.sections?.some(sc => sc.section === (s.section || meta.section)) ||
+           c.section === meta.section ||
+           (!c.section && !meta.section && !(c.sections?.filter(sc=>sc.section).length > 0)))
         )
       }
+
+      // 학생 section에 맞는 반 시간 찾기 (신방식 sections 배열 우선)
+      const studentSection = s.section || meta.section || ''
+      const secEntry = studentSection && targetCls?.sections?.find(sc => sc.section === studentSection)
+      const resolvedTime    = secEntry?.time    || meta.time    || ''
+      const resolvedTimeEnd = secEntry?.timeEnd || meta.timeEnd || ''
 
       // 폼 채우고 등록 모달 열기
       setForm({
@@ -1096,7 +1110,7 @@ export function Students({ user, onNav, pageParams = {} }) {
         grade:         s.grade         || '',
         classNum:      s.classNum      || '',
         number:        s.number        || '',
-        section:       s.section       || meta.section || '',
+        section:       studentSection,
         parentPhone:   s.parentPhone   || '',
         studentPhone:  s.studentPhone  || '',
         contactMethod: s.contactMethod || '',
@@ -1110,9 +1124,10 @@ export function Students({ user, onNav, pageParams = {} }) {
         studentEndDate:   s.studentEndDate   || '',
         _newOrganization: meta.organization  || '',
         _newClassName:    meta.className     || '',
-        _newSection:      meta.section       || '',
-        _newTimeStart:    meta.time          || '',
-        _newTimeEnd:      meta.timeEnd       || '',
+        _newSection:      studentSection,
+        // 반별 시간 우선 적용 (secEntry → meta 순)
+        _newTimeStart:    resolvedTime,
+        _newTimeEnd:      resolvedTimeEnd,
         _newTermType:     meta.termType      || 'semester',
         _newDays:         meta.days          || [],
         _newRepeatType:   meta.repeatType    || 'every',
@@ -1533,6 +1548,10 @@ export function Students({ user, onNav, pageParams = {} }) {
       if (cls?.organization) form.school = cls.organization
     }
 
+    // section 최종 동기화: 직접입력 영역(_newSection)이 있으면 우선 반영
+    if (form._newSection?.trim()) {
+      form.section = form._newSection.trim()
+    }
     // section 최종 동기화: 직접입력 영역(_newSection)이 있으면 우선 반영
     if (form._newSection?.trim()) {
       form.section = form._newSection.trim()
