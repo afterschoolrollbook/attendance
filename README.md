@@ -55,6 +55,7 @@
 | 🏅 수상경력 | `Awards.jsx` |
 | 📝 제안서·자기소개서 | `Proposals.jsx` |
 | 📢 공고관리 | `Jobs.jsx` |
+| 블로그 / 설명서 | `Blog.jsx` |
 
 ### 관리자 전용 (level 10)
 
@@ -64,14 +65,18 @@
 | 🔧 서비스 설정 | `AdminSettings.jsx` |
 | 📢 광고 관리 | `Adsense.jsx` |
 | 📝 블로그 관리 | `BlogAdmin.jsx` |
+| 🏢 업체 관리 | `VendorManage.jsx` |
+| 🏫 학교 담당자 관리 | `SchoolAdminManage.jsx` |
 
 ### 포털
 
 | 포털 | 파일 |
 |------|------|
+| 학부모 초대 | `ParentInvite.jsx` |
 | 학부모 로그인 | `ParentLogin.jsx` |
 | 학교 담당자 | `SchoolAuth.jsx` + `SchoolAdminApp.jsx` + `SchoolAdminManage.jsx` |
-| 업체 | `VendorAuth.jsx` + `VendorApp.jsx` + `VendorManage.jsx` |
+| 학교 공지 팝업 | `SchoolNoticePopup.jsx` |
+| 납품 업체 | `VendorAuth.jsx` + `VendorApp.jsx` + `VendorManage.jsx` |
 
 ---
 
@@ -128,9 +133,15 @@ Supabase Dashboard → **Settings → API Keys** 에서 확인.
 쓰기 (insert / update / delete)
   → 인메모리 캐시 즉시 반영 + IndexedDB 즉시 기록
   → Supabase에 동기식 저장 (실패 시 최대 3회 재시도)
+  → 실패 시 IndexedDB 대기열(asa_pending_ops)에 저장 → 30초마다 자동 재시도 / 온라인 복구 시 즉시 재시도
+  → 앱 시작 시 로컬에만 있고 Supabase에 없는 students 레코드 자동 복구 (OrphanSync)
   → 삭제는 _deleted: true 소프트딜리트
   → 모든 레코드에 updated_at 자동 기록
 ```
+
+### OrphanSync 대상 테이블
+- `students` 만 대상 (classes는 수동 등록한 것만 DB에 있어야 하므로 제외)
+- attendance는 원래부터 정상 저장되므로 제외
 
 ---
 
@@ -140,9 +151,9 @@ Supabase Dashboard → **Settings → API Keys** 에서 확인.
 
 | 레벨 | 기본 이름 | 비고 |
 |------|----------|------|
-| 1 | 미인증 선생님 | |
-| 2 | 인증 선생님 | |
-| 3~9 | 레벨3~9 | 관리자가 이름 변경 가능 |
+| 1 | 미인증 선생님 | 가입 직후 기본값 |
+| 2 | 인증 선생님 | 관리자 승인 후 부여 |
+| 3~9 | 레벨3~9 | 관리자가 이름/권한 직접 설정 |
 | 10 | 관리자 | 모든 기능 접근 |
 
 ---
@@ -195,7 +206,7 @@ src/
 │   ├── Atoms.jsx           # 공통 UI (Modal, Toast, ConfirmDialog 등)
 │   ├── Sidebar.jsx         # 사이드바 내비게이션
 │   ├── SaveStatusBar.jsx   # 저장 상태 바
-│   └── AdSlot.jsx          # 광고 슬롯
+│   └── AdSlot.jsx          # 광고 슬롯 렌더러
 ├── constants/
 │   ├── config.js           # 상수 (상태값, 색상, 요일 등)
 │   └── permissions.js      # 레벨별 권한 정의
@@ -213,6 +224,99 @@ src/
 
 ---
 
+## DB 테이블 구조
+
+| 영역 | 테이블 |
+|------|--------|
+| 사용자·권한 | `users`, `branches` |
+| 수업·학생 | `classes`, `students`, `attendance`, `lesson_memos` |
+| 출석부 서류 | `attendance_templates`, `documents`, `custom_categories` |
+| 수익 관리 | `revenue_fees`, `revenue_payments` |
+| 강사 이력 | `trainings`, `careers`, `educations`, `certificates`, `awards` |
+| 구인 공고 | `job_subs` |
+| 교구·진도 | `supply_subjects`, `supply_vendors`, `supply_items`, `supply_plans`, `supply_products`, `supply_product_plans`, `supply_student_progress`, `supply_session_checks`, `supply_given`, `supply_parts`, `supply_school_prices` |
+| 메시지 | `message_guides`, `message_categories`, `teacher_profiles` |
+| 학부모 포털 | `parent_members`, `teacher_parent_links`, `teacher_service_configs` |
+| 학교 담당자 포털 | `school_admins`, `school_admin_accounts`, `school_admin_teachers`, `school_subjects`, `school_teacher_invites`, `school_notices`, `school_notice_submits`, `school_calendar`, `school_info` |
+| 업체 포털 | `hq_vendors`, `hq_vendor_subjects`, `hq_vendor_products`, `hq_vendor_stages`, `hq_vendor_contents`, `hq_vendor_quarters`, `hq_vendor_sessions`, `hq_vendor_files`, `hq_vendor_prices`, `hq_vendor_users`, `vendor_accounts` |
+| 시스템 | `settings`, `ad_slots`, `blog_posts`, `points` |
+
+### students 테이블 boolean 컬럼
+
+> ⚠️ 아래 컬럼은 반드시 `true/false`만 허용. 빈 문자열·null 전송 시 PostgreSQL 에러 발생.
+
+| 컬럼 | 설명 |
+|------|------|
+| `parent_joined` | 학부모 앱 가입 여부 |
+| `moved_to_manage` | 학생관리 탭 이동 여부 |
+| `_deleted` | 소프트딜리트 |
+| `auto_end_exception` | 자동종료 예외 여부 |
+
+> `home_return`은 귀가방법 문자열 (`'도보'`, `'학원-버스'` 등) — DB 컬럼 타입 `text`
+
+---
+
+## 수업(classes) 데이터 구조
+
+수업은 하나의 `classes` 레코드에 여러 반을 `sections` 배열로 관리합니다.
+
+```js
+// classes 레코드 예시
+{
+  id: 'mnu9soqql8nm2',
+  className: '융합발명과학',
+  organization: '판교초',
+  section: 'A',        // 단일 반일 때 사용 (구방식)
+  sections: [          // 다중 반일 때 사용 (신방식)
+    { section: 'A', time: '13:00', timeEnd: '14:00' },
+    { section: 'B', time: '14:00', timeEnd: '15:00' },
+  ]
+}
+```
+
+드롭다운 렌더링 규칙:
+- `sections` 배열에 반이 2개 이상 → 반별로 분리해서 옵션 생성
+- `sections` 배열이 1개 이하 → `section` 필드 사용
+
+> ⚠️ classes는 OrphanSync 대상에서 제외. 수동 등록한 수업만 DB에 존재해야 함.
+
+---
+
+## Supabase SQL 쿼리 패턴
+
+### ✅ 특정 반 학생 조회 (올바른 방법)
+
+`class_ids`는 jsonb 배열이므로 반드시 `@>` 연산자 사용.
+
+```sql
+-- 특정 수업의 특정 반 학생 조회
+SELECT s.id, s.name, s.grade, s.class_num, s.section, s.status
+FROM students s
+WHERE s.class_ids @> jsonb_build_array('class_id'::text)
+AND s.section = 'B'
+ORDER BY s.grade, s.class_num, s.number;
+```
+
+### ❌ 잘못된 방법 (사용 금지)
+
+```sql
+-- LIKE는 id 부분 매칭 오류 가능 → 사용 금지
+WHERE s.class_ids::text LIKE '%' || c.id || '%'
+```
+
+### 수업별 반 인원 확인
+
+```sql
+SELECT c.id, c.class_name, c.section, c.sections, COUNT(s.id) as student_count
+FROM classes c
+LEFT JOIN students s ON s.class_ids @> jsonb_build_array(c.id::text)
+WHERE c.organization = '판교초'
+GROUP BY c.id, c.class_name, c.section, c.sections
+ORDER BY c.class_name, c.section;
+```
+
+---
+
 ## 개발 규칙
 
 | # | 규칙 |
@@ -225,6 +329,8 @@ src/
 | 6 | `.env` / API 키 GitHub 업로드 금지 |
 | 7 | 모바일 + PC 반응형 필수 |
 | 8 | 파일 1개 수정 → 빌드 확인 → 이상 없으면 다음 파일 |
+| 9 | UI 수정 시 스크린샷을 먼저 기준으로 삼고 코드를 맞출 것 |
+| 10 | 유사한 화면이 있으면 해당 코드를 참고해서 동일하게 구현할 것 |
 
 ---
 
