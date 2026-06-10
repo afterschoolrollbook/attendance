@@ -922,8 +922,8 @@ export function Students({ user, onNav, pageParams = {} }) {
   const [ctxSchool,  setCtxSchool]  = useState('')
   const [ctxClass,   setCtxClass]   = useState('')
   const [ctxSection, setCtxSection] = useState('')
-  const [ctxTermType, setCtxTermType] = useState('') // 'semester' | 'quarter' | ''
-  const [ctxTerm,     setCtxTerm]     = useState('') // '1' | '2' | '3' | '4' | ''
+  const [ctxTermType, setCtxTermType] = useState('quarter') // 텀이월관리와 동일한 기본값
+  const [ctxTerm,     setCtxTerm]     = useState('1')
 
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortOrder,    setSortOrder]    = useState('name')
@@ -1346,13 +1346,11 @@ export function Students({ user, onNav, pageParams = {} }) {
     if (ctxTermType && ctxTerm) {
       const careers = s.student_careers || []
       if (careers.length === 0) {
-        // 수강이력 없으면 1분기/1학기로 간주 (텀이월관리와 동일)
         if (String(ctxTerm) !== '1') return false
       } else {
         const hasCareer = careers.some(c =>
           (c.termType || c.term_type) === ctxTermType &&
-          String(c.term) === String(ctxTerm) &&
-          (!ctxYear || c.year === ctxYear)
+          String(c.term) === String(ctxTerm)
         )
         if (!hasCareer) return false
       }
@@ -1952,7 +1950,7 @@ export function Students({ user, onNav, pageParams = {} }) {
               {ctxYear && <Tag color="#059669" bg="#ecfdf5" size="md">📅 {ctxYear}년</Tag>}
               {ctxTermType && <Tag color="#8b5cf6" bg="#f5f3ff" size="md">{ctxTermType === 'semester' ? '학기제' : '분기제'}{ctxTerm ? ` ${ctxTerm}${ctxTermType === 'semester' ? '학기' : '분기'}` : ''}</Tag>}
               {ctxClassId && selectedCls && <Tag color="#f97316" bg="#fff7ed" size="md">📚 {selectedCls.className}{ctxClassSec ? ' ' + ctxClassSec + '반' : ''}</Tag>}
-              <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxClass(''); setCtxSection(''); setCtxTermType(''); setCtxTerm('') }}
+              <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxClass(''); setCtxSection(''); setCtxTermType('quarter'); setCtxTerm('1') }}
                 style={{ fontSize: '11px', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'Noto Sans KR, sans-serif' }}>초기화</button>
             </div>
           )}
