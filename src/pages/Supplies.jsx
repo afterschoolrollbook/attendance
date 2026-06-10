@@ -2406,10 +2406,9 @@ export function Supplies({ user }) {
                               const supply    = getStudentSupply(s.id)
                               const isChecked = checkedStudents.includes(s.id)
                               const product   = productList.find(p => p.id === supply.productId)
+                              const sps       = product?.sessionsPerStage || 12
                               const prog      = progressList.find(p => p.studentId===s.id && p.classId===selClassIdParsed && p.productId===supply.productId)
                               const curStage  = prog?.curStage || (supply.stage ? Number(supply.stage) : null)
-                              const stagePlans = curStage ? productPlanList.filter(p => p.productId===supply.productId && p.stage===curStage) : []
-                              const sps       = Math.max(product?.sessionsPerStage || 12, stagePlans.length)
                               const stageChecks = curStage
                                 ? checkList.filter(c => c.studentId===s.id && c.classId===selClassIdParsed && c.productId===supply.productId && c.stage===curStage).length
                                 : 0
@@ -4068,7 +4067,7 @@ export function Supplies({ user }) {
       {/* ── 진도 체크 모달 */}
       {progressModal && progressStudent && (
         <SuppliesProgCheckModal
-          student={{ ...progressStudent, _clsId: selClassId }}
+          student={{ ...progressStudent, _clsId: selClassIdParsed }}
           initialProductId={progressProductId}
           productList={productList}
           productPlanList={productPlanList}
