@@ -2124,7 +2124,7 @@ export function Students({ user, onNav, pageParams = {} }) {
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: '14px', fontWeight: 700, color: '#111827' }}>
                       <div>{s.name}</div>
-                      {(s.remark || (s.student_careers?.length > 0) || s.status === 'cancel_before' || s.status === 'cancel_after' || (s.relations||[]).length > 0) && (
+                      {true && (
                         <div style={{ display:'flex', flexDirection:'column', gap:'3px', marginTop:'4px' }}>
                           {s.remark && (
                             <span style={{ fontSize:'11px', background:'#eff6ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:'5px', padding:'1px 7px', fontWeight:600 }}>{s.remark}</span>
