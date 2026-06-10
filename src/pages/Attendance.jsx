@@ -2809,7 +2809,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
         <div style={{ padding: '6px 14px 10px', borderTop: `1px solid ${C.border}`, background: '#fafafa', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ flex: 1, minWidth: '150px' }}>
             <label style={{ fontSize: '11px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '3px' }}>사유</label>
-            <select value={absentReason.startsWith('schedule_change') ? 'schedule_change' : absentReason} onChange={e => {
+            <select value={(absentReason||'').startsWith('schedule_change') ? 'schedule_change' : (absentReason||'')} onChange={e => {
               const val = e.target.value
               if (val === 'schedule_change') {
                 const today = new Date().toISOString().slice(0,10)
@@ -2823,7 +2823,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
                 }
               } else {
                 setField('absentReason', val)
-                if (absentReason.startsWith('schedule_change')) {
+                if ((absentReason||'').startsWith('schedule_change')) {
                   const existing = StudentsDB.find(s.id)
                   if (existing && existing.status === 'schedule_change') {
                     StudentsDB.update(s.id, { status: 'confirmed' })
@@ -2858,7 +2858,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
                 </div>
               </div>
             )}
-            {absentReason.startsWith('schedule_change') && (
+            {(absentReason||'').startsWith('schedule_change') && (
               <div style={{ marginTop:'6px', display:'flex', flexDirection:'column', gap:'4px' }}>
                 <label style={{ fontSize:'10px', fontWeight:600, color:'#7c3aed' }}>📅 스케줄변경 날짜 (이 날짜 다음 수업부터 명단 제외)</label>
                 <input type="date" defaultValue={new Date().toISOString().slice(0,10)}
@@ -2885,7 +2885,7 @@ function StudentRow({ s, idx, rec, onMark, onMsgOpen, onStudentClick, onProgOpen
             <div style={{ display: 'flex', gap: '5px', marginBottom: '6px' }}>
               {['📞 통화', '💬 문자', '💛 카톡'].map(method => {
                 const tag = method.split(' ')[1]
-                const active = note.startsWith(tag) || note.includes(' '+tag)
+                const active = (note||'').startsWith(tag) || (note||'').includes(' '+tag)
                 return (
                   <button key={tag} onClick={() => appendNote(tag)}
                     style={{ padding: '3px 10px', borderRadius: '5px', border: `1px solid ${active ? '#6b7280' : '#d1d5db'}`, background: active ? '#f3f4f6' : '#fff', fontSize: '11px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', fontWeight: active ? 700 : 400, color: active ? '#111827' : '#6b7280' }}>
