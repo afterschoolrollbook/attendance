@@ -48,6 +48,19 @@ function computeTermNumForStudent(classes, classIds, cancelDate) {
 }
 
 
+function formatPhoneInput(v) {
+  const d = v.replace(/[^0-9]/g, '')
+  if (d.length < 4) return d
+  if (d.startsWith('02')) {
+    if (d.length < 7) return d.slice(0,2) + '-' + d.slice(2)
+    if (d.length < 10) return d.slice(0,2) + '-' + d.slice(2,6) + '-' + d.slice(6)
+    return d.slice(0,2) + '-' + d.slice(2,6) + '-' + d.slice(6,10)
+  }
+  if (d.length < 8) return d.slice(0,3) + '-' + d.slice(3)
+  if (d.length < 11) return d.slice(0,3) + '-' + d.slice(3,6) + '-' + d.slice(6)
+  return d.slice(0,3) + '-' + d.slice(3,7) + '-' + d.slice(7,11)
+}
+
 function SyncScrollTable({ children }) {
   const topRef = React.useRef(null)
   const botRef = React.useRef(null)
@@ -903,6 +916,16 @@ export function Students({ user, onNav, pageParams = {} }) {
   const [editId,    setEditId]    = useState(null)
   const [form,      setForm]      = useState(emptyStudent())
 
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportFields,    setExportFields]    = useState({
+    name: true, status: true, grade: true, classNum: true, number: true,
+    section: true, school: true, applyOrder: true,
+    parentPhone: true, studentPhone: true, contactMethod: true,
+    homeReturn: true, memo: true, remark: true,
+    parentInviteSentAt: true, parentJoined: true,
+    activeTerm: true, student_careers: true,
+    relations: true, cancel_info: true, statusHistory: true,
+  })
   const [showExcel,    setShowExcel]    = useState(false)
   const [excelPreview, setExcelPreview] = useState([])
   const [excelStep,    setExcelStep]    = useState(0)
@@ -933,9 +956,14 @@ export function Students({ user, onNav, pageParams = {} }) {
   // ── 학생 명단 내보내기 (.after)
   const handleExportStudents = () => {
     if (!ctxClassId) { toastError('수업을 먼저 선택하세요.'); return }
-    const cls      = classes.find(c => c.id === ctxClassId)
     const students = StudentsDB.byClass(ctxClassId)
     if (students.length === 0) { toastError('해당 수업에 학생이 없습니다.'); return }
+    setShowExportModal(true)
+  }
+
+  const doExport = (fields) => {
+    const cls = classes.find(c => c.id === ctxClassId)
+    const students = StudentsDB.byClass(ctxClassId)
     try {
       const safeName = (str) => (str || '').replace(/[/\\:*?"<>|]/g, '_').trim()
       const label = [cls?.days?.join(''), cls?.organization, cls?.className, cls?.section].filter(Boolean).join('_')
@@ -953,24 +981,31 @@ export function Students({ user, onNav, pageParams = {} }) {
           timeEnd:      cls?.timeEnd      || '',
           termType:     cls?.termType     || '',
         },
-        students: students.map(s => ({
-          name:          s.name,
-          status:        s.status,
-          school:        s.school        || '',
-          grade:         s.grade         || '',
-          classNum:      s.classNum      || '',
-          number:        s.number        || '',
-          parentPhone:   s.parentPhone   || '',
-          studentPhone:  s.studentPhone  || '',
-          contactMethod: s.contactMethod || '',
-          homeReturn:    s.homeReturn    || '',
-          memo:          s.memo          || '',
-          remark:        s.remark        || '',
-          applyOrder:    s.applyOrder    || '',
-          relations:     s.relations     || [],
-          student_careers: s.student_careers || [],
-          statusHistory: s.statusHistory || [],
-        })),
+        students: students.map(s => {
+          const row = {}
+          if (fields.name)             row.name             = s.name
+          if (fields.status)           row.status           = s.status
+          if (fields.school)           row.school           = s.school || ''
+          if (fields.grade)            row.grade            = s.grade || ''
+          if (fields.classNum)         row.classNum         = s.classNum || ''
+          if (fields.number)           row.number           = s.number || ''
+          if (fields.section)          row.section          = s.section || ''
+          if (fields.applyOrder)       row.applyOrder       = s.applyOrder || ''
+          if (fields.parentPhone)      row.parentPhone      = s.parentPhone || ''
+          if (fields.studentPhone)     row.studentPhone     = s.studentPhone || ''
+          if (fields.contactMethod)    row.contactMethod    = s.contactMethod || ''
+          if (fields.homeReturn)       row.homeReturn       = s.homeReturn || ''
+          if (fields.memo)             row.memo             = s.memo || ''
+          if (fields.remark)           row.remark           = s.remark || ''
+          if (fields.parentInviteSentAt) row.parentInviteSentAt = s.parentInviteSentAt || ''
+          if (fields.parentJoined)     row.parentJoined     = s.parentJoined || false
+          if (fields.activeTerm)       row.activeTerm       = s.activeTerm || ''
+          if (fields.student_careers)  row.student_careers  = s.student_careers || []
+          if (fields.relations)        row.relations        = s.relations || []
+          if (fields.cancel_info)      row.cancel_info      = s.cancel_info || null
+          if (fields.statusHistory)    row.statusHistory    = s.statusHistory || []
+          return row
+        }),
       }
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
       const url  = URL.createObjectURL(blob)
@@ -979,6 +1014,7 @@ export function Students({ user, onNav, pageParams = {} }) {
       a.download = `${safeName(label)}_학생.after`
       a.click()
       URL.revokeObjectURL(url)
+      setShowExportModal(false)
       showToast(`📤 ${safeName(label)}_학생.after 저장 완료! (${students.length}명)`)
     } catch (e) {
       toastError('내보내기 실패: ' + e.message)
@@ -2557,8 +2593,8 @@ export function Students({ user, onNav, pageParams = {} }) {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
               <Input label="신청 순번" value={form.applyOrder} onChange={v => set('applyOrder', v)} />
-              <Input label="학부모 전화번호" value={form.parentPhone} onChange={v => set('parentPhone', v)} />
-              <Input label="학생 전화번호" value={form.studentPhone} onChange={v => set('studentPhone', v)} />
+              <Input label="학부모 전화번호" value={form.parentPhone} onChange={v => set('parentPhone', formatPhoneInput(v))} />
+              <Input label="학생 전화번호" value={form.studentPhone} onChange={v => set('studentPhone', formatPhoneInput(v))} />
               <Select label="📱 주연락방법" value={form.contactMethod} onChange={v => set('contactMethod', v)}
                 options={[
                   { value: '',      label: '미설정' },
@@ -2980,6 +3016,68 @@ export function Students({ user, onNav, pageParams = {} }) {
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           <Btn variant="ghost" onClick={() => setDeleteTarget(null)}>취소</Btn>
           <Btn variant="danger" onClick={deleteStudent}>삭제</Btn>
+        </div>
+      </Modal>
+
+      {/* 내보내기 필드 선택 모달 */}
+      <Modal open={showExportModal} onClose={() => setShowExportModal(false)} title="📤 내보내기 항목 선택" width={480}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+          <div style={{ fontSize:'13px', color:'#6b7280', padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', border:'1px solid #e5e7eb' }}>
+            내보낼 항목을 선택하세요. 선택한 항목만 파일에 포함됩니다.
+          </div>
+          {/* 전체 선택/해제 */}
+          <div style={{ display:'flex', gap:'8px' }}>
+            <button onClick={() => setExportFields(f => Object.fromEntries(Object.keys(f).map(k => [k, true])))}
+              style={{ padding:'6px 14px', borderRadius:'7px', border:'1.5px solid #f97316', background:'#fff7ed', color:'#f97316', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              전체 선택
+            </button>
+            <button onClick={() => setExportFields(f => Object.fromEntries(Object.keys(f).map(k => [k, k === 'name' || k === 'grade'])))}
+              style={{ padding:'6px 14px', borderRadius:'7px', border:'1.5px solid #e5e7eb', background:'#fff', color:'#6b7280', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              필수만
+            </button>
+          </div>
+          {/* 항목 체크박스 */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+            {[
+              { key:'name',              label:'이름' },
+              { key:'grade',             label:'학년' },
+              { key:'classNum',          label:'학급 반' },
+              { key:'number',            label:'번호' },
+              { key:'section',           label:'수업 반 (A반/B반)' },
+              { key:'school',            label:'학교' },
+              { key:'applyOrder',        label:'신청 순번' },
+              { key:'status',            label:'상태' },
+              { key:'parentPhone',       label:'학부모 전화번호' },
+              { key:'studentPhone',      label:'학생 전화번호' },
+              { key:'contactMethod',     label:'주연락방법' },
+              { key:'homeReturn',        label:'귀가방법' },
+              { key:'memo',              label:'특이사항 메모' },
+              { key:'remark',            label:'비고' },
+              { key:'parentInviteSentAt',label:'출결초대 발송' },
+              { key:'parentJoined',      label:'학부모 앱 가입' },
+              { key:'activeTerm',        label:'현재 텀' },
+              { key:'student_careers',   label:'학생 경력' },
+              { key:'relations',         label:'가족 관계' },
+              { key:'cancel_info',       label:'취소 정보' },
+              { key:'statusHistory',     label:'상태 변경 이력' },
+            ].map(({ key, label, required }) => (
+              <label key={key} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', borderRadius:'8px',
+                background: exportFields[key] ? '#fff7ed' : '#f9fafb',
+                border: `1px solid ${exportFields[key] ? '#fed7aa' : '#e5e7eb'}`,
+                cursor:'pointer', userSelect:'none' }}>
+                <input type="checkbox" checked={!!exportFields[key]}
+                  onChange={e => setExportFields(f => ({ ...f, [key]: e.target.checked }))}
+                  style={{ accentColor:'#f97316', width:'15px', height:'15px', cursor:'pointer' }} />
+                <span style={{ fontSize:'13px', color: exportFields[key] ? '#c2410c' : '#6b7280', fontWeight: exportFields[key] ? 600 : 400 }}>
+                  {label}
+                </span>
+              </label>
+            ))}
+          </div>
+          <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end', paddingTop:'4px', borderTop:'1px solid #e5e7eb' }}>
+            <Btn variant="ghost" onClick={() => setShowExportModal(false)}>취소</Btn>
+            <Btn onClick={() => doExport(exportFields)}>📤 내보내기</Btn>
+          </div>
         </div>
       </Modal>
 
