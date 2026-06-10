@@ -340,7 +340,11 @@ async function syncInsert(table, data) {
   }
   await withRetry(async () => {
     const { error } = await supabase.from(tbl).insert(toDb(cleanData))
-    if (error) throw new Error(error.message)
+    if (error) {
+      // duplicate key → 이미 DB에 존재하는 것이므로 성공으로 처리
+      if (error.code === '23505') return
+      throw new Error(error.message)
+    }
   }, `insert/${table}`)
 }
 
@@ -584,7 +588,7 @@ export async function initFromSupabase() {
 }
 
 // ── 로컬에만 있고 Supabase에 없는 레코드 감지 → 자동 insert (고아 레코드 복구)
-const ORPHAN_SYNC_TABLES = ['students', 'classes', 'attendance', 'notes']
+const ORPHAN_SYNC_TABLES = ['students', 'classes']
 async function syncOrphanRecords() {
   if (!supabase) return
   for (const t of ORPHAN_SYNC_TABLES) {
