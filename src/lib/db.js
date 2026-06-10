@@ -117,6 +117,10 @@ const STRING_FIELDS_STUDENT = [
 function normalizeStudent(raw) {
   const s = toCamel(raw)
   STRING_FIELDS_STUDENT.forEach(f => { if (s[f] == null || typeof s[f] !== 'string') s[f] = '' })
+  // boolean 컬럼 정규화 (DB에서 null로 올 경우 대비)
+  s.parentJoined     = !!s.parentJoined
+  s.movedToManage    = !!s.movedToManage
+  s.autoEndException = !!s.autoEndException
   if (!Array.isArray(s.classIds))            s.classIds        = s.classIds ? [s.classIds] : []
   if (!Array.isArray(s.relations))           s.relations       = []
   if (!Array.isArray(s.student_careers))     s.student_careers = []
@@ -300,10 +304,10 @@ function _emitSaveComplete()     { _saveCompleteListeners.forEach(fn => fn()) }
 function _emitSaveError(label, msg) { _saveErrorListeners.forEach(fn => fn(label, msg)) }
 
 // ─── students 테이블 boolean 컬럼 안전 변환
-// parent_joined, moved_to_manage, _deleted 컬럼은 반드시 true/false여야 함
+// DB boolean 컬럼: parent_joined, moved_to_manage, _deleted, auto_end_exception
 // 빈 문자열(""), null, undefined 등이 들어오면 PostgreSQL이 "invalid input syntax for type boolean" 오류를 냄
 function sanitizeStudentBooleans(data) {
-  const BOOL_FIELDS = ['parentJoined', 'movedToManage', '_deleted']
+  const BOOL_FIELDS = ['parentJoined', 'movedToManage', '_deleted', 'autoEndException']
   const result = { ...data }
   for (const f of BOOL_FIELDS) {
     if (f in result) result[f] = !!result[f]
@@ -321,22 +325,6 @@ async function syncInsert(table, data) {
   const sanitized  = table === 'students' ? sanitizeStudentBooleans(data) : data
   const cleanData = stripVirtualFields(table, sanitized)
 
-  // ── [DEBUG] students insert 전 payload 출력 (에러 원인 확인용 — 확인 후 제거)
-  if (table === 'students') {
-    const payload = toDb(cleanData)
-    console.log('[DEBUG] students insert payload:')
-    Object.entries(payload).forEach(([k, v]) => {
-      console.log(`  ${k}: ${JSON.stringify(v)}  (type: ${typeof v})`)
-    })
-    // boolean이어야 하는데 아닌 필드 강조
-    const boolCols = ['parent_joined', 'moved_to_manage', '_deleted']
-    boolCols.forEach(col => {
-      if (col in payload && typeof payload[col] !== 'boolean') {
-        console.error(`  ⚠️ [DEBUG] ${col} 이 boolean이 아님:`, JSON.stringify(payload[col]), typeof payload[col])
-      }
-    })
-  }
-
   if (table === 'supplySessionChecks') {
     await withRetry(async () => {
       const { error } = await supabase.from(tbl)
@@ -347,13 +335,7 @@ async function syncInsert(table, data) {
   }
   await withRetry(async () => {
     const { error } = await supabase.from(tbl).insert(toDb(cleanData))
-    if (error) {
-      // [DEBUG] Supabase 전체 에러 정보 출력 (어느 컬럼인지 확인용 — 확인 후 제거)
-      if (table === 'students') {
-        console.error('[DEBUG] Supabase 에러 전체:', JSON.stringify(error, null, 2))
-      }
-      throw new Error(error.message)
-    }
+    if (error) throw new Error(error.message)
   }, `insert/${table}`)
 }
 
