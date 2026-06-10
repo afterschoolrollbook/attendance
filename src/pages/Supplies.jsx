@@ -1173,6 +1173,18 @@ export function Supplies({ user }) {
   // 교구(로봇) 탭 내부 뷰: 'assign'=교구배정, 'progress'=진도체크
   const [robotView, setRobotView]     = useState('assign')
   const [selClassId, setSelClassId]   = useState('')  // 'classId' 또는 'classId::section'
+  const [supplyFilterSchool,   setSupplyFilterSchool]   = useState('')
+  const [supplyFilterYear,     setSupplyFilterYear]     = useState('')
+  const [supplyFilterTermType, setSupplyFilterTermType] = useState('quarter')
+  const [supplyFilterTerm,     setSupplyFilterTerm]     = useState('1')
+  const [supplyFilterProduct,  setSupplyFilterProduct]  = useState('')
+  const [supplyFilterStage,    setSupplyFilterStage]    = useState('')
+  const [supplyFilterSchool,   setSupplyFilterSchool]   = useState('')
+  const [supplyFilterYear,     setSupplyFilterYear]     = useState('')
+  const [supplyFilterTermType, setSupplyFilterTermType] = useState('quarter')
+  const [supplyFilterTerm,     setSupplyFilterTerm]     = useState('1')
+  const [supplyFilterProduct,  setSupplyFilterProduct]  = useState('')
+  const [supplyFilterStage,    setSupplyFilterStage]    = useState('')
   const [checkedStudents, setCheckedStudents] = useState([])
 
   // selClassId 파싱: 'classId::section' → { classId, selSection }
@@ -1595,13 +1607,21 @@ export function Supplies({ user }) {
   // ── 교구 배정
   const confirmedStudents = students
     .filter(s => {
-      if (!s.classIds?.includes(selClassIdParsed)) return false
+      if (selClassIdParsed && !s.classIds?.includes(selClassIdParsed)) return false
+      if (!selClassIdParsed && supplyFilterSchool) {
+        const stuSchool = (s.classIds||[]).map(cid => classes.find(c=>c.id===cid)?.organization).filter(Boolean)[0] || s.school || ''
+        if (stuSchool !== supplyFilterSchool) return false
+      }
       if (s.status !== 'confirmed') return false
-      // section 필터: selSectionParsed 있으면 학생 section 또는 수업카드 section과 매칭
       if (selSectionParsed) {
         const studentSec = s.section || ''
-        // section 필드 있으면 비교, 없으면 통과 (구버전 학생 대응)
         if (studentSec && studentSec !== selSectionParsed) return false
+      }
+      // 교구 필터
+      if (supplyFilterProduct) {
+        const si = itemList.find(i => i.studentId===s.id && i.classId===selClassIdParsed)
+        if (!si || si.productId !== supplyFilterProduct) return false
+        if (supplyFilterStage && String(si.stage) !== String(supplyFilterStage)) return false
       }
       return true
     })
@@ -2290,39 +2310,97 @@ export function Supplies({ user }) {
           {/* ── 교구 탭 */}
           {innerTab === 'supply' && (
             <div>
-              {/* 수업 선택 */}
-              <div style={{ marginBottom:'16px' }}>
-                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'6px' }}>수업 선택</label>
-                <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setCheckedStudents([]) }}
-                  style={{ ...iStyle, width:'auto', minWidth:'300px' }}>
-                  <option value=''>-- 수업을 선택하세요 --</option>
-                  {[...classes].sort((a, b) => {
-                    const DAY = ['월','화','수','목','금','토','일']
-                    const aDay = DAY.indexOf(a.days?.[0] ?? ''); const bDay = DAY.indexOf(b.days?.[0] ?? '')
-                    const dayCmp = (aDay===-1?99:aDay) - (bDay===-1?99:bDay)
-                    if (dayCmp !== 0) return dayCmp
-                    const schoolCmp = (a.organization||'').localeCompare(b.organization||'','ko')
-                    if (schoolCmp !== 0) return schoolCmp
-                    const classCmp = (a.className||'').localeCompare(b.className||'','ko')
-                    if (classCmp !== 0) return classCmp
-                    return (a.section||'').localeCompare(b.section||'','ko')
-                  }).flatMap(cls => {
-                    // sections 배열이 여러 반이면 반별로 분리 옵션 생성 (Students.jsx와 동일)
-                    const secs = cls.sections?.filter(s => s.section) || []
-                    const dayLabel = cls.days?.length ? `(${cls.days.join('·')}) ` : ''
-                    if (secs.length > 1) {
-                      return secs.map(s => (
-                        <option key={cls.id + '::' + s.section} value={cls.id + '::' + s.section}>
-                          {dayLabel}{cls.organization} · {cls.className} {s.section}반
-                        </option>
-                      ))
-                    }
-                    const secLabel = (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))
-                    return [<option key={cls.id} value={cls.id}>
-                      {dayLabel}{cls.organization} · {cls.className}{secLabel ? ' ' + secLabel : ''}
-                    </option>]
-                  })}
-                </select>
+              {/* 필터 바: 학교→년도→구분→분기→수업→교구→단계 */}
+              <div style={{ background:'#fff', borderRadius:'12px', border:'1px solid #e5e7eb', padding:'14px 16px', marginBottom:'16px' }}>
+                <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'10px' }}>📍 학생 보기 범위 선택</div>
+                <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'flex-end' }}>
+                  {/* 학교 */}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                    <label style={{ fontSize:'11px', fontWeight:500, color:'#374151' }}>학교</label>
+                    <select value={supplyFilterSchool} onChange={e => { setSupplyFilterSchool(e.target.value); setSelClassId(''); setCheckedStudents([]) }} style={{ ...iStyle, width:'auto' }}>
+                      <option value=''>전체 학교</option>
+                      {[...new Set(classes.map(c => c.organization).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko')).map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  {/* 년도 */}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                    <label style={{ fontSize:'11px', fontWeight:500, color:'#374151' }}>년도</label>
+                    <select value={supplyFilterYear} onChange={e => { setSupplyFilterYear(e.target.value); setSelClassId(''); setCheckedStudents([]) }} style={{ ...iStyle, width:'auto' }}>
+                      <option value=''>전체 년도</option>
+                      {[...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse().map(y => <option key={y} value={y}>{y}년</option>)}
+                    </select>
+                  </div>
+                  {/* 구분 */}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                    <label style={{ fontSize:'11px', fontWeight:500, color:'#374151' }}>구분</label>
+                    <select value={supplyFilterTermType} onChange={e => { setSupplyFilterTermType(e.target.value); setSupplyFilterTerm('1') }} style={{ ...iStyle, width:'auto' }}>
+                      <option value='quarter'>분기제</option>
+                      <option value='semester'>학기제</option>
+                    </select>
+                  </div>
+                  {/* 분기/학기 */}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                    <label style={{ fontSize:'11px', fontWeight:500, color:'#374151' }}>{supplyFilterTermType === 'semester' ? '학기' : '분기'}</label>
+                    <select value={supplyFilterTerm} onChange={e => setSupplyFilterTerm(e.target.value)} style={{ ...iStyle, width:'auto' }}>
+                      {supplyFilterTermType === 'semester'
+                        ? [1,2].map(n => <option key={n} value={String(n)}>{n}학기</option>)
+                        : [1,2,3,4].map(n => <option key={n} value={String(n)}>{n}분기</option>)
+                      }
+                    </select>
+                  </div>
+                  {/* 수업 */}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                    <label style={{ fontSize:'11px', fontWeight:500, color:'#374151' }}>수업</label>
+                    <select value={selClassId} onChange={e => { setSelClassId(e.target.value); setCheckedStudents([]) }} style={{ ...iStyle, width:'auto', minWidth:'200px' }}>
+                      <option value=''>전체 수업</option>
+                      {(() => {
+                        const filtered = [...classes].filter(c => {
+                          if (supplyFilterSchool && c.organization !== supplyFilterSchool) return false
+                          if (supplyFilterYear && !c.startDate?.startsWith(supplyFilterYear)) return false
+                          if (supplyFilterTermType && c.termType !== supplyFilterTermType) return false
+                          return true
+                        }).sort((a, b) => {
+                          const DAY = ['월','화','수','목','금','토','일']
+                          const aDay = DAY.indexOf(a.days?.[0] ?? ''); const bDay = DAY.indexOf(b.days?.[0] ?? '')
+                          const dayCmp = (aDay===-1?99:aDay) - (bDay===-1?99:bDay)
+                          if (dayCmp !== 0) return dayCmp
+                          return (a.organization||'').localeCompare(b.organization||'','ko') || (a.className||'').localeCompare(b.className||'','ko')
+                        })
+                        return filtered.flatMap(cls => {
+                          const secs = cls.sections?.filter(s => s.section) || []
+                          const dayLabel = cls.days?.length ? `(${cls.days.join('·')}) ` : ''
+                          if (secs.length > 1) {
+                            return secs.map(s => (
+                              <option key={cls.id+'::'+s.section} value={cls.id+'::'+s.section}>
+                                {dayLabel}{cls.organization} · {cls.className} {s.section}반
+                              </option>
+                            ))
+                          }
+                          const secLabel = cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')
+                          return [<option key={cls.id} value={cls.id}>{dayLabel}{cls.organization} · {cls.className}{secLabel ? ' '+secLabel : ''}</option>]
+                        })
+                      })()}
+                    </select>
+                  </div>
+                  {/* 교구 */}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                    <label style={{ fontSize:'11px', fontWeight:500, color:'#374151' }}>교구</label>
+                    <select value={supplyFilterProduct} onChange={e => { setSupplyFilterProduct(e.target.value); setSupplyFilterStage('') }} style={{ ...iStyle, width:'auto' }}>
+                      <option value=''>전체 교구</option>
+                      {productList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  {/* 단계 */}
+                  {supplyFilterProduct && (
+                    <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                      <label style={{ fontSize:'11px', fontWeight:500, color:'#374151' }}>단계</label>
+                      <select value={supplyFilterStage} onChange={e => setSupplyFilterStage(e.target.value)} style={{ ...iStyle, width:'auto' }}>
+                        <option value=''>전체 단계</option>
+                        {Array.from({ length: productList.find(p=>p.id===supplyFilterProduct)?.maxStage || 10 }, (_,i) => i+1).map(s => <option key={s} value={String(s)}>{s}단계</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {selClassId && isRobot && (
@@ -3233,9 +3311,17 @@ export function Supplies({ user }) {
             const termBaseClasses = givenFilter.school
               ? classes.filter(c => c.organization === givenFilter.school)
               : classes
-            const termOptionsForClass = [...new Map(
-              termBaseClasses.map(c => [getTermLabel(c), getTermLabel(c)])
-            ).values()].sort().reverse()
+            // 지급기록의 실제 quarter 값도 옵션에 포함 (수업 없어도 선택 가능)
+            const fromClasses = termBaseClasses.map(c => getTermLabel(c))
+            const fromGiven = givenList
+              .map(r => r.quarter)
+              .filter(Boolean)
+              .map(q => {
+                // "2026-2분기" → "2026년 2분기" 형식으로 통일
+                const m = q.match(/^(\d+)-(\d+)(분기|학기)$/)
+                return m ? `${m[1]}년 ${m[2]}${m[3]}` : q
+              })
+            const termOptionsForClass = [...new Set([...fromClasses, ...fromGiven])].sort().reverse()
 
             // givenTermFilter 초기값 자동설정 (첫 렌더시)
             if (!givenTermFilter && termOptionsForClass.length > 0) {
