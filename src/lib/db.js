@@ -588,7 +588,7 @@ export async function initFromSupabase() {
 }
 
 // ── 로컬에만 있고 Supabase에 없는 레코드 감지 → 자동 insert (고아 레코드 복구)
-const ORPHAN_SYNC_TABLES = ['students', 'classes']
+const ORPHAN_SYNC_TABLES = ['students']
 async function syncOrphanRecords() {
   if (!supabase) return
   for (const t of ORPHAN_SYNC_TABLES) {
