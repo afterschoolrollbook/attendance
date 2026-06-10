@@ -1561,13 +1561,15 @@ export function Students({ user, onNav, pageParams = {} }) {
     delete saveData._newTimeStart; delete saveData._newTimeEnd
     delete saveData._newTermType; delete saveData._newDays; delete saveData._newRepeatType
     delete saveData._newStartDate; delete saveData._newEndDate
-    // boolean 컬럼: 빈 문자열 → false, null → false
-    saveData.parentJoined = !!saveData.parentJoined
-    // timestamp 컬럼: 빈 문자열 → null (Supabase timestamptz는 "" 허용 안 함)
-    if (saveData.parentInviteSentAt === '' || saveData.parentInviteSentAt === false) saveData.parentInviteSentAt = null
-    // studentStartDate, studentEndDate: 빈 문자열 → null
-    if (!saveData.studentStartDate) saveData.studentStartDate = null
-    if (!saveData.studentEndDate)   saveData.studentEndDate   = null
+    // ── boolean 컬럼: 반드시 true/false (빈 문자열이나 null 허용 안 됨)
+    saveData.parentJoined    = !!saveData.parentJoined
+    saveData.movedToManage   = !!saveData.movedToManage
+    // ── timestamptz/date 컬럼: 빈 문자열 → null (Supabase는 "" 거부)
+    const NULLABLE_TIMESTAMP = ['parentInviteSentAt', 'studentStartDate', 'studentEndDate', 'createdAt', 'updatedAt']
+    NULLABLE_TIMESTAMP.forEach(f => { if (saveData[f] === '' || saveData[f] === false) saveData[f] = null })
+    // ── 기타 잘못된 타입 방어: string이어야 하는데 false/null이 들어온 경우
+    const MUST_STRING = ['homeReturn','section','parentPhone','studentPhone','memo','remark','applyOrder','school','grade','classNum','number','name','status','contactMethod','activeTerm']
+    MUST_STRING.forEach(f => { if (saveData[f] == null || typeof saveData[f] !== 'string') saveData[f] = '' })
     // studentStartDate/studentEndDate는 학생 레코드에 저장
     // transfer_info는 Supabase 컬럼 없음 — statusHistory에 날짜 기록 후 반드시 제거
     if (saveData.transfer_info) {
