@@ -1027,8 +1027,8 @@ export function Students({ user, onNav, pageParams = {} }) {
           if (fields.homeReturn)       row.homeReturn       = s.homeReturn || ''
           if (fields.memo)             row.memo             = s.memo || ''
           if (fields.remark)           row.remark           = s.remark || ''
-          if (fields.parentInviteSentAt) row.parentInviteSentAt = s.parentInviteSentAt || ''
-          if (fields.parentJoined)     row.parentJoined     = s.parentJoined || false
+          if (fields.parentInviteSentAt) row.parentInviteSentAt = s.parentInviteSentAt || null
+          if (fields.parentJoined)     row.parentJoined     = !!s.parentJoined
           if (fields.activeTerm)       row.activeTerm       = s.activeTerm || ''
           if (fields.student_careers)  row.student_careers  = s.student_careers || []
           if (fields.relations)        row.relations        = s.relations || []
@@ -1561,6 +1561,13 @@ export function Students({ user, onNav, pageParams = {} }) {
     delete saveData._newTimeStart; delete saveData._newTimeEnd
     delete saveData._newTermType; delete saveData._newDays; delete saveData._newRepeatType
     delete saveData._newStartDate; delete saveData._newEndDate
+    // boolean 컬럼: 빈 문자열 → false, null → false
+    saveData.parentJoined = !!saveData.parentJoined
+    // timestamp 컬럼: 빈 문자열 → null (Supabase timestamptz는 "" 허용 안 함)
+    if (saveData.parentInviteSentAt === '' || saveData.parentInviteSentAt === false) saveData.parentInviteSentAt = null
+    // studentStartDate, studentEndDate: 빈 문자열 → null
+    if (!saveData.studentStartDate) saveData.studentStartDate = null
+    if (!saveData.studentEndDate)   saveData.studentEndDate   = null
     // studentStartDate/studentEndDate는 학생 레코드에 저장
     // transfer_info는 Supabase 컬럼 없음 — statusHistory에 날짜 기록 후 반드시 제거
     if (saveData.transfer_info) {
