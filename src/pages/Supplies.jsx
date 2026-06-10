@@ -2011,7 +2011,8 @@ export function Supplies({ user }) {
         }
       }
       // 실제 저장된 차시 수로 sessionsPerStage 자동 업데이트
-      const actualCount = sessionPlanEdits.filter(e => e.title?.trim()).length
+      // 실제 저장된 차시 수 = 0차시 포함 전체
+      const actualCount = sessionPlanEdits.length
       if (actualCount > 0) {
         const product = productList.find(p => p.id === sessionPlanTarget.productId)
         if (product && actualCount !== product.sessionsPerStage) {
@@ -2406,9 +2407,10 @@ export function Supplies({ user }) {
                               const supply    = getStudentSupply(s.id)
                               const isChecked = checkedStudents.includes(s.id)
                               const product   = productList.find(p => p.id === supply.productId)
-                              const sps       = product?.sessionsPerStage || 12
                               const prog      = progressList.find(p => p.studentId===s.id && p.classId===selClassIdParsed && p.productId===supply.productId)
                               const curStage  = prog?.curStage || (supply.stage ? Number(supply.stage) : null)
+                              const stagePlans = curStage ? productPlanList.filter(p => p.productId===supply.productId && p.stage===curStage) : []
+                              const sps       = stagePlans.length > 0 ? stagePlans.length : (product?.sessionsPerStage || 12)
                               const stageChecks = curStage
                                 ? checkList.filter(c => c.studentId===s.id && c.classId===selClassIdParsed && c.productId===supply.productId && c.stage===curStage).length
                                 : 0
