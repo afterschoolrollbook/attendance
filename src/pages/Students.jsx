@@ -928,8 +928,9 @@ export function Students({ user, onNav, pageParams = {} }) {
     parentInviteSentAt: false, parentJoined: false,
     activeTerm: true, student_careers: false,
     relations: false, cancel_info: false, statusHistory: false,
-    studentStartDate: true, studentEndDate: true,
     createdAt: true,
+    classStartDate: true, classEndDate: true,
+    studentStartDate: true, studentEndDate: true,
   })
   const [showExcel,    setShowExcel]    = useState(false)
   const [excelPreview, setExcelPreview] = useState([])
@@ -1019,9 +1020,17 @@ export function Students({ user, onNav, pageParams = {} }) {
           if (fields.relations)        row.relations        = s.relations || []
           if (fields.cancel_info)      row.cancel_info      = s.cancel_info || null
           if (fields.statusHistory)    row.statusHistory    = s.statusHistory || []
+          if (fields.createdAt)        row.createdAt        = s.createdAt        || ''
+          if (fields.classStartDate) {
+            const sCls = classes.find(c => c.id === s.classIds?.[0])
+            row.classStartDate = sCls?.startDate || ''
+          }
+          if (fields.classEndDate) {
+            const sCls2 = classes.find(c => c.id === s.classIds?.[0])
+            row.classEndDate = sCls2?.endDate || ''
+          }
           if (fields.studentStartDate) row.studentStartDate = s.studentStartDate || ''
           if (fields.studentEndDate)   row.studentEndDate   = s.studentEndDate   || ''
-          if (fields.createdAt)        row.createdAt        = s.createdAt        || ''
           return row
         }),
       }
@@ -3156,11 +3165,13 @@ export function Students({ user, onNav, pageParams = {} }) {
               {
                 title: '📅 수업 정보',
                 items: [
-                  { key:'studentStartDate',  label:'이 학생의 시작일' },
-                  { key:'studentEndDate',    label:'이 학생의 종료일' },
                   { key:'activeTerm',        label:'현재 텀' },
-                  { key:'student_careers',   label:'학생 경력' },
+                  { key:'student_careers',   label:'📅 학생 경력' },
                   { key:'status',            label:'수강 상태' },
+                  { key:'classStartDate',    label:'수업 시작일' },
+                  { key:'classEndDate',      label:'수업 종료일' },
+                  { key:'studentStartDate',  label:'이 학생의 시작 분기 선택' },
+                  { key:'studentEndDate',    label:'이 학생의 분기 종료일' },
                   { key:'cancel_info',       label:'취소 정보' },
                   { key:'statusHistory',     label:'상태 변경 이력' },
                 ]
@@ -3176,13 +3187,13 @@ export function Students({ user, onNav, pageParams = {} }) {
                   { key:'createdAt',         label:'신청일' },
                   { key:'parentPhone',       label:'학부모 전화번호' },
                   { key:'studentPhone',      label:'학생 전화번호' },
-                  { key:'contactMethod',     label:'주연락방법' },
+                  { key:'contactMethod',     label:'📱 주연락방법' },
                   { key:'homeReturn',        label:'귀가방법' },
-                  { key:'memo',              label:'특이사항 메모' },
+                  { key:'memo',              label:'📌 특이사항 메모' },
                   { key:'remark',            label:'비고' },
-                  { key:'parentInviteSentAt',label:'출결초대 발송' },
-                  { key:'parentJoined',      label:'학부모 앱 가입' },
-                  { key:'relations',         label:'가족 관계' },
+                  { key:'parentInviteSentAt',label:'📨 출결초대 발송' },
+                  { key:'parentJoined',      label:'👨‍👩‍👧 학부모 앱 가입' },
+                  { key:'relations',         label:'👨‍👩‍👧‍👦 가족 관계' },
                 ]
               },
             ]
