@@ -1927,18 +1927,16 @@ export function Students({ user, onNav, pageParams = {} }) {
               <option value="quarter">분기제</option>
             </select>
           </div>
-          {ctxTermType && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>{ctxTermType === 'semester' ? '학기' : '분기'}</label>
-              <select value={ctxTerm} onChange={e => setCtxTerm(e.target.value)} style={selSt}>
-                <option value="">전체</option>
-                {ctxTermType === 'semester'
-                  ? [1,2].map(n => <option key={n} value={String(n)}>{n}학기</option>)
-                  : [1,2,3,4].map(n => <option key={n} value={String(n)}>{n}분기</option>)
-                }
-              </select>
-            </div>
-          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>{ctxTermType === 'semester' ? '학기' : '분기'}</label>
+            <select value={ctxTerm} onChange={e => setCtxTerm(e.target.value)} style={selSt}>
+              <option value="">전체</option>
+              {ctxTermType === 'semester'
+                ? [1,2].map(n => <option key={n} value={String(n)}>{n}학기</option>)
+                : [1,2,3,4].map(n => <option key={n} value={String(n)}>{n}분기</option>)
+              }
+            </select>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <label style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>수업</label>
             <select value={ctxClass} onChange={e => { setCtxClass(e.target.value); setCtxSection('') }} style={selSt}>
