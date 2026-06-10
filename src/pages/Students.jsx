@@ -2250,7 +2250,12 @@ export function Students({ user, onNav, pageParams = {} }) {
                   </thead>
                   <tbody>
                     {newStudents.map((s, i) => {
-                      const sClasses = (s.classIds||[]).map(cid => { const cls=classes.find(c=>c.id===cid); return cls ? cls.className+((cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))?' '+(cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')):'') : null }).filter(Boolean)
+                      const sClasses = (s.classIds||[]).map(cid => {
+                        const cls = classes.find(c => c.id === cid)
+                        if (!cls) return null
+                        const secLabel = s.section ? s.section + '반' : (cls.sections?.filter(sc=>sc.section).map(sc=>sc.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))
+                        return cls.className + (secLabel ? ' ' + secLabel : '')
+                      }).filter(Boolean)
                       const displaySchool = (s.classIds||[]).map(cid => classes.find(c=>c.id===cid)?.organization).filter(Boolean)[0] || s.school || ''
                       const isChecked = selectedForMove.includes(s.id)
                       return (
