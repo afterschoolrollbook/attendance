@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import LandingPage from './pages/LandingPage.jsx'
-import { Users, Students as StudentsDB } from './lib/db.js'
+import { Users, Students as StudentsDB, Classes as ClassesDB } from './lib/db.js'
 import { initFromSupabase, loadCacheFromIDB, onSaveError, onDbChange } from './lib/db.js'
 import { SaveStatusBar } from './components/SaveStatusBar.jsx'
 import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail, dbCall } from './lib/supabase.js'
@@ -191,12 +191,24 @@ export default function App() {
         // ── 전역 데이터 마이그레이션: 앱 시작 시 1회 실행
         // 나중에 추가된 필드가 null인 구 데이터를 정규화하여 string method 에러 방지
         ;(async () => {
-          const allStudents = StudentsDB.all()
-          allStudents.forEach(s => {
+          const STRING_FIELDS_S = ['homeReturn','section','parentPhone','memo','applyOrder','remark','grade','classNum','number']
+          StudentsDB.all().forEach(s => {
             const patch = {}
-            if (s.homeReturn == null) patch.homeReturn = ''
-            if (s.section    == null) patch.section    = ''
+            STRING_FIELDS_S.forEach(f => { if (s[f] == null || typeof s[f] !== 'string') patch[f] = '' })
+            if (!Array.isArray(s.classIds))        patch.classIds        = []
+            if (!Array.isArray(s.relations))       patch.relations       = []
+            if (!Array.isArray(s.student_careers)) patch.student_careers = []
+            if (!Array.isArray(s.statusHistory))   patch.statusHistory   = []
             if (Object.keys(patch).length > 0) StudentsDB.update(s.id, patch)
+          })
+          ClassesDB.all().forEach(c => {
+            const patch = {}
+            if (c.section == null || typeof c.section !== 'string') patch.section = ''
+            if (c.time    == null || typeof c.time    !== 'string') patch.time    = ''
+            if (c.timeEnd == null || typeof c.timeEnd !== 'string') patch.timeEnd = ''
+            if (!Array.isArray(c.sections)) patch.sections = []
+            if (!Array.isArray(c.days))     patch.days     = []
+            if (Object.keys(patch).length > 0) ClassesDB.update(c.id, patch)
           })
         })()
 
