@@ -1800,6 +1800,7 @@ export function Students({ user, onNav, pageParams = {} }) {
         classIds:     excelClassId ? [excelClassId] : [],
         status: 'applied', memo: '',
         movedToManage: false,
+        parentJoined:  false,
         statusHistory: [{ status: 'applied', changedAt: now(), memo: '엑셀 일괄 등록' }],
         createdAt: now(),
       })

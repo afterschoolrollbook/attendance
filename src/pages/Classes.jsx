@@ -324,6 +324,7 @@ export function Classes({ user, onNav }) {
             student_careers: s.student_careers || [],
             statusHistory: [{ status: s.status || 'applied', changedAt: now(), memo: '템플릿 불러오기' }],
             movedToManage: false,
+            parentJoined:  !!s.parentJoined,
             createdAt:     now(),
           })
           existingKeys.add(key)
