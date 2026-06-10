@@ -320,6 +320,23 @@ async function syncInsert(table, data) {
   const { tbl, toDb } = getConverters(table)
   const sanitized  = table === 'students' ? sanitizeStudentBooleans(data) : data
   const cleanData = stripVirtualFields(table, sanitized)
+
+  // ── [DEBUG] students insert 전 payload 출력 (에러 원인 확인용 — 확인 후 제거)
+  if (table === 'students') {
+    const payload = toDb(cleanData)
+    console.log('[DEBUG] students insert payload:')
+    Object.entries(payload).forEach(([k, v]) => {
+      console.log(`  ${k}: ${JSON.stringify(v)}  (type: ${typeof v})`)
+    })
+    // boolean이어야 하는데 아닌 필드 강조
+    const boolCols = ['parent_joined', 'moved_to_manage', '_deleted']
+    boolCols.forEach(col => {
+      if (col in payload && typeof payload[col] !== 'boolean') {
+        console.error(`  ⚠️ [DEBUG] ${col} 이 boolean이 아님:`, JSON.stringify(payload[col]), typeof payload[col])
+      }
+    })
+  }
+
   if (table === 'supplySessionChecks') {
     await withRetry(async () => {
       const { error } = await supabase.from(tbl)
