@@ -917,6 +917,7 @@ export function Students({ user, onNav, pageParams = {} }) {
   const [form,      setForm]      = useState(emptyStudent())
 
   const [showExportModal, setShowExportModal] = useState(false)
+  const [exportTargetStudent, setExportTargetStudent] = useState(null) // null=전체, object=단일학생
   const [exportFields,    setExportFields]    = useState({
     name: true, status: true, grade: true, classNum: true, number: true,
     section: true, school: true, applyOrder: true,
@@ -958,15 +959,21 @@ export function Students({ user, onNav, pageParams = {} }) {
     if (!ctxClassId) { toastError('수업을 먼저 선택하세요.'); return }
     const students = StudentsDB.byClass(ctxClassId)
     if (students.length === 0) { toastError('해당 수업에 학생이 없습니다.'); return }
+    setExportTargetStudent(null)
     setShowExportModal(true)
   }
 
   const doExport = (fields) => {
-    const cls = classes.find(c => c.id === ctxClassId)
-    const students = StudentsDB.byClass(ctxClassId)
+    const isSingle = !!exportTargetStudent
+    const cls = isSingle
+      ? classes.find(c => c.id === exportTargetStudent.classIds?.[0])
+      : classes.find(c => c.id === ctxClassId)
+    const students = isSingle ? [exportTargetStudent] : StudentsDB.byClass(ctxClassId)
     try {
       const safeName = (str) => (str || '').replace(/[/\\:*?"<>|]/g, '_').trim()
-      const label = [cls?.days?.join(''), cls?.organization, cls?.className, cls?.section].filter(Boolean).join('_')
+      const label = isSingle
+        ? [cls?.days?.join(''), cls?.organization, cls?.className, cls?.section, exportTargetStudent.name].filter(Boolean).join('_')
+        : [cls?.days?.join(''), cls?.organization, cls?.className, cls?.section].filter(Boolean).join('_')
       const payload = {
         __type: 'students',
         __version: 1,
@@ -2787,50 +2794,8 @@ export function Students({ user, onNav, pageParams = {} }) {
               <button onClick={() => {
                 const s = StudentsDB.byTeacher(user.id).find(x => x.id === editId)
                 if (!s) return
-                const cls = classes.find(c => c.id === s.classIds?.[0])
-                const safeName = (str) => (str || '').replace(/[/\\:*?"<>|]/g, '_').trim()
-                const label = [cls?.days?.join(''), cls?.organization, cls?.className, cls?.section, s.name].filter(Boolean).join('_')
-                const payload = {
-                  __type: 'students',
-                  __version: 1,
-                  exportedAt: new Date().toISOString(),
-                  classMeta: {
-                    id:           cls?.id,
-                    organization: cls?.organization || '',
-                    className:    cls?.className    || '',
-                    section:      cls?.section      || '',
-                    days:         cls?.days         || [],
-                    time:         cls?.time         || '',
-                    timeEnd:      cls?.timeEnd      || '',
-                    termType:     cls?.termType     || '',
-                  },
-                  students: [{
-                    name:          s.name,
-                    status:        s.status,
-                    school:        s.school        || '',
-                    grade:         s.grade         || '',
-                    classNum:      s.classNum      || '',
-                    number:        s.number        || '',
-                    parentPhone:   s.parentPhone   || '',
-                    studentPhone:  s.studentPhone  || '',
-                    contactMethod: s.contactMethod || '',
-                    homeReturn:    s.homeReturn    || '',
-                    memo:          s.memo          || '',
-                    remark:        s.remark        || '',
-                    applyOrder:    s.applyOrder    || '',
-                    relations:     s.relations     || [],
-                    student_careers: s.student_careers || [],
-                    statusHistory: s.statusHistory || [],
-                  }],
-                }
-                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-                const url  = URL.createObjectURL(blob)
-                const a    = document.createElement('a')
-                a.href     = url
-                a.download = `${safeName(label)}_학생.after`
-                a.click()
-                URL.revokeObjectURL(url)
-                showToast(`📤 ${s.name} 내보내기 완료!`)
+                setExportTargetStudent(s)
+                setShowExportModal(true)
               }} style={{ padding:'8px 14px', borderRadius:'9px', border:'1.5px solid #86efac', background:'#f0fdf4', color:'#16a34a', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', marginRight:'auto' }}>
                 📤 내보내기
               </button>
