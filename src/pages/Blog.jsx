@@ -17,10 +17,9 @@ function sanitizeHtml(html) {
 
 import React, { useState, useEffect } from 'react'
 import { dbCall, supabase } from '../lib/supabase.js'
-import { Users } from '../lib/db.js'
-import { verifyPassword } from '../lib/crypto.js'
 import { BlogAdmin } from './BlogAdmin.jsx'
 import { uid, now } from '../lib/utils.js'
+import { Settings } from '../lib/db.js'
 
 // ── 마크다운 파서
 // replaced
@@ -632,34 +631,12 @@ export function Blog() {
   const [tab, setTab] = useState('blog')
   const [selPost, setSelPost] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [adminUser, setAdminUser] = useState(() => {
-    try {
-      const cached = sessionStorage.getItem('asa_user')
-      if (cached) { const u = JSON.parse(cached); return u?.level >= 5 ? u : null }
-    } catch {}
-    return null
-  })
-  const [showAdminLogin, setShowAdminLogin] = useState(false)
-  const [loginForm, setLoginForm] = useState({ email:'', pw:'' })
-  const [loginError, setLoginError] = useState('')
+  const [currentUser, setCurrentUser] = useState(null)  // Supabase 세션 기반 유저
   const [blogAdminMode, setBlogAdminMode] = useState(false)
 
-  // 로그인 세션 확인
-  const sessionUser = (() => {
-    try {
-      // Supabase 로그인 토큰만 체크 (sb-xxxxx-auth-token 형식)
-      const hasSupabaseSession = Object.keys(localStorage).some(k =>
-        k.startsWith('sb-') && k.endsWith('-auth-token')
-      )
-      if (hasSupabaseSession) {
-        // 토큰이 실제로 유효한지 확인 (access_token 존재 여부)
-        const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
-        const token = JSON.parse(localStorage.getItem(tokenKey) || 'null')
-        return !!(token?.access_token)
-      }
-      return false
-    } catch { return false }
-  })()
+  const blogWriteMinLevel = Settings.get('blogWriteMinLevel') ?? 1
+  const canWrite = currentUser && (currentUser.role === 'admin' || (currentUser.level || 1) >= blogWriteMinLevel)
+  const isAdmin  = currentUser && (currentUser.role === 'admin' || (currentUser.level || 1) >= 10)
 
   const blogPosts = allPosts.filter(p => {
     const type = p.type || 'blog'
@@ -678,7 +655,17 @@ export function Blog() {
     else { setTab('blog'); const slug = path.match(/^\/blog\/(.+)$/)?.[1]; if (slug) loadPostBySlug(slug) }
     setMeta('방과후 출석부 블로그', '방과후 강사를 위한 출석 관리 팁', `${window.location.origin}/blog`)
     loadPosts()
+    loadCurrentUser()
   }, [])
+
+  const loadCurrentUser = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user?.email) return
+      const dbUser = await dbCall('findByEmail', 'users', { email: session.user.email })
+      if (dbUser) setCurrentUser(dbUser)
+    } catch {}
+  }
 
   const loadPosts = async () => {
     try {
@@ -708,17 +695,6 @@ export function Blog() {
     window.history.pushState({}, '', tab === 'docs' ? '/docs' : tab === 'templates' ? '/templates' : '/blog')
   }
 
-  const handleAdminLogin = async () => {
-    setLoginError('')
-    const user = Users.findByEmail(loginForm.email.trim().toLowerCase())
-    const ok = user ? await verifyPassword(loginForm.pw, user.pw) : false
-    if (!user || !ok) { setLoginError('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
-    if (user.level < 5) { setLoginError('관리자 권한이 없습니다.'); return }
-    // 세션 저장 후 앱 관리자 페이지로 이동
-    sessionStorage.setItem('asa_user', JSON.stringify(user))
-    window.location.href = '/?page=blog_admin'
-  }
-
   const switchTab = (t) => { setTab(t); setSelPost(null); window.history.pushState({}, '', `/${t}`) }
 
   const Nav = () => (
@@ -741,12 +717,18 @@ export function Blog() {
           )}
         </div>
         <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-          {sessionUser && (
+          {currentUser && (
             <a href="/?page=dashboard" style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#374151', borderRadius:'8px', fontSize:'13px', fontWeight:600, textDecoration:'none' }}>
               🏠 대시보드
             </a>
           )}
-          {sessionUser ? (
+          {canWrite && (
+            <button onClick={() => setBlogAdminMode(v => !v)}
+              style={{ padding:'7px 16px', background:blogAdminMode?'#1f2937':'#f97316', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              {blogAdminMode ? '← 블로그' : '✏️ 글관리'}
+            </button>
+          )}
+          {currentUser ? (
             <button onClick={async () => { await supabase?.auth?.signOut(); window.location.href = '/' }}
               style={{ padding:'7px 16px', background:'none', border:'1px solid #fecaca', color:'#ef4444', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
               🚪 로그아웃
@@ -756,46 +738,10 @@ export function Blog() {
               로그인
             </a>
           )}
-          {adminUser ? (
-            <button onClick={() => setBlogAdminMode(v => !v)}
-              style={{ padding:'7px 16px', background:blogAdminMode?'#1f2937':'#f97316', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-              {blogAdminMode ? '← 블로그' : '✏️ 글관리'}
-            </button>
-          ) : (
-            <button onClick={() => setShowAdminLogin(true)}
-              style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#6b7280', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-              관리자
-            </button>
-          )}
           <a href="/" style={{ padding:'7px 18px', background:'#f97316', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, textDecoration:'none' }}>앱 시작하기 →</a>
         </div>
       </div>
     </nav>
-  )
-
-  const AdminLoginModal = () => (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}
-      onClick={e => { if (e.target===e.currentTarget) { setShowAdminLogin(false); setLoginError('') } }}>
-      <div style={{ background:'#fff', borderRadius:'16px', padding:'32px', width:'100%', maxWidth:'380px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-        <h2 style={{ fontSize:'18px', fontWeight:700, color:'#111827', marginBottom:'8px' }}>🔐 관리자 로그인</h2>
-        <p style={{ fontSize:'13px', color:'#6b7280', marginBottom:'24px' }}>블로그 및 설명서 작성·관리</p>
-        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-          <input type="email" placeholder="이메일" value={loginForm.email}
-            onChange={e => setLoginForm(v => ({ ...v, email:e.target.value }))}
-            onKeyDown={e => e.key==='Enter' && handleAdminLogin()}
-            style={{ padding:'10px 14px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-          <input type="password" placeholder="비밀번호" value={loginForm.pw}
-            onChange={e => setLoginForm(v => ({ ...v, pw:e.target.value }))}
-            onKeyDown={e => e.key==='Enter' && handleAdminLogin()}
-            style={{ padding:'10px 14px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-          {loginError && <div style={{ fontSize:'13px', color:'#ef4444', fontWeight:600 }}>{loginError}</div>}
-          <button onClick={handleAdminLogin}
-            style={{ padding:'11px', borderRadius:'9px', border:'none', background:'#f97316', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', marginTop:'4px' }}>
-            로그인
-          </button>
-        </div>
-      </div>
-    </div>
   )
 
   if (loading) return (
@@ -808,7 +754,7 @@ export function Blog() {
   )
 
   const MainContent = () => {
-    if (blogAdminMode) return <div style={{ padding:'24px' }}><BlogAdmin user={adminUser} /></div>
+    if (blogAdminMode) return <div style={{ padding:'24px' }}><BlogAdmin user={currentUser} /></div>
     if (selPost) {
       if (selPost.type === 'docs') return <DocsDetail doc={selPost} allDocs={docsPosts} onBack={handleBack} onSelect={handleSelect} />
       if (selPost.type === 'template') return <TemplateDetail post={selPost} onBack={handleBack} />
@@ -823,7 +769,6 @@ export function Blog() {
     <div style={{ minHeight:'100vh', background:'#fafafa', fontFamily:'Noto Sans KR, sans-serif' }}>
       <style>{globalStyles}</style>
       <Nav />
-      {showAdminLogin && <AdminLoginModal />}
       <div style={{ display:'flex', justifyContent:'center', gap:'20px', padding:'0 16px', maxWidth:'1500px', margin:'0 auto' }}>
         <div className="blog-side-ad" style={{ width:'160px', flexShrink:0, paddingTop:'32px' }}>
           <div style={{ position:'sticky', top:'80px' }}>
