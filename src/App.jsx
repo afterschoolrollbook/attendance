@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import LandingPage from './pages/LandingPage.jsx'
-import { Users, Students as StudentsDB, Classes as ClassesDB } from './lib/db.js'
-import { initFromSupabase, loadCacheFromIDB, onSaveError, onDbChange, startSyncRetry, stopSyncRetry } from './lib/db.js'
+import { Users } from './lib/db.js'
+import { initFromSupabase, loadCacheFromIDB, onSaveError, onDbChange } from './lib/db.js'
 import { SaveStatusBar } from './components/SaveStatusBar.jsx'
 import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail, dbCall } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
@@ -17,7 +17,6 @@ import { Admin } from './pages/Admin.jsx'
 import { Adsense } from './pages/Adsense.jsx'
 import { AdminSettings } from './pages/AdminSettings.jsx'
 import { Profile } from './pages/Profile.jsx'
-import { BlogWrite } from './pages/BlogWrite.jsx'
 import { NaverCallback } from './pages/NaverCallback.jsx'
 import { KakaoCallback } from './pages/KakaoCallback.jsx'
 import { TermsPage, PrivacyPage } from './pages/LegalPage.jsx'
@@ -68,7 +67,7 @@ const MOBILE_NAV = [
   { path: '__more__',     label: '더보기', icon: '☰'  },
 ]
 
-function MobileHeader({ onMenuOpen, onLogoClick }) {
+function MobileHeader({ onMenuOpen }) {
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 900,
@@ -76,7 +75,7 @@ function MobileHeader({ onMenuOpen, onLogoClick }) {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '0 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
     }}>
-      <div onClick={onLogoClick} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span style={{ fontSize: '20px' }}>📋</span>
         <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>방과후 출석부</span>
       </div>
@@ -119,14 +118,8 @@ function MobileBottomNav({ currentPage, onNav }) {
 
 export default function App() {
   const [user, setUser] = useState(null)
-  const [showLanding, setShowLanding] = useState(() => {
-    const param = new URLSearchParams(window.location.search).get('page')
-    return param !== 'login' && param !== 'signup'
-  })
-  const [landingTarget, setLandingTarget] = useState(() => {
-    const param = new URLSearchParams(window.location.search).get('page')
-    return param === 'signup' ? 'signup' : 'login'
-  })
+  const [showLanding, setShowLanding] = useState(true)   // ← 랜딩 페이지 표시 여부
+  const [landingTarget, setLandingTarget] = useState('login') // 'login' | 'signup'
   const [page, setPage] = useState('dashboard')
   const [pageParams, setPageParams] = useState({})
   const [dbReady, setDbReady] = useState(false)
@@ -194,32 +187,6 @@ export default function App() {
         }
         // 2) 백그라운드에서 변경분만 Supabase 로드 (증분 동기화)
         await initFromSupabase()
-        startSyncRetry() // 미완료 작업 자동 재시도 시작
-
-        // ── 전역 데이터 마이그레이션: 앱 시작 시 1회 실행
-        // 나중에 추가된 필드가 null인 구 데이터를 정규화하여 string method 에러 방지
-        ;(async () => {
-          const STRING_FIELDS_S = ['homeReturn','section','parentPhone','memo','applyOrder','remark','grade','classNum','number']
-          StudentsDB.all().forEach(s => {
-            const patch = {}
-            STRING_FIELDS_S.forEach(f => { if (s[f] == null || typeof s[f] !== 'string') patch[f] = '' })
-            if (!Array.isArray(s.classIds))        patch.classIds        = []
-            if (!Array.isArray(s.relations))       patch.relations       = []
-            if (!Array.isArray(s.student_careers)) patch.student_careers = []
-            if (!Array.isArray(s.statusHistory))   patch.statusHistory   = []
-            if (Object.keys(patch).length > 0) StudentsDB.update(s.id, patch)
-          })
-          ClassesDB.all().forEach(c => {
-            const patch = {}
-            if (c.section == null || typeof c.section !== 'string') patch.section = ''
-            if (c.time    == null || typeof c.time    !== 'string') patch.time    = ''
-            if (c.timeEnd == null || typeof c.timeEnd !== 'string') patch.timeEnd = ''
-            if (!Array.isArray(c.sections)) patch.sections = []
-            if (!Array.isArray(c.days))     patch.days     = []
-            if (Object.keys(patch).length > 0) ClassesDB.update(c.id, patch)
-          })
-        })()
-
         const fresh = Users.findByEmail(session.user.email)
         if (fresh) {
           // 접속 기간 만료 체크
@@ -232,7 +199,7 @@ export default function App() {
             if (daysLeft < 0) {
               await authSignOut()
               setDbReady(true)
-              alert('접속 기간이 만료되었습니다.\n서비스 이용을 원하시면 관리자에게 문의해 주세요.')
+              toastError('접속 기간이 만료되었습니다. 서비스 이용을 원하시면 관리자에게 문의해 주세요.')
               return
             }
 
@@ -361,22 +328,19 @@ export default function App() {
   if (pathname === '/parent-login')  return <ParentLogin />
 
   // ── 랜딩 페이지 ─────────────────────────────────────────────────
-  if (showLanding) {
+  if (!user && showLanding) {
     return (
       <LandingPage
         onGoLogin={() => { setLandingTarget('login'); setShowLanding(false) }}
         onGoSignup={() => { setLandingTarget('signup'); setShowLanding(false) }}
         onGoBlog={() => { window.location.href = '/blog' }}
-        onGoDashboard={user ? () => { setShowLanding(false); setPage('dashboard') } : undefined}
-        onGoProfile={user ? () => { setShowLanding(false); setPage('profile') } : undefined}
-        onLogout={user ? handleLogout : undefined}
       />
     )
   }
 
   if (!user) return <Auth onLogin={handleLogin} initialTab={landingTarget} />
 
-  const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate, onLogout: handleLogout }
+  const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate }
 
   const renderPage = () => {
     switch (page) {
@@ -392,7 +356,6 @@ export default function App() {
       case 'admin':           return can(user, 'approve_teacher') ? <Admin {...pageProps} /> : <Dashboard {...pageProps} />
       case 'adsense':         return <Adsense {...pageProps} />
       case 'profile':         return <Profile {...pageProps} />
-      case 'blog_write':      return <BlogWrite user={user} onLogout={handleLogout} />
       case 'admin_settings':  return can(user, 'manage_ad') ? <AdminSettings {...pageProps} /> : <Dashboard {...pageProps} />
       case 'training':        return <Training     user={user} />
       case 'certificates':    return <Certificates user={user} />
@@ -441,7 +404,6 @@ export default function App() {
       initFromSupabase().then(() => {
         const fresh = Users.findByEmail(u.email)
         if (fresh) setUser(fresh)
-        startSyncRetry()
       })
       return
     }
@@ -480,7 +442,6 @@ export default function App() {
     if (isConfigured) await authSignOut()
     setUser(null)
     sessionStorage.removeItem('asa_user')
-    setShowLanding(true)
   }
 
   function handleNav(p, params = {}) {
@@ -498,10 +459,9 @@ export default function App() {
   return (
     <div style={{ display:'flex', minHeight:'100vh', background:'#f4f5f7', flexDirection: isMobile ? 'column' : 'row' }}>
       <SaveStatusBar user={user} />
-      {isMobile && <MobileHeader onMenuOpen={() => setSidebarOpen(true)} onLogoClick={() => setShowLanding(true)} />}
+      {isMobile && <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />}
       <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout}
-               mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)}
-               onGoLanding={() => { setShowLanding(true) }} />
+               mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <main style={{ flex:1, height:'100vh', overflowY:'auto', paddingTop: isMobile ? '52px' : 0, paddingBottom: isMobile ? '60px' : 0 }}>
         {renderPage()}
       </main>
