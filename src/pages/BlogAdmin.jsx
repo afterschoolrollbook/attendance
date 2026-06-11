@@ -94,6 +94,15 @@ const emptyForm = () => ({
 const C = { primary:'#f97316', border:'#e5e7eb', muted:'#6b7280', text:'#111827', card:'#fff' }
 
 export function BlogAdmin({ user }) {
+  const userLevel = user?.level || 1
+  const isAdmin = user?.role === 'admin' || userLevel >= 10
+  const blogWriteMinLevel = getBlogWriteMinLevel()
+  const blogNoticeMinLevel = getBlogNoticeMinLevel()
+  const canWrite = isAdmin || userLevel >= blogWriteMinLevel
+  const canWriteNotice = isAdmin || userLevel >= blogNoticeMinLevel
+  const filteredBlogCategories = BLOG_CATEGORIES.filter(c =>
+    canWriteNotice ? true : (c !== '공지사항' && c !== '업데이트')
+  )
   const [posts, setPosts] = useState([])
   const [view, setView] = useState('list')
   const [form, setForm] = useState(emptyForm())
@@ -103,18 +112,6 @@ export function BlogAdmin({ user }) {
   const [filterType, setFilterType] = useState('all') // 'all' | 'blog' | 'docs' | 'template'
   const [myPostsOnly, setMyPostsOnly] = useState(false)
   const { success, error } = useToast()
-
-  const userLevel = user?.level || 1
-  const isAdmin = user?.role === 'admin' || userLevel >= 10
-  const blogWriteMinLevel = getBlogWriteMinLevel()
-  const blogNoticeMinLevel = getBlogNoticeMinLevel()
-  const canWrite = isAdmin || userLevel >= blogWriteMinLevel
-  const canWriteNotice = isAdmin || userLevel >= blogNoticeMinLevel
-
-  // 사용자 레벨에 따라 공지사항/업데이트 카테고리 필터링
-  const filteredBlogCategories = BLOG_CATEGORIES.filter(c =>
-    canWriteNotice ? true : (c !== '공지사항' && c !== '업데이트')
-  )
 
   useEffect(() => { loadPosts() }, [])
 
