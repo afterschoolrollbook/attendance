@@ -2244,7 +2244,7 @@ function MobileCalendar({ year, month, selectedDate, classDates, onSelect, onPre
   )
 }
 
-function MobileDashboard({ user, onNav }) {
+function MobileDashboard({ user, onNav, onLogout }) {
   const today = todayStr()
   const d     = new Date()
   const [calYear,  setCalYear]  = useState(d.getFullYear())
@@ -2365,6 +2365,11 @@ function MobileDashboard({ user, onNav }) {
               📲 바로가기
             </button>
           )}
+          {/* 로그아웃 */}
+          <button onClick={onLogout}
+            style={{ padding:'8px 14px', borderRadius:'10px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            🚪 로그아웃
+          </button>
         </div>
       </div>
 
@@ -2643,9 +2648,9 @@ function MobileDashboard({ user, onNav }) {
 //  DASHBOARD  메인 export
 // ═══════════════════════════════════════════════════════════════════
 
-export function Dashboard({ user, onNav }) {
+export function Dashboard({ user, onNav, onLogout }) {
   const isMobile = window.innerWidth <= 768
-  if (isMobile) return <MobileDashboard user={user} onNav={onNav} />
+  if (isMobile) return <MobileDashboard user={user} onNav={onNav} onLogout={onLogout} />
   const { settings, hideCard, toggleCard, resetAll } = useCardSettings(user.id)
   const [showSettings,    setShowSettings]    = useState(false)
   const [showInstallGuide, setShowInstallGuide] = useState(false)
@@ -2894,6 +2899,11 @@ export function Dashboard({ user, onNav }) {
               📲 바탕화면 바로가기
             </button>
           )}
+          {/* 로그아웃 */}
+          <button onClick={onLogout}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', borderRadius: '12px', border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#6b7280', fontFamily: 'Noto Sans KR, sans-serif', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            🚪 로그아웃
+          </button>
         </div>
       </div>
 

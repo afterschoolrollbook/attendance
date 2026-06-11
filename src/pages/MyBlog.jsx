@@ -282,7 +282,7 @@ function BlogPostCard({ post, onEdit, onDelete }) {
 }
 
 // ── 메인 컴포넌트
-export function MyBlog({ user }) {
+export function MyBlog({ user, onLogout }) {
   const isAdmin = user?.role === 'admin' || (user?.level || 1) >= 10
   const [tab, setTab] = useState('blog') // 'blog' | 'secret'
   const [view, setView] = useState('list') // 'list' | 'write'
@@ -322,7 +322,13 @@ export function MyBlog({ user }) {
   return (
     <div style={{ padding: '24px', maxWidth: '900px', fontFamily: 'Noto Sans KR, sans-serif' }}>
       <div style={{ marginBottom: '24px' }}>
-        <div style={{ fontSize: '22px', fontWeight: 800, color: C.text }}>✍️ 내 블로그</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: '22px', fontWeight: 800, color: C.text }}>✍️ 내 블로그</div>
+          <button onClick={onLogout}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#6b7280', fontFamily: 'Noto Sans KR, sans-serif', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            🚪 로그아웃
+          </button>
+        </div>
         <div style={{ fontSize: '13px', color: C.muted, marginTop: '4px' }}>블로그 글을 작성하고 관리하세요.</div>
       </div>
 

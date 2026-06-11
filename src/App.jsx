@@ -369,7 +369,7 @@ export default function App() {
 
   if (!user) return <Auth onLogin={handleLogin} initialTab={landingTarget} />
 
-  const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate }
+  const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate, onLogout: handleLogout }
 
   const renderPage = () => {
     switch (page) {
@@ -385,7 +385,7 @@ export default function App() {
       case 'admin':           return can(user, 'approve_teacher') ? <Admin {...pageProps} /> : <Dashboard {...pageProps} />
       case 'adsense':         return <Adsense {...pageProps} />
       case 'profile':         return <Profile {...pageProps} />
-      case 'blog_write':      return <BlogWrite user={user} />
+      case 'blog_write':      return <BlogWrite user={user} onLogout={handleLogout} />
       case 'admin_settings':  return can(user, 'manage_ad') ? <AdminSettings {...pageProps} /> : <Dashboard {...pageProps} />
       case 'training':        return <Training     user={user} />
       case 'certificates':    return <Certificates user={user} />

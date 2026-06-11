@@ -67,7 +67,7 @@ const mdStyles = `
 
 const emptyForm = (author) => ({ title:'', content:'', category:'', tags:'', boardType:'blog', author:author||'' })
 
-export function BlogWrite({ user }) {
+export function BlogWrite({ user, onLogout }) {
   const userLevel = user?.level || 1
   const isAdmin = user?.role === 'admin' || userLevel >= 10
   const boardPerms = getBoardPerms()
@@ -232,9 +232,15 @@ export function BlogWrite({ user }) {
             <div style={{ fontSize:'22px', fontWeight:800, color:C.text }}>📝 블로그</div>
             <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>방과후 출석부 블로그에 글을 작성하세요.</div>
           </div>
-          <a href="/blog" target="_blank" style={{ padding:'8px 16px', borderRadius:'9px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
-            🌐 블로그 보러가기 →
-          </a>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+            <a href="/blog" target="_blank" style={{ padding:'8px 16px', borderRadius:'9px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
+              🌐 블로그 보러가기 →
+            </a>
+            <button onClick={onLogout}
+              style={{ display:'flex', alignItems:'center', gap:'6px', padding:'8px 16px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', cursor:'pointer', fontSize:'13px', fontWeight:600, color:'#6b7280', fontFamily:'Noto Sans KR, sans-serif', boxShadow:'0 1px 4px rgba(0,0,0,0.05)' }}>
+              🚪 로그아웃
+            </button>
+          </div>
         </div>
       </div>
 
