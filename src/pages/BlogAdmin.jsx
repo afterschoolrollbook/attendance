@@ -19,6 +19,10 @@ import React, { useState, useEffect } from 'react'
 import { dbCall } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
+import { Settings } from '../lib/db.js'
+
+function getBlogWriteMinLevel()  { return Settings.get('blogWriteMinLevel')  ?? 1  }
+function getBlogNoticeMinLevel() { return Settings.get('blogNoticeMinLevel') ?? 10 }
 
 const BLOG_CATEGORIES = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
 const DOCS_CATEGORIES = ['시작하기', '출석부', '교구 관리', '학생 관리', '수업 관리', '리포트', '설정', '기타']
@@ -100,6 +104,18 @@ export function BlogAdmin({ user }) {
   const [myPostsOnly, setMyPostsOnly] = useState(false)
   const { success, error } = useToast()
 
+  const userLevel = user?.level || 1
+  const isAdmin = user?.role === 'admin' || userLevel >= 10
+  const blogWriteMinLevel = getBlogWriteMinLevel()
+  const blogNoticeMinLevel = getBlogNoticeMinLevel()
+  const canWrite = isAdmin || userLevel >= blogWriteMinLevel
+  const canWriteNotice = isAdmin || userLevel >= blogNoticeMinLevel
+
+  // 사용자 레벨에 따라 공지사항/업데이트 카테고리 필터링
+  const filteredBlogCategories = BLOG_CATEGORIES.filter(c =>
+    canWriteNotice ? true : (c !== '공지사항' && c !== '업데이트')
+  )
+
   useEffect(() => { loadPosts() }, [])
 
   const loadPosts = async () => {
@@ -171,7 +187,7 @@ export function BlogAdmin({ user }) {
     const authorMatch = !myPostsOnly || p.authorId === (user?.id)
     return typeMatch && authorMatch
   })
-  const categories = form.type === 'docs' ? DOCS_CATEGORIES : form.type === 'template' ? TEMPLATE_CATEGORIES : BLOG_CATEGORIES
+  const categories = form.type === 'docs' ? DOCS_CATEGORIES : form.type === 'template' ? TEMPLATE_CATEGORIES : filteredBlogCategories
 
   // ── 목록 뷰
   if (view === 'list') return (
@@ -191,6 +207,7 @@ export function BlogAdmin({ user }) {
             style={{ padding:'9px 16px', borderRadius:'9px', border:`1.5px solid #bfdbfe`, background:'#eff6ff', color:'#3b82f6', fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
             📖 설명서 보기
           </a>
+          {canWrite && <>
           <button onClick={() => handleNew('blog')}
             style={{ padding:'9px 18px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             + 블로그 글
@@ -203,6 +220,12 @@ export function BlogAdmin({ user }) {
             style={{ padding:'9px 18px', borderRadius:'9px', border:'none', background:'#7c3aed', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             + 템플릿
           </button>
+          </>}
+          {!canWrite && (
+            <div style={{ fontSize:'13px', color:'#9ca3af', padding:'9px 12px', borderRadius:'9px', background:'#f9fafb', border:'1.5px solid #e5e7eb' }}>
+              🔒 Lv.{blogWriteMinLevel} 이상 글 작성 가능
+            </div>
+          )}
         </div>
       </div>
 
@@ -275,7 +298,7 @@ export function BlogAdmin({ user }) {
   // ── 편집 뷰
   const typeColor = form.type === 'docs' ? '#3b82f6' : C.primary
   return (
-    <div style={{ padding:'24px', maxWidth:'1200px' }}>
+    <div style={{ padding:'24px', maxWidth:'1600px' }}>
       <style>{previewStyles}</style>
       <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'24px', flexWrap:'wrap' }}>
         <button onClick={() => setView('list')}
@@ -297,7 +320,7 @@ export function BlogAdmin({ user }) {
         </button>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:preview?'1fr 1fr':'1fr', gap:'24px' }}>
+      <div style={{ display:'grid', gridTemplateColumns:preview?'1fr 1.2fr':'1fr', gap:'24px' }}>
         <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
 
           {/* 타입 선택 */}

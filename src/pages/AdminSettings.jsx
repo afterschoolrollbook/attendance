@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Settings, Students as StudentsDB, Classes as ClassesDB } from '../lib/db.js'
-import { FEATURES, FEATURE_LABELS, LEVEL_NAMES } from '../constants/permissions.js'
+import { FEATURES, FEATURE_LABELS, LEVEL_NAMES, LEVEL_COLORS } from '../constants/permissions.js'
 import { Card, PageHeader, Toggle, Btn, Modal, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 import { isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
@@ -1337,14 +1337,40 @@ function PermissionsSection() {
   const init = {}
   PERMISSION_FEATURES.forEach(f => { init[f] = stored[f] ?? DEFAULT_MIN_LEVELS[f] ?? 1 })
   const [cfg, setCfg] = useState(init)
+  const [blogWriteMinLevel,  setBlogWriteMinLevel]  = useState(() => Settings.get('blogWriteMinLevel')  ?? 1)
+  const [blogNoticeMinLevel, setBlogNoticeMinLevel] = useState(() => Settings.get('blogNoticeMinLevel') ?? 10)
   const { success } = useToast()
 
   const save = () => {
     Settings.set('featureMinLevels', cfg)
+    Settings.set('blogWriteMinLevel',  blogWriteMinLevel)
+    Settings.set('blogNoticeMinLevel', blogNoticeMinLevel)
     success('저장이 완료되었습니다.')
   }
 
   const levelColors = { 1:'#9ca3af', 2:'#f97316', 3:'#16a34a', 4:'#8b5cf6', 5:'#ef4444' }
+
+  const LevelSelector = ({ value, onChange, label, desc }) => (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', flexWrap:'wrap', gap:'10px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+        <span style={{ fontSize:'18px', width:'24px', textAlign:'center' }}>✍️</span>
+        <div>
+          <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{label}</div>
+          <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>{desc} — 현재: <span style={{ fontWeight:700, color: LEVEL_COLORS[value] || '#9ca3af' }}>Lv.{value} 이상</span></div>
+        </div>
+      </div>
+      <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
+        {[1,2,3,4,5,6,7,8,9,10].map(lv => (
+          <button key={lv} onClick={() => onChange(lv)}
+            style={{ width:'32px', height:'32px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700,
+              background: value === lv ? (LEVEL_COLORS[lv] || '#9ca3af') : '#f3f4f6',
+              color: value === lv ? '#fff' : '#9ca3af', transition:'all .15s', fontFamily:'Noto Sans KR, sans-serif' }}>
+            {lv}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 
   return (
     <Card style={{ marginBottom:'16px' }}>
@@ -1356,15 +1382,30 @@ function PermissionsSection() {
 
       {/* 레벨 범례 */}
       <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', marginBottom:'20px', padding:'12px 16px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
-        {[1,2,3,4,5].map(lv => (
+        {[1,2,3,4,5,6,7,8,9,10].map(lv => (
           <div key={lv} style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-            <span style={{ width:'22px', height:'22px', borderRadius:'6px', background:levelColors[lv], display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, color:'#fff' }}>{lv}</span>
+            <span style={{ width:'22px', height:'22px', borderRadius:'6px', background: LEVEL_COLORS[lv] || '#9ca3af', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, color:'#fff' }}>{lv}</span>
             <span style={{ fontSize:'12px', color:C.muted }}>{LEVEL_NAMES[lv]}</span>
           </div>
         ))}
       </div>
 
       <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+        {/* 블로그 작성 레벨 설정 */}
+        <div style={{ fontSize:'13px', fontWeight:700, color:C.text, padding:'8px 4px 4px' }}>📝 블로그 글 작성 레벨</div>
+        <LevelSelector
+          value={blogWriteMinLevel}
+          onChange={setBlogWriteMinLevel}
+          label="블로그 글 작성 최소 레벨"
+          desc="이 레벨 이상만 블로그·설명서·템플릿 글 작성 가능"
+        />
+        <LevelSelector
+          value={blogNoticeMinLevel}
+          onChange={setBlogNoticeMinLevel}
+          label="공지사항·업데이트 카테고리 작성"
+          desc="이 레벨 미만이면 공지사항·업데이트 카테고리 선택 불가"
+        />
+        <div style={{ fontSize:'13px', fontWeight:700, color:C.text, padding:'12px 4px 4px' }}>🔐 메뉴 기능별 최소 레벨</div>
         {PERMISSION_FEATURES.map(feature => {
           const info = FEATURE_LABELS[feature] || { label: feature, icon: '📌' }
           const current = cfg[feature] || 1
@@ -1379,15 +1420,15 @@ function PermissionsSection() {
                   </div>
                 </div>
               </div>
-              <div style={{ display:'flex', gap:'4px' }}>
-                {[1,2,3,4,5].map(lv => (
+              <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
+                {[1,2,3,4,5,6,7,8,9,10].map(lv => (
                   <button
                     key={lv}
                     onClick={() => setCfg(p => ({ ...p, [feature]: lv }))}
                     style={{
                       width:'32px', height:'32px', borderRadius:'8px', border:'none',
                       cursor:'pointer', fontSize:'13px', fontWeight:700,
-                      background: current === lv ? levelColors[lv] : '#f3f4f6',
+                      background: current === lv ? (LEVEL_COLORS[lv] || '#9ca3af') : '#f3f4f6',
                       color: current === lv ? '#fff' : '#9ca3af',
                       transition:'all .15s',
                       fontFamily:'Noto Sans KR, sans-serif',
