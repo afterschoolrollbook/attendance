@@ -67,7 +67,7 @@ const MOBILE_NAV = [
   { path: '__more__',     label: '더보기', icon: '☰'  },
 ]
 
-function MobileHeader({ onMenuOpen }) {
+function MobileHeader({ onMenuOpen, onLogoClick }) {
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 900,
@@ -75,7 +75,7 @@ function MobileHeader({ onMenuOpen }) {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '0 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div onClick={onLogoClick} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
         <span style={{ fontSize: '20px' }}>📋</span>
         <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>방과후 출석부</span>
       </div>
@@ -488,9 +488,10 @@ export default function App() {
   return (
     <div style={{ display:'flex', minHeight:'100vh', background:'#f4f5f7', flexDirection: isMobile ? 'column' : 'row' }}>
       <SaveStatusBar user={user} />
-      {isMobile && <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />}
+      {isMobile && <MobileHeader onMenuOpen={() => setSidebarOpen(true)} onLogoClick={() => setShowLanding(true)} />}
       <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout}
-               mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+               mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)}
+               onGoLanding={() => { setShowLanding(true) }} />
       <main style={{ flex:1, height:'100vh', overflowY:'auto', paddingTop: isMobile ? '52px' : 0, paddingBottom: isMobile ? '60px' : 0 }}>
         {renderPage()}
       </main>
