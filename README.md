@@ -16,105 +16,10 @@
 | 프론트엔드 | React 18 + Vite |
 | 백엔드/DB | Supabase (PostgreSQL + Auth + Storage + Edge Functions) |
 | 오프라인 캐시 | IndexedDB (`asa_cache`) |
-| 알림 | Resend (이메일) + Solapi (SMS/알림톡) |
+| 알림 | Resend (이메일) + Solapi (SMS/알림톡) + Web Push |
 | 소셜 로그인 | Google / 카카오 / 네이버 |
 | 배포 | Vercel |
-
----
-
-## 블로그 / 커뮤니티
-
-서비스 내 블로그 기능이 내장되어 있습니다. 공개 URL: [www.afterschoolrollbook.kr/blog](https://www.afterschoolrollbook.kr/blog)
-
-### 게시판 종류
-
-| 게시판 | key | 설명 |
-|--------|-----|------|
-| 📝 블로그 | `blog` | 출석 관리·교구 관리·업무 팁 등 카테고리별 글 |
-| ⭐ 사용자 후기 | `review` | 서비스 사용 후기 |
-| ❓ 질문 | `qna` | 이용 문의 및 Q&A |
-| 🔐 비밀게시판 | `secret` | 관리자 전용 비공개 게시판 |
-
-### 접근 권한
-
-관리자가 `서비스 설정 → 권한 설정`에서 게시판별 접근·읽기·쓰기 최소 레벨을 설정할 수 있습니다 (`boardPermissions` settings 키).
-
-### 주요 파일
-
-| 파일 | 역할 |
-|------|------|
-| `Blog.jsx` | 공개 블로그 뷰어 (마크다운 렌더링, DOMPurify XSS 방어) |
-| `BlogWrite.jsx` | 글 작성·수정 에디터 |
-| `BlogAdmin.jsx` | 관리자용 글 관리 |
-| `MyBlog.jsx` | 강사 본인 작성 글 관리 |
-
-### DB 테이블
-
-`blog_posts` — `title`, `content`, `board_type`, `category`, `tags`, `cover_image`, `published_at`, `author`, `slug`
-
-### 라우팅
-
-`/blog` 또는 `/docs` 경로 모두 `Blog.jsx`로 연결됩니다. 로그인 없이도 접근 가능한 공개 화면입니다.
-
----
-
-## 화면 목록
-
-### 공개 화면
-
-| 경로 | 화면 | 파일 |
-|------|------|------|
-| `/` | 랜딩 페이지 | `LandingPage.jsx` |
-| `/auth` | 로그인 / 회원가입 | `Auth.jsx` |
-| `/legal` | 이용약관 / 개인정보처리방침 | `LegalPage.jsx` |
-| — | 카카오 OAuth 콜백 | `KakaoCallback.jsx` |
-| — | 네이버 OAuth 콜백 | `NaverCallback.jsx` |
-
-### 강사 메뉴 (로그인 필요)
-
-| 메뉴 | 파일 |
-|------|------|
-| 🏠 대시보드 | `Dashboard.jsx` |
-| ✅ 출석부 | `Attendance.jsx` |
-| 📚 수업등록 및 관리 | `Classes.jsx` + `ClassCalendar.jsx` |
-| 👥 학생등록 및 관리 | `Students.jsx` |
-| 🎲 인원확정 및 추첨 | `StudentConfirm.jsx` |
-| 📊 출석 리포트 | `Reports.jsx` |
-| 🗂️ 방과후 서류 | `Templates.jsx` |
-| 🖨️ 출석부 출력 | `PrintSetup.jsx` |
-| 📲 출결 서비스 관리 | `ParentInvite.jsx` + `ParentServiceManage.jsx` |
-| 🎒 교구준비 및 관리 | `Supplies.jsx` |
-| 💬 안내 문구 관리 | `MessageGuide.jsx` |
-| 👤 내 정보 | `Profile.jsx` |
-| 💰 수익관리 | `Revenue.jsx` |
-| 🎓 연수관리 | `Training.jsx` |
-| 🏆 자격증관리 | `Certificates.jsx` |
-| 📋 학력 및 이력관리 | `Career.jsx` |
-| 🏅 수상경력 | `Awards.jsx` |
-| 📝 제안서·자기소개서 | `Proposals.jsx` |
-| 📢 공고관리 | `Jobs.jsx` |
-| 블로그 / 설명서 | `Blog.jsx` |
-
-### 관리자 전용 (level 10)
-
-| 메뉴 | 파일 |
-|------|------|
-| ⚙️ 관리자 | `Admin.jsx` |
-| 🔧 서비스 설정 | `AdminSettings.jsx` |
-| 📢 광고 관리 | `Adsense.jsx` |
-| 📝 블로그 관리 | `BlogAdmin.jsx` |
-| 🏢 업체 관리 | `VendorManage.jsx` |
-| 🏫 학교 담당자 관리 | `SchoolAdminManage.jsx` |
-
-### 포털
-
-| 포털 | 파일 |
-|------|------|
-| 학부모 초대 | `ParentInvite.jsx` |
-| 학부모 로그인 | `ParentLogin.jsx` |
-| 학교 담당자 | `SchoolAuth.jsx` + `SchoolAdminApp.jsx` + `SchoolAdminManage.jsx` |
-| 학교 공지 팝업 | `SchoolNoticePopup.jsx` |
-| 납품 업체 | `VendorAuth.jsx` + `VendorApp.jsx` + `VendorManage.jsx` |
+| PWA | Service Worker + Web App Manifest |
 
 ---
 
@@ -143,18 +48,190 @@ Supabase Dashboard → **Settings → API Keys** 에서 확인.
 
 ---
 
-## 백엔드 설정
+## 배포 체크리스트
 
-전체 설정은 [BACKEND_SETUP.md](./BACKEND_SETUP.md) 참고.
+새 Supabase 프로젝트 생성 또는 재배포 시 반드시 확인:
 
-배포되는 Edge Functions:
+- [ ] `supabase/000_complete_schema.sql` 실행 (RLS + PIN 함수 전부 포함)
+- [ ] Supabase Secrets에 `ALLOWED_ORIGIN` = `https://your-domain.vercel.app` 설정
+- [ ] Supabase Secrets에 `SVC_ROLE_KEY` 설정
+- [ ] Edge Functions 전체 배포 (`setup.bat` 또는 `bash setup.sh`)
+- [ ] 관리자 계정으로 로그인 후 서비스 설정에서 Resend·Solapi·VAPID 키 등록
+
+---
+
+## Edge Functions
 
 | Function | 역할 |
 |----------|------|
-| `db-api` | 통합 DB CRUD |
-| `send-email` | 이메일 발송 (Resend) |
-| `send-sms` | SMS/알림톡 발송 (Solapi) |
+| `db-api` | 통합 DB CRUD (teacher_id 기반 데이터 격리) |
+| `send-email` | 이메일 발송 (Resend) — Bearer 인증 필수 |
+| `send-sms` | SMS/알림톡 발송 (Solapi) — Bearer 인증 필수 |
+| `send-push` | 학부모 웹 푸시 발송 (Web Push API) |
+| `kakao-oauth` | 카카오 로그인 |
 | `naver-oauth` | 네이버 로그인 |
+| `reset-user-password` | 관리자 전용 사용자 비밀번호 초기화 |
+| `generate-vapid` | VAPID 키 생성 (푸시 알림 초기 설정) |
+
+---
+
+## PWA
+
+홈 화면에 설치 가능한 앱으로 동작합니다.
+
+- `public/manifest.json` — 앱 이름·아이콘·시작 URL·숏컷(출석부 바로가기) 정의
+- `public/sw.js` — 서비스 워커. 푸시 알림 수신 처리. 빌드 시 `vite.config.js`의 `injectSwVersion` 플러그인이 `// @version {timestamp}` 자동 삽입해 캐시 갱신 유도
+- `src/lib/webpush.js` — VAPID 키 기반 푸시 구독 등록(`subscribePush`) + 구독 확인(`getExistingSubscription`)
+- VAPID 공개키는 관리자 설정 → `settings.push.vapidPublicKey`에 저장
+
+---
+
+## 화면 목록
+
+### 공개 화면
+
+| 경로 | 화면 | 파일 |
+|------|------|------|
+| `/` | 랜딩 페이지 | `LandingPage.jsx` |
+| `/auth` | 로그인 / 회원가입 | `Auth.jsx` |
+| `/legal` | 이용약관 / 개인정보처리방침 | `LegalPage.jsx` |
+| `/blog`, `/docs` | 블로그 | `Blog.jsx` |
+| `/parent-login` | 학부모 로그인 | `ParentLogin.jsx` |
+| — | 카카오 OAuth 콜백 | `KakaoCallback.jsx` |
+| — | 네이버 OAuth 콜백 | `NaverCallback.jsx` |
+
+### 강사 메뉴 (로그인 필요)
+
+| 메뉴 | 파일 |
+|------|------|
+| 🏠 대시보드 | `Dashboard.jsx` |
+| ✅ 출석부 | `Attendance.jsx` |
+| 📚 수업등록 및 관리 | `Classes.jsx` + `ClassCalendar.jsx` |
+| 👥 학생등록 및 관리 | `Students.jsx` |
+| 🎲 인원확정 및 추첨 | `StudentConfirm.jsx` |
+| 📊 출석 리포트 | `Reports.jsx` |
+| 🗂️ 방과후 서류 | `Templates.jsx` |
+| 🖨️ 출석부 출력 | `PrintSetup.jsx` |
+| 📲 출결 서비스 관리 | `ParentInvite.jsx` + `ParentServiceManage.jsx` |
+| 🎒 교구준비 및 관리 | `Supplies.jsx` |
+| 💬 안내 문구 관리 | `MessageGuide.jsx` |
+| 👤 내 정보 | `Profile.jsx` |
+| 💰 수익관리 | `Revenue.jsx` |
+| 🎓 연수관리 | `Training.jsx` |
+| 🏆 자격증관리 | `Certificates.jsx` |
+| 📋 학력 및 이력관리 | `Career.jsx` |
+| 🏅 수상경력 | `Awards.jsx` |
+| 📝 제안서·자기소개서 | `Proposals.jsx` |
+| 📢 공고관리 | `Jobs.jsx` |
+
+### 관리자 전용 (level 10)
+
+| 메뉴 | 파일 |
+|------|------|
+| ⚙️ 관리자 | `Admin.jsx` |
+| 🔧 서비스 설정 | `AdminSettings.jsx` |
+| 📢 광고 관리 | `Adsense.jsx` |
+| 📝 블로그 관리 | `BlogAdmin.jsx` |
+| 🏢 업체 관리 | `VendorManage.jsx` |
+| 🏫 학교 담당자 관리 | `SchoolAdminManage.jsx` |
+
+### 포털
+
+| 포털 | 파일 |
+|------|------|
+| 학부모 초대·출결 조회 | `ParentInvite.jsx` |
+| 학부모 로그인 | `ParentLogin.jsx` |
+| 학교 담당자 | `SchoolAuth.jsx` + `SchoolAdminApp.jsx` + `SchoolAdminManage.jsx` |
+| 학교 연간 수업 달력 | `SchoolCalendar.jsx` |
+| 학교 공지 팝업 | `SchoolNoticePopup.jsx` |
+| 납품 업체 | `VendorAuth.jsx` + `VendorApp.jsx` + `VendorManage.jsx` |
+
+---
+
+## 주요 기능 상세
+
+### 수업 관리
+
+수업은 하나의 `classes` 레코드에 여러 반을 `sections` 배열로 관리합니다.
+
+```js
+{
+  id: 'mnu9soqql8nm2',
+  className: '융합발명과학',
+  organization: '판교초',
+  sections: [
+    { section: 'A', time: '13:00', timeEnd: '14:00' },
+    { section: 'B', time: '14:00', timeEnd: '15:00' },
+  ]
+}
+```
+
+수업 반복 타입: `every`(매주) / `biweekly`(2주마다) / `monthly_first~fourth`(월 N번째 요일)  
+취소일(`cancelledDates`)·보강일(`makeupDates`)·복수 학기(`periods`) 지원.
+
+> ⚠️ `classes`는 OrphanSync 대상 제외 — 수동 등록한 수업만 DB에 존재해야 함.
+
+### 출석 체크
+
+| key | 라벨 | 색상 | 이모지 |
+|-----|------|------|--------|
+| `pending` | 미처리 | `#9ca3af` | — |
+| `present` | 출석 | `#16a34a` | ✅ |
+| `absent` | 결석 | `#ef4444` | ❌ |
+| `late` | 지각 | `#f59e0b` | 🕐 |
+| `early` | 조퇴 | `#8b5cf6` | 🔜 |
+
+출석 체크 시 학부모 웹 푸시 자동 발송. `Attendance.jsx`에서 SMS 발송도 지원.
+
+### 안내 문구 관리
+
+카테고리별 SMS/카카오 문구 템플릿 관리. 변수 치환 지원: `{학교명}` `{선생님닉네임}` `{학생이름}` `{날짜}` `{수업명}`.
+
+### 학부모 포털
+
+- 강사가 초대 링크(토큰) 발송 → 학부모 전화번호 확인 → PIN 4자리 설정
+- 이후 로그인: 전화번호 + PIN (5회 실패 시 30초 잠금)
+- 자녀 출결 조회 + 수업 달력 확인
+- 탈퇴: `withdraw_parent()` RPC (security definer)
+
+### 학교 담당자 포털
+
+- 공지·업무 생성 및 강사별 제출 현황 확인
+- 담당 강사 학생 현황 조회
+- 연간 수업 달력 (분기·학기·텀·회차 구조)
+
+### 납품 업체 포털
+
+- 과목·교구·단계·차시 등록
+- 교구 목록 엑셀 다운로드/업로드
+- 강사(`Supplies.jsx`)에서 학생별 진도·교구 지급 현황 관리
+
+### 블로그 / 커뮤니티
+
+| 게시판 | key | 설명 |
+|--------|-----|------|
+| 📝 블로그 | `blog` | 출석 관리·업무 팁 카테고리별 글 |
+| ⭐ 사용자 후기 | `review` | 서비스 사용 후기 |
+| ❓ 질문 | `qna` | 이용 문의 및 Q&A |
+| 🔐 비밀게시판 | `secret` | 관리자 전용 비공개 |
+
+게시판별 접근·읽기·쓰기 최소 레벨은 관리자가 서비스 설정에서 변경 가능 (`boardPermissions`).  
+마크다운 렌더링, DOMPurify XSS 방어 적용.
+
+### 구인공고
+
+NEIS API 연동, 지역·교육청·학교·과목 필터로 공고 구독. SMS·카카오·이메일 알림 선택 가능.  
+NEIS API 키: 관리자 설정 → `settings.regionMap.neisApiKey`.
+
+### 수익관리
+
+달력 뷰 / 텀 크로스체크 / 수강료 등록 3개 탭. 수강료 미설정 수업 표시, 학생별 입금 현황 추적.
+
+### 접속 기간 만료
+
+관리자가 강사별 `accessExpiredAt` 설정 시:
+- 만료 7일 전부터 이메일 경고 자동 발송 (하루 1회)
+- 만료 시 안내 메시지 후 자동 로그아웃
 
 ---
 
@@ -177,15 +254,15 @@ Supabase Dashboard → **Settings → API Keys** 에서 확인.
   → 모든 레코드에 updated_at 자동 기록
 ```
 
-### OrphanSync 대상 테이블
-- `students` 만 대상 (classes는 수동 등록한 것만 DB에 있어야 하므로 제외)
-- attendance는 원래부터 정상 저장되므로 제외
+**OrphanSync 대상**: `students`만. classes는 수동 등록, attendance는 정상 저장이므로 제외.
+
+**syncUpdate**: update 후 반영 행이 0개면 DB에 없는 것으로 판단 → 로컬 캐시에서 전체 레코드를 꺼내 insert 전환. pending 큐 재시도 시 데이터 유실 방지.
 
 ---
 
 ## 권한 구조
 
-레벨 1~10으로 관리하며, 관리자(level 10)가 Settings에서 메뉴별 최소레벨을 변경할 수 있습니다.
+레벨 1~10으로 관리. 관리자(level 10)가 메뉴별 최소 레벨을 Settings에서 변경 가능.
 
 | 레벨 | 기본 이름 | 비고 |
 |------|----------|------|
@@ -193,72 +270,6 @@ Supabase Dashboard → **Settings → API Keys** 에서 확인.
 | 2 | 인증 선생님 | 관리자 승인 후 부여 |
 | 3~9 | 레벨3~9 | 관리자가 이름/권한 직접 설정 |
 | 10 | 관리자 | 모든 기능 접근 |
-
----
-
-## 디자인 시스템
-
-### 색상
-
-| 용도 | 색상 |
-|------|------|
-| Primary | `#f97316` |
-| Primary Hover | `#ea6c0a` |
-| Success | `#16a34a` |
-| Danger | `#ef4444` |
-| Warning | `#f59e0b` |
-| Info | `#3b82f6` |
-| Sidebar BG | `#18181b` |
-| Page BG | `#f4f5f7` |
-
-### 출석 상태
-
-| key | 라벨 | 색상 | 이모지 |
-|-----|------|------|--------|
-| `pending` | 미처리 | `#9ca3af` | — |
-| `present` | 출석 | `#16a34a` | ✅ |
-| `absent` | 결석 | `#ef4444` | ❌ |
-| `late` | 지각 | `#f59e0b` | 🕐 |
-| `early` | 조퇴 | `#8b5cf6` | 🔜 |
-
-### 학생 상태
-
-| key | 라벨 |
-|-----|------|
-| `applied` | 신청 |
-| `waiting` | 대기 |
-| `selected` | 추첨완료 |
-| `confirmed` | 최종확정 |
-| `cancelled` | 취소 |
-| `transfer_out` | 전학 |
-| `transfer_in` | 전입 |
-| `extra_applied` | 추가신청 |
-
----
-
-## 프로젝트 구조
-
-```
-src/
-├── components/
-│   ├── Atoms.jsx           # 공통 UI (Modal, Toast, ConfirmDialog 등)
-│   ├── Sidebar.jsx         # 사이드바 내비게이션
-│   ├── SaveStatusBar.jsx   # 저장 상태 바
-│   └── AdSlot.jsx          # 광고 슬롯 렌더러
-├── constants/
-│   ├── config.js           # 상수 (상태값, 색상, 요일 등)
-│   └── permissions.js      # 레벨별 권한 정의
-├── hooks/
-│   ├── useToast.js
-│   └── useConfirm.js
-├── lib/
-│   ├── db.js               # DB 레이어 (인메모리 캐시 + IndexedDB + Supabase)
-│   ├── supabase.js         # Supabase 클라이언트
-│   ├── crypto.js
-│   ├── utils.js
-│   └── webpush.js
-└── pages/                  # 페이지 컴포넌트 40개
-```
 
 ---
 
@@ -279,44 +290,13 @@ src/
 | 업체 포털 | `hq_vendors`, `hq_vendor_subjects`, `hq_vendor_products`, `hq_vendor_stages`, `hq_vendor_contents`, `hq_vendor_quarters`, `hq_vendor_sessions`, `hq_vendor_files`, `hq_vendor_prices`, `hq_vendor_users`, `vendor_accounts` |
 | 시스템 | `settings`, `ad_slots`, `blog_posts`, `points` |
 
-### students 테이블 boolean 컬럼
+### students 테이블 주의사항
 
-> ⚠️ 아래 컬럼은 반드시 `true/false`만 허용. 빈 문자열·null 전송 시 PostgreSQL 에러 발생.
+boolean 컬럼 (`parent_joined`, `moved_to_manage`, `_deleted`, `auto_end_exception`)은 반드시 `true/false`만 허용. 빈 문자열·null 전송 시 PostgreSQL 에러 발생 → `db-api`의 `sanitize()`가 자동 변환.
 
-| 컬럼 | 설명 |
-|------|------|
-| `parent_joined` | 학부모 앱 가입 여부 |
-| `moved_to_manage` | 학생관리 탭 이동 여부 |
-| `_deleted` | 소프트딜리트 |
-| `auto_end_exception` | 자동종료 예외 여부 |
+`home_return`은 귀가방법 문자열 (`'도보'`, `'학원-버스'` 등) — DB 컬럼 타입 `text`.
 
-> `home_return`은 귀가방법 문자열 (`'도보'`, `'학원-버스'` 등) — DB 컬럼 타입 `text`
-
----
-
-## 수업(classes) 데이터 구조
-
-수업은 하나의 `classes` 레코드에 여러 반을 `sections` 배열로 관리합니다.
-
-```js
-// classes 레코드 예시
-{
-  id: 'mnu9soqql8nm2',
-  className: '융합발명과학',
-  organization: '판교초',
-  section: 'A',        // 단일 반일 때 사용 (구방식)
-  sections: [          // 다중 반일 때 사용 (신방식)
-    { section: 'A', time: '13:00', timeEnd: '14:00' },
-    { section: 'B', time: '14:00', timeEnd: '15:00' },
-  ]
-}
-```
-
-드롭다운 렌더링 규칙:
-- `sections` 배열에 반이 2개 이상 → 반별로 분리해서 옵션 생성
-- `sections` 배열이 1개 이하 → `section` 필드 사용
-
-> ⚠️ classes는 OrphanSync 대상에서 제외. 수동 등록한 수업만 DB에 존재해야 함.
+`student_careers` — jsonb 배열로 수강 이력(연도·텀·수업) 관리. camelCase 변환 제외 대상(`KEEP_SNAKE_FIELDS`).
 
 ---
 
@@ -327,7 +307,6 @@ src/
 `class_ids`는 jsonb 배열이므로 반드시 `@>` 연산자 사용.
 
 ```sql
--- 특정 수업의 특정 반 학생 조회
 SELECT s.id, s.name, s.grade, s.class_num, s.section, s.status
 FROM students s
 WHERE s.class_ids @> jsonb_build_array('class_id'::text)
@@ -338,20 +317,51 @@ ORDER BY s.grade, s.class_num, s.number;
 ### ❌ 잘못된 방법 (사용 금지)
 
 ```sql
--- LIKE는 id 부분 매칭 오류 가능 → 사용 금지
+-- LIKE는 id 부분 매칭 오류 가능
 WHERE s.class_ids::text LIKE '%' || c.id || '%'
 ```
 
-### 수업별 반 인원 확인
+---
 
-```sql
-SELECT c.id, c.class_name, c.section, c.sections, COUNT(s.id) as student_count
-FROM classes c
-LEFT JOIN students s ON s.class_ids @> jsonb_build_array(c.id::text)
-WHERE c.organization = '판교초'
-GROUP BY c.id, c.class_name, c.section, c.sections
-ORDER BY c.class_name, c.section;
-```
+## 보안 설정
+
+### Row Level Security (RLS) — 완료
+
+`000_complete_schema.sql`에 포함. 신규 프로젝트 시 schema 실행만 하면 자동 적용.
+
+| 테이블 | 정책 |
+|--------|------|
+| `users` | 본인(`auth_id = auth.uid()`) 또는 관리자 |
+| `students` | `teacher_id = get_my_user_id()` 또는 관리자 |
+| `classes` | `teacher_id = get_my_user_id()` 또는 관리자 |
+| `attendance` | `class_id → classes.teacher_id` 조인으로 소유권 확인 |
+| `notes` | `teacher_id = get_my_user_id()` 또는 관리자 |
+| `parent_members` | `teacher_id = get_my_user_id()` 또는 관리자 |
+| `teacher_parent_links` | `teacher_id = get_my_user_id()` 또는 관리자 |
+| `settings` | 로그인 사용자 읽기, 쓰기는 관리자만 |
+| `school_notices` | 본인(`admin_id`) 또는 관리자 |
+
+헬퍼 함수: `get_my_user_id()` (`auth.uid()` → `users.id`), `is_admin()` (`level >= 10`).
+
+### 학부모 PIN 인증 — 완료
+
+| DB 함수 | 역할 |
+|---------|------|
+| `set_parent_pin(phone, pin)` | PIN을 bcrypt(`pgcrypto crypt()`)로 해시 저장 |
+| `verify_parent_pin(phone, pin)` | PIN 검증 후 `parent_members` 행 반환 |
+| `withdraw_parent(phone)` | 탈퇴 처리 (security definer) |
+| `check_parent_joined(phone)` | 가입 여부 확인 |
+
+`parent_members.pin_hash` 컬럼 추가됨. 프론트에서 5회 실패 시 30초 잠금.
+
+### 기타 보안 조치 — 완료
+
+- 비밀번호: 8자 이상 + 영문 + 숫자 + 특수문자 조합 필수
+- Supabase Auth 세션: `sessionStorage` (탭 닫으면 자동 로그아웃)
+- API 키(Resend·Solapi): `settings` 테이블 저장, localStorage 동기화 제외
+- `AdSlot.jsx`: Blob 실패 시 `dangerouslySetInnerHTML` 폴백 없이 `null` 반환
+- CSP 헤더: `vercel.json`에서 `script-src` · `connect-src` · `frame-src` 화이트리스트
+- CORS: 모든 Edge Function이 `ALLOWED_ORIGIN` Secret으로 도메인 제한
 
 ---
 
@@ -372,107 +382,51 @@ ORDER BY c.class_name, c.section;
 
 ---
 
+## 디자인 시스템
+
+| 용도 | 색상 |
+|------|------|
+| Primary | `#f97316` |
+| Primary Hover | `#ea6c0a` |
+| Success | `#16a34a` |
+| Danger | `#ef4444` |
+| Warning | `#f59e0b` |
+| Info | `#3b82f6` |
+| Sidebar BG | `#18181b` |
+| Page BG | `#f4f5f7` |
+
+---
+
+## 프로젝트 구조
+
+```
+src/
+├── components/
+│   ├── Atoms.jsx           # 공통 UI (Modal, Toast, ConfirmDialog 등)
+│   ├── Sidebar.jsx         # 사이드바 내비게이션
+│   ├── SaveStatusBar.jsx   # 저장 상태 바
+│   └── AdSlot.jsx          # 광고 슬롯 렌더러 (iframe sandbox)
+├── constants/
+│   ├── config.js           # 상수 (상태값, 색상, 요일 등)
+│   └── permissions.js      # 레벨별 권한 정의
+├── hooks/
+│   ├── useToast.js
+│   └── useConfirm.js
+├── lib/
+│   ├── db.js               # DB 레이어 (인메모리 캐시 + IndexedDB + Supabase)
+│   ├── supabase.js         # Supabase 클라이언트 (sessionStorage 세션)
+│   ├── crypto.js           # PBKDF2 비밀번호 해싱
+│   ├── utils.js            # 날짜·회차 계산·포맷 유틸
+│   └── webpush.js          # 웹 푸시 구독 관리
+└── pages/                  # 페이지 컴포넌트 43개
+supabase/
+├── 000_complete_schema.sql # 전체 DB 스키마 + RLS + PIN 함수
+└── functions/              # Edge Functions 8개
+public/
+├── manifest.json           # PWA 매니페스트
+└── sw.js                   # 서비스 워커 (푸시 수신)
+```
+
+---
+
 *방과후 출석부 — 현장 강사가 실제로 쓰는 출결 관리 플랫폼*
-
----
-
-## 구현 특이사항
-
-코드를 처음 보는 사람이 놓치기 쉬운 설계 결정들을 정리합니다.
-
-### 비밀번호 해싱 — PBKDF2 + 솔트
-
-`src/lib/crypto.js`에서 Web Crypto API로 PBKDF2(반복 100,000회, SHA-256, 랜덤 16바이트 솔트) 적용.
-저장 형식: `pbkdf2:{saltHex}:{hashHex}`. 레거시 SHA-256(64자 hex) fallback은 검증만 가능하고 신규 생성은 불가.
-
-### 오프라인 → 온라인 자동 복구 (pending 큐)
-
-쓰기 실패 시 `IndexedDB(asa_pending_ops)`에 적재 → 30초마다 자동 재시도 + 온라인 복귀 시 즉시 재시도.
-앱 재시작 시 로컬에만 있고 Supabase에 없는 `students` 레코드를 자동 insert하는 OrphanSync도 포함.
-
-### syncUpdate — row 없으면 insert 자동 전환
-
-`syncUpdate()`는 update 후 반영된 행이 0개면 DB에 해당 row가 없는 것으로 판단, 로컬 캐시에서 전체 레코드를 꺼내 insert로 전환.
-pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다 유실되는 상황을 방지.
-
-### boolean 컬럼 sanitize
-
-`db-api` Edge Function의 `sanitize()`가 `students` 테이블의 `parent_joined`, `moved_to_manage` 컬럼에 빈 문자열·null이 들어오면 자동으로 `false`로 변환. 프론트에서 잘못된 값을 보내도 PostgreSQL boolean 에러가 발생하지 않음.
-
-### CSP 헤더 (vercel.json)
-
-`vercel.json`에 `Content-Security-Policy` 헤더를 직접 설정. `script-src`, `connect-src`, `frame-src`를 허용 도메인 화이트리스트로 제한. 별도 서버 없이 Vercel 엣지에서 XSS 기본 차단.
-
-### 개인정보처리방침 (`LegalPage.jsx`)
-
-`DEFAULT_PRIVACY`에 미성년자 개인정보 처리 근거(개인정보보호법 제15조 제1항 제4호), 학부모 전화번호·PIN 수집 항목, Solapi·Resend·Google·카카오 위탁 명시, 이용자 권리 조항 추가. 시행일 2026-06-12.
-관리자 페이지 → 서비스 설정 → 개인정보처리방침에서 DB에 저장된 내용을 직접 수정해야 실제 화면에 반영됨 (DB 저장값이 DEFAULT보다 우선).
-
----
-
-## 보안 설정 (Supabase 직접 적용 — 코드 외 설정)
-
-> 아래 항목은 `000_complete_schema.sql` 하단에도 반영되어 있음.
-> 신규 Supabase 프로젝트 생성 시 schema 실행만 하면 자동 적용됨.
-
-### Row Level Security (RLS)
-
-모든 핵심 테이블에 RLS 활성화 + 정책 적용 완료 (2026-06-12)
-
-| 테이블 | 정책 |
-|--------|------|
-| `users` | 본인 행(`auth_id = auth.uid()`) 또는 관리자만 접근 |
-| `students` | `teacher_id = get_my_user_id()` 또는 관리자 |
-| `classes` | `teacher_id = get_my_user_id()` 또는 관리자 |
-| `attendance` | `class_id → classes.teacher_id` 조인으로 본인 수업 출석만 접근 |
-| `notes` | `teacher_id = get_my_user_id()` 또는 관리자 |
-| `parent_members` | `teacher_id = get_my_user_id()` 또는 관리자 |
-| `teacher_parent_links` | `teacher_id = get_my_user_id()` 또는 관리자 |
-| `settings` | **select: 로그인 사용자만(`auth.uid() is not null`)**, insert/update/delete: 관리자만 |
-| `school_notices` | **select: 본인(`admin_id`) 또는 관리자**, write: 동일 |
-
-> `attendance`는 `teacher_id` 컬럼이 없으므로 `classes` 테이블 조인으로 소유권 확인.
-
-### 헬퍼 함수
-
-| 함수 | 역할 |
-|------|------|
-| `get_my_user_id()` | `auth.uid()` → `users.id` 변환 (security definer) |
-| `is_admin()` | `users.level >= 10` 여부 반환 (security definer) |
-
-### 학부모 PIN 인증
-
-| 함수 | 역할 |
-|------|------|
-| `set_parent_pin(phone, pin)` | PIN을 `pgcrypto crypt(bcrypt)` 해시로 저장 |
-| `verify_parent_pin(phone, pin)` | PIN 검증 후 `parent_members` 행 반환 |
-| `withdraw_parent(phone)` | 학부모 탈퇴 처리 (RLS 우회용 security definer) |
-| `check_parent_joined(phone)` | 가입 여부 확인 |
-
-- `parent_members.pin_hash` 컬럼 추가 (nullable, bcrypt 해시 저장)
-- 프론트(`ParentLogin.jsx`)에서 5회 실패 시 30초 잠금 처리
-
-### CORS
-
-- 모든 Edge Function(`db-api`, `send-email`, `send-sms`, `send-push`, `kakao-oauth`, `naver-oauth`, `reset-user-password`, `generate-vapid`)이 `ALLOWED_ORIGIN` 환경변수를 읽음
-- **미설정 시 `*`(전체 허용)으로 열림** — 신규 배포 시 반드시 설정 필요
-- Supabase Dashboard → Settings → Edge Functions → Secrets → `ALLOWED_ORIGIN` = `https://your-domain.vercel.app`
-
-### 배포 체크리스트
-
-새 Supabase 프로젝트 생성 또는 재배포 시 반드시 확인:
-
-- [ ] `supabase/000_complete_schema.sql` 실행 (RLS + PIN 함수 포함)
-- [ ] Supabase Secrets에 `ALLOWED_ORIGIN` 설정
-- [ ] Supabase Secrets에 `SVC_ROLE_KEY` 설정
-- [ ] 관리자 계정으로 로그인 후 서비스 설정에서 Resend·Solapi 키 등록
-- [ ] Edge Functions 전체 배포 (`setup.bat` 또는 `bash setup.sh`)
-
-### 기타
-
-- `send-email` / `send-sms` Edge Function용 API 키(Resend, Solapi)는 `settings` 테이블에 저장되나, RLS로 관리자만 읽을 수 있음
-- `db.js` 동기화 시 `email` / `solapi` 키는 `localStorage`에 저장하지 않음 (`EXCLUDE_KEYS`)
-- Supabase Auth 세션: `sessionStorage` 사용 (탭 닫으면 자동 로그아웃)
-- `send-sms` Edge Function: Bearer 토큰 인증 추가 (미인증 요청 401 차단) — URL 노출 시 무단 SMS 발송 방지
-- `AdSlot.jsx`: Blob API 실패 시 `dangerouslySetInnerHTML` 폴백 제거 → `null` 반환으로 변경 (XSS 방어)
-- 비밀번호 정책: 8자 이상 + 영문 + 숫자 + **특수문자** 조합 필수 (회원가입·비밀번호 재설정 모두 적용)
