@@ -20,6 +20,7 @@ import { dbCall } from '../lib/supabase.js'
 import { Users } from '../lib/db.js'
 import { verifyPassword } from '../lib/crypto.js'
 import { BlogAdmin } from './BlogAdmin.jsx'
+import { uid, now } from '../lib/utils.js'
 
 // ── 마크다운 파서
 // replaced
@@ -201,6 +202,132 @@ function BlogList({ posts, onSelect }) {
 }
 
 // ── 블로그 상세
+// ── 댓글 컴포넌트
+function Comments({ postId }) {
+  const [comments, setComments]   = useState([])
+  const [form, setForm]           = useState({ author:'', content:'', isSecret: false, password:'' })
+  const [saving, setSaving]       = useState(false)
+  const [unlocked, setUnlocked]   = useState({}) // { commentId: true } 비밀댓글 잠금 해제
+  const [pwInput, setPwInput]     = useState({})  // { commentId: '입력값' }
+  const [pwError, setPwError]     = useState({})
+
+  useEffect(() => { loadComments() }, [postId])
+
+  const loadComments = async () => {
+    try {
+      const rows = await dbCall('getAll', 'blogComments')
+      const postComments = (rows||[]).filter(c => c.postId === postId)
+        .sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt))
+      setComments(postComments)
+    } catch {}
+  }
+
+  const handleSubmit = async () => {
+    if (!form.author.trim()) return alert('이름을 입력해주세요.')
+    if (!form.content.trim()) return alert('내용을 입력해주세요.')
+    if (form.isSecret && !form.password.trim()) return alert('비밀댓글은 비밀번호를 입력해주세요.')
+    setSaving(true)
+    try {
+      await dbCall('insert', 'blogComments', {
+        id: uid(), postId,
+        author: form.author.trim(),
+        content: form.content.trim(),
+        isSecret: form.isSecret,
+        password: form.isSecret ? form.password : '',
+        createdAt: now(),
+      })
+      setForm({ author:'', content:'', isSecret:false, password:'' })
+      loadComments()
+    } catch(e) { alert('댓글 저장 실패: ' + e.message) }
+    setSaving(false)
+  }
+
+  const handleUnlock = (c) => {
+    if (pwInput[c.id] === c.password) {
+      setUnlocked(p => ({ ...p, [c.id]: true }))
+      setPwError(p => ({ ...p, [c.id]: '' }))
+    } else {
+      setPwError(p => ({ ...p, [c.id]: '비밀번호가 틀렸습니다.' }))
+    }
+  }
+
+  const handleDelete = async (c) => {
+    if (c.isSecret) {
+      const pw = window.prompt('댓글 비밀번호를 입력하세요.')
+      if (pw !== c.password) return alert('비밀번호가 틀렸습니다.')
+    } else {
+      if (!window.confirm('댓글을 삭제하시겠습니까?')) return
+    }
+    try { await dbCall('delete', 'blogComments', { id: c.id }); loadComments() } catch {}
+  }
+
+  const iStyle = { width:'100%', padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', background:'#fff' }
+
+  return (
+    <div style={{ marginTop:'48px', paddingTop:'32px', borderTop:'2px solid #f3f4f6' }}>
+      <div style={{ fontSize:'17px', fontWeight:700, color:'#111827', marginBottom:'20px' }}>
+        💬 댓글 {comments.length > 0 && <span style={{ fontSize:'14px', color:'#9ca3af', fontWeight:400 }}>{comments.length}개</span>}
+      </div>
+
+      {/* 댓글 목록 */}
+      {comments.length > 0 && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'28px' }}>
+          {comments.map(c => {
+            const isOpen = !c.isSecret || unlocked[c.id]
+            return (
+              <div key={c.id} style={{ background: c.isSecret ? '#fef2f2' : '#f9fafb', borderRadius:'12px', padding:'16px 18px', border:`1.5px solid ${c.isSecret ? '#fca5a5' : '#e5e7eb'}` }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                    <span style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>{c.author}</span>
+                    {c.isSecret && <span style={{ fontSize:'11px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fca5a5', borderRadius:'6px', padding:'1px 7px', fontWeight:700 }}>🔐 비밀댓글</span>}
+                    <span style={{ fontSize:'12px', color:'#9ca3af' }}>{c.createdAt ? new Date(c.createdAt).toLocaleDateString('ko-KR') : ''}</span>
+                  </div>
+                  <button onClick={() => handleDelete(c)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'12px', color:'#9ca3af', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                </div>
+
+                {isOpen ? (
+                  <div style={{ fontSize:'14px', color:'#374151', lineHeight:1.7 }}>{c.content}</div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize:'13px', color:'#9ca3af', marginBottom:'10px' }}>🔒 비밀번호를 입력하면 댓글을 볼 수 있어요.</div>
+                    <div style={{ display:'flex', gap:'8px' }}>
+                      <input type="password" placeholder="비밀번호" value={pwInput[c.id]||''} onChange={e => setPwInput(p => ({...p,[c.id]:e.target.value}))}
+                        onKeyDown={e => e.key==='Enter' && handleUnlock(c)}
+                        style={{ ...iStyle, flex:1, fontSize:'13px' }} />
+                      <button onClick={() => handleUnlock(c)} style={{ padding:'8px 16px', borderRadius:'8px', border:'none', background:'#dc2626', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>확인</button>
+                    </div>
+                    {pwError[c.id] && <div style={{ fontSize:'12px', color:'#dc2626', marginTop:'4px' }}>⚠️ {pwError[c.id]}</div>}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* 댓글 작성 */}
+      <div style={{ background:'#f9fafb', borderRadius:'12px', padding:'20px', border:'1.5px solid #e5e7eb' }}>
+        <div style={{ fontSize:'14px', fontWeight:700, color:'#111827', marginBottom:'14px' }}>댓글 작성</div>
+        <div style={{ display:'grid', gridTemplateColumns: form.isSecret ? '1fr 1fr' : '1fr', gap:'10px', marginBottom:'10px' }}>
+          <input value={form.author} onChange={e=>setForm(v=>({...v,author:e.target.value}))} placeholder="이름" style={iStyle} />
+          {form.isSecret && <input type="password" value={form.password} onChange={e=>setForm(v=>({...v,password:e.target.value}))} placeholder="비밀번호 (댓글 확인/삭제 시 필요)" style={iStyle} />}
+        </div>
+        <textarea value={form.content} onChange={e=>setForm(v=>({...v,content:e.target.value}))} placeholder="댓글을 입력하세요." rows={3}
+          style={{...iStyle, resize:'vertical', marginBottom:'10px'}} />
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
+          <label style={{ display:'flex', alignItems:'center', gap:'8px', cursor:'pointer', fontSize:'13px', color:'#374151' }}>
+            <input type="checkbox" checked={form.isSecret} onChange={e=>setForm(v=>({...v,isSecret:e.target.checked,password:''}))} style={{ width:'15px', height:'15px' }} />
+            🔐 비밀댓글
+          </label>
+          <button onClick={handleSubmit} disabled={saving} style={{ padding:'8px 20px', borderRadius:'8px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            {saving ? '등록 중...' : '댓글 등록'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function BlogDetail({ post, onBack }) {
   useEffect(() => {
     setMeta(`${post.title} | 방과후 출석부 블로그`, post.summary || post.content?.replace(/[#*`>\-]/g, '').slice(0, 160) || '', `${window.location.origin}/blog/${post.slug||post.id}`, post.coverImage)
@@ -245,6 +372,7 @@ function BlogDetail({ post, onBack }) {
         <button onClick={onBack} style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:'8px', padding:'10px 24px', cursor:'pointer', fontSize:'14px', color:'#6b7280', fontFamily:'Noto Sans KR, sans-serif' }}>← 목록으로 돌아가기</button>
       </div>
     </div>
+      <Comments postId={post.id} />
   )
 }
 

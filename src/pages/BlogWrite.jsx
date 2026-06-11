@@ -227,8 +227,15 @@ export function BlogWrite({ user }) {
   return (
     <div style={{ padding:'24px', maxWidth:'960px', fontFamily:'Noto Sans KR, sans-serif' }}>
       <div style={{ marginBottom:'20px' }}>
-        <div style={{ fontSize:'22px', fontWeight:800, color:C.text }}>📝 블로그</div>
-        <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>방과후 출석부 블로그에 글을 작성하세요.</div>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
+          <div>
+            <div style={{ fontSize:'22px', fontWeight:800, color:C.text }}>📝 블로그</div>
+            <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>방과후 출석부 블로그에 글을 작성하세요.</div>
+          </div>
+          <a href="/blog" target="_blank" style={{ padding:'8px 16px', borderRadius:'9px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
+            🌐 블로그 보러가기 →
+          </a>
+        </div>
       </div>
 
       {/* 게시판 탭 */}
