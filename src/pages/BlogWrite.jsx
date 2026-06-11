@@ -4,10 +4,23 @@ import { uid, now } from '../lib/utils.js'
 import { Settings } from '../lib/db.js'
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316', success:'#16a34a', danger:'#ef4444' }
-
 const iStyle = { width:'100%', padding:'9px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', background:'#fff' }
 
+const BOARDS = [
+  { key:'blog',    label:'📝 블로그',     color:'#f97316' },
+  { key:'review',  label:'⭐ 사용자 후기', color:'#eab308' },
+  { key:'qna',     label:'❓ 질문',        color:'#3b82f6' },
+  { key:'secret',  label:'🔐 비밀게시판',  color:'#dc2626' },
+]
+
 const BLOG_CATEGORIES = ['출석 관리', '교구 관리', '업무 팁', '기타']
+
+function getBoardPerms() {
+  const saved = Settings.get('boardPermissions') || {}
+  const result = {}
+  BOARDS.forEach(b => { result[b.key] = { access:1, read:1, write:1, ...(saved[b.key]||{}) } })
+  return result
+}
 
 function slugify(t) {
   return t.toLowerCase().replace(/[^a-z0-9가-힣\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').trim() || uid()
@@ -52,14 +65,18 @@ const mdStyles = `
   .md-preview img{max-width:100%;border-radius:8px;margin:4px 0}
 `
 
-const emptyForm = (author) => ({ title:'', content:'', category:'', tags:'', summary:'', author: author||'', isSecret: false })
+const emptyForm = (author) => ({ title:'', content:'', category:'', tags:'', boardType:'blog', author:author||'' })
 
 export function BlogWrite({ user }) {
-  const isAdmin = user?.role === 'admin' || (user?.level||1) >= 10
-  const blogWriteMinLevel = Settings.get('blogWriteMinLevel') ?? 1
-  const canWrite = isAdmin || (user?.level||1) >= blogWriteMinLevel
+  const userLevel = user?.level || 1
+  const isAdmin = user?.role === 'admin' || userLevel >= 10
+  const boardPerms = getBoardPerms()
 
-  const [view, setView]       = useState('list') // 'list' | 'write'
+  // 접근 가능한 게시판만 필터링
+  const accessibleBoards = BOARDS.filter(b => isAdmin || userLevel >= (boardPerms[b.key]?.access ?? 1))
+
+  const [tab, setTab]         = useState(() => accessibleBoards[0]?.key || 'blog')
+  const [view, setView]       = useState('list')
   const [posts, setPosts]     = useState([])
   const [editPost, setEditPost] = useState(null)
   const [form, setForm]       = useState(emptyForm(user?.name))
@@ -67,27 +84,36 @@ export function BlogWrite({ user }) {
   const [saving, setSaving]   = useState(false)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => { loadPosts() }, [])
+  useEffect(() => { loadPosts() }, [tab])
 
   const loadPosts = async () => {
     setLoading(true)
     try {
       const rows = await dbCall('getAll', 'blogPosts')
-      // 내 글 + 비밀글은 본인+관리자만
-      const mine = (rows||[]).filter(p => {
-        if (p.isSecret || p.type === 'secret') return isAdmin || p.authorId === user?.id
-        return p.authorId === user?.id
+      const filtered = (rows||[]).filter(p => {
+        const type = p.boardType || p.type || 'blog'
+        if (type !== tab) return false
+        // 비밀게시판: 본인+관리자만
+        if (tab === 'secret') return isAdmin || p.authorId === user?.id
+        // 읽기 권한 체크
+        const canRead = isAdmin || userLevel >= (boardPerms[tab]?.read ?? 1)
+        return canRead
       }).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
-      setPosts(mine)
+      setPosts(filtered)
     } catch {}
     setLoading(false)
   }
 
-  const handleNew = () => { setForm(emptyForm(user?.name)); setEditPost(null); setPreview(false); setView('write') }
+  const handleNew = () => {
+    setForm({ ...emptyForm(user?.name), boardType: tab })
+    setEditPost(null); setPreview(false); setView('write')
+  }
+
   const handleEdit = (post) => {
-    setForm({ title:post.title||'', content:post.content||'', category:post.category||'', tags:(post.tags||[]).join(', '), summary:post.summary||'', author:post.author||user?.name||'', isSecret: !!(post.isSecret||post.type==='secret') })
+    setForm({ title:post.title||'', content:post.content||'', category:post.category||'', tags:(post.tags||[]).join(', '), boardType:post.boardType||post.type||'blog', author:post.author||user?.name||'' })
     setEditPost(post); setPreview(false); setView('write')
   }
+
   const handleDelete = async (post) => {
     if (!window.confirm(`"${post.title}" 을(를) 삭제하시겠습니까?`)) return
     try { await dbCall('delete','blogPosts',{id:post.id}); loadPosts() } catch { alert('삭제 실패') }
@@ -99,15 +125,16 @@ export function BlogWrite({ user }) {
     setSaving(true)
     try {
       const tags = form.tags ? form.tags.split(',').map(t=>t.trim()).filter(Boolean) : []
+      const isSecret = form.boardType === 'secret'
       const payload = {
         id: editPost?.id || uid(),
-        type: form.isSecret ? 'secret' : 'blog',
-        isSecret: form.isSecret,
+        type: isSecret ? 'secret' : 'blog',
+        boardType: form.boardType,
+        isSecret,
         title: form.title.trim(),
         slug: editPost?.slug || slugify(form.title),
-        summary: form.summary.trim(),
         content: form.content,
-        category: form.isSecret ? '비밀게시판' : form.category,
+        category: isSecret ? '비밀게시판' : form.boardType === 'qna' ? '질문' : form.boardType === 'review' ? '사용자 후기' : form.category,
         tags, author: form.author||user?.name, authorId: user?.id,
         status: 'published',
         publishedAt: now(), updatedAt: now(),
@@ -120,11 +147,15 @@ export function BlogWrite({ user }) {
     setSaving(false)
   }
 
-  // ── 권한 없음
-  if (!canWrite) return (
+  const currentBoard = BOARDS.find(b => b.key === tab)
+  const canRead  = isAdmin || userLevel >= (boardPerms[tab]?.read  ?? 1)
+  const canWrite = isAdmin || userLevel >= (boardPerms[tab]?.write ?? 1)
+
+  // 접근 가능한 게시판 없음
+  if (accessibleBoards.length === 0) return (
     <div style={{ padding:'40px 24px', textAlign:'center', fontFamily:'Noto Sans KR, sans-serif' }}>
       <div style={{ fontSize:'40px', marginBottom:'12px' }}>🔒</div>
-      <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>Lv.{blogWriteMinLevel} 이상 이용 가능합니다</div>
+      <div style={{ fontSize:'16px', fontWeight:700, color:C.text }}>접근 권한이 없습니다</div>
       <div style={{ fontSize:'13px', color:C.muted, marginTop:'6px' }}>관리자에게 문의해주세요.</div>
     </div>
   )
@@ -136,32 +167,22 @@ export function BlogWrite({ user }) {
       <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'24px', flexWrap:'wrap' }}>
         <button onClick={() => setView('list')} style={{ background:'none', border:'none', cursor:'pointer', color:C.muted, fontSize:'14px', padding:0, fontFamily:'Noto Sans KR, sans-serif' }}>← 목록</button>
         <h1 style={{ fontSize:'20px', fontWeight:700, color:C.text, flex:1 }}>
-          {editPost ? '글 수정' : form.isSecret ? '🔐 비밀글 작성' : '📝 블로그 글 작성'}
+          {editPost ? '글 수정' : `${currentBoard?.label || ''} 글 작성`}
         </h1>
         <button onClick={() => setPreview(v=>!v)} style={{ padding:'7px 16px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:preview?'#f3f4f6':'#fff', color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           {preview ? '✏️ 편집' : '👁 미리보기'}
         </button>
-        <button onClick={handleSave} disabled={saving} style={{ padding:'7px 20px', borderRadius:'8px', border:'none', background:form.isSecret?'#dc2626':C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+        <button onClick={handleSave} disabled={saving} style={{ padding:'7px 20px', borderRadius:'8px', border:'none', background: currentBoard?.color || C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           {saving ? '저장 중...' : '🚀 발행'}
         </button>
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:preview?'1fr 1.2fr':'1fr', gap:'24px' }}>
         <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
-
-          {/* 비밀글 여부 */}
-          <label style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'10px', border:`1.5px solid ${form.isSecret?'#fca5a5':C.border}`, background:form.isSecret?'#fef2f2':'#fff', cursor:'pointer' }}>
-            <input type="checkbox" checked={form.isSecret} onChange={e=>setForm(v=>({...v,isSecret:e.target.checked}))} style={{ width:'16px', height:'16px', cursor:'pointer' }} />
-            <div>
-              <div style={{ fontSize:'14px', fontWeight:600, color:form.isSecret?'#dc2626':C.text }}>🔐 비밀글</div>
-              <div style={{ fontSize:'12px', color:C.muted }}>제목만 공개되고 내용은 본인과 관리자만 볼 수 있습니다</div>
-            </div>
-          </label>
-
           <input value={form.title} onChange={e=>setForm(v=>({...v,title:e.target.value}))} placeholder="제목을 입력하세요"
             style={{...iStyle, fontSize:'17px', fontWeight:700, padding:'12px 14px'}} />
 
-          {!form.isSecret && (
+          {tab === 'blog' && (
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
               <div>
                 <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>카테고리</div>
@@ -177,10 +198,16 @@ export function BlogWrite({ user }) {
             </div>
           )}
 
+          {tab === 'secret' && (
+            <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'10px', padding:'10px 14px', fontSize:'13px', color:'#dc2626' }}>
+              🔐 비밀글 — 내용은 본인과 관리자만 볼 수 있습니다.
+            </div>
+          )}
+
           <div>
             <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>본문 (마크다운)</div>
             <textarea value={form.content} onChange={e=>setForm(v=>({...v,content:e.target.value}))} rows={22}
-              placeholder="내용을 입력하세요."
+              placeholder={tab==='qna' ? '질문 내용을 입력하세요.' : tab==='review' ? '사용 후기를 작성해주세요.' : '내용을 입력하세요.'}
               style={{...iStyle, resize:'vertical', fontFamily:'monospace', fontSize:'13px', lineHeight:1.7}} />
           </div>
         </div>
@@ -196,55 +223,97 @@ export function BlogWrite({ user }) {
     </div>
   )
 
-  // ── 내 글 목록
+  // ── 목록
   return (
-    <div style={{ padding:'24px', maxWidth:'900px', fontFamily:'Noto Sans KR, sans-serif' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'24px', flexWrap:'wrap', gap:'12px' }}>
-        <div>
-          <div style={{ fontSize:'22px', fontWeight:800, color:C.text }}>📝 블로그</div>
-          <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>방과후 출석부 블로그에 글을 작성하세요.</div>
-        </div>
-        <button onClick={handleNew} style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-          + 새 글 작성
-        </button>
+    <div style={{ padding:'24px', maxWidth:'960px', fontFamily:'Noto Sans KR, sans-serif' }}>
+      <div style={{ marginBottom:'20px' }}>
+        <div style={{ fontSize:'22px', fontWeight:800, color:C.text }}>📝 블로그</div>
+        <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>방과후 출석부 블로그에 글을 작성하세요.</div>
       </div>
 
-      {loading ? (
-        <div style={{ textAlign:'center', padding:'48px', color:C.muted }}>불러오는 중...</div>
-      ) : posts.length === 0 ? (
+      {/* 게시판 탭 */}
+      <div style={{ display:'flex', gap:'0', marginBottom:'24px', borderBottom:`2px solid ${C.border}`, overflowX:'auto' }}>
+        {accessibleBoards.map(board => (
+          <button key={board.key} onClick={() => { setTab(board.key); setView('list') }}
+            style={{ padding:'10px 20px', border:'none', background:'none', cursor:'pointer', fontSize:'14px', fontWeight:tab===board.key?700:500,
+              color: tab===board.key ? board.color : C.muted,
+              borderBottom: tab===board.key ? `2px solid ${board.color}` : '2px solid transparent',
+              marginBottom:'-2px', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            {board.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 읽기 권한 없음 */}
+      {!canRead ? (
         <div style={{ textAlign:'center', padding:'60px 20px', background:'#f9fafb', borderRadius:'12px', border:`1px dashed ${C.border}` }}>
-          <div style={{ fontSize:'36px', marginBottom:'10px' }}>📝</div>
-          <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>아직 작성한 글이 없어요</div>
-          <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>첫 번째 글을 써보세요!</div>
+          <div style={{ fontSize:'32px', marginBottom:'10px' }}>🔒</div>
+          <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>Lv.{boardPerms[tab]?.read ?? 1} 이상 열람 가능합니다</div>
         </div>
       ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-          {posts.map(post => {
-            const isSecret = post.isSecret || post.type === 'secret'
-            return (
-              <div key={post.id} style={{ background:'#fff', borderRadius:'12px', border:`1.5px solid ${isSecret?'#fca5a5':C.border}`, padding:'14px 18px', display:'flex', alignItems:'center', gap:'14px', flexWrap:'wrap' }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px', flexWrap:'wrap' }}>
-                    {isSecret
-                      ? <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'4px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fca5a5' }}>🔐 비밀글</span>
-                      : <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'4px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa' }}>📝 블로그</span>
-                    }
-                    {post.category && !isSecret && <span style={{ fontSize:'11px', color:C.muted, background:'#f3f4f6', borderRadius:'4px', padding:'2px 8px' }}>{post.category}</span>}
-                    <span style={{ fontSize:'11px', color:C.muted }}>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('ko-KR') : ''}</span>
+        <>
+          {canWrite && (
+            <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'16px' }}>
+              <button onClick={handleNew} style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background: currentBoard?.color || C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                + 글 작성
+              </button>
+            </div>
+          )}
+
+          {/* 비밀게시판 안내 */}
+          {tab === 'secret' && (
+            <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'10px', padding:'12px 16px', marginBottom:'16px', fontSize:'13px', color:'#dc2626' }}>
+              🔐 제목은 모두에게 보이지만 <strong>내용은 작성자 본인과 관리자만</strong> 열람할 수 있습니다.
+            </div>
+          )}
+
+          {loading ? (
+            <div style={{ textAlign:'center', padding:'48px', color:C.muted }}>불러오는 중...</div>
+          ) : posts.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'60px 20px', background:'#f9fafb', borderRadius:'12px', border:`1px dashed ${C.border}` }}>
+              <div style={{ fontSize:'36px', marginBottom:'10px' }}>{currentBoard?.label?.slice(0,2) || '📝'}</div>
+              <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>아직 작성된 글이 없어요</div>
+              {canWrite && <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>첫 번째 글을 써보세요!</div>}
+            </div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              {posts.map(post => {
+                const isSecret = post.boardType === 'secret' || post.isSecret
+                const canReadContent = isAdmin || !isSecret || post.authorId === user?.id
+                const isOwn = post.authorId === user?.id
+                return (
+                  <div key={post.id} style={{ background:'#fff', borderRadius:'12px', border:`1.5px solid ${isSecret?'#fca5a5':C.border}`, padding:'14px 18px', display:'flex', alignItems:'center', gap:'14px', flexWrap:'wrap' }}>
+                    <div style={{ flex:1, minWidth:0, cursor: canReadContent ? 'default' : 'not-allowed' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px', flexWrap:'wrap' }}>
+                        <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'4px',
+                          background: isSecret ? '#fef2f2' : `${currentBoard?.color}18`,
+                          color: isSecret ? '#dc2626' : currentBoard?.color,
+                          border: `1px solid ${isSecret ? '#fca5a5' : currentBoard?.color+'44'}` }}>
+                          {currentBoard?.label}
+                        </span>
+                        {post.category && !isSecret && <span style={{ fontSize:'11px', color:C.muted, background:'#f3f4f6', borderRadius:'4px', padding:'2px 8px' }}>{post.category}</span>}
+                        <span style={{ fontSize:'11px', color:C.muted }}>{post.author}</span>
+                        <span style={{ fontSize:'11px', color:C.muted }}>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('ko-KR') : ''}</span>
+                      </div>
+                      <div style={{ fontSize:'15px', fontWeight:700, color: canReadContent ? C.text : C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {post.title} {isSecret && !canReadContent && <span style={{ fontSize:'12px' }}>🔒</span>}
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+                      {!isSecret && post.slug && (
+                        <a href={`/blog/${post.slug}`} target="_blank" style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', color:C.muted, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>보기</a>
+                      )}
+                      {(isOwn || isAdmin) && <>
+                        <button onClick={()=>handleEdit(post)} style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${currentBoard?.color}`, background:`${currentBoard?.color}18`, color:currentBoard?.color, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                        <button onClick={()=>handleDelete(post)} style={{ padding:'6px 10px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                      </>}
+                    </div>
                   </div>
-                  <div style={{ fontSize:'15px', fontWeight:700, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{post.title}</div>
-                </div>
-                <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
-                  {!isSecret && post.slug && (
-                    <a href={`/blog/${post.slug}`} target="_blank" style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', color:C.muted, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>보기</a>
-                  )}
-                  <button onClick={()=>handleEdit(post)} style={{ padding:'6px 14px', borderRadius:'7px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
-                  <button onClick={()=>handleDelete(post)} style={{ padding:'6px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

@@ -1339,101 +1339,113 @@ function PermissionsSection() {
   const [cfg, setCfg] = useState(init)
   const [blogWriteMinLevel,  setBlogWriteMinLevel]  = useState(() => Settings.get('blogWriteMinLevel')  ?? 1)
   const [blogNoticeMinLevel, setBlogNoticeMinLevel] = useState(() => Settings.get('blogNoticeMinLevel') ?? 10)
+
+  // 게시판별 접근/읽기/글쓰기 권한
+  const BOARDS = [
+    { key: 'blog',    label: '📝 블로그',      icon: '📝' },
+    { key: 'review',  label: '⭐ 사용자 후기',  icon: '⭐' },
+    { key: 'qna',     label: '❓ 질문 게시판',  icon: '❓' },
+    { key: 'secret',  label: '🔐 비밀 게시판',  icon: '🔐' },
+    { key: 'docs',    label: '📖 설명서',       icon: '📖' },
+    { key: 'template',label: '📋 템플릿',       icon: '📋' },
+  ]
+  const defaultBoardPerm = () => ({ access: 1, read: 1, write: 1 })
+  const [boardPerms, setBoardPerms] = useState(() => {
+    const saved = Settings.get('boardPermissions') || {}
+    const result = {}
+    BOARDS.forEach(b => { result[b.key] = { ...defaultBoardPerm(), ...(saved[b.key] || {}) } })
+    return result
+  })
+
   const { success } = useToast()
 
   const save = () => {
     Settings.set('featureMinLevels', cfg)
     Settings.set('blogWriteMinLevel',  blogWriteMinLevel)
     Settings.set('blogNoticeMinLevel', blogNoticeMinLevel)
+    Settings.set('boardPermissions',  boardPerms)
     success('저장이 완료되었습니다.')
   }
 
-  const levelColors = { 1:'#9ca3af', 2:'#f97316', 3:'#16a34a', 4:'#8b5cf6', 5:'#ef4444' }
+  const setBoardPerm = (boardKey, permType, lv) => {
+    setBoardPerms(prev => ({ ...prev, [boardKey]: { ...prev[boardKey], [permType]: lv } }))
+  }
 
-  const LevelSelector = ({ value, onChange, label, desc }) => (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', flexWrap:'wrap', gap:'10px' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-        <span style={{ fontSize:'18px', width:'24px', textAlign:'center' }}>✍️</span>
-        <div>
-          <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{label}</div>
-          <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>{desc} — 현재: <span style={{ fontWeight:700, color: LEVEL_COLORS[value] || '#9ca3af' }}>Lv.{value} 이상</span></div>
-        </div>
-      </div>
-      <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
-        {[1,2,3,4,5,6,7,8,9,10].map(lv => (
-          <button key={lv} onClick={() => onChange(lv)}
-            style={{ width:'32px', height:'32px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:700,
-              background: value === lv ? (LEVEL_COLORS[lv] || '#9ca3af') : '#f3f4f6',
-              color: value === lv ? '#fff' : '#9ca3af', transition:'all .15s', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {lv}
-          </button>
-        ))}
-      </div>
+  const LevelButtons = ({ value, onChange }) => (
+    <div style={{ display:'flex', gap:'3px', flexWrap:'wrap' }}>
+      {[1,2,3,4,5,6,7,8,9,10].map(lv => (
+        <button key={lv} onClick={() => onChange(lv)}
+          style={{ width:'28px', height:'28px', borderRadius:'6px', border:'none', cursor:'pointer', fontSize:'11px', fontWeight:700,
+            background: value === lv ? (LEVEL_COLORS[lv] || '#9ca3af') : '#f3f4f6',
+            color: value === lv ? '#fff' : '#9ca3af', transition:'all .15s', fontFamily:'Noto Sans KR, sans-serif' }}>
+          {lv}
+        </button>
+      ))}
     </div>
   )
 
   return (
     <Card style={{ marginBottom:'16px' }}>
-      <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>🔐 메뉴별 최소 레벨 설정</div>
+      <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>🔐 권한 설정</div>
       <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px', lineHeight:1.6 }}>
-        각 메뉴에 접근 가능한 최소 레벨을 설정합니다. 해당 레벨 이상의 선생님만 해당 메뉴가 표시됩니다.<br />
-        <span style={{ color:'#ef4444', fontWeight:600 }}>관리자(Lv.5)는 모든 메뉴에 항상 접근 가능합니다.</span>
+        게시판 및 메뉴별 최소 레벨을 설정합니다. 관리자(Lv.10)는 모든 권한이 적용됩니다.
       </div>
 
       {/* 레벨 범례 */}
-      <div style={{ display:'flex', gap:'12px', flexWrap:'wrap', marginBottom:'20px', padding:'12px 16px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
+      <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', marginBottom:'24px', padding:'12px 16px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
         {[1,2,3,4,5,6,7,8,9,10].map(lv => (
-          <div key={lv} style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-            <span style={{ width:'22px', height:'22px', borderRadius:'6px', background: LEVEL_COLORS[lv] || '#9ca3af', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, color:'#fff' }}>{lv}</span>
-            <span style={{ fontSize:'12px', color:C.muted }}>{LEVEL_NAMES[lv]}</span>
+          <div key={lv} style={{ display:'flex', alignItems:'center', gap:'5px' }}>
+            <span style={{ width:'20px', height:'20px', borderRadius:'5px', background: LEVEL_COLORS[lv] || '#9ca3af', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:'10px', fontWeight:700, color:'#fff' }}>{lv}</span>
+            <span style={{ fontSize:'11px', color:C.muted }}>{LEVEL_NAMES[lv]}</span>
           </div>
         ))}
       </div>
 
+      {/* 게시판 권한 */}
+      <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'12px' }}>📋 게시판별 권한</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'24px' }}>
+        {/* 헤더 */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'8px', padding:'8px 16px', background:'#f3f4f6', borderRadius:'8px', fontSize:'12px', fontWeight:700, color:C.muted }}>
+          <span>게시판</span>
+          <span>접근 (메뉴 표시)</span>
+          <span>읽기 (글 열람)</span>
+          <span>글쓰기</span>
+        </div>
+        {BOARDS.map(board => (
+          <div key={board.key} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'8px', padding:'12px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', alignItems:'center' }}>
+            <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{board.label}</div>
+            <LevelButtons value={boardPerms[board.key]?.access ?? 1} onChange={lv => setBoardPerm(board.key, 'access', lv)} />
+            <LevelButtons value={boardPerms[board.key]?.read ?? 1}   onChange={lv => setBoardPerm(board.key, 'read',   lv)} />
+            <LevelButtons value={boardPerms[board.key]?.write ?? 1}  onChange={lv => setBoardPerm(board.key, 'write',  lv)} />
+          </div>
+        ))}
+      </div>
+
+      {/* 기존 메뉴 기능별 레벨 */}
+      <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'12px' }}>🔐 메뉴 기능별 최소 레벨</div>
       <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-        {/* 블로그 작성 레벨 설정 */}
-        <div style={{ fontSize:'13px', fontWeight:700, color:C.text, padding:'8px 4px 4px' }}>📝 블로그 글 작성 레벨</div>
-        <LevelSelector
-          value={blogWriteMinLevel}
-          onChange={setBlogWriteMinLevel}
-          label="블로그 글 작성 최소 레벨"
-          desc="이 레벨 이상만 블로그·설명서·템플릿 글 작성 가능"
-        />
-        <LevelSelector
-          value={blogNoticeMinLevel}
-          onChange={setBlogNoticeMinLevel}
-          label="공지사항·업데이트 카테고리 작성"
-          desc="이 레벨 미만이면 공지사항·업데이트 카테고리 선택 불가"
-        />
-        <div style={{ fontSize:'13px', fontWeight:700, color:C.text, padding:'12px 4px 4px' }}>🔐 메뉴 기능별 최소 레벨</div>
         {PERMISSION_FEATURES.map(feature => {
           const info = FEATURE_LABELS[feature] || { label: feature, icon: '📌' }
           const current = cfg[feature] || 1
           return (
-            <div key={feature} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff' }}>
+            <div key={feature} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', flexWrap:'wrap', gap:'10px' }}>
               <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
                 <span style={{ fontSize:'18px', width:'24px', textAlign:'center' }}>{info.icon}</span>
                 <div>
                   <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{info.label}</div>
                   <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                    현재: <span style={{ fontWeight:700, color:levelColors[current] }}>Lv.{current} 이상</span>
+                    현재: <span style={{ fontWeight:700, color: LEVEL_COLORS[current] || '#9ca3af' }}>Lv.{current} 이상</span>
                   </div>
                 </div>
               </div>
               <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
                 {[1,2,3,4,5,6,7,8,9,10].map(lv => (
-                  <button
-                    key={lv}
-                    onClick={() => setCfg(p => ({ ...p, [feature]: lv }))}
-                    style={{
-                      width:'32px', height:'32px', borderRadius:'8px', border:'none',
-                      cursor:'pointer', fontSize:'13px', fontWeight:700,
+                  <button key={lv} onClick={() => setCfg(p => ({ ...p, [feature]: lv }))}
+                    style={{ width:'32px', height:'32px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:'13px', fontWeight:700,
                       background: current === lv ? (LEVEL_COLORS[lv] || '#9ca3af') : '#f3f4f6',
-                      color: current === lv ? '#fff' : '#9ca3af',
-                      transition:'all .15s',
-                      fontFamily:'Noto Sans KR, sans-serif',
-                    }}
-                  >{lv}</button>
+                      color: current === lv ? '#fff' : '#9ca3af', transition:'all .15s', fontFamily:'Noto Sans KR, sans-serif' }}>
+                    {lv}
+                  </button>
                 ))}
               </div>
             </div>
