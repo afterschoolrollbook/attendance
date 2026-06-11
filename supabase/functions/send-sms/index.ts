@@ -34,6 +34,15 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: getCorsHeaders(req) })
 
   try {
+    // Authorization 헤더 확인 (anon key 이상 필요)
+    const authHeader = req.headers.get('Authorization') || ''
+    if (!authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ success: false, error: '인증이 필요합니다.' }), {
+        status: 401,
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+      })
+    }
+
     const { to, text, type = 'SMS', kakaoChannelId, templateId } = await req.json()
 
     // settings 테이블에서 키 읽기 (관리자 페이지에서 등록)
