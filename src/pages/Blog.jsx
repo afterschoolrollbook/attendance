@@ -631,12 +631,22 @@ export function Blog() {
   const [tab, setTab] = useState('blog')
   const [selPost, setSelPost] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [currentUser, setCurrentUser] = useState(null)  // Supabase 세션 기반 유저
+  const [currentUser, setCurrentUser] = useState(() => {
+    // localStorage의 Supabase 토큰으로 로그인 여부 즉시 판단 (렌더 전 깜빡임 방지)
+    try {
+      const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+      if (!tokenKey) return null
+      const token = JSON.parse(localStorage.getItem(tokenKey) || 'null')
+      if (!token?.access_token) return null
+      // 이메일만 우선 세팅해두고 useEffect에서 DB 정보로 교체
+      return { email: token.user?.email, level: 1, _pending: true }
+    } catch { return null }
+  })
   const [blogAdminMode, setBlogAdminMode] = useState(false)
 
   const blogWriteMinLevel = Settings.get('blogWriteMinLevel') ?? 1
-  const canWrite = currentUser && (currentUser.role === 'admin' || (currentUser.level || 1) >= blogWriteMinLevel)
-  const isAdmin  = currentUser && (currentUser.role === 'admin' || (currentUser.level || 1) >= 10)
+  const canWrite = currentUser && !currentUser._pending && (currentUser.role === 'admin' || (currentUser.level || 1) >= blogWriteMinLevel)
+  const isAdmin  = currentUser && !currentUser._pending && (currentUser.role === 'admin' || (currentUser.level || 1) >= 10)
 
   const blogPosts = allPosts.filter(p => {
     const type = p.type || 'blog'
@@ -661,10 +671,10 @@ export function Blog() {
   const loadCurrentUser = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user?.email) return
+      if (!session?.user?.email) { setCurrentUser(null); return }
       const dbUser = await dbCall('findByEmail', 'users', { email: session.user.email })
-      if (dbUser) setCurrentUser(dbUser)
-    } catch {}
+      setCurrentUser(dbUser || null)
+    } catch { setCurrentUser(null) }
   }
 
   const loadPosts = async () => {
