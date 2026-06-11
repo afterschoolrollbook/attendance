@@ -377,7 +377,7 @@ export function Profile({ user, onUserUpdate, onNav }) {
           </div>
           <div style={{ fontSize:'12px', fontWeight:700, color:levelColors[user.level] }}>{levelNames[user.level]}</div>
         </div>
-        {verified && <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', padding:'2px 8px', borderRadius:'6px', fontWeight:600 }}>🔓 인증됨</span>}
+        {verified && <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', padding:'2px 8px', borderRadius:'6px', fontWeight:600 }}>🔓 본인확인 완료</span>}
       </div>
 
       {/* 기본 정보 */}
