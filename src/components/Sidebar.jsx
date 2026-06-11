@@ -17,6 +17,7 @@ const NAV = [
   { path: 'supplies',        label: '교구준비 및 관리', icon: '🎒' },
   { path: 'messageguide',    label: '안내 문구 관리',   icon: '💬' },
   { path: 'profile',         label: '내 정보',          icon: '👤' },
+  { path: 'myblog',          label: '내 블로그',         icon: '✍️' },
 ]
 
 const MY_NAV_FIXED = [
