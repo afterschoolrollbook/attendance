@@ -17,6 +17,7 @@ import { Admin } from './pages/Admin.jsx'
 import { Adsense } from './pages/Adsense.jsx'
 import { AdminSettings } from './pages/AdminSettings.jsx'
 import { Profile } from './pages/Profile.jsx'
+import { MyBlog } from './pages/MyBlog.jsx'
 import { NaverCallback } from './pages/NaverCallback.jsx'
 import { KakaoCallback } from './pages/KakaoCallback.jsx'
 import { TermsPage, PrivacyPage } from './pages/LegalPage.jsx'
@@ -384,6 +385,7 @@ export default function App() {
       case 'admin':           return can(user, 'approve_teacher') ? <Admin {...pageProps} /> : <Dashboard {...pageProps} />
       case 'adsense':         return <Adsense {...pageProps} />
       case 'profile':         return <Profile {...pageProps} />
+      case 'myblog':          return <MyBlog user={user} />
       case 'admin_settings':  return can(user, 'manage_ad') ? <AdminSettings {...pageProps} /> : <Dashboard {...pageProps} />
       case 'training':        return <Training     user={user} />
       case 'certificates':    return <Certificates user={user} />
