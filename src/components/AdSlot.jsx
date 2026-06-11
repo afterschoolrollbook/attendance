@@ -31,9 +31,7 @@ export function AdSlot({ slotId }) {
     ? URL.createObjectURL(new Blob([iframeSrc], { type: 'text/html' }))
     : null
 
-  if (!blob) return (
-    <div style={style} dangerouslySetInnerHTML={{ __html: slot.code }} />
-  )
+  if (!blob) return null
 
   return (
     <iframe
