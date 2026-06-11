@@ -203,8 +203,8 @@ export function ParentLogin() {
         if (!data) throw new Error('PIN 저장 실패')
       }
       // 로컬 캐시에도 기록 (재로그인 시 필드 인식용)
-      ParentMembers.update(candidate.id, { pinHash: pin })
-      setMember({ ...candidate, pinHash: pin })
+      ParentMembers.update(candidate.id, { pinHash: 'set' })
+      setMember({ ...candidate, pinHash: 'set' })
     } catch (e) {
       setError('PIN 저장 중 오류가 발생했습니다. 다시 시도해주세요.')
       setPinConfirm('')
