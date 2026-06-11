@@ -140,7 +140,7 @@ function SearchBar({ value, onChange, placeholder }) {
 function BlogList({ posts, onSelect }) {
   const [search, setSearch] = useState('')
   const [selCat, setSelCat] = useState('전체')
-  const categories = ['전체', ...new Set(posts.map(p => p.category).filter(Boolean))]
+  const FIXED_CATEGORIES = ['전체', '출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
   const filtered = posts.filter(p => {
     const matchCat = selCat === '전체' || p.category === selCat
     const q = search.toLowerCase()
@@ -157,16 +157,14 @@ function BlogList({ posts, onSelect }) {
       </div>
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'36px' }}>
         <SearchBar value={search} onChange={setSearch} placeholder="글 제목, 내용으로 검색..." />
-        {categories.length > 1 && (
-          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', justifyContent:'center' }}>
-            {categories.map(cat => (
-              <button key={cat} onClick={() => setSelCat(cat)}
-                style={{ padding:'6px 18px', borderRadius:'999px', border:`2px solid ${selCat===cat?'#f97316':'#e5e7eb'}`, background:selCat===cat?'#f97316':'#fff', color:selCat===cat?'#fff':'#374151', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
-                {cat}
-              </button>
-            ))}
-          </div>
-        )}
+        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', justifyContent:'center' }}>
+          {FIXED_CATEGORIES.map(cat => (
+            <button key={cat} onClick={() => setSelCat(cat)}
+              style={{ padding:'6px 18px', borderRadius:'999px', border:`2px solid ${selCat===cat?'#f97316':'#e5e7eb'}`, background:selCat===cat?'#f97316':'#fff', color:selCat===cat?'#fff':'#374151', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
       {search && <div style={{ fontSize:'13px', color:'#6b7280', marginBottom:'16px' }}>"<strong>{search}</strong>" 검색 결과 {filtered.length}개</div>}
       {filtered.length === 0 ? (
@@ -380,7 +378,7 @@ function BlogDetail({ post, onBack }) {
 function TemplateList({ posts, onSelect }) {
   const [search, setSearch] = useState('')
   const [selCat, setSelCat] = useState('전체')
-  const categories = ['전체', ...new Set(posts.map(p => p.category).filter(Boolean))]
+  const FIXED_CATEGORIES = ['전체', '출석부 양식', '가정통신문', '수업 계획서', '교구 관리표', '학생 평가표', '수업료 안내', '기타 서식']
   const filtered = posts.filter(p => {
     const matchCat = selCat === '전체' || p.category === selCat
     const q = search.toLowerCase()
@@ -397,16 +395,14 @@ function TemplateList({ posts, onSelect }) {
       </div>
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'36px' }}>
         <SearchBar value={search} onChange={setSearch} placeholder="템플릿 검색..." />
-        {categories.length > 1 && (
-          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', justifyContent:'center' }}>
-            {categories.map(cat => (
-              <button key={cat} onClick={() => setSelCat(cat)}
-                style={{ padding:'6px 18px', borderRadius:'999px', border:`2px solid ${selCat===cat?'#7c3aed':'#e5e7eb'}`, background:selCat===cat?'#7c3aed':'#fff', color:selCat===cat?'#fff':'#374151', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
-                {cat}
-              </button>
-            ))}
-          </div>
-        )}
+        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', justifyContent:'center' }}>
+          {FIXED_CATEGORIES.map(cat => (
+            <button key={cat} onClick={() => setSelCat(cat)}
+              style={{ padding:'6px 18px', borderRadius:'999px', border:`2px solid ${selCat===cat?'#7c3aed':'#e5e7eb'}`, background:selCat===cat?'#7c3aed':'#fff', color:selCat===cat?'#fff':'#374151', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
       {filtered.length === 0 ? (
         <div style={{ textAlign:'center', padding:'80px 20px', color:'#9ca3af' }}>
