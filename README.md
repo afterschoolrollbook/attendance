@@ -365,6 +365,11 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 
 `vercel.json`에 `Content-Security-Policy` 헤더를 직접 설정. `script-src`, `connect-src`, `frame-src`를 허용 도메인 화이트리스트로 제한. 별도 서버 없이 Vercel 엣지에서 XSS 기본 차단.
 
+### 개인정보처리방침 (`LegalPage.jsx`)
+
+`DEFAULT_PRIVACY`에 미성년자 개인정보 처리 근거(개인정보보호법 제15조 제1항 제4호), 학부모 전화번호·PIN 수집 항목, Solapi·Resend·Google·카카오 위탁 명시, 이용자 권리 조항 추가. 시행일 2026-06-12.
+관리자 페이지 → 서비스 설정 → 개인정보처리방침에서 DB에 저장된 내용을 직접 수정해야 실제 화면에 반영됨 (DB 저장값이 DEFAULT보다 우선).
+
 ---
 
 ## 보안 설정 (Supabase 직접 적용 — 코드 외 설정)
@@ -411,11 +416,23 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 
 ### CORS
 
-- `db-api` Edge Function: `ALLOWED_ORIGIN` Secret을 Supabase Dashboard에서 직접 설정
-- 코드에 하드코딩하지 않음 — Dashboard에서만 관리
+- 모든 Edge Function(`db-api`, `send-email`, `send-sms`, `send-push`, `kakao-oauth`, `naver-oauth`, `reset-user-password`, `generate-vapid`)이 `ALLOWED_ORIGIN` 환경변수를 읽음
+- **미설정 시 `*`(전체 허용)으로 열림** — 신규 배포 시 반드시 설정 필요
+- Supabase Dashboard → Settings → Edge Functions → Secrets → `ALLOWED_ORIGIN` = `https://your-domain.vercel.app`
+
+### 배포 체크리스트
+
+새 Supabase 프로젝트 생성 또는 재배포 시 반드시 확인:
+
+- [ ] `supabase/000_complete_schema.sql` 실행 (RLS + PIN 함수 포함)
+- [ ] Supabase Secrets에 `ALLOWED_ORIGIN` 설정
+- [ ] Supabase Secrets에 `SVC_ROLE_KEY` 설정
+- [ ] 관리자 계정으로 로그인 후 서비스 설정에서 Resend·Solapi 키 등록
+- [ ] Edge Functions 전체 배포 (`setup.bat` 또는 `bash setup.sh`)
 
 ### 기타
 
 - `send-email` / `send-sms` Edge Function용 API 키(Resend, Solapi)는 `settings` 테이블에 저장되나, RLS로 관리자만 읽을 수 있음
 - `db.js` 동기화 시 `email` / `solapi` 키는 `localStorage`에 저장하지 않음 (`EXCLUDE_KEYS`)
 - Supabase Auth 세션: `sessionStorage` 사용 (탭 닫으면 자동 로그아웃)
+- `send-sms` Edge Function: Bearer 토큰 인증 추가 (미인증 요청 401 차단) — URL 노출 시 무단 SMS 발송 방지
