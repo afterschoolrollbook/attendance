@@ -1097,3 +1097,153 @@ end $$;
 create index if not exists idx_students_updated_at on students(updated_at);
 create index if not exists idx_students_active_term on students(active_term) where active_term is not null;
 create index if not exists idx_students_teacher_id  on students(teacher_id);
+
+
+-- ============================================================
+-- 보안 패치: RLS 적용 + 학부모 PIN 인증
+-- ============================================================
+
+-- 헬퍼 함수
+create or replace function get_my_user_id()
+returns text
+language sql
+stable
+security definer
+as $$
+  select id from public.users where auth_id = auth.uid() limit 1;
+$$;
+
+create or replace function is_admin()
+returns boolean
+language sql
+stable
+security definer
+as $$
+  select coalesce(
+    (select level >= 10 from public.users where auth_id = auth.uid() limit 1),
+    false
+  );
+$$;
+
+-- users RLS
+alter table if exists users enable row level security;
+drop policy if exists "users_select" on users;
+create policy "users_select" on users for select using (auth_id = auth.uid() or is_admin());
+drop policy if exists "users_insert" on users;
+create policy "users_insert" on users for insert with check (auth_id = auth.uid() or is_admin());
+drop policy if exists "users_update" on users;
+create policy "users_update" on users for update using (auth_id = auth.uid() or is_admin());
+drop policy if exists "users_delete" on users;
+create policy "users_delete" on users for delete using (is_admin());
+
+-- students RLS
+alter table if exists students enable row level security;
+drop policy if exists "students_all" on students;
+create policy "students_all" on students for all using (teacher_id = get_my_user_id() or is_admin());
+
+-- classes RLS
+alter table if exists classes enable row level security;
+drop policy if exists "classes_all" on classes;
+create policy "classes_all" on classes for all using (teacher_id = get_my_user_id() or is_admin());
+
+-- attendance RLS (teacher_id 없으므로 class_id → classes 조인)
+alter table if exists attendance enable row level security;
+drop policy if exists "attendance_all" on attendance;
+create policy "attendance_all" on attendance for all
+  using (
+    is_admin()
+    or exists (
+      select 1 from public.classes
+       where classes.id = attendance.class_id
+         and classes.teacher_id = get_my_user_id()
+    )
+  );
+
+-- notes RLS
+alter table if exists notes enable row level security;
+drop policy if exists "notes_all" on notes;
+create policy "notes_all" on notes for all using (teacher_id = get_my_user_id() or is_admin());
+
+-- parent_members RLS
+alter table if exists parent_members enable row level security;
+drop policy if exists "parent_members_teacher" on parent_members;
+create policy "parent_members_teacher" on parent_members for all using (teacher_id = get_my_user_id() or is_admin());
+
+-- teacher_parent_links RLS
+alter table if exists teacher_parent_links enable row level security;
+drop policy if exists "teacher_parent_links_all" on teacher_parent_links;
+create policy "teacher_parent_links_all" on teacher_parent_links for all using (teacher_id = get_my_user_id() or is_admin());
+
+-- settings RLS
+alter table if exists settings enable row level security;
+drop policy if exists "settings_select" on settings;
+create policy "settings_select" on settings for select using (true);
+drop policy if exists "settings_insert" on settings;
+create policy "settings_insert" on settings for insert with check (is_admin());
+drop policy if exists "settings_update" on settings;
+create policy "settings_update" on settings for update using (is_admin());
+drop policy if exists "settings_delete" on settings;
+create policy "settings_delete" on settings for delete using (is_admin());
+
+-- 학부모 PIN 컬럼
+create extension if not exists pgcrypto;
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'parent_members' and column_name = 'pin_hash'
+  ) then
+    alter table parent_members add column pin_hash text default null;
+  end if;
+end $$;
+
+-- 학부모 전용 RPC
+create or replace function check_parent_joined(p_phone text)
+returns boolean language plpgsql security definer as $$
+declare v_joined boolean;
+begin
+  select app_joined into v_joined from parent_members
+   where regexp_replace(phone, '[^0-9]', '', 'g') = p_phone
+     and app_joined = true and withdrawn_at is null limit 1;
+  return coalesce(v_joined, false);
+end; $$;
+
+create or replace function set_parent_pin(p_phone text, p_pin_hash text)
+returns boolean language plpgsql security definer as $$
+declare v_count int;
+begin
+  update parent_members
+     set pin_hash = crypt(p_pin_hash, gen_salt('bf')), updated_at = now()
+   where regexp_replace(phone, '[^0-9]', '', 'g') = p_phone
+     and app_joined = true and withdrawn_at is null;
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end; $$;
+
+create or replace function verify_parent_pin(p_phone text, p_pin text)
+returns setof parent_members language plpgsql security definer as $$
+begin
+  return query select * from parent_members
+   where regexp_replace(phone, '[^0-9]', '', 'g') = p_phone
+     and app_joined = true and withdrawn_at is null
+     and pin_hash is not null and pin_hash = crypt(p_pin, pin_hash);
+end; $$;
+
+create or replace function withdraw_parent(p_phone text)
+returns boolean language plpgsql security definer as $$
+declare v_member_id text; v_count int;
+begin
+  update parent_members
+     set app_joined = false, withdrawn_at = now(),
+         withdraw_reason = 'parent_request', updated_at = now()
+   where regexp_replace(phone, '[^0-9]', '', 'g') = p_phone
+     and app_joined = true and withdrawn_at is null
+  returning id into v_member_id;
+  get diagnostics v_count = row_count;
+  if v_member_id is not null then
+    update teacher_parent_links
+       set status = 'ended', ended_at = now(),
+           end_reason = 'parent_withdraw', updated_at = now()
+     where parent_member_id = v_member_id and status = 'active';
+  end if;
+  return v_count > 0;
+end; $$;
