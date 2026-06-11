@@ -473,6 +473,7 @@ export default function App() {
     if (isConfigured) await authSignOut()
     setUser(null)
     sessionStorage.removeItem('asa_user')
+    setShowLanding(true)
   }
 
   function handleNav(p, params = {}) {
