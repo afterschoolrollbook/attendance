@@ -335,3 +335,86 @@ ORDER BY c.class_name, c.section;
 ---
 
 *방과후 출석부 — 현장 강사가 실제로 쓰는 출결 관리 플랫폼*
+
+---
+
+## 구현 특이사항
+
+코드를 처음 보는 사람이 놓치기 쉬운 설계 결정들을 정리합니다.
+
+### 비밀번호 해싱 — PBKDF2 + 솔트
+
+`src/lib/crypto.js`에서 Web Crypto API로 PBKDF2(반복 100,000회, SHA-256, 랜덤 16바이트 솔트) 적용.
+저장 형식: `pbkdf2:{saltHex}:{hashHex}`. 레거시 SHA-256(64자 hex) fallback은 검증만 가능하고 신규 생성은 불가.
+
+### 오프라인 → 온라인 자동 복구 (pending 큐)
+
+쓰기 실패 시 `IndexedDB(asa_pending_ops)`에 적재 → 30초마다 자동 재시도 + 온라인 복귀 시 즉시 재시도.
+앱 재시작 시 로컬에만 있고 Supabase에 없는 `students` 레코드를 자동 insert하는 OrphanSync도 포함.
+
+### syncUpdate — row 없으면 insert 자동 전환
+
+`syncUpdate()`는 update 후 반영된 행이 0개면 DB에 해당 row가 없는 것으로 판단, 로컬 캐시에서 전체 레코드를 꺼내 insert로 전환.
+pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다 유실되는 상황을 방지.
+
+### boolean 컬럼 sanitize
+
+`db-api` Edge Function의 `sanitize()`가 `students` 테이블의 `parent_joined`, `moved_to_manage` 컬럼에 빈 문자열·null이 들어오면 자동으로 `false`로 변환. 프론트에서 잘못된 값을 보내도 PostgreSQL boolean 에러가 발생하지 않음.
+
+### CSP 헤더 (vercel.json)
+
+`vercel.json`에 `Content-Security-Policy` 헤더를 직접 설정. `script-src`, `connect-src`, `frame-src`를 허용 도메인 화이트리스트로 제한. 별도 서버 없이 Vercel 엣지에서 XSS 기본 차단.
+
+---
+
+## 보안 설정 (Supabase 직접 적용 — 코드 외 설정)
+
+> 아래 항목은 `000_complete_schema.sql` 하단에도 반영되어 있음.
+> 신규 Supabase 프로젝트 생성 시 schema 실행만 하면 자동 적용됨.
+
+### Row Level Security (RLS)
+
+모든 핵심 테이블에 RLS 활성화 + 정책 적용 완료 (2026-06-12)
+
+| 테이블 | 정책 |
+|--------|------|
+| `users` | 본인 행(`auth_id = auth.uid()`) 또는 관리자만 접근 |
+| `students` | `teacher_id = get_my_user_id()` 또는 관리자 |
+| `classes` | `teacher_id = get_my_user_id()` 또는 관리자 |
+| `attendance` | `class_id → classes.teacher_id` 조인으로 본인 수업 출석만 접근 |
+| `notes` | `teacher_id = get_my_user_id()` 또는 관리자 |
+| `parent_members` | `teacher_id = get_my_user_id()` 또는 관리자 |
+| `teacher_parent_links` | `teacher_id = get_my_user_id()` 또는 관리자 |
+| `settings` | **select: 관리자만**, insert/update/delete: 관리자만 |
+
+> `attendance`는 `teacher_id` 컬럼이 없으므로 `classes` 테이블 조인으로 소유권 확인.
+
+### 헬퍼 함수
+
+| 함수 | 역할 |
+|------|------|
+| `get_my_user_id()` | `auth.uid()` → `users.id` 변환 (security definer) |
+| `is_admin()` | `users.level >= 10` 여부 반환 (security definer) |
+
+### 학부모 PIN 인증
+
+| 함수 | 역할 |
+|------|------|
+| `set_parent_pin(phone, pin)` | PIN을 `pgcrypto crypt(bcrypt)` 해시로 저장 |
+| `verify_parent_pin(phone, pin)` | PIN 검증 후 `parent_members` 행 반환 |
+| `withdraw_parent(phone)` | 학부모 탈퇴 처리 (RLS 우회용 security definer) |
+| `check_parent_joined(phone)` | 가입 여부 확인 |
+
+- `parent_members.pin_hash` 컬럼 추가 (nullable, bcrypt 해시 저장)
+- 프론트(`ParentLogin.jsx`)에서 5회 실패 시 30초 잠금 처리
+
+### CORS
+
+- `db-api` Edge Function: `ALLOWED_ORIGIN` Secret을 Supabase Dashboard에서 직접 설정
+- 코드에 하드코딩하지 않음 — Dashboard에서만 관리
+
+### 기타
+
+- `send-email` / `send-sms` Edge Function용 API 키(Resend, Solapi)는 `settings` 테이블에 저장되나, RLS로 관리자만 읽을 수 있음
+- `db.js` 동기화 시 `email` / `solapi` 키는 `localStorage`에 저장하지 않음 (`EXCLUDE_KEYS`)
+- Supabase Auth 세션: `sessionStorage` 사용 (탭 닫으면 자동 로그아웃)
