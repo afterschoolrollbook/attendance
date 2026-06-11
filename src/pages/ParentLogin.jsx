@@ -97,6 +97,10 @@ export function ParentLogin() {
   const [loading,     setLoading]    = useState(false)
   const [member,      setMember]     = useState(null)    // 최종 인증된 member
 
+  // ── PIN 브루트포스 방어 (5회 실패 시 30초 잠금)
+  const [failCount,   setFailCount]   = useState(0)
+  const [lockedUntil, setLockedUntil] = useState(null)
+
   // ── 최종 인증 완료 → ParentHome
   if (member) {
     return (
@@ -139,6 +143,15 @@ export function ParentLogin() {
   // ── 2단계: PIN 검증 (Supabase RPC)
   const handlePinVerify = async (currentPin) => {
     if (currentPin.length < 4) return
+
+    // 잠금 확인
+    if (lockedUntil && Date.now() < lockedUntil) {
+      const left = Math.ceil((lockedUntil - Date.now()) / 1000)
+      setError(`PIN 입력이 잠겼습니다. ${left}초 후 다시 시도해주세요.`)
+      setPin('')
+      return
+    }
+
     setLoading(true)
     setError('')
     try {
@@ -150,18 +163,38 @@ export function ParentLogin() {
           .rpc('verify_parent_pin', { p_phone: normalized, p_pin: currentPin })
         if (rpcErr) throw new Error(rpcErr.message)
         if (!data || data.length === 0) {
-          setError('PIN이 올바르지 않습니다.')
+          const next = failCount + 1
+          setFailCount(next)
+          if (next >= 5) {
+            setLockedUntil(Date.now() + 30000)
+            setFailCount(0)
+            setError('PIN을 5회 잘못 입력했습니다. 30초 후 다시 시도해주세요.')
+          } else {
+            setError(`PIN이 올바르지 않습니다. (${next}/5)`)
+          }
           setPin('')
           return
         }
+        setFailCount(0)
+        setLockedUntil(null)
         setMember({ ...candidate, ...(data[0] || {}) })
       } else {
         // Supabase 미설정(로컬 개발) — 로컬 캐시 단순 비교 (개발 전용)
         if (candidate.pinHash !== currentPin) {
-          setError('PIN이 올바르지 않습니다.')
+          const next = failCount + 1
+          setFailCount(next)
+          if (next >= 5) {
+            setLockedUntil(Date.now() + 30000)
+            setFailCount(0)
+            setError('PIN을 5회 잘못 입력했습니다. 30초 후 다시 시도해주세요.')
+          } else {
+            setError(`PIN이 올바르지 않습니다. (${next}/5)`)
+          }
           setPin('')
           return
         }
+        setFailCount(0)
+        setLockedUntil(null)
         setMember(candidate)
       }
     } catch (e) {
