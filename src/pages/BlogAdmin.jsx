@@ -196,40 +196,40 @@ export function BlogAdmin({ user }) {
           <p style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>블로그 글과 사용 설명서를 작성하고 관리하세요.</p>
         </div>
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-          <a href="/blog" target="_blank"
+          <a href="/blog" target="_blank" title="발행된 블로그 페이지를 새 탭으로 봅니다"
             style={{ padding:'9px 16px', borderRadius:'9px', border:`1.5px solid ${C.border}`, background:C.card, color:C.muted, fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
             🌐 블로그 보기
           </a>
-          <a href="/docs" target="_blank"
+          <a href="/docs" target="_blank" title="발행된 설명서 페이지를 새 탭으로 봅니다"
             style={{ padding:'9px 16px', borderRadius:'9px', border:`1.5px solid #bfdbfe`, background:'#eff6ff', color:'#3b82f6', fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
             📖 설명서 보기
           </a>
           {canWrite && <>
-          <button onClick={() => handleNew('blog')}
+          <button onClick={() => handleNew('blog')} title="블로그 글을 새로 작성합니다"
             style={{ padding:'9px 18px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             + 블로그 글
           </button>
-          <button onClick={() => handleNew('docs')}
+          {isAdmin && <button onClick={() => handleNew('docs')} title="사용 설명서를 새로 작성합니다 (관리자 전용)"
             style={{ padding:'9px 18px', borderRadius:'9px', border:'none', background:'#3b82f6', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             + 설명서
-          </button>
-          <button onClick={() => handleNew('template')}
+          </button>}
+          {isAdmin && <button onClick={() => handleNew('template')} title="템플릿을 새로 등록합니다 (관리자 전용)"
             style={{ padding:'9px 18px', borderRadius:'9px', border:'none', background:'#7c3aed', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             + 템플릿
-          </button>
+          </button>}
           </>}
           {!canWrite && (
             <div style={{ fontSize:'13px', color:'#9ca3af', padding:'9px 12px', borderRadius:'9px', background:'#f9fafb', border:'1.5px solid #e5e7eb' }}>
-              🔒 Lv.{blogWriteMinLevel} 이상 글 작성 가능
+              🔒 Lv.{blogWriteMinLevel} 이상 글 작성 가능 (현재 Lv.{userLevel})
             </div>
           )}
         </div>
       </div>
 
-      {/* n8n API 안내 */}
-      <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'10px', padding:'12px 16px', marginBottom:'20px', fontSize:'12px', color:'#15803d' }}>
+      {/* n8n API 안내 — 관리자만 표시 */}
+      {isAdmin && <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'10px', padding:'12px 16px', marginBottom:'20px', fontSize:'12px', color:'#15803d' }}>
         <strong>🤖 n8n 자동 발행</strong> — POST /functions/v1/db-api · action: "insert" · table: "blogPosts" · type: "blog" 또는 "docs"
-      </div>
+      </div>}
 
       {/* 타입 필터 탭 + 내 글만 보기 */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px', marginBottom:'20px' }}>
