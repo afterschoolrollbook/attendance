@@ -550,9 +550,12 @@ export async function initFromSupabase() {
     // settings 동기화 (localStorage에 저장 — 용량 작음)
     try {
       const { data: settings } = await supabase.from('settings').select('*')
+      // email, solapi 키는 Edge Function 전용 — 프론트 localStorage에 저장하지 않음
+      const EXCLUDE_KEYS = new Set(['email', 'solapi'])
       if (Array.isArray(settings)) {
         settings.forEach(row => {
           if (!row.key || !row.value) return
+          if (EXCLUDE_KEYS.has(row.key)) return
           localStorage.setItem('asa_settings_' + row.key, JSON.stringify(row.value))
         })
       }
