@@ -21,7 +21,6 @@ async function sendVerifyCode(email) {
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
 
   if (!isConfigured || !supabase) {
-    console.log(`[개발모드] 인증번호: ${code}`)
     return { dev: true, devCode: code }
   }
 
@@ -72,7 +71,6 @@ async function sendResetCode(email) {
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
 
   if (!isConfigured || !supabase) {
-    console.log(`[개발모드] 비번재설정 코드: ${code}`)
     return { dev: true, devCode: code }
   }
 
