@@ -204,7 +204,8 @@ function VerifyModal({ user, onVerified, onClose }) {
 }
 
 export function Profile({ user, onUserUpdate, onNav }) {
-  const [verified,      setVerified]      = useState(false)
+  const VERIFY_KEY = `asa_verified_${user?.id || ''}`
+  const [verified,      setVerified]      = useState(() => sessionStorage.getItem(VERIFY_KEY) === 'true')
   const [showVerify,    setShowVerify]    = useState(false)
   const [pendingAction, setPendingAction] = useState(null)
 
@@ -304,6 +305,7 @@ export function Profile({ user, onUserUpdate, onNav }) {
   }
 
   const handleVerified = () => {
+    sessionStorage.setItem(VERIFY_KEY, 'true')
     setVerified(true)
     setShowVerify(false)
     if (pendingAction) { pendingAction(); setPendingAction(null) }
