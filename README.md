@@ -2,6 +2,8 @@
 
 > 방과후 강사를 위한 출결·학생·수업 관리 플랫폼
 
+- **서비스**: [www.afterschoolrollbook.kr](https://www.afterschoolrollbook.kr/)
+- **블로그**: [www.afterschoolrollbook.kr/blog](https://www.afterschoolrollbook.kr/blog)
 - **GitHub**: [afterschoolrollbook/attendance](https://github.com/afterschoolrollbook/attendance)
 - **Supabase 프로젝트**: afterschool-attendance
 
@@ -17,6 +19,42 @@
 | 알림 | Resend (이메일) + Solapi (SMS/알림톡) |
 | 소셜 로그인 | Google / 카카오 / 네이버 |
 | 배포 | Vercel |
+
+---
+
+## 블로그 / 커뮤니티
+
+서비스 내 블로그 기능이 내장되어 있습니다. 공개 URL: [www.afterschoolrollbook.kr/blog](https://www.afterschoolrollbook.kr/blog)
+
+### 게시판 종류
+
+| 게시판 | key | 설명 |
+|--------|-----|------|
+| 📝 블로그 | `blog` | 출석 관리·교구 관리·업무 팁 등 카테고리별 글 |
+| ⭐ 사용자 후기 | `review` | 서비스 사용 후기 |
+| ❓ 질문 | `qna` | 이용 문의 및 Q&A |
+| 🔐 비밀게시판 | `secret` | 관리자 전용 비공개 게시판 |
+
+### 접근 권한
+
+관리자가 `서비스 설정 → 권한 설정`에서 게시판별 접근·읽기·쓰기 최소 레벨을 설정할 수 있습니다 (`boardPermissions` settings 키).
+
+### 주요 파일
+
+| 파일 | 역할 |
+|------|------|
+| `Blog.jsx` | 공개 블로그 뷰어 (마크다운 렌더링, DOMPurify XSS 방어) |
+| `BlogWrite.jsx` | 글 작성·수정 에디터 |
+| `BlogAdmin.jsx` | 관리자용 글 관리 |
+| `MyBlog.jsx` | 강사 본인 작성 글 관리 |
+
+### DB 테이블
+
+`blog_posts` — `title`, `content`, `board_type`, `category`, `tags`, `cover_image`, `published_at`, `author`, `slug`
+
+### 라우팅
+
+`/blog` 또는 `/docs` 경로 모두 `Blog.jsx`로 연결됩니다. 로그인 없이도 접근 가능한 공개 화면입니다.
 
 ---
 
@@ -390,7 +428,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | `notes` | `teacher_id = get_my_user_id()` 또는 관리자 |
 | `parent_members` | `teacher_id = get_my_user_id()` 또는 관리자 |
 | `teacher_parent_links` | `teacher_id = get_my_user_id()` 또는 관리자 |
-| `settings` | **select: 관리자만**, insert/update/delete: 관리자만 |
+| `settings` | **select: 로그인 사용자만(`auth.uid() is not null`)**, insert/update/delete: 관리자만 |
 | `school_notices` | **select: 본인(`admin_id`) 또는 관리자**, write: 동일 |
 
 > `attendance`는 `teacher_id` 컬럼이 없으므로 `classes` 테이블 조인으로 소유권 확인.
@@ -436,3 +474,5 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 - `db.js` 동기화 시 `email` / `solapi` 키는 `localStorage`에 저장하지 않음 (`EXCLUDE_KEYS`)
 - Supabase Auth 세션: `sessionStorage` 사용 (탭 닫으면 자동 로그아웃)
 - `send-sms` Edge Function: Bearer 토큰 인증 추가 (미인증 요청 401 차단) — URL 노출 시 무단 SMS 발송 방지
+- `AdSlot.jsx`: Blob API 실패 시 `dangerouslySetInnerHTML` 폴백 제거 → `null` 반환으로 변경 (XSS 방어)
+- 비밀번호 정책: 8자 이상 + 영문 + 숫자 + **특수문자** 조합 필수 (회원가입·비밀번호 재설정 모두 적용)
