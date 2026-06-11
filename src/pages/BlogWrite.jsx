@@ -239,16 +239,42 @@ export function BlogWrite({ user }) {
       </div>
 
       {/* 게시판 탭 */}
-      <div style={{ display:'flex', gap:'0', marginBottom:'24px', borderBottom:`2px solid ${C.border}`, overflowX:'auto' }}>
-        {accessibleBoards.map(board => (
-          <button key={board.key} onClick={() => { setTab(board.key); setView('list') }}
-            style={{ padding:'10px 20px', border:'none', background:'none', cursor:'pointer', fontSize:'14px', fontWeight:tab===board.key?700:500,
-              color: tab===board.key ? board.color : C.muted,
-              borderBottom: tab===board.key ? `2px solid ${board.color}` : '2px solid transparent',
-              marginBottom:'-2px', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-            {board.label}
-          </button>
-        ))}
+      <div style={{ display:'flex', gap:'0', marginBottom:'24px', borderBottom:`2px solid ${C.border}`, overflowX:'auto', position:'relative' }}>
+        {accessibleBoards.map(board => {
+          const writeMinLv = boardPerms[board.key]?.write ?? 1
+          const readMinLv  = boardPerms[board.key]?.read  ?? 1
+          const canWriteThis = isAdmin || userLevel >= writeMinLv
+          const isActive = tab === board.key
+          return (
+            <div key={board.key} style={{ position:'relative' }}
+              onMouseEnter={e => { const tip = e.currentTarget.querySelector('.tab-tip'); if(tip) tip.style.display='block' }}
+              onMouseLeave={e => { const tip = e.currentTarget.querySelector('.tab-tip'); if(tip) tip.style.display='none' }}>
+              <button onClick={() => { setTab(board.key); setView('list') }}
+                style={{ padding:'10px 20px', border:'none', background:'none', cursor:'pointer', fontSize:'14px',
+                  fontWeight: isActive ? 700 : 500,
+                  color: isActive ? board.color : C.muted,
+                  borderBottom: isActive ? `2px solid ${board.color}` : '2px solid transparent',
+                  marginBottom:'-2px', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+                {board.label}
+              </button>
+              {/* 툴팁 */}
+              <div className="tab-tip" style={{
+                display:'none', position:'absolute', top:'100%', left:'50%', transform:'translateX(-50%)',
+                marginTop:'8px', background:'#1f2937', color:'#fff', borderRadius:'10px',
+                padding:'10px 14px', fontSize:'12px', whiteSpace:'nowrap', zIndex:999,
+                boxShadow:'0 4px 16px rgba(0,0,0,0.2)', lineHeight:1.8,
+              }}>
+                <div>📖 읽기: <strong>Lv.{readMinLv} 이상</strong></div>
+                <div>✍️ 글쓰기: <strong>Lv.{writeMinLv} 이상</strong></div>
+                <div style={{ marginTop:'6px', paddingTop:'6px', borderTop:'1px solid #374151', color: canWriteThis ? '#4ade80' : '#f87171', fontWeight:700 }}>
+                  {canWriteThis ? '✅ 글쓰기 가능' : `🔒 Lv.${writeMinLv} 이상만 가능 (현재 Lv.${userLevel})`}
+                </div>
+                {/* 말풍선 화살표 */}
+                <div style={{ position:'absolute', top:'-5px', left:'50%', transform:'translateX(-50%)', width:'10px', height:'10px', background:'#1f2937', rotate:'45deg' }} />
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {/* 읽기 권한 없음 */}
