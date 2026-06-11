@@ -12,7 +12,7 @@ export const FUNCTIONS_BASE = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1` : ''
 
 // ─── Supabase JS 클라이언트 (DB 직접 접근)
 export const supabase = isConfigured
-  ? createClient(SUPABASE_URL, SUPABASE_ANON)
+  ? createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { storage: sessionStorage, persistSession: true } })
   : null
 
 // ─── 실제 DB 테이블 이름 매핑
