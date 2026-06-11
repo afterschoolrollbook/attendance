@@ -642,7 +642,16 @@ export function Blog() {
   const [loginError, setLoginError] = useState('')
   const [blogAdminMode, setBlogAdminMode] = useState(false)
 
-  const blogPosts = allPosts.filter(p => p.type !== 'docs' && p.type !== 'template')
+  // 로그인 세션 확인
+  const sessionUser = (() => { try { return JSON.parse(sessionStorage.getItem('asa_user') || 'null') } catch { return null } })()
+
+  const blogPosts = allPosts.filter(p => {
+    const type = p.type || 'blog'
+    const boardType = p.boardType || type
+    // 비밀글, 후기, 질문, secret 타입 제외 — 일반 블로그/공지 글만
+    return type !== 'docs' && type !== 'template' && type !== 'secret' && !p.isSecret
+      && boardType !== 'secret' && boardType !== 'review' && boardType !== 'qna'
+  })
   const docsPosts = allPosts.filter(p => p.type === 'docs')
   const templatePosts = allPosts.filter(p => p.type === 'template')
 
@@ -716,6 +725,11 @@ export function Blog() {
           )}
         </div>
         <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+          {sessionUser && (
+            <a href="/?page=dashboard" style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#374151', borderRadius:'8px', fontSize:'13px', fontWeight:600, textDecoration:'none' }}>
+              🏠 대시보드
+            </a>
+          )}
           {adminUser ? (
             <button onClick={() => setBlogAdminMode(v => !v)}
               style={{ padding:'7px 16px', background:blogAdminMode?'#1f2937':'#f97316', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
