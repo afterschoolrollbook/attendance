@@ -639,7 +639,13 @@ export function Blog() {
   const [blogAdminMode, setBlogAdminMode] = useState(false)
 
   // 로그인 세션 확인
-  const sessionUser = (() => { try { return JSON.parse(sessionStorage.getItem('asa_user') || 'null') } catch { return null } })()
+  const sessionUser = (() => {
+    try {
+      // Supabase 토큰(sb-) 또는 앱 세션(asa_) 이 localStorage에 있으면 로그인 상태
+      return Object.keys(localStorage).some(k => k.startsWith('sb-') || k.startsWith('asa_'))
+        || !!sessionStorage.getItem('asa_user')
+    } catch { return false }
+  })()
 
   const blogPosts = allPosts.filter(p => {
     const type = p.type || 'blog'
