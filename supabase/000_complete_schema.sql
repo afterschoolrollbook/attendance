@@ -1177,7 +1177,7 @@ create policy "teacher_parent_links_all" on teacher_parent_links for all using (
 -- settings RLS
 alter table if exists settings enable row level security;
 drop policy if exists "settings_select" on settings;
-create policy "settings_select" on settings for select using (true);
+create policy "settings_select" on settings for select using (auth.uid() is not null);
 drop policy if exists "settings_insert" on settings;
 create policy "settings_insert" on settings for insert with check (is_admin());
 drop policy if exists "settings_update" on settings;
