@@ -662,6 +662,7 @@ export function Auth({ onLogin, initialTab }) {
   const handleFpReset = async () => {
     if (fpNewPw.length < 8) { setError('비밀번호는 8자 이상이어야 합니다.'); return }
     if (!/[a-zA-Z]/.test(fpNewPw) || !/[0-9]/.test(fpNewPw)) { setError('비밀번호는 영문과 숫자를 모두 포함해야 합니다.'); return }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(fpNewPw)) { setError('비밀번호는 특수문자를 하나 이상 포함해야 합니다.'); return }
     if (fpNewPw !== fpNewPw2) { setError('비밀번호가 일치하지 않습니다.'); return }
     try {
       await authResetPassword(fpEmail.trim().toLowerCase())
@@ -866,6 +867,7 @@ export function Auth({ onLogin, initialTab }) {
     if (!emailChecked) { setError('이메일 중복 확인을 해주세요.'); return }
     if (form.pw.length < 8) { setError('비밀번호는 8자 이상이어야 합니다.'); return }
     if (!/[a-zA-Z]/.test(form.pw) || !/[0-9]/.test(form.pw)) { setError('비밀번호는 영문과 숫자를 모두 포함해야 합니다.'); return }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(form.pw)) { setError('비밀번호는 특수문자를 하나 이상 포함해야 합니다.'); return }
     if (form.pw !== form.pw2) { setError('비밀번호가 일치하지 않습니다.'); return }
     if (!allRequired) { setError('필수 약관에 동의해주세요.'); return }
     setStep(2)
@@ -1026,7 +1028,7 @@ export function Auth({ onLogin, initialTab }) {
                                 ✅ 이메일 인증 완료! 새 비밀번호를 설정하세요.
                               </div>
                               <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-                                <label style={{ fontSize:'13px', fontWeight:500, color:'#111827' }}>새 비밀번호 (8자 이상)</label>
+                                <label style={{ fontSize:'13px', fontWeight:500, color:'#111827' }}>새 비밀번호 (8자 이상, 영문+숫자+특수문자)</label>
                                 <input value={fpNewPw} onChange={e => { setFpNewPw(e.target.value); setError('') }} type="password" placeholder="새 비밀번호"
                                   style={{ padding:'9px 13px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
                               </div>
@@ -1117,7 +1119,7 @@ export function Auth({ onLogin, initialTab }) {
                     <Input label="이름" value={form.name} onChange={v => set('name', v)} placeholder="홍길동" required />
                     <EmailInputWithCheck value={form.email} onChange={v => { set('email', v); setEmailChecked(false) }} onChecked={ok => setEmailChecked(ok)} />
                     <Input label="연락처" value={form.phone} onChange={v => set('phone', v)} placeholder="010-0000-0000" required />
-                    <Input label="비밀번호 (8자 이상, 영문+숫자)" value={form.pw} onChange={v => set('pw', v)} type="password" placeholder="비밀번호" required />
+                    <Input label="비밀번호 (8자 이상, 영문+숫자+특수문자)" value={form.pw} onChange={v => set('pw', v)} type="password" placeholder="비밀번호" required />
                     <Input label="비밀번호 확인" value={form.pw2} onChange={v => set('pw2', v)} type="password" placeholder="재입력" required />
 
                     <div style={{ borderRadius:'10px', border:'1.5px solid #e5e7eb', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
