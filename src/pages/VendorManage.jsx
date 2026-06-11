@@ -166,7 +166,6 @@ function InviteModal({ vendor, onClose, onSent }) {
       if (isConfigured) {
         await sendInviteEmail(email.trim(), vendor.name, link)
       } else {
-        console.log('[개발모드] 초대 이메일:', { to: email, link })
         await new Promise(r => setTimeout(r, 800))
       }
       setSent(true)

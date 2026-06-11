@@ -318,7 +318,6 @@ function useNaverAuth(onSuccess, clientId) {
   }, [])
 
   const loginWithNaver = () => {
-    console.log("[NAVER DEBUG] 버튼 클릭됨", { clientId })
     if (!clientId) { toastError('네이버 클라이언트 ID가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
 
     const state = Math.random().toString(36).substring(2, 15)
@@ -328,15 +327,12 @@ function useNaverAuth(onSuccess, clientId) {
       + '&response_type=code'
       + '&state=' + state
 
-    console.log('[NAVER DEBUG] 로그인 시작', { clientId, redirectUri, state })
 
     const popup = window.open(naverAuthUrl, 'naverLogin', 'width=500,height=700,left=200,top=100')
-    console.log('[NAVER DEBUG] 팝업 결과', popup)
 
     const handleMessage = async (e) => {
       if (e.origin !== window.location.origin) return
       if (e.data?.type !== 'naver_login_success' && e.data?.type !== 'naver_login_fail') return
-      console.log('[NAVER DEBUG] 메시지 수신', e.data)
       window.removeEventListener('message', handleMessage)
       clearInterval(popupCheck)
       if (e.data.type === 'naver_login_fail') { toastError('네이버 로그인에 실패했습니다.'); return }
@@ -350,7 +346,6 @@ function useNaverAuth(onSuccess, clientId) {
       if (!popup || popup.closed || typeof popup.closed === 'undefined') {
         clearInterval(popupCheck)
         window.removeEventListener('message', handleMessage)
-        console.log('[NAVER DEBUG] 팝업 차단됨 또는 닫힘 → 리디렉트로 전환')
         window.location.href = naverAuthUrl + '&naver_redirect=1'
       }
     }, 500)

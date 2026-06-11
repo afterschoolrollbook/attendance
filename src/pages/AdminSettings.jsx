@@ -592,7 +592,6 @@ function RegionSection() {
       setNeisMsg({ ok:true, msg:`✅ ${school.name}과(와) "${school.support}"을(를) 추가하고 저장했습니다.` })
     }
     // 저장 확인 로그
-    console.log('[RegionSection] 저장된 데이터:', Settings.get('regionMap'))
   }
 
   // 폼 상태

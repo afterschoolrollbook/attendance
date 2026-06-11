@@ -77,7 +77,6 @@ export function SchoolNoticePopup({ user }) {
       )
       if (allDone) {
         // 담당자에게 알림 (문구만 — 실제 문자 발송은 추후 Solapi 연동)
-        console.log(`[SchoolNotice] 전원 제출 완료: ${current.title}`)
       }
 
       setDone(true)

@@ -251,9 +251,7 @@ export async function loadCacheFromIDB() {
   }))
   if (totalRows === 0) {
     try { localStorage.removeItem('asa_last_sync_at') } catch {}
-    console.log('[IDB] 캐시 비어있음 → 전체 로드로 전환')
   }
-  console.log('[IDB] 캐시 로드 완료')
 }
 
 // 인메모리 캐시 → IndexedDB에 저장
@@ -264,7 +262,6 @@ async function saveCacheToIDB() {
     if (rows.length > 0) dataMap[t] = rows
   }
   await idbSetAll(dataMap)
-  console.log('[IDB] 캐시 저장 완료')
 }
 
 // ─── 재시도 헬퍼 (네트워크 일시 오류 대응)
@@ -391,7 +388,6 @@ async function syncUpdate(table, id, patch) {
       // DB에 해당 row가 없음 → 로컬 캐시에서 전체 레코드 가져와서 insert
       const fullRecord = cache.get(table).find(r => r.id === id)
       if (fullRecord) {
-        console.log(`[DB] update/${table} row 없음 → insert로 전환: ${id}`)
         await syncInsert(table, fullRecord)
       }
     }
@@ -472,10 +468,6 @@ export async function initFromSupabase() {
   const isIncremental = !!lastSyncAt && !idbEmpty
   const syncStartedAt = new Date().toISOString()
 
-  console.log(isIncremental
-    ? `[Supabase] 증분 동기화 — ${lastSyncAt} 이후 변경분만 로드`
-    : '[Supabase] 최초 전체 로드')
-
   try {
     await Promise.all(SYNC_TABLES.map(async (t) => {
       try {
@@ -509,7 +501,6 @@ export async function initFromSupabase() {
           }
           cache.set(t, merged.filter(r => r._deleted !== true))
           _emit(t)  // UI 리렌더링 트리거 (삭제/변경사항 반영)
-          console.log(`[Supabase] ${t}: ${allRows.length}건 변경 반영`)
           return
         }
 
@@ -543,7 +534,6 @@ export async function initFromSupabase() {
             from += PAGE
           }
           cache.set(t, allRows.map(fromDb).filter(r => r._deleted !== true))
-          console.log(`[Supabase] ${t}: ${cache.get(t).length}건 로드`)
           return
         }
 
@@ -552,7 +542,6 @@ export async function initFromSupabase() {
         if (!Array.isArray(rows)) return
 
         cache.set(t, rows.map(fromDb).filter(r => r._deleted !== true))
-        console.log(`[Supabase] ${t}: ${cache.get(t).length}건 로드`)
       } catch (e) {
         console.warn(`[Supabase] ${t} 로드 실패:`, e.message)
       }
@@ -566,7 +555,6 @@ export async function initFromSupabase() {
           if (!row.key || !row.value) return
           localStorage.setItem('asa_settings_' + row.key, JSON.stringify(row.value))
         })
-        console.log('[Supabase] settings 동기화 완료')
       }
     } catch (e) {
       console.warn('[Supabase] settings 동기화 실패:', e.message)
@@ -579,7 +567,6 @@ export async function initFromSupabase() {
     // 동기화 완료 시각 저장 + IndexedDB에 캐시 보존
     setLastSyncAt(syncStartedAt)
     await saveCacheToIDB()
-    console.log('[Supabase] 데이터 동기화 완료')
     return true
   } catch (e) {
     console.warn('[Supabase] 전체 실패:', e.message)
@@ -603,11 +590,9 @@ async function syncOrphanRecords() {
       // 로컬에는 있는데 Supabase에 없는 것 → insert
       const orphans = localRows.filter(r => !remoteIds.has(r.id))
       if (orphans.length === 0) continue
-      console.log(`[OrphanSync] ${t}: ${orphans.length}건 누락 감지 → insert 시도`)
       for (const r of orphans) {
         try {
           await syncInsert(t, r)
-          console.log(`[OrphanSync] ${t} insert 성공: ${r.id}`)
         } catch (e) {
           console.warn(`[OrphanSync] ${t} insert 실패: ${r.id}`, e.message)
           await pendingEnqueue({ qid: `insert_${t}_${r.id}`, type: 'insert', table: t, data: r })
@@ -694,14 +679,12 @@ async function flushPendingOps() {
   if (!supabase) return
   const ops = await pendingGetAll()
   if (ops.length === 0) return
-  console.log(`[PendingQueue] 미완료 작업 ${ops.length}건 재시도`)
   for (const op of ops) {
     try {
       if (op.type === 'insert') await syncInsert(op.table, op.data)
       if (op.type === 'update') await syncUpdate(op.table, op.id, op.data)
       if (op.type === 'delete') await syncDelete(op.table, op.id)
       await pendingDequeue(op.qid)
-      console.log(`[PendingQueue] 성공: ${op.type}/${op.table} (${op.qid})`)
       _emitSaveComplete()
     } catch (e) {
       console.warn(`[PendingQueue] 재시도 실패: ${op.type}/${op.table}:`, e.message)
@@ -887,7 +870,6 @@ export const Settings = {
     if (supabase) {
       supabase.from('settings')
         .upsert({ key: k, value: v, updated_at: now() })
-        .then(() => console.log(`[Settings] "${k}" Supabase 저장 완료`))
         .catch(e => console.warn(`[Settings] "${k}" Supabase 저장 실패:`, e.message))
     }
   },
