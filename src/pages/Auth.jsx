@@ -15,30 +15,23 @@ function getSocialConfig() {
   }
 }
 
-// [보안 수정] 인증번호 서버 측 발급·검증
-// - 코드를 클라이언트 state에 저장하지 않음 (개발자도구 노출 방지)
-// - Supabase verify_codes 테이블에 저장 (5분 만료)
-// - 검증도 서버(테이블) 기준으로 수행
-
+// [보안] 인증번호 서버 측 발급·검증
 async function sendVerifyCode(email) {
   const code = String(Math.floor(100000 + Math.random() * 900000))
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
 
   if (!isConfigured || !supabase) {
-    // 개발 모드: 콘솔에만 출력, DB 저장 없이 임시 세션 키로 관리
     console.log(`[개발모드] 인증번호: ${code}`)
     return { dev: true, devCode: code }
   }
 
   try {
-    // 기존 미사용 코드 무효화
     await supabase
       .from('verify_codes')
       .update({ used: true })
       .eq('target', email.toLowerCase())
       .eq('used', false)
 
-    // 새 코드 저장
     await supabase.from('verify_codes').insert({
       target:     email.toLowerCase(),
       code,
@@ -67,17 +60,13 @@ async function verifyCode(email, inputCode) {
     .limit(1)
 
   if (!rows || rows.length === 0) return false
-
   const row = rows[0]
-  // 만료 확인
   if (new Date(row.expires_at) < new Date()) return false
 
-  // 사용 처리
   await supabase.from('verify_codes').update({ used: true }).eq('id', row.id)
   return true
 }
 
-// 비밀번호 찾기 전용 (purpose='reset')
 async function sendResetCode(email) {
   const code = String(Math.floor(100000 + Math.random() * 900000))
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
@@ -134,10 +123,6 @@ function isGarbled(str) {
   return /[ë¬ìíê°-ÿ]{2,}/.test(str)
 }
 
-
-
-// Google 로그인 훅
-// 전역 플래그 - 컴포넌트 리마운트 시에도 중복 초기화 방지
 let _googleGsiInitialized = false
 
 function useGoogleAuth(onSuccess, clientId) {
@@ -219,11 +204,9 @@ function useGoogleAuth(onSuccess, clientId) {
   return { loginBtnRef, registerBtnRef, renderButtons }
 }
 
-// 카카오 로그인 훅
 function useKakaoAuth(onSuccess, restApiKey) {
   const { error: toastError } = useToast()
 
-  // 팝업 차단 시 리디렉트로 돌아왔을 때만 처리 (URL 파라미터로 구분)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (!params.has('kakao_redirect')) return
@@ -261,7 +244,6 @@ function useKakaoAuth(onSuccess, restApiKey) {
     const redirectUri = window.location.origin + '/kakao-callback'
     const kakaoAuthUrl = 'https://kauth.kakao.com/oauth/authorize?client_id=' + restApiKey + '&redirect_uri=' + encodeURIComponent(redirectUri) + '&response_type=code'
 
-    // 팝업 시도 → 차단되면 리디렉트로 자동 전환
     const popup = window.open(kakaoAuthUrl, 'kakaoLogin', 'width=500,height=700,left=200,top=100')
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
       window.location.href = kakaoAuthUrl + '&kakao_redirect=1'
@@ -299,7 +281,6 @@ function useKakaoAuth(onSuccess, restApiKey) {
 function useNaverAuth(onSuccess, clientId) {
   const { error: toastError } = useToast()
 
-  // 팝업 차단 시 리디렉트로 돌아왔을 때만 처리 (URL 파라미터로 구분)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (!params.has('naver_redirect')) return
@@ -327,7 +308,6 @@ function useNaverAuth(onSuccess, clientId) {
       + '&response_type=code'
       + '&state=' + state
 
-
     const popup = window.open(naverAuthUrl, 'naverLogin', 'width=500,height=700,left=200,top=100')
 
     const handleMessage = async (e) => {
@@ -353,6 +333,7 @@ function useNaverAuth(onSuccess, clientId) {
 
   return loginWithNaver
 }
+
 function SocialEmailVerify({ profile, onVerified, onCancel }) {
   const isKakao = profile.provider === 'kakao'
   const isFakeEmail = (e) => !e || e.includes('@social.local')
@@ -380,14 +361,12 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
       if (!otherEmail.trim()) { setError('이메일을 입력해주세요.'); return }
       if (!emailReg.test(otherEmail.trim())) { setError('올바른 이메일 형식이 아닙니다.'); return }
     }
-    // 중복 체크 — 모든 소셜 로그인 공통
     const dup = Users.findByEmail(targetEmail.toLowerCase())
     if (dup) {
       setError('이미 가입된 이메일입니다.\n회원이시면 해당 이메일로 로그인해 주시길 바랍니다!')
       return
     }
     setSending(true)
-    // [보안 수정] 서버 측 코드 발급 (verify_codes 테이블 저장)
     const result = await sendVerifyCode(targetEmail)
     setSending(false)
     setCodeSent(true)
@@ -397,12 +376,10 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
 
   const handleVerify = async () => {
     if (isDev) {
-      // 개발 모드: 로컬 비교
       if (code.trim() !== devCode) { setError('인증번호가 올바르지 않습니다.'); return }
       onVerified(targetEmail)
       return
     }
-    // [보안 수정] 서버 측 코드 검증 (verify_codes 테이블 조회)
     const ok = await verifyCode(targetEmail, code)
     if (!ok) { setError('인증번호가 올바르지 않거나 만료되었습니다.'); return }
     onVerified(targetEmail)
@@ -417,7 +394,6 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
         <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>이메일 인증</div>
       </div>
 
-      {/* 카카오: 이메일 직접 입력 */}
       {isKakao ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <label style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>💛 실제로 사용하시는 이메일 주소 입력 <span style={{ color: '#ef4444' }}>*</span></label>
@@ -428,7 +404,7 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
             placeholder="example@email.com"
             style={{ padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }}
           />
-          <div style={{ fontSize: '12px', color: '#6b7280' }}>평소 실제로 사용하시는 이메일 주소를 입력해주세요. 인증번호 수신 및 중요 알림에 사용됩니다.</div>
+          <div style={{ fontSize: '12px', color: '#6b7280' }}>평소 실제로 사용하시는 이메일 주소를 입력해주세요.</div>
         </div>
       ) : (
         <div style={{ padding: '12px 14px', background: '#eff6ff', borderRadius: '10px', border: '1.5px solid #bfdbfe', fontSize: '13px', color: '#1e40af' }}>
@@ -530,7 +506,6 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
   )
 }
 
-// ─── 소셜 프로필 입력 화면
 function SocialProfileForm({ profile, onComplete }) {
   const isKakao = profile.provider === 'kakao'
   const isFakeEmail = (e) => !e || e.includes('@social.local')
@@ -562,21 +537,18 @@ function SocialProfileForm({ profile, onComplete }) {
         {isKakao && <span style={{ fontWeight: 700 }}>📧 이메일은 실제로 사용하시는 이메일 주소를 입력해주세요.<br/>인증번호 수신 및 중요 알림에 사용됩니다.</span>}
       </div>
 
-      {/* 이름 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
         <label style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>이름 <span style={{ color: '#ef4444' }}>*</span></label>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="홍길동"
           style={{ padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }} />
       </div>
 
-      {/* 연락처 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
         <label style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>연락처 <span style={{ color: '#ef4444' }}>*</span></label>
         <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000"
           style={{ padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', outline: 'none' }} />
       </div>
 
-      {/* 카카오: 이메일 (인증된 이메일 표시, 수정 불가) */}
       {isKakao && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
           <label style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>이메일</label>
@@ -597,28 +569,24 @@ function SocialProfileForm({ profile, onComplete }) {
   )
 }
 
-// ─── 메인 Auth 컴포넌트
 export function Auth({ onLogin, initialTab }) {
-  const [mode, setMode] = useState(initialTab === 'signup' ? 'register' : 'login') // 'login' | 'register' | 'findId' | 'findPw'
+  const [mode, setMode] = useState(initialTab === 'signup' ? 'register' : 'login')
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({ name: '', email: '', pw: '', pw2: '', phone: '' })
   const [emailChecked, setEmailChecked] = useState(false)
   const [error, setError] = useState('')
-  const [verifyCode, setVerifyCode] = useState('')  // 개발 모드 전용 (프로덕션에서는 미사용)
+  const [verifyCode, setVerifyCode] = useState('')
   const [inputCode, setInputCode] = useState('')
   const [codeSent, setCodeSent] = useState(false)
   const [verified, setVerified] = useState(false)
   const [sending, setSending] = useState(false)
   const [isDev, setIsDev] = useState(false)
 
-  // 아이디 찾기 state
   const [findIdPhone, setFindIdPhone] = useState('')
   const [foundEmail,  setFoundEmail]  = useState(null)
 
-  // 비밀번호 초기화 state
   const [fpEmail,    setFpEmail]    = useState('')
   const [fpCode,     setFpCode]     = useState('')
-  const [fpSentCode, setFpSentCode] = useState('')
   const [fpCodeSent, setFpCodeSent] = useState(false)
   const [fpVerified, setFpVerified] = useState(false)
   const [fpNewPw,    setFpNewPw]    = useState('')
@@ -627,11 +595,9 @@ export function Auth({ onLogin, initialTab }) {
   const [fpDev,      setFpDev]      = useState('')
   const [fpDone,     setFpDone]     = useState(false)
 
-  // 소셜 로그인 단계
-  const [socialStep, setSocialStep] = useState(null) // null | 'email_verify' | 'profile'
+  const [socialStep, setSocialStep] = useState(null)
   const [pendingSocialProfile, setPendingSocialProfile] = useState(null)
 
-  // 약관 동의
   const [terms, setTerms] = useState({ service: false, privacy: false, marketing: false, thirdParty: false })
   const allRequired = terms.service && terms.privacy
   const toggleTerm = (k) => setTerms(p => ({ ...p, [k]: !p[k] }))
@@ -646,13 +612,12 @@ export function Auth({ onLogin, initialTab }) {
   const goMode = (m) => {
     setMode(m); setError('')
     setFindIdPhone(''); setFoundEmail(null)
-    setFpEmail(''); setFpCode(''); setFpSentCode(''); setFpCodeSent(false)
+    setFpEmail(''); setFpCode(''); setFpCodeSent(false)
     setFpVerified(false); setFpNewPw(''); setFpNewPw2(''); setFpDev(''); setFpDone(false)
     resetRegister()
     setForm({ name:'', email:'', pw:'', pw2:'', phone:'' })
   }
 
-  // 아이디 찾기: 전화번호로 이메일 마스킹 반환
   const handleFindId = () => {
     const phone = findIdPhone.trim()
     if (!phone) { setError('연락처를 입력해주세요.'); return }
@@ -660,7 +625,6 @@ export function Auth({ onLogin, initialTab }) {
     const normalize = (p) => p.replace(/-/g, "")
     const user = all.find(u => normalize(u.phone) === normalize(phone))
     if (!user) { setFoundEmail('notfound'); return }
-    // 이메일 마스킹: ab***@gmail.com
     const [local, domain] = user.email.split('@')
     const half = Math.ceil(local.length / 2)
     const masked = local.slice(0, half) + '*'.repeat(local.length - half) + '@' + domain
@@ -668,7 +632,6 @@ export function Auth({ onLogin, initialTab }) {
     setError('')
   }
 
-  // 비밀번호 초기화: 인증번호 발송
   const handleFpSend = async () => {
     setError('')
     const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -682,17 +645,14 @@ export function Auth({ onLogin, initialTab }) {
       return
     }
     setFpSending(true)
-    // [보안 수정] 서버 측 코드 발급 (purpose='reset')
     const result = await sendResetCode(fpEmail.trim().toLowerCase())
     setFpSending(false)
     setFpCodeSent(true)
     setFpDev(result.dev ? result.devCode : '')
   }
 
-  // 비밀번호 초기화: 인증번호 확인 (서버 측 검증)
   const handleFpVerify = async () => {
     if (fpDev) {
-      // 개발 모드
       if (fpCode.trim() !== fpDev) { setError('인증번호가 올바르지 않습니다.'); return }
       setFpVerified(true); setError(''); return
     }
@@ -701,7 +661,6 @@ export function Auth({ onLogin, initialTab }) {
     setFpVerified(true); setError('')
   }
 
-  // 비밀번호 초기화: Supabase Auth로 이메일 발송
   const handleFpReset = async () => {
     if (fpNewPw.length < 8) { setError('비밀번호는 8자 이상이어야 합니다.'); return }
     if (!/[a-zA-Z]/.test(fpNewPw) || !/[0-9]/.test(fpNewPw)) { setError('비밀번호는 영문과 숫자를 모두 포함해야 합니다.'); return }
@@ -714,21 +673,12 @@ export function Auth({ onLogin, initialTab }) {
     }
   }
 
-  // 이메일이 가짜(social.local)인지 확인
   const isFakeEmail = (email) => !email || email.includes('@social.local')
 
-  // providerId로 기존 회원 찾기
-  const findByProviderId = (provider, providerId) => {
-    const all = Users.all()
-    return all.find(u => u.provider === provider && u.providerId === String(providerId)) || null
-  }
-
-  // 소셜 로그인 콜백
   const handleSocialSuccess = async (profile) => {
     const email = profile.email?.toLowerCase() || ''
     let existing = null
 
-    // Supabase에서 직접 조회
     if (supabase) {
       try {
         const toCamel = (obj) => {
@@ -740,12 +690,10 @@ export function Auth({ onLogin, initialTab }) {
           }
           return result
         }
-        // providerId로 찾기
         if (profile.providerId) {
           const { data } = await supabase.from('users').select('*').eq('provider_id', String(profile.providerId)).maybeSingle()
           if (data) existing = toCamel(data)
         }
-        // 이메일로 찾기
         if (!existing && email && !isFakeEmail(email)) {
           const { data } = await supabase.from('users').select('*').eq('email', email).maybeSingle()
           if (data) existing = toCamel(data)
@@ -756,29 +704,24 @@ export function Auth({ onLogin, initialTab }) {
     }
 
     if (existing) {
-      // providerId 없거나 undefined면 자동 업데이트 (다음 로그인부터 providerId로 찾음)
       if (profile.providerId && (!existing.providerId || existing.providerId === 'undefined')) {
         Users.update(existing.id, { providerId: profile.providerId, provider: profile.provider })
         existing = Users.find(existing.id) || existing
       }
-      // 이름/전화번호 없으면 프로필 입력
       if (isGarbled(existing.name) || !existing.phone) {
         setPendingSocialProfile({ ...profile, existingId: existing.id })
         setSocialStep('profile')
         return
       }
-      // 카카오인데 이메일이 가짜면 → 이메일 인증 후 업데이트
       if (profile.provider === 'kakao' && isFakeEmail(existing.email)) {
         setPendingSocialProfile({ ...profile, existingId: existing.id })
         setSocialStep('email_verify')
         return
       }
-      // 정상 기존 회원 → 바로 로그인
       onLogin(existing)
       return
     }
 
-    // 신규 가입 — 카카오는 항상 이메일 인증, 그 외는 이메일 있으면 인증
     setPendingSocialProfile(profile)
     if (profile.provider === 'kakao') {
       setSocialStep('email_verify')
@@ -787,7 +730,6 @@ export function Auth({ onLogin, initialTab }) {
     }
   }
 
-  // 이메일 인증 완료 → 기존 회원이면 바로 로그인, 아니면 프로필 입력
   const handleEmailVerified = (verifiedEmail) => {
     const email = verifiedEmail || pendingSocialProfile?.email
     if (email) {
@@ -809,16 +751,28 @@ export function Auth({ onLogin, initialTab }) {
     setSocialStep('profile')
   }
 
-  // 프로필 입력 완료 → 로그인
-  const handleProfileComplete = ({ name, phone, email: inputEmail }) => {
+  // ─────────────────────────────────────────────────────────────
+  // 소셜 신규 회원 생성
+  //
+  // 카카오·네이버는 Edge Function(naver-oauth/kakao-oauth)에서
+  // 이미 Supabase Auth 계정을 생성하고 session을 반환합니다.
+  // 따라서 이 시점에 authSignUp을 호출하면 "User already registered"
+  // 에러가 발생할 수 있습니다.
+  //
+  // 처리 순서:
+  // 1. authSignUp 성공 → authUser.id를 authId로 사용
+  // 2. authSignUp 실패 → 현재 세션(setSession으로 이미 설정된)에서
+  //    supabase.auth.getUser()로 uid를 가져와 authId로 사용
+  // 3. 세션도 없으면 authId = '' 로 저장하되,
+  //    users 테이블에는 정상 저장 (이후 로그인 시 auth_id 업데이트 가능)
+  // ─────────────────────────────────────────────────────────────
+  const handleProfileComplete = async ({ name, phone, email: inputEmail }) => {
     const profile = pendingSocialProfile
     setSocialStep(null)
     setPendingSocialProfile(null)
 
-    // 이메일: 폼에서 입력한 값 > 인증된 이메일 > 가짜 이메일
     const email = (inputEmail?.trim().toLowerCase()) || (profile.email?.toLowerCase()) || `${profile.provider}_${profile.providerId}@social.local`
 
-    // 기존 회원이면 업데이트
     const existing = profile.existingId
       ? Users.find(profile.existingId)
       : (!isFakeEmail(email) ? Users.findByEmail(email) : null)
@@ -829,31 +783,34 @@ export function Auth({ onLogin, initialTab }) {
       return
     }
 
-    // 신규 회원 생성 (소셜 로그인)
-    authSignUp(email.toLowerCase(), uid() + uid()).then(({ user: authUser }) => {
-      const user = {
-        id: uid(), name, phone,
-        email: email.toLowerCase(),
-        pw: '', role: 'teacher', level: 1,
-        verified: false, verifyImg: null, permissionOverrides: {},
-        provider: profile.provider, providerId: profile.providerId,
-        avatar: profile.avatar || '', authId: authUser?.id || '', createdAt: now(),
+    // authId 확보: authSignUp 시도 → 실패 시 현재 세션에서 uid 가져오기
+    let authId = ''
+    try {
+      const { user: authUser } = await authSignUp(email.toLowerCase(), uid() + uid())
+      authId = authUser?.id || ''
+    } catch {
+      // 이미 Auth 계정이 있는 경우(카카오·네이버 Edge Function이 생성한 계정)
+      // setSession으로 세션이 설정돼 있으므로 getUser로 uid를 가져온다
+      if (supabase) {
+        try {
+          const { data: { user: sessionUser } } = await supabase.auth.getUser()
+          authId = sessionUser?.id || ''
+        } catch {
+          // 세션이 없는 극단적 케이스 — authId=''로 저장, 이후 로그인 시 자동 복구
+        }
       }
-      Users.insert(user)
-      onLogin(user)
-    }).catch(() => {
-      // authSignUp 실패해도 users 테이블엔 저장 (소셜 로그인은 Auth 세션 별도 처리)
-      const user = {
-        id: uid(), name, phone,
-        email: email.toLowerCase(),
-        pw: '', role: 'teacher', level: 1,
-        verified: false, verifyImg: null, permissionOverrides: {},
-        provider: profile.provider, providerId: profile.providerId,
-        avatar: profile.avatar || '', authId: '', createdAt: now(),
-      }
-      Users.insert(user)
-      onLogin(user)
-    })
+    }
+
+    const user = {
+      id: uid(), name, phone,
+      email: email.toLowerCase(),
+      pw: '', role: 'teacher', level: 1,
+      verified: false, verifyImg: null, permissionOverrides: {},
+      provider: profile.provider, providerId: profile.providerId,
+      avatar: profile.avatar || '', authId, createdAt: now(),
+    }
+    Users.insert(user)
+    onLogin(user)
   }
 
   const socialCfg = getSocialConfig()
@@ -864,10 +821,8 @@ export function Auth({ onLogin, initialTab }) {
   const kakaoConfigured  = !!socialCfg.kakao.appKey
   const naverConfigured  = !!socialCfg.naver.clientId
 
-  // 탭 전환 시 Google 버튼 재렌더 (DOM이 바뀌므로)
   useEffect(() => { renderButtons() }, [mode, socialStep, fpVerified])
 
-  // ── 로그인 브루트포스 방어 (메모리 기반, 5회 실패 시 5분 잠금)
   const loginAttemptsRef = React.useRef({})
   function checkBruteForce(email) {
     const key = email.toLowerCase()
@@ -921,24 +876,21 @@ export function Auth({ onLogin, initialTab }) {
   const sendCode = async () => {
     setSending(true)
     setError('')
-    // [보안 수정] 서버 측 코드 발급 (verify_codes 테이블)
     const result = await sendVerifyCode(form.email)
     setSending(false)
     setCodeSent(true)
     setIsDev(!!result.dev)
-    setVerifyCode(result.devCode || '')  // 개발 모드에서만 state에 저장
+    setVerifyCode(result.devCode || '')
     setInputCode('')
     setVerified(false)
   }
 
   const checkCode = async () => {
     if (isDev) {
-      // 개발 모드: 로컬 비교
       if (inputCode.trim() === verifyCode) { setVerified(true); setError('') }
       else setError('인증번호가 올바르지 않습니다.')
       return
     }
-    // [보안 수정] 서버 측 코드 검증
     const ok = await verifyCode(form.email, inputCode)
     if (ok) { setVerified(true); setError('') }
     else setError('인증번호가 올바르지 않거나 만료되었습니다.')
@@ -976,7 +928,6 @@ export function Auth({ onLogin, initialTab }) {
 
         <div style={{ background: '#fff', borderRadius: isMobile ? '20px 20px 0 0' : '20px', boxShadow: isMobile ? '0 -4px 24px rgba(0,0,0,0.1)' : '0 8px 40px rgba(0,0,0,0.1)', overflow: 'hidden', minHeight: isMobile ? 'calc(100vh - 180px)' : 'auto' }}>
 
-          {/* 소셜 이메일 인증 화면 */}
           {socialStep === 'email_verify' && (
             <div style={{ padding: '28px 24px' }}>
               <SocialEmailVerify
@@ -987,21 +938,17 @@ export function Auth({ onLogin, initialTab }) {
             </div>
           )}
 
-          {/* 소셜 프로필 입력 화면 */}
           {socialStep === 'profile' && (
             <div style={{ padding: '28px 24px' }}>
               <SocialProfileForm profile={pendingSocialProfile} onComplete={handleProfileComplete} />
             </div>
           )}
 
-          {/* 일반 로그인/회원가입 */}
           {!socialStep && (
             <>
-              {/* 아이디 찾기 / 비밀번호 초기화는 탭 숨기고 별도 화면 */}
               {(mode === 'findId' || mode === 'findPw') && (
                 <div style={{ padding: '28px 24px', display:'flex', flexDirection:'column', gap:'16px' }}>
 
-                  {/* 아이디 찾기 */}
                   {mode === 'findId' && (
                     <>
                       <div style={{ textAlign:'center' }}>
@@ -1030,7 +977,6 @@ export function Auth({ onLogin, initialTab }) {
                     </>
                   )}
 
-                  {/* 비밀번호 초기화 */}
                   {mode === 'findPw' && (
                     <>
                       <div style={{ textAlign:'center' }}>
@@ -1041,7 +987,6 @@ export function Auth({ onLogin, initialTab }) {
 
                       {!fpDone ? (
                         <>
-                          {/* Step 1: 이메일 + 인증번호 */}
                           {!fpVerified && (
                             <>
                               <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
@@ -1077,14 +1022,13 @@ export function Auth({ onLogin, initialTab }) {
                             </>
                           )}
 
-                          {/* Step 2: 새 비밀번호 */}
                           {fpVerified && (
                             <>
                               <div style={{ padding:'10px 12px', background:'#f0fdf4', borderRadius:'8px', border:'1.5px solid #86efac', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
                                 ✅ 이메일 인증 완료! 새 비밀번호를 설정하세요.
                               </div>
                               <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
-                                <label style={{ fontSize:'13px', fontWeight:500, color:'#111827' }}>새 비밀번호 (4자 이상)</label>
+                                <label style={{ fontSize:'13px', fontWeight:500, color:'#111827' }}>새 비밀번호 (8자 이상)</label>
                                 <input value={fpNewPw} onChange={e => { setFpNewPw(e.target.value); setError('') }} type="password" placeholder="새 비밀번호"
                                   style={{ padding:'9px 13px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
                               </div>
@@ -1109,7 +1053,6 @@ export function Auth({ onLogin, initialTab }) {
                     </>
                   )}
 
-                  {/* 공통 — 로그인으로 돌아가기 */}
                   <button onClick={() => goMode('login')}
                     style={{ padding:'9px', borderRadius:'9px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                     ← 로그인으로 돌아가기
@@ -1117,7 +1060,6 @@ export function Auth({ onLogin, initialTab }) {
                 </div>
               )}
 
-              {/* 로그인 / 회원가입 탭 */}
               {(mode === 'login' || mode === 'register') && (
                 <div style={{ display:'flex', borderBottom:'1px solid #e5e7eb' }}>
                   {['login','register'].map(m => (
@@ -1131,7 +1073,6 @@ export function Auth({ onLogin, initialTab }) {
 
               <div style={{ padding: '24px' }}>
 
-                {/* 로그인 */}
                 {mode === 'login' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1159,7 +1100,6 @@ export function Auth({ onLogin, initialTab }) {
                   </div>
                 )}
 
-                {/* 회원가입 Step 1 */}
                 {mode === 'register' && step === 1 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1182,10 +1122,8 @@ export function Auth({ onLogin, initialTab }) {
                     <Input label="비밀번호 (8자 이상, 영문+숫자)" value={form.pw} onChange={v => set('pw', v)} type="password" placeholder="비밀번호" required />
                     <Input label="비밀번호 확인" value={form.pw2} onChange={v => set('pw2', v)} type="password" placeholder="재입력" required />
 
-                    {/* 약관 동의 */}
                     <div style={{ borderRadius:'10px', border:'1.5px solid #e5e7eb', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
                       <div style={{ fontSize:'12px', fontWeight:700, color:'#374151', marginBottom:'2px' }}>약관 동의</div>
-                      {/* 전체 동의 */}
                       <label style={{ display:'flex', alignItems:'center', gap:'10px', cursor:'pointer', padding:'8px 12px', borderRadius:'8px', background: (terms.service&&terms.privacy&&terms.marketing&&terms.thirdParty)?'#fff7ed':'#f9fafb', border:'1px solid #e5e7eb' }}>
                         <input type="checkbox"
                           checked={terms.service&&terms.privacy&&terms.marketing&&terms.thirdParty}
@@ -1197,7 +1135,6 @@ export function Auth({ onLogin, initialTab }) {
                         <span style={{ fontSize:'13px', fontWeight:700, color:'#111827' }}>전체 동의</span>
                       </label>
                       <div style={{ height:'1px', background:'#e5e7eb' }} />
-                      {/* 개별 항목 */}
                       {[
                         { key:'service',    label:'서비스 이용약관',        required:true  },
                         { key:'privacy',    label:'개인정보 수집·이용 동의', required:true  },
@@ -1225,7 +1162,6 @@ export function Auth({ onLogin, initialTab }) {
                   </div>
                 )}
 
-                {/* 회원가입 Step 2 */}
                 {mode === 'register' && step === 2 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
@@ -1292,8 +1228,6 @@ export function Auth({ onLogin, initialTab }) {
             </>
           )}
         </div>
-
-        {!socialStep && (!googleConfigured || !kakaoConfigured) && null}
       </div>
     </div>
   )

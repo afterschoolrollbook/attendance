@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Students as StudentsDB, Users, ParentMembers, TeacherParentLinks, Classes as ClassesDB } from '../lib/db.js'
-import { dbCall, isConfigured } from '../lib/supabase.js'
+import { dbCall, isConfigured, supabase } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { subscribePush, registerSW } from '../lib/webpush.js'
-// ✅ ParentServiceManage의 설정을 공유해서 선생님이 수정한 약관·문구가 여기에도 반영됩니다
 import { loadParentServiceConfig, DEFAULT_CONFIG } from './ParentServiceManage.jsx'
 
 function fmtPhone(p) {
@@ -19,7 +18,6 @@ const C = {
   border: '#e5e7eb', success: '#16a34a', card: '#fff',
 }
 
-// ── 출결 알림 팝업 (화면 가운데 커다랗게)
 function AttPopup({ record, studentName, onClose }) {
   if (!record) return null
   const statusMap = {
@@ -76,7 +74,6 @@ function AttPopup({ record, studentName, onClose }) {
   )
 }
 
-// ── 수업 달력
 function ClassCalendar({ cls }) {
   const [viewMonth, setViewMonth] = useState(() => {
     const t = new Date()
@@ -145,7 +142,7 @@ function ClassCalendar({ cls }) {
       <div style={{ display:'flex', gap:'12px', marginTop:'10px', flexWrap:'wrap' }}>
         {[{bg:'#dcfce7',color:'#15803d',label:'수업완료'},{bg:'#fff7ed',color:'#c2410c',label:'예정수업'},{bg:'#f3f4f6',color:'#9ca3af',label:'휴강'}].map(l=>(
           <div key={l.label} style={{ display:'flex', alignItems:'center', gap:'4px' }}>
-            <div style={{ width:'12px', height:'12px', borderRadius:'3px', background:l.bg }}/>
+            <div style={{ width:'12px', height:'12px', borderRadius:'3px', background:l.bg}}/>
             <span style={{ fontSize:'10px', color:C.muted }}>{l.label}</span>
           </div>
         ))}
@@ -154,36 +151,49 @@ function ClassCalendar({ cls }) {
   )
 }
 
-// ── 서비스 탈퇴 섹션
+// ─────────────────────────────────────────────────────────────────────────────
+// WithdrawSection
+//
+// RLS 적용 후 anon 세션에서 parent_members를 직접 SELECT 할 수 없으므로,
+// 탈퇴 처리는 security definer RPC(withdraw_parent)를 통해 수행합니다.
+//
+// withdraw_parent(p_phone text) RPC:
+//   - 전화번호로 parent_members 레코드를 찾아 app_joined=false, withdrawn_at=now() 로 업데이트
+//   - teacher_parent_links도 status='ended' 로 업데이트
+//   - 성공 시 true 반환
+//
+// RPC가 없는 환경(로컬 개발, Supabase 미설정)에서는 로컬 캐시 직접 업데이트로 폴백합니다.
+// ─────────────────────────────────────────────────────────────────────────────
 function WithdrawSection({ phone, teacher }) {
-  const [open, setOpen]       = useState(false)
-  const [step, setStep]       = useState('confirm') // confirm | countdown | done
-  const [count, setCount]     = useState(3)
-  const timerRef              = useRef(null)
+  const [open, setOpen]   = useState(false)
+  const [step, setStep]   = useState('confirm') // confirm | countdown | done
+  const [count, setCount] = useState(3)
+  const timerRef          = useRef(null)
 
-  const handleConfirm = () => {
-    // 실제 종료 처리
+  const handleConfirm = async () => {
+    // 탈퇴 처리
+    const normalized = phone?.replace(/[^0-9]/g, '') || ''
     try {
-      const member = ParentMembers.findByPhone(phone)
-      if (member) {
-        ParentMembers.update(member.id, {
-          appJoined: false,
-          withdrawnAt: new Date().toISOString(),
-          withdrawReason: 'parent_request',
-        })
+      if (supabase) {
+        // RLS 환경: security definer RPC로 처리
+        const { error } = await supabase.rpc('withdraw_parent', { p_phone: normalized })
+        if (error) console.warn('[WithdrawSection] RPC 오류:', error.message)
+      } else {
+        // 로컬 개발 폴백: 캐시 직접 업데이트
+        const member = ParentMembers.findByPhone(phone)
+        if (member) {
+          ParentMembers.update(member.id, {
+            appJoined: false,
+            withdrawnAt: new Date().toISOString(),
+            withdrawReason: 'parent_request',
+          })
+        }
       }
-      try {
-        const links = JSON.parse(localStorage.getItem('asa_teacherParentLinks') || '[]')
-        const updated = links.map(l =>
-          l.parentMemberId === member?.id && l.status === 'active'
-            ? { ...l, status: 'ended', endedAt: new Date().toISOString(), endReason: 'parent_withdraw' }
-            : l
-        )
-        localStorage.setItem('asa_teacherParentLinks', JSON.stringify(updated))
-      } catch {}
-    } catch {}
+    } catch (e) {
+      console.warn('[WithdrawSection] 탈퇴 처리 실패:', e.message)
+    }
 
-    // 3초 카운트다운 시작
+    // 3초 카운트다운
     setStep('countdown')
     setCount(3)
     let c = 3
@@ -197,7 +207,6 @@ function WithdrawSection({ phone, teacher }) {
     }, 1000)
   }
 
-  // 언마운트 시 타이머 정리
   useEffect(() => () => clearInterval(timerRef.current), [])
 
   if (step === 'done') return (
@@ -265,15 +274,14 @@ function WithdrawSection({ phone, teacher }) {
   )
 }
 
-// ── 학부모 홈
 export function ParentHome({ students: studentsProp, teacher: teacherProp, phone, teacherId, memberRecord }) {
   const normalizedPhone = phone?.replace(/[^0-9]/g,'') || ''
   const cfg = loadParentServiceConfig()
 
   const [allStudents, setAllStudents] = useState([])
   const [allClasses,  setAllClasses]  = useState([])
-  const [allTeachers, setAllTeachers] = useState({}) // teacherId → teacher
-  const [attData,     setAttData]     = useState({}) // studentId → 출결[]
+  const [allTeachers, setAllTeachers] = useState({})
+  const [attData,     setAttData]     = useState({})
   const [activeTab,   setActiveTab]   = useState(null)
   const [attPopup,    setAttPopup]    = useState(null)
   const [imgModal,    setImgModal]    = useState(null)
@@ -307,13 +315,11 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
     async function load() {
       setLoading(true)
       try {
-        // 1) 이 전화번호의 모든 학생 (전체 선생님 통합)
         const allS = StudentsDB.all().filter(s =>
           s.parentPhone?.replace(/[^0-9]/g,'') === normalizedPhone
         )
         setAllStudents(allS)
 
-        // 2) 수업 + 선생님 매핑 — 요일 순 정렬
         const DAY_ORDER = ['월','화','수','목','금','토','일']
         const allCls = ClassesDB.all()
         const clsIds = new Set(allS.flatMap(s => s.classIds || []))
@@ -335,7 +341,6 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
         })
         setAllTeachers(tMap)
 
-        // 3) Supabase에서 출결 조회
         if (isConfigured && allS.length > 0) {
           const results = await Promise.all(
             allS.map(s => dbCall('where', 'attendance', { where: { studentId: s.id } }).catch(() => []))
@@ -348,7 +353,6 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
           })
           setAttData(data)
 
-          // 팝업 — 미확인 최신 출결
           for (const s of allS) {
             const recs = data[s.id] || []
             if (!recs.length) continue
@@ -382,7 +386,6 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
 
   const fmtDays = (days=[]) => days.join('·')
 
-  // AttPopup — 수업명 포함
   const AttPopupFull = ({ record, studentName, className, onClose }) => {
     const st = statusMap[record.status] || statusMap.present
     return (
@@ -438,21 +441,18 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
         </div>
       )}
 
-      {/* 헤더 */}
       <div style={{ background:'#18181b', padding:'16px 20px', display:'flex', alignItems:'center', gap:'10px' }}>
         <span style={{ fontSize:'22px' }}>📋</span>
         <span style={{ fontSize:'16px', fontWeight:700, color:'#fff' }}>방과후 출석부</span>
         <span style={{ fontSize:'12px', color:'#a1a1aa', marginLeft:'auto' }}>학부모 페이지</span>
       </div>
 
-      {/* 인사 + 전화번호 */}
       <div style={{ padding:'16px 16px 0', maxWidth:'480px', margin:'0 auto' }}>
         <div style={{ background:'#fff7ed', borderRadius:'14px', border:'1px solid #fed7aa', padding:'14px 16px', marginBottom:'12px' }}>
           <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>안녕하세요! 👋</div>
           <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>📱 {fmtPhone(phone)}</div>
         </div>
 
-        {/* 연결된 선생님·과목 카드 */}
         <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', padding:'14px 16px', marginBottom:'12px' }}>
           <div style={{ fontSize:'11px', fontWeight:700, color:'#6b7280', marginBottom:'10px' }}>🔗 연결된 수업</div>
           <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
@@ -481,7 +481,6 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
           </div>
         </div>
 
-        {/* 수업 탭 */}
         {allClasses.length > 1 && (
           <div style={{ display:'flex', gap:'6px', overflowX:'auto', paddingBottom:'4px', marginBottom:'12px' }}>
             {allClasses.map(cls => (
@@ -498,11 +497,9 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
         )}
       </div>
 
-      {/* 선택된 수업 내용 */}
       {activeClass && (
         <div style={{ padding:'0 16px', maxWidth:'480px', margin:'0 auto', display:'flex', flexDirection:'column', gap:'12px' }}>
 
-          {/* 선생님 연락처 */}
           {activeTeacher?.phone && (
             <div style={{ background:'#fff7ed', borderRadius:'14px', border:'1px solid #fed7aa', padding:'12px 14px' }}>
               <div style={{ fontSize:'11px', fontWeight:700, color:'#9a3412', marginBottom:'6px' }}>🚨 {activeTeacher.nickname||activeTeacher.name} 선생님 긴급연락처</div>
@@ -518,7 +515,6 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
             </div>
           )}
 
-          {/* 수업 정보 */}
           <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'14px 16px' }}>
             <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'10px' }}>
               📚 {activeClass.className}{activeClass.section ? ` (${activeClass.section}반)` : ''}
@@ -544,13 +540,11 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
             )}
           </div>
 
-          {/* 수업 달력 */}
           <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'14px 16px' }}>
             <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'10px' }}>📅 수업 달력</div>
             <ClassCalendar cls={activeClass}/>
           </div>
 
-          {/* 학생별 출결 */}
           {activeStudents.map(s => {
             const recs    = (attData[s.id] || []).filter(r => r.classId === activeTab)
             const total   = recs.length
@@ -610,7 +604,6 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
             )
           })}
 
-          {/* 탈퇴 */}
           <WithdrawSection phone={phone} teacher={activeTeacher} />
 
         </div>
@@ -620,7 +613,6 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
 }
 
 
-// ── 메인
 export function ParentInvite() {
   const params    = new URLSearchParams(window.location.search)
   const phone     = decodeURIComponent(params.get('phone') || '')
@@ -637,7 +629,6 @@ export function ParentInvite() {
   const [termsModal, setTermsModal] = useState(null)
   const installPromptRef = useRef(null)
 
-  // ✅ 선생님이 ParentServiceManage에서 저장한 약관·문구 로드
   const [cfg, setCfg] = useState(loadParentServiceConfig)
 
   useEffect(() => {
@@ -648,27 +639,19 @@ export function ParentInvite() {
 
   useEffect(() => {
     if (!phone || !teacherId) { setStep('error'); return }
-
-    // #14 IDOR 방어 — token 파라미터 검증
-    // token = base64(sha256(phone + ':' + teacherId)) 형식
-    // 토큰 없으면 접근 차단 (기존 링크 호환: 토큰 없으면 에러)
     if (!token) { setStep('error'); return }
 
-    // token이 있으면 서버에서 검증 (verify_codes 테이블 활용)
-    // 단기 처리: phone+teacherId 조합으로 토큰 검증
     async function validateToken() {
       try {
         const rows = await dbCall('where', 'verify_codes', {
           where: { target: `invite:${phone}:${teacherId}`, code: token, used: false }
         })
-        // 만료 체크 (24시간)
         const valid = (rows || []).some(r => {
           const created = new Date(r.createdAt || r.created_at || 0)
           return (Date.now() - created.getTime()) < 24 * 60 * 60 * 1000
         })
         if (!valid) { setStep('error'); return }
       } catch {
-        // verify_codes 조회 실패 시 토큰 형식만 확인 (폴백)
         if (token.length < 8) { setStep('error'); return }
       }
 
@@ -680,12 +663,28 @@ export function ParentInvite() {
       )
       setStudents(matched)
 
-      const already = ParentMembers.findByPhone(phone)
-      if (already?.appJoined) {
-        setStep('done')
-      } else {
-        setStep('info')
+      // ──────────────────────────────────────────────────────────
+      // RLS 적용 후 parent_members를 anon으로 직접 SELECT 불가.
+      // verify_parent_phone RPC(security definer)로 가입 여부 확인.
+      // RPC 없는 환경(로컬 개발)에서는 로컬 캐시로 폴백.
+      // ──────────────────────────────────────────────────────────
+      let alreadyJoined = false
+      try {
+        if (supabase) {
+          const normalized = phone.replace(/[^0-9]/g, '')
+          const { data } = await supabase.rpc('check_parent_joined', { p_phone: normalized })
+          alreadyJoined = !!data
+        } else {
+          const already = ParentMembers.findByPhone(phone)
+          alreadyJoined = !!already?.appJoined
+        }
+      } catch {
+        // RPC 미존재 폴백
+        const already = ParentMembers.findByPhone(phone)
+        alreadyJoined = !!already?.appJoined
       }
+
+      setStep(alreadyJoined ? 'done' : 'info')
     }
     validateToken()
   }, [])
@@ -693,7 +692,6 @@ export function ParentInvite() {
   const handleJoin = async () => {
     if (!agree1 || !agree2) return
 
-    // 첫 번째 학생 기준으로 수업 정보 조회
     const s0   = students[0]
     const cls0 = s0?.classIds?.[0]
       ? ClassesDB.byTeacher(teacherId).find(c => c.id === s0.classIds[0])
@@ -715,7 +713,6 @@ export function ParentInvite() {
       try { TeacherParentLinks.link(teacherId, s, s.classIds?.[0]||'') } catch {}
     })
 
-    // ── 웹 푸시 구독 (출결서비스 이용 동의 = 알림 동의)
     try {
       await registerSW()
       const subJson = await subscribePush()
@@ -799,7 +796,7 @@ export function ParentInvite() {
             style={{ width:'18px', height:'18px', accentColor:C.primary }}/>
           <span style={{ fontSize:'15px', fontWeight:700, color:C.text }}>전체 동의</span>
         </label>
-        <div style={{ height:'1px', background:C.border }}/>
+        <div style={{ height:'1px', background:C.border }} />
 
         <label style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', borderRadius:'10px', border:`1px solid ${C.border}`, cursor:'pointer' }}>
           <input type="checkbox" checked={agree1} onChange={e=>setAgree1(e.target.checked)} style={{ width:'16px', height:'16px', accentColor:C.primary }}/>
@@ -870,7 +867,6 @@ export function ParentInvite() {
     </div>
   )
 
-  // 초대 정보 확인 (step === 'info')
   return (
     <div style={{ ...wrap, justifyContent:'flex-start', paddingTop:'40px' }}>
       <div style={{ fontSize:'40px', marginBottom:'12px' }}>📋</div>
