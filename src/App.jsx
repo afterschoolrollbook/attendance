@@ -354,7 +354,7 @@ export default function App() {
   if (pathname === '/parent-login')  return <ParentLogin />
 
   // ── 랜딩 페이지 ─────────────────────────────────────────────────
-  if (showLanding && (!user || page === 'landing')) {
+  if (showLanding) {
     return (
       <LandingPage
         onGoLogin={() => { setLandingTarget('login'); setShowLanding(false) }}
