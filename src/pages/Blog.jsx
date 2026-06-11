@@ -371,8 +371,8 @@ function BlogDetail({ post, onBack }) {
       <div style={{ marginTop:'24px', textAlign:'center' }}>
         <button onClick={onBack} style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:'8px', padding:'10px 24px', cursor:'pointer', fontSize:'14px', color:'#6b7280', fontFamily:'Noto Sans KR, sans-serif' }}>← 목록으로 돌아가기</button>
       </div>
-    </div>
       <Comments postId={post.id} />
+    </div>
   )
 }
 
