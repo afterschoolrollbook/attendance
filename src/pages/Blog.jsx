@@ -636,10 +636,16 @@ export function Blog() {
     try {
       const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
       if (!tokenKey) return null
-      const token = JSON.parse(localStorage.getItem(tokenKey) || 'null')
-      if (!token?.access_token) return null
-      // 이메일만 우선 세팅해두고 useEffect에서 DB 정보로 교체
-      return { email: token.user?.email, level: 1, _pending: true }
+      let token = JSON.parse(localStorage.getItem(tokenKey) || 'null')
+      // Supabase v2는 배열로 저장되는 경우도 있음
+      if (Array.isArray(token)) token = token[0]
+      const accessToken = token?.access_token
+      if (!accessToken) return null
+      // JWT payload에서 이메일 추출
+      const payload = JSON.parse(atob(accessToken.split('.')[1]))
+      const email = token?.user?.email || payload?.email
+      if (!email) return null
+      return { email, level: 1, _pending: true }
     } catch { return null }
   })
   const [blogAdminMode, setBlogAdminMode] = useState(false)
