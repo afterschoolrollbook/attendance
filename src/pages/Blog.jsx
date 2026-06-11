@@ -655,7 +655,6 @@ export function Blog() {
     (currentUser.role === 'admin' || (currentUser.level ?? 1) >= (blogWriteMinLevel ?? 1))
   const isAdmin = currentUser && !currentUser._pending &&
     (currentUser.role === 'admin' || (currentUser.level ?? 1) >= 10)
-  console.log('[Blog] currentUser:', currentUser, '| blogWriteMinLevel:', blogWriteMinLevel, '| canWrite:', canWrite, '| isAdmin:', isAdmin)
 
   const blogPosts = allPosts.filter(p => {
     const type = p.type || 'blog'
@@ -679,32 +678,21 @@ export function Blog() {
 
   const loadCurrentUser = async () => {
     try {
-      console.log('[Blog] loadCurrentUser 시작')
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      console.log('[Blog] session:', session, 'error:', sessionError)
-      if (!session?.user?.email) {
-        console.log('[Blog] 세션 없음 → currentUser null')
-        setCurrentUser(null); return
-      }
+      if (!session?.user?.email) { setCurrentUser(null); return }
       const email = session.user.email
-      console.log('[Blog] 이메일:', email)
-      const { data: rows, error: dbError } = await supabase.from('users').select('*').eq('email', email).limit(1)
-      console.log('[Blog] DB 조회 결과:', rows, 'error:', dbError)
+      const { data: rows } = await supabase.from('users').select('*').eq('email', email).limit(1)
       if (rows?.[0]) {
         const u = rows[0]
-        const user = {
+        setCurrentUser({
           id: u.id, email: u.email,
           level: u.level ?? 1,
           role: u.role,
           name: u.name,
           permissionOverrides: u.permission_overrides,
-        }
-        console.log('[Blog] setCurrentUser:', user)
-        setCurrentUser(user)
+        })
       } else {
-        const fallback = { email, level: 1, role: 'teacher' }
-        console.log('[Blog] DB에 유저 없음, fallback:', fallback)
-        setCurrentUser(fallback)
+        setCurrentUser({ email, level: 1, role: 'teacher' })
       }
     } catch (e) {
       console.warn('[Blog] loadCurrentUser 실패:', e)
@@ -812,7 +800,7 @@ export function Blog() {
   return (
     <div style={{ minHeight:'100vh', background:'#fafafa', fontFamily:'Noto Sans KR, sans-serif' }}>
       <style>{globalStyles}</style>
-      <Nav />
+      {Nav()}
       <div style={{ display:'flex', justifyContent:'center', gap:'20px', padding:'0 16px', maxWidth:'1500px', margin:'0 auto' }}>
         <div className="blog-side-ad" style={{ width:'160px', flexShrink:0, paddingTop:'32px' }}>
           <div style={{ position:'sticky', top:'80px' }}>
