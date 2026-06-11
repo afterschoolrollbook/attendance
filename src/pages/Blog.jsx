@@ -641,9 +641,17 @@ export function Blog() {
   // 로그인 세션 확인
   const sessionUser = (() => {
     try {
-      // Supabase 토큰(sb-) 또는 앱 세션(asa_) 이 localStorage에 있으면 로그인 상태
-      return Object.keys(localStorage).some(k => k.startsWith('sb-') || k.startsWith('asa_'))
-        || !!sessionStorage.getItem('asa_user')
+      // Supabase 로그인 토큰만 체크 (sb-xxxxx-auth-token 형식)
+      const hasSupabaseSession = Object.keys(localStorage).some(k =>
+        k.startsWith('sb-') && k.endsWith('-auth-token')
+      )
+      if (hasSupabaseSession) {
+        // 토큰이 실제로 유효한지 확인 (access_token 존재 여부)
+        const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+        const token = JSON.parse(localStorage.getItem(tokenKey) || 'null')
+        return !!(token?.access_token)
+      }
+      return false
     } catch { return false }
   })()
 
