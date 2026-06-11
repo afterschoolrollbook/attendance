@@ -22,6 +22,7 @@ import { useToast } from '../hooks/useToast.js'
 
 const BLOG_CATEGORIES = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
 const DOCS_CATEGORIES = ['시작하기', '출석부', '교구 관리', '학생 관리', '수업 관리', '리포트', '설정', '기타']
+const TEMPLATE_CATEGORIES = ['출석부 양식', '가정통신문', '수업 계획서', '교구 관리표', '학생 평가표', '수업료 안내', '기타 서식']
 
 // replaced
 function _OLD_sanitizeHtml(html) {
@@ -83,6 +84,7 @@ function slugify(text) {
 const emptyForm = () => ({
   type: 'blog', title:'', slug:'', summary:'', content:'', category:'', tags:'',
   coverImage:'', author:'관리자', status:'draft', publishedAt: new Date().toISOString().slice(0,10),
+  templateFile:'', templateDesc:'',
 })
 
 const C = { primary:'#f97316', border:'#e5e7eb', muted:'#6b7280', text:'#111827', card:'#fff' }
@@ -94,7 +96,8 @@ export function BlogAdmin({ user }) {
   const [editId, setEditId] = useState(null)
   const [preview, setPreview] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [filterType, setFilterType] = useState('all') // 'all' | 'blog' | 'docs'
+  const [filterType, setFilterType] = useState('all') // 'all' | 'blog' | 'docs' | 'template'
+  const [myPostsOnly, setMyPostsOnly] = useState(false)
   const { success, error } = useToast()
 
   useEffect(() => { loadPosts() }, [])
@@ -119,6 +122,7 @@ export function BlogAdmin({ user }) {
       tags: (post.tags||[]).join(', '), coverImage: post.coverImage||'',
       author: post.author||'관리자', status: post.status||'draft',
       publishedAt: post.publishedAt ? post.publishedAt.slice(0,10) : new Date().toISOString().slice(0,10),
+      templateFile: post.templateFile||'', templateDesc: post.templateDesc||'',
     })
     setEditId(post.id); setPreview(false); setView('edit')
   }
@@ -146,10 +150,13 @@ export function BlogAdmin({ user }) {
         title: form.title.trim(), slug, summary: form.summary.trim(),
         content: form.content, category: form.category, tags,
         coverImage: form.coverImage.trim(), author: form.author.trim(),
+        authorId: user?.id || null,
         status: finalStatus,
         publishedAt: finalStatus==='published' ? (form.publishedAt ? new Date(form.publishedAt).toISOString() : now()) : null,
         updatedAt: now(),
         createdAt: editId ? undefined : now(),
+        templateFile: form.type==='template' ? form.templateFile.trim() : undefined,
+        templateDesc: form.type==='template' ? form.templateDesc.trim() : undefined,
       }
       if (editId) await dbCall('update', 'blogPosts', { id: editId, patch: payload })
       else await dbCall('insert', 'blogPosts', payload)
@@ -159,8 +166,12 @@ export function BlogAdmin({ user }) {
     setLoading(false)
   }
 
-  const filteredPosts = posts.filter(p => filterType === 'all' || (p.type||'blog') === filterType)
-  const categories = form.type === 'docs' ? DOCS_CATEGORIES : BLOG_CATEGORIES
+  const filteredPosts = posts.filter(p => {
+    const typeMatch = filterType === 'all' || (p.type||'blog') === filterType
+    const authorMatch = !myPostsOnly || p.authorId === (user?.id)
+    return typeMatch && authorMatch
+  })
+  const categories = form.type === 'docs' ? DOCS_CATEGORIES : form.type === 'template' ? TEMPLATE_CATEGORIES : BLOG_CATEGORIES
 
   // ── 목록 뷰
   if (view === 'list') return (
@@ -188,6 +199,10 @@ export function BlogAdmin({ user }) {
             style={{ padding:'9px 18px', borderRadius:'9px', border:'none', background:'#3b82f6', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             + 설명서
           </button>
+          <button onClick={() => handleNew('template')}
+            style={{ padding:'9px 18px', borderRadius:'9px', border:'none', background:'#7c3aed', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            + 템플릿
+          </button>
         </div>
       </div>
 
@@ -196,14 +211,22 @@ export function BlogAdmin({ user }) {
         <strong>🤖 n8n 자동 발행</strong> — POST /functions/v1/db-api · action: "insert" · table: "blogPosts" · type: "blog" 또는 "docs"
       </div>
 
-      {/* 타입 필터 탭 */}
-      <div style={{ display:'flex', gap:'6px', marginBottom:'20px' }}>
-        {[['all','전체'],['blog','블로그'],['docs','설명서']].map(([key,label]) => (
-          <button key={key} onClick={() => setFilterType(key)}
-            style={{ padding:'6px 16px', borderRadius:'8px', border:`1.5px solid ${filterType===key?C.primary:C.border}`, background:filterType===key?'#fff7ed':C.card, color:filterType===key?C.primary:C.muted, fontSize:'13px', fontWeight:filterType===key?700:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            {label} {key==='all'?posts.length:posts.filter(p=>(p.type||'blog')===key).length}
+      {/* 타입 필터 탭 + 내 글만 보기 */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px', marginBottom:'20px' }}>
+        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+          {[['all','전체'],['blog','블로그'],['docs','설명서'],['template','📋 템플릿']].map(([key,label]) => (
+            <button key={key} onClick={() => setFilterType(key)}
+              style={{ padding:'6px 16px', borderRadius:'8px', border:`1.5px solid ${filterType===key?(key==='template'?'#7c3aed':C.primary):C.border}`, background:filterType===key?(key==='template'?'#f5f3ff':'#fff7ed'):C.card, color:filterType===key?(key==='template'?'#7c3aed':C.primary):C.muted, fontSize:'13px', fontWeight:filterType===key?700:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              {label} {key==='all'?posts.length:posts.filter(p=>(p.type||'blog')===key).length}
+            </button>
+          ))}
+        </div>
+        {user && (
+          <button onClick={() => setMyPostsOnly(v => !v)}
+            style={{ padding:'6px 16px', borderRadius:'8px', border:`1.5px solid ${myPostsOnly?'#059669':'#e5e7eb'}`, background:myPostsOnly?'#ecfdf5':'#fff', color:myPostsOnly?'#059669':'#6b7280', fontSize:'13px', fontWeight:myPostsOnly?700:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', display:'flex', alignItems:'center', gap:'6px' }}>
+            {myPostsOnly ? '✅ 내 글만 보는 중' : '👤 내 글만 보기'}
           </button>
-        ))}
+        )}
       </div>
 
       {/* 글 목록 */}
@@ -218,8 +241,8 @@ export function BlogAdmin({ user }) {
             <div key={post.id} style={{ background:C.card, borderRadius:'12px', border:`1.5px solid ${C.border}`, padding:'14px 18px', display:'flex', alignItems:'center', gap:'14px', flexWrap:'wrap' }}>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px', flexWrap:'wrap' }}>
-                  <span style={{ fontSize:'11px', fontWeight:700, borderRadius:'4px', padding:'2px 8px', background:(post.type||'blog')==='docs'?'#eff6ff':'#fff7ed', color:(post.type||'blog')==='docs'?'#3b82f6':'#f97316', border:`1px solid ${(post.type||'blog')==='docs'?'#bfdbfe':'#fed7aa'}` }}>
-                    {(post.type||'blog')==='docs'?'📖 설명서':'📝 블로그'}
+                  <span style={{ fontSize:'11px', fontWeight:700, borderRadius:'4px', padding:'2px 8px', background:(post.type||'blog')==='docs'?'#eff6ff':(post.type||'blog')==='template'?'#f5f3ff':'#fff7ed', color:(post.type||'blog')==='docs'?'#3b82f6':(post.type||'blog')==='template'?'#7c3aed':'#f97316', border:`1px solid ${(post.type||'blog')==='docs'?'#bfdbfe':(post.type||'blog')==='template'?'#ddd6fe':'#fed7aa'}` }}>
+                    {(post.type||'blog')==='docs'?'📖 설명서':(post.type||'blog')==='template'?'📋 템플릿':'📝 블로그'}
                   </span>
                   <span style={{ fontSize:'11px', fontWeight:700, borderRadius:'999px', padding:'2px 10px', background:post.status==='published'?'#f0fdf4':'#f9fafb', color:post.status==='published'?'#16a34a':'#9ca3af', border:`1px solid ${post.status==='published'?'#86efac':'#e5e7eb'}` }}>
                     {post.status==='published'?'✅ 발행':'📝 임시'}
@@ -280,7 +303,7 @@ export function BlogAdmin({ user }) {
           {/* 타입 선택 */}
           {!editId && (
             <div style={{ display:'flex', gap:'8px' }}>
-              {[['blog','📝 블로그 글',C.primary],['docs','📖 사용 설명서','#3b82f6']].map(([key,label,color]) => (
+              {[['blog','📝 블로그 글',C.primary],['docs','📖 사용 설명서','#3b82f6'],['template','📋 템플릿','#7c3aed']].map(([key,label,color]) => (
                 <button key={key} onClick={() => setForm(v => ({ ...v, type:key, category:'' }))}
                   style={{ flex:1, padding:'10px', borderRadius:'9px', border:`2px solid ${form.type===key?color:C.border}`, background:form.type===key?`${color}10`:C.card, color:form.type===key?color:C.muted, fontSize:'14px', fontWeight:form.type===key?700:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
                   {label}
@@ -327,6 +350,29 @@ export function BlogAdmin({ user }) {
               <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>커버 이미지 URL</label>
               <input value={form.coverImage} onChange={e => setForm(v => ({ ...v, coverImage:e.target.value }))} placeholder="https://..." style={iStyle} />
             </div>
+          )}
+
+          {/* 템플릿 전용 필드 */}
+          {form.type === 'template' && (
+            <>
+              <div style={{ background:'#f5f3ff', border:'1.5px solid #ddd6fe', borderRadius:'10px', padding:'14px 16px' }}>
+                <div style={{ fontSize:'13px', fontWeight:700, color:'#7c3aed', marginBottom:'12px' }}>📋 템플릿 파일 정보</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+                  <div>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>파일 다운로드 URL (구글 드라이브, Dropbox 등)</label>
+                    <input value={form.templateFile} onChange={e => setForm(v => ({ ...v, templateFile:e.target.value }))} placeholder="https://drive.google.com/..." style={iStyle} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>파일 설명 (형식, 용도 등)</label>
+                    <input value={form.templateDesc} onChange={e => setForm(v => ({ ...v, templateDesc:e.target.value }))} placeholder="예: 엑셀(.xlsx) | A4 출석부 양식 | 수정 가능" style={iStyle} />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>미리보기 이미지 URL</label>
+                <input value={form.coverImage} onChange={e => setForm(v => ({ ...v, coverImage:e.target.value }))} placeholder="https://... (템플릿 미리보기 이미지)" style={iStyle} />
+              </div>
+            </>
           )}
 
           {/* 태그 */}

@@ -248,6 +248,133 @@ function BlogDetail({ post, onBack }) {
   )
 }
 
+// ── 템플릿 목록
+function TemplateList({ posts, onSelect }) {
+  const [search, setSearch] = useState('')
+  const [selCat, setSelCat] = useState('전체')
+  const categories = ['전체', ...new Set(posts.map(p => p.category).filter(Boolean))]
+  const filtered = posts.filter(p => {
+    const matchCat = selCat === '전체' || p.category === selCat
+    const q = search.toLowerCase()
+    const matchSearch = !q || p.title?.toLowerCase().includes(q) || p.summary?.toLowerCase().includes(q)
+    return matchCat && matchSearch
+  })
+
+  return (
+    <div style={{ maxWidth:'900px', margin:'0 auto', padding:'40px 20px' }}>
+      <div style={{ textAlign:'center', marginBottom:'40px' }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#7c3aed', letterSpacing:'2px', marginBottom:'12px' }}>TEMPLATES</div>
+        <h1 style={{ fontSize:'34px', fontWeight:800, color:'#111827', marginBottom:'14px' }}>📋 무료 템플릿</h1>
+        <p style={{ fontSize:'16px', color:'#6b7280', lineHeight:1.7 }}>방과후 강사를 위한 출석부, 가정통신문, 수업 계획서 등 실용 서식을 무료로 제공합니다.</p>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'36px' }}>
+        <SearchBar value={search} onChange={setSearch} placeholder="템플릿 검색..." />
+        {categories.length > 1 && (
+          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', justifyContent:'center' }}>
+            {categories.map(cat => (
+              <button key={cat} onClick={() => setSelCat(cat)}
+                style={{ padding:'6px 18px', borderRadius:'999px', border:`2px solid ${selCat===cat?'#7c3aed':'#e5e7eb'}`, background:selCat===cat?'#7c3aed':'#fff', color:selCat===cat?'#fff':'#374151', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {filtered.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'80px 20px', color:'#9ca3af' }}>
+          <div style={{ fontSize:'48px', marginBottom:'16px' }}>📋</div>
+          <div>{search ? '검색 결과가 없습니다.' : '아직 등록된 템플릿이 없습니다.'}</div>
+        </div>
+      ) : (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:'20px' }}>
+          {filtered.map(post => (
+            <article key={post.id} onClick={() => onSelect(post)}
+              style={{ background:'#fff', borderRadius:'16px', border:'2px solid #e5e7eb', overflow:'hidden', cursor:'pointer', transition:'all .2s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor='#7c3aed'; e.currentTarget.style.boxShadow='0 8px 24px rgba(124,58,237,0.12)'; e.currentTarget.style.transform='translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='#e5e7eb'; e.currentTarget.style.boxShadow='none'; e.currentTarget.style.transform='translateY(0)' }}>
+              {post.coverImage
+                ? <img src={post.coverImage} alt={post.title} style={{ width:'100%', height:'140px', objectFit:'cover' }} />
+                : <div style={{ width:'100%', height:'100px', background:'linear-gradient(135deg,#f5f3ff,#ede9fe)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'40px' }}>📄</div>
+              }
+              <div style={{ padding:'16px 18px' }}>
+                {post.category && <span style={{ fontSize:'11px', fontWeight:700, color:'#7c3aed', background:'#f5f3ff', border:'1px solid #ddd6fe', borderRadius:'999px', padding:'3px 10px', display:'inline-block', marginBottom:'8px' }}>{post.category}</span>}
+                <h2 style={{ fontSize:'15px', fontWeight:700, color:'#111827', marginBottom:'6px', lineHeight:1.4 }}>{post.title}</h2>
+                {post.templateDesc && <p style={{ fontSize:'12px', color:'#7c3aed', background:'#f5f3ff', borderRadius:'6px', padding:'4px 8px', marginBottom:'8px', fontWeight:600 }}>📎 {post.templateDesc}</p>}
+                <p style={{ fontSize:'13px', color:'#6b7280', lineHeight:1.6, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
+                  {post.summary || post.content?.replace(/[#*`>\-]/g, '').slice(0, 80)}
+                </p>
+                <div style={{ marginTop:'12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontSize:'12px', color:'#9ca3af' }}>{formatDate(post.publishedAt || post.createdAt)}</span>
+                  <span style={{ fontSize:'12px', fontWeight:700, color:'#7c3aed' }}>무료 다운로드 →</span>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── 템플릿 상세
+function TemplateDetail({ post, onBack }) {
+  useEffect(() => {
+    setMeta(`${post.title} | 방과후 출석부 템플릿`, post.summary || '', `${window.location.origin}/templates/${post.slug||post.id}`, post.coverImage)
+    window.scrollTo(0, 0)
+    return () => setMeta('방과후 출석부 블로그', '방과후 강사를 위한 출석 관리 팁', `${window.location.origin}/blog`)
+  }, [post])
+
+  return (
+    <div style={{ maxWidth:'780px', margin:'0 auto', padding:'40px 20px' }}>
+      <button onClick={onBack} style={{ display:'inline-flex', alignItems:'center', gap:'6px', marginBottom:'32px', background:'none', border:'none', cursor:'pointer', color:'#6b7280', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', padding:0 }}>← 목록으로</button>
+      <div style={{ display:'flex', gap:'10px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center' }}>
+        <span style={{ fontSize:'12px', fontWeight:700, color:'#7c3aed', background:'#f5f3ff', border:'1px solid #ddd6fe', borderRadius:'999px', padding:'4px 12px' }}>📋 템플릿</span>
+        {post.category && <span style={{ fontSize:'12px', fontWeight:700, color:'#7c3aed', background:'#f5f3ff', border:'1px solid #ddd6fe', borderRadius:'999px', padding:'4px 12px' }}>{post.category}</span>}
+        <span style={{ fontSize:'13px', color:'#9ca3af' }}>{formatDate(post.publishedAt || post.createdAt)}</span>
+      </div>
+      <h1 style={{ fontSize:'28px', fontWeight:800, color:'#111827', lineHeight:1.4, marginBottom:'24px' }}>{post.title}</h1>
+      {post.coverImage && <img src={post.coverImage} alt={post.title} style={{ width:'100%', maxHeight:'360px', objectFit:'cover', borderRadius:'14px', marginBottom:'28px' }} />}
+
+      {/* 다운로드 CTA */}
+      {post.templateFile && (
+        <div style={{ background:'linear-gradient(135deg,#f5f3ff,#ede9fe)', border:'2px solid #7c3aed', borderRadius:'16px', padding:'24px 28px', marginBottom:'32px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'14px' }}>
+          <div>
+            <div style={{ fontSize:'16px', fontWeight:700, color:'#6d28d9', marginBottom:'4px' }}>📎 무료 다운로드</div>
+            {post.templateDesc && <div style={{ fontSize:'13px', color:'#7c3aed', fontWeight:600 }}>{post.templateDesc}</div>}
+          </div>
+          <a href={post.templateFile} target="_blank" rel="noopener noreferrer"
+            style={{ padding:'12px 28px', background:'#7c3aed', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none', whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:'8px' }}>
+            ⬇️ 다운로드
+          </a>
+        </div>
+      )}
+
+      {post.summary && <div style={{ background:'#f5f3ff', border:'1px solid #ddd6fe', borderRadius:'10px', padding:'16px 20px', marginBottom:'28px', fontSize:'15px', color:'#6d28d9', lineHeight:1.7 }}>{post.summary}</div>}
+      <hr style={{ border:'none', borderTop:'2px solid #f3f4f6', marginBottom:'28px' }} />
+      <div className="md-body" dangerouslySetInnerHTML={{ __html: parseMarkdown(post.content) }} />
+      {post.tags?.length > 0 && (
+        <div style={{ marginTop:'32px', paddingTop:'20px', borderTop:'2px solid #f3f4f6', display:'flex', gap:'8px', flexWrap:'wrap' }}>
+          {post.tags.map(tag => <span key={tag} style={{ fontSize:'12px', background:'#f5f3ff', color:'#7c3aed', borderRadius:'999px', padding:'4px 12px', fontWeight:600 }}>#{tag}</span>)}
+        </div>
+      )}
+      {post.templateFile && (
+        <div style={{ marginTop:'36px', background:'linear-gradient(135deg,#f5f3ff,#ede9fe)', border:'2px solid #7c3aed', borderRadius:'16px', padding:'28px', textAlign:'center' }}>
+          <div style={{ fontSize:'32px', marginBottom:'10px' }}>📋</div>
+          <h3 style={{ fontSize:'18px', fontWeight:700, color:'#6d28d9', marginBottom:'6px' }}>템플릿을 무료로 다운로드하세요</h3>
+          <p style={{ fontSize:'13px', color:'#7c3aed', marginBottom:'18px' }}>{post.templateDesc || '방과후 강사를 위한 실용 서식'}</p>
+          <a href={post.templateFile} target="_blank" rel="noopener noreferrer"
+            style={{ display:'inline-block', padding:'12px 32px', background:'#7c3aed', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>
+            ⬇️ 무료 다운로드
+          </a>
+        </div>
+      )}
+      <div style={{ marginTop:'24px', textAlign:'center' }}>
+        <button onClick={onBack} style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:'8px', padding:'10px 24px', cursor:'pointer', fontSize:'14px', color:'#6b7280', fontFamily:'Noto Sans KR, sans-serif' }}>← 목록으로 돌아가기</button>
+      </div>
+    </div>
+  )
+}
+
 // ── 설명서 목록
 function DocsList({ docs, onSelect }) {
   const [search, setSearch] = useState('')
@@ -387,12 +514,14 @@ export function Blog() {
   const [loginError, setLoginError] = useState('')
   const [blogAdminMode, setBlogAdminMode] = useState(false)
 
-  const blogPosts = allPosts.filter(p => p.type !== 'docs')
+  const blogPosts = allPosts.filter(p => p.type !== 'docs' && p.type !== 'template')
   const docsPosts = allPosts.filter(p => p.type === 'docs')
+  const templatePosts = allPosts.filter(p => p.type === 'template')
 
   useEffect(() => {
     const path = window.location.pathname
     if (path.startsWith('/docs')) { setTab('docs'); const slug = path.match(/^\/docs\/(.+)$/)?.[1]; if (slug) loadPostBySlug(slug) }
+    else if (path.startsWith('/templates')) { setTab('templates'); const slug = path.match(/^\/templates\/(.+)$/)?.[1]; if (slug) loadPostBySlug(slug) }
     else { setTab('blog'); const slug = path.match(/^\/blog\/(.+)$/)?.[1]; if (slug) loadPostBySlug(slug) }
     setMeta('방과후 출석부 블로그', '방과후 강사를 위한 출석 관리 팁', `${window.location.origin}/blog`)
     loadPosts()
@@ -417,12 +546,13 @@ export function Blog() {
 
   const handleSelect = (post) => {
     setSelPost(post)
-    window.history.pushState({}, '', `/${post.type==='docs'?'docs':'blog'}/${post.slug||post.id}`)
+    const base = post.type === 'docs' ? 'docs' : post.type === 'template' ? 'templates' : 'blog'
+    window.history.pushState({}, '', `/${base}/${post.slug||post.id}`)
   }
 
   const handleBack = () => {
     setSelPost(null)
-    window.history.pushState({}, '', tab==='docs' ? '/docs' : '/blog')
+    window.history.pushState({}, '', tab === 'docs' ? '/docs' : tab === 'templates' ? '/templates' : '/blog')
   }
 
   const handleAdminLogin = async () => {
@@ -448,7 +578,7 @@ export function Blog() {
           </a>
           {!blogAdminMode && (
             <div style={{ display:'flex', gap:'2px' }}>
-              {[['blog','📝 블로그','#f97316'],['docs','📖 설명서','#3b82f6']].map(([key,label,color]) => (
+              {[['blog','📝 블로그','#f97316'],['docs','📖 설명서','#3b82f6'],['templates','📋 템플릿','#7c3aed']].map(([key,label,color]) => (
                 <button key={key} onClick={() => switchTab(key)}
                   style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:tab===key&&!selPost?`${color}18`:'transparent', color:tab===key&&!selPost?color:'#6b7280', fontSize:'14px', fontWeight:tab===key&&!selPost?700:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
                   {label}
@@ -513,9 +643,11 @@ export function Blog() {
     if (blogAdminMode) return <div style={{ padding:'24px' }}><BlogAdmin user={adminUser} /></div>
     if (selPost) {
       if (selPost.type === 'docs') return <DocsDetail doc={selPost} allDocs={docsPosts} onBack={handleBack} onSelect={handleSelect} />
+      if (selPost.type === 'template') return <TemplateDetail post={selPost} onBack={handleBack} />
       return <BlogDetail post={selPost} onBack={handleBack} />
     }
     if (tab === 'docs') return <DocsList docs={docsPosts} onSelect={handleSelect} />
+    if (tab === 'templates') return <TemplateList posts={templatePosts} onSelect={handleSelect} />
     return <BlogList posts={blogPosts} onSelect={handleSelect} />
   }
 
