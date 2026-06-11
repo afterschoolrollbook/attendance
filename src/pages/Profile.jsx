@@ -157,6 +157,7 @@ export function Profile({ user, onUserUpdate, onNav }) {
   const [pw,   setPw]   = useState({ next: '', next2: '' })
   const [imgPreview, setImgPreview] = useState(user.verifyImg || null)
   const [imgFile,    setImgFile]    = useState(null)
+  const imgRef = useRef()
 
   const [infoMsg,   setInfoMsg]   = useState(null)
   const [pwMsg,     setPwMsg]     = useState(null)
