@@ -386,6 +386,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | `parent_members` | `teacher_id = get_my_user_id()` 또는 관리자 |
 | `teacher_parent_links` | `teacher_id = get_my_user_id()` 또는 관리자 |
 | `settings` | **select: 관리자만**, insert/update/delete: 관리자만 |
+| `school_notices` | **select: 본인(`admin_id`) 또는 관리자**, write: 동일 |
 
 > `attendance`는 `teacher_id` 컬럼이 없으므로 `classes` 테이블 조인으로 소유권 확인.
 
