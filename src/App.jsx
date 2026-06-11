@@ -119,8 +119,14 @@ function MobileBottomNav({ currentPage, onNav }) {
 
 export default function App() {
   const [user, setUser] = useState(null)
-  const [showLanding, setShowLanding] = useState(true)   // ← 랜딩 페이지 표시 여부
-  const [landingTarget, setLandingTarget] = useState('login') // 'login' | 'signup'
+  const [showLanding, setShowLanding] = useState(() => {
+    const param = new URLSearchParams(window.location.search).get('page')
+    return param !== 'login' && param !== 'signup'
+  })
+  const [landingTarget, setLandingTarget] = useState(() => {
+    const param = new URLSearchParams(window.location.search).get('page')
+    return param === 'signup' ? 'signup' : 'login'
+  })
   const [page, setPage] = useState('dashboard')
   const [pageParams, setPageParams] = useState({})
   const [dbReady, setDbReady] = useState(false)
@@ -363,6 +369,7 @@ export default function App() {
         onGoBlog={() => { window.location.href = '/blog' }}
         onGoDashboard={user ? () => { setShowLanding(false); setPage('dashboard') } : undefined}
         onGoProfile={user ? () => { setShowLanding(false); setPage('profile') } : undefined}
+        onLogout={user ? handleLogout : undefined}
       />
     )
   }

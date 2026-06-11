@@ -16,7 +16,7 @@ function sanitizeHtml(html) {
 }
 
 import React, { useState, useEffect } from 'react'
-import { dbCall } from '../lib/supabase.js'
+import { dbCall, supabase } from '../lib/supabase.js'
 import { Users } from '../lib/db.js'
 import { verifyPassword } from '../lib/crypto.js'
 import { BlogAdmin } from './BlogAdmin.jsx'
@@ -632,7 +632,13 @@ export function Blog() {
   const [tab, setTab] = useState('blog')
   const [selPost, setSelPost] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [adminUser, setAdminUser] = useState(null)
+  const [adminUser, setAdminUser] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('asa_user')
+      if (cached) { const u = JSON.parse(cached); return u?.level >= 5 ? u : null }
+    } catch {}
+    return null
+  })
   const [showAdminLogin, setShowAdminLogin] = useState(false)
   const [loginForm, setLoginForm] = useState({ email:'', pw:'' })
   const [loginError, setLoginError] = useState('')
@@ -738,6 +744,16 @@ export function Blog() {
           {sessionUser && (
             <a href="/?page=dashboard" style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#374151', borderRadius:'8px', fontSize:'13px', fontWeight:600, textDecoration:'none' }}>
               🏠 대시보드
+            </a>
+          )}
+          {sessionUser ? (
+            <button onClick={async () => { await supabase?.auth?.signOut(); window.location.href = '/' }}
+              style={{ padding:'7px 16px', background:'none', border:'1px solid #fecaca', color:'#ef4444', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              🚪 로그아웃
+            </button>
+          ) : (
+            <a href="/?page=login" style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#374151', borderRadius:'8px', fontSize:'13px', fontWeight:600, textDecoration:'none' }}>
+              로그인
             </a>
           )}
           {adminUser ? (
