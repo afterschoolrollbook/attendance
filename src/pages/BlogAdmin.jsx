@@ -226,11 +226,6 @@ export function BlogAdmin({ user }) {
         </div>
       </div>
 
-      {/* n8n API 안내 — 관리자만 표시 */}
-      {isAdmin && <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'10px', padding:'12px 16px', marginBottom:'20px', fontSize:'12px', color:'#15803d' }}>
-        <strong>🤖 n8n 자동 발행</strong> — POST /functions/v1/db-api · action: "insert" · table: "blogPosts" · type: "blog" 또는 "docs"
-      </div>}
-
       {/* 타입 필터 탭 + 내 글만 보기 */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px', marginBottom:'20px' }}>
         <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
