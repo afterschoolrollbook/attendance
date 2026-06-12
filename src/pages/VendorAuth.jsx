@@ -568,14 +568,24 @@ function RegisterTab({ onDone, onSwitch }) {
             <div>
               <label style={{ fontSize:'12px', color:C.muted, marginBottom:'4px', display:'block' }}>비밀번호 (8자 이상, 영문+숫자+특수문자)</label>
               <input style={iSt} type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="비밀번호 설정" />
+              {pw && (
+                <div style={{ fontSize:'11px', marginTop:'4px', color: pw.length >= 8 && /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw) ? C.success : C.danger }}>
+                  {pw.length >= 8 && /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw) ? '✅ 안전한 비밀번호' : pw.length < 8 ? '❌ 8자 이상 입력해주세요' : '❌ 특수문자를 포함해주세요'}
+                </div>
+              )}
             </div>
             <div>
               <label style={{ fontSize:'12px', color:C.muted, marginBottom:'4px', display:'block' }}>비밀번호 확인</label>
               <input style={iSt} type="password" value={pwConfirm} onChange={e=>setPwConfirm(e.target.value)} placeholder="비밀번호 재입력" />
+              {pwConfirm && (
+                <div style={{ fontSize:'11px', marginTop:'4px', color: pw === pwConfirm ? C.success : C.danger }}>
+                  {pw === pwConfirm ? '✅ 비밀번호가 일치합니다' : '❌ 비밀번호가 일치하지 않습니다'}
+                </div>
+              )}
             </div>
             {err && <p style={{ color:C.danger, fontSize:'13px', margin:0 }}>⚠️ {err}</p>}
           </div>
-          <BtnPrimary onClick={handleRegister} disabled={loading || !verified || !pw || !pwConfirm}>
+          <BtnPrimary onClick={handleRegister} disabled={loading || !verified || !pw || !pwConfirm || pw.length < 8 || !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw) || pw !== pwConfirm}>
             {loading ? '가입 중...' : '🎒 업체 계정 만들기'}
           </BtnPrimary>
         </>
