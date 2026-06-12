@@ -46,7 +46,6 @@
 | `Blog.jsx` | 공개 블로그 뷰어 (마크다운 렌더링, DOMPurify XSS 방어) |
 | `BlogWrite.jsx` | 글 작성·수정 에디터 |
 | `BlogAdmin.jsx` | 관리자용 글 관리 |
-| `MyBlog.jsx` | 강사 본인 작성 글 관리 |
 
 ### DB 테이블
 
@@ -95,7 +94,6 @@
 | 📢 공고관리 | `Jobs.jsx` |
 | 블로그 / 설명서 | `Blog.jsx` |
 | ✍️ 블로그 글쓰기 | `BlogWrite.jsx` |
-| 📓 내 블로그 | `MyBlog.jsx` |
 
 ### 관리자 전용 (level 10)
 
