@@ -437,6 +437,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 10 | `find_email_by_phone`/`get_invite_info`/`get_parent_dashboard` — 과도한 컬럼/원본 이메일 노출 | ✅ 적용 (2026-06-12) | [바로가기](#parent-rpc--아이디찾기-rpc-응답-데이터-최소화-2026-06-12) |
 | 11 | `parent_joined`/`moved_to_manage` boolean sanitize 누락 | ✅ 적용 (2026-06-12) | [바로가기](#parent-rpc--아이디찾기-rpc-응답-데이터-최소화-2026-06-12) |
 | 12 | `settings` 테이블 API 시크릿 노출 + 위장 `service role full access` 정책 제거 | ✅ 적용 (2026-06-12) | [바로가기](#settings-테이블-시크릿-노출--위장-service-role-정책-제거-2026-06-12) |
+| 13 | 업체 포털 (`hq_vendors` / `hq_vendor_*` / `vendor_accounts`) RLS 우회 — RPC 전환 | ✅ 적용 (2026-06-12) | [바로가기](#업체-포털-rls-우회--rpc-전환-2026-06-12) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -459,6 +460,10 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 - [ ] **(12) 관리자 — 지도 드릴다운** — Admin 화면의 지도에서 학교 선택 시 NEIS 학생수 통계가 정상적으로 조회되는지
 - [ ] **(12) 일반 강사 — 네트워크 응답 확인** — 일반 강사 계정으로 로그인 후 개발자도구 Network 탭에서 `settings` select 응답에 `email`/`solapi`/`social_secret`/`regionMap_secret`이 더 이상 포함되지 않는지
 - [ ] **(12) 일반 강사 — 포인트/지사 정보** — 포인트 내역, 지사 정보 표시 등 기존 기능이 RLS 정책 변경 후에도 정상 동작하는지
+- [ ] **(13) 업체 로그인** — `?vendor=1` 경로에서 업체 이메일/비밀번호로 로그인이 성공하는지 ("이메일 또는 비밀번호가 올바르지 않습니다" 오류가 더 이상 나지 않는지)
+- [ ] **(13) 업체 가입** — 본사에 등록된 전화번호/이메일 확인 → 이메일 인증 → 계정 생성이 정상 완료되는지
+- [ ] **(13) 관리자 업체 관리** — 사이드바 업체 관리 화면에서 목록이 로드되고, 업체 등록/수정/삭제/초대가 정상 동작하는지
+- [ ] **(13) 업체 앱** — 로그인 후 과목·교구·차시·파일·단가 조회 및 저장이 모두 정상 동작하는지
 
 각 항목의 상세 설명/원인은 위 표의 "바로가기" 링크에서 확인.
 
@@ -658,6 +663,71 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 
 > ⚠️ 위 1)번 항목으로 인해 노출되었던 네이버 Client Secret / NEIS API Key(및 설정되어 있었다면 Resend/Solapi 키)는 재발급(rotate) 권장.
 
+### 업체 포털 RLS 우회 — RPC 전환 (2026-06-12)
+
+`hq_vendors`, `hq_vendor_*`(subjects / products / contents / files / prices), `vendor_accounts` 테이블이 **`for all using (false)`** RLS로 완전 차단되어 있었음. 관리자 포함 anon 클라이언트의 직접 접근이 전부 막혀 있어 업체 관련 기능 전체가 동작 불가 상태였음.
+
+**증상:**
+
+| 기능 | 오류 |
+|------|------|
+| 업체 로그인 | "이메일 또는 비밀번호가 올바르지 않습니다" |
+| 업체 가입 | "연결된 업체 정보가 없습니다" |
+| 관리자 업체 관리 화면 | 목록 항상 비어 있음, 저장 시 RLS 위반 오류 |
+| 업체 앱 (교구·과목·파일) | 조회/저장 전부 실패 |
+
+**원인:** `VendorAuth.jsx` / `VendorManage.jsx` / `VendorApp.jsx` 가 `dbCall('getAll'/'upsert'/'delete', 'hqVendors' | 'vendorAccounts' | ...)` 형태로 Supabase 클라이언트를 통해 직접 접근. 대응하는 RPC나 Edge Function이 없었음.
+
+**수정 내용:**
+
+- `supabase/migrations/20240001_vendor_rpc.sql` — `SECURITY DEFINER` RPC 함수 26개 추가 (조회 9개 / upsert 7개 / soft delete 5개 / 관리자 전용 5개)
+- `src/lib/supabase.js` — `export const vendorRpc` 헬퍼 블록 추가 (기존 export 전부 보존, 파일 끝에 append만)
+- `src/pages/VendorAuth.jsx` — `HQVendors` / `VendorAccounts` 내부 구현을 `vendorRpc.*` 로 교체
+- `src/pages/VendorManage.jsx` — `HQVendors` / `HQSubjects` / `HQProducts` 내부 구현을 `vendorRpc.*` 로 교체. 원본 버그(`HQProducts.bySubject(s.id).length` — async 함수를 동기로 호출하던 문제)도 함께 수정 → 로드된 `products` state를 직접 필터링하도록 변경
+- `src/pages/VendorApp.jsx` — `DB.*` 헬퍼 전체를 `vendorRpc.*` 로 교체. Storage 업로드(`dbCall('storageUpload', ...)`)는 RLS 무관이므로 유지
+
+**사이드 이펙트 없음:** Vendor 3개 파일 외 나머지 전체 파일 무변경 확인 완료.
+
+#### 적용 방법
+
+1. Supabase Dashboard → **SQL Editor** → `supabase/migrations/20240001_vendor_rpc.sql` 전체 붙여넣기 → **Run**
+   - 성공 시 하단에 `Success. No rows returned` 표시
+2. 소스 파일 4개 교체:
+   ```
+   src/lib/supabase.js
+   src/pages/VendorAuth.jsx
+   src/pages/VendorManage.jsx
+   src/pages/VendorApp.jsx
+   ```
+
+> ⚠️ SQL을 먼저 실행해야 합니다. 파일만 교체하고 SQL을 빠뜨리면 RPC 함수가 없어서 앱이 오류를 냅니다.
+
+#### 테스트 방법
+
+**① 업체 로그인**
+1. 브라우저에서 `?vendor=1` 경로 접속
+2. 본사에 등록된 업체 이메일/비밀번호 입력 → 로그인 성공, 업체 앱 화면으로 진입
+3. 잘못된 이메일/비밀번호 → "이메일 또는 비밀번호가 올바르지 않습니다" 표시 (정상)
+
+**② 업체 가입**
+1. `?vendor=1` → 업체 가입 탭
+2. 본사에 등록된 전화번호 또는 이메일 입력 → 업체 확인 성공
+3. 이메일 인증 → 비밀번호 설정 → 가입 완료 후 업체 앱 화면 진입
+
+**③ 업체 앱 (교구 관리)**
+1. 업체 로그인 후 과목 탭 생성 → 저장 확인
+2. 교구 등록 → 차시 입력 → 저장 확인
+3. 파일 업로드 → 정상 업로드 및 목록 표시 확인
+4. 단가 입력 → blur 시 자동 저장 확인
+
+**④ 관리자 업체 관리**
+1. 관리자(level 10) 계정으로 로그인
+2. 사이드바 → **업체 관리** 클릭 → 업체 목록이 로드되는지 확인
+3. 업체 등록 → 저장 → 목록에 반영 확인
+4. 업체 수정 → 저장 확인
+5. 초대 이메일 발송 → 상태가 "초대 발송"으로 변경 확인
+6. 업체 삭제 → 관련 과목·교구도 함께 삭제 확인
+
 ### Row Level Security (RLS)
 
 모든 핵심 테이블에 RLS 활성화 + 정책 적용 완료 (2026-06-12)
@@ -737,6 +807,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 
 - [ ] `supabase/000_complete_schema.sql` 실행 (RLS + PIN 함수 포함)
 - [ ] (기존 운영 DB 재배포 시) `supabase/006_settings_secret_lockdown.sql`, `supabase/007_remove_public_service_role_policies.sql` 순서대로 실행 — `settings` 시크릿 분리/잠금 + 위장 `service role full access` 정책 제거
+- [ ] (기존 운영 DB 재배포 시) `supabase/migrations/20240001_vendor_rpc.sql` 실행 — 업체 포털 RPC 함수 26개 추가
 - [ ] Supabase Secrets에 `ALLOWED_ORIGIN` 설정
 - [ ] Supabase Secrets에 `SVC_ROLE_KEY` 설정
 - [ ] 관리자 계정으로 로그인 후 서비스 설정에서 Resend·Solapi 키, 소셜 로그인(네이버 Secret), NEIS API 키 등록
