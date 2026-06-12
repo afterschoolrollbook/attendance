@@ -6,7 +6,7 @@
 import React, { useState } from 'react'
 import { uid, now } from '../lib/utils.js'
 import { vendorRpc, isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
-import { hashPassword, verifyPassword, isHashed } from '../lib/crypto.js'
+import { hashPassword } from '../lib/crypto.js'
 
 const C = {
   primary: '#f97316', text: '#111827', muted: '#6b7280',
@@ -116,13 +116,10 @@ function LoginTab({ onLogin, onSwitch, onFindId, onResetPw }) {
     setLoading(true)
     try {
       checkBruteForce(email.trim().toLowerCase())
-      const acc = await VendorAccounts.byEmail(email.trim())
-      if (!acc || !(await verifyPassword(pw, acc.pw))) { setErr('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
-      if (!isHashed(acc.pw)) {
-        const hashedPw = await hashPassword(pw)
-        await VendorAccounts.save({ ...acc, pw: hashedPw })
-        acc.pw = hashedPw
-      }
+      // 서버에서 해시 비교 — pw 해시가 클라이언트에 도달하지 않음
+      const hashedPw = await hashPassword(pw)
+      const acc = await vendorRpc.verifyLogin(email.trim(), hashedPw)
+      if (!acc) { setErr('이메일 또는 비밀번호가 올바르지 않습니다.'); return }
       const vendor = await vendorRpc.getVendorById(acc.vendorId)
       if (!vendor) { setErr('연결된 업체 정보가 없습니다.'); return }
       resetBruteForce(email.trim().toLowerCase())
@@ -290,6 +287,7 @@ function ResetPwTab({ onBack }) {
     setErr('')
     if (pw.length < 8) { setErr('비밀번호는 8자 이상이어야 합니다.'); return }
     if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(pw)) { setErr('비밀번호는 영문+숫자를 조합해야 합니다.'); return }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw)) { setErr('비밀번호는 특수문자를 하나 이상 포함해야 합니다.'); return }
     if (pw !== pwConfirm) { setErr('비밀번호가 일치하지 않습니다.'); return }
     try {
       const hashedPw = await hashPassword(pw)
@@ -391,7 +389,7 @@ function ResetPwTab({ onBack }) {
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'20px' }}>
             <div>
-              <label style={{ fontSize:'12px', color:C.muted, marginBottom:'4px', display:'block' }}>새 비밀번호 (8자 이상)</label>
+              <label style={{ fontSize:'12px', color:C.muted, marginBottom:'4px', display:'block' }}>새 비밀번호 (8자 이상, 영문+숫자+특수문자)</label>
               <input style={iSt} type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="새 비밀번호 입력" />
               {pw && (
                 <div style={{ fontSize:'11px', marginTop:'4px', color: pw.length >= 8 ? C.success : C.danger }}>
@@ -412,7 +410,7 @@ function ResetPwTab({ onBack }) {
             </div>
           </div>
           {err && <p style={{ color:C.danger, fontSize:'13px', margin:'0 0 12px' }}>⚠️ {err}</p>}
-          <BtnPrimary onClick={handleReset} disabled={!pw || !pwConfirm || pw !== pwConfirm || pw.length < 8}>
+          <BtnPrimary onClick={handleReset} disabled={!pw || !pwConfirm || pw !== pwConfirm || pw.length < 8 || !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw)}>
             🔑 비밀번호 변경 완료
           </BtnPrimary>
         </>
@@ -488,6 +486,7 @@ function RegisterTab({ onDone, onSwitch }) {
     if (!verified) { setErr('이메일 인증을 완료해주세요.'); return }
     if (pw.length < 8) { setErr('비밀번호는 8자 이상이어야 합니다.'); return }
     if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(pw)) { setErr('비밀번호는 영문+숫자를 조합해야 합니다.'); return }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw)) { setErr('비밀번호는 특수문자를 하나 이상 포함해야 합니다.'); return }
     if (pw !== pwConfirm) { setErr('비밀번호가 일치하지 않습니다.'); return }
     setLoading(true)
     try {
@@ -567,7 +566,7 @@ function RegisterTab({ onDone, onSwitch }) {
             )}
             {verified && <p style={{ color:C.success, fontSize:'12px', margin:0 }}>✅ 이메일이 인증되었습니다.</p>}
             <div>
-              <label style={{ fontSize:'12px', color:C.muted, marginBottom:'4px', display:'block' }}>비밀번호 (8자 이상, 영문+숫자)</label>
+              <label style={{ fontSize:'12px', color:C.muted, marginBottom:'4px', display:'block' }}>비밀번호 (8자 이상, 영문+숫자+특수문자)</label>
               <input style={iSt} type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="비밀번호 설정" />
             </div>
             <div>
