@@ -113,7 +113,7 @@
 | 학부모 초대 | `ParentInvite.jsx` |
 | 학부모 로그인 | `ParentLogin.jsx` |
 | 학교 담당자 | `SchoolAuth.jsx` + `SchoolAdminApp.jsx` + `SchoolAdminManage.jsx` |
-| 학교 공지 팝업 | `SchoolNoticePopup.jsx` |
+| 학교 공지 팝업 | `SchoolNoticePopup.jsx` — `Dashboard.jsx`에서 import하여 선생님 대시보드에 표시 |
 | 납품 업체 | `VendorAuth.jsx` + `VendorApp.jsx` + `VendorManage.jsx` |
 
 ---
@@ -430,7 +430,49 @@ ORDER BY c.class_name, c.section;
 
 코드를 처음 보는 사람이 놓치기 쉬운 설계 결정들을 정리합니다.
 
-### 비밀번호 해싱 — PBKDF2 + 솔트
+### `SchoolNoticePopup` — `Dashboard.jsx`에 연결 (2026-06-13)
+
+`src/pages/SchoolNoticePopup.jsx`는 `SchoolNoticePopup`(팝업)과 `SchoolNoticeBanner`(배너) 두 컴포넌트를 export하고 있었으나, 앱 어디에서도 import되지 않아 실제로 동작하지 않는 상태였음.
+
+컴포넌트 주석("선생님 대시보드에서 미제출 학교 공지를 팝업으로 표시")대로 `Dashboard.jsx`에 연결. `SchoolAdminApp.jsx`는 학교 담당자 포털이므로 선생님용 팝업을 붙이는 위치로 적합하지 않음.
+
+**수정 내용:**
+
+- `src/pages/SchoolNoticePopup.jsx` — `SchoolNoticePopup`에 `forceOpen` prop 추가 (기본값 `false`). 배너를 클릭해 팝업을 닫은 뒤 다시 열 때, 이미 `current`가 null인 상태에서 재진입할 수 있도록 `forceOpen`이 `true`가 되면 `pendingNotices[0]`을 `current`에 다시 세팅:
+  ```js
+  useEffect(() => {
+    if (forceOpen && pendingNotices.length > 0 && !current) {
+      setCurrent(pendingNotices[0])
+    }
+  }, [forceOpen, pendingNotices, current])
+  ```
+
+- `src/pages/Dashboard.jsx` — 데스크톱 `Dashboard` + 모바일 `MobileDashboard` 두 곳에 동일하게 적용:
+  1. 파일 상단에 `import { SchoolNoticePopup, SchoolNoticeBanner } from './SchoolNoticePopup.jsx'` 추가
+  2. `showNoticePopup` state 추가 (배너 클릭 토글용)
+  3. 기존 `SchoolConnectPopup` 아래 순서로 렌더:
+     ```
+     SchoolConnectPopup     ← 기존 (연결 초대 팝업)
+     SchoolNoticePopup      ← 신규 (공지 제출 팝업 — 미제출 공지 있으면 자동 표시)
+     SchoolConnectionPanel  ← 기존
+     SchoolTaskPanel        ← 기존 (데스크톱만)
+     SchoolNoticeBanner     ← 신규 (미제출 공지 배너 — 클릭 시 팝업 재오픈)
+     ```
+
+**다른 파일 영향 없음:** `SchoolNoticePopup`의 `forceOpen`은 `false` 기본값이라 기존 단독 사용 시와 동작 동일. `Dashboard.jsx` 외 파일에는 변경 없음.
+
+---
+
+### `SchoolAdminApp.jsx` — 아무 데서도 참조되지 않는 학교 연결 확인 (2026-06-13)
+
+위 작업 과정에서, `SchoolNoticePopup.jsx`가 `SchoolAdminApp.jsx`가 아닌 `Dashboard.jsx`에 붙어야 하는 이유를 명확히 확인:
+
+| 포털 | 사용자 | 적절한 연결 위치 |
+|------|--------|-----------------|
+| 학교 담당자 포털 | 학교 담당자 | `SchoolAdminApp.jsx` |
+| 선생님 대시보드 | 강사(선생님) | `Dashboard.jsx` |
+
+`SchoolNoticePopup`은 "선생님이 미제출한 학교 공지를 확인·제출"하는 용도이므로 선생님 화면(`Dashboard.jsx`)이 올바른 위치. `SchoolAdminApp.jsx`에 연결하면 학교 담당자가 자기 공지를 다시 제출하는 비정상적인 UX가 됨.
 
 `src/lib/crypto.js`에서 Web Crypto API로 PBKDF2(반복 100,000회, SHA-256, 랜덤 16바이트 솔트) 적용.
 저장 형식: `pbkdf2:{saltHex}:{hashHex}`. 레거시 SHA-256(64자 hex) fallback은 검증만 가능하고 신규 생성은 불가.
@@ -504,6 +546,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 29 | `20240001_vendor_rpc.sql` — `pw` 제외 수정 후 `VendorAuth.jsx` 로그인이 `acc.pw = undefined`로 항상 실패. `verify_vendor_login` RPC(서버에서 해시 비교 후 `pw` 제외 반환)를 추가하고 로그인 흐름을 교체. `get_vendor_account_for_login`(pw 클라이언트 반환 방식) → `verify_vendor_login`(서버 검증 방식)으로 최종 적용 (2026-06-13) | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx--로그인-pw-검증-누락-수정-2026-06-13) |
 | 30 | `VendorAuth.jsx` — 업체 비밀번호 정책이 강사 계정(`Auth.jsx`)과 불일치. 가입·비밀번호 초기화 모두 특수문자 조건 없이 영문+숫자(8자)만 요구 → 특수문자 1개 이상 조건 추가 | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx--업체-비밀번호-정책-특수문자-추가-2026-06-13) |
 | 31 | `VendorAuth.jsx` `RegisterTab` — 비밀번호 강도 힌트 텍스트가 길이(8자)만 체크하고 특수문자를 미확인. 가입 버튼 `disabled` 조건에도 특수문자 검사 누락 → 힌트 텍스트·`disabled` 모두 특수문자 조건 추가 및 비밀번호 확인 일치 힌트 추가 | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx-registertab--비밀번호-강도-힌트-및-disabled-조건-불일치-수정-2026-06-13) |
+| 32 | `SchoolNoticePopup.jsx` — export는 되어 있으나 앱 어디에서도 import되지 않아 학교 공지 팝업·배너 기능이 동작하지 않는 상태 → `Dashboard.jsx`(선생님 대시보드)에 연결 | ✅ 수정 완료 (2026-06-13) | [바로가기](#schoolnoticepopup--dashboardjsx에-연결-2026-06-13) |
 
 ### 🔲 남은 테스트 체크리스트
 
