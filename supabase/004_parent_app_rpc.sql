@@ -1,5 +1,12 @@
 -- ============================================================
--- 004_parent_app_rpc.sql
+-- 004_parent_app_rpc.sql  (2026-06-12 보안 수정)
+--
+-- 변경 내역:
+--   get_parent_dashboard — PIN 검증을 RPC 내부에서 강제
+--     · p_pin 파라미터 추가 (DEFAULT NULL, 하위 호환)
+--     · pin_hash 설정된 회원: p_pin 일치해야만 데이터 반환
+--     · pin_hash 미설정 회원: p_pin=NULL 허용 (초대 직후 PIN 등록 전)
+--     · 불일치·미제공 시 빈 데이터 반환 (오류 메시지 없음 — timing attack 방지)
 --
 -- 배경:
 --   2026-06-12 RLS 강화(students/classes/attendance/users 등을
@@ -35,34 +42,57 @@ end; $$;
 
 
 -- ────────────────────────────────────────────────────────────
--- 2) get_parent_dashboard
+-- 2) get_parent_dashboard  ★ 보안 수정 (2026-06-12)
 --    /parent-login 2단계 통과 후(또는 가입 직후) 대시보드 데이터 일괄 조회
 --    반환: { students:[...], classes:[...], teachers:[...], attendance:[...] }
 --    (컬럼은 DB 그대로 snake_case — 프론트에서 toCamel 적용)
+--
+--    PIN 검증 로직:
+--      p_pin 있음  → pgcrypto crypt() 로 pin_hash 와 비교, 일치할 때만 통과
+--      p_pin NULL  → pin_hash 미설정 회원(초대 직후 PIN 등록 전)만 통과
+--                    pin_hash 가 이미 설정된 회원이 p_pin=NULL 로 호출하면 빈 데이터 반환
+--      불일치      → 빈 데이터 반환 (오류 없음 — timing attack 방지)
 -- ────────────────────────────────────────────────────────────
-create or replace function get_parent_dashboard(p_phone text)
+create or replace function get_parent_dashboard(p_phone text, p_pin text default null)
 returns jsonb
 language plpgsql security definer as $$
 declare
-  v_phone      text := regexp_replace(p_phone, '[^0-9]', '', 'g');
-  v_students   jsonb;
+  v_phone       text := regexp_replace(p_phone, '[^0-9]', '', 'g');
+  v_member      parent_members%rowtype;
+  v_students    jsonb;
   v_student_ids text[];
-  v_class_ids  text[];
-  v_classes    jsonb;
+  v_class_ids   text[];
+  v_classes     jsonb;
   v_teacher_ids text[];
-  v_teachers   jsonb;
-  v_attendance jsonb;
+  v_teachers    jsonb;
+  v_attendance  jsonb;
+  v_empty       jsonb := jsonb_build_object(
+                   'students',   '[]'::jsonb,
+                   'classes',    '[]'::jsonb,
+                   'teachers',   '[]'::jsonb,
+                   'attendance', '[]'::jsonb);
 begin
-  -- 가입(joined) 상태가 아니면 빈 데이터 반환
-  if not exists (
-    select 1 from parent_members pm
-     where regexp_replace(pm.phone, '[^0-9]', '', 'g') = v_phone
-       and pm.app_joined = true and pm.withdrawn_at is null
-  ) then
-    return jsonb_build_object('students','[]'::jsonb,'classes','[]'::jsonb,'teachers','[]'::jsonb,'attendance','[]'::jsonb);
+  -- 1) 회원 조회
+  select * into v_member
+    from parent_members pm
+   where regexp_replace(pm.phone, '[^0-9]', '', 'g') = v_phone
+     and pm.app_joined = true and pm.withdrawn_at is null
+   limit 1;
+
+  if not found then
+    return v_empty;
   end if;
 
-  -- 이 전화번호로 등록된 학생들 (화면에 필요한 컬럼만 반환)
+  -- 2) PIN 검증
+  --    pin_hash 설정된 회원: p_pin 이 반드시 있어야 하고 일치해야 함
+  --    pin_hash 미설정 회원: p_pin=NULL 허용 (초대 직후 PIN 등록 전 상태)
+  if v_member.pin_hash is not null then
+    if p_pin is null or v_member.pin_hash <> crypt(p_pin, v_member.pin_hash) then
+      return v_empty;
+    end if;
+  end if;
+
+  -- 3) 이 전화번호로 등록된 학생들 (화면에 필요한 컬럼만 반환)
   select coalesce(jsonb_agg(jsonb_build_object(
            'id', s.id, 'name', s.name, 'grade', s.grade,
            'class_num', s.class_num, 'class_ids', s.class_ids
@@ -73,14 +103,14 @@ begin
    where regexp_replace(coalesce(s.parent_phone, ''), '[^0-9]', '', 'g') = v_phone
      and coalesce(s._deleted, false) = false;
 
-  -- 그 학생들이 속한 수업 id 목록
+  -- 4) 그 학생들이 속한 수업 id 목록
   select coalesce(array_agg(distinct e), '{}')
     into v_class_ids
     from students s, jsonb_array_elements_text(coalesce(s.class_ids, '[]'::jsonb)) e
    where regexp_replace(coalesce(s.parent_phone, ''), '[^0-9]', '', 'g') = v_phone
      and coalesce(s._deleted, false) = false;
 
-  -- 수업 정보 (화면에 필요한 컬럼만 반환)
+  -- 5) 수업 정보 (화면에 필요한 컬럼만 반환)
   select coalesce(jsonb_agg(jsonb_build_object(
            'id', c.id, 'class_name', c.class_name, 'section', c.section, 'sections', c.sections,
            'days', c.days, 'time', c.time, 'time_end', c.time_end,
@@ -92,7 +122,7 @@ begin
     from classes c
    where c.id = any(v_class_ids);
 
-  -- 담당 선생님 id 목록 → 최소 정보만
+  -- 6) 담당 선생님 최소 정보
   select coalesce(array_agg(distinct teacher_id), '{}')
     into v_teacher_ids
     from classes
@@ -105,7 +135,7 @@ begin
     from users u
    where u.id = any(v_teacher_ids);
 
-  -- 출석 기록 (status가 있는 것만, 최신순, 필요한 컬럼만 반환)
+  -- 7) 출석 기록 (필요한 컬럼만 반환)
   select coalesce(jsonb_agg(jsonb_build_object(
            'student_id', a.student_id, 'class_id', a.class_id, 'status', a.status,
            'date', a.date, 'marked_at', a.marked_at,
