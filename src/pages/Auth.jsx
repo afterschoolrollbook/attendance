@@ -3,7 +3,7 @@ import { Users, initFromSupabase } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
 import { Btn, Input } from '../components/Atoms.jsx'
 import { Settings } from '../lib/db.js'
-import { sendEmail, isConfigured, authSignIn, authSignUp, authResetPassword, supabase, dbCall } from '../lib/supabase.js'
+import { sendEmail, isConfigured, authSignIn, authSignUp, resetPasswordWithCode, supabase, dbCall } from '../lib/supabase.js'
 import { useToast } from '../hooks/useToast.js'
 
 function getSocialConfig() {
@@ -112,7 +112,8 @@ async function verifyResetCode(email, inputCode) {
   if (!rows || rows.length === 0) return false
   if (new Date(rows[0].expires_at) < new Date()) return false
 
-  await supabase.from('verify_codes').update({ used: true }).eq('id', rows[0].id)
+  // 코드 소진(used=true) 처리는 reset-password-self Edge Function이
+  // 비밀번호 변경과 함께 원자적으로 수행한다 (여기서는 검증만).
   return true
 }
 
@@ -701,7 +702,9 @@ export function Auth({ onLogin, initialTab }) {
     if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(fpNewPw)) { setError('비밀번호는 특수문자를 하나 이상 포함해야 합니다.'); return }
     if (fpNewPw !== fpNewPw2) { setError('비밀번호가 일치하지 않습니다.'); return }
     try {
-      await authResetPassword(fpEmail.trim().toLowerCase())
+      if (supabase) {
+        await resetPasswordWithCode(fpEmail.trim().toLowerCase(), fpCode.trim(), fpNewPw)
+      }
       setFpDone(true); setError('')
     } catch (e) {
       setError(e.message || '오류가 발생했습니다.')
