@@ -152,7 +152,7 @@ function useSchoolData(user) {
       }).filter(Boolean)
       setTasks(taskList)
 
-    } catch {}
+    } catch (e) { console.warn('[Dashboard] 오류:', e) }
   }
 
   useEffect(() => {
@@ -201,19 +201,19 @@ function ConnectInvitePopup({ invites, user, reload }) {
           const sub = (all||[]).find(s => s.noticeId===inv.noticeId && s.teacherId===user.id)
           if (sub?.status === 'pending')
             await dbCall('update', 'schoolNoticeSubmits', { id:sub.id, patch:{status:'replied', repliedAt:now()} })
-        } catch {}
+        } catch (e) { console.warn('[Dashboard] 오류:', e) }
       }
       success(`${inv.schoolName} 담당자와 연동되었습니다! 🎉`)
       await reload()
       setCurrent(c => Math.max(0, c-1))
-    } catch {}
+    } catch (e) { console.warn('[Dashboard] 오류:', e) }
   }
 
   const handleDecline = async () => {
     try {
       await dbCall('update', 'schoolTeacherInvites', { id:inv.id, patch:{status:'declined', declinedAt:now()} })
       await reload(); setCurrent(c => Math.max(0, c-1))
-    } catch {}
+    } catch (e) { console.warn('[Dashboard] 오류:', e) }
   }
 
   return (
@@ -299,7 +299,7 @@ function SchoolConnectionPanel({ user, onNav }) {
       })
       setConnections(enriched)
       setMyClasses(ClassesDB.byTeacher(user.id))
-    } catch {}
+    } catch (e) { console.warn('[Dashboard] 오류:', e) }
   }
 
   useEffect(() => { load() }, [user?.id])
@@ -317,7 +317,7 @@ function SchoolConnectionPanel({ user, onNav }) {
       const info      = (allInfo||[]).find(r => r.adminId === conn.adminId) || null
       const calendars = (allCals||[]).filter(c => c.adminId === conn.adminId)
       setModal({ conn, info, calendars })
-    } catch {}
+    } catch (e) { console.warn('[Dashboard] 오류:', e) }
   }
 
   const handleDisconnect = (conn) => {
@@ -1095,7 +1095,7 @@ function SchoolTaskPanel({ user }) {
         return { sub, notice }
       }).filter(Boolean)
       setTasks(list)
-    } catch {}
+    } catch (e) { console.warn('[Dashboard] 오류:', e) }
   }
 
   useEffect(() => {
@@ -1863,17 +1863,17 @@ function DayDetail({ date, user, classes, onNav }) {
   useEffect(() => {
     setNotes(Notes.byTeacherDate(user.id, date))
     setNewNote(''); setAddingNote(false)
-    try { setSpItems(SupplyItems.byTeacher(user.id)) }              catch {}
-    try { setSpProds(SupplyProducts.byTeacher(user.id)) }          catch {}
-    try { setSpProg(SupplyStudentProgress.byTeacher(user.id)) }    catch {}
-    try { setSpChecks(SupplySessionChecks.byTeacher(user.id)) }    catch {}
+    try { setSpItems(SupplyItems.byTeacher(user.id)) }              catch (e) { console.warn('[Dashboard] 오류:', e) }
+    try { setSpProds(SupplyProducts.byTeacher(user.id)) }          catch (e) { console.warn('[Dashboard] 오류:', e) }
+    try { setSpProg(SupplyStudentProgress.byTeacher(user.id)) }    catch (e) { console.warn('[Dashboard] 오류:', e) }
+    try { setSpChecks(SupplySessionChecks.byTeacher(user.id)) }    catch (e) { console.warn('[Dashboard] 오류:', e) }
   }, [date, user.id])
 
   useEffect(() => {
     const refresh = () => {
-      try { setSpItems(SupplyItems.byTeacher(user.id)) }    catch {}
-      try { setSpProg(SupplyStudentProgress.byTeacher(user.id)) }  catch {}
-      try { setSpChecks(SupplySessionChecks.byTeacher(user.id)) }  catch {}
+      try { setSpItems(SupplyItems.byTeacher(user.id)) }    catch (e) { console.warn('[Dashboard] 오류:', e) }
+      try { setSpProg(SupplyStudentProgress.byTeacher(user.id)) }  catch (e) { console.warn('[Dashboard] 오류:', e) }
+      try { setSpChecks(SupplySessionChecks.byTeacher(user.id)) }  catch (e) { console.warn('[Dashboard] 오류:', e) }
     }
     const u1 = onDbChange('supplyStudentProgress', refresh)
     const u2 = onDbChange('supplyItems',           refresh)
@@ -2656,9 +2656,7 @@ function MobileDashboard({ user, onNav, onLogout }) {
 //  DASHBOARD  메인 export
 // ═══════════════════════════════════════════════════════════════════
 
-export function Dashboard({ user, onNav, onLogout }) {
-  const isMobile = window.innerWidth <= 768
-  if (isMobile) return <MobileDashboard user={user} onNav={onNav} onLogout={onLogout} />
+function DesktopDashboard({ user, onNav, onLogout }) {
   const { settings, hideCard, toggleCard, resetAll } = useCardSettings(user.id)
   const [showSettings,    setShowSettings]    = useState(false)
   const [showInstallGuide, setShowInstallGuide] = useState(false)
@@ -2741,7 +2739,7 @@ export function Dashboard({ user, onNav, onLogout }) {
             merged[key] = { ...o, _memoIds: [m.id] }
           }
         })
-      } catch {}
+      } catch (e) { console.warn('[Dashboard] 오류:', e) }
     })
     return Object.values(merged)
   })()
@@ -3051,7 +3049,7 @@ export function Dashboard({ user, onNav, onLogout }) {
                                         : item
                                     )
                                     LessonMemos.update(memoId, { content: PARTS_ORDER_KEY + JSON.stringify(updated) })
-                                  } catch {}
+                                  } catch (e) { console.warn('[Dashboard] 오류:', e) }
                                 })
                                 setEditingOrderKey(null)
                                 setSupplyTick(t => t + 1)
@@ -3124,7 +3122,7 @@ export function Dashboard({ user, onNav, onLogout }) {
                         } else {
                           LessonMemos.update(memoId, { content: PARTS_ORDER_KEY + JSON.stringify(updated) })
                         }
-                      } catch {}
+                      } catch (e) { console.warn('[Dashboard] 오류:', e) }
                     })
                     setEditingOrderKey(null)
                   }
@@ -3427,4 +3425,19 @@ export function Dashboard({ user, onNav, onLogout }) {
       )}
     </div>
   )
+}
+
+// ─── 모바일/데스크탑 분기 래퍼 (Rules of Hooks 위반 방지)
+// isMobile은 컴포넌트 상태로 관리하고, 그 값에 따라 서로 다른 컴포넌트를
+// 마운트/언마운트하는 방식이라 각 컴포넌트는 항상 동일한 순서로 hook을 호출한다.
+export function Dashboard({ user, onNav, onLogout }) {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768)
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+  return isMobile
+    ? <MobileDashboard user={user} onNav={onNav} onLogout={onLogout} />
+    : <DesktopDashboard user={user} onNav={onNav} onLogout={onLogout} />
 }

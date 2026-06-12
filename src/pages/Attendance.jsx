@@ -95,7 +95,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
         .map(({ _memoEdit, _edit, _editProductId, _editStage, _editPartId, ...rest }) => rest)
       orderListRef.current = parsed
       return parsed
-    } catch {} }
+    } catch (e) { console.warn('[Attendance] 오류:', e) } }
     return []
   })
   const _saveOrderToSupabase = (list) => {
@@ -134,7 +134,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
       const all = LessonMemos.byClassDate(cls.id, date)
       setMemos(all.filter(m => !m.content?.startsWith(PARTS_ORDER_KEY)))
       const saved = all.find(m => m.content?.startsWith(PARTS_ORDER_KEY))
-      if (saved) { try { const p = JSON.parse(saved.content.slice(PARTS_ORDER_KEY.length)); orderListRef.current = p; setOrderList(p) } catch {} }
+      if (saved) { try { const p = JSON.parse(saved.content.slice(PARTS_ORDER_KEY.length)); orderListRef.current = p; setOrderList(p) } catch (e) { console.warn('[Attendance] 오류:', e) } }
     })
     return unsub
   }, [cls?.id, date])
@@ -147,7 +147,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
       const all = LessonMemos.byClassDate(cls.id, date)
       setMemos(all.filter(m => !m.content?.startsWith(PARTS_ORDER_KEY)))
       const saved = all.find(m => m.content?.startsWith(PARTS_ORDER_KEY))
-      if (saved) { try { const p = JSON.parse(saved.content.slice(PARTS_ORDER_KEY.length)); orderListRef.current = p; setOrderList(p) } catch {} }
+      if (saved) { try { const p = JSON.parse(saved.content.slice(PARTS_ORDER_KEY.length)); orderListRef.current = p; setOrderList(p) } catch (e) { console.warn('[Attendance] 오류:', e) } }
     }
     const timer = setInterval(poll, 10000)
     return () => clearInterval(timer)
@@ -539,7 +539,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                   try {
                     const rows = await SupplyParts.byProduct(pid)
                     setPartsData(prev => [...prev.filter(p => p.productId !== pid), ...(rows || [])])
-                  } catch(e) {}
+                  } catch (e) { console.warn('[Attendance] 오류:', e) }
                 }}
                   style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                   <option value="">-- 교구 선택 --</option>
@@ -580,7 +580,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                           setPartsData(prev => [...prev.filter(p => p.productId !== selProductId), ...updated])
                           setNewPartName('')
                           success('부품이 등록되었습니다')
-                        } catch(e) {}
+                        } catch (e) { console.warn('[Attendance] 오류:', e) }
                       }}
                         style={{ width:'100%', padding:'7px', borderRadius:'7px', background:'#f59e0b', color:'#fff', border:'none', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                         부품 등록
@@ -609,7 +609,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                     setPartsData(prev => [...prev.filter(p => p.productId !== pid), ...(rows || [])])
                     const stages = [...new Set((rows || []).map(p => Number(p.stage)))].sort((a,b)=>a-b)
                     setSelStage(stages[0] || '')
-                  } catch(e) {}
+                  } catch (e) { console.warn('[Attendance] 오류:', e) }
                 }}
                   style={{ width:'100%', padding:'7px 10px', borderRadius:'7px', border:'1px solid #d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                   <option value="">-- 교구 선택 --</option>
@@ -667,7 +667,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                         try {
                           const list = JSON.parse(m.content.slice(PARTS_ORDER_KEY.length))
                           if (list.some(o => o.partId === selPartId)) duplicateFound = true
-                        } catch {}
+                        } catch (e) { console.warn('[Attendance] 오류:', e) }
                       })
 
                       if (duplicateFound) {
@@ -719,7 +719,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                         try {
                           const rows = await SupplyParts.byProduct(o.productId)
                           setPartsData(prev => [...prev.filter(p => p.productId !== o.productId), ...(rows || [])])
-                        } catch(e) {}
+                        } catch (e) { console.warn('[Attendance] 오류:', e) }
                       }
                     }}
                       title="수정" style={{ fontSize:'13px', lineHeight:1, color: o._edit ? '#3b82f6' : '#9ca3af', background:'none', border:'none', cursor:'pointer', padding:'0 1px' }}>✏️</button>
@@ -745,7 +745,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                         try {
                           const rows = await SupplyParts.byProduct(pid)
                           setPartsData(prev => [...prev.filter(p => p.productId !== pid), ...(rows || [])])
-                        } catch(e) {}
+                        } catch (e) { console.warn('[Attendance] 오류:', e) }
                         updUI({ _editProductId: pid, _editStage: '', _editPartId: '' })
                       }} style={{ width:'100%', padding:'6px 8px', borderRadius:'6px', border:'1px solid #bae6fd', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif' }}>
                         <option value="">-- 교구 선택 --</option>
@@ -1889,6 +1889,7 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
   const [givenNewSupplyStatus, setGivenNewSupplyStatus] = React.useState('given')
   const [givenNewBillingStatus, setGivenNewBillingStatus] = React.useState('none')
   const [givenSaving, setGivenSaving] = React.useState(false)
+  const [checking, setChecking] = React.useState(false)
 
   // 매 렌더링마다 DB 직접 조회 — prop 교체와 무관하게 항상 최신값
   const si = SupplyItems.byClassStudent(classId, student.id)[0]
@@ -2001,7 +2002,6 @@ function ProgCheckModal({ student, initialProductId, spProds, teacherId, onClose
     onSaved && onSaved()
   }
 
-  const [checking, setChecking] = React.useState(false)
   const toggleCheck = async (productId, stage, sessionNo) => {
     if (checking) return
     setChecking(true)
@@ -3026,7 +3026,7 @@ function InactiveStudentRow({ s, idx }) {
 }
 
 // ─── 수업 1개 — 대시보드 카드 스타일 + 바로 아래 학생 출석 리스트
-function ClassAttendanceSection({ cls, date, allStudents, user }) {
+function ClassAttendanceSection({ cls, date, allStudents, allClasses, user }) {
   const today = todayStr()
   const [tick, setTick] = useState(0)
   const [msgStudent, setMsgStudent] = useState(null)
@@ -4530,9 +4530,7 @@ function MobileAttendance({ user, pageParams = {} }) {
   )
 }
 
-export function Attendance({ user, pageParams = {}, onNav }) {
-  const isMobile = window.innerWidth <= 768
-  if (isMobile) return <MobileAttendance user={user} pageParams={pageParams} onNav={onNav} />
+function DesktopAttendance({ user, pageParams = {}, onNav }) {
   const today = todayStr()
   const now_ = new Date()
   const allClasses = ClassesDB.byTeacher(user.id)
@@ -5108,3 +5106,18 @@ export function Attendance({ user, pageParams = {}, onNav }) {
 }
 
 const selSt = { padding:'8px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', color:'#111827', cursor:'pointer', outline:'none', minWidth:'180px' }
+
+// ─── 모바일/데스크탑 분기 래퍼 (Rules of Hooks 위반 방지)
+// isMobile은 컴포넌트 상태로 관리하고, 그 값에 따라 서로 다른 컴포넌트를
+// 마운트/언마운트하는 방식이라 각 컴포넌트는 항상 동일한 순서로 hook을 호출한다.
+export function Attendance({ user, pageParams = {}, onNav }) {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768)
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+  return isMobile
+    ? <MobileAttendance user={user} pageParams={pageParams} onNav={onNav} />
+    : <DesktopAttendance user={user} pageParams={pageParams} onNav={onNav} />
+}

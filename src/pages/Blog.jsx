@@ -104,7 +104,7 @@ function AdSense({ slot, label = '광고', style = {} }) {
   const isApproved = false // 애드센스 승인 후 true로 변경
   useEffect(() => {
     if (!isApproved) return
-    try { (window.adsbygoogle = window.adsbygoogle || []).push({}) } catch {}
+    try { (window.adsbygoogle = window.adsbygoogle || []).push({}) } catch (e) { console.warn('[Blog] 오류:', e) }
   }, [])
   if (!isApproved) return (
     <div style={{ background:'#f9fafb', border:'2px dashed #e5e7eb', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:'4px', minHeight:'90px', color:'#d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', ...style }}>
@@ -216,7 +216,7 @@ function Comments({ postId }) {
       const postComments = (rows||[]).filter(c => c.postId === postId)
         .sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt))
       setComments(postComments)
-    } catch {}
+    } catch (e) { console.warn('[Blog] 오류:', e) }
   }
 
   const handleSubmit = async () => {
@@ -255,7 +255,7 @@ function Comments({ postId }) {
     } else {
       if (!window.confirm('댓글을 삭제하시겠습니까?')) return
     }
-    try { await dbCall('delete', 'blogComments', { id: c.id }); loadComments() } catch {}
+    try { await dbCall('delete', 'blogComments', { id: c.id }); loadComments() } catch (e) { console.warn('[Blog] 오류:', e) }
   }
 
   const iStyle = { width:'100%', padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', background:'#fff' }
@@ -704,7 +704,7 @@ export function Blog() {
       const rows = await dbCall('getAll', 'blogPosts')
       const published = (rows||[]).filter(p => p.status==='published').sort((a,b) => new Date(b.publishedAt||b.createdAt) - new Date(a.publishedAt||a.createdAt))
       setAllPosts(published)
-    } catch {}
+    } catch (e) { console.warn('[Blog] 오류:', e) }
     finally { setLoading(false) }
   }
 
@@ -713,7 +713,7 @@ export function Blog() {
       const rows = await dbCall('getAll', 'blogPosts')
       const post = (rows||[]).find(p => p.slug===slug || p.id===slug)
       if (post) setSelPost(post)
-    } catch {}
+    } catch (e) { console.warn('[Blog] 오류:', e) }
   }
 
   const handleSelect = (post) => {

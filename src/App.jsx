@@ -56,8 +56,49 @@ import { can } from './constants/permissions.js'
         localStorage.removeItem(key)
       }
     })
-  } catch (e) {}
+  } catch (e) { console.warn('[App] 오류:', e) }
 })()
+
+// ─── 전역 에러 바운더리 ────────────────────────────────────────────
+// 자식 트리에서 런타임 에러가 발생하면 전체 흰 화면 대신 안내 화면을 표시.
+// "Rendered fewer/more hooks..." 같은 렌더링 단계 에러를 포함해
+// 예기치 못한 모든 컴포넌트 크래시를 여기서 한 번에 막아준다.
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false }
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+  componentDidCatch(error, info) {
+    console.error('[ErrorBoundary] 처리되지 않은 오류:', error, info)
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          minHeight: '100vh', padding: '24px', textAlign: 'center', gap: '12px',
+          fontFamily: 'Noto Sans KR, sans-serif', background: '#f4f5f7', color: '#111827',
+        }}>
+          <div style={{ fontSize: '40px' }}>⚠️</div>
+          <div style={{ fontSize: '17px', fontWeight: 700 }}>화면을 표시하는 중 오류가 발생했습니다</div>
+          <div style={{ fontSize: '13px', color: '#6b7280' }}>새로고침하면 정상적으로 돌아올 수 있습니다.</div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: '8px', padding: '10px 20px', borderRadius: '8px', border: 'none',
+              background: '#f97316', color: '#fff', fontSize: '14px', fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif',
+            }}
+          >새로고침</button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 // ─── 모바일 하단 네비게이션 ───────────────────────────────────────
 const MOBILE_NAV = [
@@ -117,7 +158,7 @@ function MobileBottomNav({ currentPage, onNav }) {
   )
 }
 
-export default function App() {
+function AppInner() {
   const [user, setUser] = useState(null)
   const [showLanding, setShowLanding] = useState(true)   // ← 랜딩 페이지 표시 여부
   const [landingTarget, setLandingTarget] = useState('login') // 'login' | 'signup'
@@ -480,5 +521,14 @@ export default function App() {
       <ToastContainer toasts={toasts} />
       <ConfirmDialog {...confirmDialogProps} />
     </div>
+  )
+}
+
+// ─── 최상위 ErrorBoundary 래퍼 ─────────────────────────────────────
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppInner />
+    </ErrorBoundary>
   )
 }

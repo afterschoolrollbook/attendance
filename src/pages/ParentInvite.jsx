@@ -783,7 +783,7 @@ export function ParentInvite() {
       })
       students.forEach(s => {
         StudentsDB.update(s.id, { parentJoined:true, parentInviteSentAt: s.parentInviteSentAt||now() })
-        try { TeacherParentLinks.link(teacherId, s, s.classIds?.[0]||'') } catch {}
+        try { TeacherParentLinks.link(teacherId, s, s.classIds?.[0]||'') } catch (e) { console.warn('[ParentInvite] TeacherParentLinks 연결 실패:', e) }
       })
     }
 

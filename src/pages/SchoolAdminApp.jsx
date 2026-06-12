@@ -165,7 +165,7 @@ function SchoolInfoTab({ session }) {
           docs:          mine.docs          || {},
         })
       }
-    } catch {}
+    } catch (e) { console.warn('[SchoolAdminApp] 오류:', e) }
     setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -1242,7 +1242,7 @@ function SubjectsTab({ session }) {
       ])
       setSubjects((all||[]).filter(s => s.adminId === session.adminId && s.active !== false))
       setAllTeachers((t||[]).filter(x => x.adminId === session.adminId && x.active !== false))
-    } catch {}
+    } catch (e) { console.warn('[SchoolAdminApp] 오류:', e) }
     setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -1869,7 +1869,7 @@ function TeachersTab({ session }) {
       }))
       setClassMap(cMap)
       setStudentMap(sMap)
-    } catch {}
+    } catch (e) { console.warn('[SchoolAdminApp] 오류:', e) }
     setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -3662,7 +3662,7 @@ function ConnectTab({ session }) {
 
   const load = async () => {
     setLoading(true)
-    try { await fetchData() } catch {}
+    try { await fetchData() } catch (e) { console.warn('[SchoolAdminApp] 오류:', e) }
     setLoading(false)
   }
 
@@ -4177,7 +4177,7 @@ function SchoolDashboard({ session, onNav }) {
           dbCall('getAll','schoolCalendar').then(d=>(d||[]).filter(x=>x.adminId===session.adminId)),
         ])
         setNotices(n); setTeachers(t); setSubmits(s); setSubjects(subj); setCalendars(cal)
-      } catch {}
+      } catch (e) { console.warn('[SchoolAdminApp] 오류:', e) }
       setLoading(false)
     }
     load()
@@ -4529,7 +4529,7 @@ export function SchoolAdminApp({ session: initialSession, onLogout }) {
         const updated = { ...initialSession, admin }
         localStorage.setItem('asa_school_session', JSON.stringify(updated))
         setSession(updated)
-      } catch {}
+      } catch (e) { console.warn('[SchoolAdminApp] 오류:', e) }
     }
     refreshSession()
   }, [initialSession.adminId])

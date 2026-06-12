@@ -468,7 +468,7 @@ function RegisterTab({ onDone, onSwitch }) {
           headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
           body: JSON.stringify({ to: regEmail, code: code6 }),
         })
-      } catch {}
+      } catch (e) { console.warn('[VendorAuth] 오류:', e) }
     }
   }
 

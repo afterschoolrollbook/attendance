@@ -100,7 +100,7 @@ export function BlogWrite({ user, onLogout }) {
         return canRead
       }).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
       setPosts(filtered)
-    } catch {}
+    } catch (e) { console.warn('[BlogWrite] 오류:', e) }
     setLoading(false)
   }
 

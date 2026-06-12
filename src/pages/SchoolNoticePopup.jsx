@@ -40,7 +40,7 @@ export function SchoolNoticePopup({ user, forceOpen = false }) {
       const valid = notices.filter(n => n && n.status === 'active')
       setPendingNotices(valid)
       if (valid.length > 0) setCurrent(valid[0])
-    } catch {}
+    } catch (e) { console.warn('[SchoolNoticePopup] 오류:', e) }
   }, [user?.id])
 
   useEffect(() => { load() }, [load])
