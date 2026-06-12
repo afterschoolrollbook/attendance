@@ -723,6 +723,46 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 1. `/parent-login` → 전화번호 입력 → PIN 설정 화면 → 4자리 설정 → 재확인
 2. 대시보드 정상 로드 확인
 
+### `verify_codes` 테이블 RLS 활성화 (2026-06-12)
+
+`verify_codes` 테이블이 `000_complete_schema.sql`에 포함되지 않아 RLS가 비활성화된 채 운영 중이었음. anon 사용자가 테이블 전체를 직접 SELECT할 수 있는 상태 — 회원가입 인증번호, 비밀번호 초기화 코드, 학부모 초대 토큰이 노출될 수 있었음.
+
+**접근 주체 분석:**
+
+| 주체 | 클라이언트 | 필요 권한 |
+|------|-----------|----------|
+| `Auth.jsx` (회원가입/비밀번호 초기화) | anon | INSERT, SELECT(본인 target), UPDATE(used=true) |
+| `ParentInvite.jsx` (초대 토큰 검증) | anon | SELECT(본인 target) |
+| `reset-password-self` Edge Function | service role | SELECT, UPDATE (RLS 우회) |
+
+단순 `using (false)` 차단은 프론트 코드를 모두 깨뜨리므로, **anon이 자기 target의 행만 접근할 수 있는 정책**으로 설계.
+
+**정책 설계:**
+
+| 정책 | 조건 |
+|------|------|
+| INSERT | `with check (true)` — 서버에서 이메일 유효성 확인 후 삽입 |
+| SELECT | `used = false AND expires_at > now()` — 만료·소진된 코드 조회 불가 |
+| UPDATE | `using (true)` — used=true 처리 허용 |
+| DELETE | `using (false)` — 차단 |
+
+**수정 내용:**
+
+- `supabase/008_verify_codes_rls.sql` — 신규 파일 (기존 운영 DB에 적용)
+- `supabase/000_complete_schema.sql` — `verify_codes` 테이블 정의 + RLS 정책 추가 (신규 프로젝트 대비)
+
+**적용 방법:**
+
+```
+Supabase Dashboard → SQL Editor → supabase/008_verify_codes_rls.sql 전체 실행
+```
+
+`create or replace` / `drop policy if exists` 구조이므로 재실행해도 안전.
+
+**사이드 이펙트 없음:** `Auth.jsx`, `ParentInvite.jsx`의 `.eq('target', value)` 조건부 쿼리는 정책 통과. `reset-password-self` Edge Function은 service role로 RLS 우회.
+
+---
+
 ### `send-email` Edge Function 인증번호 노출 차단 (2026-06-12)
 
 Resend API 키가 설정되지 않은 상태에서 `send-email` Edge Function이 `{ success: true, dev: true, code: "인증번호" }`를 응답에 포함하고 있었음. 프론트(`Auth.jsx`, `Profile.jsx`)는 이 `devCode` 값을 state에 저장해 화면에 직접 표시 — 회원가입·비밀번호 초기화·본인 인증 흐름에서 인증번호가 UI에 노출되는 구조였음.
@@ -852,6 +892,7 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 | `branches` | select: 로그인 사용자 전체(`auth.uid() is not null`), write: 관리자만 (2026-06-12 신규 추가, 위장 `service role full access` 정책 대체) |
 | `settings` | **select: 관리자 또는 비민감 key**(`is_admin() OR key NOT IN ('email','solapi','social_secret','regionMap_secret')`), insert/update/delete: 관리자만 (2026-06-12 강화) |
 | `school_notices` | **select: 본인(`admin_id`) 또는 관리자**, write: 동일 |
+| `verify_codes` | **select: `used=false AND expires_at>now()`** (만료·소진 코드 조회 차단), insert: 허용, update: 허용, delete: 차단 (2026-06-12 추가) |
 
 > `attendance`는 `teacher_id` 컬럼이 없으므로 `classes` 테이블 조인으로 소유권 확인.
 
@@ -914,6 +955,7 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 - [ ] `supabase/000_complete_schema.sql` 실행 (RLS + PIN 함수 포함)
 - [ ] (기존 운영 DB 재배포 시) `supabase/006_settings_secret_lockdown.sql`, `supabase/007_remove_public_service_role_policies.sql` 순서대로 실행 — `settings` 시크릿 분리/잠금 + 위장 `service role full access` 정책 제거
 - [ ] (기존 운영 DB 재배포 시) `supabase/migrations/20240001_vendor_rpc.sql` 실행 — 업체 포털 RPC 함수 26개 추가
+- [ ] (기존 운영 DB 재배포 시) `supabase/008_verify_codes_rls.sql` 실행 — `verify_codes` RLS 활성화
 - [ ] (기존 운영 DB 재배포 시) `supabase/004_parent_app_rpc.sql` 재실행 — `get_parent_dashboard` PIN 검증 강제 추가
 - [ ] `supabase/functions/send-email/index.ts` 재배포 — Resend 키 미설정 시 인증번호 노출 차단
 - [ ] Supabase Secrets에 `ALLOWED_ORIGIN` 설정
