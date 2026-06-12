@@ -2,14 +2,15 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') || ''
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGIN') || '')
+  .split(',').map(s => s.trim()).filter(Boolean)
 
 // 요청 Origin을 ALLOWED_ORIGIN과 대조하여 CORS 헤더 반환
 // ALLOWED_ORIGIN 미설정 시 개발 편의를 위해 요청 Origin 반영 (배포 전 반드시 설정)
 function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('Origin') || ''
-  const allowedOrigin = ALLOWED_ORIGIN
-    ? (origin === ALLOWED_ORIGIN ? origin : '')
+  const allowedOrigin = ALLOWED_ORIGINS.length
+    ? (ALLOWED_ORIGINS.includes(origin) ? origin : '')
     : (origin || '*')
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
@@ -67,39 +68,45 @@ serve(async (req) => {
       u.email === email || u.user_metadata?.provider_id === providerId
     )
 
-    // 기존 Auth 계정 조회 또는 신규 생성 (비밀번호를 만들거나 변경하지 않음)
-    let authUser = existingAuthUser
-    if (!authUser) {
-      const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
+    let session = null
+
+    if (existingAuthUser) {
+      // 기존 계정 → 임시 토큰으로 세션 발급
+      const { data: sessionData } = await adminClient.auth.admin.generateLink({
+        type: 'magiclink',
+        email: existingAuthUser.email!,
+      })
+      // magiclink 대신 직접 세션 생성
+      const tempPw = `kakao_${providerId}_${Deno.env.get('SUPABASE_JWT_SECRET')?.slice(0, 8) || 'secret'}`
+      await adminClient.auth.admin.updateUserById(existingAuthUser.id, { password: tempPw })
+      const anonClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+      )
+      const { data: signInData } = await anonClient.auth.signInWithPassword({
+        email: existingAuthUser.email!,
+        password: tempPw,
+      })
+      session = signInData?.session
+    } else {
+      // 신규 계정 생성
+      const tempPw = `kakao_${providerId}_${Deno.env.get('SUPABASE_JWT_SECRET')?.slice(0, 8) || 'secret'}`
+      const { data: newUser } = await adminClient.auth.admin.createUser({
         email,
+        password: tempPw,
         email_confirm: true,
         user_metadata: { provider: 'kakao', provider_id: providerId },
       })
-      if (createErr) throw createErr
-      authUser = newUser?.user
-    }
-
-    // 매직링크 토큰을 발급받아 즉시 세션으로 교환 (비밀번호 미사용)
-    let session = null
-    if (authUser?.email) {
-      const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
-        type: 'magiclink',
-        email: authUser.email,
-      })
-      if (linkErr) throw linkErr
-      const hashedToken = linkData?.properties?.hashed_token
-      if (hashedToken) {
+      if (newUser?.user) {
         const anonClient = createClient(
           Deno.env.get('SUPABASE_URL')!,
           Deno.env.get('SUPABASE_ANON_KEY')!,
         )
-        const { data: verifyData, error: verifyErr } = await anonClient.auth.verifyOtp({
-          email: authUser.email,
-          token: hashedToken,
-          type: 'magiclink',
+        const { data: signInData } = await anonClient.auth.signInWithPassword({
+          email,
+          password: tempPw,
         })
-        if (verifyErr) throw verifyErr
-        session = verifyData?.session
+        session = signInData?.session
       }
     }
 
