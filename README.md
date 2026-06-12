@@ -1474,6 +1474,64 @@ export default function App() {
 - 출석부 → 학생의 "진도" 버튼 클릭 → 교구가 배정되지 않은 학생에게 모달 안에서 교구를 배정 → 모달이 정상적으로 진도 체크 화면으로 전환되는지(크래시 없이) 확인
 - 평소 사용 흐름(블로그 글 작성/삭제, 학교 공지, 업체 로그인 등)에서 화면 동작은 기존과 동일한지 확인 — 실패 시에만 콘솔에 `[파일명] 오류:` 경고가 추가로 표시됨
 
+### `target="_blank"` rel 보완 및 렌더 중 컴포넌트 정의 패턴 정리 (2026-06-13)
+
+ESLint + 정적 분석에서 발견된 보안/UX 관련 항목 2건 추가 정리.
+
+**① `target="_blank"`에 `rel="noopener noreferrer"` 누락 (5곳)**
+
+`BlogAdmin.jsx`(3곳: `/blog`, `/docs`, 글 미리보기 링크), `BlogWrite.jsx`(2곳: `/blog`, 글 슬러그 링크)에서 `rel="noopener noreferrer"`가 빠져 있었음. 전부 내부 경로(`/blog`, `/docs`)라 reverse tabnabbing 실위험은 낮지만, 보안 스캐너 통과 및 일관성을 위해 5곳 모두 추가.
+
+**② 렌더 함수 내부에서 자식 컴포넌트를 정의하는 패턴 (21곳, 11개 파일)**
+
+부모 컴포넌트의 렌더 본문 안에서 `const Foo = (...) => (...)` 형태로 매번 새 함수형 컴포넌트를 정의하는 패턴. 매 렌더마다 `Foo`가 "새 컴포넌트 타입"으로 취급되어 React가 해당 서브트리를 통째로 리마운트함 — 애니메이션/스크롤 위치 초기화 정도의 가벼운 문제부터, **`<input>`/`<textarea>`를 감싸고 있는 경우 타이핑 중 매 글자마다 포커스가 끊기는 심각한 문제**까지 발생 가능.
+
+다음 2곳은 실제로 입력 필드를 감싸고 있어 우선 수정(이전 라운드에서 처리됨):
+- `ParentServiceManage.jsx`의 `ServiceSettingsTab` — `FieldBlock`/`InfoBox` (서비스 설정 화면 8개 입력 필드, 한 글자 입력마다 포커스 풀림)
+- `ParentLogin.jsx`의 `Layout`/`ErrorBox` — 전화번호/PIN `<input>`을 `children`으로 감싸 동일 문제
+
+이번 라운드에서 나머지 19곳을 모두 모듈 최상위로 분리:
+
+| 파일 | 분리한 컴포넌트/함수 | 비고 |
+|------|---------------------|------|
+| `SchoolAdminApp.jsx` | `LB`, `LBL2`, `FilePicker`, `FileView`, `BtnFilter`, `StatCard`, `MiniBar` | 7개 컴포넌트로 분리. `LBL2`는 기존 모듈레벨 `LBL`(스타일 다름)과 이름 충돌 방지용 |
+| `SchoolAdminApp.jsx` | `StatusBanner` → `renderStatusBanner({...})` | 컴포넌트가 아닌 일반 렌더 함수로 변환 (1곳, props 대신 인자로 직접 전달) |
+| `Admin.jsx` | `Breadcrumb` | `MapDrilldown`에서 분리, `C`/`allTeachers`/선택 상태 props로 전달 |
+| `Sidebar.jsx` | `UserBadge` | `levelColor`/`levelLabel` props로 전달 |
+| `AdminSettings.jsx` | `LevelButtons` | closure 의존 없음, `value`/`onChange`만 props |
+| `VendorAuth.jsx` | `Steps` | `ResetPwTab`에서 분리, `step` props로 전달 |
+| `ParentInvite.jsx` | `AttPopupFull` | `ParentHome`에서 분리, `statusMap` props로 전달 |
+| `Attendance.jsx` | `SectionHeader`, `ColHeader` | `SectionHeader`는 `openSections`/`toggleSection` props로 전달 |
+| `Blog.jsx` | `Nav` → `renderNav({...})`, `MainContent` → `renderMainContent({...})` | 둘 다 컴포넌트가 아닌 일반 렌더 함수로 변환 |
+
+`Admin.jsx`의 `SEC_ORDER`(비교 함수)는 컴포넌트가 아니므로 그대로 둠.
+
+**수정 파일:**
+- `src/pages/BlogAdmin.jsx`
+- `src/pages/BlogWrite.jsx`
+- `src/pages/SchoolAdminApp.jsx`
+- `src/pages/Admin.jsx`
+- `src/components/Sidebar.jsx`
+- `src/pages/AdminSettings.jsx`
+- `src/pages/VendorAuth.jsx`
+- `src/pages/ParentInvite.jsx`
+- `src/pages/Attendance.jsx`
+- `src/pages/Blog.jsx`
+
+#### 검증
+
+- `npm run build` 정상 빌드 확인 (128 모듈, 에러 없음)
+- `eslint-plugin-react-hooks`의 `rules-of-hooks` + `no-undef` 규칙으로 수정 파일 17개 및 전체 `src/` 검사 — 0건 (Rules of Hooks 위반, 미정의 변수 참조 모두 해소 확인)
+
+#### 테스트 방법
+
+- 학교 담당자 포털 → 선생님 등록/수정 모달, 학생 현황 통계 카드, 공지 상세(완료 현황 배너) 등이 기존과 동일하게 표시되는지 확인
+- 관리자 → 권한 설정 화면에서 레벨 버튼 클릭이 정상 동작하는지 확인
+- 업체 비밀번호 초기화 화면의 진행바(Steps)가 단계별로 정상 표시되는지 확인
+- 학부모 출결 알림 팝업(`AttPopupFull`)이 정상 표시되는지 확인
+- 출석부 화면의 교구지급/준비/미지급 등 접기·펼치기 섹션과 학생 목록 컬럼 헤더가 정상 동작하는지 확인
+- 블로그 페이지 상단 네비게이션, 글 목록/상세 전환이 정상 동작하는지 확인
+
 ### Row Level Security (RLS)
 
 모든 핵심 테이블에 RLS 활성화 + 정책 적용 완료 (2026-06-12)
