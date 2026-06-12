@@ -17,12 +17,12 @@ function getSocialConfig() {
 
 // [보안] 인증번호 서버 측 발급·검증
 async function sendVerifyCode(email) {
+  if (!isConfigured || !supabase) {
+    return { error: true, message: 'Supabase가 설정되지 않았습니다.' }
+  }
+
   const code = String(Math.floor(100000 + Math.random() * 900000))
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
-
-  if (!isConfigured || !supabase) {
-    return { dev: true, devCode: code }
-  }
 
   try {
     await supabase
@@ -43,7 +43,7 @@ async function sendVerifyCode(email) {
     return { sent: true }
   } catch(e) {
     console.error('인증번호 발송 실패:', e)
-    return { error: true }
+    return { error: true, message: e.message || '인증번호 발송에 실패했습니다.' }
   }
 }
 
@@ -67,12 +67,12 @@ async function verifyCode(email, inputCode) {
 }
 
 async function sendResetCode(email) {
+  if (!isConfigured || !supabase) {
+    return { error: true, message: 'Supabase가 설정되지 않았습니다.' }
+  }
+
   const code = String(Math.floor(100000 + Math.random() * 900000))
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
-
-  if (!isConfigured || !supabase) {
-    return { dev: true, devCode: code }
-  }
 
   try {
     await supabase
@@ -93,7 +93,7 @@ async function sendResetCode(email) {
     await sendEmail(email, code)
     return { sent: true }
   } catch(e) {
-    return { error: true }
+    return { error: true, message: e.message || '인증번호 발송에 실패했습니다.' }
   }
 }
 
@@ -341,8 +341,6 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
   const [code,       setCode]       = useState('')
   const [codeSent,   setCodeSent]   = useState(false)
   const [sending,    setSending]    = useState(false)
-  const [isDev,      setIsDev]      = useState(false)
-  const [devCode,    setDevCode]    = useState('')
   const [error,      setError]      = useState('')
   const [useOtherEmail, setUseOtherEmail] = useState(false)
   const [otherEmail,    setOtherEmail]    = useState('')
@@ -368,17 +366,14 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
     setSending(true)
     const result = await sendVerifyCode(targetEmail)
     setSending(false)
+    if (result.error) {
+      setError(result.message || '인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      return
+    }
     setCodeSent(true)
-    setIsDev(!!result.dev)
-    setDevCode(result.devCode || '')
   }
 
   const handleVerify = async () => {
-    if (isDev) {
-      if (code.trim() !== devCode) { setError('인증번호가 올바르지 않습니다.'); return }
-      onVerified(targetEmail)
-      return
-    }
     const ok = await verifyCode(targetEmail, code)
     if (!ok) { setError('인증번호가 올바르지 않거나 만료되었습니다.'); return }
     onVerified(targetEmail)
@@ -456,17 +451,9 @@ function SocialEmailVerify({ profile, onVerified, onCancel }) {
         </button>
       ) : (
         <>
-          {isDev && (
-            <div style={{ padding: '12px', background: '#fffbeb', borderRadius: '8px', border: '1.5px solid #fde68a', fontSize: '13px' }}>
-              <div style={{ fontWeight: 700, color: '#92400e', marginBottom: '4px' }}>🔧 개발 모드 (Resend 미설정)</div>
-              <div style={{ color: '#b45309' }}>인증번호: <strong style={{ fontSize: '22px', letterSpacing: '5px', color: '#f97316' }}>{devCode}</strong></div>
-            </div>
-          )}
-          {!isDev && (
-            <div style={{ padding: '12px', background: '#f0fdf4', borderRadius: '8px', border: '1.5px solid #86efac', fontSize: '13px', color: '#15803d', fontWeight: 600 }}>
-              ✅ {targetEmail}로 인증번호를 발송했습니다.
-            </div>
-          )}
+          <div style={{ padding: '12px', background: '#f0fdf4', borderRadius: '8px', border: '1.5px solid #86efac', fontSize: '13px', color: '#15803d', fontWeight: 600 }}>
+            ✅ {targetEmail}로 인증번호를 발송했습니다.
+          </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <input value={code} onChange={e => setCode(e.target.value)}
               placeholder="인증번호 6자리"
@@ -574,12 +561,10 @@ export function Auth({ onLogin, initialTab }) {
   const [form, setForm] = useState({ name: '', email: '', pw: '', pw2: '', phone: '' })
   const [emailChecked, setEmailChecked] = useState(false)
   const [error, setError] = useState('')
-  const [verifyCode, setVerifyCode] = useState('')
   const [inputCode, setInputCode] = useState('')
   const [codeSent, setCodeSent] = useState(false)
   const [verified, setVerified] = useState(false)
   const [sending, setSending] = useState(false)
-  const [isDev, setIsDev] = useState(false)
 
   const [findIdPhone, setFindIdPhone] = useState('')
   const [foundEmail,  setFoundEmail]  = useState(null)
@@ -591,7 +576,6 @@ export function Auth({ onLogin, initialTab }) {
   const [fpNewPw,    setFpNewPw]    = useState('')
   const [fpNewPw2,   setFpNewPw2]   = useState('')
   const [fpSending,  setFpSending]  = useState(false)
-  const [fpDev,      setFpDev]      = useState('')
   const [fpDone,     setFpDone]     = useState(false)
 
   const [socialStep, setSocialStep] = useState(null)
@@ -604,15 +588,15 @@ export function Auth({ onLogin, initialTab }) {
   const { error: toastError } = useToast()
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const resetRegister = () => {
-    setStep(1); setVerifyCode(''); setInputCode(''); setCodeSent(false); setVerified(false)
-    setError(''); setEmailChecked(false); setSending(false); setIsDev(false)
+    setStep(1); setInputCode(''); setCodeSent(false); setVerified(false)
+    setError(''); setEmailChecked(false); setSending(false)
   }
 
   const goMode = (m) => {
     setMode(m); setError('')
     setFindIdPhone(''); setFoundEmail(null)
     setFpEmail(''); setFpCode(''); setFpCodeSent(false)
-    setFpVerified(false); setFpNewPw(''); setFpNewPw2(''); setFpDev(''); setFpDone(false)
+    setFpVerified(false); setFpNewPw(''); setFpNewPw2(''); setFpDone(false)
     resetRegister()
     setForm({ name:'', email:'', pw:'', pw2:'', phone:'' })
   }
@@ -682,15 +666,14 @@ export function Auth({ onLogin, initialTab }) {
     setFpSending(true)
     const result = await sendResetCode(emailLower)
     setFpSending(false)
+    if (result.error) {
+      setError(result.message || '인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      return
+    }
     setFpCodeSent(true)
-    setFpDev(result.dev ? result.devCode : '')
   }
 
   const handleFpVerify = async () => {
-    if (fpDev) {
-      if (fpCode.trim() !== fpDev) { setError('인증번호가 올바르지 않습니다.'); return }
-      setFpVerified(true); setError(''); return
-    }
     const ok = await verifyResetCode(fpEmail.trim().toLowerCase(), fpCode)
     if (!ok) { setError('인증번호가 올바르지 않거나 만료되었습니다.'); return }
     setFpVerified(true); setError('')
@@ -917,19 +900,16 @@ export function Auth({ onLogin, initialTab }) {
     setError('')
     const result = await sendVerifyCode(form.email)
     setSending(false)
+    if (result.error) {
+      setError(result.message || '인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      return
+    }
     setCodeSent(true)
-    setIsDev(!!result.dev)
-    setVerifyCode(result.devCode || '')
     setInputCode('')
     setVerified(false)
   }
 
   const checkCode = async () => {
-    if (isDev) {
-      if (inputCode.trim() === verifyCode) { setVerified(true); setError('') }
-      else setError('인증번호가 올바르지 않습니다.')
-      return
-    }
     const ok = await verifyCode(form.email, inputCode)
     if (ok) { setVerified(true); setError('') }
     else setError('인증번호가 올바르지 않거나 만료되었습니다.')
@@ -1040,16 +1020,9 @@ export function Auth({ onLogin, initialTab }) {
                               </button>
                               {fpCodeSent && (
                                 <>
-                                  {fpDev ? (
-                                    <div style={{ padding:'10px 12px', background:'#fffbeb', borderRadius:'8px', border:'1.5px solid #fde68a', fontSize:'13px' }}>
-                                      <div style={{ fontWeight:700, color:'#92400e', marginBottom:'4px' }}>🔧 개발 모드</div>
-                                      <div style={{ color:'#b45309' }}>인증번호: <strong style={{ fontSize:'20px', letterSpacing:'4px', color:'#f97316' }}>{fpDev}</strong></div>
-                                    </div>
-                                  ) : (
-                                    <div style={{ padding:'10px 12px', background:'#f0fdf4', borderRadius:'8px', border:'1.5px solid #86efac', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
-                                      ✅ {fpEmail}로 인증번호를 발송했습니다.
-                                    </div>
-                                  )}
+                                  <div style={{ padding:'10px 12px', background:'#f0fdf4', borderRadius:'8px', border:'1.5px solid #86efac', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
+                                    ✅ {fpEmail}로 인증번호를 발송했습니다.
+                                  </div>
                                   <div style={{ display:'flex', gap:'8px' }}>
                                     <input value={fpCode} onChange={e => { setFpCode(e.target.value); setError('') }}
                                       placeholder="인증번호 6자리" maxLength={6} onKeyDown={e => e.key === 'Enter' && handleFpVerify()}
@@ -1233,16 +1206,9 @@ export function Auth({ onLogin, initialTab }) {
                     )}
                     {codeSent && !verified && (
                       <>
-                        {isDev ? (
-                          <div style={{ padding: '12px', background: '#fffbeb', borderRadius: '8px', border: '1.5px solid #fde68a', fontSize: '13px' }}>
-                            <div style={{ fontWeight: 700, color: '#92400e', marginBottom: '4px' }}>🔧 개발 모드 (Resend 미설정)</div>
-                            <div style={{ color: '#b45309' }}>인증번호: <strong style={{ fontSize: '22px', letterSpacing: '5px', color: '#f97316' }}>{verifyCode}</strong></div>
-                          </div>
-                        ) : (
-                          <div style={{ padding: '12px', background: '#f0fdf4', borderRadius: '8px', border: '1.5px solid #86efac', fontSize: '13px', color: '#15803d', fontWeight: 600 }}>
-                            ✅ {form.email}로 인증번호를 발송했습니다.
-                          </div>
-                        )}
+                        <div style={{ padding: '12px', background: '#f0fdf4', borderRadius: '8px', border: '1.5px solid #86efac', fontSize: '13px', color: '#15803d', fontWeight: 600 }}>
+                          ✅ {form.email}로 인증번호를 발송했습니다.
+                        </div>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <input value={inputCode} onChange={e => setInputCode(e.target.value)}
                             placeholder="인증번호 6자리" onKeyDown={e => e.key === 'Enter' && checkCode()} maxLength={6}

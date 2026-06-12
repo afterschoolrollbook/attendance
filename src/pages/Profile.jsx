@@ -26,7 +26,6 @@ function VerifyModal({ user, onVerified, onClose }) {
   const [sentCode,   setSentCode]   = useState('')
   const [codeSent,   setCodeSent]   = useState(false)
   const [sending,    setSending]    = useState(false)
-  const [devCode,    setDevCode]    = useState('')
   const [error,      setError]      = useState('')
 
   // 발송 대상 이메일: 소셜 로그인은 모두 저장된 이메일로 발송
@@ -34,14 +33,14 @@ function VerifyModal({ user, onVerified, onClose }) {
 
   const sendCode = async () => {
     setError('')
+    if (!isConfigured) {
+      setError('이메일 서비스가 설정되지 않았습니다. 관리자에게 문의해주세요.')
+      return
+    }
     const c = genCode()
-    setSentCode(c); setCodeSent(false); setCode(''); setSending(true); setDevCode('')
+    setSentCode(c); setCodeSent(false); setCode(''); setSending(true)
     try {
-      if (isConfigured) {
-        await sendEmail(targetEmail, c)
-      } else {
-        setDevCode(c)
-      }
+      await sendEmail(targetEmail, c)
       setCodeSent(true)
     } catch (e) {
       setError('인증번호 발송에 실패했습니다. 잠시 후 다시 시도해주세요.')
@@ -107,17 +106,9 @@ function VerifyModal({ user, onVerified, onClose }) {
 
               {codeSent && (
                 <>
-                  {!isConfigured && devCode && (
-                    <div style={{ padding:'10px 12px', background:'#fffbeb', borderRadius:'8px', border:'1.5px solid #fde68a', fontSize:'13px' }}>
-                      <div style={{ fontWeight:700, color:'#92400e', marginBottom:'4px' }}>🔧 개발 모드</div>
-                      <div style={{ color:'#b45309' }}>인증번호: <strong style={{ fontSize:'20px', letterSpacing:'4px', color:C.primary }}>{devCode}</strong></div>
-                    </div>
-                  )}
-                  {isConfigured && (
-                    <div style={{ padding:'10px 12px', background:'#f0fdf4', borderRadius:'8px', border:'1.5px solid #86efac', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
-                      ✅ {targetEmail} 으로 인증번호를 발송했습니다.
-                    </div>
-                  )}
+                  <div style={{ padding:'10px 12px', background:'#f0fdf4', borderRadius:'8px', border:'1.5px solid #86efac', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
+                    ✅ {targetEmail} 으로 인증번호를 발송했습니다.
+                  </div>
                   <div style={{ display:'flex', gap:'8px' }}>
                     <input
                       value={code}
