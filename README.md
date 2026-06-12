@@ -118,6 +118,52 @@
 
 ---
 
+## 광고 (Google AdSense)
+
+### 구조
+
+광고는 두 가지 레이어로 운영됩니다.
+
+| 레이어 | 설명 | 설정 위치 |
+|--------|------|----------|
+| **자동 광고** | 구글이 페이지 전체에서 광고 위치를 자동으로 잡아주는 방식. 퍼블리셔 ID 등록 필요 | `index.html` |
+| **슬롯 광고** | 관리자가 광고 단위 코드를 직접 입력해 앱 내 특정 위치에 표시 | 관리자 → 광고 슬롯 관리 |
+
+현재 자동 광고 스크립트는 비활성화(주석 처리)되어 있습니다. AdSense 계정 승인 후 활성화하세요.
+
+### AdSense 계정 승인 후 적용 방법
+
+#### 1. 자동 광고 활성화 (`index.html`)
+
+`index.html` 26번 줄 주석을 해제하고 퍼블리셔 ID 입력:
+
+```html
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-여기에16자리ID" crossorigin="anonymous"></script>
+```
+
+퍼블리셔 ID 확인: [adsense.google.com](https://adsense.google.com) → 계정 → 계정 정보 → `ca-pub-XXXXXXXXXXXXXXXX`
+
+#### 2. 슬롯 광고 등록 (관리자 화면)
+
+1. Google AdSense → 광고 → 광고 단위 → 새 광고 단위 만들기
+2. 생성된 `<script>` 코드 복사
+3. 관리자(level 10) 로그인 → 사이드바 → **광고 관리**
+4. 원하는 슬롯에 코드 붙여넣기 → 저장 → ON
+
+#### 현재 슬롯 목록
+
+| 슬롯 ID | 위치 | 크기 |
+|---------|------|------|
+| `sidebar_bottom` | 사이드바 하단 | 300 × 250 |
+
+> 슬롯 추가는 DB `ad_slots` 테이블에 직접 insert하거나 관리자 화면에서 추가 가능.
+
+### 블로그 광고
+
+블로그(`/blog`)는 공개 페이지이므로 AdSense 심사 시 콘텐츠 페이지로 활용할 수 있습니다. 블로그 글을 충분히 작성한 후 AdSense 심사를 신청하세요.
+
+---
+
 ## 개발 시작
 
 ```bash
