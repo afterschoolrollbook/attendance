@@ -438,6 +438,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 11 | `parent_joined`/`moved_to_manage` boolean sanitize 누락 | ✅ 적용 (2026-06-12) | [바로가기](#parent-rpc--아이디찾기-rpc-응답-데이터-최소화-2026-06-12) |
 | 12 | `settings` 테이블 API 시크릿 노출 + 위장 `service role full access` 정책 제거 | ✅ 적용 (2026-06-12) | [바로가기](#settings-테이블-시크릿-노출--위장-service-role-정책-제거-2026-06-12) |
 | 13 | 업체 포털 (`hq_vendors` / `hq_vendor_*` / `vendor_accounts`) RLS 우회 — RPC 전환 | ✅ 적용 (2026-06-12) | [바로가기](#업체-포털-rls-우회--rpc-전환-2026-06-12) |
+| 14 | `get_parent_dashboard` RPC — PIN 검증 없이 전화번호만으로 자녀 정보 조회 가능 | ✅ 적용 (2026-06-12) | [바로가기](#get_parent_dashboard-rpc--pin-검증-강제-2026-06-12) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -464,6 +465,9 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 - [ ] **(13) 업체 가입** — 본사에 등록된 전화번호/이메일 확인 → 이메일 인증 → 계정 생성이 정상 완료되는지
 - [ ] **(13) 관리자 업체 관리** — 사이드바 업체 관리 화면에서 목록이 로드되고, 업체 등록/수정/삭제/초대가 정상 동작하는지
 - [ ] **(13) 업체 앱** — 로그인 후 과목·교구·차시·파일·단가 조회 및 저장이 모두 정상 동작하는지
+- [ ] **(14) 학부모 재로그인** — PIN 검증 후 대시보드가 정상 로드되는지 (PIN 없이 phone만으로 RPC 직접 호출 시 빈 데이터 반환되는지)
+- [ ] **(14) 학부모 초대 가입 직후** — PIN 미설정 상태에서 대시보드가 정상 로드되는지 (가입 플로우 깨지지 않는지)
+- [ ] **(14) 학부모 PIN 설정 첫 로그인** — PIN 설정 완료 후 대시보드가 정상 로드되는지
 
 각 항목의 상세 설명/원인은 위 표의 "바로가기" 링크에서 확인.
 
@@ -663,6 +667,57 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 
 > ⚠️ 위 1)번 항목으로 인해 노출되었던 네이버 Client Secret / NEIS API Key(및 설정되어 있었다면 Resend/Solapi 키)는 재발급(rotate) 권장.
 
+### `get_parent_dashboard` RPC — PIN 검증 강제 (2026-06-12)
+
+`/parent-login` 화면은 "전화번호 → PIN 4자리" 순서로 진행하지만, 실제 데이터를 가져오는 `get_parent_dashboard(p_phone)` RPC 자체에는 PIN 검증이 없었음. `app_joined = true`인 전화번호만 알면 anon 사용자도 직접 호출하여 학생 이름·학년·반·출결 기록·담당 선생님 이름/전화번호를 조회할 수 있는 상태였음.
+
+휴대폰 번호는 `010-XXXX-XXXX` 패턴이라 완전한 비밀값이 아니므로, 프론트에서의 PIN 검증만으로는 부족함 — RPC 내부에서도 PIN을 재검증하도록 강제.
+
+**수정 내용:**
+
+`get_parent_dashboard(p_phone, p_pin DEFAULT NULL)` — `p_pin` 파라미터 추가, 내부 PIN 검증 로직 삽입
+
+| 상황 | 동작 |
+|------|------|
+| `pin_hash` 설정된 회원 + 올바른 PIN | ✅ 데이터 반환 |
+| `pin_hash` 설정된 회원 + PIN 없거나 틀림 | ❌ 빈 데이터 반환 (오류 메시지 없음 — timing attack 방지) |
+| `pin_hash` 미설정 회원 + PIN 없음 | ✅ 허용 (초대 직후 PIN 등록 전 상태) |
+
+- `src/lib/supabase.js` — `loadParentDashboard(normalizedPhone, pin = null)` 에 `pin` 파라미터 추가. `pin !== null` 일 때만 `p_pin` 전달
+- `src/pages/ParentLogin.jsx` — `verify_parent_pin` 성공 후 `loadParentDashboard(normalized, currentPin)`, `set_parent_pin` 성공 후 `loadParentDashboard(normalized, pin)` 으로 교체
+- `src/pages/ParentInvite.jsx` — 초대 직후는 PIN 미설정 상태이므로 `pin=null` 유지 (주석 추가)
+- `supabase/004_parent_app_rpc.sql` — `get_parent_dashboard` 재실행 (1회)
+
+#### 적용 방법
+
+1. Supabase Dashboard → **SQL Editor** → `supabase/004_parent_app_rpc.sql` 전체 실행 (`create or replace` 이므로 안전하게 덮어써짐)
+2. 파일 교체:
+   ```
+   src/lib/supabase.js
+   src/pages/ParentLogin.jsx
+   src/pages/ParentInvite.jsx
+   ```
+
+#### 테스트 방법
+
+**① 학부모 재로그인 (PIN 설정 완료 회원)**
+1. `/parent-login` → 전화번호 입력 → PIN 4자리 입력
+2. 대시보드(학생/수업/출석) 정상 로드 확인
+
+**② PIN 없이 RPC 직접 호출 차단 확인**
+1. 브라우저 콘솔 또는 Supabase API 탐색기에서 아래 호출:
+   ```js
+   supabase.rpc('get_parent_dashboard', { p_phone: '01012345678' })
+   ```
+2. 응답이 `{ students: [], classes: [], teachers: [], attendance: [] }` 빈 데이터인지 확인 (PIN 없이 차단됨)
+
+**③ 초대 가입 직후 (PIN 미설정)**
+1. 초대 링크 → 약관 동의 → 가입 완료 후 대시보드 정상 로드 확인 (가입 플로우 깨지지 않아야 함)
+
+**④ PIN 최초 설정 (기존 미설정 회원)**
+1. `/parent-login` → 전화번호 입력 → PIN 설정 화면 → 4자리 설정 → 재확인
+2. 대시보드 정상 로드 확인
+
 ### 업체 포털 RLS 우회 — RPC 전환 (2026-06-12)
 
 `hq_vendors`, `hq_vendor_*`(subjects / products / contents / files / prices), `vendor_accounts` 테이블이 **`for all using (false)`** RLS로 완전 차단되어 있었음. 관리자 포함 anon 클라이언트의 직접 접근이 전부 막혀 있어 업체 관련 기능 전체가 동작 불가 상태였음.
@@ -808,6 +863,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 - [ ] `supabase/000_complete_schema.sql` 실행 (RLS + PIN 함수 포함)
 - [ ] (기존 운영 DB 재배포 시) `supabase/006_settings_secret_lockdown.sql`, `supabase/007_remove_public_service_role_policies.sql` 순서대로 실행 — `settings` 시크릿 분리/잠금 + 위장 `service role full access` 정책 제거
 - [ ] (기존 운영 DB 재배포 시) `supabase/migrations/20240001_vendor_rpc.sql` 실행 — 업체 포털 RPC 함수 26개 추가
+- [ ] (기존 운영 DB 재배포 시) `supabase/004_parent_app_rpc.sql` 재실행 — `get_parent_dashboard` PIN 검증 강제 추가
 - [ ] Supabase Secrets에 `ALLOWED_ORIGIN` 설정
 - [ ] Supabase Secrets에 `SVC_ROLE_KEY` 설정
 - [ ] 관리자 계정으로 로그인 후 서비스 설정에서 Resend·Solapi 키, 소셜 로그인(네이버 Secret), NEIS API 키 등록
