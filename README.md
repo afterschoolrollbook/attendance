@@ -64,8 +64,9 @@
 | 경로 | 화면 | 파일 |
 |------|------|------|
 | `/` | 랜딩 페이지 | `LandingPage.jsx` |
-| `/auth` | 로그인 / 회원가입 | `Auth.jsx` |
-| `/legal` | 이용약관 / 개인정보처리방침 | `LegalPage.jsx` |
+| — | 로그인 / 회원가입 (비로그인 시 자동 표시) | `Auth.jsx` |
+| `/terms` | 이용약관 | `LegalPage.jsx` (`TermsPage`) |
+| `/privacy` | 개인정보처리방침 | `LegalPage.jsx` (`PrivacyPage`) |
 | — | 카카오 OAuth 콜백 | `KakaoCallback.jsx` |
 | — | 네이버 OAuth 콜백 | `NaverCallback.jsx` |
 
@@ -92,7 +93,7 @@
 | 🏅 수상경력 | `Awards.jsx` |
 | 📝 제안서·자기소개서 | `Proposals.jsx` |
 | 📢 공고관리 | `Jobs.jsx` |
-| 블로그 / 설명서 | `Blog.jsx` |
+| 블로그 글쓰기 (사이드바 "블로그" 메뉴) | `BlogWrite.jsx` |
 | ✍️ 블로그 글쓰기 | `BlogWrite.jsx` |
 
 ### 관리자 전용 (level 10)
@@ -317,7 +318,7 @@ src/
 | 영역 | 테이블 |
 |------|--------|
 | 사용자·권한 | `users`, `branches` |
-| 수업·학생 | `classes`, `students`, `attendance`, `lesson_memos` |
+| 수업·학생 | `classes`, `students`, `attendance`, `lesson_memos`, `notes` |
 | 출석부 서류 | `attendance_templates`, `documents`, `custom_categories` |
 | 수익 관리 | `revenue_fees`, `revenue_payments` |
 | 강사 이력 | `trainings`, `careers`, `educations`, `certificates`, `awards` |
