@@ -152,6 +152,8 @@ export default function App() {
     pathname.startsWith('/docs') ||
     pathname === '/naver-callback' ||
     pathname === '/kakao-callback' ||
+    pathname === '/auth' ||
+    pathname === '/legal' ||
     pathname === '/terms' ||
     pathname === '/privacy'
 
@@ -279,6 +281,7 @@ export default function App() {
   if (pathname === '/kakao-callback') return <KakaoCallback />
 
   // 공개 약관 페이지 — 로그인 불필요
+  if (pathname === '/legal')   return <TermsPage />
   if (pathname === '/terms')   return <TermsPage />
   if (pathname === '/privacy') return <PrivacyPage />
 
@@ -337,6 +340,12 @@ export default function App() {
         onGoBlog={() => { window.location.href = '/blog' }}
       />
     )
+  }
+
+  // 로그인/회원가입 — /auth 직접 접근 시 (이미 로그인된 경우 대시보드로)
+  if (pathname === '/auth') {
+    if (user) { window.history.replaceState({}, '', '/'); return <Dashboard user={user} onNav={handleNav} pageParams={pageParams} onUserUpdate={handleUserUpdate} onLogout={handleLogout} /> }
+    return <Auth onLogin={handleLogin} initialTab={landingTarget} />
   }
 
   if (!user) return <Auth onLogin={handleLogin} initialTab={landingTarget} />
