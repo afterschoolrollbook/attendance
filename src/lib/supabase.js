@@ -368,3 +368,38 @@ export function authOnStateChange(callback) {
   const { data: { subscription } } = supabase.auth.onAuthStateChange(callback)
   return () => subscription.unsubscribe()
 }
+
+// ─── 업체 포털 RPC 헬퍼 (SECURITY DEFINER RPC 경유 — RLS 우회)
+// supabase/migrations/20240001_vendor_rpc.sql 의 함수들과 1:1 대응
+export const vendorRpc = {
+  // ── 조회
+  getVendorById:          (id)  => supabase.rpc('get_vendor_by_id',                { p_id: id }).then(r => r.data?.[0] ?? null),
+  getVendorByEmail:       (e)   => supabase.rpc('get_vendor_by_email',             { p_email: e }).then(r => r.data?.[0] ?? null),
+  getVendorByPhone:       (p)   => supabase.rpc('get_vendor_by_phone',             { p_phone: p }).then(r => r.data?.[0] ?? null),
+  getAccountByEmail:      (e)   => supabase.rpc('get_vendor_account_by_email',     { p_email: e }).then(r => r.data?.[0] ?? null),
+  getAccountByVendorId:   (vid) => supabase.rpc('get_vendor_account_by_vendor_id', { p_vendor_id: vid }).then(r => r.data?.[0] ?? null),
+  adminGetVendors:        ()    => supabase.rpc('admin_get_hq_vendors').then(r => r.data ?? []),
+  adminGetSubjects:       ()    => supabase.rpc('admin_get_hq_vendor_subjects').then(r => r.data ?? []),
+  adminGetProducts:       ()    => supabase.rpc('admin_get_hq_vendor_products').then(r => r.data ?? []),
+  getSubjectsByVendor:    (vid) => supabase.rpc('get_vendor_subjects',  { p_vendor_id: vid }).then(r => r.data ?? []),
+  getProductsByVendor:    (vid) => supabase.rpc('get_vendor_products',  { p_vendor_id: vid }).then(r => r.data ?? []),
+  getContentsByVendor:    (vid) => supabase.rpc('get_vendor_contents',  { p_vendor_id: vid }).then(r => r.data ?? []),
+  getFilesByVendor:       (vid) => supabase.rpc('get_vendor_files',     { p_vendor_id: vid }).then(r => r.data ?? []),
+  getPricesByVendor:      (vid) => supabase.rpc('get_vendor_prices',    { p_vendor_id: vid }).then(r => r.data ?? []),
+  // ── upsert
+  upsertVendor:           (d)   => supabase.rpc('upsert_hq_vendor',      { p_data: d }).then(r => r.data?.[0] ?? null),
+  upsertAccount:          (d)   => supabase.rpc('upsert_vendor_account', { p_data: d }).then(r => r.data?.[0] ?? null),
+  upsertSubject:          (d)   => supabase.rpc('upsert_vendor_subject', { p_data: d }).then(r => r.data?.[0] ?? null),
+  upsertProduct:          (d)   => supabase.rpc('upsert_vendor_product', { p_data: d }).then(r => r.data?.[0] ?? null),
+  upsertContent:          (d)   => supabase.rpc('upsert_vendor_content', { p_data: d }).then(r => r.data?.[0] ?? null),
+  upsertFile:             (d)   => supabase.rpc('upsert_vendor_file',    { p_data: d }).then(r => r.data?.[0] ?? null),
+  upsertPrice:            (d)   => supabase.rpc('upsert_vendor_price',   { p_data: d }).then(r => r.data?.[0] ?? null),
+  // ── delete
+  adminDeleteVendor:      (id)  => supabase.rpc('admin_delete_hq_vendor', { p_id: id }).then(r => r.error ? false : true),
+  adminDeleteSubject:     (id)  => supabase.rpc('delete_vendor_subject',  { p_id: id }).then(r => r.error ? false : true),
+  adminDeleteProduct:     (id)  => supabase.rpc('delete_vendor_product',  { p_id: id }).then(r => r.error ? false : true),
+  deleteSubject:          (id)  => supabase.rpc('delete_vendor_subject',  { p_id: id }).then(r => r.error ? false : true),
+  deleteProduct:          (id)  => supabase.rpc('delete_vendor_product',  { p_id: id }).then(r => r.error ? false : true),
+  deleteContent:          (id)  => supabase.rpc('delete_vendor_content',  { p_id: id }).then(r => r.error ? false : true),
+  deleteFile:             (id)  => supabase.rpc('delete_vendor_file',     { p_id: id }).then(r => r.error ? false : true),
+}
