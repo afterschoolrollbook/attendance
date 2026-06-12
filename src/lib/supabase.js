@@ -257,6 +257,12 @@ export async function sendSMS(to, text, type = 'SMS') {
   return callFunction('send-sms', { to, text, type })
 }
 
+// 비밀번호 초기화: 앱이 보낸 인증번호(verify_codes, purpose='reset') 검증 후
+// 로그인 없이 새 비밀번호로 즉시 변경 (reset-password-self Edge Function)
+export async function resetPasswordWithCode(email, code, newPassword) {
+  return callFunction('reset-password-self', { email, code, newPassword })
+}
+
 export async function naverOAuth(code, state) {
   if (!FUNCTIONS_BASE) throw new Error('Supabase URL이 설정되지 않았습니다.')
   const res = await fetch(`${FUNCTIONS_BASE}/naver-oauth`, {
