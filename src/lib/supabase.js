@@ -376,8 +376,10 @@ export const vendorRpc = {
   getVendorById:          (id)  => supabase.rpc('get_vendor_by_id',                { p_id: id }).then(r => r.data?.[0] ?? null),
   getVendorByEmail:       (e)   => supabase.rpc('get_vendor_by_email',             { p_email: e }).then(r => r.data?.[0] ?? null),
   getVendorByPhone:       (p)   => supabase.rpc('get_vendor_by_phone',             { p_phone: p }).then(r => r.data?.[0] ?? null),
-  getAccountByEmail:      (e)   => supabase.rpc('get_vendor_account_by_email',     { p_email: e }).then(r => r.data?.[0] ?? null),
-  getAccountByVendorId:   (vid) => supabase.rpc('get_vendor_account_by_vendor_id', { p_vendor_id: vid }).then(r => r.data?.[0] ?? null),
+  getAccountByEmail:      (e)         => supabase.rpc('get_vendor_account_by_email',     { p_email: e }).then(r => r.data?.[0] ?? null),
+  getAccountByVendorId:   (vid)       => supabase.rpc('get_vendor_account_by_vendor_id', { p_vendor_id: vid }).then(r => r.data?.[0] ?? null),
+  // 로그인 전용: 서버에서 해시 비교 후 pw 제외한 계정 반환 (불일치·없음 → null)
+  verifyLogin:            (e, pwHash) => supabase.rpc('verify_vendor_login', { p_email: e, p_pw_hash: pwHash }).then(r => r.data?.[0] ?? null),
   adminGetVendors:        ()    => supabase.rpc('admin_get_hq_vendors').then(r => r.data ?? []),
   adminGetSubjects:       ()    => supabase.rpc('admin_get_hq_vendor_subjects').then(r => r.data ?? []),
   adminGetProducts:       ()    => supabase.rpc('admin_get_hq_vendor_products').then(r => r.data ?? []),
