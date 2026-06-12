@@ -14,7 +14,7 @@ const C = {
   border:'#e5e7eb', success:'#16a34a', danger:'#ef4444',
 }
 
-export function SchoolNoticePopup({ user }) {
+export function SchoolNoticePopup({ user, forceOpen = false }) {
   const [pendingNotices, setPendingNotices] = useState([])
   const [current, setCurrent]   = useState(null) // 현재 표시 중인 공지
   const [file, setFile]         = useState(null)
@@ -44,6 +44,13 @@ export function SchoolNoticePopup({ user }) {
   }, [user?.id])
 
   useEffect(() => { load() }, [load])
+
+  // 배너 클릭 등 외부에서 강제로 팝업 열기
+  useEffect(() => {
+    if (forceOpen && pendingNotices.length > 0 && !current) {
+      setCurrent(pendingNotices[0])
+    }
+  }, [forceOpen, pendingNotices, current])
 
   const handleFile = (e) => {
     const f = e.target.files?.[0]

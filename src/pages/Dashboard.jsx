@@ -10,6 +10,7 @@ import { dbCall } from '../lib/supabase.js'
 import { calcSessionDates, sortClasses, uid, now, getSessionInfo } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
 import { useConfirm } from '../components/Atoms.jsx'
+import { SchoolNoticePopup, SchoolNoticeBanner } from './SchoolNoticePopup.jsx'
 
 const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토']
 const MONTHS  = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
@@ -2301,6 +2302,7 @@ function MobileDashboard({ user, onNav, onLogout }) {
     setShowInstallGuide(true)
   }
   const noop = () => {}  // 모바일에서 카드 숨기기 비활성
+  const [showNoticePopup, setShowNoticePopup] = useState(false)
 
   return (
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -2308,8 +2310,14 @@ function MobileDashboard({ user, onNav, onLogout }) {
       {/* ── 학교 담당자 연결 요청 팝업 ── */}
       <SchoolConnectPopup user={user} />
 
+      {/* ── 학교 공지 팝업 (미제출 공지 자동 표시) ── */}
+      <SchoolNoticePopup user={user} forceOpen={showNoticePopup} />
+
       {/* ── 학교 업무 알림 (미완료 상시 표시) ── */}
       <SchoolConnectionPanel user={user} onNav={onNav} />
+
+      {/* ── 학교 공지 배너 (미제출 공지 있을 때 표시) ── */}
+      <SchoolNoticeBanner user={user} onOpen={() => setShowNoticePopup(p => !p)} />
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px' }}>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>안녕하세요, {name} 선생님 👋</div>
@@ -2804,6 +2812,7 @@ export function Dashboard({ user, onNav, onLogout }) {
   const goToday   = () => { const t = new Date(); setCalYear(t.getFullYear()); setCalMonth(t.getMonth()); setSelectedDate(today) }
 
   const hiddenCount = Object.values(settings).filter(v => !v).length
+  const [showNoticePopup, setShowNoticePopup] = useState(false)
 
   return (
     <div style={{ padding: '24px', maxWidth: '1400px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -2811,9 +2820,15 @@ export function Dashboard({ user, onNav, onLogout }) {
       {/* ── 학교 담당자 연결 요청 팝업 ── */}
       <SchoolConnectPopup user={user} />
 
+      {/* ── 학교 공지 팝업 (미제출 공지 자동 표시) ── */}
+      <SchoolNoticePopup user={user} forceOpen={showNoticePopup} />
+
       {/* ── 학교 업무 알림 (미완료 상시 표시) ── */}
       <SchoolConnectionPanel user={user} onNav={onNav} />
       <SchoolTaskPanel user={user} />
+
+      {/* ── 학교 공지 배너 (미제출 공지 있을 때 표시) ── */}
+      <SchoolNoticeBanner user={user} onOpen={() => setShowNoticePopup(p => !p)} />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
