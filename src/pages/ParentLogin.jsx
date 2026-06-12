@@ -96,6 +96,7 @@ export function ParentLogin() {
   const [loading,     setLoading]    = useState(false)
   const [member,      setMember]     = useState(null)    // 최종 인증된 member
   const [dashboardData, setDashboardData] = useState(null) // 학생/수업/출석 등 대시보드 데이터
+  const [verifiedPin, setVerifiedPin] = useState('')      // 검증 완료된 PIN (탈퇴 시 재사용)
 
   // ── PIN 브루트포스 방어 (5회 실패 시 30초 잠금)
   const [failCount,   setFailCount]   = useState(0)
@@ -108,6 +109,7 @@ export function ParentLogin() {
         phone={member.phone}
         memberRecord={member}
         dashboardData={dashboardData}
+        verifiedPin={verifiedPin}
       />
     )
   }
@@ -195,6 +197,7 @@ export function ParentLogin() {
         // PIN 검증 완료 — 동일한 PIN을 RPC에도 전달하여 서버 측 2중 검증
         const dash = await loadParentDashboard(normalized, currentPin)
         setDashboardData(dash)
+        setVerifiedPin(currentPin)
         setMember({ ...candidate, ...(data[0] || {}) })
       } else {
         // Supabase 미설정(로컬 개발) — 로컬 캐시 단순 비교 (개발 전용)
@@ -213,6 +216,7 @@ export function ParentLogin() {
         }
         setFailCount(0)
         setLockedUntil(null)
+        setVerifiedPin(currentPin)
         setMember(candidate)
       }
     } catch (e) {
@@ -256,6 +260,7 @@ export function ParentLogin() {
       // PIN 설정 완료 — 방금 설정한 PIN을 RPC에 전달
       const dash = await loadParentDashboard(normalized, pin)
       setDashboardData(dash)
+      setVerifiedPin(pin)
       setMember({ ...candidate, pinHash: 'set' })
     } catch (e) {
       setError('PIN 저장 중 오류가 발생했습니다. 다시 시도해주세요.')

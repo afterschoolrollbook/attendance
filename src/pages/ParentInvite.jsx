@@ -164,7 +164,7 @@ function ClassCalendar({ cls }) {
 //
 // RPC가 없는 환경(로컬 개발, Supabase 미설정)에서는 로컬 캐시 직접 업데이트로 폴백합니다.
 // ─────────────────────────────────────────────────────────────────────────────
-function WithdrawSection({ phone, teacher }) {
+function WithdrawSection({ phone, teacher, pin = '' }) {
   const [open, setOpen]   = useState(false)
   const [step, setStep]   = useState('confirm') // confirm | countdown | done
   const [count, setCount] = useState(3)
@@ -176,7 +176,7 @@ function WithdrawSection({ phone, teacher }) {
     try {
       if (supabase) {
         // RLS 환경: security definer RPC로 처리
-        const { error } = await supabase.rpc('withdraw_parent', { p_phone: normalized })
+        const { error } = await supabase.rpc('withdraw_parent', { p_phone: normalized, p_pin: pin || null })
         if (error) console.warn('[WithdrawSection] RPC 오류:', error.message)
       } else {
         // 로컬 개발 폴백: 캐시 직접 업데이트
@@ -274,7 +274,7 @@ function WithdrawSection({ phone, teacher }) {
   )
 }
 
-export function ParentHome({ students: studentsProp, teacher: teacherProp, phone, teacherId, memberRecord, dashboardData }) {
+export function ParentHome({ students: studentsProp, teacher: teacherProp, phone, teacherId, memberRecord, dashboardData, verifiedPin = '' }) {
   const normalizedPhone = phone?.replace(/[^0-9]/g,'') || ''
   const cfg = loadParentServiceConfig()
 
@@ -626,7 +626,7 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
             )
           })}
 
-          <WithdrawSection phone={phone} teacher={activeTeacher} />
+          <WithdrawSection phone={phone} teacher={activeTeacher} pin={verifiedPin} />
 
         </div>
       )}
