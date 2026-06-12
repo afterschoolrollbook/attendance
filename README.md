@@ -1407,6 +1407,73 @@ IndexedDB/localStorage 캐시 읽기·쓰기 실패를 조용히 무시하던 5�
 - 브라우저 창 폭을 768px 경계로 천천히 줄였다 늘렸다 하며 출석부/대시보드 화면이 깨지지 않고 모바일↔데스크톱 레이아웃으로 정상 전환되는지 확인
 - (선택) 개발자도구 Console에서 IndexedDB/localStorage 관련 경고가 뜨는지 — 평소에는 안 떠야 정상
 
+### 전역 ErrorBoundary, ProgCheckModal Hooks 위반, 빈 catch 블록 전체 점검 (2026-06-13)
+
+위 항목에 이어 ESLint + React Hooks 규칙 기반 정적 분석에서 추가로 발견된 이슈 3건 수정.
+
+**① `App.jsx` — 전역 `ErrorBoundary` 추가**
+
+이전까지 프로젝트 어디에도 `componentDidCatch`/`getDerivedStateFromError`/`ErrorBoundary`가 없어, 어떤 컴포넌트에서든 런타임 에러가 한 번 나면 전체 React 트리가 unmount되어 흰 화면이 되고 새로고침 외엔 복구 방법이 없었음.
+
+→ 기존 `export default function App()` 본문을 `AppInner`로 이름만 바꾸고, 파일 끝에 `ErrorBoundary` 클래스 컴포넌트와 새 `App` 래퍼를 추가:
+
+```jsx
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppInner />
+    </ErrorBoundary>
+  )
+}
+```
+
+`ErrorBoundary`는 `componentDidCatch`에서 `console.error`로 에러를 로깅하고, 화면에는 "화면을 표시하는 중 오류가 발생했습니다 / 새로고침" 안내와 새로고침 버튼을 표시함. `AppInner`의 기존 로직(라우팅, early return들, hook 등)은 무변경.
+
+> ⚠️ React ErrorBoundary는 **렌더링 중 발생한 동기 에러**만 잡음. 이벤트 핸들러, 비동기(Promise), `useEffect` 내부 에러는 잡지 못함 (React 공식 제약) — 단, 위 항목의 "Rendered fewer/more hooks" 같은 렌더링 단계 에러는 정확히 커버됨.
+
+**② `Attendance.jsx` — `ProgCheckModal`(진도 체크 모달) Hooks 위반**
+
+`ProgCheckModal`은 여러 `useState` 선언 이후 `si`(교구 미배정) 또는 `product`(교구 삭제됨) 상태일 때 `NoSupplyAssignModal`/안내 `Modal`로 early return하는데, 그 **아래쪽**에 `const [checking, setChecking] = React.useState(false)`가 별도로 선언돼 있었음. early return 분기에서는 이 hook이 호출되지 않으므로, 모달이 열린 상태에서 교구를 배정해 `si`가 채워지고 재렌더되면 hook 개수가 달라져 "Rendered fewer/more hooks" 크래시 발생 가능.
+
+→ `checking` state 선언을 early return 이전(다른 `useState`들과 함께)으로 이동, 아래쪽 중복 선언 제거. 이제 분기와 무관하게 항상 동일한 hook 개수가 호출됨.
+
+**③ 코드베이스 전체 — 완전히 침묵하는 빈 `catch {}` / `catch(e) {}` 블록 정리**
+
+`db.js` 외에도 전체 `src/` 기준으로 47곳의 진짜 빈 catch 블록(에러를 완전히 무시)을 발견. 그중 41곳에 `console.warn('[파일명] 오류:', e)`을 추가:
+
+| 파일 | 추가된 곳 |
+|------|-----------|
+| `App.jsx` | 1 |
+| `Attendance.jsx` | 9 |
+| `Dashboard.jsx` | 17 |
+| `Blog.jsx` | 5 |
+| `BlogWrite.jsx` | 1 |
+| `SchoolAdminApp.jsx` | 6 |
+| `SchoolNoticePopup.jsx` | 1 |
+| `VendorAuth.jsx` | 1 |
+| `ParentInvite.jsx` | 1 (`TeacherParentLinks.link` 실패) |
+
+다음 6곳은 의도적으로 그대로 둠 — `ParentInvite.jsx` 1곳 + `StudentConfirm.jsx` 4곳의 추첨 효과음(`AudioContext`) 재생 실패, `Blog.jsx`의 (현재 비활성화된) `adsbygoogle` push. 브라우저 자동재생 정책 등으로 흔히 "정상적으로" 실패하는 케이스라, 로그를 추가하면 사용자마다 매번 콘솔에 경고가 쌓여 노이즈만 늘어남.
+
+`BlogAdmin.jsx`/`Students.jsx`/`ParentServiceManage.jsx`는 이미 모든 catch에서 `error(...)`/`toastError(...)`로 사용자에게 알리고 있어 추가 수정 없음.
+
+**수정 파일:**
+- `src/App.jsx`
+- `src/pages/Attendance.jsx`
+- `src/pages/Dashboard.jsx`
+- `src/pages/Blog.jsx`
+- `src/pages/BlogWrite.jsx`
+- `src/pages/SchoolAdminApp.jsx`
+- `src/pages/SchoolNoticePopup.jsx`
+- `src/pages/VendorAuth.jsx`
+- `src/pages/ParentInvite.jsx`
+
+#### 테스트 방법
+
+- 일부러 콘솔에서 에러를 던지는 등 런타임 에러를 발생시켰을 때, 흰 화면 대신 "화면을 표시하는 중 오류가 발생했습니다" 안내 화면이 나오는지 확인
+- 출석부 → 학생의 "진도" 버튼 클릭 → 교구가 배정되지 않은 학생에게 모달 안에서 교구를 배정 → 모달이 정상적으로 진도 체크 화면으로 전환되는지(크래시 없이) 확인
+- 평소 사용 흐름(블로그 글 작성/삭제, 학교 공지, 업체 로그인 등)에서 화면 동작은 기존과 동일한지 확인 — 실패 시에만 콘솔에 `[파일명] 오류:` 경고가 추가로 표시됨
+
 ### Row Level Security (RLS)
 
 모든 핵심 테이블에 RLS 활성화 + 정책 적용 완료 (2026-06-12)
