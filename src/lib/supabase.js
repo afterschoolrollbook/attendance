@@ -364,3 +364,134 @@ export function authOnStateChange(callback) {
   const { data: { subscription } } = supabase.auth.onAuthStateChange(callback)
   return () => subscription.unsubscribe()
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 업체(Vendor) 전용 RPC 헬퍼
+// hq_vendors / hq_vendor_* / vendor_accounts 테이블은 RLS가 for all using (false) 로
+// anon 클라이언트의 직접 접근이 전부 차단되어 있습니다.
+// security definer RPC 를 통해서만 읽기·쓰기가 가능하므로 dbCall() 대신 이 객체를 사용합니다.
+// ─────────────────────────────────────────────────────────────────────────────
+export const vendorRpc = {
+  // ── 업체(hq_vendors) 단건 조회 by id
+  getVendorById: async (id) => {
+    if (!supabase) return null
+    const { data, error } = await supabase.rpc('get_vendor_by_id', { p_id: id })
+    if (error) throw new Error(error.message)
+    return data ? toCamel(data) : null
+  },
+  getVendorByEmail: async (email) => {
+    if (!supabase) return null
+    const { data, error } = await supabase.rpc('get_vendor_by_email', { p_email: email })
+    if (error) throw new Error(error.message)
+    return data ? toCamel(data) : null
+  },
+  getVendorByPhone: async (phone) => {
+    if (!supabase) return null
+    const { data, error } = await supabase.rpc('get_vendor_by_phone', { p_phone: phone })
+    if (error) throw new Error(error.message)
+    return data ? toCamel(data) : null
+  },
+
+  // ── 업체 계정(vendor_accounts) 조회
+  getAccountByEmail: async (email) => {
+    if (!supabase) return null
+    const { data, error } = await supabase.rpc('get_vendor_account_by_email', { p_email: email })
+    if (error) throw new Error(error.message)
+    return data ? toCamel(data) : null
+  },
+  getAccountByVendorId: async (vendorId) => {
+    if (!supabase) return null
+    const { data, error } = await supabase.rpc('get_vendor_account_by_vendor_id', { p_vendor_id: vendorId })
+    if (error) throw new Error(error.message)
+    return data ? toCamel(data) : null
+  },
+
+  // ── 업체·계정 저장 (upsert)
+  upsertVendor: async (vendorObj) => {
+    if (!supabase) return null
+    const { data, error } = await supabase.rpc('upsert_hq_vendor', { p_data: toSnake(vendorObj) })
+    if (error) throw new Error(error.message)
+    return data ? toCamel(data) : null
+  },
+  upsertAccount: async (accountObj) => {
+    if (!supabase) return null
+    const { data, error } = await supabase.rpc('upsert_vendor_account', { p_data: toSnake(accountObj) })
+    if (error) throw new Error(error.message)
+    return data ? toCamel(data) : null
+  },
+
+  // ── 관리자용 전체 목록 조회 (VendorManage.jsx 전용)
+  adminGetVendors: async () => {
+    if (!supabase) return []
+    const { data, error } = await supabase.rpc('admin_get_hq_vendors')
+    if (error) throw new Error(error.message)
+    return (data || []).map(toCamel)
+  },
+  adminGetSubjects: async () => {
+    if (!supabase) return []
+    const { data, error } = await supabase.rpc('admin_get_hq_vendor_subjects')
+    if (error) throw new Error(error.message)
+    return (data || []).map(toCamel)
+  },
+  adminGetProducts: async () => {
+    if (!supabase) return []
+    const { data, error } = await supabase.rpc('admin_get_hq_vendor_products')
+    if (error) throw new Error(error.message)
+    return (data || []).map(toCamel)
+  },
+  adminDeleteVendor: async (id) => {
+    if (!supabase) return null
+    const { data, error } = await supabase.rpc('admin_delete_hq_vendor', { p_id: id })
+    if (error) throw new Error(error.message)
+    return data
+  },
+
+  // ── 업체 앱용 목록 조회 (VendorApp.jsx 전용 — vendorId 필터)
+  getSubjectsByVendor: async (vendorId) => {
+    if (!supabase) return []
+    const { data, error } = await supabase.rpc('get_vendor_subjects', { p_vendor_id: vendorId })
+    if (error) throw new Error(error.message)
+    return (data || []).map(toCamel)
+  },
+  getProductsByVendor: async (vendorId) => {
+    if (!supabase) return []
+    const { data, error } = await supabase.rpc('get_vendor_products', { p_vendor_id: vendorId })
+    if (error) throw new Error(error.message)
+    return (data || []).map(toCamel)
+  },
+  getContentsByVendor: async (vendorId) => {
+    if (!supabase) return []
+    const { data, error } = await supabase.rpc('get_vendor_contents', { p_vendor_id: vendorId })
+    if (error) throw new Error(error.message)
+    return (data || []).map(toCamel)
+  },
+  getFilesByVendor: async (vendorId) => {
+    if (!supabase) return []
+    const { data, error } = await supabase.rpc('get_vendor_files', { p_vendor_id: vendorId })
+    if (error) throw new Error(error.message)
+    return (data || []).map(toCamel)
+  },
+  getPricesByVendor: async (vendorId) => {
+    if (!supabase) return []
+    const { data, error } = await supabase.rpc('get_vendor_prices', { p_vendor_id: vendorId })
+    if (error) throw new Error(error.message)
+    return (data || []).map(toCamel)
+  },
+
+  // ── 업체 앱용 단건 저장/삭제 (subject / product / content / file / price)
+  upsertSubject:  async (obj) => { if (!supabase) return null; const { data, error } = await supabase.rpc('upsert_vendor_subject',  { p_data: toSnake(obj) }); if (error) throw new Error(error.message); return data },
+  upsertProduct:  async (obj) => { if (!supabase) return null; const { data, error } = await supabase.rpc('upsert_vendor_product',  { p_data: toSnake(obj) }); if (error) throw new Error(error.message); return data },
+  upsertContent:  async (obj) => { if (!supabase) return null; const { data, error } = await supabase.rpc('upsert_vendor_content',  { p_data: toSnake(obj) }); if (error) throw new Error(error.message); return data },
+  upsertFile:     async (obj) => { if (!supabase) return null; const { data, error } = await supabase.rpc('upsert_vendor_file',     { p_data: toSnake(obj) }); if (error) throw new Error(error.message); return data },
+  upsertPrice:    async (obj) => { if (!supabase) return null; const { data, error } = await supabase.rpc('upsert_vendor_price',    { p_data: toSnake(obj) }); if (error) throw new Error(error.message); return data },
+  deleteSubject:  async (id)  => { if (!supabase) return null; const { data, error } = await supabase.rpc('delete_vendor_subject',  { p_id: id }); if (error) throw new Error(error.message); return data },
+  deleteProduct:  async (id)  => { if (!supabase) return null; const { data, error } = await supabase.rpc('delete_vendor_product',  { p_id: id }); if (error) throw new Error(error.message); return data },
+  deleteContent:  async (id)  => { if (!supabase) return null; const { data, error } = await supabase.rpc('delete_vendor_content',  { p_id: id }); if (error) throw new Error(error.message); return data },
+  deleteFile:     async (id)  => { if (!supabase) return null; const { data, error } = await supabase.rpc('delete_vendor_file',     { p_id: id }); if (error) throw new Error(error.message); return data },
+
+  // ── 관리자용 subject / product 저장·삭제 (VendorManage.jsx)
+  adminUpsertSubject: async (obj) => { if (!supabase) return null; const { data, error } = await supabase.rpc('upsert_vendor_subject', { p_data: toSnake(obj) }); if (error) throw new Error(error.message); return data },
+  adminUpsertProduct: async (obj) => { if (!supabase) return null; const { data, error } = await supabase.rpc('upsert_vendor_product', { p_data: toSnake(obj) }); if (error) throw new Error(error.message); return data },
+  adminDeleteSubject: async (id)  => { if (!supabase) return null; const { data, error } = await supabase.rpc('delete_vendor_subject', { p_id: id }); if (error) throw new Error(error.message); return data },
+  adminDeleteProduct: async (id)  => { if (!supabase) return null; const { data, error } = await supabase.rpc('delete_vendor_product', { p_id: id }); if (error) throw new Error(error.message); return data },
+}

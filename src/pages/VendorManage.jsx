@@ -5,7 +5,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react'
 import { uid, now } from '../lib/utils.js'
-import { dbCall, isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
+import { vendorRpc, isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
 
 // 초대 이메일 직접 발송 (subject + html 커스텀)
 async function sendInviteEmail(to, vendorName, link) {
@@ -49,25 +49,24 @@ const C = {
   card:'#fff', blue:'#3b82f6', purple:'#8b5cf6', warning:'#f59e0b', bg:'#f9fafb',
 }
 
-// ─── localStorage
-// ✅ 모두 Supabase 직접 조회/저장
+// ─── DB 헬퍼 — 모두 RPC 경유 (hq_vendor_* RLS: for all using (false))
 const HQVendors = {
-  all:    async ()    => (await dbCall('getAll', 'hqVendors')) || [],
-  save:   async (v)   => dbCall('upsert', 'hqVendors', { data: v }),
-  delete: async (id)  => dbCall('delete', 'hqVendors', { id }),
+  all:    async ()   => vendorRpc.adminGetVendors(),
+  save:   async (v)  => vendorRpc.upsertVendor(v),
+  delete: async (id) => vendorRpc.adminDeleteVendor(id),
 }
 const HQSubjects = {
-  all:      async ()    => (await dbCall('getAll', 'hqVendorSubjects')) || [],
-  byVendor: async (vid) => ((await dbCall('getAll', 'hqVendorSubjects')) || []).filter(s=>s.vendorId===vid),
-  save:     async (s)   => dbCall('upsert', 'hqVendorSubjects', { data: s }),
-  delete:   async (id)  => dbCall('delete', 'hqVendorSubjects', { id }),
+  all:      async ()    => vendorRpc.adminGetSubjects(),
+  byVendor: async (vid) => (await vendorRpc.adminGetSubjects()).filter(s => s.vendorId === vid),
+  save:     async (s)   => vendorRpc.adminUpsertSubject(s),
+  delete:   async (id)  => vendorRpc.adminDeleteSubject(id),
 }
 const HQProducts = {
-  all:       async ()    => (await dbCall('getAll', 'hqVendorProducts')) || [],
-  byVendor:  async (vid) => ((await dbCall('getAll', 'hqVendorProducts')) || []).filter(p=>p.vendorId===vid),
-  bySubject: async (sid) => ((await dbCall('getAll', 'hqVendorProducts')) || []).filter(p=>p.subjectId===sid),
-  save:      async (p)   => dbCall('upsert', 'hqVendorProducts', { data: p }),
-  delete:    async (id)  => dbCall('delete', 'hqVendorProducts', { id }),
+  all:       async ()    => vendorRpc.adminGetProducts(),
+  byVendor:  async (vid) => (await vendorRpc.adminGetProducts()).filter(p => p.vendorId === vid),
+  bySubject: async (sid) => (await vendorRpc.adminGetProducts()).filter(p => p.subjectId === sid),
+  save:      async (p)   => vendorRpc.adminUpsertProduct(p),
+  delete:    async (id)  => vendorRpc.adminDeleteProduct(id),
 }
 
 // ─── 공통 스타일
@@ -379,7 +378,7 @@ function VendorDetailDrawer({ vendor, onClose }) {
                 : subjects.map(s=>(
                   <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'10px 12px', background:C.bg, borderRadius:'9px', border:`1px solid ${C.border}`, marginBottom:'8px' }}>
                     <span style={{ flex:1, fontSize:'14px', fontWeight:500 }}>📚 {s.name}</span>
-                    <span style={{ fontSize:'11px', color:C.muted }}>{HQProducts.bySubject(s.id).length}개 교구</span>
+                    <span style={{ fontSize:'11px', color:C.muted }}>{products.filter(p=>p.subjectId===s.id).length}개 교구</span>
                     <button onClick={()=>{ if(window.confirm('삭제하시겠습니까?')){ HQSubjects.delete(s.id).then(()=>{ reload(); success('삭제되었습니다.') }) } }}
                       style={{ padding:'3px 9px', borderRadius:'6px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                   </div>
@@ -627,7 +626,7 @@ export function VendorManage({ user }) {
                 <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
                   {vS.map(s=>(
                     <span key={s.id} style={{ padding:'6px 14px', borderRadius:'999px', background:'#eff6ff', color:C.blue, fontSize:'13px', fontWeight:500, border:'1px solid #bfdbfe' }}>
-                      📚 {s.name} ({HQProducts.bySubject(s.id).length}교구)
+                      📚 {s.name} ({products.filter(p=>p.subjectId===s.id).length}교구)
                     </span>
                   ))}
                 </div>

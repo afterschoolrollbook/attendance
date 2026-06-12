@@ -5,7 +5,7 @@
  */
 import React, { useState } from 'react'
 import { uid, now } from '../lib/utils.js'
-import { dbCall, isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
+import { vendorRpc, isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
 import { hashPassword, verifyPassword, isHashed } from '../lib/crypto.js'
 
 const C = {
@@ -41,40 +41,35 @@ function checkCode(input, stored) {
   if (input !== stored.code) return '인증번호가 올바르지 않습니다.'
   return null
 }
-// ─── Supabase에서 업체 조회
+// ─── 업체 조회 — RPC 경유 (hq_vendors RLS: for all using (false))
 const HQVendors = {
   byPhone: async (phone) => {
     if (!isConfigured) return null
-    const clean = phone?.replace(/[^0-9]/g, '')
-    const rows = await dbCall('getAll', 'hqVendors')
-    return rows?.find(v => v.phone?.replace(/[^0-9]/g,'') === clean) || null
+    return vendorRpc.getVendorByPhone(phone)
   },
   byEmail: async (email) => {
     if (!isConfigured) return null
-    const rows = await dbCall('getAll', 'hqVendors')
-    return rows?.find(v => v.email?.toLowerCase() === email?.toLowerCase()) || null
+    return vendorRpc.getVendorByEmail(email)
   },
   save: async (v) => {
     if (!isConfigured) return
-    await dbCall('upsert', 'hqVendors', { data: v })
+    await vendorRpc.upsertVendor(v)
   },
 }
 
-// ─── Supabase에서 업체 계정 조회/저장
+// ─── 업체 계정 조회/저장 — RPC 경유 (vendor_accounts RLS: for all using (false))
 const VendorAccounts = {
   byEmail: async (email) => {
     if (!isConfigured) return null
-    const rows = await dbCall('getAll', 'vendorAccounts')
-    return rows?.find(a => a.email?.toLowerCase() === email?.toLowerCase()) || null
+    return vendorRpc.getAccountByEmail(email)
   },
   byVendorId: async (vid) => {
     if (!isConfigured) return null
-    const rows = await dbCall('getAll', 'vendorAccounts')
-    return rows?.find(a => a.vendorId === vid) || null
+    return vendorRpc.getAccountByVendorId(vid)
   },
   save: async (a) => {
     if (!isConfigured) return
-    await dbCall('upsert', 'vendorAccounts', { data: a })
+    await vendorRpc.upsertAccount(a)
   },
 }
 
@@ -128,8 +123,7 @@ function LoginTab({ onLogin, onSwitch, onFindId, onResetPw }) {
         await VendorAccounts.save({ ...acc, pw: hashedPw })
         acc.pw = hashedPw
       }
-      const vendors = await dbCall('getAll', 'hqVendors')
-      const vendor = vendors?.find(v => v.id === acc.vendorId)
+      const vendor = await vendorRpc.getVendorById(acc.vendorId)
       if (!vendor) { setErr('연결된 업체 정보가 없습니다.'); return }
       resetBruteForce(email.trim().toLowerCase())
       const { pw: _pw, ...safeAcc } = acc

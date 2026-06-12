@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { uid, now } from '../lib/utils.js'
-import { dbCall } from '../lib/supabase.js'
+import { vendorRpc, dbCall } from '../lib/supabase.js'
 import { useToast } from '../hooks/useToast.js'
 
 const C = {
@@ -19,35 +19,26 @@ const C = {
 const LS_SESSION = 'asa_vendor_session'
 const iSt = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
 
-// ── DB 헬퍼
+// ── DB 헬퍼 — 모두 RPC 경유 (hq_vendor_* RLS: for all using (false))
 const DB = {
-  subjects:    async (vid) => ((await dbCall('getAll','hqVendorSubjects'))||[]).filter(s=>s.vendorId===vid&&!s._deleted),
-  saveSubject: async (s)   => dbCall('upsert','hqVendorSubjects',{data:s}),
-  delSubject:  async (id)  => dbCall('delete','hqVendorSubjects',{id}),
+  subjects:    async (vid) => (await vendorRpc.getSubjectsByVendor(vid)).filter(s => !s._deleted),
+  saveSubject: async (s)   => vendorRpc.upsertSubject(s),
+  delSubject:  async (id)  => vendorRpc.deleteSubject(id),
 
-  products:    async (vid) => ((await dbCall('getAll','hqVendorProducts'))||[]).filter(p=>p.vendorId===vid&&!p._deleted),
-  saveProduct: async (p)   => dbCall('upsert','hqVendorProducts',{data:p}),
-  delProduct:  async (id)  => dbCall('delete','hqVendorProducts',{id}),
+  products:    async (vid) => (await vendorRpc.getProductsByVendor(vid)).filter(p => !p._deleted),
+  saveProduct: async (p)   => vendorRpc.upsertProduct(p),
+  delProduct:  async (id)  => vendorRpc.deleteProduct(id),
 
-  allContents: async (vid) => {
-    const prods = ((await dbCall('getAll','hqVendorProducts'))||[]).filter(p=>p.vendorId===vid&&!p._deleted)
-    const pids  = new Set(prods.map(p=>p.id))
-    return ((await dbCall('getAll','hqVendorContents'))||[]).filter(c=>pids.has(c.productId)&&!c._deleted)
-  },
-  saveContent: async (c)   => dbCall('upsert','hqVendorContents',{data:c}),
-  delContent:  async (id)  => dbCall('delete','hqVendorContents',{id}),
+  allContents: async (vid) => (await vendorRpc.getContentsByVendor(vid)).filter(c => !c._deleted),
+  saveContent: async (c)   => vendorRpc.upsertContent(c),
+  delContent:  async (id)  => vendorRpc.deleteContent(id),
 
-  files:       async (vid) => ((await dbCall('getAll','hqVendorFiles'))||[]).filter(f=>f.vendorId===vid&&!f._deleted),
-  saveFile:    async (f)   => dbCall('upsert','hqVendorFiles',{data:f}),
-  delFile:     async (id)  => dbCall('delete','hqVendorFiles',{id}),
+  files:       async (vid) => (await vendorRpc.getFilesByVendor(vid)).filter(f => !f._deleted),
+  saveFile:    async (f)   => vendorRpc.upsertFile(f),
+  delFile:     async (id)  => vendorRpc.deleteFile(id),
 
-  prices:      async (vid) => {
-    const prods = ((await dbCall('getAll','hqVendorProducts'))||[]).filter(p=>p.vendorId===vid&&!p._deleted)
-    const pids  = new Set(prods.map(p=>p.id))
-    const all   = ((await dbCall('getAll','hqVendorPrices'))||[])
-    return all.filter(pr=>pids.has(pr.productId))
-  },
-  savePrice:   async (p)   => dbCall('upsert','hqVendorPrices',{data:p}),
+  prices:      async (vid) => vendorRpc.getPricesByVendor(vid),
+  savePrice:   async (p)   => vendorRpc.upsertPrice(p),
 }
 
 // ── 엑셀 샘플/다운로드
@@ -217,7 +208,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
   }
   const saveVendor = async () => {
     if (!vendorForm.name) { toastError('업체명을 입력하세요'); return }
-    await dbCall('upsert', 'hqVendors', { data: { ...vendor, ...vendorForm } })
+    await vendorRpc.upsertVendor({ ...vendor, ...vendorForm })
     const updated = { ...vendorSession, vendor: { ...vendor, ...vendorForm } }
     localStorage.setItem(LS_SESSION, JSON.stringify(updated))
     setVendorSession(updated)
@@ -246,12 +237,9 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
       })
 
       let sc=0, pc=0, cc=0
-      const curS=(await dbCall('getAll','hqVendorSubjects'))||[]
-      const curP=(await dbCall('getAll','hqVendorProducts'))||[]
-      const curC=(await dbCall('getAll','hqVendorContents'))||[]
-      const myS=curS.filter(s=>s.vendorId===vendorId&&!s._deleted)
-      const myP=curP.filter(p=>p.vendorId===vendorId&&!p._deleted)
-      const myC=curC.filter(c=>!c._deleted)
+      const myS  = await vendorRpc.getSubjectsByVendor(vendorId)
+      const myP  = await vendorRpc.getProductsByVendor(vendorId)
+      const myC  = await vendorRpc.getContentsByVendor(vendorId)
 
       for (const [sName, sData] of Object.entries(subjectMap)) {
         let subject = myS.find(s=>s.name===sName)
