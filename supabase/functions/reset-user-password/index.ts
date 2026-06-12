@@ -5,14 +5,15 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') || ''
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGIN') || '')
+  .split(',').map(s => s.trim()).filter(Boolean)
 
 // 요청 Origin을 ALLOWED_ORIGIN과 대조하여 CORS 헤더 반환
 // ALLOWED_ORIGIN 미설정 시 개발 편의를 위해 요청 Origin 반영 (배포 전 반드시 설정)
 function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('Origin') || ''
-  const allowedOrigin = ALLOWED_ORIGIN
-    ? (origin === ALLOWED_ORIGIN ? origin : '')
+  const allowedOrigin = ALLOWED_ORIGINS.length
+    ? (ALLOWED_ORIGINS.includes(origin) ? origin : '')
     : (origin || '*')
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
