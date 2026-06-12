@@ -283,28 +283,22 @@ function useNaverAuth(onSuccess, clientId) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (!params.has('naver_redirect')) return
-    console.log('[NAVER DEBUG] 리디렉트 방식 감지 - URL params:', Object.fromEntries(params))
     window.history.replaceState({}, '', window.location.pathname)
     const raw = sessionStorage.getItem('naver_login_result')
-    console.log('[NAVER DEBUG] sessionStorage naver_login_result:', raw)
-    if (!raw) { console.warn('[NAVER DEBUG] sessionStorage에 결과 없음!'); return }
+    if (!raw) { return }
     sessionStorage.removeItem('naver_login_result')
     let data
-    try { data = JSON.parse(raw) } catch(err) { console.error('[NAVER DEBUG] JSON 파싱 오류:', err); return }
-    console.log('[NAVER DEBUG] 파싱된 데이터:', data)
-    if (data.type === 'naver_login_fail') { toastError('네이버 로그인에 실패했습니다.'); console.error('[NAVER DEBUG] 로그인 실패:', data); return }
+    try { data = JSON.parse(raw) } catch(err) { return }
+    if (data.type === 'naver_login_fail') { toastError('네이버 로그인에 실패했습니다.'); return }
     const process = async () => {
-      console.log('[NAVER DEBUG] 세션 설정 중... session:', data.session ? '있음' : '없음')
       if (data.session && supabase) { await supabase.auth.setSession(data.session) }
       await initFromSupabase()
-      console.log('[NAVER DEBUG] onSuccess 호출:', { provider:'naver', email:data.email, name:data.name, providerId:data.id })
       onSuccess({ provider: 'naver', email: data.email || '', name: data.name || '', avatar: data.avatar || '', providerId: String(data.id) })
     }
     process()
   }, [onSuccess, toastError])
 
   const loginWithNaver = () => {
-    console.log('[NAVER DEBUG] loginWithNaver 호출됨, clientId:', clientId)
     if (!clientId) { toastError('네이버 클라이언트 ID가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
 
     const state = Math.random().toString(36).substring(2, 15)
@@ -314,62 +308,42 @@ function useNaverAuth(onSuccess, clientId) {
       + '&response_type=code'
       + '&state=' + state
 
-    console.log('[NAVER DEBUG] 팝업 열기 시도:', { naverAuthUrl, redirectUri, state })
     const popup = window.open(naverAuthUrl, 'naverLogin', 'width=500,height=700,left=200,top=100')
-    console.log('[NAVER DEBUG] 팝업 결과:', popup ? `opened (closed=${popup.closed})` : 'null (차단됨?)')
 
     const handleMessage = async (e) => {
-      console.log('[NAVER DEBUG] postMessage 수신:', { origin: e.origin, expectedOrigin: window.location.origin, data: e.data })
       if (e.origin !== window.location.origin) {
-        console.warn('[NAVER DEBUG] origin 불일치 → 무시. 수신:', e.origin, '기대:', window.location.origin)
         return
       }
       if (e.data?.type !== 'naver_login_success' && e.data?.type !== 'naver_login_fail') {
-        console.log('[NAVER DEBUG] 관련 없는 메시지 타입 → 무시:', e.data?.type)
         return
       }
-      console.log('[NAVER DEBUG] 유효한 메시지 처리:', e.data)
       window.removeEventListener('message', handleMessage)
       clearInterval(popupCheck)
       if (e.data.type === 'naver_login_fail') {
-        console.error('[NAVER DEBUG] 팝업에서 실패 응답:', e.data)
         toastError('네이버 로그인에 실패했습니다.')
         return
       }
-      console.log('[NAVER DEBUG] 성공! session:', e.data.session ? '있음' : '없음')
       try {
         if (e.data.session && supabase) {
-          console.log('[NAVER DEBUG] supabase.auth.setSession 호출 중...')
-          const { error: sessionErr } = await supabase.auth.setSession(e.data.session)
-          if (sessionErr) console.error('[NAVER DEBUG] setSession 오류:', sessionErr)
-          else console.log('[NAVER DEBUG] setSession 성공')
-        } else {
-          console.warn('[NAVER DEBUG] session 없거나 supabase 미초기화 - session:', !!e.data.session, 'supabase:', !!supabase)
+          await supabase.auth.setSession(e.data.session)
         }
-        console.log('[NAVER DEBUG] initFromSupabase 호출 중...')
         await initFromSupabase()
-        console.log('[NAVER DEBUG] onSuccess 호출:', { provider:'naver', email:e.data.email, name:e.data.name, providerId:e.data.id })
         onSuccess({ provider: 'naver', email: e.data.email || '', name: e.data.name || '', avatar: e.data.avatar || '', providerId: String(e.data.id) })
       } catch(err) {
-        console.error('[NAVER DEBUG] handleMessage 내부 오류:', err)
         toastError('네이버 로그인 처리 중 오류: ' + err.message)
       }
     }
     window.addEventListener('message', handleMessage)
-    console.log('[NAVER DEBUG] message 이벤트 리스너 등록 완료')
 
     const popupCheck = setInterval(() => {
       try {
         if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-          console.warn('[NAVER DEBUG] 팝업이 닫힘 감지 - postMessage 미수신. 리디렉트 방식으로 전환')
           clearInterval(popupCheck)
           window.removeEventListener('message', handleMessage)
           const fallbackUrl = naverAuthUrl + '&naver_redirect=1'
-          console.log('[NAVER DEBUG] 리디렉트 URL:', fallbackUrl)
           window.location.href = fallbackUrl
         }
       } catch(err) {
-        console.error('[NAVER DEBUG] popupCheck 오류:', err)
       }
     }, 500)
   }
