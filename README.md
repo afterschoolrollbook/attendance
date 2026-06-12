@@ -496,6 +496,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 19 | `reset-user-password/index.ts` — 다중 도메인 CORS 미지원 (단일 문자열 비교로 남아있어 `ALLOWED_ORIGIN` 콤마 설정 시 CORS 오류) | ✅ 수정 완료 (2026-06-12) | [바로가기](#cors) |
 | 20 | `vercel.json` CSP `connect-src` — `https://open.neis.go.kr` 누락으로 NEIS 학교 검색 시 CSP 위반 차단 | ✅ 수정 완료 (2026-06-12) | [바로가기](#csp-헤더-verceljson) |
 | 21 | `send-push/index.ts` — Authorization 검사 없음 (curl 등 직접 호출로 학부모 기기에 임의 푸시 가능) | ✅ 수정 완료 (2026-06-12) | [바로가기](#send-pushindexts--authorization-검사-추가-2026-06-12) |
+| 22 | `App.jsx` — `BlogWrite` / `MyBlog`에 `onLogout` prop 누락으로 헤더 🚪 로그아웃 버튼 클릭 시 아무 반응 없음 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--blogwrite--myblog-onlogout-prop-누락-수정-2026-06-12) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -889,6 +890,26 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 **파급 범위:** 프론트 `callFunction()`이 이미 `Authorization: Bearer ${SUPABASE_ANON}`을 포함하고 있어 프론트 코드 수정 불필요.
 
 **수정 파일:** `supabase/functions/send-push/index.ts`
+
+---
+
+### `App.jsx` — `BlogWrite` / `MyBlog` `onLogout` prop 누락 수정 (2026-06-12)
+
+`BlogWrite`와 `MyBlog`는 헤더 우측에 자체 🚪 로그아웃 버튼을 가지고 있고, 이를 위해 `onLogout` prop을 받는 구조. 그런데 `App.jsx`의 `renderPage()` switch에서 두 컴포넌트에 `user`만 전달하고 `onLogout={handleLogout}`이 빠져 있어, 버튼을 클릭해도 `undefined()`가 호출되어 아무 반응이 없는 상태였음.
+
+```jsx
+// 수정 전
+case 'blog_write':  return <BlogWrite user={user} />
+case 'myblog':      return <MyBlog    user={user} />
+
+// 수정 후
+case 'blog_write':  return <BlogWrite user={user} onLogout={handleLogout} />
+case 'myblog':      return <MyBlog    user={user} onLogout={handleLogout} />
+```
+
+`handleLogout`은 이미 `Sidebar`에 `onLogout={handleLogout}`으로 전달되고 있는 동일 함수.
+
+**수정 파일:** `src/App.jsx`
 
 ---
 
