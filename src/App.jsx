@@ -369,8 +369,8 @@ export default function App() {
       case 'supplies':        return <Supplies     user={user} />
       case 'messageguide':    return <MessageGuide user={user} />
       case 'blog_admin':      return can(user, 'manage_ad') ? <BlogAdmin user={user} /> : <Dashboard {...pageProps} />
-      case 'blog_write':      return <BlogWrite user={user} />
-      case 'myblog':          return <MyBlog    user={user} />
+      case 'blog_write':      return <BlogWrite user={user} onLogout={handleLogout} />
+      case 'myblog':          return <MyBlog    user={user} onLogout={handleLogout} />
       // ✅ 본사 업체 관리 (Lv.10 전용)
       case 'vendor_manage':   return can(user, 'manage_ad') ? <VendorManage user={user} /> : <Dashboard {...pageProps} />
       // ✅ 본사 학교 담당자 관리 (Lv.10 전용)
