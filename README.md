@@ -498,6 +498,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 23 | `ParentInvite.jsx` 160번 줄 주석 — `withdraw_parent` 서명이 구버전(`p_phone`만)으로 남아 있어 실제 RPC 서명(`p_phone, p_pin DEFAULT NULL`)과 불일치 | ✅ 수정 완료 (2026-06-12) | [바로가기](#parentinvitejsx--withdraw_parent-주석-서명-업데이트-2026-06-12) |
 | 24 | `App.jsx` — `pageProps`에 `onLogout` 누락으로 Dashboard 헤더(모바일/PC) 🚪 로그아웃 버튼 클릭 시 `undefined()` 호출, 아무 반응 없음 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--pageprops-onlogout-누락-수정-2026-06-12) |
 | 25 | `20240001_vendor_rpc.sql` — `get_vendor_account_by_email`, `get_vendor_account_by_vendor_id`, `upsert_vendor_account` 3개 함수가 `SELECT *`로 `pw`(비밀번호 해시)를 클라이언트에 반환 | ✅ 수정 완료 (2026-06-12) | [바로가기](#20240001_vendor_rpcsql--vendor_accounts-pw-컬럼-노출-수정-2026-06-12) |
+| 26 | `setup.js` — Edge Functions 배포 목록이 4개(`send-email`, `send-sms`, `naver-oauth`, `reset-password-self`)로 `setup.sh`(7개)와 달라, Windows에서 `setup.bat` 실행 시 `kakao-oauth`·`send-push`·`reset-user-password` 3개가 누락 배포됨 | ✅ 수정 완료 (2026-06-13) | [바로가기](#setupjs--edge-functions-배포-목록-누락-수정-2026-06-13) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -917,6 +918,22 @@ case 'blog_write':  return <BlogWrite user={user} onLogout={handleLogout} />
 `handleLogout`은 이미 `Sidebar`에 `onLogout={handleLogout}`으로 전달되고 있는 동일 함수.
 
 **수정 파일:** `src/App.jsx`
+
+---
+
+### `setup.js` — Edge Functions 배포 목록 누락 수정 (2026-06-13)
+
+`setup.sh`(macOS/Linux)는 7개 함수를 배포하는데, Windows용 `setup.bat` → `node setup.js`는 4개만 배포하고 있었음. `kakao-oauth`(카카오 로그인), `send-push`(푸시 알림), `reset-user-password`(관리자 비밀번호 초기화) 3개가 누락되어, Windows에서 초기 세팅 시 해당 기능들이 동작하지 않는 상태가 됨.
+
+```js
+// 수정 전 (205번 줄)
+const functions = ['send-email', 'send-sms', 'naver-oauth', 'reset-password-self']
+
+// 수정 후
+const functions = ['send-email', 'send-sms', 'naver-oauth', 'kakao-oauth', 'send-push', 'reset-user-password', 'reset-password-self']
+```
+
+**수정 파일:** `setup.js`
 
 ---
 
