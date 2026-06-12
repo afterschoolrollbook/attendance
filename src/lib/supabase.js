@@ -107,6 +107,28 @@ function getConverters(table) {
   }
 }
 
+// ─── 테이블별 타입 불일치 방어: '' / null / undefined → boolean은 false, timestamp는 null
+// (예전 db-api의 sanitize()를 dbCall로 이전 — db-api 제거로 빠졌던 처리)
+const BOOLEAN_COLS = {
+  students: ['parent_joined', 'moved_to_manage'],
+}
+const NULLABLE_COLS = {
+  students: ['parent_invite_sent_at', 'student_start_date', 'student_end_date', 'updated_at', 'created_at'],
+}
+function sanitize(obj, table) {
+  const boolCols = BOOLEAN_COLS[table] || []
+  const nullCols = NULLABLE_COLS[table] || []
+  if (boolCols.length === 0 && nullCols.length === 0) return obj
+  const result = { ...obj }
+  for (const col of boolCols) {
+    if (col in result) result[col] = !!result[col]
+  }
+  for (const col of nullCols) {
+    if (col in result && !result[col] && result[col] !== 0) result[col] = null
+  }
+  return result
+}
+
 // ─── 학부모 전용: 학생/수업/선생님/출석 데이터 일괄 조회
 //     (security definer RPC get_parent_dashboard — RLS 우회, 본인 전화번호 데이터만)
 export async function loadParentDashboard(normalizedPhone) {
@@ -167,19 +189,19 @@ export async function dbCall(action, table, payload = {}) {
     }
 
     case 'insert': {
-      const { data: rows, error } = await supabase.from(tbl).insert(toDb(d)).select()
+      const { data: rows, error } = await supabase.from(tbl).insert(sanitize(toDb(d), table)).select()
       if (error) throw new Error(error.message)
       return rows && rows.length > 0 ? fromDb(rows[0]) : null
     }
 
     case 'upsert': {
-      const { data: rows, error } = await supabase.from(tbl).upsert(toDb(d)).select()
+      const { data: rows, error } = await supabase.from(tbl).upsert(sanitize(toDb(d), table)).select()
       if (error) throw new Error(error.message)
       return rows && rows.length > 0 ? fromDb(rows[0]) : null
     }
 
     case 'update': {
-      const { data: rows, error } = await supabase.from(tbl).update(toDb(patch)).eq('id', id).select()
+      const { data: rows, error } = await supabase.from(tbl).update(sanitize(toDb(patch), table)).eq('id', id).select()
       if (error) throw new Error(error.message)
       return rows && rows.length > 0 ? fromDb(rows[0]) : null
     }
