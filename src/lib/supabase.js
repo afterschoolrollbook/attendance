@@ -89,7 +89,7 @@ function toSnake(obj) {
   return result
 }
 
-function toCamel(obj) {
+export function toCamel(obj) {
   const result = {}
   for (const [k, v] of Object.entries(obj)) {
     const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
@@ -104,6 +104,25 @@ function getConverters(table) {
     tbl,
     toDb:   toSnake,
     fromDb: toCamel,
+  }
+}
+
+// ─── 학부모 전용: 학생/수업/선생님/출석 데이터 일괄 조회
+//     (security definer RPC get_parent_dashboard — RLS 우회, 본인 전화번호 데이터만)
+export async function loadParentDashboard(normalizedPhone) {
+  if (!supabase) return null
+  try {
+    const { data, error } = await supabase.rpc('get_parent_dashboard', { p_phone: normalizedPhone })
+    if (error) throw error
+    return {
+      students:   (data?.students   || []).map(toCamel),
+      classes:    (data?.classes    || []).map(toCamel),
+      teachers:   (data?.teachers   || []).map(toCamel),
+      attendance: (data?.attendance || []).map(toCamel),
+    }
+  } catch (e) {
+    console.warn('[loadParentDashboard] 조회 실패:', e.message)
+    return null
   }
 }
 
