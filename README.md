@@ -487,6 +487,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 14 | `get_parent_dashboard` RPC — PIN 검증 없이 전화번호만으로 자녀 정보 조회 가능 | ✅ 적용 (2026-06-12) | [바로가기](#get_parent_dashboard-rpc--pin-검증-강제-2026-06-12) |
 | 15 | `generate-vapid` Edge Function — 인증 없이 누구나 호출 가능 | ✅ 삭제 완료 (2026-06-12) | [바로가기](#generate-vapid-edge-function-삭제-2026-06-12) |
 | 16 | `db-api` Edge Function 배포 목록 잔존 여부 재확인 | ✅ 없음 확인 (2026-06-12) | — |
+| 17 | `setup.sh`에 `generate-vapid` 배포 라인 잔존 — `bash setup.sh` 실행 시 삭제된 함수가 재배포됨 | ✅ 제거 완료 (2026-06-12) | [바로가기](#generate-vapid-edge-function-삭제-2026-06-12) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -846,6 +847,8 @@ Resend API 키가 설정되지 않은 상태에서 `send-email` Edge Function이
 → Supabase Dashboard → Edge Functions에서 `generate-vapid` 삭제 완료.  
 VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해도 기존 푸시 알림 동작에 영향 없음.
 
+> ⚠️ 2026-06-12 추가 발견/수정: 함수는 삭제되었으나 `setup.sh` 63번 줄에 `supabase functions deploy generate-vapid` 라인이 잔존해 있었음. `bash setup.sh` 재실행 시 삭제된 함수가 다시 배포되는 문제. `setup.sh`에서 해당 라인 제거 및 배포 카운트 `(8개)` → `(7개)` 수정 완료. `supabase/functions/_deprecated/generate-vapid/` 폴더도 함께 삭제.
+
 현재 배포된 Edge Functions (총 7개):
 
 | 함수 | 역할 |
@@ -1009,7 +1012,7 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 - [ ] Supabase Secrets에 `ALLOWED_ORIGIN` 설정
 - [ ] Supabase Secrets에 `SVC_ROLE_KEY` 설정
 - [ ] 관리자 계정으로 로그인 후 서비스 설정에서 Resend·Solapi 키, 소셜 로그인(네이버 Secret), NEIS API 키 등록
-- [ ] Edge Functions 배포 (`setup.bat` 또는 `bash setup.sh`) — `generate-vapid` 제외 (삭제됨)
+- [ ] Edge Functions 배포 (`setup.bat` 또는 `bash setup.sh`) — 총 7개 함수 배포됨
 
 ### 기타
 
