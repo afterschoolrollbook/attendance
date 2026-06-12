@@ -156,7 +156,7 @@ Supabase Dashboard → **Settings → API Keys** 에서 확인.
 | `send-push` | 출석 알림 푸시 발송 |
 | `naver-oauth` | 네이버 로그인 |
 | `kakao-oauth` | 카카오 로그인 |
-| `generate-vapid` | 푸시 알림용 VAPID 키 발급 |
+| ~~`generate-vapid`~~ | ~~푸시 알림용 VAPID 키 발급~~ — **삭제됨 (2026-06-12)** 초기 설정 후 불필요, 인증 없이 누구나 호출 가능하여 제거 |
 | `reset-user-password` | (관리자 전용) 다른 사용자 비밀번호 초기화 |
 | `reset-password-self` | (본인) 인증번호 확인 후 비밀번호 초기화 — 2026-06-12 추가 |
 
@@ -439,6 +439,8 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 12 | `settings` 테이블 API 시크릿 노출 + 위장 `service role full access` 정책 제거 | ✅ 적용 (2026-06-12) | [바로가기](#settings-테이블-시크릿-노출--위장-service-role-정책-제거-2026-06-12) |
 | 13 | 업체 포털 (`hq_vendors` / `hq_vendor_*` / `vendor_accounts`) RLS 우회 — RPC 전환 | ✅ 적용 (2026-06-12) | [바로가기](#업체-포털-rls-우회--rpc-전환-2026-06-12) |
 | 14 | `get_parent_dashboard` RPC — PIN 검증 없이 전화번호만으로 자녀 정보 조회 가능 | ✅ 적용 (2026-06-12) | [바로가기](#get_parent_dashboard-rpc--pin-검증-강제-2026-06-12) |
+| 15 | `generate-vapid` Edge Function — 인증 없이 누구나 호출 가능 | ✅ 삭제 완료 (2026-06-12) | [바로가기](#generate-vapid-edge-function-삭제-2026-06-12) |
+| 16 | `db-api` Edge Function 배포 목록 잔존 여부 재확인 | ✅ 없음 확인 (2026-06-12) | — |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -470,6 +472,9 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 - [ ] **(14) 학부모 PIN 설정 첫 로그인** — PIN 설정 완료 후 대시보드가 정상 로드되는지
 
 각 항목의 상세 설명/원인은 위 표의 "바로가기" 링크에서 확인.
+
+> ✅ **(5) `generate-vapid` 삭제** — 2026-06-12 완료  
+> ✅ **(7) `db-api` 배포 목록 없음** — 2026-06-12 현장 확인 완료 (총 7개 함수, db-api 없음)
 
 ### db-api Edge Function 제거 (2026-06-12)
 
@@ -718,6 +723,25 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 1. `/parent-login` → 전화번호 입력 → PIN 설정 화면 → 4자리 설정 → 재확인
 2. 대시보드 정상 로드 확인
 
+### `generate-vapid` Edge Function 삭제 (2026-06-12)
+
+초기 VAPID 키 생성 후 설정 테이블(`settings`)에 저장한 뒤에는 이 함수가 불필요함. 그런데 별도 인증 체크 없이 anon 사용자도 호출 가능한 상태였음 — 외부에서 호출하면 새 VAPID 키쌍이 생성되어 기존 푸시 구독들이 전부 무효화될 수 있음.
+
+→ Supabase Dashboard → Edge Functions에서 `generate-vapid` 삭제 완료.  
+VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해도 기존 푸시 알림 동작에 영향 없음.
+
+현재 배포된 Edge Functions (총 7개):
+
+| 함수 | 역할 |
+|------|------|
+| `kakao-oauth` | 카카오 로그인 |
+| `naver-oauth` | 네이버 로그인 |
+| `reset-password-self` | 본인 인증코드 확인 후 비밀번호 변경 |
+| `reset-user-password` | 관리자 전용 선생님 비밀번호 초기화 |
+| `send-email` | 이메일 발송 (Resend) |
+| `send-push` | 출석 알림 푸시 발송 |
+| `send-sms` | SMS/알림톡 발송 (Solapi) |
+
 ### 업체 포털 RLS 우회 — RPC 전환 (2026-06-12)
 
 `hq_vendors`, `hq_vendor_*`(subjects / products / contents / files / prices), `vendor_accounts` 테이블이 **`for all using (false)`** RLS로 완전 차단되어 있었음. 관리자 포함 anon 클라이언트의 직접 접근이 전부 막혀 있어 업체 관련 기능 전체가 동작 불가 상태였음.
@@ -824,7 +848,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 
 ### CORS
 
-- 모든 Edge Function(`send-email`, `send-sms`, `send-push`, `kakao-oauth`, `naver-oauth`, `reset-user-password`, `generate-vapid`)이 `ALLOWED_ORIGIN` 환경변수를 읽음
+- 모든 Edge Function(`send-email`, `send-sms`, `send-push`, `kakao-oauth`, `naver-oauth`, `reset-user-password`)이 `ALLOWED_ORIGIN` 환경변수를 읽음 (`generate-vapid`는 2026-06-12 삭제됨)
 - **미설정 시 `*`(전체 허용)으로 열림** — 신규 배포 시 반드시 설정 필요
 - 2026-06-12: 콤마(,)로 여러 도메인을 지정할 수 있도록 코드 수정 (예: `https://www.afterschoolrollbook.kr,https://afterschoolrollbook.kr`)
 - ⚠️ CORS는 브라우저에서의 호출만 제한함. `send-sms`/`send-email`의 `Authorization: Bearer` 검사는 anon key(공개값) 존재 여부만 확인하므로, 외부에서 anon key로 직접(curl 등) 호출하는 비용 남용은 별도 대응(요청 빈도 제한 등) 필요 — 별도 항목으로 검토 권장
@@ -838,7 +862,6 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
    supabase/functions/send-push/index.ts
    supabase/functions/kakao-oauth/index.ts
    supabase/functions/naver-oauth/index.ts
-   supabase/functions/generate-vapid/index.ts
    supabase/functions/reset-user-password/index.ts
    ```
 2. Supabase Dashboard → Edge Functions → **Secrets** → `ALLOWED_ORIGIN` 값을 아래로 설정(기존 값이 있어도 덮어쓰기)
@@ -867,7 +890,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 - [ ] Supabase Secrets에 `ALLOWED_ORIGIN` 설정
 - [ ] Supabase Secrets에 `SVC_ROLE_KEY` 설정
 - [ ] 관리자 계정으로 로그인 후 서비스 설정에서 Resend·Solapi 키, 소셜 로그인(네이버 Secret), NEIS API 키 등록
-- [ ] Edge Functions 전체 배포 (`setup.bat` 또는 `bash setup.sh`)
+- [ ] Edge Functions 배포 (`setup.bat` 또는 `bash setup.sh`) — `generate-vapid` 제외 (삭제됨)
 
 ### 기타
 
