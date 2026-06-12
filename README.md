@@ -512,7 +512,35 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 
 - 모든 Edge Function(`send-email`, `send-sms`, `send-push`, `kakao-oauth`, `naver-oauth`, `reset-user-password`, `generate-vapid`)이 `ALLOWED_ORIGIN` 환경변수를 읽음
 - **미설정 시 `*`(전체 허용)으로 열림** — 신규 배포 시 반드시 설정 필요
-- Supabase Dashboard → Settings → Edge Functions → Secrets → `ALLOWED_ORIGIN` = `https://your-domain.vercel.app`
+- 2026-06-12: 콤마(,)로 여러 도메인을 지정할 수 있도록 코드 수정 (예: `https://www.afterschoolrollbook.kr,https://afterschoolrollbook.kr`)
+- ⚠️ CORS는 브라우저에서의 호출만 제한함. `send-sms`/`send-email`의 `Authorization: Bearer` 검사는 anon key(공개값) 존재 여부만 확인하므로, 외부에서 anon key로 직접(curl 등) 호출하는 비용 남용은 별도 대응(요청 빈도 제한 등) 필요 — 별도 항목으로 검토 권장
+
+#### 설정 방법
+
+1. GitHub 저장소의 아래 7개 파일을 최신 코드(콤마 다중 도메인 지원)로 반영
+   ```
+   supabase/functions/send-email/index.ts
+   supabase/functions/send-sms/index.ts
+   supabase/functions/send-push/index.ts
+   supabase/functions/kakao-oauth/index.ts
+   supabase/functions/naver-oauth/index.ts
+   supabase/functions/generate-vapid/index.ts
+   supabase/functions/reset-user-password/index.ts
+   ```
+2. Supabase Dashboard → Edge Functions → **Secrets** → `ALLOWED_ORIGIN` 값을 아래로 설정(기존 값이 있어도 덮어쓰기)
+   ```
+   https://www.afterschoolrollbook.kr,https://afterschoolrollbook.kr
+   ```
+   (apex 도메인 접속이 안 되면 `https://www.afterschoolrollbook.kr` 하나만 입력해도 됨)
+3. 위 7개 함수를 **각각** Edge Functions → 해당 함수 → Code 탭에서 1번 코드로 교체 → **Deploy updates**
+   (Secrets는 공통 적용되지만 코드 자체는 함수별로 재배포해야 반영됨)
+
+#### 테스트 방법 (배포 후)
+
+- `https://www.afterschoolrollbook.kr`에서 정상 동작 확인: 카카오/네이버 로그인, 회원가입 시 이메일 인증코드 발송, 문자(SMS) 발송, 출석 알림 푸시
+- 브라우저 개발자 도구 → **Network** 탭에서 위 동작 중 호출되는 `*.supabase.co/functions/v1/...` 요청을 클릭 → **Response Headers**에서 `Access-Control-Allow-Origin` 값이 `https://www.afterschoolrollbook.kr`(요청한 도메인)으로 나오는지 확인
+  - 값이 `*`로 보이면 → `ALLOWED_ORIGIN`이 비어있거나 코드가 재배포되지 않은 상태
+  - 값이 빈 문자열이거나 요청 자체가 실패하면 → `ALLOWED_ORIGIN`에 등록된 도메인과 실제 접속 도메인이 다른 경우 (www 유무 등) — Secrets 값에 도메인 추가
 
 ### 배포 체크리스트
 
