@@ -1176,8 +1176,13 @@ create policy "teacher_parent_links_all" on teacher_parent_links for all using (
 
 -- settings RLS
 alter table if exists settings enable row level security;
+-- [보안] email/solapi/social_secret/regionMap_secret 키는 관리자(level>=10)만 조회 가능
+-- (Resend API Key, Solapi Key/Secret, 네이버 클라이언트 Secret, NEIS API Key 등 보호)
 drop policy if exists "settings_select" on settings;
-create policy "settings_select" on settings for select using (auth.uid() is not null);
+create policy "settings_select" on settings for select using (
+  is_admin()
+  or key not in ('email', 'solapi', 'social_secret', 'regionMap_secret')
+);
 drop policy if exists "settings_insert" on settings;
 create policy "settings_insert" on settings for insert with check (is_admin());
 drop policy if exists "settings_update" on settings;

@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Users, Classes, Students, Attendance, Branches, Settings } from '../lib/db.js'  // ✅ 버그수정: Branches 추가, 중복 import 정리
+import React, { useState, useEffect } from 'react'
+import { Users, Classes, Students, Attendance, Branches, Settings, SecretSettings } from '../lib/db.js'  // ✅ 버그수정: Branches 추가, 중복 import 정리
 import { uid, now } from '../lib/utils.js'                                      // ✅ 버그수정: uid 추가
 import { Btn, Card, PageHeader, Tag, Modal, Toggle, StatCard, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
@@ -238,9 +238,14 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
   const [neisSchoolStats, setNeisSchoolStats] = useState(null)   // NEIS 학생수 데이터
   const [neisLoading,     setNeisLoading]     = useState(false)
 
-  const neisApiKey = (() => {
-    try { return Settings.get('regionMap')?.neisApiKey || '' } catch { return '' }
-  })()
+  const [neisApiKey, setNeisApiKey] = useState('')
+
+  // [보안] NEIS API 키는 regionMap_secret 키에서 관리자만 조회 가능 (localStorage 미캐싱)
+  useEffect(() => {
+    SecretSettings.get('regionMap_secret').then(secret => {
+      if (secret?.neisApiKey) setNeisApiKey(secret.neisApiKey)
+    })
+  }, [])
 
   // 학교 선택 시 NEIS에서 성별 학생수 조회
   const fetchNeisSchoolStats = async (schoolName) => {

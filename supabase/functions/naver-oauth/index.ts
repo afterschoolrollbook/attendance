@@ -29,11 +29,13 @@ serve(async (req) => {
       Deno.env.get('SVC_ROLE_KEY')!,
     )
 
-    // settings 테이블에서 키 읽기
+    // settings 테이블에서 키 읽기 (client id는 social, secret은 social_secret - 보안 분리)
     const { data: socialCfg } = await adminClient.from('settings').select('value').eq('key', 'social').single()
+    const { data: socialSecretCfg } = await adminClient.from('settings').select('value').eq('key', 'social_secret').single()
     const cfg = socialCfg?.value || {}
-    const CLIENT_ID     = cfg.naverClientId     || Deno.env.get('NAVER_CLIENT_ID')     || ''
-    const CLIENT_SECRET = cfg.naverClientSecret || Deno.env.get('NAVER_CLIENT_SECRET') || ''
+    const secretCfg = socialSecretCfg?.value || {}
+    const CLIENT_ID     = cfg.naverClientId           || Deno.env.get('NAVER_CLIENT_ID')     || ''
+    const CLIENT_SECRET = secretCfg.naverClientSecret || Deno.env.get('NAVER_CLIENT_SECRET') || ''
 
     if (!CLIENT_ID || !CLIENT_SECRET) throw new Error('네이버 클라이언트 ID/Secret이 설정되지 않았습니다.')
 

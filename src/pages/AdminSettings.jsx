@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Settings, Students as StudentsDB, Classes as ClassesDB } from '../lib/db.js'
+import { Settings, SecretSettings, Students as StudentsDB, Classes as ClassesDB } from '../lib/db.js'
 import { FEATURES, FEATURE_LABELS, LEVEL_NAMES, LEVEL_COLORS } from '../constants/permissions.js'
 import { Card, PageHeader, Toggle, Btn, Modal, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
@@ -25,10 +25,19 @@ function SocialSection() {
   const [cfg, setCfg] = useState(init)
   const { success } = useToast()
 
+  // [보안] 네이버 클라이언트 Secret은 social_secret 키에 별도 저장 (관리자만 조회 가능, localStorage 미저장)
+  React.useEffect(() => {
+    SecretSettings.get('social_secret').then(secret => {
+      if (secret?.naverClientSecret) setCfg(p => ({ ...p, naverClientSecret: secret.naverClientSecret }))
+    })
+  }, [])
+
   const set = (k, v) => setCfg(p => ({ ...p, [k]: v }))
 
-  const save = () => {
-    Settings.set('social', cfg)
+  const save = async () => {
+    const { naverClientSecret, ...publicCfg } = cfg
+    Settings.set('social', publicCfg)
+    await SecretSettings.set('social_secret', { naverClientSecret: naverClientSecret || '' })
     success('수정이 완료되었습니다.')
   }
 
@@ -527,9 +536,16 @@ function PushSection() {
 
 function RegionSection() {
   const [regions,    setRegions]    = useState(() => (Settings.get('regionMap') || {}).regions    || [])
-  const [neisApiKey, setNeisApiKey] = useState(() => (Settings.get('regionMap') || {}).neisApiKey || '')
+  const [neisApiKey, setNeisApiKey] = useState('')
   const { success, toastError } = useToast()
   const confirm = useConfirm()
+
+  // [보안] NEIS API 키는 regionMap_secret 키에 별도 저장 (관리자만 조회 가능, localStorage 미저장)
+  React.useEffect(() => {
+    SecretSettings.get('regionMap_secret').then(secret => {
+      if (secret?.neisApiKey) setNeisApiKey(secret.neisApiKey)
+    })
+  }, [])
 
   // NEIS 학교 검색
   const [neisQuery,   setNeisQuery]   = useState('')
@@ -564,7 +580,6 @@ function RegionSection() {
   }
 
   const addFromNeis = (school) => {
-    const currentKey = neisApiKey  // 현재 입력된 키
     const existing = regions.find(r => r.support === school.support && r.sido === school.sido)
     let updated
     if (existing) {
@@ -575,7 +590,7 @@ function RegionSection() {
             : r
         )
         setRegions(updated)
-        Settings.set('regionMap', { regions: updated, neisApiKey: currentKey })
+        Settings.set('regionMap', { regions: updated })
         setNeisMsg({ ok:true, msg:`✅ ${school.name}을(를) "${school.support}"에 추가하고 저장했습니다.` })
       } else {
         setNeisMsg({ ok:false, msg:`${school.name}은(는) 이미 등록되어 있습니다.` })
@@ -588,7 +603,7 @@ function RegionSection() {
       }
       updated = [...regions, newEntry]
       setRegions(updated)
-      Settings.set('regionMap', { regions: updated, neisApiKey: currentKey })
+      Settings.set('regionMap', { regions: updated })
       setNeisMsg({ ok:true, msg:`✅ ${school.name}과(와) "${school.support}"을(를) 추가하고 저장했습니다.` })
     }
     // 저장 확인 로그
@@ -621,8 +636,9 @@ function RegionSection() {
 
   const SIDO_LIST = ['서울','부산','대구','인천','광주','대전','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주']
 
-  const saveAll = () => {
-    Settings.set('regionMap', { regions, neisApiKey })
+  const saveAll = async () => {
+    Settings.set('regionMap', { regions })
+    await SecretSettings.set('regionMap_secret', { neisApiKey })
     success('수정이 완료되었습니다.')
   }
 
