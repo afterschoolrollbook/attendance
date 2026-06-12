@@ -436,6 +436,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 9 | reset-password-self / reset-user-password 폴더 혼동 | ✅ 적용 (2026-06-12) | [바로가기](#reset-password-self--reset-user-password-폴더-혼동-수정-2026-06-12) |
 | 10 | `find_email_by_phone`/`get_invite_info`/`get_parent_dashboard` — 과도한 컬럼/원본 이메일 노출 | ✅ 적용 (2026-06-12) | [바로가기](#parent-rpc--아이디찾기-rpc-응답-데이터-최소화-2026-06-12) |
 | 11 | `parent_joined`/`moved_to_manage` boolean sanitize 누락 | ✅ 적용 (2026-06-12) | [바로가기](#parent-rpc--아이디찾기-rpc-응답-데이터-최소화-2026-06-12) |
+| 12 | `settings` 테이블 API 시크릿 노출 + 위장 `service role full access` 정책 제거 | ✅ 적용 (2026-06-12) | [바로가기](#settings-테이블-시크릿-노출--위장-service-role-정책-제거-2026-06-12) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -453,6 +454,11 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 - [ ] **(10) 아이디 찾기** — 가입된 전화번호 입력 → 마스킹된 이메일(`ab***@...`)이 이전과 동일하게 표시되는지
 - [ ] **(10) 학부모 초대 가입 / 재로그인** — 학생 이름·학년·반·연결된 수업·출석 현황이 평소처럼 모두 표시되는지 (RPC 응답을 필요한 컬럼만으로 줄였으므로, 빈 칸이 생기면 누락된 컬럼이 있다는 뜻)
 - [ ] **(11) 학생 정보 수정** — "학부모 가입"/"관리이동" 체크박스를 건드리지 않고 저장해도 정상 저장되는지
+- [ ] **(12) 관리자 — 소셜 로그인 설정** — AdminSettings → 소셜 로그인 탭에서 네이버 클라이언트 Secret이 정상적으로 표시/저장되는지
+- [ ] **(12) 관리자 — 지역/학교 관리** — AdminSettings → 지역/학교 관리 탭에서 NEIS API 키가 정상적으로 표시/저장되고, 학교 검색이 동작하는지
+- [ ] **(12) 관리자 — 지도 드릴다운** — Admin 화면의 지도에서 학교 선택 시 NEIS 학생수 통계가 정상적으로 조회되는지
+- [ ] **(12) 일반 강사 — 네트워크 응답 확인** — 일반 강사 계정으로 로그인 후 개발자도구 Network 탭에서 `settings` select 응답에 `email`/`solapi`/`social_secret`/`regionMap_secret`이 더 이상 포함되지 않는지
+- [ ] **(12) 일반 강사 — 포인트/지사 정보** — 포인트 내역, 지사 정보 표시 등 기존 기능이 RLS 정책 변경 후에도 정상 동작하는지
 
 각 항목의 상세 설명/원인은 위 표의 "바로가기" 링크에서 확인.
 
@@ -623,6 +629,35 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 
 - 학생 추가/수정 화면에서 "학부모 가입"/"관리이동" 관련 체크박스를 건드리지 않고 저장해도 오류 없이 저장되는지 확인
 
+### settings 테이블 시크릿 노출 + 위장 service role 정책 제거 (2026-06-12)
+
+**1) `settings` select 정책으로 API 시크릿이 모든 로그인 사용자에게 노출됨**
+
+`settings_select` 정책이 `auth.uid() is not null`로 되어 있어, 로그인한 사용자라면 권한 레벨과 무관하게 `settings` 테이블 전체를 select 할 수 있었음. `src/lib/db.js`의 `loadAll()`이 `supabase.from('settings').select('*')`를 그대로 호출하기 때문에, 응답 자체에 다음이 포함되어 있었음:
+
+- `email`(Resend API Key), `solapi`(API Key/Secret, 카카오 채널ID) — localStorage에는 저장되지 않지만 네트워크 응답에는 그대로 노출 → 개발자도구 Network 탭에서 누구나 확인 가능
+- `social`(네이버 클라이언트 ID/Secret, 카카오/구글 설정) — EXCLUDE 대상이 아니어서 `naverClientSecret`이 모든 사용자의 `localStorage(asa_settings_social)`에 평문 저장됨
+- `regionMap`(학교 지역 매핑 + NEIS API 키) — `neisApiKey`도 동일하게 평문 노출됨
+
+→ **수정**: `social.naverClientSecret`을 `social_secret` 키로, `regionMap.neisApiKey`를 `regionMap_secret` 키로 분리(`006_settings_secret_lockdown.sql`)하고, `settings_select` 정책을 `is_admin() OR key NOT IN ('email','solapi','social_secret','regionMap_secret')`로 변경. `src/lib/db.js`에 관리자 전용 `SecretSettings.get/set`(localStorage 미캐싱) 헬퍼를 추가하고, `AdminSettings.jsx`(소셜 로그인/지역 관리 탭)·`Admin.jsx`(지도 드릴다운 NEIS 조회)·`naver-oauth` Edge Function이 새 키 구조를 사용하도록 수정.
+
+**2) `settings`/`teacher_parent_links`/`points`/`branches`에 위장 "service role full access" 정책 존재**
+
+`pg_policies` 점검 중 4개 테이블에 `"service role full access"`라는 이름의 정책이 `roles={public}`, `qual=true`, `with_check=true`로 설정되어 있는 것을 발견. 이름과 달리 `service_role`이 아닌 **anon을 포함한 모든 사용자**에게 적용되며, 동일 명령에 대한 다른 정책과 OR로 합쳐지므로 `is_admin()` 등 다른 모든 제한을 무력화하는 치명적 정책이었음. (참고: Supabase service_role 키는 원래 RLS를 자동 우회하므로 이런 정책은 불필요함.)
+
+→ **수정** (`007_remove_public_service_role_policies.sql`):
+- `settings`, `teacher_parent_links`: 위장 정책 삭제만으로 충분 (기존 `settings_select`/`teacher_parent_links_all` 정책이 정상 보호)
+- `points`: 위장 정책 삭제 + `revenue_fees`와 동일 패턴(`teacher_id = get_my_user_id() OR is_admin()`)으로 `points_all` 정책 신규 추가
+- `branches`: 위장 정책 삭제 + `school_info`와 동일 패턴(select: 로그인 사용자 전체, write: 관리자만)으로 `branches_select`/`branches_write` 정책 신규 추가
+
+#### 테스트 방법
+
+- 관리자 계정: AdminSettings → 소셜 로그인 / 지역·학교 관리 탭에서 네이버 Secret·NEIS API 키가 정상 표시·저장되는지, Admin 지도 드릴다운에서 NEIS 학생수 조회가 동작하는지 확인
+- 일반 강사 계정: 로그인 후 개발자도구 Network 탭에서 `settings` select 응답에 `email`/`solapi`/`social_secret`/`regionMap_secret`이 없는지, 포인트·지사 정보 등 기존 기능이 정상 동작하는지 확인
+- `select * from pg_policies where qual = 'true' and policyname ilike '%service role%';` 결과가 빈 값인지 확인
+
+> ⚠️ 위 1)번 항목으로 인해 노출되었던 네이버 Client Secret / NEIS API Key(및 설정되어 있었다면 Resend/Solapi 키)는 재발급(rotate) 권장.
+
 ### Row Level Security (RLS)
 
 모든 핵심 테이블에 RLS 활성화 + 정책 적용 완료 (2026-06-12)
@@ -635,8 +670,10 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | `attendance` | `class_id → classes.teacher_id` 조인으로 본인 수업 출석만 접근 |
 | `notes` | `teacher_id = get_my_user_id()` 또는 관리자 |
 | `parent_members` | `teacher_id = get_my_user_id()` 또는 관리자 |
-| `teacher_parent_links` | `teacher_id = get_my_user_id()` 또는 관리자 |
-| `settings` | **select: 로그인 사용자만(`auth.uid() is not null`)**, insert/update/delete: 관리자만 |
+| `teacher_parent_links` | `teacher_id = get_my_user_id()` 또는 관리자 (위장 `service role full access` 정책 제거, 2026-06-12) |
+| `points` | `teacher_id = get_my_user_id()` 또는 관리자 (2026-06-12 신규 추가, 위장 `service role full access` 정책 대체) |
+| `branches` | select: 로그인 사용자 전체(`auth.uid() is not null`), write: 관리자만 (2026-06-12 신규 추가, 위장 `service role full access` 정책 대체) |
+| `settings` | **select: 관리자 또는 비민감 key**(`is_admin() OR key NOT IN ('email','solapi','social_secret','regionMap_secret')`), insert/update/delete: 관리자만 (2026-06-12 강화) |
 | `school_notices` | **select: 본인(`admin_id`) 또는 관리자**, write: 동일 |
 
 > `attendance`는 `teacher_id` 컬럼이 없으므로 `classes` 테이블 조인으로 소유권 확인.
@@ -699,15 +736,16 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 새 Supabase 프로젝트 생성 또는 재배포 시 반드시 확인:
 
 - [ ] `supabase/000_complete_schema.sql` 실행 (RLS + PIN 함수 포함)
+- [ ] (기존 운영 DB 재배포 시) `supabase/006_settings_secret_lockdown.sql`, `supabase/007_remove_public_service_role_policies.sql` 순서대로 실행 — `settings` 시크릿 분리/잠금 + 위장 `service role full access` 정책 제거
 - [ ] Supabase Secrets에 `ALLOWED_ORIGIN` 설정
 - [ ] Supabase Secrets에 `SVC_ROLE_KEY` 설정
-- [ ] 관리자 계정으로 로그인 후 서비스 설정에서 Resend·Solapi 키 등록
+- [ ] 관리자 계정으로 로그인 후 서비스 설정에서 Resend·Solapi 키, 소셜 로그인(네이버 Secret), NEIS API 키 등록
 - [ ] Edge Functions 전체 배포 (`setup.bat` 또는 `bash setup.sh`)
 
 ### 기타
 
-- `send-email` / `send-sms` Edge Function용 API 키(Resend, Solapi)는 `settings` 테이블에 저장되나, RLS로 관리자만 읽을 수 있음
-- `db.js` 동기화 시 `email` / `solapi` 키는 `localStorage`에 저장하지 않음 (`EXCLUDE_KEYS`)
+- `send-email` / `send-sms` Edge Function용 API 키(Resend, Solapi)는 `settings` 테이블에 저장되며, 2026-06-12부터 RLS로 관리자만 읽을 수 있음 (이전에는 로그인 사용자 전체가 select 가능했음 — 위 보안 점검 12번 항목 참고)
+- `db.js` 동기화 시 `email` / `solapi` / `social_secret` / `regionMap_secret` 키는 `localStorage`에 저장하지 않음 (`EXCLUDE_KEYS`). `social_secret`(네이버 Secret) / `regionMap_secret`(NEIS API 키)는 관리자 화면에서 `SecretSettings.get/set`으로 직접 조회·저장하며 항상 캐싱하지 않음
 - Supabase Auth 세션: `sessionStorage` 사용 (탭 닫으면 자동 로그아웃)
 - `send-sms` Edge Function: Bearer 토큰 인증 추가 (미인증 요청 401 차단) — URL 노출 시 무단 SMS 발송 방지
 - `AdSlot.jsx`: Blob API 실패 시 `dangerouslySetInnerHTML` 폴백 제거 → `null` 반환으로 변경 (XSS 방어)
