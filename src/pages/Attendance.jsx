@@ -3026,7 +3026,7 @@ function InactiveStudentRow({ s, idx }) {
 }
 
 // ─── 수업 1개 — 대시보드 카드 스타일 + 바로 아래 학생 출석 리스트
-function ClassAttendanceSection({ cls, date, allStudents, allClasses, user }) {
+function ClassAttendanceSection({ cls, date, allStudents, user }) {
   const today = todayStr()
   const [tick, setTick] = useState(0)
   const [msgStudent, setMsgStudent] = useState(null)
@@ -4530,7 +4530,9 @@ function MobileAttendance({ user, pageParams = {} }) {
   )
 }
 
-function DesktopAttendance({ user, pageParams = {}, onNav }) {
+export function Attendance({ user, pageParams = {}, onNav }) {
+  const isMobile = window.innerWidth <= 768
+  if (isMobile) return <MobileAttendance user={user} pageParams={pageParams} onNav={onNav} />
   const today = todayStr()
   const now_ = new Date()
   const allClasses = ClassesDB.byTeacher(user.id)
@@ -5106,18 +5108,3 @@ function DesktopAttendance({ user, pageParams = {}, onNav }) {
 }
 
 const selSt = { padding:'8px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', color:'#111827', cursor:'pointer', outline:'none', minWidth:'180px' }
-
-// ─── 모바일/데스크탑 분기 래퍼 (Rules of Hooks 위반 방지)
-// isMobile은 컴포넌트 상태로 관리하고, 그 값에 따라 서로 다른 컴포넌트를
-// 마운트/언마운트하는 방식이라 각 컴포넌트는 항상 동일한 순서로 hook을 호출한다.
-export function Attendance({ user, pageParams = {}, onNav }) {
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768)
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768)
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-  return isMobile
-    ? <MobileAttendance user={user} pageParams={pageParams} onNav={onNav} />
-    : <DesktopAttendance user={user} pageParams={pageParams} onNav={onNav} />
-}

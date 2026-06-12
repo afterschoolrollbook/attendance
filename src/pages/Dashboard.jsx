@@ -2656,7 +2656,9 @@ function MobileDashboard({ user, onNav, onLogout }) {
 //  DASHBOARD  메인 export
 // ═══════════════════════════════════════════════════════════════════
 
-function DesktopDashboard({ user, onNav, onLogout }) {
+export function Dashboard({ user, onNav, onLogout }) {
+  const isMobile = window.innerWidth <= 768
+  if (isMobile) return <MobileDashboard user={user} onNav={onNav} onLogout={onLogout} />
   const { settings, hideCard, toggleCard, resetAll } = useCardSettings(user.id)
   const [showSettings,    setShowSettings]    = useState(false)
   const [showInstallGuide, setShowInstallGuide] = useState(false)
@@ -3425,19 +3427,4 @@ function DesktopDashboard({ user, onNav, onLogout }) {
       )}
     </div>
   )
-}
-
-// ─── 모바일/데스크탑 분기 래퍼 (Rules of Hooks 위반 방지)
-// isMobile은 컴포넌트 상태로 관리하고, 그 값에 따라 서로 다른 컴포넌트를
-// 마운트/언마운트하는 방식이라 각 컴포넌트는 항상 동일한 순서로 hook을 호출한다.
-export function Dashboard({ user, onNav, onLogout }) {
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768)
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768)
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-  return isMobile
-    ? <MobileDashboard user={user} onNav={onNav} onLogout={onLogout} />
-    : <DesktopDashboard user={user} onNav={onNav} onLogout={onLogout} />
 }

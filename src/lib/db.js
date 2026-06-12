@@ -207,7 +207,7 @@ async function idbGet(table) {
       req.onsuccess = (e) => resolve(e.target.result || null)
       req.onerror   = ()  => resolve(null)
     })
-  } catch { return null }
+  } catch (e) { console.warn(`[IndexedDB] ${table} 읽기 실패:`, e.message); return null }
 }
 
 async function idbSet(table, data) {
@@ -220,7 +220,7 @@ async function idbSet(table, data) {
       tx.oncomplete = resolve
       tx.onerror    = resolve
     })
-  } catch {}
+  } catch (e) { console.warn(`[IndexedDB] ${table} 저장 실패:`, e.message) }
 }
 
 async function idbSetAll(dataMap) {
@@ -234,7 +234,7 @@ async function idbSetAll(dataMap) {
       tx.oncomplete = resolve
       tx.onerror    = resolve
     })
-  } catch {}
+  } catch (e) { console.warn('[IndexedDB] 전체 캐시 저장 실패:', e.message) }
 }
 
 // IndexedDB 전체 캐시 로드 → 인메모리 캐시에 반영
@@ -250,7 +250,7 @@ export async function loadCacheFromIDB() {
     }
   }))
   if (totalRows === 0) {
-    try { localStorage.removeItem('asa_last_sync_at') } catch {}
+    try { localStorage.removeItem('asa_last_sync_at') } catch (e) { console.warn('[localStorage] asa_last_sync_at 삭제 실패:', e.message) }
   }
 }
 
@@ -456,7 +456,7 @@ function getLastSyncAt() {
   try { return localStorage.getItem(LAST_SYNC_KEY) || null } catch { return null }
 }
 function setLastSyncAt(ts) {
-  try { localStorage.setItem(LAST_SYNC_KEY, ts) } catch {}
+  try { localStorage.setItem(LAST_SYNC_KEY, ts) } catch (e) { console.warn('[localStorage] asa_last_sync_at 저장 실패:', e.message) }
 }
 
 // ─── 초기화: Supabase에서 데이터 로드 (증분 동기화)
@@ -880,7 +880,7 @@ export const Settings = {
   getAll() {
     const r = {}
     Object.keys(localStorage).filter(k => k.startsWith('asa_settings_')).forEach(k => {
-      try { r[k.replace('asa_settings_', '')] = JSON.parse(localStorage.getItem(k)) } catch {}
+      try { r[k.replace('asa_settings_', '')] = JSON.parse(localStorage.getItem(k)) } catch (e) { console.warn(`[localStorage] ${k} 파싱 실패:`, e.message) }
     })
     return r
   },
