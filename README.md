@@ -723,6 +723,34 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 1. `/parent-login` → 전화번호 입력 → PIN 설정 화면 → 4자리 설정 → 재확인
 2. 대시보드 정상 로드 확인
 
+### `send-email` Edge Function 인증번호 노출 차단 (2026-06-12)
+
+Resend API 키가 설정되지 않은 상태에서 `send-email` Edge Function이 `{ success: true, dev: true, code: "인증번호" }`를 응답에 포함하고 있었음. 프론트(`Auth.jsx`, `Profile.jsx`)는 이 `devCode` 값을 state에 저장해 화면에 직접 표시 — 회원가입·비밀번호 초기화·본인 인증 흐름에서 인증번호가 UI에 노출되는 구조였음.
+
+**수정 내용:**
+
+- `supabase/functions/send-email/index.ts` — Resend 키 미설정 시 `503` 에러 반환으로 변경. 응답에 `code` 필드 제거
+- `src/pages/Auth.jsx` — `isDev`, `devCode`, `fpDev`, `verifyCode` state 및 dev 분기 전부 제거. 인증 실패 시 에러 메시지 표시
+- `src/pages/Profile.jsx` — `devCode` state 및 dev 분기 제거. Supabase 미설정 시 에러 메시지 표시
+
+**결과:** 어떤 환경에서도 인증번호가 화면·응답에 노출되는 경로 없음. Resend 키 미설정 시 인증 자체가 실패하여 관리자가 즉시 인지 가능.
+
+**적용 방법:**
+
+1. `supabase/functions/send-email/index.ts` 교체 후 Edge Function 재배포
+   ```
+   Supabase Dashboard → Edge Functions → send-email → Code → Deploy updates
+   ```
+2. 소스 파일 2개 교체 (이미 적용됨):
+   ```
+   src/pages/Auth.jsx
+   src/pages/Profile.jsx
+   ```
+
+**사이드 이펙트 없음:** `App.jsx`, `pages/App.jsx`, `Admin.jsx`의 `sendEmail` 호출은 모두 `try/catch`로 감싸져 있어 영향 없음. 정상 설정(Resend 키 등록) 환경에서 동작 100% 동일.
+
+---
+
 ### `generate-vapid` Edge Function 삭제 (2026-06-12)
 
 초기 VAPID 키 생성 후 설정 테이블(`settings`)에 저장한 뒤에는 이 함수가 불필요함. 그런데 별도 인증 체크 없이 anon 사용자도 호출 가능한 상태였음 — 외부에서 호출하면 새 VAPID 키쌍이 생성되어 기존 푸시 구독들이 전부 무효화될 수 있음.
@@ -887,6 +915,7 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 - [ ] (기존 운영 DB 재배포 시) `supabase/006_settings_secret_lockdown.sql`, `supabase/007_remove_public_service_role_policies.sql` 순서대로 실행 — `settings` 시크릿 분리/잠금 + 위장 `service role full access` 정책 제거
 - [ ] (기존 운영 DB 재배포 시) `supabase/migrations/20240001_vendor_rpc.sql` 실행 — 업체 포털 RPC 함수 26개 추가
 - [ ] (기존 운영 DB 재배포 시) `supabase/004_parent_app_rpc.sql` 재실행 — `get_parent_dashboard` PIN 검증 강제 추가
+- [ ] `supabase/functions/send-email/index.ts` 재배포 — Resend 키 미설정 시 인증번호 노출 차단
 - [ ] Supabase Secrets에 `ALLOWED_ORIGIN` 설정
 - [ ] Supabase Secrets에 `SVC_ROLE_KEY` 설정
 - [ ] 관리자 계정으로 로그인 후 서비스 설정에서 Resend·Solapi 키, 소셜 로그인(네이버 Secret), NEIS API 키 등록
@@ -894,6 +923,7 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 
 ### 기타
 
+- `send-email` Edge Function: Resend API 키 미설정 시 인증번호를 응답에 포함하던 dev 모드 제거 (2026-06-12). 키 미설정 시 503 에러 반환으로 변경 — 인증번호가 화면·응답에 노출되는 경로 완전 차단
 - `send-email` / `send-sms` Edge Function용 API 키(Resend, Solapi)는 `settings` 테이블에 저장되며, 2026-06-12부터 RLS로 관리자만 읽을 수 있음 (이전에는 로그인 사용자 전체가 select 가능했음 — 위 보안 점검 12번 항목 참고)
 - `db.js` 동기화 시 `email` / `solapi` / `social_secret` / `regionMap_secret` 키는 `localStorage`에 저장하지 않음 (`EXCLUDE_KEYS`). `social_secret`(네이버 Secret) / `regionMap_secret`(NEIS API 키)는 관리자 화면에서 `SecretSettings.get/set`으로 직접 조회·저장하며 항상 캐싱하지 않음
 - Supabase Auth 세션: `sessionStorage` 사용 (탭 닫으면 자동 로그아웃)
