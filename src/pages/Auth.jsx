@@ -616,14 +616,30 @@ export function Auth({ onLogin, initialTab }) {
     setForm({ name:'', email:'', pw:'', pw2:'', phone:'' })
   }
 
-  const handleFindId = () => {
+  const handleFindId = async () => {
+    setError('')
     const phone = findIdPhone.trim()
     if (!phone) { setError('연락처를 입력해주세요.'); return }
-    const all = Users.all()
-    const normalize = (p) => p.replace(/-/g, "")
-    const user = all.find(u => normalize(u.phone) === normalize(phone))
-    if (!user) { setFoundEmail('notfound'); return }
-    const [local, domain] = user.email.split('@')
+    const normalize = (p) => (p || '').replace(/[^0-9]/g, '')
+
+    let email = null
+    if (supabase) {
+      try {
+        const { data, error: rpcErr } = await supabase.rpc('find_email_by_phone', { p_phone: normalize(phone) })
+        if (rpcErr) throw rpcErr
+        email = data || null
+      } catch (e) {
+        console.warn('[Auth] find_email_by_phone 실패:', e.message)
+      }
+    } else {
+      // 로컬 개발 폴백
+      const all = Users.all()
+      const user = all.find(u => normalize(u.phone) === normalize(phone))
+      email = user?.email || null
+    }
+
+    if (!email) { setFoundEmail('notfound'); return }
+    const [local, domain] = email.split('@')
     const half = Math.ceil(local.length / 2)
     const masked = local.slice(0, half) + '*'.repeat(local.length - half) + '@' + domain
     setFoundEmail(masked)
@@ -635,15 +651,35 @@ export function Auth({ onLogin, initialTab }) {
     const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!fpEmail.trim()) { setError('이메일을 입력해주세요.'); return }
     if (!emailReg.test(fpEmail.trim())) { setError('올바른 이메일 형식이 아닙니다.'); return }
-    const all = Users.all()
-    const user = all.find(u => u.email === fpEmail.trim().toLowerCase())
-    if (!user) { setError('등록되지 않은 이메일입니다.'); return }
-    if (user.provider && user.provider !== 'email') {
-      setError(`${user.provider === 'google' ? 'Google' : user.provider === 'kakao' ? '카카오' : '네이버'} 소셜 로그인 계정입니다.\n해당 소셜 서비스에서 비밀번호를 관리해주세요.`)
+
+    const emailLower = fpEmail.trim().toLowerCase()
+    let found = false, provider = null
+
+    if (supabase) {
+      try {
+        const { data, error: rpcErr } = await supabase.rpc('get_user_auth_info', { p_email: emailLower })
+        if (rpcErr) throw rpcErr
+        const row = Array.isArray(data) ? data[0] : data
+        found = !!row?.found
+        provider = row?.provider || null
+      } catch (e) {
+        console.warn('[Auth] get_user_auth_info 실패:', e.message)
+      }
+    } else {
+      // 로컬 개발 폴백
+      const all = Users.all()
+      const user = all.find(u => u.email === emailLower)
+      found = !!user
+      provider = user?.provider || null
+    }
+
+    if (!found) { setError('등록되지 않은 이메일입니다.'); return }
+    if (provider && provider !== 'email') {
+      setError(`${provider === 'google' ? 'Google' : provider === 'kakao' ? '카카오' : '네이버'} 소셜 로그인 계정입니다.\n해당 소셜 서비스에서 비밀번호를 관리해주세요.`)
       return
     }
     setFpSending(true)
-    const result = await sendResetCode(fpEmail.trim().toLowerCase())
+    const result = await sendResetCode(emailLower)
     setFpSending(false)
     setFpCodeSent(true)
     setFpDev(result.dev ? result.devCode : '')
