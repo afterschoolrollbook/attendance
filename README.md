@@ -153,7 +153,12 @@ Supabase Dashboard → **Settings → API Keys** 에서 확인.
 |----------|------|
 | `send-email` | 이메일 발송 (Resend) |
 | `send-sms` | SMS/알림톡 발송 (Solapi) |
+| `send-push` | 출석 알림 푸시 발송 |
 | `naver-oauth` | 네이버 로그인 |
+| `kakao-oauth` | 카카오 로그인 |
+| `generate-vapid` | 푸시 알림용 VAPID 키 발급 |
+| `reset-user-password` | (관리자 전용) 다른 사용자 비밀번호 초기화 |
+| `reset-password-self` | (본인) 인증번호 확인 후 비밀번호 초기화 — 2026-06-12 추가 |
 
 ---
 
