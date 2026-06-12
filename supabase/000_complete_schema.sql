@@ -1233,10 +1233,25 @@ begin
      and pin_hash is not null and pin_hash = crypt(p_pin, pin_hash);
 end; $$;
 
-create or replace function withdraw_parent(p_phone text)
+create or replace function withdraw_parent(p_phone text, p_pin text default null)
 returns boolean language plpgsql security definer as $$
-declare v_member_id text; v_count int;
+declare
+  v_member_id  text;
+  v_pin_hash   text;
+  v_count      int;
 begin
+  select pin_hash into v_pin_hash
+    from parent_members
+   where regexp_replace(phone, '[^0-9]', '', 'g') = p_phone
+     and app_joined = true and withdrawn_at is null
+   limit 1;
+
+  if v_pin_hash is not null then
+    if p_pin is null or v_pin_hash != crypt(p_pin, v_pin_hash) then
+      return false;
+    end if;
+  end if;
+
   update parent_members
      set app_joined = false, withdrawn_at = now(),
          withdraw_reason = 'parent_request', updated_at = now()
