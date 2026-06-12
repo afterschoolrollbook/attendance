@@ -501,6 +501,8 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 26 | `setup.js` — Edge Functions 배포 목록이 4개(`send-email`, `send-sms`, `naver-oauth`, `reset-password-self`)로 `setup.sh`(7개)와 달라, Windows에서 `setup.bat` 실행 시 `kakao-oauth`·`send-push`·`reset-user-password` 3개가 누락 배포됨 | ✅ 수정 완료 (2026-06-13) | [바로가기](#setupjs--edge-functions-배포-목록-누락-수정-2026-06-13) |
 | 27 | `reset-password-self/index.ts` — 길이(8자)만 검사하고 특수문자 조건 없음. `reset-user-password/index.ts` — 길이도 검사 안 함. API 직접 호출로 `aaaaaaaa` 같은 비밀번호 설정 가능 | ✅ 수정 완료 (2026-06-13) | [바로가기](#reset-password-self--reset-user-password--서버-비밀번호-정책-검증-추가-2026-06-13) |
 | 28 | `naver-oauth/index.ts` · `kakao-oauth/index.ts` — Bearer 토큰 검사 없음. `send-sms`·`send-push`에는 있는데 누락되어 `ALLOWED_ORIGIN` 미설정 환경 또는 curl에서 소셜 로그인 플로우 강제 실행 가능 | ✅ 수정 완료 (2026-06-13) | [바로가기](#naver-oauth--kakao-oauth--bearer-토큰-검사-추가-2026-06-13) |
+| 29 | `20240001_vendor_rpc.sql` — `pw` 제외 수정 후 `VendorAuth.jsx` 로그인이 `acc.pw = undefined`로 항상 실패. `verify_vendor_login` RPC(서버에서 해시 비교 후 `pw` 제외 반환)를 추가하고 로그인 흐름을 교체. `get_vendor_account_for_login`(pw 클라이언트 반환 방식) → `verify_vendor_login`(서버 검증 방식)으로 최종 적용 (2026-06-13) | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx--로그인-pw-검증-누락-수정-2026-06-13) |
+| 30 | `VendorAuth.jsx` — 업체 비밀번호 정책이 강사 계정(`Auth.jsx`)과 불일치. 가입·비밀번호 초기화 모두 특수문자 조건 없이 영문+숫자(8자)만 요구 → 특수문자 1개 이상 조건 추가 | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx--업체-비밀번호-정책-특수문자-추가-2026-06-13) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -965,6 +967,85 @@ if (!authHeader.startsWith('Bearer ')) {
 
 ---
 
+### `VendorAuth.jsx` — 로그인 `pw` 검증 누락 수정 (2026-06-13)
+
+25번 항목(`vendor_accounts` `SELECT *` → 명시적 컬럼)으로 `pw`가 RPC 응답에서 제외된 이후, `VendorAuth.jsx` 로그인 흐름이 `acc.pw = undefined`로 `verifyPassword(plain, undefined)` → 항상 `false`를 반환해 업체 로그인이 100% 실패하는 상태였음.
+
+**수정 내용 — 서버 검증 방식 적용:**
+
+`get_vendor_account_for_login`(pw 포함 반환) 방식을 거치지 않고, `verify_vendor_login(p_email, p_pw_hash)` RPC로 최종 적용. 클라이언트에서 먼저 PBKDF2 해시를 생성한 뒤 서버에 전달하면, 서버가 DB 해시와 직접 비교하고 일치할 때만 `pw` 제외한 계정 정보를 반환. 불일치·계정 없음은 모두 `NULL` 반환(timing attack 방지 — 오류 메시지 통일로 계정 존재 여부도 숨김).
+
+```sql
+-- 일치 시 pw 제외한 acc 반환, 불일치·계정없음 시 NULL
+CREATE OR REPLACE FUNCTION verify_vendor_login(p_email text, p_pw_hash text)
+RETURNS json LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_acc  vendor_accounts%ROWTYPE;
+  v_result json;
+BEGIN
+  SELECT * INTO v_acc FROM vendor_accounts
+  WHERE LOWER(email) = LOWER(p_email) LIMIT 1;
+
+  IF NOT FOUND OR v_acc.pw IS DISTINCT FROM p_pw_hash THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT row_to_json(r) INTO v_result
+  FROM (SELECT id, vendor_id, email, name, created_at
+        FROM vendor_accounts WHERE id = v_acc.id LIMIT 1) r;
+  RETURN v_result;
+END;
+$$;
+```
+
+로그인 흐름 변경:
+```js
+// 수정 전 — acc.pw가 없어서 항상 실패
+const acc = await VendorAccounts.byEmail(email.trim())
+if (!acc || !(await verifyPassword(pw, acc.pw))) { ... }
+
+// 수정 후 — 클라이언트에서 해시 생성 → 서버에서 비교, pw 해시가 네트워크 응답에 포함되지 않음
+const hashedPw = await hashPassword(pw)
+const acc = await vendorRpc.verifyLogin(email.trim(), hashedPw)
+if (!acc) { ... }
+```
+
+불필요해진 `verifyPassword`·`isHashed` import 제거, `src/lib/supabase.js`에 `vendorRpc.verifyLogin` 헬퍼 추가.
+
+**수정 파일:** `supabase/migrations/20240001_vendor_rpc.sql`, `src/pages/VendorAuth.jsx`, `src/lib/supabase.js`
+
+**적용 방법:** Supabase Dashboard → SQL Editor에서 `20240001_vendor_rpc.sql` 전체 재실행.
+
+---
+
+### `VendorAuth.jsx` — 업체 비밀번호 정책 특수문자 추가 (2026-06-13)
+
+강사 계정(`Auth.jsx`)은 비밀번호에 "8자 이상 + 영문 + 숫자 + **특수문자**" 3가지를 모두 요구하는데, 업체 포털(`VendorAuth.jsx`)은 가입·비밀번호 초기화 모두 특수문자 조건이 없어 `aaaa1111` 같은 단순 비밀번호 설정이 가능했음.
+
+**수정 내용:**
+
+가입(`RegisterTab.handleRegister`)과 비밀번호 초기화(`ResetPwTab.handleReset`) 두 곳에 동일한 특수문자 조건 추가:
+
+```js
+// 수정 전 (가입·초기화 공통)
+if (pw.length < 8) { ... }
+if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(pw)) { ... }
+// 특수문자 체크 없음
+
+// 수정 후
+if (pw.length < 8) { ... }
+if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(pw)) { ... }
+if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw)) {
+  setErr('비밀번호는 특수문자를 하나 이상 포함해야 합니다.'); return
+}
+```
+
+비밀번호 입력 레이블도 `"8자 이상, 영문+숫자"` → `"8자 이상, 영문+숫자+특수문자"`로 수정. `ResetPwTab`의 버튼 `disabled` 조건에도 특수문자 체크 추가.
+
+**수정 파일:** `src/pages/VendorAuth.jsx`
+
+---
+
 ### `setup.js` — Edge Functions 배포 목록 누락 수정 (2026-06-13)
 
 `setup.sh`(macOS/Linux)는 7개 함수를 배포하는데, Windows용 `setup.bat` → `node setup.js`는 4개만 배포하고 있었음. `kakao-oauth`(카카오 로그인), `send-push`(푸시 알림), `reset-user-password`(관리자 비밀번호 초기화) 3개가 누락되어, Windows에서 초기 세팅 시 해당 기능들이 동작하지 않는 상태가 됨.
@@ -1215,4 +1296,4 @@ const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUser
 - Supabase Auth 세션: `sessionStorage` 사용 (탭 닫으면 자동 로그아웃)
 - `send-sms` Edge Function: Bearer 토큰 인증 추가 (미인증 요청 401 차단) — URL 노출 시 무단 SMS 발송 방지
 - `AdSlot.jsx`: Blob API 실패 시 `dangerouslySetInnerHTML` 폴백 제거 → `null` 반환으로 변경 (XSS 방어)
-- 비밀번호 정책: 8자 이상 + 영문 + 숫자 + **특수문자** 조합 필수 (회원가입·비밀번호 재설정 모두 적용)
+- 비밀번호 정책: 8자 이상 + 영문 + 숫자 + **특수문자** 조합 필수 (강사 회원가입·비밀번호 재설정, 업체 포털 가입·비밀번호 초기화 모두 적용)
