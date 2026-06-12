@@ -809,6 +809,35 @@ Supabase Dashboard → SQL Editor → supabase/008_verify_codes_rls.sql 전체 �
 
 ---
 
+### `withdraw_parent` RPC — PIN 검증 추가 (2026-06-12)
+
+전화번호만 알면 anon이 `withdraw_parent` RPC를 직접 호출해 학부모를 강제 탈퇴시킬 수 있었음. 프론트 흐름상 PIN 검증 후에만 탈퇴 버튼이 노출되지만, RPC 자체에는 검증이 없었음.
+
+**수정 내용:**
+
+`withdraw_parent(p_phone, p_pin DEFAULT NULL)` — `p_pin` 파라미터 추가, 내부 PIN 검증 로직 삽입 (`verify_parent_pin`과 동일한 `pgcrypto crypt` 패턴)
+
+| 상황 | 동작 |
+|------|------|
+| `pin_hash` 설정된 회원 + 올바른 PIN | ✅ 탈퇴 처리 |
+| `pin_hash` 설정된 회원 + PIN 없거나 틀림 | ❌ `false` 반환 (오류 메시지 없음 — timing attack 방지) |
+| `pin_hash` 미설정 회원 (초대 직후) | ✅ PIN 없이 허용 — 기존 동작 유지 |
+
+- `supabase/009_withdraw_parent_pin.sql` — 신규 파일 (기존 운영 DB에 적용)
+- `supabase/000_complete_schema.sql` — `withdraw_parent` 함수 업데이트
+- `src/pages/ParentLogin.jsx` — PIN 검증/설정 성공 시 `verifiedPin` state 보관, `ParentHome`에 전달
+- `src/pages/ParentInvite.jsx` — `WithdrawSection`에 `pin` prop 추가, RPC 호출 시 `p_pin` 전달
+
+**사이드 이펙트 없음:** `pin_hash` 미설정 회원은 기존과 동일하게 동작. `verifiedPin`은 기본값 `''`이므로 초대 직후 탈퇴 플로우도 정상.
+
+---
+
+### `src/pages/App.jsx` 삭제 (2026-06-12)
+
+`src/main.jsx`는 `src/App.jsx`를 import하며, `src/pages/App.jsx`는 어디서도 import되지 않는 데드 파일이었음. `src/App.jsx`에는 `toastError()`로 처리되어 있으나 `src/pages/App.jsx`에는 `alert()`가 잔존 — 혼란 방지를 위해 삭제.
+
+---
+
 ### `send-email` Edge Function 인증번호 노출 차단 (2026-06-12)
 
 Resend API 키가 설정되지 않은 상태에서 `send-email` Edge Function이 `{ success: true, dev: true, code: "인증번호" }`를 응답에 포함하고 있었음. 프론트(`Auth.jsx`, `Profile.jsx`)는 이 `devCode` 값을 state에 저장해 화면에 직접 표시 — 회원가입·비밀번호 초기화·본인 인증 흐름에서 인증번호가 UI에 노출되는 구조였음.
@@ -955,7 +984,7 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 |------|------|
 | `set_parent_pin(phone, pin)` | PIN을 `pgcrypto crypt(bcrypt)` 해시로 저장 |
 | `verify_parent_pin(phone, pin)` | PIN 검증 후 `parent_members` 행 반환 |
-| `withdraw_parent(phone)` | 학부모 탈퇴 처리 (RLS 우회용 security definer) |
+| `withdraw_parent(phone, pin)` | 학부모 탈퇴 처리 — PIN 검증 후 처리 (pin_hash 미설정 회원은 PIN 없이 허용, 2026-06-12 PIN 검증 추가) |
 | `check_parent_joined(phone)` | 가입 여부 확인 |
 
 - `parent_members.pin_hash` 컬럼 추가 (nullable, bcrypt 해시 저장)
@@ -1002,6 +1031,7 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 - [ ] (기존 운영 DB 재배포 시) `supabase/006_settings_secret_lockdown.sql`, `supabase/007_remove_public_service_role_policies.sql` 순서대로 실행 — `settings` 시크릿 분리/잠금 + 위장 `service role full access` 정책 제거
 - [ ] (기존 운영 DB 재배포 시) `supabase/migrations/20240001_vendor_rpc.sql` 실행 — 업체 포털 RPC 함수 26개 추가
 - [ ] (기존 운영 DB 재배포 시) `supabase/008_verify_codes_rls.sql` 실행 — `verify_codes` RLS 활성화
+- [ ] (기존 운영 DB 재배포 시) `supabase/009_withdraw_parent_pin.sql` 실행 — `withdraw_parent` PIN 검증 추가
 - [ ] (기존 운영 DB 재배포 시) `supabase/004_parent_app_rpc.sql` 재실행 — `get_parent_dashboard` PIN 검증 강제 추가
 - [ ] `supabase/functions/send-email/index.ts` 재배포 — Resend 키 미설정 시 인증번호 노출 차단
 - [ ] Supabase Secrets에 `ALLOWED_ORIGIN` 설정
