@@ -497,6 +497,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 22 | `App.jsx` — `BlogWrite`에 `onLogout` prop 누락으로 헤더 🚪 로그아웃 버튼 클릭 시 아무 반응 없음 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--blogwrite-onlogout-prop-누락-수정-2026-06-12) |
 | 23 | `ParentInvite.jsx` 160번 줄 주석 — `withdraw_parent` 서명이 구버전(`p_phone`만)으로 남아 있어 실제 RPC 서명(`p_phone, p_pin DEFAULT NULL`)과 불일치 | ✅ 수정 완료 (2026-06-12) | [바로가기](#parentinvitejsx--withdraw_parent-주석-서명-업데이트-2026-06-12) |
 | 24 | `App.jsx` — `pageProps`에 `onLogout` 누락으로 Dashboard 헤더(모바일/PC) 🚪 로그아웃 버튼 클릭 시 `undefined()` 호출, 아무 반응 없음 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--pageprops-onlogout-누락-수정-2026-06-12) |
+| 25 | `20240001_vendor_rpc.sql` — `get_vendor_account_by_email`, `get_vendor_account_by_vendor_id`, `upsert_vendor_account` 3개 함수가 `SELECT *`로 `pw`(비밀번호 해시)를 클라이언트에 반환 | ✅ 수정 완료 (2026-06-12) | [바로가기](#20240001_vendor_rpcsql--vendor_accounts-pw-컬럼-노출-수정-2026-06-12) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -916,6 +917,37 @@ case 'blog_write':  return <BlogWrite user={user} onLogout={handleLogout} />
 `handleLogout`은 이미 `Sidebar`에 `onLogout={handleLogout}`으로 전달되고 있는 동일 함수.
 
 **수정 파일:** `src/App.jsx`
+
+---
+
+### `20240001_vendor_rpc.sql` — `vendor_accounts` `pw` 컬럼 노출 수정 (2026-06-12)
+
+`get_vendor_account_by_email`, `get_vendor_account_by_vendor_id`, `upsert_vendor_account` 3개 RPC가 모두 `SELECT * FROM vendor_accounts`로 응답을 반환하고 있어, 비밀번호 해시(`pw`)가 Network 응답과 브라우저 메모리에 그대로 노출되는 상태였음.
+
+`VendorAuth.jsx`에서 `const { pw: _pw, ...safeAcc } = acc`로 localStorage 저장 전에 제거하고 있었지만, RPC 응답 시점(Network 탭)과 메모리상의 `acc` 객체에는 해시가 존재했음.
+
+**수정 내용:**
+
+`SELECT *` → 필요한 컬럼(`id, vendor_id, email, name, created_at`)만 명시적으로 지정:
+
+```sql
+-- 수정 전 (3개 함수 모두 동일)
+FROM (SELECT * FROM vendor_accounts WHERE ...) r;
+
+-- 수정 후
+FROM (SELECT id, vendor_id, email, name, created_at
+      FROM vendor_accounts WHERE ...) r;
+```
+
+`VendorAuth.jsx`도 함께 정리:
+- 로그인 흐름(129번): RPC 응답에 `pw`가 없으므로 `{ pw: _pw, ...safeAcc }` 구조분해 제거 → `acc` 그대로 사용
+- 가입 흐름(499번): 로컬 `acc` 객체(`pw` 포함)를 DB 저장용(`accForSave`)과 세션용(`sessionAcc`)으로 분리 → `pw`가 localStorage/메모리에 올라가지 않음
+
+**수정 파일:**
+- `supabase/migrations/20240001_vendor_rpc.sql`
+- `src/pages/VendorAuth.jsx`
+
+**적용 방법:** Supabase Dashboard → SQL Editor에서 `supabase/migrations/20240001_vendor_rpc.sql` 전체 재실행 (`create or replace`이므로 안전하게 덮어써짐).
 
 ---
 
