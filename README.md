@@ -490,47 +490,55 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 15 | `generate-vapid` Edge Function — 인증 없이 누구나 호출 가능 | ✅ 삭제 완료 (2026-06-12) | [바로가기](#generate-vapid-edge-function-삭제-2026-06-12) |
 | 16 | `db-api` Edge Function 배포 목록 잔존 여부 재확인 | ✅ 없음 확인 (2026-06-12) | — |
 | 17 | `setup.sh`에 `generate-vapid` 배포 라인 잔존 — `bash setup.sh` 실행 시 삭제된 함수가 재배포됨 | ✅ 제거 완료 (2026-06-12) | [바로가기](#generate-vapid-edge-function-삭제-2026-06-12) |
-| 18 | `App.jsx` — `blog_write` / `myblog` 라우팅 누락으로 메뉴 클릭 시 대시보드로 떨어짐 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--blog_write--myblog-라우팅-누락-수정-2026-06-12) |
+| 18 | `App.jsx` — `blog_write` 라우팅 누락으로 메뉴 클릭 시 대시보드로 떨어짐 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--blog_write-라우팅-누락-수정-2026-06-12) |
 | 19 | `reset-user-password/index.ts` — 다중 도메인 CORS 미지원 (단일 문자열 비교로 남아있어 `ALLOWED_ORIGIN` 콤마 설정 시 CORS 오류) | ✅ 수정 완료 (2026-06-12) | [바로가기](#cors) |
 | 20 | `vercel.json` CSP `connect-src` — `https://open.neis.go.kr` 누락으로 NEIS 학교 검색 시 CSP 위반 차단 | ✅ 수정 완료 (2026-06-12) | [바로가기](#csp-헤더-verceljson) |
 | 21 | `send-push/index.ts` — Authorization 검사 없음 (curl 등 직접 호출로 학부모 기기에 임의 푸시 가능) | ✅ 수정 완료 (2026-06-12) | [바로가기](#send-pushindexts--authorization-검사-추가-2026-06-12) |
-| 22 | `App.jsx` — `BlogWrite` / `MyBlog`에 `onLogout` prop 누락으로 헤더 🚪 로그아웃 버튼 클릭 시 아무 반응 없음 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--blogwrite--myblog-onlogout-prop-누락-수정-2026-06-12) |
+| 22 | `App.jsx` — `BlogWrite`에 `onLogout` prop 누락으로 헤더 🚪 로그아웃 버튼 클릭 시 아무 반응 없음 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--blogwrite-onlogout-prop-누락-수정-2026-06-12) |
 | 23 | `ParentInvite.jsx` 160번 줄 주석 — `withdraw_parent` 서명이 구버전(`p_phone`만)으로 남아 있어 실제 RPC 서명(`p_phone, p_pin DEFAULT NULL`)과 불일치 | ✅ 수정 완료 (2026-06-12) | [바로가기](#parentinvitejsx--withdraw_parent-주석-서명-업데이트-2026-06-12) |
 
 ### 🔲 남은 테스트 체크리스트
 
-코드/설정은 모두 적용되었으나, 실제 사이트(`https://www.afterschoolrollbook.kr`)에서 아직 동작 확인이 안 된 항목들. 시간 될 때 하나씩 체크.
+코드/설정은 모두 적용되었으나, 실제 사이트(`https://www.afterschoolrollbook.kr`)에서 아직 동작 확인이 안 된 항목들.
 
-- [ ] **(1) db-api 삭제** — 평소처럼 로그인/학생 관리/출석 체크가 정상 동작하는지
-- [ ] **(2) 카카오 로그인** — 정상 로그인 + 강사 화면 진입
-- [ ] **(2) 네이버 로그인** — 정상 로그인 + 강사 화면 진입
-- [ ] **(3) 학부모 초대 가입** — 초대 링크 → 약관동의 → 가입 → 학생/수업/출석 화면 표시
-- [ ] **(3) 학부모 재로그인** — `/parent-login` → 전화번호 → PIN → 가입 때와 동일한 화면
-- [ ] **(4) 아이디 찾기** — 가입된 전화번호 → 마스킹된 이메일 표시
-- [ ] **(4) 비밀번호 초기화(본인)** — 인증번호 확인 → 새 비밀번호 설정 → **새 비밀번호로 로그인** 성공 → 같은 인증번호 재사용 시 거부
-- [x] **(5) CORS** — 로그인/이메일 인증/문자발송/푸시 등 정상 동작 (개발자도구 Network에서 `Access-Control-Allow-Origin` 값 확인 시 `*`가 아닌 실제 도메인인지)
-- [ ] **(9) 관리자 비밀번호 초기화** — Admin 화면에서 다른 강사 비밀번호 초기화 정상 동작
-- [ ] **(10) 아이디 찾기** — 가입된 전화번호 입력 → 마스킹된 이메일(`ab***@...`)이 이전과 동일하게 표시되는지
-- [ ] **(10) 학부모 초대 가입 / 재로그인** — 학생 이름·학년·반·연결된 수업·출석 현황이 평소처럼 모두 표시되는지 (RPC 응답을 필요한 컬럼만으로 줄였으므로, 빈 칸이 생기면 누락된 컬럼이 있다는 뜻)
-- [ ] **(11) 학생 정보 수정** — "학부모 가입"/"관리이동" 체크박스를 건드리지 않고 저장해도 정상 저장되는지
-- [ ] **(12) 관리자 — 소셜 로그인 설정** — AdminSettings → 소셜 로그인 탭에서 네이버 클라이언트 Secret이 정상적으로 표시/저장되는지
-- [ ] **(12) 관리자 — 지역/학교 관리** — AdminSettings → 지역/학교 관리 탭에서 NEIS API 키가 정상적으로 표시/저장되고, 학교 검색이 동작하는지
-- [ ] **(12) 관리자 — 지도 드릴다운** — Admin 화면의 지도에서 학교 선택 시 NEIS 학생수 통계가 정상적으로 조회되는지
-- [ ] **(12) 일반 강사 — 네트워크 응답 확인** — 일반 강사 계정으로 로그인 후 개발자도구 Network 탭에서 `settings` select 응답에 `email`/`solapi`/`social_secret`/`regionMap_secret`이 더 이상 포함되지 않는지
-- [ ] **(12) 일반 강사 — 포인트/지사 정보** — 포인트 내역, 지사 정보 표시 등 기존 기능이 RLS 정책 변경 후에도 정상 동작하는지
-- [ ] **(13) 업체 로그인** — `?vendor=1` 경로에서 업체 이메일/비밀번호로 로그인이 성공하는지 ("이메일 또는 비밀번호가 올바르지 않습니다" 오류가 더 이상 나지 않는지)
-- [ ] **(13) 업체 가입** — 본사에 등록된 전화번호/이메일 확인 → 이메일 인증 → 계정 생성이 정상 완료되는지
-- [ ] **(13) 관리자 업체 관리** — 사이드바 업체 관리 화면에서 목록이 로드되고, 업체 등록/수정/삭제/초대가 정상 동작하는지
-- [ ] **(13) 업체 앱** — 로그인 후 과목·교구·차시·파일·단가 조회 및 저장이 모두 정상 동작하는지
-- [ ] **(14) 학부모 재로그인** — PIN 검증 후 대시보드가 정상 로드되는지 (PIN 없이 phone만으로 RPC 직접 호출 시 빈 데이터 반환되는지)
-- [ ] **(14) 학부모 초대 가입 직후** — PIN 미설정 상태에서 대시보드가 정상 로드되는지 (가입 플로우 깨지지 않는지)
-- [ ] **(14) 학부모 PIN 설정 첫 로그인** — PIN 설정 완료 후 대시보드가 정상 로드되는지
+#### 🔐 로그인 / 인증
 
-각 항목의 상세 설명/원인은 위 표의 "바로가기" 링크에서 확인.
+- [ ] 일반 이메일 로그인 — 평소처럼 로그인/학생 관리/출석 체크가 정상 동작하는지
+- [ ] 카카오 로그인 — 정상 로그인 + 강사 화면 진입
+- [ ] 네이버 로그인 — 정상 로그인 + 강사 화면 진입
+- [ ] 아이디 찾기 — 가입된 전화번호 입력 → 마스킹된 이메일(`ab***@...`) 표시
+- [ ] 비밀번호 초기화(본인) — 인증번호 확인 → 새 비밀번호 설정 → **새 비밀번호로 로그인** 성공 → 같은 인증번호 재사용 시 거부
+- [x] CORS — 로그인/이메일 인증/문자발송/푸시 등 정상 동작 (개발자도구 Network에서 `Access-Control-Allow-Origin` 값이 `*`가 아닌 실제 도메인인지 확인)
 
-> ✅ **(5) `generate-vapid` 삭제** — 2026-06-12 완료  
-> ✅ **(7) `db-api` 배포 목록 없음** — 2026-06-12 현장 확인 완료 (총 7개 함수, db-api 없음)  
-> ✅ **(19) `reset-user-password` 다중 도메인 CORS** — GitHub 커밋 + Supabase 재배포 완료
+#### 👥 학생 관리
+
+- [ ] 학생 정보 수정 — "학부모 가입"/"관리이동" 체크박스를 건드리지 않고 저장해도 정상 저장되는지
+
+#### 👨‍👩‍👧 학부모 포털
+
+- [ ] 학부모 초대 가입 — 초대 링크 → 약관동의 → 가입 → 학생/수업/출석 화면 표시. 학생 이름·학년·반·연결된 수업·출석 현황이 모두 표시되는지 (빈 칸이 생기면 RPC 응답에 누락된 컬럼이 있다는 뜻)
+- [ ] 학부모 재로그인 — `/parent-login` → 전화번호 → PIN → 가입 때와 동일한 화면
+- [ ] 학부모 PIN 설정 첫 로그인 — PIN 설정 완료 후 대시보드가 정상 로드되는지
+- [ ] PIN 없이 RPC 직접 호출 차단 — phone만으로 `get_parent_dashboard` 호출 시 빈 데이터 반환되는지
+
+#### 🏢 업체 포털
+
+- [ ] 업체 로그인 — `?vendor=1` 경로에서 업체 이메일/비밀번호로 로그인 성공하는지
+- [ ] 업체 가입 — 본사에 등록된 전화번호/이메일 확인 → 이메일 인증 → 계정 생성 정상 완료
+- [ ] 업체 앱 — 로그인 후 과목·교구·차시·파일·단가 조회 및 저장이 모두 정상 동작하는지
+
+#### ⚙️ 관리자
+
+- [ ] 관리자 비밀번호 초기화 — Admin 화면에서 다른 강사 비밀번호 초기화 정상 동작
+- [ ] 업체 관리 — 사이드바 업체 관리 화면에서 목록이 로드되고, 업체 등록/수정/삭제/초대가 정상 동작하는지
+- [ ] 소셜 로그인 설정 — AdminSettings → 소셜 로그인 탭에서 네이버 클라이언트 Secret이 정상적으로 표시/저장되는지
+- [ ] 지역/학교 관리 — AdminSettings → 지역/학교 관리 탭에서 NEIS API 키가 정상적으로 표시/저장되고, 학교 검색이 동작하는지
+- [ ] 지도 드릴다운 — Admin 화면의 지도에서 학교 선택 시 NEIS 학생수 통계가 정상적으로 조회되는지
+
+#### 🔍 보안 / 데이터 확인
+
+- [ ] 일반 강사 네트워크 응답 — 로그인 후 개발자도구 Network 탭에서 `settings` select 응답에 `email`/`solapi`/`social_secret`/`regionMap_secret`이 포함되지 않는지
+- [ ] 일반 강사 기존 기능 — 포인트 내역, 지사 정보 표시 등이 RLS 정책 변경 후에도 정상 동작하는지
 
 ### db-api Edge Function 제거 (2026-06-12)
 
@@ -661,7 +669,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 
 #### 테스트 방법
 
-- Supabase Dashboard → Edge Functions 목록에 `reset-password-self`와 `reset-user-password`가 **각각 별도 함수로** 존재하는지 확인 (총 8개)
+- Supabase Dashboard → Edge Functions 목록에 `reset-password-self`와 `reset-user-password`가 **각각 별도 함수로** 존재하는지 확인 (총 7개)
 - 관리자 화면 → "선생님 비밀번호 초기화" → 정상 동작 확인 (관리자 권한 없는 계정으로 시도 시 거부되는지도 확인 가능하면 함께 확인)
 - 로그인 화면 → "비밀번호 초기화"(본인) → 8번 항목의 테스트 방법대로 재확인
 
@@ -870,11 +878,11 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 | `send-push` | 출석 알림 푸시 발송 |
 | `send-sms` | SMS/알림톡 발송 (Solapi) |
 
-### `App.jsx` — `blog_write` / `myblog` 라우팅 누락 수정 (2026-06-12)
+### `App.jsx` — `blog_write` 라우팅 누락 수정 (2026-06-12)
 
-`Sidebar.jsx`에 `path: 'blog_write'`가 메뉴로 등록되어 있었으나 `App.jsx`의 라우팅 switch에 `case 'blog_write':` 가 없었음. `BlogWrite.jsx` / `MyBlog.jsx` import도 누락. 누구든 블로그 글쓰기 메뉴를 클릭하면 default 케이스인 대시보드로 떨어지는 버그.
+`Sidebar.jsx`에 `path: 'blog_write'`가 메뉴로 등록되어 있었으나 `App.jsx`의 라우팅 switch에 `case 'blog_write':` 가 없었음. `BlogWrite.jsx` import도 누락. 블로그 메뉴를 클릭하면 default 케이스인 대시보드로 떨어지는 버그.
 
-→ `App.jsx` 상단에 `BlogWrite` / `MyBlog` import 추가, switch에 `case 'blog_write':` / `case 'myblog':` 케이스 추가.
+→ `App.jsx` 상단에 `BlogWrite` import 추가, switch에 `case 'blog_write':` 케이스 추가.
 
 **수정 파일:** `src/App.jsx`
 
@@ -892,18 +900,16 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 
 ---
 
-### `App.jsx` — `BlogWrite` / `MyBlog` `onLogout` prop 누락 수정 (2026-06-12)
+### `App.jsx` — `BlogWrite` `onLogout` prop 누락 수정 (2026-06-12)
 
-`BlogWrite`와 `MyBlog`는 헤더 우측에 자체 🚪 로그아웃 버튼을 가지고 있고, 이를 위해 `onLogout` prop을 받는 구조. 그런데 `App.jsx`의 `renderPage()` switch에서 두 컴포넌트에 `user`만 전달하고 `onLogout={handleLogout}`이 빠져 있어, 버튼을 클릭해도 `undefined()`가 호출되어 아무 반응이 없는 상태였음.
+`BlogWrite`는 헤더 우측에 자체 🚪 로그아웃 버튼을 가지고 있고, 이를 위해 `onLogout` prop을 받는 구조. 그런데 `App.jsx`의 `renderPage()` switch에서 `user`만 전달하고 `onLogout={handleLogout}`이 빠져 있어, 버튼을 클릭해도 `undefined()`가 호출되어 아무 반응이 없는 상태였음.
 
 ```jsx
 // 수정 전
 case 'blog_write':  return <BlogWrite user={user} />
-case 'myblog':      return <MyBlog    user={user} />
 
 // 수정 후
 case 'blog_write':  return <BlogWrite user={user} onLogout={handleLogout} />
-case 'myblog':      return <MyBlog    user={user} onLogout={handleLogout} />
 ```
 
 `handleLogout`은 이미 `Sidebar`에 `onLogout={handleLogout}`으로 전달되고 있는 동일 함수.
