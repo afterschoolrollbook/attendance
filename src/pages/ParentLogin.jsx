@@ -12,8 +12,7 @@
  * pgcrypto crypt() 로 처리하므로 프론트엔드에 평문이 남지 않습니다.
  */
 import React, { useState } from 'react'
-import { ParentMembers } from '../lib/db.js'
-import { supabase }      from '../lib/supabase.js'
+import { supabase, loadParentDashboard } from '../lib/supabase.js'
 import { ParentHome }    from './ParentInvite.jsx'
 
 // ── 전화번호 포맷
@@ -96,6 +95,7 @@ export function ParentLogin() {
   const [error,       setError]      = useState('')
   const [loading,     setLoading]    = useState(false)
   const [member,      setMember]     = useState(null)    // 최종 인증된 member
+  const [dashboardData, setDashboardData] = useState(null) // 학생/수업/출석 등 대시보드 데이터
 
   // ── PIN 브루트포스 방어 (5회 실패 시 30초 잠금)
   const [failCount,   setFailCount]   = useState(0)
@@ -106,14 +106,14 @@ export function ParentLogin() {
     return (
       <ParentHome
         phone={member.phone}
-        teacherId={member.teacherId}
         memberRecord={member}
+        dashboardData={dashboardData}
       />
     )
   }
 
-  // ── 1단계: 전화번호 확인
-  const handlePhoneSubmit = () => {
+  // ── 1단계: 전화번호 확인 (security definer RPC — RLS 우회)
+  const handlePhoneSubmit = async () => {
     setError('')
     const normalized = phone.replace(/[^0-9]/g, '')
     if (normalized.length < 10) {
@@ -121,22 +121,37 @@ export function ParentLogin() {
       return
     }
 
-    const found = (ParentMembers.all() || []).find(m =>
-      m.phone?.replace(/[^0-9]/g, '') === normalized && m.appJoined && !m.withdrawnAt
-    )
+    setLoading(true)
+    try {
+      let found = null
 
-    if (!found) {
-      setError('가입 정보를 찾을 수 없습니다.\n선생님께 초대 링크를 다시 요청해주세요.')
-      return
-    }
+      if (supabase) {
+        const { data, error: rpcErr } = await supabase
+          .rpc('parent_login_lookup', { p_phone: normalized })
+        if (rpcErr) throw new Error(rpcErr.message)
+        const row = Array.isArray(data) ? data[0] : data
+        if (row?.member_id) {
+          found = { id: row.member_id, phone: normalized, pinHash: row.has_pin ? 'set' : null }
+        }
+      }
 
-    setCandidate(found)
+      if (!found) {
+        setError('가입 정보를 찾을 수 없습니다.\n선생님께 초대 링크를 다시 요청해주세요.')
+        return
+      }
 
-    // PIN 미설정 기존 회원 → PIN 설정 안내
-    if (!found.pinHash) {
-      setStep('set_pin')
-    } else {
-      setStep('pin')
+      setCandidate(found)
+
+      // PIN 미설정 기존 회원 → PIN 설정 안내
+      if (!found.pinHash) {
+        setStep('set_pin')
+      } else {
+        setStep('pin')
+      }
+    } catch (e) {
+      setError('확인 중 오류가 발생했습니다. 다시 시도해주세요.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -177,6 +192,8 @@ export function ParentLogin() {
         }
         setFailCount(0)
         setLockedUntil(null)
+        const dash = await loadParentDashboard(normalized)
+        setDashboardData(dash)
         setMember({ ...candidate, ...(data[0] || {}) })
       } else {
         // Supabase 미설정(로컬 개발) — 로컬 캐시 단순 비교 (개발 전용)
@@ -235,8 +252,8 @@ export function ParentLogin() {
         if (rpcErr) throw new Error(rpcErr.message)
         if (!data) throw new Error('PIN 저장 실패')
       }
-      // 로컬 캐시에도 기록 (재로그인 시 필드 인식용)
-      ParentMembers.update(candidate.id, { pinHash: 'set' })
+      const dash = await loadParentDashboard(normalized)
+      setDashboardData(dash)
       setMember({ ...candidate, pinHash: 'set' })
     } catch (e) {
       setError('PIN 저장 중 오류가 발생했습니다. 다시 시도해주세요.')

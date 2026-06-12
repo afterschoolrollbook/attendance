@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Students as StudentsDB, Users, ParentMembers, TeacherParentLinks, Classes as ClassesDB } from '../lib/db.js'
-import { dbCall, isConfigured, supabase } from '../lib/supabase.js'
+import { dbCall, isConfigured, supabase, toCamel, loadParentDashboard } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { subscribePush, registerSW } from '../lib/webpush.js'
 import { loadParentServiceConfig, DEFAULT_CONFIG } from './ParentServiceManage.jsx'
@@ -274,7 +274,7 @@ function WithdrawSection({ phone, teacher }) {
   )
 }
 
-export function ParentHome({ students: studentsProp, teacher: teacherProp, phone, teacherId, memberRecord }) {
+export function ParentHome({ students: studentsProp, teacher: teacherProp, phone, teacherId, memberRecord, dashboardData }) {
   const normalizedPhone = phone?.replace(/[^0-9]/g,'') || ''
   const cfg = loadParentServiceConfig()
 
@@ -315,55 +315,77 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
     async function load() {
       setLoading(true)
       try {
-        const allS = StudentsDB.all().filter(s =>
-          s.parentPhone?.replace(/[^0-9]/g,'') === normalizedPhone
-        )
+        const DAY_ORDER = ['월','화','수','목','금','토','일']
+        let allS, allCls, tMap, attByStudent
+
+        if (dashboardData) {
+          // ── 학부모 전용 RPC(get_parent_dashboard)로 한 번에 받아온 데이터 사용
+          //    (RLS 우회, 본인 전화번호로 매칭되는 데이터만 서버에서 필터링됨)
+          allS  = dashboardData.students || []
+          allCls = dashboardData.classes || []
+          tMap = {}
+          ;(dashboardData.teachers || []).forEach(t => { if (t.id) tMap[t.id] = t })
+          attByStudent = {}
+          ;(dashboardData.attendance || []).forEach(r => {
+            if (!r.studentId) return
+            if (!attByStudent[r.studentId]) attByStudent[r.studentId] = []
+            attByStudent[r.studentId].push(r)
+          })
+        } else {
+          // ── 폴백: 로컬 캐시 (Supabase 미설정 등 개발 환경 전용)
+          allS = StudentsDB.all().filter(s =>
+            s.parentPhone?.replace(/[^0-9]/g,'') === normalizedPhone
+          )
+          const allClsAll = ClassesDB.all()
+          const clsIds = new Set(allS.flatMap(s => s.classIds || []))
+          allCls = allClsAll.filter(c => clsIds.has(c.id))
+
+          tMap = {}
+          allCls.forEach(c => {
+            if (c.teacherId && !tMap[c.teacherId]) {
+              const t = Users.find(c.teacherId)
+              if (t) tMap[c.teacherId] = t
+            }
+          })
+
+          attByStudent = {}
+          if (isConfigured && allS.length > 0) {
+            const results = await Promise.all(
+              allS.map(s => dbCall('where', 'attendance', { where: { studentId: s.id } }).catch(() => []))
+            )
+            allS.forEach((s, i) => { attByStudent[s.id] = results[i] || [] })
+          }
+        }
+
         setAllStudents(allS)
 
-        const DAY_ORDER = ['월','화','수','목','금','토','일']
-        const allCls = ClassesDB.all()
-        const clsIds = new Set(allS.flatMap(s => s.classIds || []))
-        const myClasses = allCls.filter(c => clsIds.has(c.id))
-          .sort((a, b) => {
-            const ai = DAY_ORDER.indexOf(a.days?.[0] ?? '')
-            const bi = DAY_ORDER.indexOf(b.days?.[0] ?? '')
-            return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
-          })
+        const myClasses = [...allCls].sort((a, b) => {
+          const ai = DAY_ORDER.indexOf(a.days?.[0] ?? '')
+          const bi = DAY_ORDER.indexOf(b.days?.[0] ?? '')
+          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+        })
         setAllClasses(myClasses)
         if (myClasses.length > 0) setActiveTab(myClasses[0].id)
-
-        const tMap = {}
-        myClasses.forEach(c => {
-          if (c.teacherId && !tMap[c.teacherId]) {
-            const t = Users.find(c.teacherId)
-            if (t) tMap[c.teacherId] = t
-          }
-        })
         setAllTeachers(tMap)
 
-        if (isConfigured && allS.length > 0) {
-          const results = await Promise.all(
-            allS.map(s => dbCall('where', 'attendance', { where: { studentId: s.id } }).catch(() => []))
-          )
-          const data = {}
-          allS.forEach((s, i) => {
-            const recs = (results[i] || []).filter(r => r.status && r.status !== 'pending')
-            recs.sort((a,b) => (b.markedAt||b.date||'').localeCompare(a.markedAt||a.date||''))
-            data[s.id] = recs.slice(0, 50)
-          })
-          setAttData(data)
+        const data = {}
+        allS.forEach(s => {
+          const recs = (attByStudent[s.id] || []).filter(r => r.status && r.status !== 'pending')
+          recs.sort((a,b) => (b.markedAt||b.date||'').localeCompare(a.markedAt||a.date||''))
+          data[s.id] = recs.slice(0, 50)
+        })
+        setAttData(data)
 
-          for (const s of allS) {
-            const recs = data[s.id] || []
-            if (!recs.length) continue
-            const latest = recs[0]
-            const key = `${s.id}_${latest.date}_${latest.status}`
-            if (!seenKeys.has(key)) {
-              const cls = myClasses.find(c => c.id === latest.classId)
-              setAttPopup({ record: latest, studentName: s.name, className: cls?.className || '' })
-              playBeep()
-              break
-            }
+        for (const s of allS) {
+          const recs = data[s.id] || []
+          if (!recs.length) continue
+          const latest = recs[0]
+          const key = `${s.id}_${latest.date}_${latest.status}`
+          if (!seenKeys.has(key)) {
+            const cls = myClasses.find(c => c.id === latest.classId)
+            setAttPopup({ record: latest, studentName: s.name, className: cls?.className || '' })
+            playBeep()
+            break
           }
         }
       } finally {
@@ -371,7 +393,7 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
       }
     }
     load()
-  }, [normalizedPhone])
+  }, [normalizedPhone, dashboardData])
 
   const closePopup = () => {
     if (attPopup) {
@@ -622,6 +644,7 @@ export function ParentInvite() {
   const [step, setStep]         = useState('loading')
   const [teacher, setTeacher]   = useState(null)
   const [students, setStudents] = useState([])
+  const [dashboardData, setDashboardData] = useState(null)
   const [agree1, setAgree1]     = useState(false)
   const [agree2, setAgree2]     = useState(false)
   const [agreeMarketing, setAgreeMarketing] = useState(false)
@@ -655,12 +678,33 @@ export function ParentInvite() {
         if (token.length < 8) { setStep('error'); return }
       }
 
-      const t = Users.find(teacherId)
+      // ──────────────────────────────────────────────────────────
+      // 선생님 정보 + 전화번호로 매칭되는 학생 목록
+      // RLS 적용 후 anon 세션에서 users/students 직접 SELECT 불가 →
+      // get_invite_info RPC(security definer)로 조회.
+      // RPC 없는 환경(로컬 개발)에서는 로컬 캐시로 폴백.
+      // ──────────────────────────────────────────────────────────
+      let t = null, matched = []
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .rpc('get_invite_info', { p_teacher_id: teacherId, p_phone: phone })
+          if (error) throw error
+          if (data?.error) { setStep('error'); return }
+          t = data?.teacher ? toCamel(data.teacher) : null
+          matched = (data?.students || []).map(toCamel)
+        } catch (e) {
+          console.warn('[ParentInvite] get_invite_info 실패:', e.message)
+        }
+      }
+      if (!t) {
+        t = Users.find(teacherId)
+        matched = StudentsDB.byTeacher(teacherId).filter(s =>
+          s.parentPhone?.replace(/[^0-9]/g,'') === phone.replace(/[^0-9]/g,'')
+        )
+      }
       if (!t) { setStep('error'); return }
       setTeacher(t)
-      const matched = StudentsDB.byTeacher(teacherId).filter(s =>
-        s.parentPhone?.replace(/[^0-9]/g,'') === phone.replace(/[^0-9]/g,'')
-      )
       setStudents(matched)
 
       // ──────────────────────────────────────────────────────────
@@ -669,9 +713,9 @@ export function ParentInvite() {
       // RPC 없는 환경(로컬 개발)에서는 로컬 캐시로 폴백.
       // ──────────────────────────────────────────────────────────
       let alreadyJoined = false
+      const normalized = phone.replace(/[^0-9]/g, '')
       try {
         if (supabase) {
-          const normalized = phone.replace(/[^0-9]/g, '')
           const { data } = await supabase.rpc('check_parent_joined', { p_phone: normalized })
           alreadyJoined = !!data
         } else {
@@ -684,6 +728,11 @@ export function ParentInvite() {
         alreadyJoined = !!already?.appJoined
       }
 
+      if (alreadyJoined) {
+        const dash = await loadParentDashboard(normalized)
+        setDashboardData(dash)
+      }
+
       setStep(alreadyJoined ? 'done' : 'info')
     }
     validateToken()
@@ -692,36 +741,68 @@ export function ParentInvite() {
   const handleJoin = async () => {
     if (!agree1 || !agree2) return
 
-    const s0   = students[0]
-    const cls0 = s0?.classIds?.[0]
-      ? ClassesDB.byTeacher(teacherId).find(c => c.id === s0.classIds[0])
-      : null
+    const normalized = phone.replace(/[^0-9]/g, '')
+    const s0 = students[0]
+    let member = null
 
-    const member = ParentMembers.join(phone, {
-      marketingAgree:  agreeMarketing,
-      invitedByTeacher: teacherId,
-      studentName:  s0?.name || '',
-      grade:        s0?.grade ? `${s0.grade}학년${s0.classNum ? ` ${s0.classNum}반` : ''}` : '',
-      schoolName:   cls0?.organization || '',
-      subjectName:  cls0?.className    || '',
-      teacherName:  teacher?.nickname  || teacher?.name  || '',
-      teacherPhone: teacher?.phone     || '',
-    })
-
-    students.forEach(s => {
-      StudentsDB.update(s.id, { parentJoined:true, parentInviteSentAt: s.parentInviteSentAt||now() })
-      try { TeacherParentLinks.link(teacherId, s, s.classIds?.[0]||'') } catch {}
-    })
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.rpc('parent_join', {
+          p_phone: normalized,
+          p_teacher_id: teacherId,
+          p_member: {
+            marketingAgree: agreeMarketing,
+            studentName:  s0?.name || '',
+            grade:        s0?.grade ? `${s0.grade}학년${s0.classNum ? ` ${s0.classNum}반` : ''}` : '',
+            teacherName:  teacher?.nickname || teacher?.name || '',
+            teacherPhone: teacher?.phone    || '',
+          },
+        })
+        if (error) throw error
+        member = data
+      } catch (e) {
+        console.warn('[ParentInvite] parent_join 실패:', e.message)
+      }
+    } else {
+      // 로컬 개발 폴백 (Supabase 미설정)
+      const cls0 = s0?.classIds?.[0]
+        ? ClassesDB.byTeacher(teacherId).find(c => c.id === s0.classIds[0])
+        : null
+      member = ParentMembers.join(phone, {
+        marketingAgree:  agreeMarketing,
+        invitedByTeacher: teacherId,
+        studentName:  s0?.name || '',
+        grade:        s0?.grade ? `${s0.grade}학년${s0.classNum ? ` ${s0.classNum}반` : ''}` : '',
+        schoolName:   cls0?.organization || '',
+        subjectName:  cls0?.className    || '',
+        teacherName:  teacher?.nickname  || teacher?.name  || '',
+        teacherPhone: teacher?.phone     || '',
+      })
+      students.forEach(s => {
+        StudentsDB.update(s.id, { parentJoined:true, parentInviteSentAt: s.parentInviteSentAt||now() })
+        try { TeacherParentLinks.link(teacherId, s, s.classIds?.[0]||'') } catch {}
+      })
+    }
 
     try {
       await registerSW()
       const subJson = await subscribePush()
       if (subJson && member) {
-        ParentMembers.savePushSubscription(phone, teacherId, subJson)
+        if (supabase) {
+          const { error } = await supabase.rpc('parent_save_push_subscription', {
+            p_phone: normalized, p_teacher_id: teacherId, p_subscription: subJson,
+          })
+          if (error) console.warn('[Push] 구독 저장 RPC 오류:', error.message)
+        } else {
+          ParentMembers.savePushSubscription(phone, teacherId, subJson)
+        }
       }
     } catch (e) {
       console.warn('[Push] 구독 실패:', e.message)
     }
+
+    const dash = await loadParentDashboard(normalized)
+    setDashboardData(dash)
 
     setStep('done')
     if (installPromptRef.current) setTimeout(()=>setShowInstallBanner(true), 600)
@@ -744,7 +825,7 @@ export function ParentInvite() {
 
   if (step==='done') return (
     <>
-      <ParentHome students={students} teacher={teacher} phone={phone}/>
+      <ParentHome students={students} teacher={teacher} phone={phone} dashboardData={dashboardData}/>
       {showInstallBanner && (
         <div style={{
           position:'fixed', bottom:'24px', left:'50%', transform:'translateX(-50%)',
