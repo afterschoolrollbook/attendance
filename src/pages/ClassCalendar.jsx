@@ -313,6 +313,7 @@ export function ClassCalendar({ cls, onUpdate }) {
   // sessionMap: 날짜 → { total: 전체차시, termNum: 텀번호, termSess: 텀내차시 }
   const sessionMap = {}
   const termMap    = {}
+  let totalIdx = 1
 
   if (cls.periods?.length > 0) {
     cls.periods.forEach((p, pIdx) => {
@@ -322,13 +323,13 @@ export function ClassCalendar({ cls, onUpdate }) {
         ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
         : Array(Number(p.termCount) || 1).fill(4)
       // total, termNum 모두 각 분기 내에서 1부터 시작 (누적 X)
-      let totalIdx = 1, cursor = 0
+      let periodTotalIdx = 1, cursor = 0
       pTermSizes.forEach((size, ti) => {
         const termNum = ti + 1
         let termIdx = 1
         periodSessions.slice(cursor, cursor + size).forEach(d => {
           if (!cancelled.has(d)) {
-            sessionMap[d] = { total: totalIdx++, termNum, termSess: termIdx++, periodIdx: pIdx }
+            sessionMap[d] = { total: periodTotalIdx++, termNum, termSess: termIdx++, periodIdx: pIdx }
             termMap[d] = termNum
           } else {
             termMap[d] = termNum
@@ -341,7 +342,7 @@ export function ClassCalendar({ cls, onUpdate }) {
         let termIdx = 1
         periodSessions.slice(cursor).forEach(d => {
           if (!cancelled.has(d)) {
-            sessionMap[d] = { total: totalIdx++, termNum, termSess: termIdx++, periodIdx: pIdx }
+            sessionMap[d] = { total: periodTotalIdx++, termNum, termSess: termIdx++, periodIdx: pIdx }
           }
           termMap[d] = termNum
         })
