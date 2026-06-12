@@ -27,6 +27,10 @@ serve(async (req) => {
   try {
     const { authId, newPassword } = await req.json()
     if (!authId || !newPassword) throw new Error('authId, newPassword 필수')
+    if (!newPassword || String(newPassword).length < 8) throw new Error('비밀번호는 8자 이상이어야 합니다.')
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(String(newPassword))) {
+      throw new Error('비밀번호는 특수문자를 하나 이상 포함해야 합니다.')
+    }
 
     // 요청자가 admin인지 확인
     const anonClient = createClient(
