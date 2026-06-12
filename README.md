@@ -94,6 +94,8 @@
 | 📝 제안서·자기소개서 | `Proposals.jsx` |
 | 📢 공고관리 | `Jobs.jsx` |
 | 블로그 / 설명서 | `Blog.jsx` |
+| ✍️ 블로그 글쓰기 | `BlogWrite.jsx` |
+| 📓 내 블로그 | `MyBlog.jsx` |
 
 ### 관리자 전용 (level 10)
 
@@ -488,6 +490,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 15 | `generate-vapid` Edge Function — 인증 없이 누구나 호출 가능 | ✅ 삭제 완료 (2026-06-12) | [바로가기](#generate-vapid-edge-function-삭제-2026-06-12) |
 | 16 | `db-api` Edge Function 배포 목록 잔존 여부 재확인 | ✅ 없음 확인 (2026-06-12) | — |
 | 17 | `setup.sh`에 `generate-vapid` 배포 라인 잔존 — `bash setup.sh` 실행 시 삭제된 함수가 재배포됨 | ✅ 제거 완료 (2026-06-12) | [바로가기](#generate-vapid-edge-function-삭제-2026-06-12) |
+| 18 | `App.jsx` — `blog_write` / `myblog` 라우팅 누락으로 메뉴 클릭 시 대시보드로 떨어짐 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--blog_write--myblog-라우팅-누락-수정-2026-06-12) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -860,6 +863,16 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 | `send-email` | 이메일 발송 (Resend) |
 | `send-push` | 출석 알림 푸시 발송 |
 | `send-sms` | SMS/알림톡 발송 (Solapi) |
+
+### `App.jsx` — `blog_write` / `myblog` 라우팅 누락 수정 (2026-06-12)
+
+`Sidebar.jsx`에 `path: 'blog_write'`가 메뉴로 등록되어 있었으나 `App.jsx`의 라우팅 switch에 `case 'blog_write':` 가 없었음. `BlogWrite.jsx` / `MyBlog.jsx` import도 누락. 누구든 블로그 글쓰기 메뉴를 클릭하면 default 케이스인 대시보드로 떨어지는 버그.
+
+→ `App.jsx` 상단에 `BlogWrite` / `MyBlog` import 추가, switch에 `case 'blog_write':` / `case 'myblog':` 케이스 추가.
+
+**수정 파일:** `src/App.jsx`
+
+---
 
 ### 업체 포털 RLS 우회 — RPC 전환 (2026-06-12)
 
