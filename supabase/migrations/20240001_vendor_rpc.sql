@@ -77,6 +77,32 @@ BEGIN
 END;
 $$;
 
+-- 2-c. 로그인 전용 — 서버에서 해시 비교 후 pw 제외한 계정 정보만 반환
+--      pw는 클라이언트에 절대 전달되지 않음.
+--      불일치·계정 없음 모두 NULL 반환 (timing attack 방지)
+CREATE OR REPLACE FUNCTION verify_vendor_login(p_email text, p_pw_hash text)
+RETURNS json LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_acc  vendor_accounts%ROWTYPE;
+  v_result json;
+BEGIN
+  SELECT * INTO v_acc
+  FROM vendor_accounts
+  WHERE LOWER(email) = LOWER(p_email)
+  LIMIT 1;
+
+  -- 계정 없음 or 해시 불일치 → NULL (오류 메시지 통일로 계정 존재 여부 숨김)
+  IF NOT FOUND OR v_acc.pw IS DISTINCT FROM p_pw_hash THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT row_to_json(r) INTO v_result
+  FROM (SELECT id, vendor_id, email, name, created_at
+        FROM vendor_accounts WHERE id = v_acc.id LIMIT 1) r;
+  RETURN v_result;
+END;
+$$;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 3. 업체 저장 (upsert) — 관리자 + 업체 앱 공용
 -- ─────────────────────────────────────────────────────────────────────────────
