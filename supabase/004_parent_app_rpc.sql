@@ -62,8 +62,11 @@ begin
     return jsonb_build_object('students','[]'::jsonb,'classes','[]'::jsonb,'teachers','[]'::jsonb,'attendance','[]'::jsonb);
   end if;
 
-  -- 이 전화번호로 등록된 학생들
-  select coalesce(jsonb_agg(to_jsonb(s)), '[]'::jsonb),
+  -- 이 전화번호로 등록된 학생들 (화면에 필요한 컬럼만 반환)
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id', s.id, 'name', s.name, 'grade', s.grade,
+           'class_num', s.class_num, 'class_ids', s.class_ids
+         )), '[]'::jsonb),
          coalesce(array_agg(s.id), '{}')
     into v_students, v_student_ids
     from students s
@@ -77,8 +80,14 @@ begin
    where regexp_replace(coalesce(s.parent_phone, ''), '[^0-9]', '', 'g') = v_phone
      and coalesce(s._deleted, false) = false;
 
-  -- 수업 정보
-  select coalesce(jsonb_agg(to_jsonb(c)), '[]'::jsonb)
+  -- 수업 정보 (화면에 필요한 컬럼만 반환)
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id', c.id, 'class_name', c.class_name, 'section', c.section, 'sections', c.sections,
+           'days', c.days, 'time', c.time, 'time_end', c.time_end,
+           'organization', c.organization, 'class_location', c.class_location, 'description', c.description,
+           'start_date', c.start_date, 'end_date', c.end_date, 'cancelled_dates', c.cancelled_dates,
+           'teacher_id', c.teacher_id
+         )), '[]'::jsonb)
     into v_classes
     from classes c
    where c.id = any(v_class_ids);
@@ -96,8 +105,12 @@ begin
     from users u
    where u.id = any(v_teacher_ids);
 
-  -- 출석 기록 (status가 있는 것만, 최신순)
-  select coalesce(jsonb_agg(to_jsonb(a) order by coalesce(a.marked_at, a.date) desc), '[]'::jsonb)
+  -- 출석 기록 (status가 있는 것만, 최신순, 필요한 컬럼만 반환)
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'student_id', a.student_id, 'class_id', a.class_id, 'status', a.status,
+           'date', a.date, 'marked_at', a.marked_at,
+           'absent_reason', a.absent_reason, 'home_return', a.home_return, 'note', a.note
+         ) order by coalesce(a.marked_at, a.date) desc), '[]'::jsonb)
     into v_attendance
     from attendance a
    where a.student_id = any(v_student_ids)
@@ -124,12 +137,17 @@ declare
   v_teacher jsonb;
   v_students jsonb;
 begin
-  select to_jsonb(u) into v_teacher from users u where u.id = p_teacher_id;
+  select jsonb_build_object('id', u.id, 'name', u.name, 'nickname', u.nickname, 'phone', u.phone)
+    into v_teacher
+    from users u where u.id = p_teacher_id;
   if v_teacher is null then
     return jsonb_build_object('error', 'teacher_not_found');
   end if;
 
-  select coalesce(jsonb_agg(to_jsonb(s)), '[]'::jsonb) into v_students
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id', s.id, 'name', s.name, 'grade', s.grade,
+           'class_num', s.class_num, 'class_ids', s.class_ids
+         )), '[]'::jsonb) into v_students
     from students s
    where s.teacher_id = p_teacher_id
      and regexp_replace(coalesce(s.parent_phone, ''), '[^0-9]', '', 'g') = v_phone

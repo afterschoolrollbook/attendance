@@ -19,19 +19,33 @@
 
 -- ────────────────────────────────────────────────────────────
 -- 1) find_email_by_phone — 아이디(이메일) 찾기
+--    원본 이메일을 그대로 주지 않고, 서버에서 마스킹 처리 후 반환
+--    (anon key로 RPC를 직접 호출해도 원본 이메일은 노출되지 않음)
 -- ────────────────────────────────────────────────────────────
 create or replace function find_email_by_phone(p_phone text)
 returns text
 language plpgsql security definer as $$
 declare
-  v_email text;
+  v_email  text;
+  v_local  text;
+  v_domain text;
+  v_half   int;
 begin
   select email into v_email
     from users
    where regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') = regexp_replace(p_phone, '[^0-9]', '', 'g')
    order by created_at
    limit 1;
-  return v_email;
+
+  if v_email is null or position('@' in v_email) = 0 then
+    return null;
+  end if;
+
+  v_local  := split_part(v_email, '@', 1);
+  v_domain := split_part(v_email, '@', 2);
+  v_half   := ceil(length(v_local)::numeric / 2);
+
+  return left(v_local, v_half) || repeat('*', length(v_local) - v_half) || '@' || v_domain;
 end; $$;
 
 
