@@ -341,7 +341,7 @@ export default function App() {
 
   if (!user) return <Auth onLogin={handleLogin} initialTab={landingTarget} />
 
-  const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate }
+  const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate, onLogout: handleLogout }
 
   const renderPage = () => {
     switch (page) {
