@@ -34,6 +34,9 @@ serve(async (req) => {
     const { email, code, newPassword } = await req.json()
     if (!email || !code || !newPassword) throw new Error('필수 값이 누락되었습니다.')
     if (String(newPassword).length < 8) throw new Error('비밀번호는 8자 이상이어야 합니다.')
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(String(newPassword))) {
+      throw new Error('비밀번호는 특수문자를 하나 이상 포함해야 합니다.')
+    }
 
     const emailLower = String(email).trim().toLowerCase()
 
