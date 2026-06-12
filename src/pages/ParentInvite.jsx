@@ -276,6 +276,39 @@ function WithdrawSection({ phone, teacher, pin = '' }) {
   )
 }
 
+// ─── 출결 결과 전체화면 팝업 (ParentHome 밖으로 분리)
+function AttPopupFull({ record, studentName, className, statusMap, onClose }) {
+  const st = statusMap[record.status] || statusMap.present
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.6)',
+      display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}>
+      <div style={{ background:st.bg, border:`3px solid ${st.color}`, borderRadius:'28px',
+        padding:'40px 28px', maxWidth:'320px', width:'100%', textAlign:'center',
+        boxShadow:'0 24px 64px rgba(0,0,0,0.28)', animation:'popIn .28s cubic-bezier(.34,1.56,.64,1)' }}>
+        <style>{`@keyframes popIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}`}</style>
+        <div style={{ fontSize:'72px', lineHeight:1, marginBottom:'14px' }}>{st.big}</div>
+        <div style={{ fontSize:'13px', fontWeight:700, color:st.color, marginBottom:'4px', opacity:0.8 }}>{className}</div>
+        <div style={{ fontSize:'28px', fontWeight:900, color:st.color, marginBottom:'6px' }}>
+          {studentName} {st.label}!
+        </div>
+        <div style={{ fontSize:'14px', color:C.muted, marginBottom:'4px' }}>{record.date}</div>
+        {record.absentReason && <div style={{ fontSize:'13px', color:C.muted }}>사유: {record.absentReason}</div>}
+        {record.note && (
+          <div style={{ fontSize:'13px', background:'rgba(0,0,0,0.06)', borderRadius:'10px',
+            padding:'10px 14px', margin:'10px 0', color:C.text, lineHeight:1.6 }}>
+            💬 {record.note}
+          </div>
+        )}
+        <button onClick={onClose} style={{ marginTop:'12px', padding:'15px', width:'100%',
+          borderRadius:'14px', border:'none', background:st.color, color:'#fff',
+          fontSize:'18px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          확인
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function ParentHome({ students: studentsProp, teacher: teacherProp, phone, teacherId, memberRecord, dashboardData, verifiedPin = '' }) {
   const normalizedPhone = phone?.replace(/[^0-9]/g,'') || ''
   const cfg = loadParentServiceConfig()
@@ -410,38 +443,6 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
 
   const fmtDays = (days=[]) => days.join('·')
 
-  const AttPopupFull = ({ record, studentName, className, onClose }) => {
-    const st = statusMap[record.status] || statusMap.present
-    return (
-      <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.6)',
-        display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}>
-        <div style={{ background:st.bg, border:`3px solid ${st.color}`, borderRadius:'28px',
-          padding:'40px 28px', maxWidth:'320px', width:'100%', textAlign:'center',
-          boxShadow:'0 24px 64px rgba(0,0,0,0.28)', animation:'popIn .28s cubic-bezier(.34,1.56,.64,1)' }}>
-          <style>{`@keyframes popIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}`}</style>
-          <div style={{ fontSize:'72px', lineHeight:1, marginBottom:'14px' }}>{st.big}</div>
-          <div style={{ fontSize:'13px', fontWeight:700, color:st.color, marginBottom:'4px', opacity:0.8 }}>{className}</div>
-          <div style={{ fontSize:'28px', fontWeight:900, color:st.color, marginBottom:'6px' }}>
-            {studentName} {st.label}!
-          </div>
-          <div style={{ fontSize:'14px', color:C.muted, marginBottom:'4px' }}>{record.date}</div>
-          {record.absentReason && <div style={{ fontSize:'13px', color:C.muted }}>사유: {record.absentReason}</div>}
-          {record.note && (
-            <div style={{ fontSize:'13px', background:'rgba(0,0,0,0.06)', borderRadius:'10px',
-              padding:'10px 14px', margin:'10px 0', color:C.text, lineHeight:1.6 }}>
-              💬 {record.note}
-            </div>
-          )}
-          <button onClick={onClose} style={{ marginTop:'12px', padding:'15px', width:'100%',
-            borderRadius:'14px', border:'none', background:st.color, color:'#fff',
-            fontSize:'18px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-            확인
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   const activeClass = allClasses.find(c => c.id === activeTab)
   const activeStudents = allStudents.filter(s => s.classIds?.includes(activeTab))
   const activeTeacher = activeClass ? allTeachers[activeClass.teacherId] : null
@@ -456,7 +457,7 @@ export function ParentHome({ students: studentsProp, teacher: teacherProp, phone
 
   return (
     <div style={{ minHeight:'100vh', background:'#f4f5f7', fontFamily:'Noto Sans KR, sans-serif', paddingBottom:'32px' }}>
-      {attPopup && <AttPopupFull record={attPopup.record} studentName={attPopup.studentName} className={attPopup.className} onClose={closePopup}/>}
+      {attPopup && <AttPopupFull record={attPopup.record} studentName={attPopup.studentName} className={attPopup.className} statusMap={statusMap} onClose={closePopup}/>}
 
       {imgModal && (
         <div onClick={()=>setImgModal(null)} style={{ position:'fixed', inset:0, zIndex:9998,

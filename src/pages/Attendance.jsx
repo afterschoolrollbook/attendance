@@ -71,6 +71,35 @@ function isInCurrentTerm(s, cls, date) {
 }
 
 
+// ─── 공통 접기/펼치기 헤더 (LessonMemoPanel 밖으로 분리)
+function SectionHeader({ sectionKey, label, count, color, openSections, toggleSection }) {
+  return (
+    <div
+      onClick={() => toggleSection(sectionKey)}
+      style={{ display:'flex', alignItems:'center', gap:'4px', cursor:'pointer', userSelect:'none', marginBottom: openSections[sectionKey] ? '5px' : '0' }}>
+      <span style={{ fontSize:'9px', color, transition:'transform .2s', display:'inline-block', transform: openSections[sectionKey] ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+      <span style={{ fontSize:'11px', fontWeight:700, color }}>{label} ({count}명)</span>
+    </div>
+  )
+}
+
+// ─── 학생 명단 컬럼 헤더 (UnifiedPanel 밖으로 분리)
+function ColHeader() {
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'35px 90px 90px 130px 220px 70px 110px 90px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
+      <span>순번</span>
+      <span>학년·반·번호</span>
+      <span>이름</span>
+      <span>학부모전화</span>
+      <span>출석·지각·조퇴·결석</span>
+      <span>리모컨</span>
+      <span>진도</span>
+      <span>출결초대</span>
+      <span>특이사항·메모</span>
+    </div>
+  )
+}
+
 // ─── 수업 메모장 패널
 function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChecks, spGiven, onProgOpen, onOpenScreen, selSection }) {
   const { success } = useToast()
@@ -268,15 +297,6 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
           )}
           {/* ── 공통 접기/펼치기 헤더 렌더러 */}
           {(() => {
-            const SectionHeader = ({ sectionKey, label, count, color }) => (
-              <div
-                onClick={() => toggleSection(sectionKey)}
-                style={{ display:'flex', alignItems:'center', gap:'4px', cursor:'pointer', userSelect:'none', marginBottom: openSections[sectionKey] ? '5px' : '0' }}>
-                <span style={{ fontSize:'9px', color, transition:'transform .2s', display:'inline-block', transform: openSections[sectionKey] ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
-                <span style={{ fontSize:'11px', fontWeight:700, color }}>{label} ({count}명)</span>
-              </div>
-            )
-
             // ── 1. 교구지급
             const todayGiven = (spGiven || [])
               .filter(g => g.classId === cls?.id && g.givenAt === date)
@@ -398,7 +418,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                 {/* 교구지급 */}
                 {todayGiven.length > 0 && (
                   <div style={{ marginTop:'6px' }}>
-                    <SectionHeader sectionKey="교구지급" label="📦 교구지급" count={todayGiven.length} color="#7c3aed" />
+                    <SectionHeader sectionKey="교구지급" label="📦 교구지급" count={todayGiven.length} color="#7c3aed" openSections={openSections} toggleSection={toggleSection} />
                     {openSections['교구지급'] && todayGiven.map(g => (
                       <div key={g.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f5f3ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
                         <span style={{ fontSize:'13px', fontWeight:700, color:'#6d28d9' }}>{g.studentName}</span>
@@ -413,7 +433,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                 {/* 교구준비 */}
                 {supplyAlertList.length > 0 && (
                   <div style={{ marginTop:'6px' }}>
-                    <SectionHeader sectionKey="교구준비" label="⚠️ 교구 준비 필요" count={supplyAlertList.length} color="#ef4444" />
+                    <SectionHeader sectionKey="교구준비" label="⚠️ 교구 준비 필요" count={supplyAlertList.length} color="#ef4444" openSections={openSections} toggleSection={toggleSection} />
                     {openSections['교구준비'] && supplyAlertList.map(({ s, label, isDone, noNextInfo }) => (
                       <div key={s.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background: noNextInfo ? '#fefce8' : isDone ? '#f0fdf4' : '#fef2f2', border:`1px solid ${noNextInfo ? '#fde047' : isDone ? '#86efac' : '#fca5a5'}`, marginBottom:'4px' }}>
                         <span style={{ fontSize:'11px', fontWeight:700, color: noNextInfo ? '#854d0e' : isDone ? '#16a34a' : '#ef4444' }}>
@@ -429,7 +449,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                 {/* 미지급 */}
                 {unpaidEntries.length > 0 && (
                   <div style={{ marginTop:'6px' }}>
-                    <SectionHeader sectionKey="미지급" label="📦 미지급" count={unpaidEntries.length} color="#b91c1c" />
+                    <SectionHeader sectionKey="미지급" label="📦 미지급" count={unpaidEntries.length} color="#b91c1c" openSections={openSections} toggleSection={toggleSection} />
                     {openSections['미지급'] && unpaidEntries.map(({ name, items }) => (
                       <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#fee2e2', border:'1px solid #fca5a5', marginBottom:'4px' }}>
                         <span style={{ fontSize:'13px', fontWeight:700, color:'#b91c1c' }}>{name}</span>
@@ -444,7 +464,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                 {/* 추가지급 */}
                 {extraEntries.length > 0 && (
                   <div style={{ marginTop:'6px' }}>
-                    <SectionHeader sectionKey="추가지급" label="➕ 추가지급" count={extraEntries.length} color="#0891b2" />
+                    <SectionHeader sectionKey="추가지급" label="➕ 추가지급" count={extraEntries.length} color="#0891b2" openSections={openSections} toggleSection={toggleSection} />
                     {openSections['추가지급'] && extraEntries.map(({ name, items }) => (
                       <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#ecfeff', border:'1px solid #67e8f9', marginBottom:'4px' }}>
                         <span style={{ fontSize:'13px', fontWeight:700, color:'#0891b2' }}>{name}</span>
@@ -459,7 +479,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                 {/* 확인필요 */}
                 {checkEntries.length > 0 && (
                   <div style={{ marginTop:'6px' }}>
-                    <SectionHeader sectionKey="확인필요" label="🔍 확인필요" count={checkEntries.length} color="#7c3aed" />
+                    <SectionHeader sectionKey="확인필요" label="🔍 확인필요" count={checkEntries.length} color="#7c3aed" openSections={openSections} toggleSection={toggleSection} />
                     {openSections['확인필요'] && checkEntries.map(({ name, items }) => (
                       <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#f3e8ff', border:'1px solid #c4b5fd', marginBottom:'4px' }}>
                         <span style={{ fontSize:'13px', fontWeight:700, color:'#7c3aed' }}>{name}</span>
@@ -474,7 +494,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
                 {/* 미입금 — 주황색 */}
                 {unpaidPayEntries.length > 0 && (
                   <div style={{ marginTop:'6px' }}>
-                    <SectionHeader sectionKey="미입금" label="💰 미입금" count={unpaidPayEntries.length} color="#ea580c" />
+                    <SectionHeader sectionKey="미입금" label="💰 미입금" count={unpaidPayEntries.length} color="#ea580c" openSections={openSections} toggleSection={toggleSection} />
                     {openSections['미입금'] && unpaidPayEntries.map(({ name, items }) => (
                       <div key={name} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'6px 8px', borderRadius:'7px', background:'#fff7ed', border:'1px solid #fdba74', marginBottom:'4px' }}>
                         <span style={{ fontSize:'13px', fontWeight:700, color:'#ea580c' }}>{name}</span>
@@ -3596,20 +3616,6 @@ function UnifiedPanel({ cls, date, students, user, allClasses, onNav }) {
           const sc = allClasses?.find ? allClasses.find(c => s.classIds?.includes(c.id)) : null
           return sc?.section || ''
         }))].sort()
-
-        const ColHeader = () => (
-          <div style={{ display:'grid', gridTemplateColumns:'35px 90px 90px 130px 220px 70px 110px 90px 1fr', gap:'6px', padding:'8px 14px', background:'#f3f4f6', borderBottom:`1px solid ${C.border}`, fontSize:'11px', fontWeight:700, color:C.muted, textAlign:'center' }}>
-            <span>순번</span>
-            <span>학년·반·번호</span>
-            <span>이름</span>
-            <span>학부모전화</span>
-            <span>출석·지각·조퇴·결석</span>
-            <span>리모컨</span>
-            <span>진도</span>
-            <span>출결초대</span>
-            <span>특이사항·메모</span>
-          </div>
-        )
 
         return sections.map(sec => {
           const secStudents = activeStudents.filter(s => {

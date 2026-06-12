@@ -233,7 +233,7 @@ export function BlogWrite({ user, onLogout }) {
             <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>방과후 출석부 블로그에 글을 작성하세요.</div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-            <a href="/blog" target="_blank" style={{ padding:'8px 16px', borderRadius:'9px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
+            <a href="/blog" target="_blank" rel="noopener noreferrer" style={{ padding:'8px 16px', borderRadius:'9px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
               🌐 블로그 보러가기 →
             </a>
             <button onClick={onLogout}
@@ -340,7 +340,7 @@ export function BlogWrite({ user, onLogout }) {
                     </div>
                     <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
                       {!isSecret && post.slug && (
-                        <a href={`/blog/${post.slug}`} target="_blank" style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', color:C.muted, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>보기</a>
+                        <a href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer" style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', color:C.muted, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>보기</a>
                       )}
                       {(isOwn || isAdmin) && <>
                         <button onClick={()=>handleEdit(post)} style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${currentBoard?.color}`, background:`${currentBoard?.color}18`, color:currentBoard?.color, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>

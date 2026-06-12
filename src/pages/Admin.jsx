@@ -230,6 +230,45 @@ function SchoolDetail({ selectedSchool, selectedSupport, enriched, allClasses, t
 }
 
 // ─── 지도 드릴다운 패널
+// ─── 지역 드릴다운 경로 표시 (MapDrilldown 밖으로 분리)
+function Breadcrumb({ C, allTeachers, selectedSido, selectedSupport, selectedSchool, selectedTeacher, setSelectedSido, setSelectedSupport, setSelectedSchool, setSelectedTeacher }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:'6px', fontSize:'13px', marginBottom:'16px', flexWrap:'wrap' }}>
+      <button onClick={() => { setSelectedSido(null); setSelectedSupport(null); setSelectedSchool(null); setSelectedTeacher(null) }}
+        style={{ background:'none', border:'none', color:C.primary, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, padding:0 }}>
+        🗺️ 전체
+      </button>
+      {selectedSido && <>
+        <span style={{ color:'#d1d5db' }}>›</span>
+        <button onClick={() => { setSelectedSupport(null); setSelectedSchool(null); setSelectedTeacher(null) }}
+          style={{ background:'none', border:'none', color:selectedSupport?C.muted:C.primary, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, padding:0 }}>
+          📍 {selectedSido}
+        </button>
+      </>}
+      {selectedSupport && <>
+        <span style={{ color:'#d1d5db' }}>›</span>
+        <button onClick={() => { setSelectedSchool(null); setSelectedTeacher(null) }}
+          style={{ background:'none', border:'none', color:selectedSchool?C.muted:C.primary, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, padding:0 }}>
+          🏛️ {selectedSupport}
+        </button>
+      </>}
+      {selectedSchool && <>
+        <span style={{ color:'#d1d5db' }}>›</span>
+        <button onClick={() => setSelectedTeacher(null)}
+          style={{ background:'none', border:'none', color:selectedTeacher?C.muted:C.primary, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, padding:0 }}>
+          🏫 {selectedSchool}
+        </button>
+      </>}
+      {selectedTeacher && <>
+        <span style={{ color:'#d1d5db' }}>›</span>
+        <span style={{ color:C.primary, fontWeight:600 }}>
+          👩‍🏫 {allTeachers.find(t => t.id === selectedTeacher)?.name}
+        </span>
+      </>}
+    </div>
+  )
+}
+
 function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATUS_LABEL, STATUS_COLOR }) {
   const [selectedSido,    setSelectedSido]    = useState(null)
   const [selectedSupport, setSelectedSupport] = useState(null)
@@ -369,42 +408,6 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
 
   const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316' }
 
-  const Breadcrumb = () => (
-    <div style={{ display:'flex', alignItems:'center', gap:'6px', fontSize:'13px', marginBottom:'16px', flexWrap:'wrap' }}>
-      <button onClick={() => { setSelectedSido(null); setSelectedSupport(null); setSelectedSchool(null); setSelectedTeacher(null) }}
-        style={{ background:'none', border:'none', color:C.primary, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, padding:0 }}>
-        🗺️ 전체
-      </button>
-      {selectedSido && <>
-        <span style={{ color:'#d1d5db' }}>›</span>
-        <button onClick={() => { setSelectedSupport(null); setSelectedSchool(null); setSelectedTeacher(null) }}
-          style={{ background:'none', border:'none', color:selectedSupport?C.muted:C.primary, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, padding:0 }}>
-          📍 {selectedSido}
-        </button>
-      </>}
-      {selectedSupport && <>
-        <span style={{ color:'#d1d5db' }}>›</span>
-        <button onClick={() => { setSelectedSchool(null); setSelectedTeacher(null) }}
-          style={{ background:'none', border:'none', color:selectedSchool?C.muted:C.primary, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, padding:0 }}>
-          🏛️ {selectedSupport}
-        </button>
-      </>}
-      {selectedSchool && <>
-        <span style={{ color:'#d1d5db' }}>›</span>
-        <button onClick={() => setSelectedTeacher(null)}
-          style={{ background:'none', border:'none', color:selectedTeacher?C.muted:C.primary, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontSize:'13px', fontWeight:600, padding:0 }}>
-          🏫 {selectedSchool}
-        </button>
-      </>}
-      {selectedTeacher && <>
-        <span style={{ color:'#d1d5db' }}>›</span>
-        <span style={{ color:C.primary, fontWeight:600 }}>
-          👩‍🏫 {allTeachers.find(t => t.id === selectedTeacher)?.name}
-        </span>
-      </>}
-    </div>
-  )
-
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
 
@@ -426,7 +429,14 @@ function MapDrilldown({ allStudents, allClasses, allTeachers, allBranches, STATU
 
         {/* 우측 드릴다운 패널 */}
         <div style={{ flex:1, minWidth:'260px', display:'flex', flexDirection:'column', gap:'12px' }}>
-          <Breadcrumb />
+          <Breadcrumb
+            C={C}
+            allTeachers={allTeachers}
+            selectedSido={selectedSido} selectedSupport={selectedSupport}
+            selectedSchool={selectedSchool} selectedTeacher={selectedTeacher}
+            setSelectedSido={setSelectedSido} setSelectedSupport={setSelectedSupport}
+            setSelectedSchool={setSelectedSchool} setSelectedTeacher={setSelectedTeacher}
+          />
 
           {/* 시도 미선택 */}
           {!selectedSido && (

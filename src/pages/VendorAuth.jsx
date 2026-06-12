@@ -238,6 +238,36 @@ function FindIdTab({ onBack }) {
 // 비밀번호 초기화
 // 흐름: 이메일 입력 → 인증번호 발송 → 확인 → 새 비번 설정 → 완료
 // ─────────────────────────────────────────────────────
+// ─── 비밀번호 초기화 진행바 (ResetPwTab 밖으로 분리)
+function Steps({ step }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'22px' }}>
+      {['이메일 확인','인증번호','새 비밀번호'].map((label, i) => {
+        const sn = i + 1
+        const isActive = step === sn
+        const isDone   = step > sn
+        return (
+          <React.Fragment key={label}>
+            <div style={{ display:'flex', alignItems:'center', gap:'5px' }}>
+              <div style={{
+                width:'22px', height:'22px', borderRadius:'50%', display:'flex',
+                alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700,
+                background: isDone ? C.success : isActive ? C.primary : '#e5e7eb',
+                color: (isDone || isActive) ? '#fff' : C.muted,
+                flexShrink:0,
+              }}>{isDone ? '✓' : sn}</div>
+              <span style={{ fontSize:'11px', color: isActive ? C.primary : isDone ? C.success : C.muted, fontWeight: isActive ? 700 : 400, whiteSpace:'nowrap' }}>
+                {label}
+              </span>
+            </div>
+            {i < 2 && <div style={{ flex:1, height:'1.5px', background: step > sn ? C.success : '#e5e7eb', minWidth:'12px' }} />}
+          </React.Fragment>
+        )
+      })}
+    </div>
+  )
+}
+
 function ResetPwTab({ onBack }) {
   const [step, setStep]           = useState(1)
   const [email, setEmail]         = useState('')
@@ -294,34 +324,6 @@ function ResetPwTab({ onBack }) {
     } catch { setErr('오류가 발생했습니다.') }
   }
 
-  // 진행바 컴포넌트
-  const Steps = () => (
-    <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'22px' }}>
-      {['이메일 확인','인증번호','새 비밀번호'].map((label, i) => {
-        const sn = i + 1
-        const isActive = step === sn
-        const isDone   = step > sn
-        return (
-          <React.Fragment key={label}>
-            <div style={{ display:'flex', alignItems:'center', gap:'5px' }}>
-              <div style={{
-                width:'22px', height:'22px', borderRadius:'50%', display:'flex',
-                alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700,
-                background: isDone ? C.success : isActive ? C.primary : '#e5e7eb',
-                color: (isDone || isActive) ? '#fff' : C.muted,
-                flexShrink:0,
-              }}>{isDone ? '✓' : sn}</div>
-              <span style={{ fontSize:'11px', color: isActive ? C.primary : isDone ? C.success : C.muted, fontWeight: isActive ? 700 : 400, whiteSpace:'nowrap' }}>
-                {label}
-              </span>
-            </div>
-            {i < 2 && <div style={{ flex:1, height:'1.5px', background: step > sn ? C.success : '#e5e7eb', minWidth:'12px' }} />}
-          </React.Fragment>
-        )
-      })}
-    </div>
-  )
-
   if (done) return (
     <div style={{ textAlign:'center', padding:'10px 0' }}>
       <div style={{ fontSize:'52px', marginBottom:'14px' }}>✅</div>
@@ -335,7 +337,7 @@ function ResetPwTab({ onBack }) {
     <div>
       <BackLink onClick={onBack} />
       <h3 style={{ fontSize:'16px', fontWeight:700, color:C.text, margin:'0 0 16px' }}>🔑 비밀번호 초기화</h3>
-      <Steps />
+      <Steps step={step} />
 
       {/* Step 1: 이메일 입력 */}
       {step === 1 && (

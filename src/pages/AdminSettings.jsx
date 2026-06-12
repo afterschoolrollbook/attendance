@@ -1367,6 +1367,22 @@ const DEFAULT_MIN_LEVELS = {
   [FEATURES.SHOP_EXTRA]:       1,
 }
 
+// ─── 권한 레벨 선택 버튼 (PermissionsSection 밖으로 분리)
+function LevelButtons({ value, onChange }) {
+  return (
+    <div style={{ display:'flex', gap:'3px', flexWrap:'wrap' }}>
+      {[1,2,3,4,5,6,7,8,9,10].map(lv => (
+        <button key={lv} onClick={() => onChange(lv)}
+          style={{ width:'28px', height:'28px', borderRadius:'6px', border:'none', cursor:'pointer', fontSize:'11px', fontWeight:700,
+            background: value === lv ? (LEVEL_COLORS[lv] || '#9ca3af') : '#f3f4f6',
+            color: value === lv ? '#fff' : '#9ca3af', transition:'all .15s', fontFamily:'Noto Sans KR, sans-serif' }}>
+          {lv}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function PermissionsSection() {
   const stored = Settings.get('featureMinLevels') || {}
   const init = {}
@@ -1405,19 +1421,6 @@ function PermissionsSection() {
   const setBoardPerm = (boardKey, permType, lv) => {
     setBoardPerms(prev => ({ ...prev, [boardKey]: { ...prev[boardKey], [permType]: lv } }))
   }
-
-  const LevelButtons = ({ value, onChange }) => (
-    <div style={{ display:'flex', gap:'3px', flexWrap:'wrap' }}>
-      {[1,2,3,4,5,6,7,8,9,10].map(lv => (
-        <button key={lv} onClick={() => onChange(lv)}
-          style={{ width:'28px', height:'28px', borderRadius:'6px', border:'none', cursor:'pointer', fontSize:'11px', fontWeight:700,
-            background: value === lv ? (LEVEL_COLORS[lv] || '#9ca3af') : '#f3f4f6',
-            color: value === lv ? '#fff' : '#9ca3af', transition:'all .15s', fontFamily:'Noto Sans KR, sans-serif' }}>
-          {lv}
-        </button>
-      ))}
-    </div>
-  )
 
   return (
     <Card style={{ marginBottom:'16px' }}>

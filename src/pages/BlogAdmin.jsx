@@ -196,11 +196,11 @@ export function BlogAdmin({ user }) {
           <p style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>블로그 글과 사용 설명서를 작성하고 관리하세요.</p>
         </div>
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-          <a href="/blog" target="_blank" title="발행된 블로그 페이지를 새 탭으로 봅니다"
+          <a href="/blog" target="_blank" rel="noopener noreferrer" title="발행된 블로그 페이지를 새 탭으로 봅니다"
             style={{ padding:'9px 16px', borderRadius:'9px', border:`1.5px solid ${C.border}`, background:C.card, color:C.muted, fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
             🌐 블로그 보기
           </a>
-          <a href="/docs" target="_blank" title="발행된 설명서 페이지를 새 탭으로 봅니다"
+          <a href="/docs" target="_blank" rel="noopener noreferrer" title="발행된 설명서 페이지를 새 탭으로 봅니다"
             style={{ padding:'9px 16px', borderRadius:'9px', border:`1.5px solid #bfdbfe`, background:'#eff6ff', color:'#3b82f6', fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
             📖 설명서 보기
           </a>
@@ -272,7 +272,7 @@ export function BlogAdmin({ user }) {
               </div>
               <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
                 {post.status==='published' && (
-                  <a href={`/${post.type==='docs'?'docs':'blog'}/${post.slug||post.id}`} target="_blank"
+                  <a href={`/${post.type==='docs'?'docs':'blog'}/${post.slug||post.id}`} target="_blank" rel="noopener noreferrer"
                     style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', color:C.muted, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>보기</a>
                 )}
                 <button onClick={() => handleEdit(post)}

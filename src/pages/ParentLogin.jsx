@@ -84,6 +84,49 @@ function Keypad({ onPress, onDelete, disabled }) {
   )
 }
 
+// ── 공통 레이아웃 (ParentLogin 밖으로 분리)
+// 컴포넌트 내부에서 정의하면 매 렌더마다 새 컴포넌트로 취급되어,
+// Layout으로 감싼 <input>(전화번호/PIN 입력)이 타이핑 중 리마운트되며 포커스를 잃는 문제가 있었음.
+function Layout({ children }) {
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      background: '#fff7ed', fontFamily: 'Noto Sans KR, sans-serif',
+      padding: '24px 20px',
+    }}>
+      <div style={{ marginBottom: '28px', textAlign: 'center' }}>
+        <div style={{ fontSize: '44px', marginBottom: '8px' }}>📋</div>
+        <div style={{ fontSize: '22px', fontWeight: 800, color: C.text, marginBottom: '4px' }}>
+          방과후 출석부
+        </div>
+        <div style={{ fontSize: '14px', color: C.muted }}>학부모 로그인</div>
+      </div>
+
+      <div style={{
+        width: '100%', maxWidth: '380px',
+        background: C.card, borderRadius: '20px',
+        border: `1px solid ${C.border}`,
+        padding: '28px 24px',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.07)',
+      }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function ErrorBox({ msg }) {
+  return msg ? (
+    <div style={{
+      marginTop: '12px', padding: '10px 14px',
+      background: C.errorBg, borderRadius: '10px',
+      fontSize: '13px', color: C.error, lineHeight: 1.7,
+      whiteSpace: 'pre-line', textAlign: 'center',
+    }}>⚠️ {msg}</div>
+  ) : null
+}
+
 // ── 메인 컴포넌트
 export function ParentLogin() {
   // step: 'phone' | 'pin' | 'set_pin' | 'confirm_pin' | 'done'
@@ -286,42 +329,7 @@ export function ParentLogin() {
     setError('')
   }
 
-  // ── 공통 레이아웃
-  const Layout = ({ children }) => (
-    <div style={{
-      minHeight: '100vh', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
-      background: '#fff7ed', fontFamily: 'Noto Sans KR, sans-serif',
-      padding: '24px 20px',
-    }}>
-      <div style={{ marginBottom: '28px', textAlign: 'center' }}>
-        <div style={{ fontSize: '44px', marginBottom: '8px' }}>📋</div>
-        <div style={{ fontSize: '22px', fontWeight: 800, color: C.text, marginBottom: '4px' }}>
-          방과후 출석부
-        </div>
-        <div style={{ fontSize: '14px', color: C.muted }}>학부모 로그인</div>
-      </div>
-
-      <div style={{
-        width: '100%', maxWidth: '380px',
-        background: C.card, borderRadius: '20px',
-        border: `1px solid ${C.border}`,
-        padding: '28px 24px',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.07)',
-      }}>
-        {children}
-      </div>
-    </div>
-  )
-
-  const ErrorBox = ({ msg }) => msg ? (
-    <div style={{
-      marginTop: '12px', padding: '10px 14px',
-      background: C.errorBg, borderRadius: '10px',
-      fontSize: '13px', color: C.error, lineHeight: 1.7,
-      whiteSpace: 'pre-line', textAlign: 'center',
-    }}>⚠️ {msg}</div>
-  ) : null
+  // ── 공통 레이아웃은 컴포넌트 밖으로 분리됨 (Layout, ErrorBox)
 
   // ════════════════════════════════
   // STEP: phone — 전화번호 입력

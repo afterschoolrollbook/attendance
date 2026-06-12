@@ -50,6 +50,18 @@ function getMenuConfig() {
   return JSON.parse(localStorage.getItem(KEY_MENU) || '{"training":true,"certificates":true,"career":true,"awards":true,"proposals":true,"jobs":true}')
 }
 
+// ─── 권한 레벨 배지 (Sidebar 밖으로 분리)
+function UserBadge({ levelColor, levelLabel }) {
+  return (
+    <div style={{
+      display:'inline-block', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'999px',
+      background:`${levelColor}22`, color:levelColor, border:`1px solid ${levelColor}44`,
+    }}>
+      {levelLabel}
+    </div>
+  )
+}
+
 export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onClose, onGoLanding }) {
   const adSlot     = AdSlots.all().find(s => s.id === 'sidebar_bottom')
   const menuCfg    = getMenuConfig()
@@ -94,15 +106,6 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
     </div>,
     document.body
   ) : null
-
-  const UserBadge = () => (
-    <div style={{
-      display:'inline-block', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'999px',
-      background:`${levelColor}22`, color:levelColor, border:`1px solid ${levelColor}44`,
-    }}>
-      {levelLabel}
-    </div>
-  )
 
   const renderNav = (isMobile) => (
     <nav style={{ flex:1, overflowY:'auto', padding: isMobile ? '10px 0' : '12px 0' }}>
@@ -168,7 +171,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
         </div>
         <div style={{ padding:'14px 16px', borderBottom:'1px solid #27272a' }}>
           <div style={{ fontSize:'14px', fontWeight:600, color:'#fff', marginBottom:'4px' }}>{user?.name}</div>
-          <UserBadge />
+          <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
         </div>
         {renderNav(true)}
         <div style={{ padding:'12px 16px', borderTop:'1px solid #27272a' }}>
@@ -200,7 +203,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
       </div>
       <div style={{ padding:'16px 20px', borderBottom:'1px solid #27272a' }}>
         <div style={{ fontSize:'14px', fontWeight:600, color:'#fff', marginBottom:'4px' }}>{user?.name}</div>
-        <UserBadge />
+        <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
       </div>
       {renderNav(false)}
       {adSlot?.active && adSlot.code && (

@@ -870,6 +870,39 @@ function ParentListTab({ user, config }) {
 // ─────────────────────────────────────────────
 // 탭 2: 서비스 설정
 // ─────────────────────────────────────────────
+// ─── 입력 필드/안내 박스 (ServiceSettingsTab 밖으로 분리)
+// 부모 렌더 함수 내부에서 정의하면 매 렌더마다 새 컴포넌트로 취급되어
+// textarea/input이 매번 리마운트 → 타이핑 중 포커스가 끊기는 문제가 있었음.
+function FieldBlock({ title, k, multiline = true, hint, local, config, set, resetField }) {
+  return (
+    <div style={{ background:'#fff', borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px' }}>
+        <label style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>{title}</label>
+        <button onClick={() => resetField(k)}
+          style={{ fontSize:'11px', color:'#9ca3af', background:'none', border:`1px solid #e5e7eb`, borderRadius:'5px', padding:'2px 8px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          기본값 복원
+        </button>
+      </div>
+      {hint && <div style={{ fontSize:'11px', color:'#9ca3af', marginBottom:'8px' }}>{hint}</div>}
+      {multiline ? (
+        <textarea value={local[k] || ''} onChange={e => set(k, e.target.value)} rows={10}
+          style={{ width:'100%', boxSizing:'border-box', padding:'10px 12px', borderRadius:'9px', border:`1.5px solid ${local[k]!==config[k]?C.primary:C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', lineHeight:1.7, resize:'vertical', outline:'none' }} />
+      ) : (
+        <input value={local[k] || ''} onChange={e => set(k, e.target.value)}
+          style={{ width:'100%', boxSizing:'border-box', padding:'10px 12px', borderRadius:'9px', border:`1.5px solid ${local[k]!==config[k]?C.primary:C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
+      )}
+    </div>
+  )
+}
+
+function InfoBox({ color, bg, border, children }) {
+  return (
+    <div style={{ background:bg, borderRadius:'10px', border:`1px solid ${border}`, padding:'12px 14px', fontSize:'12px', color, lineHeight:1.8 }}>
+      {children}
+    </div>
+  )
+}
+
 function ServiceSettingsTab({ config, teacherId, onChange, showToast }) {
   const [local,   setLocal]   = useState({ ...config })
   const [section, setSection] = useState('invite')
@@ -903,32 +936,6 @@ function ServiceSettingsTab({ config, teacherId, onChange, showToast }) {
     { id:'withdraw',  icon:'👋', label:'탈퇴 안내' },
   ]
 
-  const FieldBlock = ({ title, k, multiline = true, hint }) => (
-    <div style={{ background:'#fff', borderRadius:'12px', border:`1px solid ${C.border}`, padding:'16px' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px' }}>
-        <label style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>{title}</label>
-        <button onClick={() => resetField(k)}
-          style={{ fontSize:'11px', color:'#9ca3af', background:'none', border:`1px solid #e5e7eb`, borderRadius:'5px', padding:'2px 8px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-          기본값 복원
-        </button>
-      </div>
-      {hint && <div style={{ fontSize:'11px', color:'#9ca3af', marginBottom:'8px' }}>{hint}</div>}
-      {multiline ? (
-        <textarea value={local[k] || ''} onChange={e => set(k, e.target.value)} rows={10}
-          style={{ width:'100%', boxSizing:'border-box', padding:'10px 12px', borderRadius:'9px', border:`1.5px solid ${local[k]!==config[k]?C.primary:C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', lineHeight:1.7, resize:'vertical', outline:'none' }} />
-      ) : (
-        <input value={local[k] || ''} onChange={e => set(k, e.target.value)}
-          style={{ width:'100%', boxSizing:'border-box', padding:'10px 12px', borderRadius:'9px', border:`1.5px solid ${local[k]!==config[k]?C.primary:C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-      )}
-    </div>
-  )
-
-  const InfoBox = ({ color, bg, border, children }) => (
-    <div style={{ background:bg, borderRadius:'10px', border:`1px solid ${border}`, padding:'12px 14px', fontSize:'12px', color, lineHeight:1.8 }}>
-      {children}
-    </div>
-  )
-
   return (
     <div style={{ display:'flex', gap:'20px', alignItems:'flex-start' }}>
       {/* 섹션 사이드 메뉴 */}
@@ -956,31 +963,31 @@ function ServiceSettingsTab({ config, teacherId, onChange, showToast }) {
             💡 초대장 첫 화면에 표시되는 안내 문구입니다.
             <code style={{ background:'#dcfce7', borderRadius:'4px', padding:'1px 5px' }}>{'{선생님}'}</code>은 선생님 이름으로 자동 변환됩니다.
           </InfoBox>
-          <FieldBlock title="서비스 소개 문구" k="inviteNotice" />
-          <FieldBlock title="🏫 학교 공식 서비스 아님 안내" k="schoolNotice" multiline={false} />
-          <FieldBlock title="동의 거부 안내" k="notAgreeNotice" multiline={false} />
+          <FieldBlock title="서비스 소개 문구" k="inviteNotice" local={local} config={config} set={set} resetField={resetField} />
+          <FieldBlock title="🏫 학교 공식 서비스 아님 안내" k="schoolNotice" multiline={false} local={local} config={config} set={set} resetField={resetField} />
+          <FieldBlock title="동의 거부 안내" k="notAgreeNotice" multiline={false} local={local} config={config} set={set} resetField={resetField} />
         </>}
 
         {section === 'terms' && <>
           <InfoBox color="#1d4ed8" bg="#eff6ff" border="#bfdbfe">
             💡 [필수] 서비스 이용약관 "보기" 버튼 클릭 시 보여지는 약관 본문입니다.
           </InfoBox>
-          <FieldBlock title="이용약관 본문" k="terms" />
+          <FieldBlock title="이용약관 본문" k="terms" local={local} config={config} set={set} resetField={resetField} />
         </>}
 
         {section === 'privacy' && <>
           <InfoBox color="#1d4ed8" bg="#eff6ff" border="#bfdbfe">
             💡 [필수] 개인정보 수집·이용 동의 "보기" 버튼 클릭 시 보여지는 내용입니다.
           </InfoBox>
-          <FieldBlock title="개인정보 수집·이용 동의 본문" k="privacy" />
+          <FieldBlock title="개인정보 수집·이용 동의 본문" k="privacy" local={local} config={config} set={set} resetField={resetField} />
         </>}
 
         {section === 'marketing' && <>
           <InfoBox color="#7c3aed" bg="#faf5ff" border="#e9d5ff">
             💡 [선택] 마케팅 수신 동의 항목의 문구입니다. 학부모님이 거부해도 출결 서비스 이용에 지장 없습니다.
           </InfoBox>
-          <FieldBlock title="마케팅 동의 레이블" k="marketingLabel" multiline={false} />
-          <FieldBlock title="마케팅 동의 설명" k="marketingDesc" multiline={false} />
+          <FieldBlock title="마케팅 동의 레이블" k="marketingLabel" multiline={false} local={local} config={config} set={set} resetField={resetField} />
+          <FieldBlock title="마케팅 동의 설명" k="marketingDesc" multiline={false} local={local} config={config} set={set} resetField={resetField} />
         </>}
 
         {section === 'sms' && <>
@@ -991,7 +998,7 @@ function ServiceSettingsTab({ config, teacherId, onChange, showToast }) {
             <code style={{ background:'#dcfce7', borderRadius:'4px', padding:'1px 5px' }}>{'{학생}'}</code>{' '}
             <code style={{ background:'#dcfce7', borderRadius:'4px', padding:'1px 5px' }}>{'{링크}'}</code>
           </InfoBox>
-          <FieldBlock title="초대 SMS 문자 템플릿" k="inviteSmsTemplate" />
+          <FieldBlock title="초대 SMS 문자 템플릿" k="inviteSmsTemplate" local={local} config={config} set={set} resetField={resetField} />
           {/* 미리보기 */}
           <div style={{ background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}`, padding:'14px' }}>
             <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>📱 미리보기 (홍길동 선생님 / 김철수 학생 기준)</div>
@@ -1101,7 +1108,7 @@ function ServiceSettingsTab({ config, teacherId, onChange, showToast }) {
           <InfoBox color="#991b1b" bg="#fef2f2" border="#fecaca">
             💡 학부모님이 탈퇴 버튼을 눌렀을 때 표시되는 주의 안내 문구입니다.
           </InfoBox>
-          <FieldBlock title="탈퇴 안내 문구" k="withdrawNotice" />
+          <FieldBlock title="탈퇴 안내 문구" k="withdrawNotice" local={local} config={config} set={set} resetField={resetField} />
         </>}
 
         {/* 저장 버튼 */}

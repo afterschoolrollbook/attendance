@@ -133,6 +133,135 @@ const SCHOOL_INFO_DOC_TYPES = [
   { key:'etc',      label:'📎 기타 서류',           desc:'기타 양식 파일' },
 ]
 
+// ─── 공통 표시용 컴포넌트
+// 아래 컴포넌트들은 원래 각 탭/모달 함수 내부에서 정의되어 있었음.
+// 렌더 함수 내부에서 컴포넌트를 정의하면 매 렌더마다 새 함수(=새 컴포넌트 타입)로
+// 취급되어 불필요한 리마운트가 발생하므로, 모듈 최상위로 분리함.
+function LB({ children }) {
+  return <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px', fontWeight:600 }}>{children}</label>
+}
+
+function LBL2({ children }) {
+  return (
+    <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px', fontWeight:600 }}>{children}</label>
+  )
+}
+
+function FilePicker({ label, fieldKey, form, pickFile }) {
+  const val = form[fieldKey]
+  return (
+    <div>
+      <LBL2>{label}</LBL2>
+      <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+        <button type="button" onClick={() => pickFile(null, fieldKey)}
+          style={{ padding:'7px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:'#fff', fontSize:'12px', cursor:'pointer', color:C.muted, fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+          📎 파일 선택
+        </button>
+        {val?.name
+          ? <span style={{ fontSize:'11px', color:C.primary, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'120px' }}>{val.name}</span>
+          : <span style={{ fontSize:'11px', color:'#d1d5db' }}>미첨부</span>
+        }
+      </div>
+    </div>
+  )
+}
+
+function FileView({ label, field }) {
+  return (
+    <div style={{ marginBottom:'10px' }}>
+      <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px', fontWeight:600 }}>{label}</div>
+      {field?.data
+        ? field.data.startsWith('data:image')
+          ? <img src={field.data} alt={label} style={{ maxWidth:'100%', maxHeight:'160px', borderRadius:'8px', border:`1px solid ${C.border}` }} />
+          : <a href={field.data} download={field.name} style={{ fontSize:'12px', color:C.primary }}>📎 {field.name} 다운로드</a>
+        : <span style={{ fontSize:'12px', color:'#d1d5db' }}>미첨부</span>
+      }
+    </div>
+  )
+}
+
+// 업무 완료 현황 배너 — 컴포넌트가 아닌 일반 렌더 함수로 분리 (props 없이 인자로 직접 전달)
+function renderStatusBanner({ completeOn, allReplied, remainReplied, allSubmitted, remainSubmitted }) {
+  if (completeOn === 'replied') {
+    // 회신 업무
+    if (allReplied) return (
+      <div style={{ background:'#f0fdf4', borderRadius:'10px', padding:'12px 16px', border:'1px solid #86efac' }}>
+        <div style={{ fontSize:'13px', color:'#16a34a', fontWeight:700 }}>
+          ✅ 모든 선생님이 회신 완료했습니다. 업무완료 버튼을 눌러주세요.
+        </div>
+      </div>
+    )
+    return (
+      <div style={{ background:'#fffbeb', borderRadius:'10px', padding:'12px 16px', border:'1px solid #fcd34d' }}>
+        <div style={{ fontSize:'13px', color:'#92400e', fontWeight:600 }}>
+          ⏳ 아직 {remainReplied}명이 회신을 하지 않았습니다.
+        </div>
+      </div>
+    )
+  }
+
+  // 제출 업무 — 회신/제출 두 단계 표시
+  return (
+    <div style={{ background: allSubmitted?'#f0fdf4':'#f8fafc', borderRadius:'10px', padding:'12px 16px', border:`1px solid ${allSubmitted?'#86efac':'#e5e7eb'}` }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+        {/* 회신 현황 */}
+        <div style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px' }}>
+          {allReplied
+            ? <span style={{ color:'#16a34a', fontWeight:700 }}>✅ 모든 선생님 회신완료.</span>
+            : <span style={{ color:'#d97706', fontWeight:600 }}>⏳ 회신 대기 {remainReplied}명.</span>
+          }
+        </div>
+        {/* 제출 현황 */}
+        <div style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px' }}>
+          {allSubmitted
+            ? <span style={{ color:'#16a34a', fontWeight:700 }}>✅ 모든 선생님 제출완료.</span>
+            : <span style={{ color:'#2563eb', fontWeight:600 }}>📎 제출 대기 {remainSubmitted}명.</span>
+          }
+        </div>
+        {allReplied && !allSubmitted && (
+          <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'2px' }}>
+            모든 선생님이 회신했지만 아직 제출이 완료되지 않았습니다.
+          </div>
+        )}
+        {allSubmitted && (
+          <div style={{ fontSize:'12px', color:'#16a34a', marginTop:'2px', fontWeight:600 }}>
+            확인 후 업무완료 버튼을 눌러주세요! 🎉
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function BtnFilter({val,cur,set,label}) {
+  return (
+    <button onClick={()=>set(val)} style={{
+      padding:'5px 12px', borderRadius:'20px', fontSize:'12px', fontWeight:cur===val?700:400,
+      border:`1.5px solid ${cur===val?C.primary:C.border}`,
+      background:cur===val?C.primary:'#fff',
+      color:cur===val?'#fff':C.text,
+      cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
+    }}>{label}</button>
+  )
+}
+
+function StatCard({title, children, span=1}) {
+  return (
+    <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px 18px', gridColumn:`span ${span}` }}>
+      <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'12px' }}>{title}</div>
+      {children}
+    </div>
+  )
+}
+
+function MiniBar({pct, color='#3b82f6', h=7}) {
+  return (
+    <div style={{ height:`${h}px`, background:'#f1f5f9', borderRadius:'999px', overflow:'hidden' }}>
+      <div style={{ width:`${Math.min(pct,100)}%`, height:'100%', background:color, borderRadius:'999px' }}/>
+    </div>
+  )
+}
+
 function SchoolInfoTab({ session }) {
   const { success, error } = useToast()
   const [info,    setInfo]    = useState(null)   // schoolInfo 레코드
@@ -233,7 +362,6 @@ function SchoolInfoTab({ session }) {
   }
 
   const iSt = { width:'100%', padding:'9px 12px', borderRadius:'9px', border:`1.5px solid ${C.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box' }
-  const LB  = ({ children }) => <label style={{ fontSize:'12px', color:C.muted, display:'block', marginBottom:'4px', fontWeight:600 }}>{children}</label>
 
   if (loading) return <div style={{ padding:'40px', textAlign:'center', color:C.muted }}>불러오는 중...</div>
 
@@ -762,58 +890,6 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
   const remainCount    = completeOn === 'submitted' ? remainSubmitted : remainReplied
 
   // 완료 현황 메시지
-  const StatusBanner = () => {
-    if (completeOn === 'replied') {
-      // 회신 업무
-      if (allReplied) return (
-        <div style={{ background:'#f0fdf4', borderRadius:'10px', padding:'12px 16px', border:'1px solid #86efac' }}>
-          <div style={{ fontSize:'13px', color:'#16a34a', fontWeight:700 }}>
-            ✅ 모든 선생님이 회신 완료했습니다. 업무완료 버튼을 눌러주세요.
-          </div>
-        </div>
-      )
-      return (
-        <div style={{ background:'#fffbeb', borderRadius:'10px', padding:'12px 16px', border:'1px solid #fcd34d' }}>
-          <div style={{ fontSize:'13px', color:'#92400e', fontWeight:600 }}>
-            ⏳ 아직 {remainReplied}명이 회신을 하지 않았습니다.
-          </div>
-        </div>
-      )
-    }
-
-    // 제출 업무 — 회신/제출 두 단계 표시
-    return (
-      <div style={{ background: allSubmitted?'#f0fdf4':'#f8fafc', borderRadius:'10px', padding:'12px 16px', border:`1px solid ${allSubmitted?'#86efac':'#e5e7eb'}` }}>
-        <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-          {/* 회신 현황 */}
-          <div style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px' }}>
-            {allReplied
-              ? <span style={{ color:'#16a34a', fontWeight:700 }}>✅ 모든 선생님 회신완료.</span>
-              : <span style={{ color:'#d97706', fontWeight:600 }}>⏳ 회신 대기 {remainReplied}명.</span>
-            }
-          </div>
-          {/* 제출 현황 */}
-          <div style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px' }}>
-            {allSubmitted
-              ? <span style={{ color:'#16a34a', fontWeight:700 }}>✅ 모든 선생님 제출완료.</span>
-              : <span style={{ color:'#2563eb', fontWeight:600 }}>📎 제출 대기 {remainSubmitted}명.</span>
-            }
-          </div>
-          {allReplied && !allSubmitted && (
-            <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'2px' }}>
-              모든 선생님이 회신했지만 아직 제출이 완료되지 않았습니다.
-            </div>
-          )}
-          {allSubmitted && (
-            <div style={{ fontSize:'12px', color:'#16a34a', marginTop:'2px', fontWeight:600 }}>
-              확인 후 업무완료 버튼을 눌러주세요! 🎉
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
   // 업무 전체 상태 변경
   const setNoticeStatus = async (status) => {
     const patch = { status }
@@ -850,7 +926,7 @@ function NoticeDetailModal({ notice, session, teachers, onClose, onReload }) {
         </div>
 
         {/* 선생님 완료 현황 요약 */}
-        <StatusBanner />
+        {renderStatusBanner({ completeOn, allReplied, remainReplied, allSubmitted, remainSubmitted })}
 
         {/* 개별 선생님 상태 요약 */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
@@ -1591,10 +1667,6 @@ function TeacherFormModal({ mode, form, setForm, session, subjects, onSave, onCl
     border:'1.5px solid #e5e7eb', fontSize:'13px',
     fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box',
   }
-  const LBL = ({ children }) => (
-    <label style={{ fontSize:'11px', color:C.muted, display:'block', marginBottom:'3px', fontWeight:600 }}>{children}</label>
-  )
-
   const toggleDay = (day) => {
     const current = form.days ? form.days.split('·').filter(Boolean) : []
     const next = current.includes(day)
@@ -1626,25 +1698,6 @@ function TeacherFormModal({ mode, form, setForm, session, subjects, onSave, onCl
     input.click()
   }
 
-  const FilePicker = ({ label, fieldKey }) => {
-    const val = form[fieldKey]
-    return (
-      <div>
-        <LBL>{label}</LBL>
-        <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
-          <button type="button" onClick={() => pickFile(null, fieldKey)}
-            style={{ padding:'7px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:'#fff', fontSize:'12px', cursor:'pointer', color:C.muted, fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
-            📎 파일 선택
-          </button>
-          {val?.name
-            ? <span style={{ fontSize:'11px', color:C.primary, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'120px' }}>{val.name}</span>
-            : <span style={{ fontSize:'11px', color:'#d1d5db' }}>미첨부</span>
-          }
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div
       style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
@@ -1662,19 +1715,19 @@ function TeacherFormModal({ mode, form, setForm, session, subjects, onSave, onCl
         <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, marginBottom:'10px', letterSpacing:'.8px' }}>기본 정보</div>
         <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 1fr', gap:'10px', marginBottom:'10px' }}>
           <div>
-            <LBL>연도 *</LBL>
+            <LBL2>연도 *</LBL2>
             <input style={iSt2} type="number" value={form.year}
               onChange={e => setForm(f => ({ ...f, year: e.target.value }))}
               placeholder="2026" />
           </div>
           <div>
-            <LBL>학교명</LBL>
+            <LBL2>학교명</LBL2>
             <input style={iSt2} value={form.schoolName}
               onChange={e => setForm(f => ({ ...f, schoolName: e.target.value }))}
               placeholder={session.admin?.schoolName || '학교명'} />
           </div>
           <div>
-            <LBL>선생님 이름(본명) *</LBL>
+            <LBL2>선생님 이름(본명) *</LBL2>
             <input style={iSt2} value={form.teacherName}
               onChange={e => setForm(f => ({ ...f, teacherName: e.target.value }))}
               placeholder="실명" />
@@ -1683,7 +1736,7 @@ function TeacherFormModal({ mode, form, setForm, session, subjects, onSave, onCl
 
         {/* 과목 선택 */}
         <div style={{ marginBottom:'10px' }}>
-          <LBL>과목 *</LBL>
+          <LBL2>과목 *</LBL2>
           {subjects.length > 0 ? (
             <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'6px' }}>
               {subjects.map(s => (
@@ -1708,7 +1761,7 @@ function TeacherFormModal({ mode, form, setForm, session, subjects, onSave, onCl
 
         {/* 요일 클릭 선택 */}
         <div style={{ marginBottom:'10px' }}>
-          <LBL>수업 요일 *</LBL>
+          <LBL2>수업 요일 *</LBL2>
           <div style={{ display:'flex', gap:'8px' }}>
             {DAYS_LIST.map(day => (
               <button key={day} type="button" onClick={() => toggleDay(day)}
@@ -1733,13 +1786,13 @@ function TeacherFormModal({ mode, form, setForm, session, subjects, onSave, onCl
 
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
           <div>
-            <LBL>전화번호 *</LBL>
+            <LBL2>전화번호 *</LBL2>
             <input style={iSt2} value={form.teacherPhone}
               onChange={e => setForm(f => ({ ...f, teacherPhone: e.target.value }))}
               placeholder="010-0000-0000" />
           </div>
           <div>
-            <LBL>이메일 * (앱 연결 키)</LBL>
+            <LBL2>이메일 * (앱 연결 키)</LBL2>
             <input style={iSt2} type="email" value={form.email}
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
               placeholder="teacher@email.com" />
@@ -1750,12 +1803,12 @@ function TeacherFormModal({ mode, form, setForm, session, subjects, onSave, onCl
         <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, margin:'14px 0 10px', letterSpacing:'.8px' }}>계약 기간</div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'10px' }}>
           <div>
-            <LBL>시작 날짜</LBL>
+            <LBL2>시작 날짜</LBL2>
             <input style={iSt2} type="date" value={form.startDate||''}
               onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
           </div>
           <div>
-            <LBL>마감 날짜</LBL>
+            <LBL2>마감 날짜</LBL2>
             <input style={iSt2} type="date" value={form.endDate||''}
               onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
           </div>
@@ -1764,9 +1817,9 @@ function TeacherFormModal({ mode, form, setForm, session, subjects, onSave, onCl
         {/* 첨부 서류 */}
         <div style={{ fontSize:'11px', fontWeight:700, color:C.muted, margin:'16px 0 10px', letterSpacing:'.8px' }}>첨부 서류</div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'12px', marginBottom:'24px' }}>
-          <FilePicker label="수강료 통장사본"       fieldKey="feeAccount"    />
-          <FilePicker label="교구업체 사업자등록증"  fieldKey="vendorBiz"     />
-          <FilePicker label="교구업체 통장사본"      fieldKey="vendorAccount" />
+          <FilePicker label="수강료 통장사본" fieldKey="feeAccount" form={form} pickFile={pickFile} />
+          <FilePicker label="교구업체 사업자등록증" fieldKey="vendorBiz" form={form} pickFile={pickFile} />
+          <FilePicker label="교구업체 통장사본" fieldKey="vendorAccount" form={form} pickFile={pickFile} />
         </div>
 
         <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
@@ -1780,17 +1833,6 @@ function TeacherFormModal({ mode, form, setForm, session, subjects, onSave, onCl
 
 // ── 선생님 상세 보기 모달
 function TeacherDetailModal({ t, onClose }) {
-  const FileView = ({ label, field }) => (
-    <div style={{ marginBottom:'10px' }}>
-      <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px', fontWeight:600 }}>{label}</div>
-      {field?.data
-        ? field.data.startsWith('data:image')
-          ? <img src={field.data} alt={label} style={{ maxWidth:'100%', maxHeight:'160px', borderRadius:'8px', border:`1px solid ${C.border}` }} />
-          : <a href={field.data} download={field.name} style={{ fontSize:'12px', color:C.primary }}>📎 {field.name} 다운로드</a>
-        : <span style={{ fontSize:'12px', color:'#d1d5db' }}>미첨부</span>
-      }
-    </div>
-  )
   return (
     <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
       onClick={e => e.target===e.currentTarget && onClose()}>
@@ -2733,16 +2775,6 @@ function StudentsTab({ session }) {
     return `${dayStr}${cls.className||''}`
   }
 
-  const BtnFilter = ({val,cur,set,label}) => (
-    <button onClick={()=>set(val)} style={{
-      padding:'5px 12px', borderRadius:'20px', fontSize:'12px', fontWeight:cur===val?700:400,
-      border:`1.5px solid ${cur===val?C.primary:C.border}`,
-      background:cur===val?C.primary:'#fff',
-      color:cur===val?'#fff':C.text,
-      cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap',
-    }}>{label}</button>
-  )
-
   // 총 인원 수 (수업 중복 포함)
   const totalCount     = expandedRows.length
   const confirmedCount = expandedRows.filter(r=>r.student.status==='confirmed').length
@@ -2953,18 +2985,6 @@ function StudentsTab({ session }) {
               return parseInt(a[0])-parseInt(b[0])
             })
             const classMax = Math.max(...classEntries.map(x=>x[1]), 1)
-
-            const StatCard = ({title, children, span=1}) => (
-              <div style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, padding:'16px 18px', gridColumn:`span ${span}` }}>
-                <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'12px' }}>{title}</div>
-                {children}
-              </div>
-            )
-            const MiniBar = ({pct, color='#3b82f6', h=7}) => (
-              <div style={{ height:`${h}px`, background:'#f1f5f9', borderRadius:'999px', overflow:'hidden' }}>
-                <div style={{ width:`${Math.min(pct,100)}%`, height:'100%', background:color, borderRadius:'999px' }}/>
-              </div>
-            )
 
             return (
               <div style={{ marginBottom:'16px' }}>

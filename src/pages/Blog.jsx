@@ -626,6 +626,69 @@ function DocsDetail({ doc, allDocs, onBack, onSelect }) {
 }
 
 // ── 메인 컴포넌트
+// ─── 상단 네비게이션 (Blog 밖으로 분리, 일반 렌더 함수)
+function renderNav({ blogAdminMode, switchTab, tab, selPost, currentUser, canWrite, setBlogAdminMode }) {
+  return (
+    <nav style={{ position:'sticky', top:0, zIndex:100, background:'rgba(255,255,255,0.95)', backdropFilter:'blur(8px)', borderBottom:'1px solid #e5e7eb', padding:'0 24px' }}>
+      <div style={{ maxWidth:'1100px', margin:'0 auto', height:'56px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'20px' }}>
+          <a href="/" style={{ display:'flex', alignItems:'center', gap:'8px', textDecoration:'none' }}>
+            <span style={{ fontSize:'20px' }}>📋</span>
+            <span style={{ fontSize:'15px', fontWeight:700, color:'#111827' }}>방과후 출석부</span>
+          </a>
+          {!blogAdminMode && (
+            <div style={{ display:'flex', gap:'2px' }}>
+              {[['blog','📝 블로그','#f97316'],['docs','📖 설명서','#3b82f6'],['templates','📋 템플릿','#7c3aed']].map(([key,label,color]) => (
+                <button key={key} onClick={() => switchTab(key)}
+                  style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:tab===key&&!selPost?`${color}18`:'transparent', color:tab===key&&!selPost?color:'#6b7280', fontSize:'14px', fontWeight:tab===key&&!selPost?700:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+          {currentUser && (
+            <a href="/?page=dashboard" style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#374151', borderRadius:'8px', fontSize:'13px', fontWeight:600, textDecoration:'none' }}>
+              🏠 대시보드
+            </a>
+          )}
+          {canWrite && (
+            <button onClick={() => setBlogAdminMode(v => !v)}
+              style={{ padding:'7px 16px', background:blogAdminMode?'#1f2937':'#f97316', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              {blogAdminMode ? '← 블로그' : '✏️ 글관리'}
+            </button>
+          )}
+          {currentUser ? (
+            <button onClick={async () => { await supabase?.auth?.signOut(); window.location.href = '/' }}
+              style={{ padding:'7px 16px', background:'none', border:'1px solid #fecaca', color:'#ef4444', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              🚪 로그아웃
+            </button>
+          ) : (
+            <a href="/?page=login" style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#374151', borderRadius:'8px', fontSize:'13px', fontWeight:600, textDecoration:'none' }}>
+              로그인
+            </a>
+          )}
+          <a href="/" style={{ padding:'7px 18px', background:'#f97316', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, textDecoration:'none' }}>앱 시작하기 →</a>
+        </div>
+      </div>
+    </nav>
+  )
+}
+
+// ─── 본문 영역 (Blog 밖으로 분리, 일반 렌더 함수)
+function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, handleBack, handleSelect, tab }) {
+  if (blogAdminMode) return <div style={{ padding:'24px' }}><BlogAdmin user={currentUser} /></div>
+  if (selPost) {
+    if (selPost.type === 'docs') return <DocsDetail doc={selPost} allDocs={docsPosts} onBack={handleBack} onSelect={handleSelect} />
+    if (selPost.type === 'template') return <TemplateDetail post={selPost} onBack={handleBack} />
+    return <BlogDetail post={selPost} onBack={handleBack} />
+  }
+  if (tab === 'docs') return <DocsList docs={docsPosts} onSelect={handleSelect} />
+  if (tab === 'templates') return <TemplateList posts={templatePosts} onSelect={handleSelect} />
+  return <BlogList posts={blogPosts} onSelect={handleSelect} />
+}
+
 export function Blog() {
   const [allPosts, setAllPosts] = useState([])
   const [tab, setTab] = useState('blog')
@@ -729,53 +792,6 @@ export function Blog() {
 
   const switchTab = (t) => { setTab(t); setSelPost(null); window.history.pushState({}, '', `/${t}`) }
 
-  const Nav = () => (
-    <nav style={{ position:'sticky', top:0, zIndex:100, background:'rgba(255,255,255,0.95)', backdropFilter:'blur(8px)', borderBottom:'1px solid #e5e7eb', padding:'0 24px' }}>
-      <div style={{ maxWidth:'1100px', margin:'0 auto', height:'56px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'20px' }}>
-          <a href="/" style={{ display:'flex', alignItems:'center', gap:'8px', textDecoration:'none' }}>
-            <span style={{ fontSize:'20px' }}>📋</span>
-            <span style={{ fontSize:'15px', fontWeight:700, color:'#111827' }}>방과후 출석부</span>
-          </a>
-          {!blogAdminMode && (
-            <div style={{ display:'flex', gap:'2px' }}>
-              {[['blog','📝 블로그','#f97316'],['docs','📖 설명서','#3b82f6'],['templates','📋 템플릿','#7c3aed']].map(([key,label,color]) => (
-                <button key={key} onClick={() => switchTab(key)}
-                  style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:tab===key&&!selPost?`${color}18`:'transparent', color:tab===key&&!selPost?color:'#6b7280', fontSize:'14px', fontWeight:tab===key&&!selPost?700:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-          {currentUser && (
-            <a href="/?page=dashboard" style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#374151', borderRadius:'8px', fontSize:'13px', fontWeight:600, textDecoration:'none' }}>
-              🏠 대시보드
-            </a>
-          )}
-          {canWrite && (
-            <button onClick={() => setBlogAdminMode(v => !v)}
-              style={{ padding:'7px 16px', background:blogAdminMode?'#1f2937':'#f97316', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-              {blogAdminMode ? '← 블로그' : '✏️ 글관리'}
-            </button>
-          )}
-          {currentUser ? (
-            <button onClick={async () => { await supabase?.auth?.signOut(); window.location.href = '/' }}
-              style={{ padding:'7px 16px', background:'none', border:'1px solid #fecaca', color:'#ef4444', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-              🚪 로그아웃
-            </button>
-          ) : (
-            <a href="/?page=login" style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#374151', borderRadius:'8px', fontSize:'13px', fontWeight:600, textDecoration:'none' }}>
-              로그인
-            </a>
-          )}
-          <a href="/" style={{ padding:'7px 18px', background:'#f97316', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, textDecoration:'none' }}>앱 시작하기 →</a>
-        </div>
-      </div>
-    </nav>
-  )
-
   if (loading) return (
     <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#fafafa' }}>
       <div style={{ textAlign:'center' }}>
@@ -785,22 +801,10 @@ export function Blog() {
     </div>
   )
 
-  const MainContent = () => {
-    if (blogAdminMode) return <div style={{ padding:'24px' }}><BlogAdmin user={currentUser} /></div>
-    if (selPost) {
-      if (selPost.type === 'docs') return <DocsDetail doc={selPost} allDocs={docsPosts} onBack={handleBack} onSelect={handleSelect} />
-      if (selPost.type === 'template') return <TemplateDetail post={selPost} onBack={handleBack} />
-      return <BlogDetail post={selPost} onBack={handleBack} />
-    }
-    if (tab === 'docs') return <DocsList docs={docsPosts} onSelect={handleSelect} />
-    if (tab === 'templates') return <TemplateList posts={templatePosts} onSelect={handleSelect} />
-    return <BlogList posts={blogPosts} onSelect={handleSelect} />
-  }
-
   return (
     <div style={{ minHeight:'100vh', background:'#fafafa', fontFamily:'Noto Sans KR, sans-serif' }}>
       <style>{globalStyles}</style>
-      {Nav()}
+      {renderNav({ blogAdminMode, switchTab, tab, selPost, currentUser, canWrite, setBlogAdminMode })}
       <div style={{ display:'flex', justifyContent:'center', gap:'20px', padding:'0 16px', maxWidth:'1500px', margin:'0 auto' }}>
         <div className="blog-side-ad" style={{ width:'160px', flexShrink:0, paddingTop:'32px' }}>
           <div style={{ position:'sticky', top:'80px' }}>
@@ -808,7 +812,7 @@ export function Blog() {
           </div>
         </div>
         <div style={{ flex:1, minWidth:0, maxWidth:'1100px' }}>
-          <MainContent />
+          {renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, handleBack, handleSelect, tab })}
           {!blogAdminMode && (
             <div style={{ padding:'0 20px 40px' }}>
               <AdSense slot="3333333333" label="하단 광고" style={{ minHeight:'90px' }} />
