@@ -809,42 +809,15 @@ Supabase Dashboard → SQL Editor → supabase/008_verify_codes_rls.sql 전체 �
 
 ---
 
-### `withdraw_parent` RPC — PIN 검증 추가 (2026-06-12)
-
-전화번호만 알면 anon이 `withdraw_parent` RPC를 직접 호출해 학부모를 강제 탈퇴시킬 수 있었음. 프론트 흐름상 PIN 검증 후에만 탈퇴 버튼이 노출되지만, RPC 자체에는 검증이 없었음.
-
-**수정 내용:**
-
-`withdraw_parent(p_phone, p_pin DEFAULT NULL)` — `p_pin` 파라미터 추가, 내부 PIN 검증 로직 삽입 (`verify_parent_pin`과 동일한 `pgcrypto crypt` 패턴)
-
-| 상황 | 동작 |
-|------|------|
-| `pin_hash` 설정된 회원 + 올바른 PIN | ✅ 탈퇴 처리 |
-| `pin_hash` 설정된 회원 + PIN 없거나 틀림 | ❌ `false` 반환 (오류 메시지 없음 — timing attack 방지) |
-| `pin_hash` 미설정 회원 (초대 직후) | ✅ PIN 없이 허용 — 기존 동작 유지 |
-
-- `supabase/009_withdraw_parent_pin.sql` — 신규 파일 (기존 운영 DB에 적용)
-- `supabase/000_complete_schema.sql` — `withdraw_parent` 함수 업데이트
-- `src/pages/ParentLogin.jsx` — PIN 검증/설정 성공 시 `verifiedPin` state 보관, `ParentHome`에 전달
-- `src/pages/ParentInvite.jsx` — `WithdrawSection`에 `pin` prop 추가, RPC 호출 시 `p_pin` 전달
-
-**사이드 이펙트 없음:** `pin_hash` 미설정 회원은 기존과 동일하게 동작. `verifiedPin`은 기본값 `''`이므로 초대 직후 탈퇴 플로우도 정상.
-
----
-
-### `src/pages/App.jsx` 삭제 (2026-06-12)
-
-`src/main.jsx`는 `src/App.jsx`를 import하며, `src/pages/App.jsx`는 어디서도 import되지 않는 데드 파일이었음. `src/App.jsx`에는 `toastError()`로 처리되어 있으나 `src/pages/App.jsx`에는 `alert()`가 잔존 — 혼란 방지를 위해 삭제.
-
----
-
-### `send-email` Edge Function 인증번호 노출 차단 (2026-06-12)
+### `send-email` Edge Function 인증번호 노출 차단 및 만료 시간 표기 수정 (2026-06-12)
 
 Resend API 키가 설정되지 않은 상태에서 `send-email` Edge Function이 `{ success: true, dev: true, code: "인증번호" }`를 응답에 포함하고 있었음. 프론트(`Auth.jsx`, `Profile.jsx`)는 이 `devCode` 값을 state에 저장해 화면에 직접 표시 — 회원가입·비밀번호 초기화·본인 인증 흐름에서 인증번호가 UI에 노출되는 구조였음.
 
+또한 이메일 HTML 본문에 "10분 이내 입력해주세요"라고 표기되어 있었으나, 실제 `verify_codes` 만료 시간은 `Auth.jsx`에서 **5분**으로 설정되어 있어 불일치 상태였음.
+
 **수정 내용:**
 
-- `supabase/functions/send-email/index.ts` — Resend 키 미설정 시 `503` 에러 반환으로 변경. 응답에 `code` 필드 제거
+- `supabase/functions/send-email/index.ts` — Resend 키 미설정 시 `503` 에러 반환으로 변경. 응답에 `code` 필드 제거. 이메일 HTML "10분" → "5분" 수정
 - `src/pages/Auth.jsx` — `isDev`, `devCode`, `fpDev`, `verifyCode` state 및 dev 분기 전부 제거. 인증 실패 시 에러 메시지 표시
 - `src/pages/Profile.jsx` — `devCode` state 및 dev 분기 제거. Supabase 미설정 시 에러 메시지 표시
 
@@ -862,7 +835,7 @@ Resend API 키가 설정되지 않은 상태에서 `send-email` Edge Function이
    src/pages/Profile.jsx
    ```
 
-**사이드 이펙트 없음:** `App.jsx`, `pages/App.jsx`, `Admin.jsx`의 `sendEmail` 호출은 모두 `try/catch`로 감싸져 있어 영향 없음. 정상 설정(Resend 키 등록) 환경에서 동작 100% 동일.
+**사이드 이펙트 없음:** `App.jsx`, `Admin.jsx`의 `sendEmail` 호출은 모두 `try/catch`로 감싸져 있어 영향 없음. 정상 설정(Resend 키 등록) 환경에서 동작 100% 동일.
 
 ---
 
@@ -984,7 +957,7 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 |------|------|
 | `set_parent_pin(phone, pin)` | PIN을 `pgcrypto crypt(bcrypt)` 해시로 저장 |
 | `verify_parent_pin(phone, pin)` | PIN 검증 후 `parent_members` 행 반환 |
-| `withdraw_parent(phone, pin)` | 학부모 탈퇴 처리 — PIN 검증 후 처리 (pin_hash 미설정 회원은 PIN 없이 허용, 2026-06-12 PIN 검증 추가) |
+| `withdraw_parent(phone)` | 학부모 탈퇴 처리 (RLS 우회용 security definer) |
 | `check_parent_joined(phone)` | 가입 여부 확인 |
 
 - `parent_members.pin_hash` 컬럼 추가 (nullable, bcrypt 해시 저장)
@@ -1031,7 +1004,6 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 - [ ] (기존 운영 DB 재배포 시) `supabase/006_settings_secret_lockdown.sql`, `supabase/007_remove_public_service_role_policies.sql` 순서대로 실행 — `settings` 시크릿 분리/잠금 + 위장 `service role full access` 정책 제거
 - [ ] (기존 운영 DB 재배포 시) `supabase/migrations/20240001_vendor_rpc.sql` 실행 — 업체 포털 RPC 함수 26개 추가
 - [ ] (기존 운영 DB 재배포 시) `supabase/008_verify_codes_rls.sql` 실행 — `verify_codes` RLS 활성화
-- [ ] (기존 운영 DB 재배포 시) `supabase/009_withdraw_parent_pin.sql` 실행 — `withdraw_parent` PIN 검증 추가
 - [ ] (기존 운영 DB 재배포 시) `supabase/004_parent_app_rpc.sql` 재실행 — `get_parent_dashboard` PIN 검증 강제 추가
 - [ ] `supabase/functions/send-email/index.ts` 재배포 — Resend 키 미설정 시 인증번호 노출 차단
 - [ ] Supabase Secrets에 `ALLOWED_ORIGIN` 설정
