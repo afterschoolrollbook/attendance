@@ -434,6 +434,8 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 7 | Supabase Auth "Confirm email" 설정 | ✅ 확인 완료 (OFF, 정상) | [바로가기](#supabase-auth-confirm-email-설정-확인-2026-06-12) |
 | 8 | 비밀번호 초기화 — 실제로 비밀번호가 안 바뀌는 문제 | ✅ 적용 (2026-06-12) | [바로가기](#비밀번호-초기화가-실제로-비밀번호를-바꾸지-않던-문제-수정-2026-06-12) |
 | 9 | reset-password-self / reset-user-password 폴더 혼동 | ✅ 적용 (2026-06-12) | [바로가기](#reset-password-self--reset-user-password-폴더-혼동-수정-2026-06-12) |
+| 10 | `find_email_by_phone`/`get_invite_info`/`get_parent_dashboard` — 과도한 컬럼/원본 이메일 노출 | ✅ 적용 (2026-06-12) | [바로가기](#parent-rpc--아이디찾기-rpc-응답-데이터-최소화-2026-06-12) |
+| 11 | `parent_joined`/`moved_to_manage` boolean sanitize 누락 | ✅ 적용 (2026-06-12) | [바로가기](#parent-rpc--아이디찾기-rpc-응답-데이터-최소화-2026-06-12) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -456,6 +458,8 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 레거시 통합 DB API(`db-api`)는 service role key로 RLS를 우회하며, `getAll`을 제외한 모든 액션(`getOne`, `where`, `update`, `insert`, `delete`, `findByEmail`, `settingSet` 등)에 호출자 본인 데이터인지 검증하는 로직이 없었음. 인증된 사용자라면 누구나 자신의 `users.level`을 임의로 올려 관리자 권한을 얻거나, 다른 강사의 데이터를 조회/수정할 수 있는 치명적 취약점.
 
 프론트엔드는 이미 Supabase 클라이언트 + RLS로 직접 통신하도록 전환되어 `db-api`를 사용하지 않았으므로, 함수를 Supabase 대시보드에서 완전히 삭제하고 `setup.sh`/`setup.js`의 배포 목록에서도 제거함. 코드는 `supabase/functions/_deprecated/db-api/`에 사유와 함께 보관.
+
+> ⚠️ 2026-06-12 추가 발견/수정: 위 작업 당시 실제로는 코드가 `supabase/functions/db-api/`(원래 위치)에 그대로 남아있고 `_deprecated/db-api/`는 존재하지 않는 불일치가 있었음 (README와 실제 저장소 상태가 다름). `supabase/functions/db-api/index.ts`를 삭제하고 `_deprecated/db-api/`만 남도록 정리 완료. — 이 항목은 이제 README와 실제 상태가 일치함.
 
 #### 테스트 방법
 
@@ -581,6 +585,40 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 - Supabase Dashboard → Edge Functions 목록에 `reset-password-self`와 `reset-user-password`가 **각각 별도 함수로** 존재하는지 확인 (총 8개)
 - 관리자 화면 → "선생님 비밀번호 초기화" → 정상 동작 확인 (관리자 권한 없는 계정으로 시도 시 거부되는지도 확인 가능하면 함께 확인)
 - 로그인 화면 → "비밀번호 초기화"(본인) → 8번 항목의 테스트 방법대로 재확인
+
+### Parent RPC / 아이디찾기 RPC 응답 데이터 최소화 (2026-06-12)
+
+2026-06-12에 추가한 RPC들을 점검한 결과, 일부가 필요한 것보다 많은 데이터를 반환하고 있었음:
+
+- **`find_email_by_phone`**: 원본 이메일 전체를 반환 → 프론트에서 마스킹하지만, anon key로 RPC를 직접 호출하면 마스킹 없는 원본 이메일을 받을 수 있었음
+- **`get_invite_info`**: `to_jsonb(u)`로 `users` 테이블의 **모든 컬럼**(`level`, `permission_overrides`, `auth_id`, `provider_id` 등 포함)을 비로그인 사용자에게 그대로 반환
+- **`get_parent_dashboard`**: `students`/`classes`/`attendance`의 `to_jsonb(...)`도 전체 컬럼을 반환
+
+→ 다음과 같이 수정:
+
+- `find_email_by_phone`: 서버에서 직접 마스킹(`ab***@example.com` 형태)한 문자열만 반환 — 원본 이메일은 어떤 경로로도 노출되지 않음
+- `get_invite_info`: 선생님 정보를 `id`, `name`, `nickname`, `phone` 4개 컬럼만 반환
+- `get_parent_dashboard`: 학생은 `id`/`name`/`grade`/`class_num`/`class_ids`, 수업은 화면에 표시되는 필드만, 출석은 `student_id`/`class_id`/`status`/`date`/`marked_at`/`absent_reason`/`home_return`/`note`만 반환
+
+적용 방법: Supabase Dashboard → SQL Editor에서 `supabase/004_parent_app_rpc.sql`, `supabase/005_auth_lookup_rpc.sql` 전체 재실행(`create or replace function`이라 안전하게 덮어써짐).
+
+⚠️ 잔존 위험: `find_email_by_phone`은 원본 이메일 노출은 막았지만, 전화번호를 무작위로 대입해 "이 번호가 가입되어 있는지/마스킹된 이메일 일부+도메인"을 알아내는 시도 자체를 막는 호출 빈도 제한(rate limit)은 아직 없음. 추후 필요 시 별도 rate-limit 테이블 또는 CAPTCHA 도입 검토.
+
+#### 비밀번호 초기화 RPC도 동일하게 점검 필요
+
+`get_user_auth_info`(이메일 존재+provider 확인)는 이미 `found`/`provider` 2개 값만 반환하므로 추가 수정 불필요.
+
+### `parent_joined`/`moved_to_manage` boolean sanitize 복구 (2026-06-12)
+
+`db-api` 제거 시, `students` 테이블의 `parent_joined`/`moved_to_manage` 컬럼에 빈 문자열(`''`)이 들어오면 `false`로 변환해주던 `sanitize()`가 함께 사라짐.
+
+확인 결과 `src/lib/db.js`의 `Students.update`/`insert`(앱의 학생 수정 화면이 실제로 사용하는 경로)는 자체 `sanitizeStudentBooleans()`로 이미 보호되고 있었으나, `src/lib/supabase.js`의 `dbCall('insert'/'update'/'upsert', 'students', ...)` 경로에는 동일 처리가 없었음(현재는 미사용 경로지만 추후 사용 시 동일 오류 재발 가능).
+
+→ `dbCall`에도 동일한 `sanitize()`를 추가하여 `parent_joined`/`moved_to_manage`(boolean)와 `parent_invite_sent_at`/`student_start_date`/`student_end_date`/`created_at`/`updated_at`(nullable 날짜)을 일관되게 처리.
+
+#### 테스트 방법
+
+- 학생 추가/수정 화면에서 "학부모 가입"/"관리이동" 관련 체크박스를 건드리지 않고 저장해도 오류 없이 저장되는지 확인
 
 ### Row Level Security (RLS)
 
