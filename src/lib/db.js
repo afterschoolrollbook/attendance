@@ -551,7 +551,8 @@ export async function initFromSupabase() {
     try {
       const { data: settings } = await supabase.from('settings').select('*')
       // email, solapi 키는 Edge Function 전용 — 프론트 localStorage에 저장하지 않음
-      const EXCLUDE_KEYS = new Set(['email', 'solapi'])
+      // social_secret(네이버 클라이언트 Secret), regionMap_secret(NEIS API 키)도 동일
+      const EXCLUDE_KEYS = new Set(['email', 'solapi', 'social_secret', 'regionMap_secret'])
       if (Array.isArray(settings)) {
         settings.forEach(row => {
           if (!row.key || !row.value) return
@@ -882,6 +883,33 @@ export const Settings = {
       try { r[k.replace('asa_settings_', '')] = JSON.parse(localStorage.getItem(k)) } catch {}
     })
     return r
+  },
+}
+
+// ─── 관리자 전용 시크릿 설정 (email, solapi, social_secret, regionMap_secret)
+// RLS 상 is_admin()만 select/insert/update 가능 — localStorage에는 절대 캐싱하지 않음
+export const SecretSettings = {
+  async get(k) {
+    if (!supabase) return null
+    try {
+      const { data, error } = await supabase.from('settings').select('value').eq('key', k).maybeSingle()
+      if (error) { console.warn(`[SecretSettings] "${k}" 조회 실패:`, error.message); return null }
+      return data?.value ?? null
+    } catch (e) {
+      console.warn(`[SecretSettings] "${k}" 조회 실패:`, e.message)
+      return null
+    }
+  },
+  async set(k, v) {
+    if (!supabase) return false
+    try {
+      const { error } = await supabase.from('settings').upsert({ key: k, value: v, updated_at: now() })
+      if (error) { console.warn(`[SecretSettings] "${k}" 저장 실패:`, error.message); return false }
+      return true
+    } catch (e) {
+      console.warn(`[SecretSettings] "${k}" 저장 실패:`, e.message)
+      return false
+    }
   },
 }
 
