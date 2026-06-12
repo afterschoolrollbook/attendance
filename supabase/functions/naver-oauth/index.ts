@@ -98,9 +98,8 @@ serve(async (req) => {
           Deno.env.get('SUPABASE_ANON_KEY')!,
         )
         const { data: verifyData, error: verifyErr } = await anonClient.auth.verifyOtp({
-          email: authUser.email,
-          token: hashedToken,
-          type: 'email',
+          token_hash: hashedToken,
+          type: 'magiclink',
         })
         if (verifyErr) throw verifyErr
         session = verifyData?.session
