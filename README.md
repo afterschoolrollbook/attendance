@@ -425,6 +425,9 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 3 | 학부모 앱(/parent-login, /parent-invite) RPC 전환 | ✅ 적용 (2026-06-12) | [바로가기](#학부모-앱parent-login-parent-invite-전면-복구--rpc-기반으로-전환-2026-06-12) |
 | 4 | 아이디 찾기 / 비밀번호 초기화 RPC 전환 | ✅ 적용 (2026-06-12) | [바로가기](#로그인-화면-아이디-찾기비밀번호-초기화-복구--rpc-기반으로-전환-2026-06-12) |
 | 5 | Edge Function CORS — `ALLOWED_ORIGIN` | ✅ 적용 (2026-06-12) | [바로가기](#cors) |
+| 6 | 로그인 brute-force 방어 | ✅ 확인 완료 (Supabase Rate Limit으로 보호됨) | [바로가기](#로그인-brute-force-방어-2026-06-12) |
+| 7 | Supabase Auth "Confirm email" 설정 | ✅ 확인 완료 (OFF, 정상) | [바로가기](#supabase-auth-confirm-email-설정-확인-2026-06-12) |
+| 8 | 비밀번호 초기화 — 실제로 비밀번호가 안 바뀌는 문제 | ✅ 적용 (2026-06-12) | [바로가기](#비밀번호-초기화가-실제로-비밀번호를-바꾸지-않던-문제-수정-2026-06-12) |
 
 ### db-api Edge Function 제거 (2026-06-12)
 
@@ -500,6 +503,46 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 - 등록되지 않은 전화번호로는 "등록된 연락처가 없습니다"가 나오는지 확인
 - 로그인 화면 → **비밀번호 초기화** → 가입된(이메일 가입) 이메일 입력 → 인증번호 발송 단계로 넘어가는지 확인
 - 카카오/네이버로 가입한 계정의 이메일을 입력하면 "OOO 소셜 로그인 계정입니다" 안내가 나오는지 확인
+
+### 로그인 brute-force 방어 (2026-06-12)
+
+`Auth.jsx`의 `loginAttemptsRef`(5회 실패 시 잠금)는 `useRef` 기반으로 브라우저 메모리에만 존재 → 새로고침/다른 브라우저/시크릿 모드에서는 즉시 초기화되어 사실상 잠금 효과가 없음.
+
+→ 확인 결과, Supabase 프로젝트 자체의 **Rate Limit**(Authentication → Rate Limits → "Rate limit for sign-ups and sign-ins": 30 requests / 5분 / IP)이 이미 서버 단에서 동작 중이며, 이건 새로고침이나 다른 브라우저로 우회할 수 없음. 클라이언트의 `loginAttemptsRef`는 사용자에게 빠른 피드백을 주는 보조 UX일 뿐, 실제 방어는 Supabase 쪽에서 이루어지고 있음 — **추가 조치 불필요**.
+
+#### 테스트 방법 (필요 시)
+
+- Supabase Dashboard → Authentication → **Rate Limits**에서 "Rate limit for sign-ups and sign-ins" 값(기본 30/5분)이 유지되고 있는지 확인. 더 엄격하게 하고 싶다면 이 값을 낮출 수 있음(예: 10/5분).
+
+### Supabase Auth "Confirm email" 설정 확인 (2026-06-12)
+
+이 앱은 자체 이메일 인증(인증번호 발송/확인, `verify_codes` 테이블)을 거쳐 회원가입을 진행함. 만약 Supabase Auth의 **"Confirm email"** 옵션이 켜져 있으면, `authSignUp()` 직후 세션이 생성되지 않아 바로 이어지는 `Users.insert(user)`가 `users_insert` RLS(`auth_id = auth.uid()`)를 통과하지 못해 **Auth 계정만 생성되고 `users` 테이블에는 강사 정보가 저장되지 않는 반쪽 가입** 상태가 될 수 있음.
+
+→ 확인 결과, Supabase Dashboard → Authentication → Sign In / Providers → **"Confirm email"이 OFF**로 설정되어 있어 현재는 문제 없음. **이 설정은 절대 켜면 안 됨** — 켜는 순간 이메일/비밀번호 회원가입이 깨짐.
+
+#### 테스트 방법 (정기 점검 시)
+
+- Supabase Dashboard → Authentication → **Sign In / Providers** → "Confirm email" 토글이 **꺼져 있는지(OFF)** 확인
+- 새 이메일로 회원가입 진행 → 가입 즉시 로그인되고, Supabase Dashboard → Authentication → Users에 해당 계정이 보이는지 + `users` 테이블에도 같은 사용자의 행이 생성되는지 확인
+
+### "비밀번호 초기화"가 실제로 비밀번호를 바꾸지 않던 문제 수정 (2026-06-12)
+
+위 항목들을 점검하다가 발견한 별도 버그: 로그인 화면 "비밀번호 초기화"의 마지막 단계(`handleFpReset`)가 `authResetPassword(email)`(= `supabase.auth.resetPasswordForEmail`)을 호출했는데, 이 함수는:
+
+- 사용자가 입력한 새 비밀번호(`fpNewPw`)를 **전혀 사용하지 않음** (파라미터 자체가 없음) — Supabase가 "비밀번호 재설정 링크"가 담긴 이메일을 한 번 더 보낼 뿐, 그 링크를 클릭하는 절차가 앱에 없어서 **비밀번호는 그대로 유지됨**
+- 화면에는 "변경 완료"가 뜨지만 실제로는 기존 비밀번호로 로그인해야 함 → 사용자가 새로 입력한 비밀번호로는 로그인 불가, 혼란 유발
+- 게다가 Supabase 자체 메일 발송은 **시간당 2건**으로 제한되어 있어(Authentication → Rate Limits → "Rate limit for sending emails"), 여러 사용자가 동시에 시도하면 추가 오류 발생 가능
+
+→ 새 Edge Function `reset-password-self`를 추가: 앱이 이미 보낸 인증번호(`verify_codes`, `purpose='reset'`)를 서버에서 검증하고, **로그인 세션 없이도** service role 권한으로 곧바로 비밀번호를 변경. Supabase의 메일 발송 기능을 더 이상 사용하지 않으므로 위 메일 발송 한도와도 무관함.
+
+적용 방법: Supabase Dashboard에서 `reset-password-self` Edge Function을 새로 배포 (`supabase/functions/reset-password-self/index.ts`).
+
+#### 테스트 방법
+
+1. 로그인 화면 → 비밀번호 초기화 → 가입된 이메일 입력 → 인증번호 발송 → 인증번호 입력 → 확인
+2. 새 비밀번호 입력 후 "비밀번호 변경 완료" 클릭
+3. 로그아웃 후, **새로 입력한 비밀번호로 로그인되는지** 확인 (기존 비밀번호로는 로그인되지 않아야 함)
+4. 같은 인증번호로 다시 시도하면 "인증번호가 올바르지 않거나 만료되었습니다"가 뜨는지 확인 (재사용 방지)
 
 ### Row Level Security (RLS)
 
