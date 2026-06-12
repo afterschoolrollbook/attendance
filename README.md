@@ -503,6 +503,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 28 | `naver-oauth/index.ts` · `kakao-oauth/index.ts` — Bearer 토큰 검사 없음. `send-sms`·`send-push`에는 있는데 누락되어 `ALLOWED_ORIGIN` 미설정 환경 또는 curl에서 소셜 로그인 플로우 강제 실행 가능 | ✅ 수정 완료 (2026-06-13) | [바로가기](#naver-oauth--kakao-oauth--bearer-토큰-검사-추가-2026-06-13) |
 | 29 | `20240001_vendor_rpc.sql` — `pw` 제외 수정 후 `VendorAuth.jsx` 로그인이 `acc.pw = undefined`로 항상 실패. `verify_vendor_login` RPC(서버에서 해시 비교 후 `pw` 제외 반환)를 추가하고 로그인 흐름을 교체. `get_vendor_account_for_login`(pw 클라이언트 반환 방식) → `verify_vendor_login`(서버 검증 방식)으로 최종 적용 (2026-06-13) | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx--로그인-pw-검증-누락-수정-2026-06-13) |
 | 30 | `VendorAuth.jsx` — 업체 비밀번호 정책이 강사 계정(`Auth.jsx`)과 불일치. 가입·비밀번호 초기화 모두 특수문자 조건 없이 영문+숫자(8자)만 요구 → 특수문자 1개 이상 조건 추가 | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx--업체-비밀번호-정책-특수문자-추가-2026-06-13) |
+| 31 | `VendorAuth.jsx` `RegisterTab` — 비밀번호 강도 힌트 텍스트가 길이(8자)만 체크하고 특수문자를 미확인. 가입 버튼 `disabled` 조건에도 특수문자 검사 누락 → 힌트 텍스트·`disabled` 모두 특수문자 조건 추가 및 비밀번호 확인 일치 힌트 추가 | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx-registertab--비밀번호-강도-힌트-및-disabled-조건-불일치-수정-2026-06-13) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -1041,6 +1042,47 @@ if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw)) {
 ```
 
 비밀번호 입력 레이블도 `"8자 이상, 영문+숫자"` → `"8자 이상, 영문+숫자+특수문자"`로 수정. `ResetPwTab`의 버튼 `disabled` 조건에도 특수문자 체크 추가.
+
+**수정 파일:** `src/pages/VendorAuth.jsx`
+
+---
+
+### `VendorAuth.jsx` `RegisterTab` — 비밀번호 강도 힌트 및 `disabled` 조건 불일치 수정 (2026-06-13)
+
+`RegisterTab`(가입 탭)의 비밀번호 강도 힌트 텍스트와 가입 버튼 `disabled` 조건이 `ResetPwTab`(비밀번호 초기화)과 일치하지 않았음.
+
+**문제:**
+
+1. **강도 힌트 텍스트 없음**: `RegisterTab`에는 `ResetPwTab`처럼 "✅ 안전한 비밀번호 / ❌ …" 실시간 피드백이 없었고, 있더라도 길이(8자)만 체크
+2. **`disabled` 특수문자 미검사**: 가입 버튼이 `loading || !verified || !pw || !pwConfirm` 만으로 비활성화되어, 특수문자 없는 비밀번호로도 버튼이 활성화됨
+3. **비밀번호 확인 일치 힌트 없음**: `ResetPwTab`에 있는 "✅ 비밀번호가 일치합니다" 실시간 힌트가 `RegisterTab`에 누락
+
+```jsx
+// 수정 전
+<input ... value={pw} ... />
+{/* 힌트 없음 */}
+<input ... value={pwConfirm} ... />
+{/* 확인 힌트 없음 */}
+<BtnPrimary disabled={loading || !verified || !pw || !pwConfirm}>
+
+// 수정 후
+<input ... value={pw} ... />
+{pw && (
+  <div style={{ color: pw.length >= 8 && /[!@#$%^&*()_+\-=.../.test(pw) ? C.success : C.danger }}>
+    {pw.length >= 8 && /특수문자정규식/.test(pw) ? '✅ 안전한 비밀번호'
+      : pw.length < 8 ? '❌ 8자 이상 입력해주세요' : '❌ 특수문자를 포함해주세요'}
+  </div>
+)}
+<input ... value={pwConfirm} ... />
+{pwConfirm && (
+  <div style={{ color: pw === pwConfirm ? C.success : C.danger }}>
+    {pw === pwConfirm ? '✅ 비밀번호가 일치합니다' : '❌ 비밀번호가 일치하지 않습니다'}
+  </div>
+)}
+<BtnPrimary disabled={loading || !verified || !pw || !pwConfirm
+  || pw.length < 8 || !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw)
+  || pw !== pwConfirm}>
+```
 
 **수정 파일:** `src/pages/VendorAuth.jsx`
 
