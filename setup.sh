@@ -60,7 +60,6 @@ supabase functions deploy send-sms            && echo -e "${GREEN}  ✅ send-sms
 supabase functions deploy naver-oauth         && echo -e "${GREEN}  ✅ naver-oauth${NC}"
 supabase functions deploy kakao-oauth         && echo -e "${GREEN}  ✅ kakao-oauth${NC}"
 supabase functions deploy send-push           && echo -e "${GREEN}  ✅ send-push${NC}"
-
 supabase functions deploy reset-user-password && echo -e "${GREEN}  ✅ reset-user-password${NC}"
 supabase functions deploy reset-password-self && echo -e "${GREEN}  ✅ reset-password-self${NC}"
 

@@ -430,6 +430,39 @@ ORDER BY c.class_name, c.section;
 
 코드를 처음 보는 사람이 놓치기 쉬운 설계 결정들을 정리합니다.
 
+### `VendorAuth.jsx` `ResetPwTab` — 비밀번호 강도 힌트 특수문자 조건 추가 (2026-06-13)
+
+`ResetPwTab`(비밀번호 초기화) 396번 줄의 강도 힌트가 `pw.length >= 8`만 체크해, 특수문자가 없는 `abcdefg1` 같은 입력에도 "✅ 안전한 비밀번호"를 표시하고 있었음.
+
+`handleReset`과 버튼 `disabled` 조건은 이미 특수문자를 정확히 검사하고 있어 **제출 자체는 막히지만**, 힌트 메시지가 통과 신호를 보내는 UX 오류.
+
+`RegisterTab`의 수정(31번 항목)과 동일하게 3단계 힌트로 통일:
+
+```jsx
+// 수정 전
+color: pw.length >= 8 ? C.success : C.danger
+{pw.length >= 8 ? '✅ 안전한 비밀번호' : '❌ 8자 이상 입력해주세요'}
+
+// 수정 후
+color: pw.length >= 8 && /특수문자정규식/.test(pw) ? C.success : C.danger
+{pw.length >= 8 && /특수문자정규식/.test(pw) ? '✅ 안전한 비밀번호'
+  : pw.length < 8 ? '❌ 8자 이상 입력해주세요' : '❌ 특수문자를 포함해주세요'}
+```
+
+**수정 파일:** `src/pages/VendorAuth.jsx`
+
+**다른 곳 영향 없음:** 힌트 표시 로직만 변경. `handleReset`, 버튼 `disabled` 조건, 실제 제출 흐름은 모두 그대로.
+
+---
+
+### `setup.sh` — 빈 줄 제거 (2026-06-13)
+
+63번 줄에 `send-push` 배포와 `reset-user-password` 배포 사이에 빈 줄이 있어, 스크립트 실행 중 두 명령이 시각적으로 분리되어 보이는 가독성 문제. 기능 영향 없음.
+
+**수정 파일:** `setup.sh`
+
+---
+
 ### `SchoolNoticePopup` — `Dashboard.jsx`에 연결 (2026-06-13)
 
 `src/pages/SchoolNoticePopup.jsx`는 `SchoolNoticePopup`(팝업)과 `SchoolNoticeBanner`(배너) 두 컴포넌트를 export하고 있었으나, 앱 어디에서도 import되지 않아 실제로 동작하지 않는 상태였음.
@@ -547,6 +580,8 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 30 | `VendorAuth.jsx` — 업체 비밀번호 정책이 강사 계정(`Auth.jsx`)과 불일치. 가입·비밀번호 초기화 모두 특수문자 조건 없이 영문+숫자(8자)만 요구 → 특수문자 1개 이상 조건 추가 | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx--업체-비밀번호-정책-특수문자-추가-2026-06-13) |
 | 31 | `VendorAuth.jsx` `RegisterTab` — 비밀번호 강도 힌트 텍스트가 길이(8자)만 체크하고 특수문자를 미확인. 가입 버튼 `disabled` 조건에도 특수문자 검사 누락 → 힌트 텍스트·`disabled` 모두 특수문자 조건 추가 및 비밀번호 확인 일치 힌트 추가 | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx-registertab--비밀번호-강도-힌트-및-disabled-조건-불일치-수정-2026-06-13) |
 | 32 | `SchoolNoticePopup.jsx` — export는 되어 있으나 앱 어디에서도 import되지 않아 학교 공지 팝업·배너 기능이 동작하지 않는 상태 → `Dashboard.jsx`(선생님 대시보드)에 연결 | ✅ 수정 완료 (2026-06-13) | [바로가기](#schoolnoticepopup--dashboardjsx에-연결-2026-06-13) |
+| 33 | `setup.sh` 63번 줄 — `send-push` 배포 라인 뒤 빈 줄로 인해 `reset-user-password` 배포가 시각적으로 분리됨 (기능 문제 없음, 가독성 수정) | ✅ 수정 완료 (2026-06-13) | — |
+| 34 | `VendorAuth.jsx` `ResetPwTab` — 비밀번호 강도 힌트가 길이(`pw.length >= 8`)만 체크해 특수문자 없이도 "✅ 안전한 비밀번호" 표시. `handleReset`은 특수문자를 검사하므로 제출은 막히지만 UI 오해 유발 → `RegisterTab`과 동일하게 3단계 힌트로 통일 | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx-resetpwtab--비밀번호-강도-힌트-특수문자-조건-추가-2026-06-13) |
 
 ### 🔲 남은 테스트 체크리스트
 
