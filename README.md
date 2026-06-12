@@ -613,6 +613,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 34 | `VendorAuth.jsx` `ResetPwTab` — 비밀번호 강도 힌트가 길이(`pw.length >= 8`)만 체크해 특수문자 없이도 "✅ 안전한 비밀번호" 표시. `handleReset`은 특수문자를 검사하므로 제출은 막히지만 UI 오해 유발 → `RegisterTab`과 동일하게 3단계 힌트로 통일 | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx-resetpwtab--비밀번호-강도-힌트-특수문자-조건-추가-2026-06-13) |
 | 35 | `VendorAuth.jsx` `ResetPwTab` · `RegisterTab` — Resend 키 미설정 환경에서 `alert()`로 인증번호를 화면에 직접 노출. 개발 규칙 1번 위반(`alert()` 사용 금지) + 인증번호 노출 경로 잔존. `Auth.jsx`에서는 이미 제거된 동일 패턴 → `else { alert(...) }` 블록 전체 제거 | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx-resetpwtab--registertab--alert-인증번호-노출-제거-2026-06-13) |
 
+| 36 | `naver-oauth/index.ts` — `verifyOtp`에 `token` 파라미터 대신 `token_hash`를 사용해야 함. `generateLink`가 반환하는 `hashed_token`을 `token`으로 넘기면 GoTrue가 6자리 OTP로 해석해 "Token has expired or is invalid" 에러 발생 → `token_hash: hashedToken`으로 수정 | ✅ 수정 완료 (2026-06-13) | [바로가기](#naver-oauth--verifyotp-token_hash-수정-2026-06-13) |
 ### 🔲 남은 테스트 체크리스트
 
 코드/설정은 모두 적용되었으나, 실제 사이트(`https://www.afterschoolrollbook.kr`)에서 아직 동작 확인이 안 된 항목들.
@@ -677,7 +678,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 - `SUPABASE_JWT_SECRET` 앞 8자리는 프로젝트 전체에서 동일한 값이라, 어떤 경로로든 노출되면 `providerId`만 알아도 그 계정에 로그인 가능
 - 더 큰 문제는, 이메일/비밀번호로 가입한 계정과 같은 이메일로 카카오/네이버 로그인을 하면 사용자가 직접 정한 비밀번호가 매번 이 예측 가능한 값으로 덮어써져 계정 탈취 위험이 생김
 
-→ 비밀번호를 생성·변경하지 않고, `auth.admin.generateLink({ type: 'magiclink' })`로 발급한 토큰을 서버에서 바로 `verifyOtp`로 세션 교환하는 방식으로 교체. 사용자 화면 동작(버튼 클릭 시 자동 로그인)은 동일하며, 비밀번호는 더 이상 관여하지 않음.
+→ 비밀번호를 생성·변경하지 않고, `auth.admin.generateLink({ type: 'magiclink' })`로 발급한 `hashed_token`을 서버에서 바로 `verifyOtp({ token_hash, type: 'magiclink' })`로 세션 교환하는 방식으로 교체. 사용자 화면 동작(버튼 클릭 시 자동 로그인)은 동일하며, 비밀번호는 더 이상 관여하지 않음. (참고: 초기 구현에서 `token_hash` 대신 `token` 파라미터를 사용해 오류가 발생했으나 2026-06-13에 수정됨 — 36번 항목)
 
 #### 테스트 방법
 
@@ -1725,3 +1726,35 @@ useEffect(() => {
 - `AdSlot.jsx`: Blob API 실패 시 `dangerouslySetInnerHTML` 폴백 제거 → `null` 반환으로 변경 (XSS 방어)
 - 비밀번호 정책: 8자 이상 + 영문 + 숫자 + **특수문자** 조합 필수 (강사 회원가입·비밀번호 재설정, 업체 포털 가입·비밀번호 초기화 모두 적용)
 - `VendorAuth.jsx` 인증번호 `alert()` 노출 제거 (2026-06-13): `ResetPwTab.handleSendCode`·`RegisterTab.handleSendCode`의 `else { alert(...) }` 블록 제거. Resend 키 미설정 시 인증 자체가 실패하여 관리자가 즉시 인지 가능 — `Auth.jsx`와 동일한 처리 방식으로 통일
+
+---
+
+### `naver-oauth` — `verifyOtp` `token_hash` 수정 (2026-06-13)
+
+`generateLink({ type: 'magiclink' })`가 반환하는 `properties.hashed_token`을 `verifyOtp`에 넘길 때 파라미터 이름이 `token`으로 잘못 되어 있었음.
+
+```ts
+// 수정 전 (틀림)
+const { data: verifyData, error: verifyErr } = await anonClient.auth.verifyOtp({
+  email: authUser.email,
+  token: hashedToken,    // ← GoTrue가 6자리 OTP 숫자로 해석 → "Token has expired or is invalid"
+  type: 'magiclink',
+})
+
+// 수정 후
+const { data: verifyData, error: verifyErr } = await anonClient.auth.verifyOtp({
+  token_hash: hashedToken,  // ← hashed_token은 반드시 token_hash로 전달
+  type: 'magiclink',
+})
+```
+
+`token`(6자리 OTP용)과 `token_hash`(매직링크 hashed_token용)는 GoTrue 내부에서 완전히 다른 경로로 처리됨. `token`으로 넘기면 6자리 숫자 OTP 검증 로직으로 분기되어 항상 실패.
+
+**수정 파일:** `supabase/functions/naver-oauth/index.ts`
+
+**카카오 로그인 영향 없음:** `kakao-oauth`는 동일 방식을 쓰지 않으므로 별도 수정 불필요.
+
+#### 테스트 방법
+
+- 네이버 로그인 버튼 클릭 → 팝업 → 네이버 인증 → 강사 화면으로 정상 진입 확인
+- 신규 가입 계정(네이버 계정으로 처음 가입) + 기존 계정 모두 테스트
