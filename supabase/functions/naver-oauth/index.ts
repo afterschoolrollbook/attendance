@@ -83,28 +83,14 @@ serve(async (req) => {
       authUser = newUser?.user
     }
 
-    // 매직링크 토큰을 발급받아 즉시 세션으로 교환 (비밀번호 미사용)
+    // userId로 직접 세션 발급 (generateLink+verifyOtp 방식은 token type 불일치 오류 발생)
     let session = null
-    if (authUser?.email) {
-      const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
-        type: 'magiclink',
-        email: authUser.email,
+    if (authUser?.id) {
+      const { data: sessionData, error: sessionErr } = await adminClient.auth.admin.createSession({
+        user_id: authUser.id,
       })
-      if (linkErr) throw linkErr
-      const hashedToken = linkData?.properties?.hashed_token
-      if (hashedToken) {
-        const anonClient = createClient(
-          Deno.env.get('SUPABASE_URL')!,
-          Deno.env.get('SUPABASE_ANON_KEY')!,
-        )
-        const { data: verifyData, error: verifyErr } = await anonClient.auth.verifyOtp({
-          email: authUser.email,
-          token: hashedToken,
-          type: 'magiclink',
-        })
-        if (verifyErr) throw verifyErr
-        session = verifyData?.session
-      }
+      if (sessionErr) throw sessionErr
+      session = sessionData?.session
     }
 
     return new Response(JSON.stringify({
