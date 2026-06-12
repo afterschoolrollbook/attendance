@@ -496,6 +496,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 21 | `send-push/index.ts` — Authorization 검사 없음 (curl 등 직접 호출로 학부모 기기에 임의 푸시 가능) | ✅ 수정 완료 (2026-06-12) | [바로가기](#send-pushindexts--authorization-검사-추가-2026-06-12) |
 | 22 | `App.jsx` — `BlogWrite`에 `onLogout` prop 누락으로 헤더 🚪 로그아웃 버튼 클릭 시 아무 반응 없음 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--blogwrite-onlogout-prop-누락-수정-2026-06-12) |
 | 23 | `ParentInvite.jsx` 160번 줄 주석 — `withdraw_parent` 서명이 구버전(`p_phone`만)으로 남아 있어 실제 RPC 서명(`p_phone, p_pin DEFAULT NULL`)과 불일치 | ✅ 수정 완료 (2026-06-12) | [바로가기](#parentinvitejsx--withdraw_parent-주석-서명-업데이트-2026-06-12) |
+| 24 | `App.jsx` — `pageProps`에 `onLogout` 누락으로 Dashboard 헤더(모바일/PC) 🚪 로그아웃 버튼 클릭 시 `undefined()` 호출, 아무 반응 없음 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--pageprops-onlogout-누락-수정-2026-06-12) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -913,6 +914,26 @@ case 'blog_write':  return <BlogWrite user={user} onLogout={handleLogout} />
 ```
 
 `handleLogout`은 이미 `Sidebar`에 `onLogout={handleLogout}`으로 전달되고 있는 동일 함수.
+
+**수정 파일:** `src/App.jsx`
+
+---
+
+### `App.jsx` — `pageProps` `onLogout` 누락 수정 (2026-06-12)
+
+`Dashboard`는 모바일/PC 헤더 양쪽에 🚪 로그아웃 버튼을 가지고 있고 `onLogout` prop을 직접 사용하는 구조. 그런데 `App.jsx`의 `pageProps`에 `onLogout`이 빠져 있어, 버튼을 클릭해도 `undefined()`가 호출되어 아무 반응이 없는 상태였음.
+
+`Sidebar`에는 `onLogout={handleLogout}`이 이미 별도로 직접 전달되고 있어 사이드바 로그아웃은 정상 동작했으나, Dashboard 헤더 버튼만 깨진 상태였음.
+
+```jsx
+// 수정 전 (344번 줄)
+const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate }
+
+// 수정 후
+const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate, onLogout: handleLogout }
+```
+
+`pageProps`를 spread로 받는 다른 페이지(`Classes`, `Students`, `Attendance` 등)는 `onLogout`을 내부에서 사용하지 않으므로 영향 없음.
 
 **수정 파일:** `src/App.jsx`
 
