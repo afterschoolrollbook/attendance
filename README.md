@@ -455,6 +455,8 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 
 `vercel.json`에 `Content-Security-Policy` 헤더를 직접 설정. `script-src`, `connect-src`, `frame-src`를 허용 도메인 화이트리스트로 제한. 별도 서버 없이 Vercel 엣지에서 XSS 기본 차단.
 
+> 2026-06-12 추가: `connect-src`에 `https://open.neis.go.kr` 추가. 미등록 상태에서 관리자가 지역/학교 관리 탭에서 학교 검색 시 CSP 위반으로 차단되는 문제 수정.
+
 ### 개인정보처리방침 (`LegalPage.jsx`)
 
 `DEFAULT_PRIVACY`에 미성년자 개인정보 처리 근거(개인정보보호법 제15조 제1항 제4호), 학부모 전화번호·PIN 수집 항목, Solapi·Resend·Google·카카오 위탁 명시, 이용자 권리 조항 추가. 시행일 2026-06-12.
@@ -492,6 +494,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 17 | `setup.sh`에 `generate-vapid` 배포 라인 잔존 — `bash setup.sh` 실행 시 삭제된 함수가 재배포됨 | ✅ 제거 완료 (2026-06-12) | [바로가기](#generate-vapid-edge-function-삭제-2026-06-12) |
 | 18 | `App.jsx` — `blog_write` / `myblog` 라우팅 누락으로 메뉴 클릭 시 대시보드로 떨어짐 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--blog_write--myblog-라우팅-누락-수정-2026-06-12) |
 | 19 | `reset-user-password/index.ts` — 다중 도메인 CORS 미지원 (단일 문자열 비교로 남아있어 `ALLOWED_ORIGIN` 콤마 설정 시 CORS 오류) | ✅ 수정 완료 (2026-06-12) | [바로가기](#cors) |
+| 20 | `vercel.json` CSP `connect-src` — `https://open.neis.go.kr` 누락으로 NEIS 학교 검색 시 CSP 위반 차단 | ✅ 수정 완료 (2026-06-12) | [바로가기](#csp-헤더-verceljson) |
 
 ### 🔲 남은 테스트 체크리스트
 
