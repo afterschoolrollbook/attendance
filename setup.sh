@@ -54,7 +54,7 @@ echo -e "${YELLOW}  ℹ️  이메일/SMS/소셜 키는 관리자 페이지에�
 
 # Edge Functions 배포
 echo ""
-echo -e "${YELLOW}🚀 Edge Functions 배포 중 (7개)...${NC}"
+echo -e "${YELLOW}🚀 Edge Functions 배포 중 (8개)...${NC}"
 supabase functions deploy send-email          && echo -e "${GREEN}  ✅ send-email${NC}"
 supabase functions deploy send-sms            && echo -e "${GREEN}  ✅ send-sms${NC}"
 supabase functions deploy naver-oauth         && echo -e "${GREEN}  ✅ naver-oauth${NC}"
@@ -62,6 +62,7 @@ supabase functions deploy kakao-oauth         && echo -e "${GREEN}  ✅ kakao-oa
 supabase functions deploy send-push           && echo -e "${GREEN}  ✅ send-push${NC}"
 supabase functions deploy generate-vapid      && echo -e "${GREEN}  ✅ generate-vapid${NC}"
 supabase functions deploy reset-user-password && echo -e "${GREEN}  ✅ reset-user-password${NC}"
+supabase functions deploy reset-password-self && echo -e "${GREEN}  ✅ reset-password-self${NC}"
 
 echo ""
 echo "======================================"
