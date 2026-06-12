@@ -1532,6 +1532,99 @@ ESLint + 정적 분석에서 발견된 보안/UX 관련 항목 2건 추가 정�
 - 출석부 화면의 교구지급/준비/미지급 등 접기·펼치기 섹션과 학생 목록 컬럼 헤더가 정상 동작하는지 확인
 - 블로그 페이지 상단 네비게이션, 글 목록/상세 전환이 정상 동작하는지 확인
 
+### 빌드 번들 분리, 권한 설정 UI 누락, useEffect 의존성 누락 정리 (2026-06-13)
+
+ESLint(React Hooks 규칙 포함) + 빌드 결과 점검에서 발견된 4건 수정.
+
+**① `VendorApp.jsx` — `xlsx` 정적 import로 인한 코드 스플리팅 누락**
+
+다른 페이지(`Reports.jsx`, `Students.jsx`, `Supplies.jsx`, `PrintSetup.jsx`)는 모두 `xlsx`를 `await import('xlsx')`로 동적 로드해 별도 청크로 분리하는데, `VendorApp.jsx`만 상단에서 `import * as XLSX from 'xlsx'`로 정적 import하고 있어 `xlsx`(약 430KB)가 메인 번들에 합쳐져 있었음.
+
+→ 상단 정적 import 제거, `downloadSampleExcel`/`downloadProductsExcel`을 `async` 함수로 변경하고 함수 내부에서 `const XLSX = await import('xlsx')`, `handleBulkUpload` 내부에서도 동일하게 적용.
+
+빌드 결과: `xlsx-*.js` 청크(429KB)가 분리되어, 엑셀 다운로드/업로드 버튼을 처음 클릭할 때만 로드됨 → 초기 페이지 로딩 속도 개선.
+
+**수정 파일:** `src/pages/VendorApp.jsx`
+
+**② `AdminSettings.jsx` — 블로그 글쓰기/공지 최소 레벨 설정 UI 누락**
+
+`blogWriteMinLevel`/`blogNoticeMinLevel` state가 `useState`로 선언되고 `save()`에서 저장도 되지만, 이 값을 변경하는 UI(레벨 버튼)가 화면에 없어 항상 초기값(1, 10)으로 고정되어 있었음. `BlogAdmin.jsx`/`Blog.jsx`에서 실제 글쓰기/공지 권한 체크에 쓰이는 값이라 죽은 설정이 아니라 UI만 빠진 상태였음.
+
+→ "🔐 게시판별 권한" 섹션 아래에 기존 `LevelButtons` 컴포넌트를 재사용한 "📝 블로그 작성 권한" 섹션 추가. "블로그 글쓰기 최소 레벨"/"공지글 작성 최소 레벨"을 1~10 버튼으로 조정 가능하며 기존 `save()`로 함께 저장됨.
+
+**수정 파일:** `src/pages/AdminSettings.jsx`
+
+**③ `Dashboard.jsx` — `CalendarMiniPreview`의 미사용 `useState` 제거**
+
+`const [open, setOpen] = useState(true)`가 선언되어 있으나 `open`/`setOpen` 모두 어디서도 사용되지 않는 잔재 코드. 동작 영향 없는 죽은 코드 제거.
+
+**수정 파일:** `src/pages/Dashboard.jsx`
+
+**④ `Attendance.jsx` — 교구(supplies) 데이터 새로고침 `useEffect` 의존성 누락**
+
+수업 화면 두 곳(진도 패널)에서 아래와 같이 `cls.teacherId`로 교구 데이터를 가져오는 `useEffect`의 의존성 배열에 `progTick`만 있고 `cls`가 없었음:
+
+```js
+// 수정 전
+useEffect(() => {
+  setSpItems(SupplyItems.byTeacher(cls.teacherId||''))
+  setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
+  setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
+  setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
+}, [progTick])
+
+// 수정 후
+}, [progTick, cls?.teacherId])
+```
+
+다른 수업으로 전환해도 `progTick`이 바뀌지 않으면 이전 수업(이전 `teacherId`)의 교구 목록·진행상황·체크 데이터가 그대로 남아있는 버그로 이어질 수 있었음. 의존성에 `cls?.teacherId` 추가.
+
+> 그 외 `cls?.id`/`meta?.cls?.id`만 의존성에 있고 `cls` 자체를 참조한다고 ESLint가 지적한 나머지 케이스(169/183/905/1144/1164/1183/1195/3320/3336줄)는, `id`가 바뀌면 수업 전환 시 정상적으로 재실행되므로 실제 동작에는 문제없는 false-positive로 판단해 수정하지 않음.
+
+**수정 파일:** `src/pages/Attendance.jsx`
+
+#### 테스트 방법
+
+- 빌드(`npm run build`) 시 `dist/assets/xlsx-*.js`가 별도 청크로 분리되는지 확인
+- 관리자 → 서비스 설정 → 권한 설정 → "📝 블로그 작성 권한"에서 레벨 버튼으로 값 변경 후 저장 → 블로그 글쓰기/공지 작성 권한이 설정한 레벨대로 적용되는지 확인
+- 출석부 화면에서 진도 체크 패널을 열어둔 채로 다른 수업으로 전환 → 교구 목록/진행상황/체크 데이터가 전환한 수업 기준으로 즉시 갱신되는지 확인
+
+### `Auth.jsx` 소셜 로그인 리다이렉트 `useEffect` 의존성 보완 + 정규식 useless-escape 정리 (2026-06-13)
+
+**① `useKakaoAuth` / `useNaverAuth` — 리다이렉트 처리 `useEffect` 의존성 누락**
+
+카카오/네이버 OAuth 리다이렉트 콜백(`?kakao_redirect=1` / `?naver_redirect=1`)을 처리하는 `useEffect`가 `onSuccess`(`handleSocialSuccess`)와 `toastError`를 사용하면서 의존성 배열이 `[]`로 되어 있었음. 마운트 시 1회만 실행되는 구조라 실제 동작 영향은 낮지만, ESLint 경고를 해소하기 위해 의존성에 추가:
+
+```js
+// 수정 전
+}, [])
+
+// 수정 후
+}, [onSuccess, toastError])
+```
+
+`params.has('kakao_redirect')`(또는 `naver_redirect`)가 없으면 즉시 return하고, 있어도 `sessionStorage`에서 1회 읽은 뒤 바로 삭제하므로 재렌더로 effect가 다시 실행돼도 두 번째부터는 조용히 종료됨 — 기존 동작과 차이 없음.
+
+> `useGoogleAuth`는 GSI 콜백을 모듈 전역 플래그(`_googleGsiInitialized`)로 앱 생애주기 중 1회만 등록하는 구조라, 단순히 의존성을 추가하면 등록 로직 자체를 다시 설계해야 해서 이번에는 손대지 않음. 필요 시 별도 항목으로 검토.
+
+**② `Auth.jsx` / `Blog.jsx` — 정규식 `no-useless-escape` 정리**
+
+- `Auth.jsx`: 비밀번호 특수문자 검사 정규식 `/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/`에서 `\[`, `\/`만 제거 (2곳, 비밀번호 변경/초기화).
+- `Blog.jsx`: 마크다운/요약 처리 정규식 `/^\- (.+)$/gm`, `/[#*`>\-]/g`에서 `\-` 제거 (6곳).
+
+```js
+// 수정 전
+/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/
+// 수정 후
+/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/
+```
+
+> ⚠️ 같은 정규식의 `_+\-=` 부분은 그대로 둠. `\-`를 지우면 `+-=`가 `+`(0x2B)~`=`(0x3D) 범위의 문자 클래스로 해석되어 **숫자(0-9)까지 "특수문자"로 인식**되는 실제 버그가 생기는 것을 직접 테스트로 확인. ESLint가 이 부분도 useless-escape로 잡았다면 false positive이며 절대 제거하면 안 됨.
+
+모든 변경 후 node 스크립트로 정규식 테스트 결과 전/후 동작 100% 동일 확인, `npm run build` 정상.
+
+**수정 파일:** `src/pages/Auth.jsx`, `src/pages/Blog.jsx`
+
 ### Row Level Security (RLS)
 
 모든 핵심 테이블에 RLS 활성화 + 정책 적용 완료 (2026-06-12)
