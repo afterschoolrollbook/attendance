@@ -499,6 +499,8 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 24 | `App.jsx` — `pageProps`에 `onLogout` 누락으로 Dashboard 헤더(모바일/PC) 🚪 로그아웃 버튼 클릭 시 `undefined()` 호출, 아무 반응 없음 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--pageprops-onlogout-누락-수정-2026-06-12) |
 | 25 | `20240001_vendor_rpc.sql` — `get_vendor_account_by_email`, `get_vendor_account_by_vendor_id`, `upsert_vendor_account` 3개 함수가 `SELECT *`로 `pw`(비밀번호 해시)를 클라이언트에 반환 | ✅ 수정 완료 (2026-06-12) | [바로가기](#20240001_vendor_rpcsql--vendor_accounts-pw-컬럼-노출-수정-2026-06-12) |
 | 26 | `setup.js` — Edge Functions 배포 목록이 4개(`send-email`, `send-sms`, `naver-oauth`, `reset-password-self`)로 `setup.sh`(7개)와 달라, Windows에서 `setup.bat` 실행 시 `kakao-oauth`·`send-push`·`reset-user-password` 3개가 누락 배포됨 | ✅ 수정 완료 (2026-06-13) | [바로가기](#setupjs--edge-functions-배포-목록-누락-수정-2026-06-13) |
+| 27 | `reset-password-self/index.ts` — 길이(8자)만 검사하고 특수문자 조건 없음. `reset-user-password/index.ts` — 길이도 검사 안 함. API 직접 호출로 `aaaaaaaa` 같은 비밀번호 설정 가능 | ✅ 수정 완료 (2026-06-13) | [바로가기](#reset-password-self--reset-user-password--서버-비밀번호-정책-검증-추가-2026-06-13) |
+| 28 | `naver-oauth/index.ts` · `kakao-oauth/index.ts` — Bearer 토큰 검사 없음. `send-sms`·`send-push`에는 있는데 누락되어 `ALLOWED_ORIGIN` 미설정 환경 또는 curl에서 소셜 로그인 플로우 강제 실행 가능 | ✅ 수정 완료 (2026-06-13) | [바로가기](#naver-oauth--kakao-oauth--bearer-토큰-검사-추가-2026-06-13) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -918,6 +920,48 @@ case 'blog_write':  return <BlogWrite user={user} onLogout={handleLogout} />
 `handleLogout`은 이미 `Sidebar`에 `onLogout={handleLogout}`으로 전달되고 있는 동일 함수.
 
 **수정 파일:** `src/App.jsx`
+
+---
+
+### `reset-password-self` / `reset-user-password` — 서버 비밀번호 정책 검증 추가 (2026-06-13)
+
+프론트(`Auth.jsx`)는 특수문자 포함 조건을 검사하지만 서버 Edge Function에는 없었음. API 직접 호출 시 `aaaaaaaa` 같은 단순 비밀번호 설정이 가능한 상태.
+
+- `reset-password-self`: 길이(8자) 체크만 있고 특수문자 검사 누락
+- `reset-user-password`: 길이 체크조차 없었음
+
+두 함수 모두 동일한 정책(`8자 이상 + 특수문자 1개 이상`)으로 맞춤:
+
+```ts
+if (!newPassword || String(newPassword).length < 8) throw new Error('비밀번호는 8자 이상이어야 합니다.')
+if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(String(newPassword))) {
+  throw new Error('비밀번호는 특수문자를 하나 이상 포함해야 합니다.')
+}
+```
+
+**수정 파일:** `supabase/functions/reset-password-self/index.ts`, `supabase/functions/reset-user-password/index.ts`
+
+---
+
+### `naver-oauth` / `kakao-oauth` — Bearer 토큰 검사 추가 (2026-06-13)
+
+`send-sms`, `send-push`에는 Bearer 토큰 검사가 있었으나 `naver-oauth`, `kakao-oauth`에만 누락되어 있었음. CORS로 브라우저 직접 호출은 막히지만, `ALLOWED_ORIGIN` 미설정 환경이나 curl 직접 호출에서는 누구나 소셜 로그인 플로우를 강제 실행할 수 있는 상태.
+
+`send-sms`와 동일한 패턴으로 `try` 블록 최상단에 추가:
+
+```ts
+const authHeader = req.headers.get('Authorization') || ''
+if (!authHeader.startsWith('Bearer ')) {
+  return new Response(JSON.stringify({ success: false, error: '인증이 필요합니다.' }), {
+    status: 401,
+    headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+  })
+}
+```
+
+프론트 `callFunction()`이 이미 `Authorization: Bearer ${SUPABASE_ANON}`을 포함하고 있어 프론트 코드 수정 불필요.
+
+**수정 파일:** `supabase/functions/naver-oauth/index.ts`, `supabase/functions/kakao-oauth/index.ts`
 
 ---
 
