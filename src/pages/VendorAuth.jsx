@@ -268,8 +268,6 @@ function ResetPwTab({ onBack }) {
             body: JSON.stringify({ to: email.trim(), code: code6 }),
           })
         } catch { /* 발송 실패해도 진행 */ }
-      } else {
-        alert(`[개발 모드] 인증번호: ${code6}`)
       }
       setStep(2)
     } catch { setErr('오류가 발생했습니다.') }
@@ -471,8 +469,6 @@ function RegisterTab({ onDone, onSwitch }) {
           body: JSON.stringify({ to: regEmail, code: code6 }),
         })
       } catch {}
-    } else {
-      alert(`[개발 모드] 인증번호: ${code6}`)
     }
   }
 
