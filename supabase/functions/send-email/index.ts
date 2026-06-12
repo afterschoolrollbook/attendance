@@ -75,7 +75,7 @@ serve(async (req) => {
             <p style="color:#374151;font-size:16px;margin-bottom:32px">이메일 인증번호입니다.</p>
             <div style="background:#fff7ed;border:2px solid #fed7aa;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px;">
               <div style="font-size:40px;font-weight:700;letter-spacing:10px;color:#f97316">${code}</div>
-              <div style="color:#9ca3af;font-size:13px;margin-top:8px">10분 이내 입력해주세요</div>
+              <div style="color:#9ca3af;font-size:13px;margin-top:8px">5분 이내 입력해주세요</div>
             </div>
             <p style="color:#6b7280;font-size:13px;line-height:1.6">본인이 요청하지 않은 경우 이 메일을 무시하셔도 됩니다.</p>
           </div>
