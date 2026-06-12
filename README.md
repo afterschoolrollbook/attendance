@@ -1038,6 +1038,7 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 - [ ] (기존 운영 DB 재배포 시) `supabase/006_settings_secret_lockdown.sql`, `supabase/007_remove_public_service_role_policies.sql` 순서대로 실행 — `settings` 시크릿 분리/잠금 + 위장 `service role full access` 정책 제거
 - [ ] (기존 운영 DB 재배포 시) `supabase/migrations/20240001_vendor_rpc.sql` 실행 — 업체 포털 RPC 함수 26개 추가
 - [ ] (기존 운영 DB 재배포 시) `supabase/008_verify_codes_rls.sql` 실행 — `verify_codes` RLS 활성화
+- [ ] (기존 운영 DB 재배포 시) `supabase/009_withdraw_parent_pin.sql` 실행 — 학부모 탈퇴 처리 RPC(`withdraw_parent`) 추가
 - [ ] (기존 운영 DB 재배포 시) `supabase/004_parent_app_rpc.sql` 재실행 — `get_parent_dashboard` PIN 검증 강제 추가
 - [ ] `supabase/functions/send-email/index.ts` 재배포 — Resend 키 미설정 시 인증번호 노출 차단
 - [ ] Supabase Secrets에 `ALLOWED_ORIGIN` 설정
