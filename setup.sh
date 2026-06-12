@@ -45,8 +45,8 @@ echo -e "${GREEN}✅ 프로젝트 연결 완료${NC}"
 echo ""
 echo -e "${YELLOW}🔑 Service Role Key 등록 중...${NC}"
 if [ ! -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-  supabase secrets set SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
-  echo -e "${GREEN}  ✅ SUPABASE_SERVICE_ROLE_KEY 등록완료${NC}"
+  supabase secrets set SVC_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
+  echo -e "${GREEN}  ✅ SVC_ROLE_KEY 등록완료${NC}"
 else
   echo -e "${RED}  ❌ .env에 SUPABASE_SERVICE_ROLE_KEY를 추가하세요${NC}"
 fi
