@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Settings, SecretSettings, Students as StudentsDB, Classes as ClassesDB } from '../lib/db.js'
 import { FEATURES, FEATURE_LABELS, LEVEL_NAMES, LEVEL_COLORS } from '../constants/permissions.js'
 import { Card, PageHeader, Toggle, Btn, Modal, useConfirm } from '../components/Atoms.jsx'
@@ -236,15 +236,25 @@ function ServiceSection() {
 
 // ─── 섹션: 이메일 발송 (Resend)
 function EmailSection() {
-  const init = Settings.get('email') || { resendApiKey:'', fromEmail:'', enabled:false }
-  const [cfg, setCfg] = useState(init)
-  const { success } = useToast()
+  const [cfg, setCfg] = useState({ resendApiKey:'', fromEmail:'', enabled:false })
+  const [loading, setLoading] = useState(true)
+  const { success, toastError } = useToast()
   const set = (k, v) => setCfg(p => ({ ...p, [k]: v }))
 
-  const save = () => {
-    Settings.set('email', cfg)
-    success('수정이 완료되었습니다.')
+  useEffect(() => {
+    SecretSettings.get('email').then(val => {
+      if (val) setCfg({ resendApiKey:'', fromEmail:'', enabled:false, ...val })
+      setLoading(false)
+    })
+  }, [])
+
+  const save = async () => {
+    const ok = await SecretSettings.set('email', cfg)
+    if (ok) success('수정이 완료되었습니다.')
+    else toastError('저장에 실패했습니다. 다시 시도해주세요.')
   }
+
+  if (loading) return <div style={{ padding:'20px', color:C.muted, fontSize:'13px' }}>불러오는 중...</div>
 
   return (
     <Card style={{ marginBottom:'16px' }}>
@@ -300,16 +310,24 @@ function EmailSection() {
 
 // ─── 섹션: Solapi 문자/알림톡
 function SolapiSection() {
-  const init = Settings.get('solapi') || { apiKey:'', apiSecret:'', senderPhone:'', kakaoChannelId:'', kakaoEnabled:false, smsEnabled:false }
-  const [cfg, setCfg] = useState(init)
+  const [cfg, setCfg] = useState({ apiKey:'', apiSecret:'', senderPhone:'', kakaoChannelId:'', kakaoEnabled:false, smsEnabled:false })
+  const [loading, setLoading] = useState(true)
   const [testing, setTesting] = useState(false)
   const { success, toastError } = useToast()
 
+  useEffect(() => {
+    SecretSettings.get('solapi').then(val => {
+      if (val) setCfg({ apiKey:'', apiSecret:'', senderPhone:'', kakaoChannelId:'', kakaoEnabled:false, smsEnabled:false, ...val })
+      setLoading(false)
+    })
+  }, [])
+
   const set = (k, v) => setCfg(p => ({ ...p, [k]: v }))
 
-  const save = () => {
-    Settings.set('solapi', cfg)
-    success('수정이 완료되었습니다.')
+  const save = async () => {
+    const ok = await SecretSettings.set('solapi', cfg)
+    if (ok) success('수정이 완료되었습니다.')
+    else toastError('저장에 실패했습니다. 다시 시도해주세요.')
   }
 
   const testSMS = async () => {
@@ -320,6 +338,8 @@ function SolapiSection() {
       setTesting(false)
     }, 1000)
   }
+
+  if (loading) return <div style={{ padding:'20px', color:C.muted, fontSize:'13px' }}>불러오는 중...</div>
 
   return (
     <Card style={{ marginBottom:'16px' }}>
