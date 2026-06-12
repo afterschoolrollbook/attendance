@@ -729,6 +729,7 @@ export function ParentInvite() {
       }
 
       if (alreadyJoined) {
+        // 초대 링크 재진입 — PIN 미설정 회원이므로 pin=null 으로 호출 (RPC 내부에서 pin_hash IS NULL 허용)
         const dash = await loadParentDashboard(normalized)
         setDashboardData(dash)
       }
@@ -801,6 +802,7 @@ export function ParentInvite() {
       console.warn('[Push] 구독 실패:', e.message)
     }
 
+    // 가입 직후 — PIN 미설정 상태이므로 pin=null 으로 호출 (RPC 내부에서 pin_hash IS NULL 허용)
     const dash = await loadParentDashboard(normalized)
     setDashboardData(dash)
 

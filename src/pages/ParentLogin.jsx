@@ -192,7 +192,8 @@ export function ParentLogin() {
         }
         setFailCount(0)
         setLockedUntil(null)
-        const dash = await loadParentDashboard(normalized)
+        // PIN 검증 완료 — 동일한 PIN을 RPC에도 전달하여 서버 측 2중 검증
+        const dash = await loadParentDashboard(normalized, currentPin)
         setDashboardData(dash)
         setMember({ ...candidate, ...(data[0] || {}) })
       } else {
@@ -252,7 +253,8 @@ export function ParentLogin() {
         if (rpcErr) throw new Error(rpcErr.message)
         if (!data) throw new Error('PIN 저장 실패')
       }
-      const dash = await loadParentDashboard(normalized)
+      // PIN 설정 완료 — 방금 설정한 PIN을 RPC에 전달
+      const dash = await loadParentDashboard(normalized, pin)
       setDashboardData(dash)
       setMember({ ...candidate, pinHash: 'set' })
     } catch (e) {
