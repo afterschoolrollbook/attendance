@@ -497,6 +497,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 20 | `vercel.json` CSP `connect-src` — `https://open.neis.go.kr` 누락으로 NEIS 학교 검색 시 CSP 위반 차단 | ✅ 수정 완료 (2026-06-12) | [바로가기](#csp-헤더-verceljson) |
 | 21 | `send-push/index.ts` — Authorization 검사 없음 (curl 등 직접 호출로 학부모 기기에 임의 푸시 가능) | ✅ 수정 완료 (2026-06-12) | [바로가기](#send-pushindexts--authorization-검사-추가-2026-06-12) |
 | 22 | `App.jsx` — `BlogWrite` / `MyBlog`에 `onLogout` prop 누락으로 헤더 🚪 로그아웃 버튼 클릭 시 아무 반응 없음 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--blogwrite--myblog-onlogout-prop-누락-수정-2026-06-12) |
+| 23 | `ParentInvite.jsx` 160번 줄 주석 — `withdraw_parent` 서명이 구버전(`p_phone`만)으로 남아 있어 실제 RPC 서명(`p_phone, p_pin DEFAULT NULL`)과 불일치 | ✅ 수정 완료 (2026-06-12) | [바로가기](#parentinvitejsx--withdraw_parent-주석-서명-업데이트-2026-06-12) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -910,6 +911,26 @@ case 'myblog':      return <MyBlog    user={user} onLogout={handleLogout} />
 `handleLogout`은 이미 `Sidebar`에 `onLogout={handleLogout}`으로 전달되고 있는 동일 함수.
 
 **수정 파일:** `src/App.jsx`
+
+---
+
+### `ParentInvite.jsx` — `withdraw_parent` 주석 서명 업데이트 (2026-06-12)
+
+`supabase/009_withdraw_parent_pin.sql`에서 `withdraw_parent` RPC에 PIN 검증 파라미터(`p_pin text DEFAULT NULL`)가 추가되었으나, `ParentInvite.jsx` 160번 줄 주석 블록의 함수 서명만 구버전(`withdraw_parent(p_phone text)`)으로 남아 있었음. 실제 호출 코드(179번 줄)는 이미 `{ p_phone: normalized, p_pin: pin || null }`로 올바르게 호출 중 — 기능 영향 없음. 주석과 코드 불일치로 나중에 이 코드를 보는 사람이 혼란을 겪거나 잘못된 서명으로 테스트할 수 있어 수정.
+
+```js
+// 수정 전
+// withdraw_parent(p_phone text) RPC:
+//   - 전화번호로 parent_members 레코드를 찾아 ...
+
+// 수정 후
+// withdraw_parent(p_phone text, p_pin text DEFAULT NULL) RPC:
+//   - pin_hash 설정된 회원은 PIN 일치 시에만 탈퇴 처리 (PIN 불일치 시 false 반환)
+//   - pin_hash 미설정 회원은 PIN 없이 허용 (초대 직후 상태)
+//   - 전화번호로 parent_members 레코드를 찾아 ...
+```
+
+**수정 파일:** `src/pages/ParentInvite.jsx`
 
 ---
 
