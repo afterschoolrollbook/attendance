@@ -126,9 +126,8 @@ function LoginTab({ onLogin, onSwitch, onFindId, onResetPw }) {
       const vendor = await vendorRpc.getVendorById(acc.vendorId)
       if (!vendor) { setErr('연결된 업체 정보가 없습니다.'); return }
       resetBruteForce(email.trim().toLowerCase())
-      const { pw: _pw, ...safeAcc } = acc
-      localStorage.setItem(LS_SESSION, JSON.stringify({ ...safeAcc, vendor }))
-      onLogin({ ...safeAcc, vendor })
+      localStorage.setItem(LS_SESSION, JSON.stringify({ ...acc, vendor }))
+      onLogin({ ...acc, vendor })
     } catch(e) { setErr(e.message || '오류가 발생했습니다. 다시 시도해주세요.') }
     finally { setLoading(false) }
   }
@@ -493,12 +492,12 @@ function RegisterTab({ onDone, onSwitch }) {
     setLoading(true)
     try {
       const hashedPw = await hashPassword(pw)
-      const acc = { id:uid(), vendorId:matchedVendor.id, email:regEmail, pw: hashedPw, name: name || matchedVendor.managerName || matchedVendor.name, createdAt:now() }
-      await VendorAccounts.save(acc)
+      const accForSave = { id:uid(), vendorId:matchedVendor.id, email:regEmail, pw: hashedPw, name: name || matchedVendor.managerName || matchedVendor.name, createdAt:now() }
+      await VendorAccounts.save(accForSave)
       await HQVendors.save({ ...matchedVendor, status:'joined', joinedAt: now() })
-      const { pw: _pw2, ...safeAcc2 } = acc
-      localStorage.setItem(LS_SESSION, JSON.stringify({ ...safeAcc2, vendor: matchedVendor }))
-      onDone({ ...safeAcc2, vendor: matchedVendor })
+      const sessionAcc = { id: accForSave.id, vendorId: accForSave.vendorId, email: accForSave.email, name: accForSave.name, createdAt: accForSave.createdAt }
+      localStorage.setItem(LS_SESSION, JSON.stringify({ ...sessionAcc, vendor: matchedVendor }))
+      onDone({ ...sessionAcc, vendor: matchedVendor })
     } catch { setErr('가입 중 오류가 발생했습니다.') }
     finally { setLoading(false) }
   }
