@@ -455,6 +455,35 @@ color: pw.length >= 8 && /특수문자정규식/.test(pw) ? C.success : C.danger
 
 ---
 
+### `VendorAuth.jsx` `ResetPwTab` · `RegisterTab` — `alert()` 인증번호 노출 제거 (2026-06-13)
+
+`ResetPwTab`(비밀번호 초기화)과 `RegisterTab`(업체 가입) 두 곳에서 이메일 발송 `else` 블록이 `alert()`로 인증번호를 화면에 직접 표시하고 있었음.
+
+```js
+// 수정 전 (ResetPwTab handleSendCode, RegisterTab handleSendCode 동일)
+if (isConfigured && FUNCTIONS_BASE) {
+  // ... fetch send-email
+} else {
+  alert(`[개발 모드] 인증번호: ${code6}`)  // ← 개발 규칙 1번 위반 + 노출
+}
+
+// 수정 후 — else 블록 전체 제거
+if (isConfigured && FUNCTIONS_BASE) {
+  // ... fetch send-email
+}
+// Resend 키 미설정 시 인증번호 발송 실패 → 사용자가 에러로 인지
+```
+
+**위반 항목:**
+- 개발 규칙 **1번** — `alert()` 사용 금지
+- `Auth.jsx`의 `devCode` 제거(2026-06-12, 보안 점검 체크리스트 내 `send-email` 항목)와 동일한 취지이나 `VendorAuth.jsx`에는 미반영 상태였음
+
+**다른 곳 영향 없음:** `isConfigured && FUNCTIONS_BASE` 조건이 true인 정상 배포 환경에서는 동작 완전히 동일. `else` 블록은 Supabase 미설정 환경에서만 실행되던 코드.
+
+**수정 파일:** `src/pages/VendorAuth.jsx`
+
+---
+
 ### `setup.sh` — 빈 줄 제거 (2026-06-13)
 
 63번 줄에 `send-push` 배포와 `reset-user-password` 배포 사이에 빈 줄이 있어, 스크립트 실행 중 두 명령이 시각적으로 분리되어 보이는 가독성 문제. 기능 영향 없음.
@@ -582,6 +611,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 32 | `SchoolNoticePopup.jsx` — export는 되어 있으나 앱 어디에서도 import되지 않아 학교 공지 팝업·배너 기능이 동작하지 않는 상태 → `Dashboard.jsx`(선생님 대시보드)에 연결 | ✅ 수정 완료 (2026-06-13) | [바로가기](#schoolnoticepopup--dashboardjsx에-연결-2026-06-13) |
 | 33 | `setup.sh` 63번 줄 — `send-push` 배포 라인 뒤 빈 줄로 인해 `reset-user-password` 배포가 시각적으로 분리됨 (기능 문제 없음, 가독성 수정) | ✅ 수정 완료 (2026-06-13) | — |
 | 34 | `VendorAuth.jsx` `ResetPwTab` — 비밀번호 강도 힌트가 길이(`pw.length >= 8`)만 체크해 특수문자 없이도 "✅ 안전한 비밀번호" 표시. `handleReset`은 특수문자를 검사하므로 제출은 막히지만 UI 오해 유발 → `RegisterTab`과 동일하게 3단계 힌트로 통일 | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx-resetpwtab--비밀번호-강도-힌트-특수문자-조건-추가-2026-06-13) |
+| 35 | `VendorAuth.jsx` `ResetPwTab` · `RegisterTab` — Resend 키 미설정 환경에서 `alert()`로 인증번호를 화면에 직접 노출. 개발 규칙 1번 위반(`alert()` 사용 금지) + 인증번호 노출 경로 잔존. `Auth.jsx`에서는 이미 제거된 동일 패턴 → `else { alert(...) }` 블록 전체 제거 | ✅ 수정 완료 (2026-06-13) | [바로가기](#vendorauthisx-resetpwtab--registertab--alert-인증번호-노출-제거-2026-06-13) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -610,7 +640,8 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 #### 🏢 업체 포털
 
 - [ ] 업체 로그인 — `?vendor=1` 경로에서 업체 이메일/비밀번호로 로그인 성공하는지
-- [ ] 업체 가입 — 본사에 등록된 전화번호/이메일 확인 → 이메일 인증 → 계정 생성 정상 완료
+- [ ] 업체 가입 — 본사에 등록된 전화번호/이메일 확인 → 이메일 인증(인증번호 발송) → 계정 생성 정상 완료
+- [ ] 업체 비밀번호 초기화 — 이메일 입력 → 인증번호 발송 → 인증번호 확인 → 새 비밀번호 설정 → 새 비밀번호로 로그인 성공
 - [ ] 업체 앱 — 로그인 후 과목·교구·차시·파일·단가 조회 및 저장이 모두 정상 동작하는지
 
 #### ⚙️ 관리자
@@ -1417,3 +1448,4 @@ const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUser
 - `send-sms` Edge Function: Bearer 토큰 인증 추가 (미인증 요청 401 차단) — URL 노출 시 무단 SMS 발송 방지
 - `AdSlot.jsx`: Blob API 실패 시 `dangerouslySetInnerHTML` 폴백 제거 → `null` 반환으로 변경 (XSS 방어)
 - 비밀번호 정책: 8자 이상 + 영문 + 숫자 + **특수문자** 조합 필수 (강사 회원가입·비밀번호 재설정, 업체 포털 가입·비밀번호 초기화 모두 적용)
+- `VendorAuth.jsx` 인증번호 `alert()` 노출 제거 (2026-06-13): `ResetPwTab.handleSendCode`·`RegisterTab.handleSendCode`의 `else { alert(...) }` 블록 제거. Resend 키 미설정 시 인증 자체가 실패하여 관리자가 즉시 인지 가능 — `Auth.jsx`와 동일한 처리 방식으로 통일
