@@ -598,7 +598,6 @@ function schoolBuildSessionMap({ allSessionDates, termBoundaries, quarterTermCou
 
 // 연간 일정 미니 미리보기 — SchoolCalendar와 동일 로직, 내 요일 필터
 function CalendarMiniPreview({ cal, myDay }) {
-  const [open, setOpen] = useState(true)
   if (!cal.startDate || !cal.endDate) return null
 
   const DAY_KO     = ['일','월','화','수','목','금','토']

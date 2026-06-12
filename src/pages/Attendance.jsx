@@ -3065,7 +3065,7 @@ function ClassAttendanceSection({ cls, date, allStudents, allClasses, user }) {
     setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
     setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
-  }, [progTick])
+  }, [progTick, cls?.teacherId])
 
   const isFuture = date > today
   const sessInfo = getSessionInfo(cls, date)
@@ -3298,7 +3298,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses, onNav }) {
     setSpProds(SupplyProducts.byTeacher(cls.teacherId||''))
     setSpProg(SupplyStudentProgress.byTeacher(cls.teacherId||''))
     setSpChecks(SupplySessionChecks.byTeacher(cls.teacherId||''))
-  }, [progTick])
+  }, [progTick, cls?.teacherId])
 
   // supply 테이블 실시간 구독 — 어느 화면에서 저장해도 즉시 반영
   useEffect(() => {

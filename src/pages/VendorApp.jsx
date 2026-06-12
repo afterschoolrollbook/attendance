@@ -5,7 +5,6 @@
  * Supplies.jsx 교구업체 탭과 동일한 방식
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import * as XLSX from 'xlsx'
 import { uid, now } from '../lib/utils.js'
 import { vendorRpc, dbCall } from '../lib/supabase.js'
 import { useToast } from '../hooks/useToast.js'
@@ -42,7 +41,8 @@ const DB = {
 }
 
 // ── 엑셀 샘플/다운로드
-function downloadSampleExcel() {
+async function downloadSampleExcel() {
+  const XLSX = await import('xlsx')
   const rows = [
     ['업체명','담당자','연락처','과목','교구명','단계','차시번호','차시제목','메모'],
     ['집현전에듀','민찬홍','010-2704-0307','로봇','큐보',1,1,'큐보 1단계 1차시','배터리'],
@@ -55,7 +55,8 @@ function downloadSampleExcel() {
   XLSX.utils.book_append_sheet(wb, ws, '교구목록샘플')
   XLSX.writeFile(wb, '교구목록_샘플양식.xlsx')
 }
-function downloadProductsExcel(vendorName, products, contents, subjects=[]) {
+async function downloadProductsExcel(vendorName, products, contents, subjects=[]) {
+  const XLSX = await import('xlsx')
   const rows = [['업체명','담당자','연락처','과목','교구명','단계','차시번호','차시제목','메모']]
   products.forEach(p => {
     const subjectName = subjects.find(s=>s.id===p.subjectId)?.name || ''
@@ -220,6 +221,7 @@ export function VendorApp({ vendorSession: initSession, onLogout }) {
     const file = e.target.files?.[0]; if (!file) return; e.target.value = ''
     try {
       const data = await file.arrayBuffer()
+      const XLSX = await import('xlsx')
       const wb = XLSX.read(data); const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(ws, { header:1 })
       const dataRows = rows.slice(1).filter(r=>r[0])

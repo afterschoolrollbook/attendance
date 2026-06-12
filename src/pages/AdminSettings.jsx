@@ -1459,6 +1459,29 @@ function PermissionsSection() {
         ))}
       </div>
 
+      {/* 블로그 글쓰기/공지 최소 레벨 */}
+      <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'12px' }}>📝 블로그 작성 권한</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'24px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', flexWrap:'wrap', gap:'10px' }}>
+          <div>
+            <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>블로그 글쓰기 최소 레벨</div>
+            <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+              현재: <span style={{ fontWeight:700, color: LEVEL_COLORS[blogWriteMinLevel] || '#9ca3af' }}>Lv.{blogWriteMinLevel} 이상</span>
+            </div>
+          </div>
+          <LevelButtons value={blogWriteMinLevel} onChange={setBlogWriteMinLevel} />
+        </div>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', flexWrap:'wrap', gap:'10px' }}>
+          <div>
+            <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>공지글 작성 최소 레벨</div>
+            <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+              현재: <span style={{ fontWeight:700, color: LEVEL_COLORS[blogNoticeMinLevel] || '#9ca3af' }}>Lv.{blogNoticeMinLevel} 이상</span>
+            </div>
+          </div>
+          <LevelButtons value={blogNoticeMinLevel} onChange={setBlogNoticeMinLevel} />
+        </div>
+      </div>
+
       {/* 기존 메뉴 기능별 레벨 */}
       <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'12px' }}>🔐 메뉴 기능별 최소 레벨</div>
       <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>

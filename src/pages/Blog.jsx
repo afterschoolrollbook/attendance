@@ -45,7 +45,7 @@ function parseMarkdown(md) {
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0">')
     .replace(/^---$/gm, '<hr>')
-    .replace(/^\- (.+)$/gm, '<li>$1</li>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
     .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
     .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
     .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
@@ -186,7 +186,7 @@ function BlogList({ posts, onSelect }) {
                 </div>
                 <h2 style={{ fontSize:'20px', fontWeight:700, color:'#111827', marginBottom:'10px', lineHeight:1.4 }}>{post.title}</h2>
                 <p style={{ fontSize:'14px', color:'#6b7280', lineHeight:1.7, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
-                  {post.summary || post.content?.replace(/[#*`>\-]/g, '').slice(0, 120) + '...'}
+                  {post.summary || post.content?.replace(/[#*`>-]/g, '').slice(0, 120) + '...'}
                 </p>
                 <div style={{ marginTop:'16px', fontSize:'13px', fontWeight:600, color:'#f97316' }}>더 읽기 →</div>
               </div>
@@ -327,7 +327,7 @@ function Comments({ postId }) {
 
 function BlogDetail({ post, onBack }) {
   useEffect(() => {
-    setMeta(`${post.title} | 방과후 출석부 블로그`, post.summary || post.content?.replace(/[#*`>\-]/g, '').slice(0, 160) || '', `${window.location.origin}/blog/${post.slug||post.id}`, post.coverImage)
+    setMeta(`${post.title} | 방과후 출석부 블로그`, post.summary || post.content?.replace(/[#*`>-]/g, '').slice(0, 160) || '', `${window.location.origin}/blog/${post.slug||post.id}`, post.coverImage)
     window.scrollTo(0, 0)
     return () => setMeta('방과후 출석부 블로그', '방과후 강사를 위한 출석 관리 팁', `${window.location.origin}/blog`)
   }, [post])
@@ -424,7 +424,7 @@ function TemplateList({ posts, onSelect }) {
                 <h2 style={{ fontSize:'15px', fontWeight:700, color:'#111827', marginBottom:'6px', lineHeight:1.4 }}>{post.title}</h2>
                 {post.templateDesc && <p style={{ fontSize:'12px', color:'#7c3aed', background:'#f5f3ff', borderRadius:'6px', padding:'4px 8px', marginBottom:'8px', fontWeight:600 }}>📎 {post.templateDesc}</p>}
                 <p style={{ fontSize:'13px', color:'#6b7280', lineHeight:1.6, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
-                  {post.summary || post.content?.replace(/[#*`>\-]/g, '').slice(0, 80)}
+                  {post.summary || post.content?.replace(/[#*`>-]/g, '').slice(0, 80)}
                 </p>
                 <div style={{ marginTop:'12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                   <span style={{ fontSize:'12px', color:'#9ca3af' }}>{formatDate(post.publishedAt || post.createdAt)}</span>
@@ -542,7 +542,7 @@ function DocsList({ docs, onSelect }) {
                     onMouseLeave={e => { e.currentTarget.style.borderColor='#e5e7eb'; e.currentTarget.style.boxShadow='none' }}>
                     <div style={{ fontSize:'15px', fontWeight:700, color:'#111827', marginBottom:'6px' }}>{doc.title}</div>
                     <div style={{ fontSize:'13px', color:'#6b7280', lineHeight:1.6, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
-                      {doc.summary || doc.content?.replace(/[#*`>\-]/g, '').slice(0, 80)}
+                      {doc.summary || doc.content?.replace(/[#*`>-]/g, '').slice(0, 80)}
                     </div>
                     <div style={{ marginTop:'10px', fontSize:'12px', fontWeight:600, color:'#3b82f6' }}>읽어보기 →</div>
                   </div>
@@ -560,7 +560,7 @@ function DocsList({ docs, onSelect }) {
                     onMouseEnter={e => e.currentTarget.style.borderColor='#3b82f6'}
                     onMouseLeave={e => e.currentTarget.style.borderColor='#e5e7eb'}>
                     <div style={{ fontSize:'15px', fontWeight:700, color:'#111827', marginBottom:'6px' }}>{doc.title}</div>
-                    <div style={{ fontSize:'13px', color:'#6b7280', lineHeight:1.6 }}>{doc.summary || doc.content?.replace(/[#*`>\-]/g, '').slice(0, 80)}</div>
+                    <div style={{ fontSize:'13px', color:'#6b7280', lineHeight:1.6 }}>{doc.summary || doc.content?.replace(/[#*`>-]/g, '').slice(0, 80)}</div>
                     <div style={{ marginTop:'10px', fontSize:'12px', fontWeight:600, color:'#3b82f6' }}>읽어보기 →</div>
                   </div>
                 ))}

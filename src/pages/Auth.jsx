@@ -235,7 +235,7 @@ function useKakaoAuth(onSuccess, restApiKey) {
       }
     }
     process()
-  }, [])
+  }, [onSuccess, toastError])
 
   const loginWithKakao = () => {
     if (!restApiKey) { toastError('카카오 앱 키가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
@@ -295,7 +295,7 @@ function useNaverAuth(onSuccess, clientId) {
       onSuccess({ provider: 'naver', email: data.email || '', name: data.name || '', avatar: data.avatar || '', providerId: String(data.id) })
     }
     process()
-  }, [])
+  }, [onSuccess, toastError])
 
   const loginWithNaver = () => {
     if (!clientId) { toastError('네이버 클라이언트 ID가 설정되지 않았습니다.\n관리자 → 서비스설정 → 소셜 로그인에서 등록하세요.'); return }
@@ -682,7 +682,7 @@ export function Auth({ onLogin, initialTab }) {
   const handleFpReset = async () => {
     if (fpNewPw.length < 8) { setError('비밀번호는 8자 이상이어야 합니다.'); return }
     if (!/[a-zA-Z]/.test(fpNewPw) || !/[0-9]/.test(fpNewPw)) { setError('비밀번호는 영문과 숫자를 모두 포함해야 합니다.'); return }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(fpNewPw)) { setError('비밀번호는 특수문자를 하나 이상 포함해야 합니다.'); return }
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(fpNewPw)) { setError('비밀번호는 특수문자를 하나 이상 포함해야 합니다.'); return }
     if (fpNewPw !== fpNewPw2) { setError('비밀번호가 일치하지 않습니다.'); return }
     try {
       if (supabase) {
@@ -889,7 +889,7 @@ export function Auth({ onLogin, initialTab }) {
     if (!emailChecked) { setError('이메일 중복 확인을 해주세요.'); return }
     if (form.pw.length < 8) { setError('비밀번호는 8자 이상이어야 합니다.'); return }
     if (!/[a-zA-Z]/.test(form.pw) || !/[0-9]/.test(form.pw)) { setError('비밀번호는 영문과 숫자를 모두 포함해야 합니다.'); return }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(form.pw)) { setError('비밀번호는 특수문자를 하나 이상 포함해야 합니다.'); return }
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(form.pw)) { setError('비밀번호는 특수문자를 하나 이상 포함해야 합니다.'); return }
     if (form.pw !== form.pw2) { setError('비밀번호가 일치하지 않습니다.'); return }
     if (!allRequired) { setError('필수 약관에 동의해주세요.'); return }
     setStep(2)
