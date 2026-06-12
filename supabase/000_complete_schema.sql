@@ -1252,3 +1252,29 @@ begin
   end if;
   return v_count > 0;
 end; $$;
+
+
+-- ──────────────────────────────────────────────
+-- verify_codes (이메일 인증번호 / 학부모 초대 토큰)
+-- ──────────────────────────────────────────────
+create table if not exists verify_codes (
+  id          uuid primary key default gen_random_uuid(),
+  target      text not null,
+  code        text not null,
+  purpose     text not null default 'signup',
+  used        boolean not null default false,
+  expires_at  timestamptz not null,
+  created_at  timestamptz not null default now()
+);
+
+alter table verify_codes enable row level security;
+
+drop policy if exists "verify_codes_insert" on verify_codes;
+drop policy if exists "verify_codes_select" on verify_codes;
+drop policy if exists "verify_codes_update" on verify_codes;
+drop policy if exists "verify_codes_delete" on verify_codes;
+
+create policy "verify_codes_insert" on verify_codes for insert with check (true);
+create policy "verify_codes_select" on verify_codes for select using (used = false and expires_at > now());
+create policy "verify_codes_update" on verify_codes for update using (true) with check (true);
+create policy "verify_codes_delete" on verify_codes for delete using (false);
