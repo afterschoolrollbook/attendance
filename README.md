@@ -445,9 +445,9 @@ ORDER BY c.class_name, c.section;
 `syncUpdate()`는 update 후 반영된 행이 0개면 DB에 해당 row가 없는 것으로 판단, 로컬 캐시에서 전체 레코드를 꺼내 insert로 전환.
 pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다 유실되는 상황을 방지.
 
-### boolean 컬럼 sanitize (⚠️ 확인 필요)
+### boolean 컬럼 sanitize
 
-기존에는 `db-api` Edge Function의 `sanitize()`가 `students` 테이블의 `parent_joined`, `moved_to_manage` 컬럼에 빈 문자열·null이 들어오면 자동으로 `false`로 변환해주었음. 2026-06 보안 점검으로 `db-api`를 제거하면서 이 변환 로직도 함께 사라짐. 현재 `src/lib/supabase.js`의 `dbCall`에는 동일한 sanitize가 없으므로, 프론트에서 빈 값(`''`)을 그대로 보내면 PostgreSQL boolean 타입 에러가 날 수 있음 — 별도 확인/수정 필요.
+`db-api` 제거 시 함께 사라진 `sanitize()` 로직을 `src/lib/db.js`(`sanitizeStudentBooleans`)와 `src/lib/supabase.js`(`dbCall` 내부 `sanitize`)에 복구 완료. `students` 테이블의 `parent_joined`/`moved_to_manage` 컬럼에 빈 문자열·null이 들어오면 자동으로 `false`로 변환됨 (2026-06-12 수정).
 
 ### CSP 헤더 (vercel.json)
 
@@ -1037,7 +1037,7 @@ case 'blog_write':  return <BlogWrite user={user} onLogout={handleLogout} />
 |------|------|
 | `set_parent_pin(phone, pin)` | PIN을 `pgcrypto crypt(bcrypt)` 해시로 저장 |
 | `verify_parent_pin(phone, pin)` | PIN 검증 후 `parent_members` 행 반환 |
-| `withdraw_parent(phone)` | 학부모 탈퇴 처리 (RLS 우회용 security definer) |
+| `withdraw_parent(phone, pin DEFAULT NULL)` | 학부모 탈퇴 처리 — pin_hash 설정 회원은 PIN 일치 시에만 허용 (RLS 우회용 security definer) |
 | `check_parent_joined(phone)` | 가입 여부 확인 |
 
 - `parent_members.pin_hash` 컬럼 추가 (nullable, bcrypt 해시 저장)
@@ -1045,7 +1045,7 @@ case 'blog_write':  return <BlogWrite user={user} onLogout={handleLogout} />
 
 ### CORS
 
-- 모든 Edge Function(`send-email`, `send-sms`, `send-push`, `kakao-oauth`, `naver-oauth`, `reset-user-password`)이 `ALLOWED_ORIGIN` 환경변수를 읽음 (`generate-vapid`는 2026-06-12 삭제됨)
+- 모든 Edge Function(`send-email`, `send-sms`, `send-push`, `kakao-oauth`, `naver-oauth`, `reset-user-password`, `reset-password-self`)이 `ALLOWED_ORIGIN` 환경변수를 읽음 (`generate-vapid`는 2026-06-12 삭제됨)
 - **미설정 시 `*`(전체 허용)으로 열림** — 신규 배포 시 반드시 설정 필요
 - 2026-06-12: 콤마(,)로 여러 도메인을 지정할 수 있도록 코드 수정 (예: `https://www.afterschoolrollbook.kr,https://afterschoolrollbook.kr`)
 - ⚠️ CORS는 브라우저에서의 호출만 제한함. `send-sms`/`send-email`/`send-push`의 `Authorization: Bearer` 검사는 anon key(공개값) 존재 여부만 확인하므로, 외부에서 anon key로 직접(curl 등) 호출하는 비용 남용은 별도 대응(요청 빈도 제한 등) 필요 — 별도 항목으로 검토 권장
@@ -1060,6 +1060,7 @@ case 'blog_write':  return <BlogWrite user={user} onLogout={handleLogout} />
    supabase/functions/kakao-oauth/index.ts
    supabase/functions/naver-oauth/index.ts
    supabase/functions/reset-user-password/index.ts
+   supabase/functions/reset-password-self/index.ts
    ```
 2. Supabase Dashboard → Edge Functions → **Secrets** → `ALLOWED_ORIGIN` 값을 아래로 설정(기존 값이 있어도 덮어쓰기)
    ```
