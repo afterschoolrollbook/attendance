@@ -64,7 +64,8 @@
 | 경로 | 화면 | 파일 |
 |------|------|------|
 | `/` | 랜딩 페이지 | `LandingPage.jsx` |
-| — | 로그인 / 회원가입 (비로그인 시 자동 표시) | `Auth.jsx` |
+| `/auth` | 로그인 / 회원가입 (비로그인 시 자동 표시, 이미 로그인된 경우 `/`로 리다이렉트) | `Auth.jsx` |
+| `/legal` | 이용약관 (기본) | `LegalPage.jsx` (`TermsPage`) |
 | `/terms` | 이용약관 | `LegalPage.jsx` (`TermsPage`) |
 | `/privacy` | 개인정보처리방침 | `LegalPage.jsx` (`PrivacyPage`) |
 | — | 카카오 OAuth 콜백 | `KakaoCallback.jsx` |
