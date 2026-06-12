@@ -495,6 +495,7 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 | 18 | `App.jsx` — `blog_write` / `myblog` 라우팅 누락으로 메뉴 클릭 시 대시보드로 떨어짐 | ✅ 수정 완료 (2026-06-12) | [바로가기](#appjsx--blog_write--myblog-라우팅-누락-수정-2026-06-12) |
 | 19 | `reset-user-password/index.ts` — 다중 도메인 CORS 미지원 (단일 문자열 비교로 남아있어 `ALLOWED_ORIGIN` 콤마 설정 시 CORS 오류) | ✅ 수정 완료 (2026-06-12) | [바로가기](#cors) |
 | 20 | `vercel.json` CSP `connect-src` — `https://open.neis.go.kr` 누락으로 NEIS 학교 검색 시 CSP 위반 차단 | ✅ 수정 완료 (2026-06-12) | [바로가기](#csp-헤더-verceljson) |
+| 21 | `send-push/index.ts` — Authorization 검사 없음 (curl 등 직접 호출로 학부모 기기에 임의 푸시 가능) | ✅ 수정 완료 (2026-06-12) | [바로가기](#send-pushindexts--authorization-검사-추가-2026-06-12) |
 
 ### 🔲 남은 테스트 체크리스트
 
@@ -879,6 +880,18 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 
 ---
 
+### `send-push/index.ts` — Authorization 검사 추가 (2026-06-12)
+
+`send-sms`에는 Bearer 토큰 인증이 추가되어 있었으나 `send-push`에는 누락되어 있었음. CORS로 브라우저 호출은 막히지만 curl 등 서버 직접 호출은 열려 있어, anon key가 노출되면 누구나 학부모 기기에 임의 푸시를 보낼 수 있는 취약점.
+
+→ `try` 블록 최상단에 `send-sms`와 동일한 패턴으로 Bearer 토큰 체크 추가.
+
+**파급 범위:** 프론트 `callFunction()`이 이미 `Authorization: Bearer ${SUPABASE_ANON}`을 포함하고 있어 프론트 코드 수정 불필요.
+
+**수정 파일:** `supabase/functions/send-push/index.ts`
+
+---
+
 ### 업체 포털 RLS 우회 — RPC 전환 (2026-06-12)
 
 `hq_vendors`, `hq_vendor_*`(subjects / products / contents / files / prices), `vendor_accounts` 테이블이 **`for all using (false)`** RLS로 완전 차단되어 있었음. 관리자 포함 anon 클라이언트의 직접 접근이 전부 막혀 있어 업체 관련 기능 전체가 동작 불가 상태였음.
@@ -989,7 +1002,7 @@ VAPID 키는 이미 `settings` 테이블에 저장되어 있으므로 삭제해�
 - 모든 Edge Function(`send-email`, `send-sms`, `send-push`, `kakao-oauth`, `naver-oauth`, `reset-user-password`)이 `ALLOWED_ORIGIN` 환경변수를 읽음 (`generate-vapid`는 2026-06-12 삭제됨)
 - **미설정 시 `*`(전체 허용)으로 열림** — 신규 배포 시 반드시 설정 필요
 - 2026-06-12: 콤마(,)로 여러 도메인을 지정할 수 있도록 코드 수정 (예: `https://www.afterschoolrollbook.kr,https://afterschoolrollbook.kr`)
-- ⚠️ CORS는 브라우저에서의 호출만 제한함. `send-sms`/`send-email`의 `Authorization: Bearer` 검사는 anon key(공개값) 존재 여부만 확인하므로, 외부에서 anon key로 직접(curl 등) 호출하는 비용 남용은 별도 대응(요청 빈도 제한 등) 필요 — 별도 항목으로 검토 권장
+- ⚠️ CORS는 브라우저에서의 호출만 제한함. `send-sms`/`send-email`/`send-push`의 `Authorization: Bearer` 검사는 anon key(공개값) 존재 여부만 확인하므로, 외부에서 anon key로 직접(curl 등) 호출하는 비용 남용은 별도 대응(요청 빈도 제한 등) 필요 — 별도 항목으로 검토 권장
 
 #### 설정 방법
 
