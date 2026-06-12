@@ -64,8 +64,7 @@
 | 경로 | 화면 | 파일 |
 |------|------|------|
 | `/` | 랜딩 페이지 | `LandingPage.jsx` |
-| `/auth` | 로그인 / 회원가입 (비로그인 시 자동 표시, 이미 로그인된 경우 `/`로 리다이렉트) | `Auth.jsx` |
-| `/legal` | 이용약관 (기본) | `LegalPage.jsx` (`TermsPage`) |
+| — | 로그인 / 회원가입 (비로그인 시 자동 표시) | `Auth.jsx` |
 | `/terms` | 이용약관 | `LegalPage.jsx` (`TermsPage`) |
 | `/privacy` | 개인정보처리방침 | `LegalPage.jsx` (`PrivacyPage`) |
 | — | 카카오 OAuth 콜백 | `KakaoCallback.jsx` |
@@ -94,8 +93,7 @@
 | 🏅 수상경력 | `Awards.jsx` |
 | 📝 제안서·자기소개서 | `Proposals.jsx` |
 | 📢 공고관리 | `Jobs.jsx` |
-| 블로그 글쓰기 (사이드바 "블로그" 메뉴) | `BlogWrite.jsx` |
-| ✍️ 블로그 글쓰기 | `BlogWrite.jsx` |
+| 📝 블로그 | `BlogWrite.jsx` (내부에 "블로그 보러가기" 버튼으로 공개 블로그 이동) |
 
 ### 관리자 전용 (level 10)
 
