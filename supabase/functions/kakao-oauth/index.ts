@@ -24,6 +24,15 @@ serve(async (req) => {
   }
 
   try {
+    // Authorization 헤더 확인 (anon key 이상 필요)
+    const authHeader = req.headers.get('Authorization') || ''
+    if (!authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ success: false, error: '인증이 필요합니다.' }), {
+        status: 401,
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+      })
+    }
+
     const { code, clientId, redirectUri } = await req.json()
 
     const restApiKey = clientId || Deno.env.get('KAKAO_CLIENT_ID') || ''
