@@ -57,7 +57,8 @@ RETURNS json LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE v json;
 BEGIN
   SELECT row_to_json(r) INTO v
-  FROM (SELECT * FROM vendor_accounts
+  FROM (SELECT id, vendor_id, email, name, created_at
+        FROM vendor_accounts
         WHERE LOWER(email) = LOWER(p_email) LIMIT 1) r;
   RETURN v;
 END;
@@ -69,7 +70,8 @@ RETURNS json LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE v json;
 BEGIN
   SELECT row_to_json(r) INTO v
-  FROM (SELECT * FROM vendor_accounts
+  FROM (SELECT id, vendor_id, email, name, created_at
+        FROM vendor_accounts
         WHERE vendor_id = p_vendor_id LIMIT 1) r;
   RETURN v;
 END;
@@ -143,7 +145,8 @@ BEGIN
     updated_at = NOW();
 
   SELECT row_to_json(r) INTO result
-  FROM (SELECT * FROM vendor_accounts WHERE id = (p_data->>'id')::text) r;
+  FROM (SELECT id, vendor_id, email, name, created_at
+        FROM vendor_accounts WHERE id = (p_data->>'id')::text) r;
   RETURN result;
 END;
 $$;
