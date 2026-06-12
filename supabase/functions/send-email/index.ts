@@ -9,8 +9,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGIN') || '')
   .split(',').map(s => s.trim()).filter(Boolean)
 
-// 요청 Origin을 ALLOWED_ORIGIN과 대조하여 CORS 헤더 반환
-// ALLOWED_ORIGIN 미설정 시 개발 편의를 위해 요청 Origin 반영 (배포 전 반드시 설정)
 function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('Origin') || ''
   const allowedOrigin = ALLOWED_ORIGINS.length
@@ -26,7 +24,6 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: getCorsHeaders(req) })
 
   try {
-    // Authorization 헤더 확인 (anon key 이상 필요)
     const authHeader = req.headers.get('Authorization') || ''
     if (!authHeader.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ success: false, error: '인증이 필요합니다.' }), {
@@ -37,7 +34,6 @@ serve(async (req) => {
 
     const { to, subject, html, purpose, code } = await req.json()
 
-    // 수신자 이메일 기본 검증
     if (!to || !String(to).includes('@')) {
       return new Response(JSON.stringify({ success: false, error: '유효하지 않은 수신자입니다.' }), {
         status: 400,
@@ -45,7 +41,6 @@ serve(async (req) => {
       })
     }
 
-    // settings 테이블에서 키 읽기 (관리자 페이지에서 등록)
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SVC_ROLE_KEY')!,
@@ -55,18 +50,15 @@ serve(async (req) => {
     const RESEND_API_KEY = cfg.resendApiKey || Deno.env.get('RESEND_API_KEY') || ''
     const FROM_EMAIL     = cfg.fromEmail || 'noreply@afterschool.app'
 
+    // Resend 키 미설정 → 에러 반환 (인증번호를 응답에 절대 포함하지 않음)
     if (!RESEND_API_KEY) {
-      // 개발 모드: 콘솔에만 출력
-      console.log(`[개발모드] 이메일 발송 시뮬레이션`)
-      console.log(`  수신: ${to}`)
-      console.log(`  제목: ${subject}`)
-      console.log(`  인증코드: ${code}`)
-      return new Response(JSON.stringify({ success: true, dev: true, code }), {
+      console.error('[send-email] Resend API 키가 설정되지 않았습니다. 관리자 → 서비스설정 → 이메일 탭에서 등록하세요.')
+      return new Response(JSON.stringify({ success: false, error: '이메일 발송 서비스가 설정되지 않았습니다. 관리자에게 문의해주세요.' }), {
+        status: 503,
         headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
       })
     }
 
-    // Resend API로 실제 이메일 발송
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
