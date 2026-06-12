@@ -157,7 +157,9 @@ function ClassCalendar({ cls }) {
 // RLS 적용 후 anon 세션에서 parent_members를 직접 SELECT 할 수 없으므로,
 // 탈퇴 처리는 security definer RPC(withdraw_parent)를 통해 수행합니다.
 //
-// withdraw_parent(p_phone text) RPC:
+// withdraw_parent(p_phone text, p_pin text DEFAULT NULL) RPC:
+//   - pin_hash 설정된 회원은 PIN 일치 시에만 탈퇴 처리 (PIN 불일치 시 false 반환)
+//   - pin_hash 미설정 회원은 PIN 없이 허용 (초대 직후 상태)
 //   - 전화번호로 parent_members 레코드를 찾아 app_joined=false, withdrawn_at=now() 로 업데이트
 //   - teacher_parent_links도 status='ended' 로 업데이트
 //   - 성공 시 true 반환
