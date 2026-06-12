@@ -1349,6 +1349,64 @@ const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUser
 5. 초대 이메일 발송 → 상태가 "초대 발송"으로 변경 확인
 6. 업체 삭제 → 관련 과목·교구도 함께 삭제 확인
 
+### 모바일 출결/대시보드 크래시, 수업 캘린더 렌더링 오류 수정 (2026-06-13)
+
+정적 분석 중 발견된 치명적/중간 등급 이슈 4건 수정.
+
+**① `Attendance.jsx` — `MobileAttendance`에서 `selSection` 미정의로 인한 크래시**
+
+`MobileAttendance` 컴포넌트에는 반(section) 선택 state가 없는데, 수업 드롭다운에서 `::`로 반을 구분하지 않는 케이스의 fallback으로 (데스크톱에만 존재하는) `selSection` 변수를 참조하고 있었음 → `ReferenceError: selSection is not defined`로 모바일(≤768px) 출결 화면 진입 시 거의 항상 크래시.
+
+```js
+// 수정 전
+const selSectionParsedM = selClassId.includes('::') ? selClassId.split('::')[1] : selSection
+
+// 수정 후
+const selSectionParsedM = selClassId.includes('::') ? selClassId.split('::')[1] : ''
+```
+
+**② `ClassCalendar.jsx` — `totalIdx` 미선언으로 인한 크래시**
+
+전체 차시 번호를 매기는 `totalIdx`가 `cls.periods?.length > 0`인 분기의 `periods.forEach` 콜백 내부에서만 `let`으로 선언되어 있어, `periods`를 쓰지 않는 일반 수업(`else` 분기)과 보강일(`makeupDates`) 처리 부분에서 `ReferenceError`가 발생 → `ClassCalendar` 렌더링 자체가 실패.
+
+- 함수 최상단에 `let totalIdx = 1`을 선언해 `else` 분기와 보강일 처리에서 정상 동작하도록 수정
+- `periods` 분기 내부의 기존 "분기별로 1부터 다시 시작"하는 카운터는 `periodTotalIdx`로 이름을 바꿔 분리 (기존 의도 그대로 유지, 바깥 `totalIdx`와 충돌 방지)
+
+**③ `Attendance.jsx` — 죽은 코드 `ClassAttendanceSection`의 미정의 `allClasses` 참조**
+
+어디서도 호출되지 않는 죽은 컴포넌트지만, 정렬 로직에서 props에 없는 `allClasses`를 참조하고 있어 향후 재사용 시 즉시 `ReferenceError`가 날 상태였음. props에 `allClasses`를 추가해 안전하게 정리 (호출하는 곳이 없으므로 다른 곳에 영향 없음).
+
+```js
+// 수정 전
+function ClassAttendanceSection({ cls, date, allStudents, user }) {
+
+// 수정 후
+function ClassAttendanceSection({ cls, date, allStudents, allClasses, user }) {
+```
+
+**④ `Attendance.jsx` / `Dashboard.jsx` — "Rules of Hooks" 위반 (화면 크기 변경 시 크래시)**
+
+`export function Attendance(...)` / `export function Dashboard(...)`가 매 렌더마다 `window.innerWidth <= 768`을 계산해 모바일이면 `<MobileAttendance/>`·`<MobileDashboard/>`를 즉시 반환(early return)하고, 그 이후에 수십 개의 `useState`/`useEffect`를 호출하는 구조였음. 같은 컴포넌트 인스턴스가 렌더마다 다른 개수의 hook을 호출하게 되어, 브라우저 창 크기를 768px 경계로 조절하거나 태블릿을 회전하면 React가 `"Rendered fewer hooks than expected this time"` 오류를 던지며 화면이 깨질 수 있었음.
+
+→ 데스크톱 본문을 `DesktopAttendance` / `DesktopDashboard`로 이름만 바꾸고, 기존 `export function Attendance/Dashboard` 자리에는 `isMobile`을 `useState` + `resize` 리스너로 관리하며 `MobileXxx`/`DesktopXxx` 중 하나를 렌더링하는 얇은 래퍼만 남김. 래퍼는 항상 동일한 2개의 hook(`useState`, `useEffect`)만 호출하고, Mobile↔Desktop 전환은 서로 다른 컴포넌트의 마운트/언마운트로 처리되어 hook 규칙을 위반하지 않음. export되는 함수 이름·props는 그대로라 `App.jsx` 등 호출부는 무변경.
+
+**⑤ (참고용) `db.js` — 빈 `catch {}` 블록에 경고 로그 추가**
+
+IndexedDB/localStorage 캐시 읽기·쓰기 실패를 조용히 무시하던 5곳의 `catch {}`에 `console.warn`을 추가. 동작은 동일하며, 디버깅 시 브라우저 콘솔에서 실패 지점을 바로 확인할 수 있음.
+
+**수정 파일:**
+- `src/pages/Attendance.jsx`
+- `src/pages/Dashboard.jsx`
+- `src/pages/ClassCalendar.jsx`
+- `src/lib/db.js`
+
+#### 테스트 방법
+
+- 모바일(또는 개발자도구 반응형 모드, 폭 ≤768px)에서 출석부 화면 진입 → 정상 렌더링 확인 (이전: 흰 화면/크래시)
+- 수업 캘린더 화면에서 `periods` 미사용 수업 + 보강일이 있는 수업 모두 정상 렌더링되는지 확인
+- 브라우저 창 폭을 768px 경계로 천천히 줄였다 늘렸다 하며 출석부/대시보드 화면이 깨지지 않고 모바일↔데스크톱 레이아웃으로 정상 전환되는지 확인
+- (선택) 개발자도구 Console에서 IndexedDB/localStorage 관련 경고가 뜨는지 — 평소에는 안 떠야 정상
+
 ### Row Level Security (RLS)
 
 모든 핵심 테이블에 RLS 활성화 + 정책 적용 완료 (2026-06-12)
