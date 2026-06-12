@@ -458,6 +458,19 @@ pending 큐에서 재시도할 때 이미 삭제된 row를 업데이트하려다
 
 이상이 있으면(오류 메시지, 빈 화면 등) 화면을 캡처해 확인.
 
+### 로그인 화면 "아이디 찾기"/"비밀번호 초기화" 복구 — RPC 기반으로 전환 (2026-06-12)
+
+`/login` 화면의 "아이디 찾기"(전화번호 → 이메일)와 "비밀번호 초기화"(이메일 존재·provider 확인)는 모두 `Users.all()`(로컬 캐시)을 사용했음. 비로그인 상태에서는 `users` 테이블 RLS("본인 행 또는 관리자")로 인해 캐시가 항상 비어 있어 두 기능 모두 100% "등록된 정보가 없습니다"로 실패함.
+
+→ `supabase/005_auth_lookup_rpc.sql`에 최소 정보만 반환하는 security definer RPC 2종 추가:
+
+| RPC | 용도 |
+|-----|------|
+| `find_email_by_phone` | 전화번호로 가입된 이메일 1건 조회 (아이디 찾기) |
+| `get_user_auth_info` | 이메일 존재 여부 + 로그인 provider만 반환 (비밀번호 초기화 사전 확인) |
+
+`Auth.jsx`의 `handleFindId`, `handleFpSend`가 이 RPC를 사용하도록 수정. 적용 방법: Supabase Dashboard → SQL Editor에서 `supabase/005_auth_lookup_rpc.sql` 전체 실행 (1회).
+
 ### Row Level Security (RLS)
 
 모든 핵심 테이블에 RLS 활성화 + 정책 적용 완료 (2026-06-12)
