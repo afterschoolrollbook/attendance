@@ -314,8 +314,8 @@ function AppInner() {
   if (new URLSearchParams(search).get('progress_screen') === '1') return <ProgressWindow />
 
   // 블로그 — 공개 페이지 (로그인 불필요, SEO용)
-  if (pathname.startsWith('/blog')) return <Blog user={user} />
-  if (pathname.startsWith('/docs')) return <Blog user={user} />
+  if (pathname.startsWith('/blog')) return <Blog />
+  if (pathname.startsWith('/docs')) return <Blog />
 
   // 네이버/카카오 콜백 — DB 불필요, 바로 렌더
   if (pathname === '/naver-callback') return <NaverCallback />
