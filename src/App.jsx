@@ -265,18 +265,25 @@ function AppInner() {
 
     async function init() {
       try {
+      console.log('[init] 시작')
       const session = await authGetSession()
+      console.log('[init] 세션:', session?.user?.email || 'null')
 
       if (session?.user) {
         // 1) IndexedDB 캐시 즉시 로드 → 화면 빠르게 표시
+        console.log('[init] loadCacheFromIDB 시작')
         await loadCacheFromIDB()
+        console.log('[init] loadCacheFromIDB 완료')
         const cached = Users.findByEmail(session.user.email)
+        console.log('[init] 캐시 유저:', cached ? '있음' : '없음')
         if (cached) {
           setUser(cached)
           setDbReady(true)
         }
         // 2) 백그라운드에서 변경분만 Supabase 로드 (증분 동기화)
+        console.log('[init] initFromSupabase 시작')
         await initFromSupabase()
+        console.log('[init] initFromSupabase 완료')
         const fresh = Users.findByEmail(session.user.email)
         if (fresh) {
           // 접속 기간 만료 체크
@@ -317,10 +324,11 @@ function AppInner() {
         }
       }
 
+      console.log('[init] 완료 → setDbReady(true)')
       setDbReady(true)
       } catch (e) {
-        console.error('[init] 초기화 실패:', e.message)
-        setDbReady(true) // 실패해도 로딩 화면 해제
+        console.error('[init] 초기화 실패 → setDbReady(true):', e.message, e.stack)
+        setDbReady(true)
       }
     }
     init()
@@ -393,8 +401,8 @@ function AppInner() {
   }
 
   // DB 초기화 대기
-  if (!dbReady) return <AppLoading />
-  if (showLoginLoading) return <AppLoading />
+  if (!dbReady) { console.log('[render] dbReady=false → AppLoading 표시'); return <AppLoading /> }
+  if (showLoginLoading) { console.log('[render] showLoginLoading=true → AppLoading 표시'); return <AppLoading /> }
 
   // ✅ 학교 담당자 포털 분기
   if (isSchoolPath) {
