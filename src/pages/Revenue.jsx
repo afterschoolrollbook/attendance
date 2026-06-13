@@ -28,6 +28,14 @@ function getMonthDates(ym) {
 function toYM(d) { return d.slice(0, 7) }
 
 // 입금이 특정 텀에 속하는지 판단 — classId + termNo 둘 다 일치해야 함
+// 분기별 학생 포함 여부 (Attendance.jsx의 isInCurrentTerm과 동일 로직)
+function isInTerm(s, term) {
+  // term.termNo 기준으로 student_careers 확인
+  const careers = s.student_careers || []
+  if (careers.length === 0) return true // 수강이력 없으면 1텀으로 간주
+  return careers.some(c => String(c.term) === String(term.termNo))
+}
+
 function payMatchesTerm(p, term, classId) {
   if (p.classId !== classId) return false
   return Number(p.termNo) === term.termNo
@@ -274,11 +282,18 @@ export function Revenue({ user }) {
     const map = {}
     sorted.forEach(cls => {
       const fee = feeMap[cls.id]
-      const cnt = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0
       const clsPays = payByClass[cls.id] || []
       const terms = getTerms(cls)
+      const sec = cls._selSection
+      const clsStudents = students.filter(s => {
+        if (!s.classIds?.includes(cls.id)) return false
+        if (s.status !== 'confirmed') return false
+        if (sec) return (s.section || '') === sec
+        return true
+      })
 
       terms.forEach(term => {
+        const cnt = clsStudents.filter(s => isInTerm(s, term)).length
         const ps = perSessionFee(fee, term, cls)
         const termExpected = ps * cnt * term.sessions.length
         const tagged = clsPays.filter(p =>
@@ -290,7 +305,7 @@ export function Revenue({ user }) {
         term.sessions.forEach((date, i) => {
           if (!map[date]) map[date] = []
           // 같은 날짜에 같은 수업 중복 방지 (getTerms의 extra 중복 버그 대응)
-          if (map[date].some(x => x.cls.id === cls.id)) return
+          if (map[date].some(x => x.cls.id === cls.id && (x.cls._selSection||'') === (cls._selSection||''))) return
           map[date].push({
             cls, fee,
             termLabel: term.label,
@@ -311,11 +326,21 @@ export function Revenue({ user }) {
     const list = []
     sorted.forEach(cls => {
       const fee = feeMap[cls.id]
-      const cnt = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0
-      if (!fee || !cnt) return
+      const allCnt = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0
+      if (!fee || !allCnt) return
       const terms = getTerms(cls)
       const clsPays = payByClass[cls.id] || []
+      const sec = cls._selSection
+      const clsStudents = students.filter(s => {
+        if (!s.classIds?.includes(cls.id)) return false
+        if (s.status !== 'confirmed') return false
+        if (sec) return (s.section || '') === sec
+        return true
+      })
       terms.forEach(term => {
+        // 해당 텀에 속하는 학생만 카운트
+        const cnt = clsStudents.filter(s => isInTerm(s, term)).length
+        if (!cnt) return
         const ps = perSessionFee(fee, term, cls)
         const expected = ps * cnt * term.sessions.length
         const tagged = clsPays.filter(p =>
@@ -385,11 +410,19 @@ export function Revenue({ user }) {
     let expected = 0, paid = 0
     sorted.forEach(cls => {
       const fee = feeMap[cls.id]
-      const cnt = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0
-      if (!fee || !cnt) return
+      if (!fee) return
       const terms = getTerms(cls)
       const clsPays = payByClass[cls.id] || []
+      const sec = cls._selSection
+      const clsStudents = students.filter(s => {
+        if (!s.classIds?.includes(cls.id)) return false
+        if (s.status !== 'confirmed') return false
+        if (sec) return (s.section || '') === sec
+        return true
+      })
       terms.forEach(term => {
+        const cnt = clsStudents.filter(s => isInTerm(s, term)).length
+        if (!cnt) return
         if (!term.sessions.some(d => d.slice(0, 7) === curYM)) return
         const ps = perSessionFee(fee, term, cls)
         expected += ps * cnt * term.sessions.length
@@ -518,34 +551,47 @@ export function Revenue({ user }) {
                   </div>
                 )}
                 {/* 수업 태그 */}
-                {dayItems.map((item, idx) => {
-                  const org   = item.cls.organization?.slice(0, 3) || ''
-                  const name  = item.cls.className?.slice(0, 3) || ''
-                  const sec   = item.cls.section || ''
-                  const label = `${org}/${name}${sec ? '/' + sec : ''}`
-                  const bgColor = item.noFee
-                    ? (isSel ? 'rgba(255,255,255,0.15)' : '#f3f4f6')
-                    : item.unpaid
-                      ? (isSel ? 'rgba(239,68,68,0.3)' : '#fef2f2')
-                      : (isSel ? 'rgba(255,255,255,0.2)' : '#f0fdf4')
-                  const txtColor = item.noFee
-                    ? (isSel ? '#ffffffaa' : C.muted)
-                    : item.unpaid
-                      ? (isSel ? '#fca5a5' : C.danger)
-                      : (isSel ? '#fff' : C.success)
-                  return (
-                    <div key={idx} style={{ marginBottom: '1px' }}>
-                      {idx === 0 && (
-                        <div style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#ffffffcc' : C.blue, lineHeight: 1.3 }}>
-                          {item.termLabel}{item.termSessionNo}회
+                {(() => {
+                  // cls.id 기준으로 A반/B반 합쳐서 하나의 태그로
+                  const dayGrouped = []
+                  const daySeen = {}
+                  dayItems.forEach(item => {
+                    if (daySeen[item.cls.id] !== undefined) {
+                      dayGrouped[daySeen[item.cls.id]]._secs.push(item.cls._selSection)
+                      if (item.unpaid) dayGrouped[daySeen[item.cls.id]].unpaid = true
+                    } else {
+                      daySeen[item.cls.id] = dayGrouped.length
+                      dayGrouped.push({ ...item, _secs: [item.cls._selSection] })
+                    }
+                  })
+                  return dayGrouped.map((item, idx) => {
+                    const org  = item.cls.organization?.slice(0, 3) || ''
+                    const name = item.cls.className?.slice(0, 3) || ''
+                    const label = `${org}/${name}`
+                    const bgColor = item.noFee
+                      ? (isSel ? 'rgba(255,255,255,0.15)' : '#f3f4f6')
+                      : item.unpaid
+                        ? (isSel ? 'rgba(239,68,68,0.3)' : '#fef2f2')
+                        : (isSel ? 'rgba(255,255,255,0.2)' : '#f0fdf4')
+                    const txtColor = item.noFee
+                      ? (isSel ? '#ffffffaa' : C.muted)
+                      : item.unpaid
+                        ? (isSel ? '#fca5a5' : C.danger)
+                        : (isSel ? '#fff' : C.success)
+                    return (
+                      <div key={idx} style={{ marginBottom: '1px' }}>
+                        {idx === 0 && (
+                          <div style={{ fontSize: '9px', fontWeight: 700, color: isSel ? '#ffffffcc' : C.blue, lineHeight: 1.3 }}>
+                            {item.termLabel}{item.termSessionNo}회
+                          </div>
+                        )}
+                        <div style={{ fontSize: '9px', fontWeight: 600, padding: '1px 3px', borderRadius: '3px', background: bgColor, color: txtColor, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {label}
                         </div>
-                      )}
-                      <div style={{ fontSize: '9px', fontWeight: 600, padding: '1px 3px', borderRadius: '3px', background: bgColor, color: txtColor, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {label}
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })
+                })()}
                 {/* 입금 표시 — 클릭하면 상세 모달 */}
                 {paidAmt > 0 && (
                   <div
@@ -701,9 +747,16 @@ export function Revenue({ user }) {
                 const monthItems = []
                 sorted.forEach(cls => {
                   const fee = feeMap[cls.id]
-                  const cnt = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0
                   const terms = getTerms(cls)
+                  const sec = cls._selSection
+                  const clsStudents = students.filter(s => {
+                    if (!s.classIds?.includes(cls.id)) return false
+                    if (s.status !== 'confirmed') return false
+                    if (sec) return (s.section || '') === sec
+                    return true
+                  })
                   terms.forEach(term => {
+                    const cnt = clsStudents.filter(s => isInTerm(s, term)).length
                     const monthSessions = term.sessions.filter(d => d.slice(0,7) === curYM)
                     if (monthSessions.length === 0) return
                     const ps = perSessionFee(fee, term, cls)
@@ -860,10 +913,18 @@ export function Revenue({ user }) {
                 // 이 텀 번호를 가진 모든 수업+텀 row 수집
                 const rows = []
                 sorted.forEach(cls => {
-                  const fee=feeMap[cls.id], cnt=confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')]||0
+                  const fee=feeMap[cls.id]
                   const terms=getTerms(cls)
                   const term=terms.find(t=>t.termNo===termNo)
                   if(!term) return
+                  const sec=cls._selSection
+                  const clsStudentsForTerm=students.filter(s=>{
+                    if(!s.classIds?.includes(cls.id)) return false
+                    if(s.status!=='confirmed') return false
+                    if(sec) return (s.section||'')===sec
+                    return true
+                  })
+                  const cnt=clsStudentsForTerm.filter(s=>isInTerm(s,term)).length
                   const clsPays=payByClass[cls.id]||[]
                   const tagged=clsPays.filter(p=>payMatchesTerm(p,term,cls.id))
                   const ps=perSessionFee(fee,term,cls)
