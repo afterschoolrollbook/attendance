@@ -33,17 +33,15 @@ function payMatchesTerm(p, term, classId) {
   return Number(p.termNo) === term.termNo
 }
 
-// cls.periods를 참고해서 분기별 텀 라벨 계산
-// termNo: 학기제는 전체 순번(1,2,3,4,5...), 분기제는 분기내 순번(1,2,3 / 1,2,3...)
-// groupKey: 크로스체크 묶음 기준 — "pIdx_termIdx" 형태로 같은 분기+텀끼리 묶임
+// cls.termSizes로 텀별 날짜 슬라이스
 function getTerms(cls) {
   const sessions = calcSessionDates(cls)
   const periods = (cls.periods || []).filter(p => p.startDate && p.endDate)
 
-  // periods가 있으면 분기별로 텀 계산
+  // periods 있으면 분기별 라벨 계산 (termNo는 전역 순번 유지)
   if (periods.length > 0) {
     const terms = []
-    let globalSeq = 1 // 학기제용 전체 순번
+    let termNo = 1
     periods.forEach((p, pIdx) => {
       const periodLabel = p.label || (cls.termType === 'semester' ? `${pIdx+1}학기` : `${pIdx+1}분기`)
       const pSessions = calcSessionDates({ ...cls, periods: [p] })
@@ -51,43 +49,36 @@ function getTerms(cls) {
         ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
         : null
       if (!termSizes) {
-        if (pSessions.length > 0) {
-          const termIdx = 0
-          const termNo = cls.termType === 'semester' ? globalSeq++ : termIdx + 1
-          terms.push({ termNo, groupKey: `${pIdx}_${termIdx}`, label: `${periodLabel} 1텀`, sessions: pSessions, startDate: pSessions[0], endDate: pSessions[pSessions.length - 1] })
-        }
+        if (pSessions.length > 0) terms.push({ termNo: termNo++, label: `${periodLabel} 1텀`, sessions: pSessions, startDate: pSessions[0], endDate: pSessions[pSessions.length-1] })
       } else {
         let idx = 0
         termSizes.forEach((size, i) => {
           const slice = pSessions.slice(idx, idx + size)
-          if (slice.length > 0) {
-            const termNo = cls.termType === 'semester' ? globalSeq++ : i + 1
-            terms.push({ termNo, groupKey: `${pIdx}_${i}`, label: `${periodLabel} ${i+1}텀`, sessions: slice, startDate: slice[0], endDate: slice[slice.length - 1] })
-          }
+          if (slice.length > 0) terms.push({ termNo: termNo++, label: `${periodLabel} ${i+1}텀`, sessions: slice, startDate: slice[0], endDate: slice[slice.length-1] })
           idx += size
         })
         if (idx < pSessions.length && terms.length > 0) {
           const extra = pSessions.slice(idx)
-          terms[terms.length - 1].sessions.push(...extra)
-          terms[terms.length - 1].endDate = extra[extra.length - 1]
+          terms[terms.length-1].sessions.push(...extra)
+          terms[terms.length-1].endDate = extra[extra.length-1]
         }
       }
     })
     return terms
   }
 
-  // periods 없으면 기존 방식 (cls.termSizes)
+  // periods 없으면 기존 방식
   const termSizes = (cls.termSizes?.length > 0)
     ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length).map(n => Number(n) || 4)
     : null
-  if (!termSizes) return [{ termNo: 1, groupKey: '0_0', label: '전체', sessions, startDate: sessions[0] || '', endDate: sessions[sessions.length - 1] || '' }]
+  if (!termSizes) return [{ termNo: 1, label: '전체', sessions, startDate: sessions[0] || '', endDate: sessions[sessions.length - 1] || '' }]
   const terms = []
   let idx = 0
   const startMonth = cls.startDate ? parseInt(cls.startDate.slice(5, 7)) : 3
   const semesterNum = (startMonth >= 3 && startMonth <= 8) ? 1 : 2
   termSizes.forEach((size, i) => {
     const slice = sessions.slice(idx, idx + size)
-    if (slice.length > 0) terms.push({ termNo: i + 1, groupKey: `0_${i}`, label: cls?.termType==='semester'?`${semesterNum}학기 ${i+1}텀`:`${semesterNum}분기 ${i+1}텀`, sessions: slice, startDate: slice[0], endDate: slice[slice.length - 1] })
+    if (slice.length > 0) terms.push({ termNo: i + 1, label: cls?.termType==='semester'?`${semesterNum}학기 ${i+1}텀`:`${semesterNum}분기 ${i+1}텀`, sessions: slice, startDate: slice[0], endDate: slice[slice.length - 1] })
     idx += size
   })
   if (idx < sessions.length && terms.length > 0) {
@@ -790,29 +781,14 @@ export function Revenue({ user }) {
 
       {/* ── 텀 크로스체크 탭 */}
       {tab === 'terms' && (() => {
-        // 모든 수업의 텀을 startDate 기준으로 수집 후 날짜순 정렬
-        // 날짜가 겹치는 텀들을 하나의 그룹으로 묶음 (학기제+분기제 혼합 지원)
-        const allTermSlots = []
+        // 전체 텀 번호 목록 수집 (1텀, 2텀, ... 순서대로)
+        const allTermNos = []
         sorted.forEach(cls => {
           getTerms(cls).forEach(t => {
-            if (!t.startDate) return
-            // 이미 같은 startDate 슬롯이 있으면 추가 안함
-            if (!allTermSlots.find(s => s.startDate === t.startDate)) {
-              allTermSlots.push({ startDate: t.startDate, endDate: t.endDate })
-            }
+            if (!allTermNos.includes(t.termNo)) allTermNos.push(t.termNo)
           })
         })
-        allTermSlots.sort((a,b) => a.startDate.localeCompare(b.startDate))
-
-        // groupKey는 startDate 기준 인덱스
-        const allGroupKeys = allTermSlots.map((_, i) => String(i))
-        const allTermNos = allGroupKeys // 하위호환용
-
-        // 각 텀에 슬롯 인덱스(groupKey) 부여
-        const getTermGroupKey = (term) => {
-          const idx = allTermSlots.findIndex(s => s.startDate === term.startDate)
-          return idx >= 0 ? String(idx) : term.groupKey
-        }
+        allTermNos.sort((a,b) => a-b)
 
         // 전체 합계
         let totalAllExpected=0, totalAllPaid=0
@@ -837,15 +813,13 @@ export function Revenue({ user }) {
                 <div style={{ fontSize:'36px', marginBottom:'10px' }}>📊</div>
                 <div style={{ fontSize:'15px', fontWeight:600 }}>등록된 수업이 없습니다</div>
               </div>
-            : allGroupKeys.map(groupKey => {
-                const termNo = groupKey // 하위호환
-                const slotStartDate = allTermSlots[Number(groupKey)]?.startDate
-                // 이 슬롯의 startDate를 가진 모든 수업+텀 row 수집
+            : allTermNos.map(termNo => {
+                // 이 텀 번호를 가진 모든 수업+텀 row 수집
                 const rows = []
                 sorted.forEach(cls => {
                   const fee=feeMap[cls.id], cnt=confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')]||0
                   const terms=getTerms(cls)
-                  const term=terms.find(t=>t.startDate===slotStartDate)
+                  const term=terms.find(t=>t.termNo===termNo)
                   if(!term) return
                   const clsPays=payByClass[cls.id]||[]
                   const tagged=clsPays.filter(p=>payMatchesTerm(p,term,cls.id))
@@ -856,30 +830,27 @@ export function Revenue({ user }) {
                 })
                 if(rows.length===0) return null
 
-                // 이 텀의 날짜 범위 + 대표 라벨 (수업마다 다를 수 있으니 대표값)
+                // 이 텀의 날짜 범위 + 라벨 (수업마다 다를 수 있으니 대표값)
                 const termDates = rows.map(r=>r.term)
                 const termStart = termDates.map(t=>t.startDate).sort()[0]
                 const termEnd   = termDates.map(t=>t.endDate).sort().reverse()[0]
-                // 학기제/분기제 라벨 모두 표시 (예: 1학기 1텀 / 1분기 1텀)
                 const uniqueLabels = [...new Set(rows.map(r=>r.term?.label).filter(Boolean))]
-                const termLabel = uniqueLabels.join(' / ') || groupKey
+                const termLabel = uniqueLabels.join(' / ')
 
                 // 텀 상태: today 기준
                 // 텀 상태: 텀 순서 기준 (allTermNos 전체 기준으로 계산)
                 // 모든 수업의 텀별 endDate를 모아서, 해당 텀번호의 수업들이 전부 종료됐으면 done
                 // done 다음 첫번째 텀이 active, 나머지 upcoming
                 const t0 = today()
-                const lastDoneIdx = allGroupKeys.reduce((lastIdx, gk, idx) => {
-                  const slot = allTermSlots[Number(gk)]
-                  const endsForGk = sorted.flatMap(cls => {
-                    const t = getTerms(cls).find(t=>t.startDate===slot?.startDate)
+                const lastDoneTermNo = allTermNos.filter(n => {
+                  const endsForN = sorted.flatMap(cls => {
+                    const t = getTerms(cls).find(t=>t.termNo===n)
                     return t ? [t.endDate] : []
                   })
-                  return (endsForGk.length > 0 && endsForGk.every(e => e < t0)) ? idx : lastIdx
-                }, -1)
-                const activeIdx2 = lastDoneIdx + 1
-                const curIdx = allGroupKeys.indexOf(groupKey)
-                const termSt = curIdx < activeIdx2 ? 'done' : curIdx === activeIdx2 ? 'active' : 'upcoming'
+                  return endsForN.length > 0 && endsForN.every(e => e < t0)
+                }).reduce((max,n)=>Math.max(max,n), 0)
+                const activeTermNo = lastDoneTermNo + 1
+                const termSt = termNo < activeTermNo ? 'done' : termNo === activeTermNo ? 'active' : 'upcoming'
 
                 const termExpTotal = rows.reduce((s,r)=>s+r.expected,0)
                 const termPaidTotal= rows.reduce((s,r)=>s+r.paid,0)
@@ -888,7 +859,7 @@ export function Revenue({ user }) {
                 const hdrBg    = termSt==='active'?'#f0fdf4': termSt==='upcoming'?'#eff6ff':'#f9fafb'
                 const hdrBorder= termSt==='active'?'#86efac': termSt==='upcoming'?'#bfdbfe': termUnpaidTotal>0?'#fca5a5':C.border
 
-                const isExpanded = expandedClass === ('term_'+groupKey)
+                const isExpanded = expandedClass === ('term_'+termNo)
 
                 return (
                   <div key={termNo} style={{ marginBottom:'14px', borderRadius:'14px', border:`1.5px solid ${hdrBorder}`, overflow:'hidden', background:C.card }}>
@@ -918,11 +889,11 @@ export function Revenue({ user }) {
                           const hasUnpaidRow = unpaid>0&&termSt!=='upcoming'
                           const days = cls.days?.join('·') || ''
                           const termType = cls.termType==='semester'?'학기제':'분기제'
-                          const isRowExpanded = expandedClass === (cls.id+'_'+groupKey)
+                          const isRowExpanded = expandedClass === (cls.id+'_'+termNo)
                           return (
                             <div key={cls.id} style={{ borderRadius:'10px', border:`1px solid ${hasUnpaidRow?'#fca5a5':C.border}`, overflow:'hidden' }}>
                               {/* 수업 행 헤더 — 클릭하면 입금내역 펼침 */}
-                              <div onClick={()=>setExpandedClass(isRowExpanded?null:cls.id+'_'+groupKey)}
+                              <div onClick={()=>setExpandedClass(isRowExpanded?null:cls.id+'_'+termNo)}
                                 style={{ padding:'10px 14px', background:hasUnpaidRow?'#fef2f2':'#fafafa', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px', cursor:'pointer' }}>
                                 <div>
                                   <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
