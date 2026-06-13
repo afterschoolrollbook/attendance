@@ -1789,3 +1789,37 @@ style-src 'self' 'unsafe-inline' https://fonts.googleapis.com
 // 수정 후
 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com
 ```
+
+### 사이드바 로고 클릭 → 랜딩페이지 이동 복구 + 랜딩페이지 로그인 상태 개선 (2026-06-13)
+
+**① 사이드바 로고 클릭 랜딩페이지 이동 누락**
+
+`App.jsx`에서 `Sidebar`에 `onGoLanding` prop이 전달되지 않아 사이드바 상단 로고("방과후 출석부")를 클릭해도 아무 반응이 없었음.
+
+→ `Sidebar`에 `onGoLanding={() => { setShowLanding(true) }}` 추가.
+
+**수정 파일:** `src/App.jsx`
+
+**② 로그인 상태에서 랜딩페이지 표시 안 됨**
+
+기존 랜딩 조건이 `if (!user && showLanding)`이라 로그인된 상태(`user` 있음)에서 `setShowLanding(true)`를 해도 랜딩페이지로 이동하지 않았음.
+
+→ `if (showLanding && user)` 블록을 별도로 추가. 로그인 상태에서 랜딩페이지 진입 시 네비게이션에 `🏠 대시보드`, `🚪 로그아웃`, `앱 시작하기 →` 버튼 표시. `내 정보` 버튼은 불필요하다고 판단해 제거.
+
+**수정 파일:** `src/App.jsx`, `src/pages/LandingPage.jsx`
+
+**③ 랜딩페이지에서 로그아웃 후 로그인 페이지로 이동되는 버그**
+
+랜딩페이지 로그아웃 핸들러가 `setShowLanding(false)`를 호출해, 로그아웃 후 `user=null` + `showLanding=false` 상태가 되어 로그인 화면으로 빠져나갔음.
+
+→ `setShowLanding(true)`로 수정해 로그아웃 후에도 랜딩페이지에 머물도록 변경.
+
+```js
+// 수정 전
+onLogout={() => { setShowLanding(false); handleLogout() }}
+
+// 수정 후
+onLogout={() => { handleLogout(); setShowLanding(true) }}
+```
+
+**수정 파일:** `src/App.jsx`
