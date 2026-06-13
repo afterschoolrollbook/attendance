@@ -689,12 +689,14 @@ function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, tem
   return <BlogList posts={blogPosts} onSelect={handleSelect} />
 }
 
-export function Blog() {
+export function Blog({ user }) {
   const [allPosts, setAllPosts] = useState([])
   const [tab, setTab] = useState('blog')
   const [selPost, setSelPost] = useState(null)
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState(() => {
+    // App.jsx에서 user prop이 넘어오면 바로 사용 (하드 리로드 없이 이동한 경우)
+    if (user) return user
     // localStorage의 Supabase 토큰으로 로그인 여부 즉시 판단 (렌더 전 깜빡임 방지)
     try {
       const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
@@ -740,6 +742,8 @@ export function Blog() {
   }, [])
 
   const loadCurrentUser = async () => {
+    // App.jsx에서 이미 인증된 user prop이 있으면 DB 재조회 불필요
+    if (user) { setCurrentUser(user); return }
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       if (!session?.user?.email) { setCurrentUser(null); return }
