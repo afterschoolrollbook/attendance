@@ -67,7 +67,30 @@ export function Reports({ user }) {
   const selClassSec = selectedClass.includes('::') ? selectedClass.split('::')[1] : ''
   const cls = classes.find(c => c.id === selClassId)
   const parseGrade = g => parseInt((g||'').replace(/[^0-9]/g,'')) || 99
-  const students = (selClassId ? StudentsDB.confirmed(selClassId).filter(s => !selClassSec || s.section === selClassSec) : []).slice().sort((a, b) => {
+  const students = (selClassId ? StudentsDB.confirmed(selClassId).filter(s => {
+    if (selClassSec && s.section !== selClassSec) return false
+    if (ctxYear) {
+      const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
+      if (!inYear) return false
+    }
+    if (ctxSchool) {
+      const actualSchool = (s.classIds||[]).map(cid => classes.find(c=>c.id===cid)?.organization).filter(Boolean)[0] || s.school || ''
+      if (actualSchool !== ctxSchool) return false
+    }
+    if (ctxTermType && ctxTerm) {
+      const careers = s.student_careers || []
+      if (careers.length === 0) {
+        if (String(ctxTerm) !== '1') return false
+      } else {
+        const hasCareer = careers.some(c =>
+          (c.termType || c.term_type) === ctxTermType &&
+          String(c.term) === String(ctxTerm)
+        )
+        if (!hasCareer) return false
+      }
+    }
+    return true
+  }) : []).slice().sort((a, b) => {
     const gCmp = parseGrade(a.grade) - parseGrade(b.grade)
     if (gCmp !== 0) return gCmp
     const cCmp = (parseInt(a.classNum)||99) - (parseInt(b.classNum)||99)

@@ -525,7 +525,31 @@ export function StudentConfirm({ user }) {
   const cls = classes.find(c => c.id===selClassId)
 
   const allStudents = selClassId
-    ? StudentsDB.byClass(selClassId).filter(s => s.status!=='cancelled' && (!selClassSec || s.section === selClassSec))
+    ? StudentsDB.byClass(selClassId).filter(s => {
+        if (s.status === 'cancelled') return false
+        if (selClassSec && s.section !== selClassSec) return false
+        if (ctxYear) {
+          const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
+          if (!inYear) return false
+        }
+        if (ctxSchool) {
+          const actualSchool = (s.classIds||[]).map(cid => classes.find(c=>c.id===cid)?.organization).filter(Boolean)[0] || s.school || ''
+          if (actualSchool !== ctxSchool) return false
+        }
+        if (ctxTermType && ctxTerm) {
+          const careers = s.student_careers || []
+          if (careers.length === 0) {
+            if (String(ctxTerm) !== '1') return false
+          } else {
+            const hasCareer = careers.some(c =>
+              (c.termType || c.term_type) === ctxTermType &&
+              String(c.term) === String(ctxTerm)
+            )
+            if (!hasCareer) return false
+          }
+        }
+        return true
+      })
     : []
 
   const toggleCheck = id => setChecked(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n })

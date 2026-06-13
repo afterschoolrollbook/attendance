@@ -298,9 +298,17 @@ function ParentListTab({ user, config }) {
       const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
       if (!inYear) return false
     }
-    if (ctxTermType) {
-      const inTerm = termFilteredClasses.some(c => s.classIds?.includes(c.id))
-      if (!inTerm) return false
+    if (ctxTermType && ctxTerm) {
+      const careers = s.student_careers || []
+      if (careers.length === 0) {
+        if (String(ctxTerm) !== '1') return false
+      } else {
+        const hasCareer = careers.some(c =>
+          (c.termType || c.term_type) === ctxTermType &&
+          String(c.term) === String(ctxTerm)
+        )
+        if (!hasCareer) return false
+      }
     }
     const ctxClassId2  = ctxClass.includes('::') ? ctxClass.split('::')[0] : ctxClass
     const ctxClassSec2 = ctxClass.includes('::') ? ctxClass.split('::')[1] : ''
