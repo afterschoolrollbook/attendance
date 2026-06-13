@@ -79,17 +79,20 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
                 onMouseEnter={e => { e.target.style.color = C.primary }} onMouseLeave={e => { e.target.style.color = C.muted }}>블로그</button>
               {onGoDashboard ? (
                 <>
-                  <button onClick={onGoDashboard} style={{ padding: '9px 22px', borderRadius: '9px', border: `1.5px solid ${C.border}`, background: C.white, color: C.text, fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all 0.15s' }}
+                  <button onClick={onGoDashboard} style={{ padding: '9px 22px', borderRadius: '9px', border: `1.5px solid ${C.border}`, background: C.white, color: C.text, fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '6px' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = C.primary; e.currentTarget.style.color = C.primary }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.text }}>
-                    대시보드
+                    🏠 대시보드
                   </button>
-
                   {onLogout && (
-                    <button onClick={onLogout} style={{ padding: '9px 22px', borderRadius: '9px', border: `1.5px solid ${C.border}`, background: C.white, color: C.muted, fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all 0.15s' }}
+                    <button onClick={onLogout} style={{ padding: '9px 22px', borderRadius: '9px', border: `1.5px solid ${C.border}`, background: C.white, color: C.muted, fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '6px' }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444' }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted }}>
-                      로그아웃
+                      🚪 로그아웃
                     </button>
                   )}
+                  <button onClick={onGoDashboard} style={{ padding: '9px 22px', borderRadius: '9px', border: 'none', background: 'linear-gradient(135deg, #f97316, #fb923c)', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', boxShadow: '0 2px 10px rgba(249,115,22,0.35)', transition: 'all 0.15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)' }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)' }}>
+                    앱 시작하기 →
+                  </button>
                 </>
               ) : (
                 <button onClick={onGoLogin} style={{ padding: '9px 22px', borderRadius: '9px', border: `1.5px solid ${C.border}`, background: C.white, color: C.text, fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all 0.15s' }}
