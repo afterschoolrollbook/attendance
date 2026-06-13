@@ -1721,7 +1721,8 @@ useEffect(() => {
 - `send-email` Edge Function: Resend API 키 미설정 시 인증번호를 응답에 포함하던 dev 모드 제거 (2026-06-12). 키 미설정 시 503 에러 반환으로 변경 — 인증번호가 화면·응답에 노출되는 경로 완전 차단
 - `send-email` / `send-sms` Edge Function용 API 키(Resend, Solapi)는 `settings` 테이블에 저장되며, 2026-06-12부터 RLS로 관리자만 읽을 수 있음 (이전에는 로그인 사용자 전체가 select 가능했음 — 위 보안 점검 12번 항목 참고)
 - `db.js` 동기화 시 `email` / `solapi` / `social_secret` / `regionMap_secret` 키는 `localStorage`에 저장하지 않음 (`EXCLUDE_KEYS`). `social_secret`(네이버 Secret) / `regionMap_secret`(NEIS API 키)는 관리자 화면에서 `SecretSettings.get/set`으로 직접 조회·저장하며 항상 캐싱하지 않음
-- Supabase Auth 세션: `sessionStorage` 사용 (탭 닫으면 자동 로그아웃)
+- Supabase Auth 세션: **`localStorage` 사용** (탭 닫으면 자동 로그아웃되지 않음)
+  - ⚠️ `sessionStorage`로 변경하면 안 됨 — `/blog`는 앱 내 "블로그 보러가기" 버튼(`target="_blank"`)으로 새 탭에서 열리는데, `sessionStorage`는 새 탭과 공유되지 않아 로그인 상태가 유실됨. 블로그에서도 로그인 상태(글쓰기 권한, 관리자 여부 등)를 정상 인식하려면 `localStorage` 유지 필수
 - `send-sms` Edge Function: Bearer 토큰 인증 추가 (미인증 요청 401 차단) — URL 노출 시 무단 SMS 발송 방지
 - `AdSlot.jsx`: Blob API 실패 시 `dangerouslySetInnerHTML` 폴백 제거 → `null` 반환으로 변경 (XSS 방어)
 - 비밀번호 정책: 8자 이상 + 영문 + 숫자 + **특수문자** 조합 필수 (강사 회원가입·비밀번호 재설정, 업체 포털 가입·비밀번호 초기화 모두 적용)
