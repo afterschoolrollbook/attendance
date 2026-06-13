@@ -373,12 +373,25 @@ function AppInner() {
   if (pathname === '/parent-login')  return <ParentLogin />
 
   // ── 랜딩 페이지 ─────────────────────────────────────────────────
-  if (!user && showLanding) {
+  if (showLanding && !user) {
     return (
       <LandingPage
         onGoLogin={() => { setLandingTarget('login'); setShowLanding(false) }}
         onGoSignup={() => { setLandingTarget('signup'); setShowLanding(false) }}
         onGoBlog={() => { window.location.href = '/blog' }}
+      />
+    )
+  }
+  if (showLanding && user) {
+    return (
+      <LandingPage
+        onGoLogin={() => setShowLanding(false)}
+        onGoSignup={() => setShowLanding(false)}
+        onGoBlog={() => { window.location.href = '/blog' }}
+        onGoDashboard={() => setShowLanding(false)}
+        onGoProfile={() => { setShowLanding(false); handleNav('profile') }}
+        onLogout={() => { setShowLanding(false); handleLogout() }}
+        user={user}
       />
     )
   }
