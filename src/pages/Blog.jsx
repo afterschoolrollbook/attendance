@@ -695,13 +695,18 @@ export function Blog() {
   const [selPost, setSelPost] = useState(null)
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState(() => {
-    // localStorage의 Supabase 토큰으로 로그인 여부 즉시 판단 (렌더 전 깜빡임 방지)
+    // sessionStorage(현재 탭) 또는 localStorage(새 탭)에서 Supabase 토큰 탐색
+    // supabase.js가 sessionStorage에 저장하므로, 새 탭에서 열린 블로그는 localStorage fallback
     try {
-      const tokenKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
-      if (!tokenKey) return null
-      let token = JSON.parse(localStorage.getItem(tokenKey) || 'null')
-      // Supabase v2는 배열로 저장되는 경우도 있음
-      if (Array.isArray(token)) token = token[0]
+      const findToken = (storage) => {
+        const key = Object.keys(storage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+        if (!key) return null
+        let token = JSON.parse(storage.getItem(key) || 'null')
+        if (Array.isArray(token)) token = token[0]
+        return token
+      }
+      const token = findToken(sessionStorage) || findToken(localStorage)
+      if (!token) return null
       const accessToken = token?.access_token
       if (!accessToken) return null
       // JWT payload에서 이메일 추출
@@ -741,7 +746,33 @@ export function Blog() {
 
   const loadCurrentUser = async () => {
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      let session = null
+
+      // 1차: Supabase 클라이언트에서 세션 조회 (sessionStorage 기반, 같은 탭이면 바로 나옴)
+      const { data: { session: existingSession } } = await supabase.auth.getSession()
+      session = existingSession
+
+      // 2차: 새 탭으로 열린 경우 sessionStorage가 비어있어 세션이 null
+      //      → localStorage에서 토큰을 읽어 supabase.auth.setSession() 으로 복원
+      if (!session?.user?.email) {
+        const lsKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+        if (lsKey) {
+          try {
+            let token = JSON.parse(localStorage.getItem(lsKey) || 'null')
+            if (Array.isArray(token)) token = token[0]
+            if (token?.access_token && token?.refresh_token) {
+              const { data: restored } = await supabase.auth.setSession({
+                access_token: token.access_token,
+                refresh_token: token.refresh_token,
+              })
+              session = restored?.session ?? null
+            }
+          } catch (e) {
+            console.warn('[Blog] localStorage 토큰 복원 실패:', e)
+          }
+        }
+      }
+
       if (!session?.user?.email) { setCurrentUser(null); return }
       const email = session.user.email
       const { data: rows } = await supabase.from('users').select('*').eq('email', email).limit(1)
