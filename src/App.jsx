@@ -209,7 +209,7 @@ function AppInner() {
   const [page, setPage] = useState('dashboard')
   const [pageParams, setPageParams] = useState({})
   const [dbReady, setDbReady] = useState(false)
-  const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [showLoginLoading, setShowLoginLoading] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { toasts, error: toastError } = useToast()
@@ -389,7 +389,7 @@ function AppInner() {
 
   // DB 초기화 대기
   if (!dbReady) return <AppLoading />
-  if (isLoggingIn) return <AppLoading message="로그인 중입니다..." />
+  if (showLoginLoading) return <AppLoading />
 
   // ✅ 학교 담당자 포털 분기
   if (isSchoolPath) {
@@ -440,10 +440,10 @@ function AppInner() {
   // 로그인/회원가입 — /auth 직접 접근 시 (이미 로그인된 경우 대시보드로)
   if (pathname === '/auth') {
     if (user) { window.history.replaceState({}, '', '/'); return <Dashboard user={user} onNav={handleNav} pageParams={pageParams} onUserUpdate={handleUserUpdate} onLogout={handleLogout} /> }
-    return <Auth onLogin={handleLogin} initialTab={landingTarget} onGoLanding={() => setShowLanding(true)} />
+    return <Auth onLogin={handleLogin} initialTab={landingTarget} onGoLanding={() => setShowLanding(true)} onBeforeLogin={() => setShowLoginLoading(true)} />
   }
 
-  if (!user) return <Auth onLogin={handleLogin} initialTab={landingTarget} onGoLanding={() => setShowLanding(true)} />
+  if (!user) return <Auth onLogin={handleLogin} initialTab={landingTarget} onGoLanding={() => setShowLanding(true)} onBeforeLogin={() => setShowLoginLoading(true)} />
 
   const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate, onLogout: handleLogout }
 
@@ -484,25 +484,25 @@ function AppInner() {
   // ─── 핸들러 (렌더링 직전에 정의) ─────────────────────────────────
 
   async function handleLogin(u) {
-    setIsLoggingIn(true)
+    setShowLoginLoading(true)
     // 소셜 로그인 / 회원가입: id가 있는 완전한 user 객체
     if (u.id) {
+      setShowLoginLoading(false)
       setUser(u)
       sessionStorage.setItem('asa_user', JSON.stringify(u))
       const pageParam = new URLSearchParams(search).get('page')
       setPage(pageParam || 'dashboard')
       setPageParams({})
-      setIsLoggingIn(false)
       return
     }
 
     const doLogin = (foundUser) => {
+      setShowLoginLoading(false)
       setUser(foundUser)
       sessionStorage.setItem('asa_user', JSON.stringify(foundUser))
       const pageParam = new URLSearchParams(search).get('page')
       setPage(pageParam || 'dashboard')
       setPageParams({})
-      setIsLoggingIn(false)
     }
 
     // 1) 캐시(로컬 메모리) 먼저 확인
