@@ -36,7 +36,7 @@ const REVIEWS = [
   { text: '리포트 엑셀 출력 기능 덕분에 학교 제출 서류 만드는 시간이 확 줄었어요. 현직 강사가 만들어서 그런지 딱 필요한 것만 있어요.', name: '방과후 수학 강사', tag: '베타 초기부터 사용' },
 ]
 
-export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashboard, onGoProfile, onLogout }) {
+export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashboard, onLogout }) {
   const [scrollY, setScrollY] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -83,12 +83,7 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
                     onMouseEnter={e => { e.currentTarget.style.borderColor = C.primary; e.currentTarget.style.color = C.primary }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.text }}>
                     대시보드
                   </button>
-                  {onGoProfile && (
-                    <button onClick={onGoProfile} style={{ padding: '9px 22px', borderRadius: '9px', border: 'none', background: 'linear-gradient(135deg, #f97316, #fb923c)', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', boxShadow: '0 2px 10px rgba(249,115,22,0.35)', transition: 'all 0.15s' }}
-                      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)' }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)' }}>
-                      👤 내 정보
-                    </button>
-                  )}
+
                   {onLogout && (
                     <button onClick={onLogout} style={{ padding: '9px 22px', borderRadius: '9px', border: `1.5px solid ${C.border}`, background: C.white, color: C.muted, fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all 0.15s' }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444' }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted }}>
@@ -119,9 +114,7 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
             {onGoDashboard ? (
               <>
                 <button onClick={() => { onGoDashboard(); setMobileMenuOpen(false) }} style={{ padding: '12px', borderRadius: '9px', border: `1.5px solid ${C.border}`, background: C.white, color: C.text, fontSize: '15px', fontWeight: 600, cursor: 'pointer', textAlign: 'left', fontFamily: 'Noto Sans KR, sans-serif' }}>🏠 대시보드로 돌아가기</button>
-                {onGoProfile && (
-                  <button onClick={() => { onGoProfile(); setMobileMenuOpen(false) }} style={{ padding: '12px', borderRadius: '9px', border: 'none', background: 'linear-gradient(135deg, #f97316, #fb923c)', color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer', textAlign: 'left', fontFamily: 'Noto Sans KR, sans-serif' }}>👤 내 정보 (마이페이지)</button>
-                )}
+
                 {onLogout && (
                   <button onClick={() => { onLogout(); setMobileMenuOpen(false) }} style={{ padding: '12px', borderRadius: '9px', border: `1.5px solid #fecaca`, background: '#fff5f5', color: '#ef4444', fontSize: '15px', fontWeight: 600, cursor: 'pointer', textAlign: 'left', fontFamily: 'Noto Sans KR, sans-serif' }}>🚪 로그아웃</button>
                 )}
@@ -328,7 +321,7 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
             <button onClick={onGoBlog} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.muted, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>블로그</button>
             {onGoDashboard
               ? <><button onClick={onGoDashboard} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.muted, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>대시보드</button>
-                  {onGoProfile && <button onClick={onGoProfile} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.muted, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>내 정보</button>}</>
+></>
               : <>
                   <button onClick={onGoLogin} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.muted, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>로그인</button>
                   <button onClick={onGoSignup} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.muted, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>회원가입</button>
