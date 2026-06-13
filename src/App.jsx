@@ -537,8 +537,10 @@ function AppInner() {
       const fresh = Users.findByEmail(u.email)
       if (fresh) { doLogin(fresh); return }
       console.error('[handleLogin] users 테이블에서 유저를 찾을 수 없음:', u.email)
+      setShowLoginLoading(false)
     } catch (e2) {
       console.error('[handleLogin] sync 실패:', e2.message)
+      setShowLoginLoading(false)
     }
   }
 
