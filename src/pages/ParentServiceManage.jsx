@@ -298,6 +298,10 @@ function ParentListTab({ user, config }) {
       const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
       if (!inYear) return false
     }
+    if (ctxTermType) {
+      const inTerm = termFilteredClasses.some(c => s.classIds?.includes(c.id))
+      if (!inTerm) return false
+    }
     const ctxClassId2  = ctxClass.includes('::') ? ctxClass.split('::')[0] : ctxClass
     const ctxClassSec2 = ctxClass.includes('::') ? ctxClass.split('::')[1] : ''
     if (ctxClassId2 && !s.classIds?.includes(ctxClassId2)) return false
