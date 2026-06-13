@@ -573,7 +573,7 @@ function SocialProfileForm({ profile, onComplete }) {
   )
 }
 
-export function Auth({ onLogin, initialTab }) {
+export function Auth({ onLogin, initialTab, onGoLanding }) {
   const [mode, setMode] = useState(initialTab === 'signup' ? 'register' : 'login')
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({ name: '', email: '', pw: '', pw2: '', phone: '' })
@@ -958,8 +958,8 @@ export function Auth({ onLogin, initialTab }) {
       <div style={{ width: '100%', maxWidth: isMobile ? '100%' : '440px' }}>
 
         <div style={{ textAlign: 'center', marginBottom: isMobile ? '20px' : '32px', paddingTop: isMobile ? '32px' : '0' }}>
-          <div style={{ fontSize: isMobile ? '40px' : '48px', marginBottom: '12px' }}>📋</div>
-          <h1 style={{ fontSize: isMobile ? '22px' : '26px', fontWeight: 700, color: '#111827' }}>방과후 출석부</h1>
+          <div onClick={onGoLanding} style={{ fontSize: isMobile ? '40px' : '48px', marginBottom: '12px', cursor: onGoLanding ? 'pointer' : 'default', display: 'inline-block' }}>📋</div>
+          <h1 onClick={onGoLanding} style={{ fontSize: isMobile ? '22px' : '26px', fontWeight: 700, color: '#111827', cursor: onGoLanding ? 'pointer' : 'default' }}>방과후 출석부</h1>
           <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '6px' }}>방과후 강사를 위한 스마트 출석 관리</p>
         </div>
 
