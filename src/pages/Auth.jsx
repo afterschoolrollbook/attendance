@@ -573,7 +573,7 @@ function SocialProfileForm({ profile, onComplete }) {
   )
 }
 
-export function Auth({ onLogin, initialTab, onGoLanding }) {
+export function Auth({ onLogin, initialTab, onGoLanding, onBeforeLogin }) {
   const [mode, setMode] = useState(initialTab === 'signup' ? 'register' : 'login')
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({ name: '', email: '', pw: '', pw2: '', phone: '' })
@@ -757,6 +757,7 @@ export function Auth({ onLogin, initialTab, onGoLanding }) {
         setSocialStep('email_verify')
         return
       }
+      onBeforeLogin?.()
       onLogin(existing)
       return
     }
