@@ -790,20 +790,29 @@ export function Revenue({ user }) {
 
       {/* ── 텀 크로스체크 탭 */}
       {tab === 'terms' && (() => {
-        // 전체 groupKey 목록 수집 (순서대로) — 분기제: "0_0","0_1","1_0","1_1" / 학기제: "0_0","0_1"...
-        const allGroupKeys = []
+        // 모든 수업의 텀을 startDate 기준으로 수집 후 날짜순 정렬
+        // 날짜가 겹치는 텀들을 하나의 그룹으로 묶음 (학기제+분기제 혼합 지원)
+        const allTermSlots = []
         sorted.forEach(cls => {
           getTerms(cls).forEach(t => {
-            if (!allGroupKeys.includes(t.groupKey)) allGroupKeys.push(t.groupKey)
+            if (!t.startDate) return
+            // 이미 같은 startDate 슬롯이 있으면 추가 안함
+            if (!allTermSlots.find(s => s.startDate === t.startDate)) {
+              allTermSlots.push({ startDate: t.startDate, endDate: t.endDate })
+            }
           })
         })
-        // groupKey 정렬: pIdx_termIdx 순
-        allGroupKeys.sort((a,b) => {
-          const [ap,at] = a.split('_').map(Number)
-          const [bp,bt] = b.split('_').map(Number)
-          return ap !== bp ? ap-bp : at-bt
-        })
+        allTermSlots.sort((a,b) => a.startDate.localeCompare(b.startDate))
+
+        // groupKey는 startDate 기준 인덱스
+        const allGroupKeys = allTermSlots.map((_, i) => String(i))
         const allTermNos = allGroupKeys // 하위호환용
+
+        // 각 텀에 슬롯 인덱스(groupKey) 부여
+        const getTermGroupKey = (term) => {
+          const idx = allTermSlots.findIndex(s => s.startDate === term.startDate)
+          return idx >= 0 ? String(idx) : term.groupKey
+        }
 
         // 전체 합계
         let totalAllExpected=0, totalAllPaid=0
@@ -830,12 +839,13 @@ export function Revenue({ user }) {
               </div>
             : allGroupKeys.map(groupKey => {
                 const termNo = groupKey // 하위호환
-                // 이 groupKey를 가진 모든 수업+텀 row 수집
+                const slotStartDate = allTermSlots[Number(groupKey)]?.startDate
+                // 이 슬롯의 startDate를 가진 모든 수업+텀 row 수집
                 const rows = []
                 sorted.forEach(cls => {
                   const fee=feeMap[cls.id], cnt=confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')]||0
                   const terms=getTerms(cls)
-                  const term=terms.find(t=>t.groupKey===groupKey)
+                  const term=terms.find(t=>t.startDate===slotStartDate)
                   if(!term) return
                   const clsPays=payByClass[cls.id]||[]
                   const tagged=clsPays.filter(p=>payMatchesTerm(p,term,cls.id))
@@ -850,7 +860,9 @@ export function Revenue({ user }) {
                 const termDates = rows.map(r=>r.term)
                 const termStart = termDates.map(t=>t.startDate).sort()[0]
                 const termEnd   = termDates.map(t=>t.endDate).sort().reverse()[0]
-                const termLabel = rows[0]?.term?.label || groupKey
+                // 학기제/분기제 라벨 모두 표시 (예: 1학기 1텀 / 1분기 1텀)
+                const uniqueLabels = [...new Set(rows.map(r=>r.term?.label).filter(Boolean))]
+                const termLabel = uniqueLabels.join(' / ') || groupKey
 
                 // 텀 상태: today 기준
                 // 텀 상태: 텀 순서 기준 (allTermNos 전체 기준으로 계산)
@@ -858,8 +870,9 @@ export function Revenue({ user }) {
                 // done 다음 첫번째 텀이 active, 나머지 upcoming
                 const t0 = today()
                 const lastDoneIdx = allGroupKeys.reduce((lastIdx, gk, idx) => {
+                  const slot = allTermSlots[Number(gk)]
                   const endsForGk = sorted.flatMap(cls => {
-                    const t = getTerms(cls).find(t=>t.groupKey===gk)
+                    const t = getTerms(cls).find(t=>t.startDate===slot?.startDate)
                     return t ? [t.endDate] : []
                   })
                   return (endsForGk.length > 0 && endsForGk.every(e => e < t0)) ? idx : lastIdx
