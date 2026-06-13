@@ -660,7 +660,15 @@ function renderNav({ blogAdminMode, switchTab, tab, selPost, currentUser, canWri
             </button>
           )}
           {currentUser ? (
-            <button onClick={async () => { await supabase?.auth?.signOut(); window.location.href = '/' }}
+            <button onClick={async () => {
+                await supabase?.auth?.signOut()
+                // BlogWrite에서 복사해둔 localStorage 토큰도 함께 삭제
+                try {
+                  const key = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+                  if (key) localStorage.removeItem(key)
+                } catch(e) {}
+                window.location.href = '/'
+              }}
               style={{ padding:'7px 16px', background:'none', border:'1px solid #fecaca', color:'#ef4444', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
               🚪 로그아웃
             </button>
