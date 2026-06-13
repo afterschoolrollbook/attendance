@@ -695,39 +695,24 @@ export function Blog() {
   const [selPost, setSelPost] = useState(null)
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState(() => {
+    // sessionStorage(현재 탭) 또는 localStorage(새 탭에서 복사된)에서 Supabase 토큰 탐색
     try {
-      console.log('[Blog][init] ===== 세션 탐색 시작 =====')
-      console.log('[Blog][init] sessionStorage 키 목록:', Object.keys(sessionStorage))
-      console.log('[Blog][init] localStorage 키 목록:', Object.keys(localStorage))
-
-      const findToken = (storage, name) => {
+      const findToken = (storage) => {
         const key = Object.keys(storage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
-        console.log('[Blog][init]', name, 'sb-*-auth-token 키:', key || '없음')
         if (!key) return null
         let token = JSON.parse(storage.getItem(key) || 'null')
         if (Array.isArray(token)) token = token[0]
-        console.log('[Blog][init]', name, 'access_token 존재:', !!token?.access_token)
-        console.log('[Blog][init]', name, 'refresh_token 존재:', !!token?.refresh_token)
-        console.log('[Blog][init]', name, 'user.email:', token?.user?.email || '없음')
         return token
       }
-
-      const ssToken = findToken(sessionStorage, 'sessionStorage')
-      const lsToken = findToken(localStorage, 'localStorage')
-      const token = ssToken || lsToken
-      console.log('[Blog][init] 사용할 토큰 출처:', ssToken ? 'sessionStorage' : lsToken ? 'localStorage' : '없음')
-
-      if (!token) { console.log('[Blog][init] 토큰 없음 → currentUser = null'); return null }
+      const token = findToken(sessionStorage) || findToken(localStorage)
+      if (!token) return null
       const accessToken = token?.access_token
-      if (!accessToken) { console.log('[Blog][init] access_token 없음 → null'); return null }
+      if (!accessToken) return null
       const payload = JSON.parse(atob(accessToken.split('.')[1]))
       const email = token?.user?.email || payload?.email
-      console.log('[Blog][init] JWT payload email:', payload?.email)
-      console.log('[Blog][init] 최종 email:', email || '없음')
       if (!email) return null
-      console.log('[Blog][init] → _pending 유저 설정:', email)
       return { email, level: 1, _pending: true }
-    } catch(e) { console.error('[Blog][init] 오류:', e); return null }
+    } catch { return null }
   })
   const [blogAdminMode, setBlogAdminMode] = useState(false)
 
@@ -759,53 +744,38 @@ export function Blog() {
 
   const loadCurrentUser = async () => {
     try {
-      console.log('[Blog][loadCurrentUser] ===== 시작 =====')
       let session = null
 
-      // 1차: Supabase 클라이언트 세션 조회
-      const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession()
-      console.log('[Blog][loadCurrentUser] 1차 getSession 결과:', existingSession?.user?.email || 'null', '| 에러:', sessionError?.message || '없음')
+      // 1차: Supabase 클라이언트 세션 조회 (같은 탭이면 sessionStorage에서 바로 나옴)
+      const { data: { session: existingSession } } = await supabase.auth.getSession()
       session = existingSession
 
-      // 2차: sessionStorage가 비어서 null이면 localStorage 토큰으로 복원 시도
+      // 2차: 새 탭으로 열린 경우 sessionStorage가 비어있어 null
+      //      → BlogWrite에서 localStorage로 복사해둔 토큰으로 setSession 복원
       if (!session?.user?.email) {
-        console.log('[Blog][loadCurrentUser] 세션 null → localStorage 토큰 복원 시도')
-        const lsKeys = Object.keys(localStorage).filter(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
-        console.log('[Blog][loadCurrentUser] localStorage sb-* 키들:', lsKeys)
-        const lsKey = lsKeys[0]
+        const lsKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
         if (lsKey) {
           try {
             let token = JSON.parse(localStorage.getItem(lsKey) || 'null')
             if (Array.isArray(token)) token = token[0]
-            console.log('[Blog][loadCurrentUser] localStorage 토큰 access_token 존재:', !!token?.access_token)
-            console.log('[Blog][loadCurrentUser] localStorage 토큰 refresh_token 존재:', !!token?.refresh_token)
             if (token?.access_token && token?.refresh_token) {
-              console.log('[Blog][loadCurrentUser] setSession() 호출 중...')
-              const { data: restored, error: setErr } = await supabase.auth.setSession({
+              const { data: restored } = await supabase.auth.setSession({
                 access_token: token.access_token,
                 refresh_token: token.refresh_token,
               })
-              console.log('[Blog][loadCurrentUser] setSession 결과:', restored?.session?.user?.email || 'null', '| 에러:', setErr?.message || '없음')
               session = restored?.session ?? null
-            } else {
-              console.log('[Blog][loadCurrentUser] access_token 또는 refresh_token 없음 → 복원 불가')
             }
           } catch (e) {
-            console.warn('[Blog][loadCurrentUser] localStorage 토큰 복원 예외:', e)
+            console.warn('[Blog] 토큰 복원 실패:', e)
           }
-        } else {
-          console.log('[Blog][loadCurrentUser] localStorage에 sb-* 키 없음')
         }
       }
 
-      console.log('[Blog][loadCurrentUser] 최종 session email:', session?.user?.email || 'null')
-      if (!session?.user?.email) { console.log('[Blog][loadCurrentUser] → setCurrentUser(null)'); setCurrentUser(null); return }
+      if (!session?.user?.email) { setCurrentUser(null); return }
       const email = session.user.email
-      const { data: rows, error: dbErr } = await supabase.from('users').select('*').eq('email', email).limit(1)
-      console.log('[Blog][loadCurrentUser] users 테이블 조회:', rows?.length, '건 | 에러:', dbErr?.message || '없음')
+      const { data: rows } = await supabase.from('users').select('*').eq('email', email).limit(1)
       if (rows?.[0]) {
         const u = rows[0]
-        console.log('[Blog][loadCurrentUser] → setCurrentUser 완료:', u.email, 'level:', u.level, 'role:', u.role)
         setCurrentUser({
           id: u.id, email: u.email,
           level: u.level ?? 1,
@@ -814,11 +784,10 @@ export function Blog() {
           permissionOverrides: u.permission_overrides,
         })
       } else {
-        console.log('[Blog][loadCurrentUser] users 테이블에 없음 → 기본 teacher로 설정')
         setCurrentUser({ email, level: 1, role: 'teacher' })
       }
     } catch (e) {
-      console.error('[Blog][loadCurrentUser] 예외 발생:', e)
+      console.warn('[Blog] loadCurrentUser 실패:', e)
     }
   }
 
