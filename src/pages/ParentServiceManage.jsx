@@ -271,15 +271,10 @@ function ParentListTab({ user, config }) {
 
   // 년도/학교 목록 — Students.jsx와 동일 로직
   const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
-  const yearClasses = ctxYear ? classes.filter(c => c.startDate?.startsWith(ctxYear) || c.endDate?.startsWith(ctxYear)) : classes
+  const schoolClasses = ctxSchool ? classes.filter(c => c.organization === ctxSchool) : classes
+  const yearClasses = ctxYear ? schoolClasses.filter(c => c.startDate?.slice(0,4) === ctxYear) : schoolClasses
   const schools = [...new Set(yearClasses.map(c => c.organization).filter(Boolean))]
-  const termFilteredClasses = ctxTermType ? yearClasses.filter(c => {
-    const termType = c.termType || 'quarter'
-    if (termType !== ctxTermType) return false
-    if (!ctxTerm) return true
-    return (c.term || c.currentTerm || '1') === ctxTerm
-  }) : yearClasses
-  const filteredClasses = sortClasses(ctxSchool ? termFilteredClasses.filter(c => c.organization === ctxSchool) : termFilteredClasses)
+  const filteredClasses = sortClasses(yearClasses)
 
   // 학교별 대표 요일 계산 (월~금 중 가장 먼저 나오는 요일)
   const DAY_ORDER_LABEL = ['월','화','수','목','금','토','일']
