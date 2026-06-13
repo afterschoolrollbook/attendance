@@ -389,7 +389,7 @@ function AppInner() {
         onGoSignup={() => setShowLanding(false)}
         onGoBlog={() => { window.location.href = '/blog' }}
         onGoDashboard={() => setShowLanding(false)}
-        onLogout={() => { setShowLanding(false); handleLogout() }}
+        onLogout={() => { handleLogout(); setShowLanding(true) }}
         user={user}
       />
     )
