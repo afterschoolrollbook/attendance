@@ -1773,3 +1773,19 @@ const { data: verifyData, error: verifyErr } = await anonClient.auth.verifyOtp({
 - `Blog.jsx` — `loadCurrentUser()`에서 `supabase.auth.getSession()`이 `null`이면 `localStorage` 토큰으로 `supabase.auth.setSession()` 호출해 세션 복원. 로그아웃 시 `localStorage` 복사본도 함께 삭제
 
 **수정 파일:** `src/pages/BlogWrite.jsx`, `src/pages/Blog.jsx`
+
+### CSP `style-src` 구글 로그인 스타일시트 허용 추가 (2026-06-13)
+
+**문제:** 구글 로그인 버튼이 로드하는 `https://accounts.google.com/gsi/style` 스타일시트가 CSP에 막혀 콘솔에 오류 발생.
+
+**원인:** `vercel.json`의 `style-src`에 `https://fonts.googleapis.com`만 등록되어 있고 `https://accounts.google.com`이 누락됨. `script-src`에는 이미 등록되어 있었으나 `style-src`에는 별도로 추가 필요.
+
+**수정 파일:** `vercel.json` — `style-src`에 `https://accounts.google.com` 추가
+
+```
+// 수정 전
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com
+
+// 수정 후
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com
+```
