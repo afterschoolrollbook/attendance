@@ -513,7 +513,8 @@ function AppInner() {
       <SaveStatusBar user={user} />
       {isMobile && <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />}
       <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout}
-               mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+               mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)}
+               onGoLanding={() => { setShowLanding(true) }} />
       <main style={{ flex:1, height:'100vh', overflowY:'auto', paddingTop: isMobile ? '52px' : 0, paddingBottom: isMobile ? '60px' : 0 }}>
         {renderPage()}
       </main>
