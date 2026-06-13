@@ -625,7 +625,7 @@ export function StudentConfirm({ user }) {
           <Card style={{ marginBottom:'16px' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
               <div style={{ fontSize:'15px', fontWeight:700, color:'#111827' }}>
-                추첨 대상 선택&nbsp;<span style={{ fontSize:'13px', color:'#f97316', fontWeight:600 }}>({checked.size}명)</span>
+                추첨 대상 선택&nbsp;<span style={{ fontSize:'13px', color:'#f97316', fontWeight:600 }}>({checked.size}명)</span><span style={{ fontSize:'13px', color:'#9ca3af', fontWeight:400 }}>&nbsp;/ 전체 {allStudents.length}명</span>
               </div>
               <button onClick={toggleAll} style={{ padding:'6px 14px', borderRadius:'8px', border:'1px solid #e5e7eb', background:'#f9fafb', fontSize:'13px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', color:'#374151' }}>
                 {checked.size===allStudents.length?'전체 해제':'전체 선택'}
@@ -636,8 +636,22 @@ export function StudentConfirm({ user }) {
                 <div key={s.id} onClick={()=>toggleCheck(s.id)}
                   style={{ display:'flex', alignItems:'center', gap:'7px', padding:'8px 14px', borderRadius:'10px', border:`2px solid ${checked.has(s.id)?'#f97316':'#e5e7eb'}`, background:checked.has(s.id)?'#fff7ed':'#fff', cursor:'pointer', transition:'all .15s', userSelect:'none' }}>
                   <input type="checkbox" checked={checked.has(s.id)} onChange={()=>{}} style={{ accentColor:'#f97316', width:'15px', height:'15px', pointerEvents:'none' }}/>
+                  {(() => {
+                    const careers = s.student_careers || []
+                    const isUnclassified = careers.length === 0
+                    const isNew = !isUnclassified && careers.length <= 1
+                    const bg = isUnclassified?'#f9fafb':isNew?'#eff6ff':'#f0fdf4'
+                    const border = isUnclassified?'#e5e7eb':isNew?'#bfdbfe':'#86efac'
+                    const color = isUnclassified?'#9ca3af':isNew?'#1d4ed8':'#15803d'
+                    const label = isUnclassified?'미분류':isNew?'신규':'기존'
+                    return (
+                      <span style={{ fontSize:'10px', fontWeight:600, padding:'1px 5px', borderRadius:'4px', background:bg, color, border:`1px solid ${border}`, whiteSpace:'nowrap' }}>
+                        {label}
+                      </span>
+                    )
+                  })()}
+                  <span style={{ fontSize:'11px', color:'#6b7280' }}>{[s.grade&&`${s.grade}학년`, s.classNum&&`${s.classNum}반`, s.number&&`${s.number}번`].filter(Boolean).join(' ')}</span>
                   <span style={{ fontSize:'14px', fontWeight:checked.has(s.id)?700:400, color:checked.has(s.id)?'#f97316':'#374151', fontFamily:'Noto Sans KR, sans-serif' }}>{s.name}</span>
-                  <span style={{ fontSize:'11px', color:'#9ca3af' }}>{s.grade}</span>
                 </div>
               ))}
             </div>
