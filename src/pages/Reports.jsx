@@ -72,11 +72,17 @@ export function Reports({ user }) {
       const actualSchool = (s.classIds||[]).map(cid => classes.find(c=>c.id===cid)?.organization).filter(Boolean)[0] || s.school || ''
       if (actualSchool !== ctxSchool) return false
     }
-    if (ctxTerm) {
-      // Classes.jsx와 동일: activeTerm === termNum 이거나 activeTerm 없는 학생(1분기 기본)
-      const termNum = String(ctxTerm)
-      const ok = s.activeTerm === termNum || (!s.activeTerm && termNum === '1')
-      if (!ok) return false
+    if (ctxTermType && ctxTerm) {
+      const careers = s.student_careers || []
+      if (careers.length === 0) {
+        if (String(ctxTerm) !== '1') return false
+      } else {
+        const hasCareer = careers.some(c =>
+          (c.termType || c.term_type) === ctxTermType &&
+          String(c.term) === String(ctxTerm)
+        )
+        if (!hasCareer) return false
+      }
     }
     return true
   }) : []).slice().sort((a, b) => {
@@ -118,7 +124,7 @@ export function Reports({ user }) {
     return records.find(r => r.studentId === studentId)?.status || 'pending'
   }
 
-  const recentSessions = pastSessions.slice(-10)
+  const recentSessions = pastSessions  // 전체 차시 표시
 
   // ─── 엑셀 다운로드
   const downloadExcel = async () => {
@@ -361,7 +367,7 @@ export function Reports({ user }) {
           {recentSessions.length > 0 && (
             <Card style={{ marginBottom: '24px', overflow: 'auto' }}>
               <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827', marginBottom: '16px' }}>
-                출석 현황 (최근 {recentSessions.length}차시)
+                출석 현황 (전체 {recentSessions.length}차시)
               </div>
               <table style={{ borderCollapse: 'collapse', minWidth: '600px' }}>
                 <thead>
