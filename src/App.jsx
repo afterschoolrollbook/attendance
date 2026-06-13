@@ -264,6 +264,7 @@ function AppInner() {
     if (isStaticPath || isVendorPath || isSchoolPath) return
 
     async function init() {
+      try {
       const session = await authGetSession()
 
       if (session?.user) {
@@ -317,6 +318,10 @@ function AppInner() {
       }
 
       setDbReady(true)
+      } catch (e) {
+        console.error('[init] 초기화 실패:', e.message)
+        setDbReady(true) // 실패해도 로딩 화면 해제
+      }
     }
     init()
 
