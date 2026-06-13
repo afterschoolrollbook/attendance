@@ -65,16 +65,20 @@
               newSW.addEventListener('statechange', () => {
                 if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
                   console.log('[SW] 업데이트 감지 — 사용자에게 알림')
-                  // 앱에 업데이트 알림 이벤트 전달
-                  window.dispatchEvent(new CustomEvent('sw-update-ready', { detail: { newSW } }))
+                  // React 렌더 사이클 완료 후 이벤트 발생 (즉시 발생 시 렌더 방해 방지)
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('sw-update-ready', { detail: { newSW } }))
+                  }, 3000)
                 }
               })
             })
 
-            // SW 교체 완료 시 페이지 새로고침
+            // SW 교체 완료 시 페이지 새로고침 — 사용자가 업데이트 버튼 눌렀을 때만
             navigator.serviceWorker.addEventListener('controllerchange', () => {
-              console.log('[SW] 새 버전 적용 — 페이지 새로고침')
-              window.location.reload()
+              console.log('[SW] 새 버전 적용')
+              if (window._swUpdateRequested) {
+                window.location.reload()
+              }
             })
 
             // 주기적 업데이트 체크 (5분마다)
