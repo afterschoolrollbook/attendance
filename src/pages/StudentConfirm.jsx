@@ -517,17 +517,8 @@ export function StudentConfirm({ user }) {
   const cls = classes.find(c => c.id===selClassId)
 
   const allStudents = selClassId
-    ? StudentsDB.byClass(selClassId).filter(s => {
-        if (s.status === 'cancelled') return false
+    ? StudentsDB.confirmed(selClassId).filter(s => {
         if (selClassSec && s.section !== selClassSec) return false
-        if (ctxYear) {
-          const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
-          if (!inYear) return false
-        }
-        if (ctxSchool) {
-          const actualSchool = (s.classIds||[]).map(cid => classes.find(c=>c.id===cid)?.organization).filter(Boolean)[0] || s.school || ''
-          if (actualSchool !== ctxSchool) return false
-        }
         if (ctxTermType && ctxTerm) {
           const careers = s.student_careers || []
           if (careers.length === 0) {
