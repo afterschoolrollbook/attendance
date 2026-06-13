@@ -347,12 +347,37 @@ export function Revenue({ user }) {
       })
     })
     // sorted 순서(학교→요일→시간→반) 유지, 같은 수업 내에서 텀 오름차순
-    return list.sort((a, b) => {
+    list.sort((a, b) => {
       const ai = sorted.findIndex(c => c.id === a.cls.id)
       const bi = sorted.findIndex(c => c.id === b.cls.id)
       if (ai !== bi) return ai - bi
       return (a.term.startDate||'').localeCompare(b.term.startDate||'')
     })
+
+    // classId + termNo 기준으로 A반/B반 합치기
+    const grouped = []
+    const seen = {}
+    list.forEach(item => {
+      const key = item.cls.id + '_' + item.term.termNo
+      if (seen[key] !== undefined) {
+        const g = grouped[seen[key]]
+        g.cnt += item.cnt
+        g.expected += item.expected
+        g.paid += item.paid
+        g.unpaid += item.unpaid
+        g.confirmed += item.confirmed
+        g.startApplied += item.startApplied
+        g.cancelled += item.cancelled
+        g._sections = g._sections || [g.cls._selSection]
+        g._sections.push(item.cls._selSection)
+        g._sectionCnts = g._sectionCnts || [g._origCnt]
+        g._sectionCnts.push(item.cnt)
+      } else {
+        seen[key] = grouped.length
+        grouped.push({ ...item, _origCnt: item.cnt, _sections: [item.cls._selSection], _sectionCnts: [item.cnt] })
+      }
+    })
+    return grouped
   }, [sorted, feeMap, confirmedCount, cancelledCount, appliedCount, payByClass])
 
   // 이번달 요약
@@ -606,7 +631,7 @@ export function Revenue({ user }) {
                       style={{ padding:'10px 12px', borderRadius:'10px', background:'#fff', border:`1px solid ${item.termStatus==='current'?'#86efac':'#fca5a5'}`, cursor:'pointer' }}>
                       <div>
                           <div style={{ fontSize:'13px', fontWeight:700, color:C.text, display:'flex', alignItems:'center', flexWrap:'nowrap', gap:'4px' }}>
-                            <span style={{ whiteSpace:'nowrap' }}>{item.cls.organization} · {item.cls.className}{((item.cls._selSection ? item.cls._selSection+'반' : (item.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (item.cls.section ? item.cls.section+'반' : ''))))?' '+((item.cls._selSection ? item.cls._selSection+'반' : (item.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (item.cls.section ? item.cls.section+'반' : '')))) :''}</span>
+                            <span style={{ whiteSpace:'nowrap' }}>{item.cls.organization} · {item.cls.className}</span>
                             <span style={{ fontSize:'11px', background:'#fff7ed', color:C.primary, border:'1px solid #fed7aa', borderRadius:'4px', padding:'1px 6px', whiteSpace:'nowrap', flexShrink:0 }}>{item.term.label} {item.term.sessions.length}회</span>
                             {item.termStatus==='current'
                               ? <span style={{ fontSize:'11px', background:'#f0fdf4', color:C.success, border:'1px solid #86efac', borderRadius:'4px', padding:'1px 6px', whiteSpace:'nowrap', flexShrink:0 }}>진행중</span>
@@ -616,7 +641,7 @@ export function Revenue({ user }) {
                             }
                           </div>
                           <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
-                            {item.term.startDate?.slice(5)} ~ {item.term.endDate?.slice(5)} · {item.confirmed}명
+                            {item.term.startDate?.slice(5)} ~ {item.term.endDate?.slice(5)} · {item._sections?.filter(Boolean).length > 1 ? item._sections.filter(Boolean).map((s,i)=>`${s}반 ${item._sectionCnts[i]}명`).join('  ')+'  총 '+item.confirmed+'명' : item.confirmed+'명'}
                           </div>
                           <div style={{ marginTop:'6px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                             <div style={{ fontSize:'11px', color:C.muted }}>{fmt(item.paid)} / {fmt(item.expected)}</div>
@@ -692,19 +717,37 @@ export function Revenue({ user }) {
                   const bi=sorted.findIndex(c=>c.id===b.cls.id)
                   return ai-bi
                 })
+                // classId + termNo 기준으로 A반/B반 합치기
+                const monthGrouped = []
+                const monthSeen = {}
+                monthItems.forEach(item => {
+                  const key = item.cls.id + '_' + item.term.termNo
+                  if (monthSeen[key] !== undefined) {
+                    const g = monthGrouped[monthSeen[key]]
+                    g.cnt += item.cnt
+                    g.monthRev += item.monthRev
+                    g._sections = g._sections || [g.cls._selSection]
+                    g._sections.push(item.cls._selSection)
+                    g._sectionCnts = g._sectionCnts || [g._origCnt]
+                    g._sectionCnts.push(item.cnt)
+                  } else {
+                    monthSeen[key] = monthGrouped.length
+                    monthGrouped.push({ ...item, _origCnt: item.cnt, _sections: [item.cls._selSection], _sectionCnts: [item.cnt] })
+                  }
+                })
                 if (monthItems.length === 0) return (
                   <div style={{ textAlign:'center', padding:'14px', color:C.muted, fontSize:'13px' }}>이번달 수업 없음</div>
                 )
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                    {monthItems.map((item, i) => (
+                    {monthGrouped.map((item, i) => (
                       <div key={i} style={{ padding:'8px 10px', borderRadius:'9px', border:`1px solid ${C.border}`, background:'#fafafa', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                         <div>
                           <div style={{ fontSize:'12px', fontWeight:700, color:C.text }}>
-                            {item.cls.organization} · {item.cls.className}{((item.cls._selSection ? item.cls._selSection+'반' : (item.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (item.cls.section ? item.cls.section+'반' : ''))))?' '+((item.cls._selSection ? item.cls._selSection+'반' : (item.cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (item.cls.section ? item.cls.section+'반' : '')))) :''}
+                            {item.cls.organization} · {item.cls.className}
                           </div>
                           <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
-                            {item.term.label} · {item.monthSessions.length}회 · {item.cnt}명
+                            {item.term.label} · {item.monthSessions.length}회 · {item._sections?.filter(Boolean).length > 1 ? item._sections.filter(Boolean).map((s,i)=>`${s}반 ${item._sectionCnts[i]}명`).join('  ')+'  총 '+item.cnt+'명' : item.cnt+'명'}
                             <span style={{ marginLeft:'4px', color:C.muted }}>({item.monthSessions[0]?.slice(5)}~{item.monthSessions[item.monthSessions.length-1]?.slice(5)})</span>
                           </div>
                         </div>
