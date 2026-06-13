@@ -883,47 +883,63 @@ export function Revenue({ user }) {
                       </div>
                     </div>
 
-                    {/* 텀 내 수업 목록 — 항상 펼쳐서 표시 */}
+                    {/* 텀 내 수업 목록 — 같은 수업(classId)끼리 합쳐서 표시 */}
                     <div style={{ padding:'10px 16px', display:'flex', flexDirection:'column', gap:'8px' }}>
-                      {rows.map(({ cls, fee, cnt, term, expected, paid, unpaid, payments:tPays }) => {
-                          const hasUnpaidRow = unpaid>0&&termSt!=='upcoming'
+                      {(() => {
+                        // classId 기준으로 그룹핑
+                        const groupMap = {}
+                        rows.forEach(row => {
+                          const key = row.cls.id
+                          if (!groupMap[key]) groupMap[key] = { baseRow: row, sections: [] }
+                          groupMap[key].sections.push(row)
+                        })
+                        return Object.values(groupMap).map(({ baseRow, sections }) => {
+                          const { cls, term } = baseRow
+                          const totalCnt = sections.reduce((s,r) => s+r.cnt, 0)
+                          const totalExpected = sections.reduce((s,r) => s+r.expected, 0)
+                          const totalPaid = sections.reduce((s,r) => s+r.paid, 0)
+                          const totalUnpaid = sections.reduce((s,r) => s+r.unpaid, 0)
+                          const allPays = sections.flatMap(r => r.payments)
+                          const hasUnpaidRow = totalUnpaid>0&&termSt!=='upcoming'
                           const days = cls.days?.join('·') || ''
                           const termType = cls.termType==='semester'?'학기제':'분기제'
                           const isRowExpanded = expandedClass === (cls.id+'_'+termNo)
+                          const hasSecs = sections.length > 1 && sections.some(r => r.cls._selSection)
                           return (
                             <div key={cls.id} style={{ borderRadius:'10px', border:`1px solid ${hasUnpaidRow?'#fca5a5':C.border}`, overflow:'hidden' }}>
-                              {/* 수업 행 헤더 — 클릭하면 입금내역 펼침 */}
                               <div onClick={()=>setExpandedClass(isRowExpanded?null:cls.id+'_'+termNo)}
                                 style={{ padding:'10px 14px', background:hasUnpaidRow?'#fef2f2':'#fafafa', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px', cursor:'pointer' }}>
                                 <div>
                                   <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
-                                    🏫 {cls.organization} · {cls.className}{((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))))?' '+((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')))):''}
+                                    🏫 {cls.organization} · {cls.className}
                                     <span style={{ marginLeft:'6px', fontSize:'11px', color:C.muted, fontWeight:400 }}>{termType}</span>
                                   </div>
                                   <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
-                                    현재 {cnt}명 · {term.label} {term.sessions.length}회 · {days}요일
+                                    {hasSecs
+                                      ? sections.map(r => `${r.cls._selSection}반 ${r.cnt}명`).join('  ') + `  총 ${totalCnt}명`
+                                      : `현재 ${totalCnt}명`
+                                    } · {term.label} {term.sessions.length}회 · {days}요일
                                     {term.startDate&&<> · {term.startDate.slice(5)}~{term.endDate.slice(5)}</>}
                                   </div>
                                 </div>
                                 <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-                                  {fee&&cnt>0&&<>
-                                    <span style={{ fontSize:'12px', color:C.muted }}>예상 {fmt(expected)}원</span>
-                                    <span style={{ fontSize:'12px', fontWeight:700, color:C.success }}>입금 {fmt(paid)}원</span>
-                                    {unpaid>0&&termSt!=='upcoming'&&<span style={{ fontSize:'12px', fontWeight:700, color:C.danger }}>미수 {fmt(unpaid)}원</span>}
+                                  {baseRow.fee&&totalCnt>0&&<>
+                                    <span style={{ fontSize:'12px', color:C.muted }}>예상 {fmt(totalExpected)}원</span>
+                                    <span style={{ fontSize:'12px', fontWeight:700, color:C.success }}>입금 {fmt(totalPaid)}원</span>
+                                    {totalUnpaid>0&&termSt!=='upcoming'&&<span style={{ fontSize:'12px', fontWeight:700, color:C.danger }}>미수 {fmt(totalUnpaid)}원</span>}
                                   </>}
-                                  {!fee&&<span style={{ fontSize:'11px', color:C.muted }}>수강료 미설정</span>}
+                                  {!baseRow.fee&&<span style={{ fontSize:'11px', color:C.muted }}>수강료 미설정</span>}
                                   {termSt!=='upcoming'&&<button onClick={e=>{e.stopPropagation();openPayModal(today(),cls.id,term.termNo,true)}}
                                     style={{ padding:'4px 10px', borderRadius:'7px', border:'none', background:C.primary, color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
                                     + 입금
                                   </button>}
                                 </div>
                               </div>
-                              {/* 입금 내역 — 수업 행 클릭 시 펼침 */}
                               {isRowExpanded&&(
                                 <div style={{ padding:'4px 14px 8px' }}>
-                                  {tPays.length===0
+                                  {allPays.length===0
                                     ? <div style={{ padding:'8px 0', fontSize:'12px', color:C.muted }}>입금 내역 없음</div>
-                                    : [...tPays].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(p=>(
+                                    : [...allPays].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(p=>(
                                       <div key={p.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0', borderBottom:`1px solid #f3f4f6` }}>
                                         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                                           <span style={{ fontSize:'13px', color:C.text, fontWeight:600 }}>{p.date?.replace(/-/g,'.').slice(2)}</span>
@@ -940,7 +956,8 @@ export function Revenue({ user }) {
                               )}
                             </div>
                           )
-                        })}
+                        })
+                      })()}
                     </div>
                   </div>
                 )
