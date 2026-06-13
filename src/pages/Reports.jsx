@@ -17,6 +17,7 @@ export function Reports({ user }) {
   const [ctxTerm,    setCtxTerm]    = useState('')
   const [ctxClass,   setCtxClass]   = useState('')
   const [selectedClass, setSelectedClass] = useState('')
+  const [studentFilter, setStudentFilter] = useState('attendance') // 'all' | 'attendance'
   const [downloading, setDownloading] = useState(false)
   const { error: toastError } = useToast()
 
@@ -61,7 +62,7 @@ export function Reports({ user }) {
   const selClassSec = selectedClass.includes('::') ? selectedClass.split('::')[1] : ''
   const cls = classes.find(c => c.id === selClassId)
   const parseGrade = g => parseInt((g||'').replace(/[^0-9]/g,'')) || 99
-  const students = (selClassId ? StudentsDB.confirmed(selClassId).filter(s => {
+  const students = (selClassId ? (studentFilter === 'all' ? StudentsDB.byClass(selClassId) : StudentsDB.confirmed(selClassId)).filter(s => {
     if (selClassSec && s.section !== selClassSec) return false
     if (ctxYear) {
       const inYear = yearClasses.some(c => s.classIds?.includes(c.id))
@@ -71,17 +72,11 @@ export function Reports({ user }) {
       const actualSchool = (s.classIds||[]).map(cid => classes.find(c=>c.id===cid)?.organization).filter(Boolean)[0] || s.school || ''
       if (actualSchool !== ctxSchool) return false
     }
-    if (ctxTermType && ctxTerm) {
-      const careers = s.student_careers || []
-      if (careers.length === 0) {
-        if (String(ctxTerm) !== '1') return false
-      } else {
-        const hasCareer = careers.some(c =>
-          (c.termType || c.term_type) === ctxTermType &&
-          String(c.term) === String(ctxTerm)
-        )
-        if (!hasCareer) return false
-      }
+    if (ctxTerm) {
+      // Classes.jsx와 동일: activeTerm === termNum 이거나 activeTerm 없는 학생(1분기 기본)
+      const termNum = String(ctxTerm)
+      const ok = s.activeTerm === termNum || (!s.activeTerm && termNum === '1')
+      if (!ok) return false
     }
     return true
   }) : []).slice().sort((a, b) => {
@@ -92,9 +87,20 @@ export function Reports({ user }) {
     return (parseInt(a.number)||99) - (parseInt(b.number)||99)
   })
 
-  const sessions = cls ? calcSessionDates(cls) : []
+  // 분기 선택 시 해당 분기 기간만 추출 (Classes.jsx와 동일: periods[i], i+1 = 분기번호)
+  const termPeriodIdx = (ctxTermType && ctxTerm) ? parseInt(ctxTerm) - 1 : -1
+  const termPeriod = (termPeriodIdx >= 0 && cls?.periods?.length > termPeriodIdx)
+    ? cls.periods[termPeriodIdx]
+    : null
+  const sessions = cls
+    ? (termPeriod?.startDate && termPeriod?.endDate
+        ? calcSessionDates({ ...cls, periods: [termPeriod] })
+        : calcSessionDates(cls))
+    : []
   const t = today()
   const pastSessions = sessions.filter(d => d <= t)
+  const termStartDate = termPeriod?.startDate || null
+  const termEndDate   = termPeriod?.endDate   || null
 
   // 학생별 출석 통계
   const studentStats = students.map(s => {
@@ -281,6 +287,17 @@ export function Reports({ user }) {
               {classOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>대상</label>
+            <div style={{ display:'flex', gap:'4px' }}>
+              {[['attendance','출석부'], ['all','전체']].map(([key,label]) => (
+                <button key={key} onClick={() => setStudentFilter(key)}
+                  style={{ padding:'7px 12px', borderRadius:'8px', border:`1.5px solid ${studentFilter===key?'#f97316':'#e5e7eb'}`, background:studentFilter===key?'#fff7ed':'#fff', color:studentFilter===key?'#f97316':'#6b7280', fontSize:'13px', fontWeight:studentFilter===key?700:400, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           {(ctxYear || ctxSchool || ctxTermType) && (
             <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxTermType(''); setCtxTerm(''); setCtxClass(''); setSelectedClass('') }}
               style={{ fontSize:'12px', color:'#9ca3af', background:'none', border:'none', cursor:'pointer', textDecoration:'underline', fontFamily:'Noto Sans KR, sans-serif', alignSelf:'flex-end', marginBottom:'2px' }}>초기화</button>
@@ -313,6 +330,12 @@ export function Reports({ user }) {
         )}
       </div>
 
+      {termStartDate && termEndDate && (
+        <div style={{ marginBottom:'12px', padding:'10px 16px', background:'#eff6ff', borderRadius:'10px', border:'1px solid #bfdbfe', fontSize:'13px', color:'#1e40af', fontWeight:500 }}>
+          📅 {ctxTermType==='semester'?`${ctxTerm}학기`:`${ctxTerm}분기`} 기간: {termStartDate} ~ {termEndDate}
+          &nbsp;·&nbsp; 전체 {sessions.length}차시 / 진행 {pastSessions.length}차시
+        </div>
+      )}
       {!selectedClass ? (
         <EmptyState icon="📊" title="수업을 선택하세요" desc="리포트를 확인할 수업을 선택하세요." />
       ) : students.length === 0 ? (
