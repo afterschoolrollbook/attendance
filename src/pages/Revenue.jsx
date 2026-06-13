@@ -846,10 +846,11 @@ export function Revenue({ user }) {
                 })
                 if(rows.length===0) return null
 
-                // 이 텀의 날짜 범위 (수업마다 다를 수 있으니 대표값)
+                // 이 텀의 날짜 범위 + 대표 라벨 (수업마다 다를 수 있으니 대표값)
                 const termDates = rows.map(r=>r.term)
                 const termStart = termDates.map(t=>t.startDate).sort()[0]
                 const termEnd   = termDates.map(t=>t.endDate).sort().reverse()[0]
+                const termLabel = rows[0]?.term?.label || groupKey
 
                 // 텀 상태: today 기준
                 // 텀 상태: 텀 순서 기준 (allTermNos 전체 기준으로 계산)
@@ -883,7 +884,7 @@ export function Revenue({ user }) {
                       {/* 텀 번호 + 상태 + 합계 */}
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                          <span style={{ fontSize:'16px', fontWeight:800, color:termSt==='active'?C.success:termSt==='upcoming'?C.muted:C.text }}>{termNo}텀</span>
+                          <span style={{ fontSize:'16px', fontWeight:800, color:termSt==='active'?C.success:termSt==='upcoming'?C.muted:C.text }}>{termLabel}</span>
                           <span style={{ fontSize:'12px', color:C.muted }}>{termStart?.slice(5)} ~ {termEnd?.slice(5)}</span>
                           {termSt==='active'  &&<span style={{ fontSize:'11px', background:'#dcfce7', color:C.success, border:'1px solid #86efac', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>진행중</span>}
                           {termSt==='done'    &&<span style={{ fontSize:'11px', background:'#f3f4f6', color:C.muted, border:`1px solid ${C.border}`, borderRadius:'5px', padding:'1px 7px' }}>수업완료</span>}
