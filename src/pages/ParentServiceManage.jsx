@@ -253,10 +253,12 @@ function ParentListTab({ user, config }) {
   const classes = ClassesDB.byTeacher(teacherId)
 
   // Students.jsx와 동일한 필터 구조
-  const [ctxYear,   setCtxYear]   = useState('')
-  const [ctxSchool, setCtxSchool] = useState('')
-  const [ctxClass,  setCtxClass]  = useState('')
-  const [ctxStatus, setCtxStatus] = useState('') // '' | joined | not_joined | withdrawn
+  const [ctxYear,    setCtxYear]    = useState('')
+  const [ctxSchool,  setCtxSchool]  = useState('')
+  const [ctxTermType,setCtxTermType]= useState('')
+  const [ctxTerm,    setCtxTerm]    = useState('')
+  const [ctxClass,   setCtxClass]   = useState('')
+  const [ctxStatus,  setCtxStatus]  = useState('') // '' | joined | not_joined | withdrawn
   const [subTab,    setSubTab]    = useState('all')
   const [tick,      setTick]      = useState(0)
   const refresh = () => setTick(t => t + 1)
@@ -271,7 +273,13 @@ function ParentListTab({ user, config }) {
   const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort()
   const yearClasses = ctxYear ? classes.filter(c => c.startDate?.startsWith(ctxYear) || c.endDate?.startsWith(ctxYear)) : classes
   const schools = [...new Set(yearClasses.map(c => c.organization).filter(Boolean))]
-  const filteredClasses = sortClasses(ctxSchool ? yearClasses.filter(c => c.organization === ctxSchool) : yearClasses)
+  const termFilteredClasses = ctxTermType ? yearClasses.filter(c => {
+    const termType = c.termType || 'quarter'
+    if (termType !== ctxTermType) return false
+    if (!ctxTerm) return true
+    return (c.term || c.currentTerm || '1') === ctxTerm
+  }) : yearClasses
+  const filteredClasses = sortClasses(ctxSchool ? termFilteredClasses.filter(c => c.organization === ctxSchool) : termFilteredClasses)
 
   // 학교별 대표 요일 계산 (월~금 중 가장 먼저 나오는 요일)
   const DAY_ORDER_LABEL = ['월','화','수','목','금','토','일']
@@ -516,6 +524,24 @@ function ParentListTab({ user, config }) {
             </select>
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>구분</label>
+            <select value={ctxTermType} onChange={e => { setCtxTermType(e.target.value); setCtxTerm(''); setCtxClass('') }} style={selSt}>
+              <option value="">전체</option>
+              <option value="semester">학기제</option>
+              <option value="quarter">분기제</option>
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>{ctxTermType==='semester'?'학기':'분기'}</label>
+            <select value={ctxTerm} onChange={e => { setCtxTerm(e.target.value); setCtxClass('') }} style={selSt}>
+              <option value="">전체</option>
+              {ctxTermType==='semester'
+                ? [1,2].map(n => <option key={n} value={String(n)}>{n}학기</option>)
+                : [1,2,3,4].map(n => <option key={n} value={String(n)}>{n}분기</option>)
+              }
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
             <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>과목</label>
             <select value={ctxClass} onChange={e => setCtxClass(e.target.value)} style={selSt}>
               <option value="">전체 과목</option>
@@ -542,8 +568,8 @@ function ParentListTab({ user, config }) {
               <option value="withdrawn">종료</option>
             </select>
           </div>
-          {(ctxYear || ctxSchool || ctxClass || ctxStatus) && (
-            <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxClass(''); setCtxStatus('') }}
+          {(ctxYear || ctxSchool || ctxTermType || ctxClass || ctxStatus) && (
+            <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxTermType(''); setCtxTerm(''); setCtxClass(''); setCtxStatus('') }}
               style={{ fontSize:'11px', color:'#9ca3af', background:'none', border:'none', cursor:'pointer', textDecoration:'underline', fontFamily:'Noto Sans KR, sans-serif', marginBottom:'1px' }}>
               초기화
             </button>

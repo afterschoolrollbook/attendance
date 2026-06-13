@@ -11,6 +11,11 @@ const STATUS_TEXT = { present: '출석', absent: '결석', late: '지각', early
 const STATUS_EMOJI = { present: '✅', absent: '❌', late: '🕐', early: '🔜', pending: '-' }
 
 export function Reports({ user }) {
+  const [ctxYear,    setCtxYear]    = useState('')
+  const [ctxSchool,  setCtxSchool]  = useState('')
+  const [ctxTermType,setCtxTermType]= useState('')
+  const [ctxTerm,    setCtxTerm]    = useState('')
+  const [ctxClass,   setCtxClass]   = useState('')
   const [selectedClass, setSelectedClass] = useState('')
   const [downloading, setDownloading] = useState(false)
   const { error: toastError } = useToast()
@@ -23,6 +28,40 @@ export function Reports({ user }) {
     if (d !== 0) return d
     return (a.section||'').localeCompare(b.section||'', 'ko')
   })
+  // ── 필터 데이터 계산 (Students.jsx와 동일 구조)
+  const years = [...new Set(classes.map(c => c.startDate?.slice(0,4)).filter(Boolean))].sort().reverse()
+  const yearClasses = ctxYear ? classes.filter(c => c.startDate?.startsWith(ctxYear) || c.endDate?.startsWith(ctxYear)) : classes
+  const schools = [...new Set(yearClasses.map(c => c.organization).filter(Boolean))]
+  const DAY_ORDER_SCH = ['월','화','수','목','금','토','일']
+  const schoolDaysMap = {}
+  yearClasses.forEach(c => {
+    if (!c.organization) return
+    if (!schoolDaysMap[c.organization]) schoolDaysMap[c.organization] = new Set()
+    ;(c.days||[]).forEach(d => schoolDaysMap[c.organization].add(d))
+  })
+  const getSchoolDayLabel = (s) => {
+    const days = DAY_ORDER_SCH.filter(d => (schoolDaysMap[s]||new Set()).has(d))
+    return days.length > 0 ? `(${days.join('·')}) ` : ''
+  }
+  const schoolsSorted = [...schools].sort((a,b) => {
+    const ai = DAY_ORDER_SCH.findIndex(d => (schoolDaysMap[a]||new Set()).has(d))
+    const bi = DAY_ORDER_SCH.findIndex(d => (schoolDaysMap[b]||new Set()).has(d))
+    return (ai===-1?99:ai) !== (bi===-1?99:bi) ? (ai===-1?99:ai)-(bi===-1?99:bi) : a.localeCompare(b,'ko')
+  })
+  const termFilteredClasses = ctxTermType ? yearClasses.filter(c => {
+    const termType = c.termType || 'quarter'
+    if (termType !== ctxTermType) return false
+    if (!ctxTerm) return true
+    return (c.term || c.currentTerm || '1') === ctxTerm
+  }) : yearClasses
+  const filteredClasses = ctxSchool ? termFilteredClasses.filter(c => c.organization === ctxSchool) : termFilteredClasses
+  const classOptions = filteredClasses.flatMap(c => {
+    const secs = c.sections?.filter(s => s.section) || []
+    if (secs.length > 1) return secs.map(s => ({ value: c.id+'::'+s.section, label: c.className+' '+s.section+'반' }))
+    return [{ value: c.id, label: c.className+(c.section?' '+c.section+'반':'') }]
+  })
+  const selSt = { padding:'8px 12px', borderRadius:'9px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', background:'#fff', color:'#111827', cursor:'pointer', outline:'none' }
+
   // selectedClass: 'classId::반이름' 또는 'classId'
   const selClassId  = selectedClass.includes('::') ? selectedClass.split('::')[0] : selectedClass
   const selClassSec = selectedClass.includes('::') ? selectedClass.split('::')[1] : ''
@@ -182,25 +221,58 @@ export function Reports({ user }) {
       <PageHeader title="출석 리포트" sub="수업별 출석 현황을 확인합니다." />
       <AdSlot slotId="report_bottom" />
 
-      {/* 수업 선택 + ✅ 다운로드 버튼 */}
+      {/* 필터 바 */}
+      <div style={{ background:'#fff', borderRadius:'14px', border:'1px solid #e5e7eb', padding:'16px 20px', marginBottom:'16px' }}>
+        <div style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginBottom:'10px', letterSpacing:'0.05em' }}>📍 수업 보기 범위 선택</div>
+        <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'flex-end' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>학교</label>
+            <select value={ctxSchool} onChange={e => { setCtxSchool(e.target.value); setCtxClass(''); setSelectedClass('') }} style={selSt}>
+              <option value="">전체 학교</option>
+              {schoolsSorted.map(s => <option key={s} value={s}>{getSchoolDayLabel(s)}{s}</option>)}
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>년도</label>
+            <select value={ctxYear} onChange={e => { setCtxYear(e.target.value); setCtxClass(''); setSelectedClass(''); setCtxTerm('') }} style={selSt}>
+              <option value="">전체 년도</option>
+              {years.map(y => <option key={y} value={y}>{y}년</option>)}
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>구분</label>
+            <select value={ctxTermType} onChange={e => { setCtxTermType(e.target.value); setCtxTerm(''); setCtxClass(''); setSelectedClass('') }} style={selSt}>
+              <option value="">전체</option>
+              <option value="semester">학기제</option>
+              <option value="quarter">분기제</option>
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>{ctxTermType==='semester'?'학기':'분기'}</label>
+            <select value={ctxTerm} onChange={e => { setCtxTerm(e.target.value); setCtxClass(''); setSelectedClass('') }} style={selSt}>
+              <option value="">전체</option>
+              {ctxTermType==='semester'
+                ? [1,2].map(n => <option key={n} value={String(n)}>{n}학기</option>)
+                : [1,2,3,4].map(n => <option key={n} value={String(n)}>{n}분기</option>)
+              }
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px' }}>
+            <label style={{ fontSize:'12px', fontWeight:500, color:'#374151' }}>수업</label>
+            <select value={ctxClass} onChange={e => { setCtxClass(e.target.value); setSelectedClass(e.target.value) }} style={selSt}>
+              <option value="">전체 수업</option>
+              {classOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            </select>
+          </div>
+          {(ctxYear || ctxSchool || ctxTermType) && (
+            <button onClick={() => { setCtxYear(''); setCtxSchool(''); setCtxTermType(''); setCtxTerm(''); setCtxClass(''); setSelectedClass('') }}
+              style={{ fontSize:'12px', color:'#9ca3af', background:'none', border:'none', cursor:'pointer', textDecoration:'underline', fontFamily:'Noto Sans KR, sans-serif', alignSelf:'flex-end', marginBottom:'2px' }}>초기화</button>
+          )}
+        </div>
+      </div>
+      {/* 다운로드 버튼 */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
-          style={{ padding: '9px 13px', borderRadius: '9px', border: '1.5px solid #e5e7eb', fontSize: '14px', fontFamily: 'Noto Sans KR, sans-serif', background: '#fff', outline: 'none', cursor: 'pointer', minWidth: '280px' }}>
-          <option value="">-- 수업을 선택하세요 --</option>
-          {classes.flatMap(c => {
-            const dayLabel = c.days?.length ? `(${c.days.join('·')}) ` : ''
-            const secs = c.sections?.filter(s => s.section) || []
-            if (secs.length > 1) {
-              return secs.map(s => (
-                <option key={c.id + '::' + s.section} value={c.id + '::' + s.section}>
-                  {dayLabel}{c.organization} {c.className} {s.section}반
-                </option>
-              ))
-            }
-            const secLabel = c.section ? ' ' + c.section + '반' : ''
-            return [<option key={c.id} value={c.id}>{dayLabel}{c.organization} {c.className}{secLabel}</option>]
-          })}
-        </select>
+        <div style={{ flex: 1 }} />
 
         {/* ✅ 다운로드 버튼 (수업 선택 후 활성화) */}
         {selectedClass && students.length > 0 && (
