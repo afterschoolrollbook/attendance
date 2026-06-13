@@ -1823,3 +1823,62 @@ onLogout={() => { handleLogout(); setShowLanding(true) }}
 ```
 
 **수정 파일:** `src/App.jsx`
+
+### CSP `style-src-elem` 추가 + `index.html` meta CSP 제거 (2026-06-13)
+
+**문제:** `vercel.json`에 `style-src`와 `style-src-elem` 모두 추가했는데도 로그인 페이지에서만 구글 GSI 스타일시트 오류가 계속 발생.
+
+**원인:** `index.html` 47번째 줄에 `<meta http-equiv="Content-Security-Policy">` 태그가 있었음. 브라우저는 meta 태그 CSP를 HTTP 헤더보다 우선 적용하므로, `vercel.json`을 아무리 수정해도 구 버전 meta 태그가 덮어쓰고 있었음. 로그인 페이지에서만 오류가 난 이유는 구글 GSI 스크립트(`accounts.google.com/gsi/client`)를 로그인 페이지에서만 동적으로 주입하기 때문 — 이 스크립트가 내부적으로 `gsi/style` 스타일시트를 또 동적으로 삽입하는데, meta CSP의 `style-src`에 `accounts.google.com`이 없어서 차단됨.
+
+**수정 내용:**
+- `index.html` — `<meta http-equiv="Content-Security-Policy">` 태그 제거. CSP는 `vercel.json` HTTP 헤더로 일원화
+- `vercel.json` — `style-src`에 `https://accounts.google.com` 추가, `style-src-elem` 디렉티브 신규 추가
+
+**수정 파일:** `index.html`, `vercel.json`
+
+### 로그인 페이지 랜딩페이지 이동 버튼 + 네이버/카카오 리다이렉트 버그 수정 (2026-06-13)
+
+**① 로그인 페이지에서 랜딩페이지로 이동 불가**
+
+로그인 화면(`Auth.jsx`)에서 로고 클릭이나 홈으로 돌아가는 버튼이 없었음.
+
+- `Auth.jsx` — `onGoLanding` prop 추가. 로고(📋)와 타이틀 클릭 시 랜딩페이지로 이동, `← 홈으로 돌아가기` 버튼 추가
+- `App.jsx` — `Auth`에 `onGoLanding={() => setShowLanding(true)}` 전달
+
+**수정 파일:** `src/pages/Auth.jsx`, `src/App.jsx`
+
+**② 네이버/카카오 리다이렉트 방식 로그인 시 랜딩페이지에 막히는 버그**
+
+팝업이 아닌 리다이렉트 방식으로 소셜 로그인 시 `/?naver_redirect=1`(또는 `kakao_redirect=1`)로 돌아오는데, `showLanding=true` 상태라 랜딩페이지가 렌더되면서 `Auth.jsx`가 마운트되지 않아 콜백 처리가 안 됨.
+
+→ `App.jsx` 랜딩 조건에 `!isSocialRedirect` 추가:
+
+```js
+const isSocialRedirect = new URLSearchParams(search).has('naver_redirect') || new URLSearchParams(search).has('kakao_redirect')
+if (showLanding && !user && !isSocialRedirect) { ... }
+```
+
+**수정 파일:** `src/App.jsx`
+
+### 로그인 로딩 화면 추가 (2026-06-13)
+
+**문제:** 로그인 버튼 클릭 후 대시보드 진입까지 걸리는 시간 동안 빈 화면이 표시됨.
+
+**해결:** `AppLoading` 컴포넌트 추가. 로고 + 진행바 + 선생님 응원 문구 8개가 2.5초마다 순환 표시.
+
+- `App.jsx` — `AppLoading` 컴포넌트 추가, `showLoginLoading` state 추가. 로그인 처리 시작 시 ON, 완료 시 OFF
+- `Auth.jsx` — `onBeforeLogin` prop 추가. 소셜 로그인(`handleSocialSuccess`) 성공 후 `onLogin` 호출 직전에 `onBeforeLogin?.()` 호출 → 로딩 화면을 정확한 타이밍에 표시
+
+```
+로딩 문구 목록:
+오늘도 선생님의 수업을 응원합니다 📚
+출석 관리, 이제 스마트하게! ✅
+선생님의 소중한 시간을 아껴드릴게요 ⏰
+방과후 강사 선생님들을 위해 만들었어요 💛
+수업 준비, 저희가 도와드릴게요 🎒
+오늘 하루도 수고 많으세요 선생님! 🙏
+학생들의 출석, 한눈에 확인하세요 👀
+스마트한 출석부로 업무 부담을 줄여드려요 💪
+```
+
+**수정 파일:** `src/App.jsx`, `src/pages/Auth.jsx`
