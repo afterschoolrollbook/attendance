@@ -373,7 +373,9 @@ function AppInner() {
   if (pathname === '/parent-login')  return <ParentLogin />
 
   // ── 랜딩 페이지 ─────────────────────────────────────────────────
-  if (showLanding && !user) {
+  // 네이버/카카오 리다이렉트 콜백은 Auth에서 처리해야 하므로 랜딩 스킵
+  const isSocialRedirect = new URLSearchParams(search).has('naver_redirect') || new URLSearchParams(search).has('kakao_redirect')
+  if (showLanding && !user && !isSocialRedirect) {
     return (
       <LandingPage
         onGoLogin={() => { setLandingTarget('login'); setShowLanding(false) }}
@@ -398,10 +400,10 @@ function AppInner() {
   // 로그인/회원가입 — /auth 직접 접근 시 (이미 로그인된 경우 대시보드로)
   if (pathname === '/auth') {
     if (user) { window.history.replaceState({}, '', '/'); return <Dashboard user={user} onNav={handleNav} pageParams={pageParams} onUserUpdate={handleUserUpdate} onLogout={handleLogout} /> }
-    return <Auth onLogin={handleLogin} initialTab={landingTarget} />
+    return <Auth onLogin={handleLogin} initialTab={landingTarget} onGoLanding={() => setShowLanding(true)} />
   }
 
-  if (!user) return <Auth onLogin={handleLogin} initialTab={landingTarget} />
+  if (!user) return <Auth onLogin={handleLogin} initialTab={landingTarget} onGoLanding={() => setShowLanding(true)} />
 
   const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate, onLogout: handleLogout }
 
