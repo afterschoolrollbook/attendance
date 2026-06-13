@@ -961,6 +961,13 @@ export function Auth({ onLogin, initialTab, onGoLanding }) {
           <div onClick={onGoLanding} style={{ fontSize: isMobile ? '40px' : '48px', marginBottom: '12px', cursor: onGoLanding ? 'pointer' : 'default', display: 'inline-block' }}>📋</div>
           <h1 onClick={onGoLanding} style={{ fontSize: isMobile ? '22px' : '26px', fontWeight: 700, color: '#111827', cursor: onGoLanding ? 'pointer' : 'default' }}>방과후 출석부</h1>
           <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '6px' }}>방과후 강사를 위한 스마트 출석 관리</p>
+          {onGoLanding && (
+            <button onClick={onGoLanding} style={{ marginTop: '10px', padding: '6px 16px', borderRadius: '8px', border: '1.5px solid #e5e7eb', background: '#fff', color: '#6b7280', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.color = '#f97316' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#6b7280' }}>
+              ← 홈으로 돌아가기
+            </button>
+          )}
         </div>
 
         <div style={{ background: '#fff', borderRadius: isMobile ? '20px 20px 0 0' : '20px', boxShadow: isMobile ? '0 -4px 24px rgba(0,0,0,0.1)' : '0 8px 40px rgba(0,0,0,0.1)', overflow: 'hidden', minHeight: isMobile ? 'calc(100vh - 180px)' : 'auto' }}>
