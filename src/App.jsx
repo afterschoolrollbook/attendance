@@ -158,6 +158,50 @@ function MobileBottomNav({ currentPage, onNav }) {
   )
 }
 
+const LOADING_MESSAGES = [
+  '오늘도 선생님의 수업을 응원합니다 📚',
+  '출석 관리, 이제 스마트하게! ✅',
+  '선생님의 소중한 시간을 아껴드릴게요 ⏰',
+  '방과후 강사 선생님들을 위해 만들었어요 💛',
+  '수업 준비, 저희가 도와드릴게요 🎒',
+  '오늘 하루도 수고 많으세요 선생님! 🙏',
+  '학생들의 출석, 한눈에 확인하세요 👀',
+  '스마트한 출석부로 업무 부담을 줄여드려요 💪',
+]
+
+function AppLoading({ message }) {
+  const [msgIdx, setMsgIdx] = React.useState(0)
+  const [progress, setProgress] = React.useState(0)
+  const [fade, setFade] = React.useState(true)
+
+  React.useEffect(() => {
+    const pTimer = setInterval(() => {
+      setProgress(p => p >= 90 ? 90 : p + Math.random() * 15)
+    }, 400)
+    const mTimer = setInterval(() => {
+      setFade(false)
+      setTimeout(() => {
+        setMsgIdx(i => (i + 1) % LOADING_MESSAGES.length)
+        setFade(true)
+      }, 300)
+    }, 2500)
+    return () => { clearInterval(pTimer); clearInterval(mTimer) }
+  }, [])
+
+  return (
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg, #fff7ed 0%, #fff 60%, #fff7ed 100%)', flexDirection:'column', gap:'20px', padding:'20px' }}>
+      <div style={{ fontSize:'56px' }}>📋</div>
+      <div style={{ fontSize:'20px', fontWeight:800, color:'#f97316', letterSpacing:'-0.5px' }}>방과후 출석부</div>
+      <div style={{ width:'260px', background:'#fee2c0', borderRadius:'99px', height:'6px', overflow:'hidden' }}>
+        <div style={{ height:'100%', width:`${progress}%`, background:'linear-gradient(90deg, #f97316, #fb923c)', borderRadius:'99px', transition:'width 0.4s ease' }} />
+      </div>
+      <div style={{ fontSize:'14px', color:'#92400e', fontWeight:500, textAlign:'center', maxWidth:'260px', lineHeight:1.6, opacity: fade ? 1 : 0, transition:'opacity 0.3s ease', minHeight:'44px' }}>
+        {message || LOADING_MESSAGES[msgIdx]}
+      </div>
+    </div>
+  )
+}
+
 function AppInner() {
   const [user, setUser] = useState(null)
   const [showLanding, setShowLanding] = useState(true)   // ← 랜딩 페이지 표시 여부
@@ -165,6 +209,7 @@ function AppInner() {
   const [page, setPage] = useState('dashboard')
   const [pageParams, setPageParams] = useState({})
   const [dbReady, setDbReady] = useState(false)
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { toasts, error: toastError } = useToast()
@@ -343,13 +388,8 @@ function AppInner() {
   }
 
   // DB 초기화 대기
-  if (!dbReady) return (
-    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#fff7ed', flexDirection:'column', gap:'16px' }}>
-      <div style={{ fontSize:'48px' }}>📋</div>
-      <div style={{ fontSize:'16px', fontWeight:700, color:'#f97316' }}>방과후 출석부</div>
-      <div style={{ fontSize:'13px', color:'#9ca3af' }}>{isConfigured ? '서버 연결 중...' : '로딩 중...'}</div>
-    </div>
-  )
+  if (!dbReady) return <AppLoading />
+  if (isLoggingIn) return <AppLoading message="로그인 중입니다..." />
 
   // ✅ 학교 담당자 포털 분기
   if (isSchoolPath) {
@@ -444,6 +484,7 @@ function AppInner() {
   // ─── 핸들러 (렌더링 직전에 정의) ─────────────────────────────────
 
   async function handleLogin(u) {
+    setIsLoggingIn(true)
     // 소셜 로그인 / 회원가입: id가 있는 완전한 user 객체
     if (u.id) {
       setUser(u)
@@ -451,6 +492,7 @@ function AppInner() {
       const pageParam = new URLSearchParams(search).get('page')
       setPage(pageParam || 'dashboard')
       setPageParams({})
+      setIsLoggingIn(false)
       return
     }
 
@@ -460,6 +502,7 @@ function AppInner() {
       const pageParam = new URLSearchParams(search).get('page')
       setPage(pageParam || 'dashboard')
       setPageParams({})
+      setIsLoggingIn(false)
     }
 
     // 1) 캐시(로컬 메모리) 먼저 확인
