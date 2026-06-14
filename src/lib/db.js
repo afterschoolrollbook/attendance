@@ -774,12 +774,12 @@ export async function clearLocalCache() {
     console.warn('[clearLocalCache] IndexedDB 초기화 실패:', e.message)
   }
 
-  // 3) 동기화 메타데이터 + 캐시된 설정값 초기화
+  // 3) 동기화 메타데이터 초기화
+  // 주의: asa_settings_* (소셜로그인 설정 등 앱 전역 설정)는 여기서 지우지 않음.
+  //       로그인 페이지(로그아웃 상태)는 initFromSupabase()를 실행하지 않으므로,
+  //       이 값들이 지워지면 다시 채워질 방법이 없어 네이버/카카오 로그인 등이 깨짐.
   try {
     localStorage.removeItem(LAST_SYNC_KEY)
-    Object.keys(localStorage)
-      .filter(k => k.startsWith('asa_settings_'))
-      .forEach(k => localStorage.removeItem(k))
   } catch (e) {
     console.warn('[clearLocalCache] localStorage 초기화 실패:', e.message)
   }
