@@ -950,9 +950,9 @@ export const Settings = {
     const val = typeof v === 'object' && v !== null ? { ...v, _updatedAt: Date.now() } : v
     localStorage.setItem('asa_settings_' + k, JSON.stringify(val))
     if (supabase) {
-      supabase.from('settings')
-        .upsert({ key: k, value: v, updated_at: now() })
-        .catch(e => console.warn(`[Settings] "${k}" Supabase 저장 실패:`, e.message))
+      Promise.resolve(
+        supabase.from('settings').upsert({ key: k, value: v, updated_at: now() })
+      ).catch(e => console.warn(`[Settings] "${k}" Supabase 저장 실패:`, e.message))
     }
   },
   getAll() {
