@@ -23,6 +23,8 @@ import { Settings } from '../lib/db.js'
 
 function getBlogWriteMinLevel()  { return Settings.get('blogWriteMinLevel')  ?? 1  }
 function getBlogNoticeMinLevel() { return Settings.get('blogNoticeMinLevel') ?? 10 }
+function getDocsWriteMinLevel()     { return Settings.get('docsWriteMinLevel')     ?? 10 }
+function getTemplateWriteMinLevel() { return Settings.get('templateWriteMinLevel') ?? 10 }
 
 const BLOG_CATEGORIES = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
 const DOCS_CATEGORIES = ['시작하기', '출석부', '교구 관리', '학생 관리', '수업 관리', '리포트', '설정', '기타']
@@ -98,8 +100,12 @@ export function BlogAdmin({ user }) {
   const isAdmin = user?.role === 'admin' || userLevel >= 10
   const blogWriteMinLevel = getBlogWriteMinLevel()
   const blogNoticeMinLevel = getBlogNoticeMinLevel()
+  const docsWriteMinLevel = getDocsWriteMinLevel()
+  const templateWriteMinLevel = getTemplateWriteMinLevel()
   const canWrite = isAdmin || userLevel >= blogWriteMinLevel
   const canWriteNotice = isAdmin || userLevel >= blogNoticeMinLevel
+  const canWriteDocs = isAdmin || userLevel >= docsWriteMinLevel
+  const canWriteTemplate = isAdmin || userLevel >= templateWriteMinLevel
   const filteredBlogCategories = BLOG_CATEGORIES.filter(c =>
     canWriteNotice ? true : (c !== '공지사항' && c !== '업데이트')
   )
@@ -209,11 +215,11 @@ export function BlogAdmin({ user }) {
             style={{ padding:'9px 18px', borderRadius:'9px', border:'none', background:C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             + 블로그 글
           </button>
-          {isAdmin && <button onClick={() => handleNew('docs')} title="사용 설명서를 새로 작성합니다 (관리자 전용)"
+          {canWriteDocs && <button onClick={() => handleNew('docs')} title={`사용 설명서를 새로 작성합니다 (Lv.${docsWriteMinLevel} 이상)`}
             style={{ padding:'9px 18px', borderRadius:'9px', border:'none', background:'#3b82f6', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             + 설명서
           </button>}
-          {isAdmin && <button onClick={() => handleNew('template')} title="템플릿을 새로 등록합니다 (관리자 전용)"
+          {canWriteTemplate && <button onClick={() => handleNew('template')} title={`템플릿을 새로 등록합니다 (Lv.${templateWriteMinLevel} 이상)`}
             style={{ padding:'9px 18px', borderRadius:'9px', border:'none', background:'#7c3aed', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
             + 템플릿
           </button>}
@@ -275,10 +281,16 @@ export function BlogAdmin({ user }) {
                   <a href={`/${post.type==='docs'?'docs':'blog'}/${post.slug||post.id}`} target="_blank" rel="noopener noreferrer"
                     style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', color:C.muted, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>보기</a>
                 )}
-                <button onClick={() => handleEdit(post)}
-                  style={{ padding:'6px 14px', borderRadius:'7px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
-                <button onClick={() => handleDelete(post)}
-                  style={{ padding:'6px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                {(() => {
+                  const type = post.type || 'blog'
+                  const canEditThis = type === 'docs' ? canWriteDocs : type === 'template' ? canWriteTemplate : canWrite
+                  return canEditThis && <>
+                    <button onClick={() => handleEdit(post)}
+                      style={{ padding:'6px 14px', borderRadius:'7px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                    <button onClick={() => handleDelete(post)}
+                      style={{ padding:'6px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
+                  </>
+                })()}
               </div>
             </div>
           ))}
@@ -318,7 +330,7 @@ export function BlogAdmin({ user }) {
           {/* 타입 선택 */}
           {!editId && (
             <div style={{ display:'flex', gap:'8px' }}>
-              {[['blog','📝 블로그 글',C.primary],['docs','📖 사용 설명서','#3b82f6'],['template','📋 템플릿','#7c3aed']].map(([key,label,color]) => (
+              {[['blog','📝 블로그 글',C.primary,canWrite],['docs','📖 사용 설명서','#3b82f6',canWriteDocs],['template','📋 템플릿','#7c3aed',canWriteTemplate]].filter(([,,,allowed]) => allowed).map(([key,label,color]) => (
                 <button key={key} onClick={() => setForm(v => ({ ...v, type:key, category:'' }))}
                   style={{ flex:1, padding:'10px', borderRadius:'9px', border:`2px solid ${form.type===key?color:C.border}`, background:form.type===key?`${color}10`:C.card, color:form.type===key?color:C.muted, fontSize:'14px', fontWeight:form.type===key?700:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
                   {label}

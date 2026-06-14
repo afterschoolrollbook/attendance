@@ -23,17 +23,18 @@ function LevelButtons({ value, onChange }) {
 }
 
 const BOARDS = [
-  { key: 'blog',     label: '📝 블로그' },
-  { key: 'docs',     label: '📖 사용 설명서' },
-  { key: 'template', label: '📋 템플릿' },
-  { key: 'review',   label: '⭐ 사용자 후기' },
-  { key: 'qna',      label: '❓ 질문 게시판' },
-  { key: 'secret',   label: '🔐 비밀 게시판' },
+  { key: 'blog',   label: '📝 블로그' },
+  { key: 'review', label: '⭐ 사용자 후기' },
+  { key: 'qna',    label: '❓ 질문 게시판' },
+  { key: 'secret', label: '🔐 비밀 게시판' },
 ]
 
 export function BlogMenuManage({ user }) {
   const [blogWriteMinLevel,  setBlogWriteMinLevel]  = useState(() => Settings.get('blogWriteMinLevel')  ?? 1)
   const [blogNoticeMinLevel, setBlogNoticeMinLevel] = useState(() => Settings.get('blogNoticeMinLevel') ?? 10)
+  const [docsWriteMinLevel,     setDocsWriteMinLevel]     = useState(() => Settings.get('docsWriteMinLevel')     ?? 10)
+  const [templateWriteMinLevel, setTemplateWriteMinLevel] = useState(() => Settings.get('templateWriteMinLevel') ?? 10)
+
 
   const defaultBoardPerm = () => ({ access: 1, read: 1, write: 1 })
   const [boardPerms, setBoardPerms] = useState(() => {
@@ -48,6 +49,8 @@ export function BlogMenuManage({ user }) {
   const save = () => {
     Settings.set('blogWriteMinLevel',  blogWriteMinLevel)
     Settings.set('blogNoticeMinLevel', blogNoticeMinLevel)
+    Settings.set('docsWriteMinLevel',     docsWriteMinLevel)
+    Settings.set('templateWriteMinLevel', templateWriteMinLevel)
     const prevBoardPerms = Settings.get('boardPermissions') || {}
     const next = { ...prevBoardPerms }
     BOARDS.forEach(b => { next[b.key] = boardPerms[b.key] })
@@ -120,6 +123,24 @@ export function BlogMenuManage({ user }) {
                 </div>
               </div>
               <LevelButtons value={blogNoticeMinLevel} onChange={setBlogNoticeMinLevel} />
+            </div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', flexWrap:'wrap', gap:'10px' }}>
+              <div>
+                <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>📖 사용 설명서 작성 최소 레벨</div>
+                <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+                  현재: <span style={{ fontWeight:700, color: LEVEL_COLORS[docsWriteMinLevel] || '#9ca3af' }}>Lv.{docsWriteMinLevel} 이상</span>
+                </div>
+              </div>
+              <LevelButtons value={docsWriteMinLevel} onChange={setDocsWriteMinLevel} />
+            </div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', flexWrap:'wrap', gap:'10px' }}>
+              <div>
+                <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>📋 템플릿 작성 최소 레벨</div>
+                <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+                  현재: <span style={{ fontWeight:700, color: LEVEL_COLORS[templateWriteMinLevel] || '#9ca3af' }}>Lv.{templateWriteMinLevel} 이상</span>
+                </div>
+              </div>
+              <LevelButtons value={templateWriteMinLevel} onChange={setTemplateWriteMinLevel} />
             </div>
           </div>
 
