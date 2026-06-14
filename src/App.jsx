@@ -14,6 +14,7 @@ import { Reports } from './pages/Reports.jsx'
 import { Templates } from './pages/Templates.jsx'
 import { PrintSetup } from './pages/PrintSetup.jsx'
 import { Admin } from './pages/Admin.jsx'
+import { LevelManage } from './pages/LevelManage.jsx'
 import { Adsense } from './pages/Adsense.jsx'
 import { AdminSettings } from './pages/AdminSettings.jsx'
 import { Profile } from './pages/Profile.jsx'
@@ -31,6 +32,7 @@ import { Supplies }     from './pages/Supplies.jsx'
 import { MessageGuide } from './pages/MessageGuide.jsx'
 import { Blog }         from './pages/Blog.jsx'
 import { BlogAdmin }    from './pages/BlogAdmin.jsx'
+import { BlogMenuManage } from './pages/BlogMenuManage.jsx'
 import { BlogWrite }    from './pages/BlogWrite.jsx'
 import { ParentInvite } from './pages/ParentInvite.jsx'
 import { ParentLogin }  from './pages/ParentLogin.jsx'
@@ -472,6 +474,7 @@ function AppInner() {
       case 'printsetup':      return <PrintSetup {...pageProps} />
       case 'parent-service':  return <ParentServiceManage user={user} />
       case 'admin':           return can(user, 'approve_teacher') ? <Admin {...pageProps} /> : <Dashboard {...pageProps} />
+      case 'level_manage':    return can(user, 'manage_level') ? <LevelManage user={user} /> : <Dashboard {...pageProps} />
       case 'adsense':         return <Adsense {...pageProps} />
       case 'profile':         return <Profile {...pageProps} />
       case 'admin_settings':  return can(user, 'manage_ad') ? <AdminSettings {...pageProps} /> : <Dashboard {...pageProps} />
@@ -485,6 +488,7 @@ function AppInner() {
       case 'supplies':        return <Supplies     user={user} />
       case 'messageguide':    return <MessageGuide user={user} />
       case 'blog_admin':      return can(user, 'manage_ad') ? <BlogAdmin user={user} /> : <Dashboard {...pageProps} />
+      case 'blog_menu_manage': return can(user, 'manage_ad') ? <BlogMenuManage user={user} /> : <Dashboard {...pageProps} />
       case 'blog_write':      return <BlogWrite user={user} onLogout={handleLogout} />
       // ✅ 본사 업체 관리 (Lv.10 전용)
       case 'vendor_manage':   return can(user, 'manage_ad') ? <VendorManage user={user} /> : <Dashboard {...pageProps} />
