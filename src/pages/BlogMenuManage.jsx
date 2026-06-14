@@ -23,10 +23,12 @@ function LevelButtons({ value, onChange }) {
 }
 
 const BOARDS = [
-  { key: 'blog',   label: '📝 블로그' },
-  { key: 'review', label: '⭐ 사용자 후기' },
-  { key: 'qna',    label: '❓ 질문 게시판' },
-  { key: 'secret', label: '🔐 비밀 게시판' },
+  { key: 'blog',     label: '📝 블로그' },
+  { key: 'docs',     label: '📖 사용 설명서' },
+  { key: 'template', label: '📋 템플릿' },
+  { key: 'review',   label: '⭐ 사용자 후기' },
+  { key: 'qna',      label: '❓ 질문 게시판' },
+  { key: 'secret',   label: '🔐 비밀 게시판' },
 ]
 
 export function BlogMenuManage({ user }) {
