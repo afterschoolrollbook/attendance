@@ -1487,13 +1487,13 @@ export function AdminSettings() {
     <div style={{ padding:'28px', maxWidth:'780px' }}>
       <PageHeader title="서비스 설정" sub="소셜 로그인 연동, 포인트 정책 등을 관리합니다." />
 
-      <div style={{ display:'flex', gap:'8px', marginBottom:'24px', borderBottom:`1px solid ${C.border}`, paddingBottom:'0', flexWrap:'wrap' }}>
+      <div style={{ display:'flex', gap:'0', marginBottom:'24px', borderBottom:`1px solid ${C.border}`, paddingBottom:'0', overflowX:'auto' }}>
         {[
+          { key:'service',     label:'⚙️ 기본 설정' },
           { key:'social',      label:'🔑 소셜 로그인' },
           { key:'email',       label:'📧 이메일 발송' },
           { key:'solapi',      label:'📱 문자·알림톡' },
           { key:'push',        label:'🔔 푸시 알림' },
-          { key:'service',     label:'⚙️ 기본 설정' },
           { key:'region',      label:'🗺️ 지역/학교' },
           { key:'teacher',     label:'🎓 강사 서비스' },
           { key:'legal',       label:'📜 약관 관리' },
