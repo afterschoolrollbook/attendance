@@ -320,11 +320,25 @@ function sanitizeStudentBooleans(data) {
   return result
 }
 
+// ─── students 테이블 date 컬럼 안전 변환
+// DB date 컬럼: student_start_date, student_end_date (등) — 빈 문자열("")이 들어오면
+// PostgreSQL이 "invalid input syntax for type date" 오류를 냄 → falsy면 null로 변환
+function sanitizeStudentDates(data) {
+  const DATE_FIELDS = ['studentStartDate', 'studentEndDate', 'parentInviteSentAt']
+  const result = { ...data }
+  for (const f of DATE_FIELDS) {
+    if (f in result && !result[f] && result[f] !== 0) result[f] = null
+    const snake = f.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
+    if (snake in result && !result[snake] && result[snake] !== 0) result[snake] = null
+  }
+  return result
+}
+
 // ─── Supabase 직접 쓰기 함수들
 async function syncInsert(table, data) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
-  const sanitized  = table === 'students' ? sanitizeStudentBooleans(data) : data
+  const sanitized  = table === 'students' ? sanitizeStudentDates(sanitizeStudentBooleans(data)) : data
   const cleanData = stripVirtualFields(table, sanitized)
 
   if (table === 'supplySessionChecks') {
@@ -377,7 +391,7 @@ function stripVirtualFields(table, obj) {
 async function syncUpdate(table, id, patch) {
   if (!supabase) return
   const { tbl, toDb } = getConverters(table)
-  const sanitized  = table === 'students' ? sanitizeStudentBooleans(patch) : patch
+  const sanitized  = table === 'students' ? sanitizeStudentDates(sanitizeStudentBooleans(patch)) : patch
   const cleanPatch = stripVirtualFields(table, sanitized)
   await withRetry(async () => {
     // update 시도 → 실제로 반영된 행이 0개면 DB에 없는 것 → insert로 전환
