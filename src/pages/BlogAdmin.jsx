@@ -203,10 +203,24 @@ export function BlogAdmin({ user }) {
         </div>
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
           <a href="/blog" target="_blank" rel="noopener noreferrer" title="발행된 블로그 페이지를 새 탭으로 봅니다"
+            onClick={() => {
+              // 새 탭에서도 로그인 유지: sessionStorage 토큰을 localStorage로 복사
+              try {
+                const key = Object.keys(sessionStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+                if (key) localStorage.setItem(key, sessionStorage.getItem(key))
+              } catch(e) {}
+            }}
             style={{ padding:'9px 16px', borderRadius:'9px', border:`1.5px solid ${C.border}`, background:C.card, color:C.muted, fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
             🌐 블로그 보기
           </a>
           <a href="/docs" target="_blank" rel="noopener noreferrer" title="발행된 설명서 페이지를 새 탭으로 봅니다"
+            onClick={() => {
+              // 새 탭에서도 로그인 유지: sessionStorage 토큰을 localStorage로 복사
+              try {
+                const key = Object.keys(sessionStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+                if (key) localStorage.setItem(key, sessionStorage.getItem(key))
+              } catch(e) {}
+            }}
             style={{ padding:'9px 16px', borderRadius:'9px', border:`1.5px solid #bfdbfe`, background:'#eff6ff', color:'#3b82f6', fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
             📖 설명서 보기
           </a>
