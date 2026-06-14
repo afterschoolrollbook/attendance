@@ -1024,6 +1024,14 @@ export function Admin({ user: currentUser }) {
   const teachers = Users.teachers()
   const pending = Users.pending()
 
+  // 오늘 가입한 선생님 (별도 탭용) — 등급/수업안내장 여부와 무관하게 오늘 createdAt인 모든 선생님
+  const todaySignups = (() => {
+    const today = new Date().toISOString().slice(0, 10)
+    return teachers
+      .filter(t => t.createdAt?.slice(0, 10) === today)
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+  })()
+
   // 선생님 목록 필터링 + 정렬
   const filteredTeachers = (() => {
     const kw = teacherSearch.trim().toLowerCase()
@@ -1133,6 +1141,7 @@ export function Admin({ user: currentUser }) {
       {/* 탭 */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid #e5e7eb', paddingBottom: '0' }}>
         {[
+          { key: 'today',    label: `📅 오늘 가입 ${todaySignups.length}` },
           { key: 'pending',  label: `인증 대기 ${pending.length}` },
           { key: 'teachers', label: '선생님 목록' },
           { key: 'students', label: '학생 목록' },
@@ -1149,6 +1158,46 @@ export function Admin({ user: currentUser }) {
           }}>{t.label}</button>
         ))}
       </div>
+
+      {/* 오늘 가입한 선생님 */}
+      {tab === 'today' && (() => {
+        const levelColors = { 1: '#9ca3af', 2: '#f97316', 3: '#16a34a', 4: '#8b5cf6', 5: '#ef4444' }
+        return (
+        <div>
+          {todaySignups.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px', color: '#9ca3af', fontSize: '15px' }}>
+              <div style={{ fontSize: '36px', marginBottom: '12px' }}>📅</div>
+              오늘 가입한 선생님이 없습니다
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {todaySignups.map(t => (
+                <Card key={t.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>{t.name}</span>
+                        <Tag color={levelColors[t.level]} bg={`${levelColors[t.level]}18`}>Lv.{t.level} {LEVEL_NAMES[t.level] || ''}</Tag>
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px' }}>{t.email} · {t.phone}</div>
+                      <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '3px' }}>
+                        가입시각: {t.createdAt ? new Date(t.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {t.verifyImg && (
+                        <Btn size="sm" variant="ghost" onClick={() => setLightboxImg(t.verifyImg)}>🖼 수업안내장 확인</Btn>
+                      )}
+                      <Btn size="sm" variant="ghost" onClick={() => openDetail(t)}>상세보기</Btn>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+        )
+      })()}
 
       {/* 인증 대기 */}
       {tab === 'pending' && (
