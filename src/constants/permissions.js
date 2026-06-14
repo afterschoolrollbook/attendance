@@ -142,21 +142,17 @@ export function canAccessMenu(user, menuKey) {
   return (user.level || 1) >= minLevel
 }
 
-// 기존 feature 기반 권한 체크 (하위호환)
+// feature 기반 권한 체크 — 관리자 전용 기능(approve_teacher, manage_ad, manage_level)에만 사용
 export function can(user, feature) {
   if (!user) return false
   if (user.role === 'admin' || user.level >= 10) return true
   const level = user.level || 1
   const overrides = user.permissionOverrides || {}
   if (feature in overrides) return overrides[feature]
-  const stored = Settings.get('featureMinLevels') || {}
   const DEFAULT_MIN = {
-    attendance:1, manage_class:1, add_student:1, excel_upload:1,
-    view_report:1, print_attendance:1, manage_template:1,
-    shop_discount:1, shop_extra:1,
     view_all_data:10, approve_teacher:10, manage_ad:10, manage_level:10,
   }
-  const minLevel = stored[feature] ?? DEFAULT_MIN[feature] ?? 1
+  const minLevel = DEFAULT_MIN[feature] ?? 10
   return level >= minLevel
 }
 
