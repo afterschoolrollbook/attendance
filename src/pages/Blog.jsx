@@ -19,7 +19,7 @@ import React, { useState, useEffect } from 'react'
 import { dbCall, supabase } from '../lib/supabase.js'
 import { BlogAdmin } from './BlogAdmin.jsx'
 import { uid, now } from '../lib/utils.js'
-import { Settings } from '../lib/db.js'
+import { getBoardPermLevel } from '../constants/permissions.js'
 
 // ── 마크다운 파서
 // replaced
@@ -724,7 +724,7 @@ export function Blog() {
   })
   const [blogAdminMode, setBlogAdminMode] = useState(false)
 
-  const blogWriteMinLevel = Settings.get('blogWriteMinLevel') ?? 1
+  const blogWriteMinLevel = getBoardPermLevel('blog', 'write')
   const canWrite = currentUser && !currentUser._pending &&
     (currentUser.role === 'admin' || (currentUser.level ?? 1) >= (blogWriteMinLevel ?? 1))
   const isAdmin = currentUser && !currentUser._pending &&

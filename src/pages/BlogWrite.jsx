@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { dbCall } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
-import { Settings } from '../lib/db.js'
+import { getBoardPermissions } from '../constants/permissions.js'
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316', success:'#16a34a', danger:'#ef4444' }
 const iStyle = { width:'100%', padding:'9px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', background:'#fff' }
@@ -16,10 +16,7 @@ const BOARDS = [
 const BLOG_CATEGORIES = ['출석 관리', '교구 관리', '업무 팁', '기타']
 
 function getBoardPerms() {
-  const saved = Settings.get('boardPermissions') || {}
-  const result = {}
-  BOARDS.forEach(b => { result[b.key] = { access:1, read:1, write:1, ...(saved[b.key]||{}) } })
-  return result
+  return getBoardPermissions()
 }
 
 function slugify(t) {

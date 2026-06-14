@@ -19,12 +19,12 @@ import React, { useState, useEffect } from 'react'
 import { dbCall } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
-import { Settings } from '../lib/db.js'
+import { getBoardPermLevel } from '../constants/permissions.js'
 
-function getBlogWriteMinLevel()  { return Settings.get('blogWriteMinLevel')  ?? 1  }
-function getBlogNoticeMinLevel() { return Settings.get('blogNoticeMinLevel') ?? 10 }
-function getDocsWriteMinLevel()     { return Settings.get('docsWriteMinLevel')     ?? 10 }
-function getTemplateWriteMinLevel() { return Settings.get('templateWriteMinLevel') ?? 10 }
+function getBlogWriteMinLevel()     { return getBoardPermLevel('blog', 'write') }
+function getBlogNoticeMinLevel()    { return getBoardPermLevel('notice', 'write') }
+function getDocsWriteMinLevel()     { return getBoardPermLevel('docs', 'write') }
+function getTemplateWriteMinLevel() { return getBoardPermLevel('template', 'write') }
 
 const BLOG_CATEGORIES = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
 const DOCS_CATEGORIES = ['시작하기', '출석부', '교구 관리', '학생 관리', '수업 관리', '리포트', '설정', '기타']
