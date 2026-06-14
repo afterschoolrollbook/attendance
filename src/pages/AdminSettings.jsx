@@ -1388,12 +1388,10 @@ function PermissionsSection() {
   const init = {}
   PERMISSION_FEATURES.forEach(f => { init[f] = stored[f] ?? DEFAULT_MIN_LEVELS[f] ?? 1 })
   const [cfg, setCfg] = useState(init)
-  const [blogWriteMinLevel,  setBlogWriteMinLevel]  = useState(() => Settings.get('blogWriteMinLevel')  ?? 1)
-  const [blogNoticeMinLevel, setBlogNoticeMinLevel] = useState(() => Settings.get('blogNoticeMinLevel') ?? 10)
 
   // 게시판별 접근/읽기/글쓰기 권한
+  // ※ '블로그' 게시판 권한 및 블로그 작성/공지 최소레벨은 "블로그 관리 → 블로그 메뉴관리"로 이동했습니다.
   const BOARDS = [
-    { key: 'blog',    label: '📝 블로그',      icon: '📝' },
     { key: 'review',  label: '⭐ 사용자 후기',  icon: '⭐' },
     { key: 'qna',     label: '❓ 질문 게시판',  icon: '❓' },
     { key: 'secret',  label: '🔐 비밀 게시판',  icon: '🔐' },
@@ -1412,9 +1410,9 @@ function PermissionsSection() {
 
   const save = () => {
     Settings.set('featureMinLevels', cfg)
-    Settings.set('blogWriteMinLevel',  blogWriteMinLevel)
-    Settings.set('blogNoticeMinLevel', blogNoticeMinLevel)
-    Settings.set('boardPermissions',  boardPerms)
+    // 'blog' 게시판 권한은 "블로그 관리 → 블로그 메뉴관리"에서 별도 관리하므로, 기존 값을 보존하며 병합 저장
+    const prevBoardPerms = Settings.get('boardPermissions') || {}
+    Settings.set('boardPermissions', { ...prevBoardPerms, ...boardPerms })
     success('저장이 완료되었습니다.')
   }
 
@@ -1457,29 +1455,6 @@ function PermissionsSection() {
             <LevelButtons value={boardPerms[board.key]?.write ?? 1}  onChange={lv => setBoardPerm(board.key, 'write',  lv)} />
           </div>
         ))}
-      </div>
-
-      {/* 블로그 글쓰기/공지 최소 레벨 */}
-      <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'12px' }}>📝 블로그 작성 권한</div>
-      <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'24px' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', flexWrap:'wrap', gap:'10px' }}>
-          <div>
-            <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>블로그 글쓰기 최소 레벨</div>
-            <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-              현재: <span style={{ fontWeight:700, color: LEVEL_COLORS[blogWriteMinLevel] || '#9ca3af' }}>Lv.{blogWriteMinLevel} 이상</span>
-            </div>
-          </div>
-          <LevelButtons value={blogWriteMinLevel} onChange={setBlogWriteMinLevel} />
-        </div>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', flexWrap:'wrap', gap:'10px' }}>
-          <div>
-            <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>공지글 작성 최소 레벨</div>
-            <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-              현재: <span style={{ fontWeight:700, color: LEVEL_COLORS[blogNoticeMinLevel] || '#9ca3af' }}>Lv.{blogNoticeMinLevel} 이상</span>
-            </div>
-          </div>
-          <LevelButtons value={blogNoticeMinLevel} onChange={setBlogNoticeMinLevel} />
-        </div>
       </div>
 
       {/* 기존 메뉴 기능별 레벨 */}
