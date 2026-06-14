@@ -34,7 +34,12 @@ export function SaveStatusBar({ user }) {
 
   const handleUpdate = () => {
     if (newSWRef) {
+      window._swUpdateRequested = true
       newSWRef.postMessage('skipWaiting')
+      // controllerchange가 발생하지 않는 경우(참조가 stale 등)를 대비한 안전장치
+      setTimeout(() => {
+        if (window._swUpdateRequested) window.location.reload()
+      }, 2000)
     } else {
       window.location.reload()
     }
