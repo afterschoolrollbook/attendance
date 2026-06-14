@@ -35,9 +35,11 @@ const MY_NAV = [
 
 const ADMIN_NAV = [
   { path: 'admin',          label: '관리자',     icon: '⚙️', feature: FEATURES.APPROVE_TEACHER },
+  { path: 'level_manage',   label: '등급 관리',  icon: '🎖️', feature: FEATURES.MANAGE_LEVEL },
   { path: 'admin_settings', label: '서비스 설정', icon: '🔧', feature: FEATURES.MANAGE_AD },
   { path: 'adsense',        label: '광고 관리',  icon: '📢', feature: FEATURES.MANAGE_AD },
   { path: 'blog_admin',     label: '블로그 관리', icon: '📝', feature: FEATURES.MANAGE_AD },
+  { path: 'blog_menu_manage', label: '블로그 메뉴관리', icon: '📋', feature: FEATURES.MANAGE_AD },
 ]
 
 const HQ_NAV = [
@@ -132,9 +134,10 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
           <div style={{ fontSize:'11px', color:'#52525b', padding: isMobile ? '10px 16px 4px' : '12px 20px 4px', fontWeight:600, letterSpacing:'0.05em' }}>
             관리자
           </div>
-          {ADMIN_NAV.map(item => (
-            <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />
-          ))}
+          {ADMIN_NAV.map(item => {
+            if (item.feature && !can(user, item.feature)) return null
+            return <NavItem key={item.path} item={item} active={currentPage===item.path} onClick={()=>handleNav(item.path)} />
+          })}
         </>
       )}
 
