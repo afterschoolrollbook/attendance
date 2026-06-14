@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import LandingPage from './pages/LandingPage.jsx'
 import { Users } from './lib/db.js'
-import { initFromSupabase, loadCacheFromIDB, onSaveError, onDbChange, clearLocalCache, flushPendingOps } from './lib/db.js'
+import { initFromSupabase, loadCacheFromIDB, onSaveError, onDbChange, clearLocalCache } from './lib/db.js'
 import { SaveStatusBar } from './components/SaveStatusBar.jsx'
 import { isConfigured, authSignOut, authOnStateChange, authGetSession, sendEmail, dbCall } from './lib/supabase.js'
 import { Auth } from './pages/Auth.jsx'
@@ -563,12 +563,7 @@ function AppInner() {
   }
 
   async function handleLogout() {
-    // 로그아웃(=세션 종료) 전에, 미완료 작업(pending_ops)이 있다면 현재(기존) 계정 권한으로
-    // 먼저 동기화 시도 — 로컬에만 남아있던 변경사항이 로그아웃으로 사라지는 것을 방지
-    if (isConfigured) {
-      try { await flushPendingOps() } catch (e) { console.warn('[Logout] flushPendingOps 실패:', e.message) }
-      await authSignOut()
-    }
+    if (isConfigured) await authSignOut()
     await clearLocalCache()
     setUser(null)
     sessionStorage.removeItem('asa_user')
