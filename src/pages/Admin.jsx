@@ -1032,6 +1032,14 @@ export function Admin({ user: currentUser }) {
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
   })()
 
+  // 인증 목록 — Lv.2 이상(인증 완료) 선생님
+  const verifiedList = teachers
+    .filter(t => t.level >= 2)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+
+  // Pro 목록 — 준비중 (기준 미정)
+  const proList = []
+
   // 선생님 목록 필터링 + 정렬
   const filteredTeachers = (() => {
     const kw = teacherSearch.trim().toLowerCase()
@@ -1143,6 +1151,8 @@ export function Admin({ user: currentUser }) {
         {[
           { key: 'today',    label: `📅 오늘 가입 ${todaySignups.length}` },
           { key: 'pending',  label: `인증 대기 ${pending.length}` },
+          { key: 'verified', label: `인증 목록 ${verifiedList.length}` },
+          { key: 'pro',      label: `Pro 목록 ${proList.length}` },
           { key: 'teachers', label: '선생님 목록' },
           { key: 'students', label: '학생 목록' },
           { key: 'branches', label: '지사 관리' },
@@ -1229,6 +1239,50 @@ export function Admin({ user: currentUser }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 인증 목록 — Lv.2 이상(인증 완료) 선생님 */}
+      {tab === 'verified' && (() => {
+        const levelColors = { 1: '#9ca3af', 2: '#f97316', 3: '#16a34a', 4: '#8b5cf6', 5: '#ef4444' }
+        return (
+        <div>
+          {verifiedList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px', color: '#9ca3af', fontSize: '15px' }}>
+              <div style={{ fontSize: '36px', marginBottom: '12px' }}>✅</div>
+              인증된 선생님이 없습니다
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {verifiedList.map(t => (
+                <Card key={t.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>{t.name}</span>
+                        <Tag color={levelColors[t.level] || '#6b7280'} bg={`${levelColors[t.level] || '#6b7280'}18`}>Lv.{t.level} {LEVEL_NAMES[t.level] || ''}</Tag>
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px' }}>{t.email} · {t.phone}</div>
+                      <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '3px' }}>가입일: {t.createdAt?.slice(0, 10)}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <Btn size="sm" variant="ghost" onClick={() => openDetail(t)}>상세보기</Btn>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+        )
+      })()}
+
+      {/* Pro 목록 — 준비중 */}
+      {tab === 'pro' && (
+        <div style={{ textAlign: 'center', padding: '60px', color: '#9ca3af', fontSize: '15px' }}>
+          <div style={{ fontSize: '36px', marginBottom: '12px' }}>🚧</div>
+          Pro 목록 — 준비중입니다
+          <div style={{ fontSize: '12px', color: '#d1d5db', marginTop: '8px' }}>기준 설정 후 제공될 예정입니다</div>
         </div>
       )}
 
