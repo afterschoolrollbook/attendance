@@ -607,12 +607,31 @@ async function syncOrphanRecords() {
       const remoteIds = new Set(remoteRows.map(r => r.id))
       // 로컬에는 있는데 Supabase에 없는 것 → insert
       const orphans = localRows.filter(r => !remoteIds.has(r.id))
+
+      // ── [DEBUG] 진단 로그: 로컬/서버 개수와 orphan 상세 정보
+      // 문제 재발 시 원인 파악용. 정상 동작 시에는 orphans.length === 0 이라 한 줄만 출력됨.
+      console.log(`[OrphanSync][DEBUG] ${t}: local=${localRows.length}, remote=${remoteIds.size}, orphans=${orphans.length}`)
+      if (orphans.length > 0) {
+        console.log(`[OrphanSync][DEBUG] orphan 목록 (최대 10개):`,
+          orphans.slice(0, 10).map(r => ({
+            id: r.id,
+            teacherId: r.teacherId,
+            school: r.school,
+            grade: r.grade,
+            classNum: r.classNum,
+            studentStartDate: r.studentStartDate,
+            studentEndDate: r.studentEndDate,
+          }))
+        )
+      }
+
       if (orphans.length === 0) continue
       for (const r of orphans) {
         try {
           await syncInsert(t, r)
+          console.log(`[OrphanSync][DEBUG] ${t} insert 성공: ${r.id}`)
         } catch (e) {
-          console.warn(`[OrphanSync] ${t} insert 실패: ${r.id}`, e.message)
+          console.warn(`[OrphanSync] ${t} insert 실패: ${r.id} (teacherId=${r.teacherId})`, e.message)
           await pendingEnqueue({ qid: `insert_${t}_${r.id}`, type: 'insert', table: t, data: r })
         }
       }
@@ -730,9 +749,13 @@ export function stopSyncRetry() {
 // 남아있으면 OrphanSync 등에서 다른 계정 소유의 레코드를 현재 세션으로 insert 시도하다
 // RLS 정책 위반(403) 등의 에러가 발생할 수 있음 → 로그아웃 시 완전히 초기화
 export async function clearLocalCache() {
+  console.log('[clearLocalCache][DEBUG] 시작')
   stopSyncRetry()
 
   // 1) 인메모리 캐시 초기화
+  const beforeCounts = {}
+  for (const t of Object.keys(_cache)) beforeCounts[t] = (_cache[t] || []).length
+  console.log('[clearLocalCache][DEBUG] 초기화 전 캐시 개수:', beforeCounts)
   for (const t of Object.keys(_cache)) delete _cache[t]
 
   // 2) IndexedDB 캐시(tables) + 미완료 작업 큐(pending_ops) 초기화
@@ -760,6 +783,8 @@ export async function clearLocalCache() {
   } catch (e) {
     console.warn('[clearLocalCache] localStorage 초기화 실패:', e.message)
   }
+
+  console.log('[clearLocalCache][DEBUG] 완료 — IndexedDB(tables/pending_ops) + 인메모리 캐시 + lastSyncAt 초기화됨')
 }
 
 // ─── 핵심 DB 메서드
