@@ -1013,10 +1013,43 @@ export function Admin({ user: currentUser }) {
   const { toastError, success } = useToast()
   const confirm = useConfirm()
 
+  // 선생님 목록 필터
+  const [teacherSearch,   setTeacherSearch]   = useState('')   // 이름/이메일/전화번호 검색
+  const [teacherVerified, setTeacherVerified] = useState('all') // 'all' | 'verified' | 'unverified'
+  const [teacherLevel,    setTeacherLevel]    = useState('all') // 'all' | 1, 2, 3...
+  const [teacherSort,     setTeacherSort]     = useState('createdAt_desc') // 'createdAt_desc' | 'createdAt_asc'
+
   const refresh = () => forceUpdate(n => n + 1)  // ✅ DB 변경 후 화면 즉시 갱신
 
   const teachers = Users.teachers()
   const pending = Users.pending()
+
+  // 선생님 목록 필터링 + 정렬
+  const filteredTeachers = (() => {
+    const kw = teacherSearch.trim().toLowerCase()
+    const kwDigits = teacherSearch.replace(/[^0-9]/g, '')
+    let list = teachers.filter(t => {
+      if (kw) {
+        const matchText = (t.name||'').toLowerCase().includes(kw)
+          || (t.email||'').toLowerCase().includes(kw)
+        const matchPhone = kwDigits && (t.phone||'').replace(/[^0-9]/g, '').includes(kwDigits)
+        if (!matchText && !matchPhone) return false
+      }
+      if (teacherVerified === 'verified'   && !(t.level >= 2)) return false
+      if (teacherVerified === 'unverified' && !(t.level === 1)) return false
+      if (teacherLevel !== 'all' && t.level !== Number(teacherLevel)) return false
+      return true
+    })
+    list = [...list].sort((a, b) => {
+      const aT = a.createdAt || ''
+      const bT = b.createdAt || ''
+      return teacherSort === 'createdAt_asc' ? aT.localeCompare(bT) : bT.localeCompare(aT)
+    })
+    return list
+  })()
+
+  // 등급 필터용 — 실제 존재하는 등급만 옵션으로 표시
+  const teacherLevelOptions = [...new Set(teachers.map(t => t.level))].sort((a,b) => a-b)
 
   const approve = (id) => {
     Users.update(id, { level: 2, verified: true })
@@ -1149,7 +1182,43 @@ export function Admin({ user: currentUser }) {
       )}
 
       {/* 선생님 목록 */}
-      {tab === 'teachers' && (
+      {tab === 'teachers' && (() => {
+        const fC = { border:'#e5e7eb', muted:'#6b7280', primary:'#f97316' }
+        const fSelSt = { padding:'7px 11px', borderRadius:'8px', border:`1.5px solid ${fC.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', background:'#fff' }
+        const hasFilter = teacherSearch || teacherVerified !== 'all' || teacherLevel !== 'all'
+        return (
+        <div>
+          {/* 검색/필터 */}
+          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center', marginBottom:'14px' }}>
+            <input
+              value={teacherSearch} onChange={e => setTeacherSearch(e.target.value)}
+              placeholder="이름 / 이메일 / 전화번호 검색"
+              style={{ flex:1, minWidth:'200px', padding:'8px 12px', borderRadius:'9px', border:`1.5px solid ${fC.border}`, fontSize:'13px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }}
+            />
+            <select value={teacherVerified} onChange={e => setTeacherVerified(e.target.value)} style={fSelSt}>
+              <option value="all">인증 전체</option>
+              <option value="verified">인증 선생님</option>
+              <option value="unverified">미인증 선생님</option>
+            </select>
+            <select value={teacherLevel} onChange={e => setTeacherLevel(e.target.value)} style={fSelSt}>
+              <option value="all">등급 전체</option>
+              {teacherLevelOptions.map(lv => (
+                <option key={lv} value={lv}>{LEVEL_NAMES[lv] || `Lv.${lv}`}</option>
+              ))}
+            </select>
+            <select value={teacherSort} onChange={e => setTeacherSort(e.target.value)} style={fSelSt}>
+              <option value="createdAt_desc">가입일 ↓ (최신순)</option>
+              <option value="createdAt_asc">가입일 ↑ (오래된순)</option>
+            </select>
+            {hasFilter && (
+              <button onClick={() => { setTeacherSearch(''); setTeacherVerified('all'); setTeacherLevel('all') }}
+                style={{ padding:'7px 12px', borderRadius:'8px', border:`1px solid ${fC.border}`, background:'#fff', fontSize:'12px', color:fC.muted, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                초기화
+              </button>
+            )}
+            <span style={{ fontSize:'13px', color:fC.muted }}>{filteredTeachers.length}명</span>
+          </div>
+
         <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -1160,7 +1229,9 @@ export function Admin({ user: currentUser }) {
               </tr>
             </thead>
             <tbody>
-              {teachers.map((t, i) => {
+              {filteredTeachers.length === 0 ? (
+                <tr><td colSpan={7} style={{ padding:'40px', textAlign:'center', color:'#9ca3af', fontSize:'13px' }}>조건에 맞는 선생님이 없습니다</td></tr>
+              ) : filteredTeachers.map((t, i) => {
                 const levelColors = { 1: '#9ca3af', 2: '#f97316', 3: '#16a34a', 4: '#8b5cf6', 5: '#ef4444' }
                 const deleteTeacher = () => {
                   confirm(`${t.name} 선생님을 삭제하시겠습니까?\n관련 수업·학생·출석 데이터는 유지됩니다.`, () => {
@@ -1235,7 +1306,9 @@ export function Admin({ user: currentUser }) {
             </tbody>
           </table>
         </div>
-      )}
+        </div>
+        )
+      })()}
 
       {/* 학생 목록 */}
       {tab === 'students' && (() => {
@@ -1313,10 +1386,15 @@ export function Admin({ user: currentUser }) {
               {/* ── 수업 목록 ── */}
               {detailTab === 'classes' && (() => {
                 const DAY_ORDER = {'월':0,'화':1,'수':2,'목':3,'금':4,'토':5,'일':6}
+                // 기존 단일 section/time → sections 배열로 변환 (하위호환)
+                const toSecs = (c) => c.sections?.length > 0
+                  ? c.sections
+                  : [{ section: c.section || '', time: c.time || '', timeEnd: c.timeEnd || '' }]
+                const firstSection = (c) => toSecs(c)[0]?.section || ''
                 const sorted = [...teacherClasses].sort((a, b) => {
                   const dayCmp = (DAY_ORDER[a.days?.[0]] ?? 99) - (DAY_ORDER[b.days?.[0]] ?? 99)
                   if (dayCmp !== 0) return dayCmp
-                  return (a.section||'').localeCompare(b.section||'', 'ko')
+                  return firstSection(a).localeCompare(firstSection(b), 'ko')
                 })
                 // 요일+학교별 그룹핑
                 const groups = []
@@ -1340,18 +1418,26 @@ export function Admin({ user: currentUser }) {
                               {g.day && <span style={{ color: '#f97316' }}>({g.day}요일)</span>}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                              {g.items.map(c => (
+                              {g.items.map(c => {
+                                const secs = toSecs(c)
+                                return (
                                 <div key={c.id} style={{ padding: '10px 14px', borderRadius: '8px', background: '#fff', border: '1px solid #e5e7eb' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                                     <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{c.className || '수업명 미설정'}</span>
-                                    {(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) && <span style={{ fontSize: '11px', color: '#fff', background: '#8b5cf6', padding: '1px 7px', borderRadius: '10px' }}>{(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))}</span>}
+                                    {c.days?.length > 0 && <span style={{ fontSize: '12px', color: '#6b7280' }}>📅 {c.days.join(', ')}</span>}
                                   </div>
-                                  <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', gap: '10px' }}>
-                                    {c.days?.length > 0 && <span>📅 {c.days.join(', ')}</span>}
-                                    {c.time && <span>🕐 {c.time}{c.timeEnd ? ' ~ ' + c.timeEnd : ''}</span>}
+                                  {/* 분반별 시간 — 분반마다 시간이 다를 수 있음 */}
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    {secs.map((s, idx) => (
+                                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#6b7280' }}>
+                                        {s.section && <span style={{ fontSize: '11px', color: '#fff', background: '#8b5cf6', padding: '1px 7px', borderRadius: '10px', flexShrink: 0 }}>{s.section}반</span>}
+                                        {s.time && <span>🕐 {s.time}{s.timeEnd ? ' ~ ' + s.timeEnd : ''}</span>}
+                                        {!s.section && !s.time && <span style={{ color: '#d1d5db' }}>시간 미설정</span>}
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
-                              ))}
+                              )})}
                             </div>
                           </div>
                         ))
@@ -1368,7 +1454,16 @@ export function Admin({ user: currentUser }) {
                 const getOrg      = s => getMainClass(s)?.organization || s.school || '학교 미지정'
                 const getDay      = s => DAY_ORDER[getMainClass(s)?.days?.[0]] ?? 99
                 const getDayLabel = s => getMainClass(s)?.days?.[0] || ''
-                const getSec      = s => getMainClass(s)?.section || ''
+                // 분반 구분은 더 이상 수업(class)의 section이 아니라, 학생 본인에게 배정된 section 값을 기준으로 함
+                const getSec      = s => s.section || ''
+                // 학생이 배정된 분반의 시간 정보 찾기 (수업의 sections 배열에서 매칭)
+                const getSecTime  = (s, c) => {
+                  if (!c) return null
+                  const secs = c.sections?.length > 0
+                    ? c.sections
+                    : [{ section: c.section || '', time: c.time || '', timeEnd: c.timeEnd || '' }]
+                  return secs.find(sec => sec.section === s.section) || secs[0] || null
+                }
 
                 const sorted = [...teacherStudents].sort((a, b) => {
                   // 1. 요일순
@@ -1419,6 +1514,7 @@ export function Admin({ user: currentUser }) {
                                       <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
                                           <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px' }}>{s.name}</span>
+                                          {s.section && <span style={{ fontSize: '11px', color: '#fff', background: '#8b5cf6', padding: '1px 6px', borderRadius: '10px' }}>{s.section}반</span>}
                                           {s.grade && <span style={{ fontSize: '11px', color: '#fff', background: '#f97316', padding: '1px 6px', borderRadius: '10px' }}>{s.grade}학년</span>}
                                           {s.classNum && <span style={{ fontSize: '12px', color: '#6b7280' }}>{s.classNum}반</span>}
                                           {s.number && <span style={{ fontSize: '12px', color: '#9ca3af' }}>{s.number}번</span>}
@@ -1429,11 +1525,15 @@ export function Admin({ user: currentUser }) {
                                         </div>
                                       </div>
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
-                                        {studentClasses.map(c => (
-                                          <span key={c.id} style={{ fontSize: '11px', color: '#3b82f6', background: '#eff6ff', padding: '2px 8px', borderRadius: '8px', whiteSpace: 'nowrap' }}>
-                                            {c.className}{((c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : ''))) ? ' '+(c.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (c.section ? c.section+'반' : '')) : ''}
-                                          </span>
-                                        ))}
+                                        {studentClasses.map(c => {
+                                          const secInfo = getSecTime(s, c)
+                                          return (
+                                            <span key={c.id} style={{ fontSize: '11px', color: '#3b82f6', background: '#eff6ff', padding: '2px 8px', borderRadius: '8px', whiteSpace: 'nowrap' }}>
+                                              {c.className}
+                                              {secInfo?.time ? ` 🕐 ${secInfo.time}${secInfo.timeEnd ? ' ~ ' + secInfo.timeEnd : ''}` : ''}
+                                            </span>
+                                          )
+                                        })}
                                       </div>
                                     </div>
                                   </div>
