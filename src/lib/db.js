@@ -859,7 +859,9 @@ export const Users = {
   update:      (id, p) => db.update('users', id, p),
   delete:      (id)    => db.delete('users', id),
   teachers:    ()      => db.get('users').filter(u => u.role === 'teacher'),
-  pending:     ()      => db.get('users').filter(u => u.role === 'teacher' && u.level === 1 && u.verifyImg),
+  // "인증 대기" = 미인증(Lv.1) 선생님 전체. (이전엔 verifyImg가 있어야만 카운트되어,
+  // 수업안내장을 첨부하지 않은 미인증 선생님이 누락되는 문제가 있었음)
+  pending:     ()      => db.get('users').filter(u => u.role === 'teacher' && u.level === 1),
 }
 
 export const Classes = {
