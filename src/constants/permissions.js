@@ -169,3 +169,55 @@ export function getMenuMinLevel(menuKey) {
   const stored = Settings.get('menuMinLevels') || {}
   return stored[menuKey] ?? DEFAULT_MENU_MIN_LEVELS[menuKey] ?? 1
 }
+
+// ─── 게시판별 권한 (블로그/후기/질문/비밀게시판/공지/설명서/템플릿) ────────────
+// access: 메뉴 표시, read: 글 열람, write: 글쓰기 — 항목별로 사용 여부가 다름
+// (notice/docs/template은 write만 사용)
+export const BOARD_PERM_DEFAULTS = {
+  blog:     { access: 1,  read: 1,  write: 1  },
+  review:   { access: 1,  read: 1,  write: 1  },
+  qna:      { access: 1,  read: 1,  write: 1  },
+  secret:   { access: 1,  read: 1,  write: 1  },
+  notice:   { write: 10 },
+  docs:     { write: 10 },
+  template: { write: 10 },
+}
+
+// 저장된 게시판별 권한 + 기본값 병합 조회
+// (구버전 설정값 blogWriteMinLevel/blogNoticeMinLevel/docsWriteMinLevel/templateWriteMinLevel
+//  이 boardPermissions로 아직 이전되지 않았다면 1회 마이그레이션)
+export function getBoardPermissions() {
+  const saved = Settings.get('boardPermissions') || {}
+  const result = {}
+  Object.keys(BOARD_PERM_DEFAULTS).forEach(key => {
+    result[key] = { ...BOARD_PERM_DEFAULTS[key], ...(saved[key] || {}) }
+  })
+
+  const legacyMap = {
+    blog:     'blogWriteMinLevel',
+    notice:   'blogNoticeMinLevel',
+    docs:     'docsWriteMinLevel',
+    template: 'templateWriteMinLevel',
+  }
+  let migrated = false
+  const next = { ...saved }
+  Object.entries(legacyMap).forEach(([boardKey, legacyKey]) => {
+    const legacyVal = Settings.get(legacyKey)
+    if (legacyVal != null && saved[boardKey]?.write == null) {
+      result[boardKey] = { ...result[boardKey], write: legacyVal }
+      next[boardKey] = { ...(next[boardKey] || {}), write: legacyVal }
+      migrated = true
+    }
+  })
+  if (migrated) {
+    Settings.set('boardPermissions', next)
+  }
+
+  return result
+}
+
+// 특정 게시판의 특정 권한(access/read/write) 최소 레벨 조회
+export function getBoardPermLevel(boardKey, permType) {
+  const perms = getBoardPermissions()
+  return perms[boardKey]?.[permType] ?? BOARD_PERM_DEFAULTS[boardKey]?.[permType] ?? 1
+}
