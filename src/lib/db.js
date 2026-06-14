@@ -693,7 +693,7 @@ async function pendingGetAll() {
   }
 }
 
-async function flushPendingOps() {
+export async function flushPendingOps() {
   if (!supabase) return
   const ops = await pendingGetAll()
   if (ops.length === 0) return
@@ -723,6 +723,43 @@ export function startSyncRetry() {
 export function stopSyncRetry() {
   if (_retryTimer) { clearInterval(_retryTimer); _retryTimer = null }
   window.removeEventListener('online', flushPendingOps)
+}
+
+// ─── 로그아웃 시 로컬 캐시 전체 초기화
+// 같은 브라우저에서 다른 계정으로 로그인할 때, 이전 계정의 로컬 데이터(IndexedDB/캐시)가
+// 남아있으면 OrphanSync 등에서 다른 계정 소유의 레코드를 현재 세션으로 insert 시도하다
+// RLS 정책 위반(403) 등의 에러가 발생할 수 있음 → 로그아웃 시 완전히 초기화
+export async function clearLocalCache() {
+  stopSyncRetry()
+
+  // 1) 인메모리 캐시 초기화
+  for (const t of Object.keys(_cache)) delete _cache[t]
+
+  // 2) IndexedDB 캐시(tables) + 미완료 작업 큐(pending_ops) 초기화
+  try {
+    const db = await openIDB()
+    if (db) {
+      await new Promise((res) => {
+        const tx = db.transaction([IDB_STORE, PENDING_STORE], 'readwrite')
+        tx.objectStore(IDB_STORE).clear()
+        tx.objectStore(PENDING_STORE).clear()
+        tx.oncomplete = res
+        tx.onerror    = res
+      })
+    }
+  } catch (e) {
+    console.warn('[clearLocalCache] IndexedDB 초기화 실패:', e.message)
+  }
+
+  // 3) 동기화 메타데이터 + 캐시된 설정값 초기화
+  try {
+    localStorage.removeItem(LAST_SYNC_KEY)
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('asa_settings_'))
+      .forEach(k => localStorage.removeItem(k))
+  } catch (e) {
+    console.warn('[clearLocalCache] localStorage 초기화 실패:', e.message)
+  }
 }
 
 // ─── 핵심 DB 메서드
