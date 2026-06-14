@@ -1049,7 +1049,9 @@ export function Admin({ user: currentUser }) {
   })()
 
   // 등급 필터용 — 실제 존재하는 등급만 옵션으로 표시
-  const teacherLevelOptions = [...new Set(teachers.map(t => t.level))].sort((a,b) => a-b)
+  // 등급 옵션 — "인증/미인증"(level 1↔2)과는 별개의 축이므로,
+  // 현재 가입자 유무와 무관하게 LEVEL_NAMES에 정의된 전체 등급(1~10)을 보여줌
+  const teacherLevelOptions = Object.keys(LEVEL_NAMES).map(Number).sort((a,b) => a-b)
 
   const approve = (id) => {
     Users.update(id, { level: 2, verified: true })
@@ -1149,7 +1151,13 @@ export function Admin({ user: currentUser }) {
       </div>
 
       {/* 인증 대기 */}
-      {tab === 'pending' && (
+      {tab === 'pending' && (() => {
+        const today = new Date().toISOString().slice(0, 10)
+        const todaySignups = teachers
+          .filter(t => t.createdAt?.slice(0, 10) === today)
+          .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+        const levelColors = { 1: '#9ca3af', 2: '#f97316', 3: '#16a34a', 4: '#8b5cf6', 5: '#ef4444' }
+        return (
         <div>
           {pending.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px', color: '#9ca3af', fontSize: '15px' }}>
@@ -1178,8 +1186,49 @@ export function Admin({ user: currentUser }) {
               ))}
             </div>
           )}
+
+          {/* 오늘 가입한 선생님 — 인증 대기(수업안내장 제출)와 무관하게, 오늘 새로 가입한 모든 선생님 */}
+          <div style={{ marginTop: '32px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: '#111827', marginBottom: '12px' }}>
+              📅 오늘 가입한 선생님 {todaySignups.length > 0 && `(${todaySignups.length})`}
+            </div>
+            {todaySignups.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px', color: '#9ca3af', fontSize: '13px', background: '#f9fafb', borderRadius: '10px' }}>
+                오늘 가입한 선생님이 없습니다
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {todaySignups.map(t => (
+                  <Card key={t.id}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>{t.name}</span>
+                          <Tag color={levelColors[t.level]} bg={`${levelColors[t.level]}18`}>Lv.{t.level} {LEVEL_NAMES[t.level] || ''}</Tag>
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px' }}>{t.email} · {t.phone}</div>
+                        <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '3px' }}>
+                          가입시각: {t.createdAt ? new Date(t.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {t.verifyImg && (
+                          <Btn size="sm" variant="ghost" onClick={() => setLightboxImg(t.verifyImg)}>🖼 수업안내장 확인</Btn>
+                        )}
+                        {t.level === 1 && (
+                          <Btn size="sm" variant="success" onClick={() => approve(t.id)}>✅ 인증 처리</Btn>
+                        )}
+                        <Btn size="sm" variant="ghost" onClick={() => openDetail(t)}>상세보기</Btn>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* 선생님 목록 */}
       {tab === 'teachers' && (() => {
@@ -1261,7 +1310,7 @@ export function Admin({ user: currentUser }) {
                     <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6b7280' }}>{t.email}</td>
                     <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6b7280' }}>{t.phone}</td>
                     <td style={{ padding: '12px 16px' }}>
-                      <Tag color={levelColors[t.level]} bg={`${levelColors[t.level]}18`}>{LEVEL_NAMES[t.level] || 'Lv.' + t.level}</Tag>
+                      <Tag color={levelColors[t.level]} bg={`${levelColors[t.level]}18`}>Lv.{t.level} {LEVEL_NAMES[t.level] || ''}</Tag>
                     </td>
                     <td style={{ padding: '12px 16px' }}>{periodTag}</td>
                     <td style={{ padding: '12px 16px', fontSize: '13px', color: '#9ca3af' }}>{t.createdAt?.slice(0, 10)}</td>
