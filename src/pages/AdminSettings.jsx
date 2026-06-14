@@ -699,7 +699,7 @@ export function AdminSettings() {
     <div style={{ padding:'28px', maxWidth:'780px' }}>
       <PageHeader title="서비스 설정" sub="소셜 로그인 연동, 포인트 정책 등을 관리합니다." />
 
-      <div style={{ display:'flex', gap:'0', marginBottom:'24px', borderBottom:`1px solid ${C.border}`, paddingBottom:'0', overflowX:'auto' }}>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:'0', marginBottom:'24px', borderBottom:`1px solid ${C.border}`, paddingBottom:'0' }}>
         {[
           { key:'service',     label:'⚙️ 기본 설정' },
           { key:'social',      label:'🔑 소셜 로그인' },
