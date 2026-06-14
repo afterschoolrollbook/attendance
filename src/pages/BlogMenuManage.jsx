@@ -22,14 +22,23 @@ function LevelButtons({ value, onChange }) {
   )
 }
 
+const BOARDS = [
+  { key: 'blog',   label: '📝 블로그' },
+  { key: 'review', label: '⭐ 사용자 후기' },
+  { key: 'qna',    label: '❓ 질문 게시판' },
+  { key: 'secret', label: '🔐 비밀 게시판' },
+]
+
 export function BlogMenuManage({ user }) {
   const [blogWriteMinLevel,  setBlogWriteMinLevel]  = useState(() => Settings.get('blogWriteMinLevel')  ?? 1)
   const [blogNoticeMinLevel, setBlogNoticeMinLevel] = useState(() => Settings.get('blogNoticeMinLevel') ?? 10)
 
   const defaultBoardPerm = () => ({ access: 1, read: 1, write: 1 })
-  const [blogPerm, setBlogPerm] = useState(() => {
+  const [boardPerms, setBoardPerms] = useState(() => {
     const saved = Settings.get('boardPermissions') || {}
-    return { ...defaultBoardPerm(), ...(saved.blog || {}) }
+    const result = {}
+    BOARDS.forEach(b => { result[b.key] = { ...defaultBoardPerm(), ...(saved[b.key] || {}) } })
+    return result
   })
 
   const { success } = useToast()
@@ -37,25 +46,26 @@ export function BlogMenuManage({ user }) {
   const save = () => {
     Settings.set('blogWriteMinLevel',  blogWriteMinLevel)
     Settings.set('blogNoticeMinLevel', blogNoticeMinLevel)
-    // boardPermissions의 'blog' 항목만 갱신 (다른 게시판 설정은 그대로 유지)
     const prevBoardPerms = Settings.get('boardPermissions') || {}
-    Settings.set('boardPermissions', { ...prevBoardPerms, blog: blogPerm })
+    const next = { ...prevBoardPerms }
+    BOARDS.forEach(b => { next[b.key] = boardPerms[b.key] })
+    Settings.set('boardPermissions', next)
     success('저장이 완료되었습니다.')
   }
 
-  const setPerm = (permType, lv) => {
-    setBlogPerm(prev => ({ ...prev, [permType]: lv }))
+  const setPerm = (boardKey, permType, lv) => {
+    setBoardPerms(prev => ({ ...prev, [boardKey]: { ...prev[boardKey], [permType]: lv } }))
   }
 
   return (
     <div style={{ padding:'28px', maxWidth:'1100px' }}>
-      <PageHeader title="블로그 메뉴관리" sub="블로그 게시판 접근/글쓰기 권한 및 작성 최소 레벨을 설정합니다." />
+      <PageHeader title="블로그 메뉴관리" sub="게시판 접근/읽기/글쓰기 권한 및 블로그 작성 최소 레벨을 설정합니다." />
 
       <div style={{ marginTop:'20px' }}>
         <Card style={{ marginBottom:'16px' }}>
           <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>🔐 권한 설정</div>
           <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px', lineHeight:1.6 }}>
-            블로그 게시판의 최소 레벨을 설정합니다. 관리자(Lv.10)는 모든 권한이 적용됩니다.
+            게시판별 최소 레벨을 설정합니다. 관리자(Lv.10)는 모든 권한이 적용됩니다.
           </div>
 
           {/* 레벨 범례 */}
@@ -68,8 +78,8 @@ export function BlogMenuManage({ user }) {
             ))}
           </div>
 
-          {/* 게시판 권한 — 블로그 */}
-          <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'12px' }}>📋 블로그 게시판 권한</div>
+          {/* 게시판별 권한 */}
+          <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'12px' }}>📋 게시판별 권한</div>
           <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'24px' }}>
             {/* 헤더 */}
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'8px', padding:'8px 16px', background:'#f3f4f6', borderRadius:'8px', fontSize:'12px', fontWeight:700, color:C.muted }}>
@@ -78,12 +88,14 @@ export function BlogMenuManage({ user }) {
               <span>읽기 (글 열람)</span>
               <span>글쓰기</span>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'8px', padding:'12px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', alignItems:'center' }}>
-              <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>📝 블로그</div>
-              <LevelButtons value={blogPerm.access ?? 1} onChange={lv => setPerm('access', lv)} />
-              <LevelButtons value={blogPerm.read   ?? 1} onChange={lv => setPerm('read',   lv)} />
-              <LevelButtons value={blogPerm.write  ?? 1} onChange={lv => setPerm('write',  lv)} />
-            </div>
+            {BOARDS.map(board => (
+              <div key={board.key} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'8px', padding:'12px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', alignItems:'center' }}>
+                <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{board.label}</div>
+                <LevelButtons value={boardPerms[board.key]?.access ?? 1} onChange={lv => setPerm(board.key, 'access', lv)} />
+                <LevelButtons value={boardPerms[board.key]?.read   ?? 1} onChange={lv => setPerm(board.key, 'read',   lv)} />
+                <LevelButtons value={boardPerms[board.key]?.write  ?? 1} onChange={lv => setPerm(board.key, 'write',  lv)} />
+              </div>
+            ))}
           </div>
 
           {/* 블로그 글쓰기/공지 최소 레벨 */}

@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Classes as ClassesDB, Students as StudentsDB, Templates } from '../lib/db.js'
 import { calcSessionDates, today, fmtDate } from '../lib/utils.js'
 import { Btn, Card, PageHeader, Tag, EmptyState } from '../components/Atoms.jsx'
-import { can, FEATURES } from '../constants/permissions.js'
+import { canAccessMenu } from '../constants/permissions.js'
 import { useToast } from '../hooks/useToast.js'
 
 // 출석 체크 칸 기호
@@ -17,10 +17,10 @@ export function PrintSetup({ user }) {
   const [selectMode, setSelectMode] = useState('term')  // 'all' | 'term' | 'quarter' | 'session'
   const { error: toastError } = useToast()
 
-  if (!can(user, FEATURES.PRINT_ATTENDANCE)) {
+  if (!canAccessMenu(user, 'printsetup')) {
     return (
       <div style={{ padding: '28px' }}>
-        <EmptyState icon="🔒" title="인증이 필요합니다" desc="출석부 출력은 Lv.2 인증 선생님 이상만 사용할 수 있습니다." />
+        <EmptyState icon="🔒" title="접근 제한" desc="출석부 출력은 접근 권한이 있는 선생님만 사용할 수 있습니다." />
       </div>
     )
   }

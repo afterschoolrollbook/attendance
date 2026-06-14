@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Settings, SecretSettings, Students as StudentsDB, Classes as ClassesDB } from '../lib/db.js'
-import { FEATURES, FEATURE_LABELS, LEVEL_NAMES, LEVEL_COLORS } from '../constants/permissions.js'
+import { LEVEL_NAMES, LEVEL_COLORS } from '../constants/permissions.js'
 import { Card, PageHeader, Toggle, Btn, Modal, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 import { isConfigured, FUNCTIONS_BASE } from '../lib/supabase.js'
@@ -1342,160 +1342,6 @@ function TeacherServiceSection() {
   )
 }
 
-// ─── 섹션: 메뉴 권한 설정
-const PERMISSION_FEATURES = [
-  FEATURES.ATTENDANCE,
-  FEATURES.MANAGE_CLASS,
-  FEATURES.ADD_STUDENT,
-  FEATURES.EXCEL_UPLOAD,
-  FEATURES.VIEW_REPORT,
-  FEATURES.PRINT_ATTENDANCE,
-  FEATURES.MANAGE_TEMPLATE,
-  FEATURES.SHOP_DISCOUNT,
-  FEATURES.SHOP_EXTRA,
-]
-
-const DEFAULT_MIN_LEVELS = {
-  [FEATURES.ATTENDANCE]:       1,
-  [FEATURES.MANAGE_CLASS]:     1,
-  [FEATURES.ADD_STUDENT]:      1,
-  [FEATURES.EXCEL_UPLOAD]:     1,
-  [FEATURES.VIEW_REPORT]:      1,
-  [FEATURES.PRINT_ATTENDANCE]: 1,
-  [FEATURES.MANAGE_TEMPLATE]:  1,
-  [FEATURES.SHOP_DISCOUNT]:    1,
-  [FEATURES.SHOP_EXTRA]:       1,
-}
-
-// ─── 권한 레벨 선택 버튼 (PermissionsSection 밖으로 분리)
-function LevelButtons({ value, onChange }) {
-  return (
-    <div style={{ display:'flex', gap:'3px', flexWrap:'wrap' }}>
-      {[1,2,3,4,5,6,7,8,9,10].map(lv => (
-        <button key={lv} onClick={() => onChange(lv)}
-          style={{ width:'28px', height:'28px', borderRadius:'6px', border:'none', cursor:'pointer', fontSize:'11px', fontWeight:700,
-            background: value === lv ? (LEVEL_COLORS[lv] || '#9ca3af') : '#f3f4f6',
-            color: value === lv ? '#fff' : '#9ca3af', transition:'all .15s', fontFamily:'Noto Sans KR, sans-serif' }}>
-          {lv}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function PermissionsSection() {
-  const stored = Settings.get('featureMinLevels') || {}
-  const init = {}
-  PERMISSION_FEATURES.forEach(f => { init[f] = stored[f] ?? DEFAULT_MIN_LEVELS[f] ?? 1 })
-  const [cfg, setCfg] = useState(init)
-
-  // 게시판별 접근/읽기/글쓰기 권한
-  // ※ '블로그' 게시판 권한 및 블로그 작성/공지 최소레벨은 "블로그 관리 → 블로그 메뉴관리"로 이동했습니다.
-  const BOARDS = [
-    { key: 'review',  label: '⭐ 사용자 후기',  icon: '⭐' },
-    { key: 'qna',     label: '❓ 질문 게시판',  icon: '❓' },
-    { key: 'secret',  label: '🔐 비밀 게시판',  icon: '🔐' },
-    { key: 'docs',    label: '📖 설명서',       icon: '📖' },
-    { key: 'template',label: '📋 템플릿',       icon: '📋' },
-  ]
-  const defaultBoardPerm = () => ({ access: 1, read: 1, write: 1 })
-  const [boardPerms, setBoardPerms] = useState(() => {
-    const saved = Settings.get('boardPermissions') || {}
-    const result = {}
-    BOARDS.forEach(b => { result[b.key] = { ...defaultBoardPerm(), ...(saved[b.key] || {}) } })
-    return result
-  })
-
-  const { success } = useToast()
-
-  const save = () => {
-    Settings.set('featureMinLevels', cfg)
-    // 'blog' 게시판 권한은 "블로그 관리 → 블로그 메뉴관리"에서 별도 관리하므로, 기존 값을 보존하며 병합 저장
-    const prevBoardPerms = Settings.get('boardPermissions') || {}
-    Settings.set('boardPermissions', { ...prevBoardPerms, ...boardPerms })
-    success('저장이 완료되었습니다.')
-  }
-
-  const setBoardPerm = (boardKey, permType, lv) => {
-    setBoardPerms(prev => ({ ...prev, [boardKey]: { ...prev[boardKey], [permType]: lv } }))
-  }
-
-  return (
-    <Card style={{ marginBottom:'16px' }}>
-      <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>🔐 권한 설정</div>
-      <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px', lineHeight:1.6 }}>
-        게시판 및 메뉴별 최소 레벨을 설정합니다. 관리자(Lv.10)는 모든 권한이 적용됩니다.
-      </div>
-
-      {/* 레벨 범례 */}
-      <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', marginBottom:'24px', padding:'12px 16px', background:'#f9fafb', borderRadius:'10px', border:`1px solid ${C.border}` }}>
-        {[1,2,3,4,5,6,7,8,9,10].map(lv => (
-          <div key={lv} style={{ display:'flex', alignItems:'center', gap:'5px' }}>
-            <span style={{ width:'20px', height:'20px', borderRadius:'5px', background: LEVEL_COLORS[lv] || '#9ca3af', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:'10px', fontWeight:700, color:'#fff' }}>{lv}</span>
-            <span style={{ fontSize:'11px', color:C.muted }}>{LEVEL_NAMES[lv]}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* 게시판 권한 */}
-      <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'12px' }}>📋 게시판별 권한</div>
-      <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'24px' }}>
-        {/* 헤더 */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'8px', padding:'8px 16px', background:'#f3f4f6', borderRadius:'8px', fontSize:'12px', fontWeight:700, color:C.muted }}>
-          <span>게시판</span>
-          <span>접근 (메뉴 표시)</span>
-          <span>읽기 (글 열람)</span>
-          <span>글쓰기</span>
-        </div>
-        {BOARDS.map(board => (
-          <div key={board.key} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'8px', padding:'12px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', alignItems:'center' }}>
-            <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{board.label}</div>
-            <LevelButtons value={boardPerms[board.key]?.access ?? 1} onChange={lv => setBoardPerm(board.key, 'access', lv)} />
-            <LevelButtons value={boardPerms[board.key]?.read ?? 1}   onChange={lv => setBoardPerm(board.key, 'read',   lv)} />
-            <LevelButtons value={boardPerms[board.key]?.write ?? 1}  onChange={lv => setBoardPerm(board.key, 'write',  lv)} />
-          </div>
-        ))}
-      </div>
-
-      {/* 기존 메뉴 기능별 레벨 */}
-      <div style={{ fontSize:'14px', fontWeight:700, color:C.text, marginBottom:'12px' }}>🔐 메뉴 기능별 최소 레벨</div>
-      <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-        {PERMISSION_FEATURES.map(feature => {
-          const info = FEATURE_LABELS[feature] || { label: feature, icon: '📌' }
-          const current = cfg[feature] || 1
-          return (
-            <div key={feature} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${C.border}`, background:'#fff', flexWrap:'wrap', gap:'10px' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-                <span style={{ fontSize:'18px', width:'24px', textAlign:'center' }}>{info.icon}</span>
-                <div>
-                  <div style={{ fontSize:'14px', fontWeight:600, color:C.text }}>{info.label}</div>
-                  <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                    현재: <span style={{ fontWeight:700, color: LEVEL_COLORS[current] || '#9ca3af' }}>Lv.{current} 이상</span>
-                  </div>
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
-                {[1,2,3,4,5,6,7,8,9,10].map(lv => (
-                  <button key={lv} onClick={() => setCfg(p => ({ ...p, [feature]: lv }))}
-                    style={{ width:'32px', height:'32px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:'13px', fontWeight:700,
-                      background: current === lv ? (LEVEL_COLORS[lv] || '#9ca3af') : '#f3f4f6',
-                      color: current === lv ? '#fff' : '#9ca3af', transition:'all .15s', fontFamily:'Noto Sans KR, sans-serif' }}>
-                    {lv}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'16px' }}>
-        <Btn onClick={save}>💾 저장</Btn>
-      </div>
-    </Card>
-  )
-}
-
 // ─── 섹션: 약관 / 개인정보처리방침
 function LegalSection() {
   const DEFAULT_TERMS = `방과후 출석부 서비스 이용약관
@@ -1650,7 +1496,6 @@ export function AdminSettings() {
           { key:'service',     label:'⚙️ 기본 설정' },
           { key:'region',      label:'🗺️ 지역/학교' },
           { key:'teacher',     label:'🎓 강사 서비스' },
-          { key:'permissions', label:'🔐 메뉴 권한' },
           { key:'legal',       label:'📜 약관 관리' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
@@ -1667,7 +1512,6 @@ export function AdminSettings() {
       {tab === 'service'     && <ServiceSection />}
       {tab === 'region'      && <RegionSection />}
       {tab === 'teacher'     && <TeacherServiceSection />}
-      {tab === 'permissions' && <PermissionsSection />}
       {tab === 'legal'       && <LegalSection />}
     </div>
   )
