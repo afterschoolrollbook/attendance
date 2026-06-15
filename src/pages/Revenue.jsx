@@ -36,15 +36,35 @@ function isInTerm(s, term) {
   return careers.some(c => String(c.term) === String(periodNo))
 }
 
-// ★ 특정 텀의 출석부 기준 현재 인원 — 그 학기/분기에 속하면서 현재 확정 상태인 학생
+// ★ 전학/취소된 학생의 실제 퇴원(이탈) 날짜 — statusHistory/cancel_info에서 추출
+function getDepartureDate(s) {
+  if (s.status === 'transfer_out') {
+    const h = (s.statusHistory || []).slice().reverse().find(h => h.status === 'transfer_out' && h.memo?.startsWith('[전학]'))
+    const m = h?.memo?.match(/\d{4}-\d{2}-\d{2}/)
+    return m?.[0] || null
+  }
+  if (s.status === 'cancelled' || s.status === 'cancel_after' || s.status === 'cancel_before') {
+    const ci = typeof s.cancel_info === 'string'
+      ? (() => { try { return JSON.parse(s.cancel_info) } catch { return null } })()
+      : s.cancel_info
+    return ci?.date || null
+  }
+  return null
+}
+
+// ★ 특정 텀의 출석부 기준 인원 — 그 학기/분기에 속하고, 이 텀 시작일 이후까지 재원했던 학생
+//   (전학/취소 날짜가 이 텀 시작일 이후면 이 텀까지는 포함하고, 다음 텀부터 제외)
 function termRosterCount(students, classId, sec, term) {
   if (!term) return 0
   return students.filter(s => {
     if (!s.classIds?.includes(classId)) return false
-    if (s.status !== 'confirmed') return false
-    if (sec) return (s.section || '') === sec
-    return true
-  }).filter(s => isInTerm(s, term)).length
+    if (sec && (s.section || '') !== sec) return false
+    if (!isInTerm(s, term)) return false
+    if (s.status === 'confirmed') return true
+    const dep = getDepartureDate(s)
+    if (!dep) return false
+    return dep > term.startDate
+  }).length
 }
 
 // ★ 직전 텀 종료일 ~ 이번 텀 종료일 사이에 발생한 전학/취소 인원
@@ -57,18 +77,10 @@ function termDepartures(students, classId, sec, term, prevTerm) {
     if (!s.classIds?.includes(classId)) return
     if (sec && (s.section || '') !== sec) return
     if (!isInTerm(s, term)) return
-    if (s.status === 'transfer_out') {
-      const h = (s.statusHistory || []).slice().reverse().find(h => h.status === 'transfer_out' && h.memo?.startsWith('[전학]'))
-      const m = h?.memo?.match(/\d{4}-\d{2}-\d{2}/)
-      const d = m?.[0]
-      if (d && d > from && d <= to) result.transfer++
-    } else if (s.status === 'cancelled' || s.status === 'cancel_after' || s.status === 'cancel_before') {
-      const ci = typeof s.cancel_info === 'string'
-        ? (() => { try { return JSON.parse(s.cancel_info) } catch { return null } })()
-        : s.cancel_info
-      const d = ci?.date
-      if (d && d > from && d <= to) result.cancel++
-    }
+    const d = getDepartureDate(s)
+    if (!d || !(d > from && d <= to)) return
+    if (s.status === 'transfer_out') result.transfer++
+    else result.cancel++
   })
   return result
 }

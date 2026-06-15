@@ -70,6 +70,29 @@ function isInCurrentTerm(s, cls, date) {
   return careers.some(c => String(c.term) === currentTermNum)
 }
 
+// 전학/취소된 학생의 실제 퇴원(이탈) 날짜 — statusHistory/cancel_info에서 추출
+function getDepartureDate(s) {
+  if (s.status === 'transfer_out') {
+    const h = (s.statusHistory || []).slice().reverse().find(h => h.status === 'transfer_out' && h.memo?.startsWith('[전학]'))
+    const m = h?.memo?.match(/\d{4}-\d{2}-\d{2}/)
+    return m?.[0] || null
+  }
+  if (s.status === 'cancelled' || s.status === 'cancel_after' || s.status === 'cancel_before') {
+    const ci = typeof s.cancel_info === 'string'
+      ? (() => { try { return JSON.parse(s.cancel_info) } catch { return null } })()
+      : s.cancel_info
+    return ci?.date || null
+  }
+  return null
+}
+
+// 해당 날짜 기준으로 재원 중이었는지 — 전학/취소 이후라도 그 날짜가 이탈일 이전이면 재원으로 간주
+function isActiveOnDate(s, date) {
+  if (['applied','selected','confirmed'].includes(s.status)) return true
+  const dep = getDepartureDate(s)
+  return !!dep && date < dep
+}
+
 
 // ─── 공통 접기/펼치기 헤더 (LessonMemoPanel 밖으로 분리)
 function SectionHeader({ sectionKey, label, count, color, openSections, toggleSection }) {
@@ -3081,7 +3104,7 @@ function ClassAttendanceSection({ cls, date, allStudents, allClasses, user }) {
   // 반별 그룹핑을 위해 section 기준으로 정렬
   // 현재방식: 학생의 section 필드 / 예전방식: 수업카드의 section
   const activeStudents = allStudents.filter(s =>
-    s.classIds?.includes(cls.id) && ['applied','selected','confirmed'].includes(s.status) && isInCurrentTerm(s, cls, date)
+    s.classIds?.includes(cls.id) && isActiveOnDate(s, date) && isInCurrentTerm(s, cls, date)
   )
   const inactiveStudents = allStudents.filter(s =>
     s.classIds?.includes(cls.id) && ['cancelled','waiting'].includes(s.status)
@@ -3259,7 +3282,7 @@ function DayAttendancePanel({ date, allClasses, allStudents, schoolClasses, user
           </div>
           <div style={{ padding:'12px 16px' }}>
             {classes.map(cls => {
-              const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before'].includes(s.status) && isInCurrentTerm(s, cls, date))
+              const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before','transfer_out'].includes(s.status) && isInCurrentTerm(s, cls, date))
               return <UnifiedPanel key={cls.id + date} cls={cls} date={date} students={clsStudents} user={user} allClasses={allClasses} onNav={onNav} />
             })}
           </div>
@@ -3386,7 +3409,7 @@ function UnifiedPanel({ cls, date, students, user, allClasses, onNav }) {
     return m ? m[0] : null
   }
   const activeStudents      = students.filter(s => {
-    if (!['applied','selected','confirmed'].includes(s.status)) return false
+    if (!isActiveOnDate(s, date)) return false
     const scDate = getScheduleChangeDate(s.id)
     if (scDate && date > scDate) return false
     if (!isInCurrentTerm(s, cls, date)) return false
@@ -4259,7 +4282,7 @@ function MobileAttendance({ user, pageParams = {} }) {
   const students = selClass
     ? [...allStudents.filter(s => {
         if (!s.classIds?.includes(selClass.id)) return false
-        if (!['applied','selected','confirmed'].includes(s.status)) return false
+        if (!isActiveOnDate(s, selDate)) return false
         // 반 필터 (현재방식: 학생 section / 예전방식: 수업카드 section)
         if (calSelSection) {
           const studentSec = s.section || ''
@@ -5086,7 +5109,7 @@ function DesktopAttendance({ user, pageParams = {}, onNav }) {
               ) : (
                 <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
                   {schoolClasses.map(cls => {
-                    const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before'].includes(s.status) && isInCurrentTerm(s, cls, selDate))
+                    const clsStudents = allStudents.filter(s => s.classIds?.includes(cls.id) && ['applied','selected','confirmed','cancelled','waiting','cancel_after','cancel_before','transfer_out'].includes(s.status) && isInCurrentTerm(s, cls, selDate))
                     return <UnifiedPanel key={cls.id + selDate + rightPanelTick} cls={cls} date={selDate} students={clsStudents} user={user} allClasses={allClasses} onNav={onNav} />
                   })}
                 </div>
