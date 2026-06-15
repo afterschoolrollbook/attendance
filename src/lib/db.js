@@ -382,9 +382,11 @@ const VIRTUAL_FIELDS = {
 }
 function stripVirtualFields(table, obj) {
   const vf = VIRTUAL_FIELDS[table]
-  if (!vf) return obj
+  const needsDeletedStrip = NO_DELETED_TABLES.has(table) && ('_deleted' in obj || 'deleted' in obj)
+  if (!vf && !needsDeletedStrip) return obj
   const result = { ...obj }
-  for (const key of vf) delete result[key]
+  if (vf) for (const key of vf) delete result[key]
+  if (needsDeletedStrip) { delete result._deleted; delete result.deleted }
   return result
 }
 
