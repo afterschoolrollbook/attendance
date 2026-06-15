@@ -13,7 +13,7 @@ export function SaveStatusBar({ user }) {
   const [mobileConnected, setMobileConnected] = useState(false)
   const [mobileCount, setMobileCount]         = useState(0)
   const [collapsed, setCollapsed]             = useState(false)
-  const [pos, setPos]                         = useState({ x: null, y: 16 })
+  const [pos, setPos]                         = useState({ x: 16, y: 16 })
   const [dragging, setDragging]               = useState(false)
   const [updateReady, setUpdateReady]         = useState(false)
   const [newSWRef, setNewSWRef]               = useState(null)
@@ -105,7 +105,7 @@ export function SaveStatusBar({ user }) {
     const onMove = (e) => {
       const cx = e.touches ? e.touches[0].clientX : e.clientX
       const cy = e.touches ? e.touches[0].clientY : e.clientY
-      setPos({ x: cx - dragOffset.current.x, y: Math.max(0, cy - dragOffset.current.y) })
+      setPos({ x: Math.max(0, cx - dragOffset.current.x), y: Math.max(0, cy - dragOffset.current.y) })
     }
     const onUp = () => setDragging(false)
     window.addEventListener('mousemove', onMove)
