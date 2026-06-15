@@ -370,8 +370,7 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <button onClick={onGoBlog} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.muted, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>블로그</button>
             {onGoDashboard
-              ? <><button onClick={onGoDashboard} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.muted, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>대시보드</button>
-></>
+              ? <><button onClick={onGoDashboard} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.muted, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>대시보드</button></>
               : <>
                   <button onClick={onGoLogin} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.muted, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>로그인</button>
                   <button onClick={onGoSignup} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.muted, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>회원가입</button>
