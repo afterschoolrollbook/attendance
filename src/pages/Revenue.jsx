@@ -210,8 +210,24 @@ export function Revenue({ user }) {
 
   const sorted = useMemo(() => {
     const DAY_ORDER = ['월','화','수','목','금','토','일']
+    // 출석부와 동일하게: 학교+수업명+요일이 같은 중복 카드는 통합카드(sections 많은 쪽)를 우선 사용
+    const deduped = []
+    const seenKey = {}
+    classes.forEach(cls => {
+      const key = (cls.organization||'') + '__' + (cls.className||'') + '__' + (cls.days?.join(',') || '')
+      if (seenKey[key] !== undefined) {
+        const prevIdx = seenKey[key]
+        const prev = deduped[prevIdx]
+        const prevSecs = prev.sections?.filter(s => s.section)?.length || 0
+        const curSecs  = cls.sections?.filter(s => s.section)?.length || 0
+        if (curSecs > prevSecs) deduped[prevIdx] = cls
+      } else {
+        seenKey[key] = deduped.length
+        deduped.push(cls)
+      }
+    })
     // 통합카드(sections 2개 이상)는 반별로 분리
-    const expanded = classes.flatMap(cls => {
+    const expanded = deduped.flatMap(cls => {
       const secs = cls.sections?.filter(s => s.section) || []
       if (secs.length > 1) {
         return secs.map(sec => ({
