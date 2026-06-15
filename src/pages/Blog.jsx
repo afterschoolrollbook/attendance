@@ -392,15 +392,19 @@ function BlogDetail({ post, onBack }) {
 }
 
 // ── 블로그 인라인 글쓰기 폼 (사용후기/부탁해요~ 목록에서 마이페이지로 가지 않고 바로 작성)
-function InlineWriteForm({ currentUser, boardType, boardLabel, color, placeholder, onSaved, onCancel }) {
+function InlineWriteForm({ currentUser, boardType, boardLabel, color, placeholder, writePerm, onSaved, onCancel }) {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [isPrivateRequest, setIsPrivateRequest] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const iStyle = { width:'100%', padding:'10px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', background:'#fff' }
+  const allowed = writePerm?.allowed ?? true
 
   const handleSubmit = async () => {
+    if (!allowed) {
+      return alert(`글쓰기 권한이 없습니다. (현재 Lv.${writePerm?.currentLevel ?? 1} / 필요 Lv.${writePerm?.requiredLevel ?? 1} 이상)`)
+    }
     if (!title.trim()) return alert('제목을 입력해주세요.')
     if (!content.trim()) return alert('내용을 입력해주세요.')
     setSaving(true)
@@ -431,6 +435,11 @@ function InlineWriteForm({ currentUser, boardType, boardLabel, color, placeholde
   return (
     <div style={{ background:'#fff', borderRadius:'14px', border:`1.5px solid ${color}`, padding:'20px 22px', marginBottom:'28px', display:'flex', flexDirection:'column', gap:'10px' }}>
       <div style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>✏️ {boardLabel} 작성</div>
+      {!allowed && (
+        <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'10px', padding:'10px 14px', fontSize:'13px', color:'#dc2626', fontWeight:600 }}>
+          ⚠️ 현재 등급(Lv.{writePerm?.currentLevel ?? 1})으로는 글쓰기 권한이 없습니다. (Lv.{writePerm?.requiredLevel ?? 1} 이상 필요) — 작성은 가능하지만 등록되지 않습니다.
+        </div>
+      )}
       <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="제목을 입력하세요" style={{ ...iStyle, fontWeight:700 }} />
       <textarea value={content} onChange={e=>setContent(e.target.value)} placeholder={placeholder} rows={5} style={{ ...iStyle, resize:'vertical', lineHeight:1.7 }} />
       {boardType === 'request' && (
@@ -441,7 +450,7 @@ function InlineWriteForm({ currentUser, boardType, boardLabel, color, placeholde
       )}
       <div style={{ display:'flex', justifyContent:'flex-end', gap:'8px' }}>
         {onCancel && <button onClick={onCancel} style={{ padding:'8px 18px', borderRadius:'8px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>}
-        <button onClick={handleSubmit} disabled={saving} style={{ padding:'8px 22px', borderRadius:'8px', border:'none', background:color, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+        <button onClick={handleSubmit} disabled={saving} style={{ padding:'8px 22px', borderRadius:'8px', border:'none', background:allowed ? color : '#9ca3af', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           {saving ? '등록 중...' : '등록'}
         </button>
       </div>
@@ -450,7 +459,7 @@ function InlineWriteForm({ currentUser, boardType, boardLabel, color, placeholde
 }
 
 // ── 사용후기 목록
-function ReviewList({ posts, onSelect, currentUser, canWrite, onPostSaved }) {
+function ReviewList({ posts, onSelect, currentUser, loggedIn, writePerm, onPostSaved }) {
   const [search, setSearch] = useState('')
   const [writing, setWriting] = useState(false)
   const filtered = posts.filter(p => {
@@ -468,7 +477,7 @@ function ReviewList({ posts, onSelect, currentUser, canWrite, onPostSaved }) {
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'24px' }}>
         <SearchBar value={search} onChange={setSearch} placeholder="후기 제목, 내용으로 검색..." />
       </div>
-      {canWrite && !writing && (
+      {loggedIn && !writing && (
         <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'16px' }}>
           <button onClick={() => setWriting(true)}
             style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#eab308', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
@@ -476,10 +485,11 @@ function ReviewList({ posts, onSelect, currentUser, canWrite, onPostSaved }) {
           </button>
         </div>
       )}
-      {canWrite && writing && (
+      {loggedIn && writing && (
         <InlineWriteForm
           currentUser={currentUser} boardType="review" boardLabel="사용후기" color="#eab308"
           placeholder="방과후 출석부를 사용하면서 느낀 점을 자유롭게 작성해주세요."
+          writePerm={writePerm}
           onCancel={() => setWriting(false)}
           onSaved={() => { setWriting(false); onPostSaved?.() }}
         />
@@ -513,7 +523,7 @@ function ReviewList({ posts, onSelect, currentUser, canWrite, onPostSaved }) {
         </div>
       )}
       {/* CTA */}
-      {!canWrite && (
+      {!loggedIn && (
         <div style={{ marginTop:'48px', background:'linear-gradient(135deg,#fefce8,#fff)', border:'2px solid #fef08a', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
           <div style={{ fontSize:'24px', marginBottom:'12px' }}>✍️</div>
           <h3 style={{ fontSize:'18px', fontWeight:700, color:'#92400e', marginBottom:'8px' }}>방과후 출석부를 사용해보셨나요?</h3>
@@ -562,7 +572,7 @@ function ReviewDetail({ post, onBack }) {
 }
 
 // ── 부탁해요~ (요청게시판) 목록
-function RequestList({ posts, onSelect, currentUser, isAdmin, canWrite, onPostSaved }) {
+function RequestList({ posts, onSelect, currentUser, isAdmin, loggedIn, writePerm, onPostSaved }) {
   const [search, setSearch] = useState('')
   const [writing, setWriting] = useState(false)
   const filtered = posts.filter(p => {
@@ -581,7 +591,7 @@ function RequestList({ posts, onSelect, currentUser, isAdmin, canWrite, onPostSa
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'24px' }}>
         <SearchBar value={search} onChange={setSearch} placeholder="요청 제목으로 검색..." />
       </div>
-      {canWrite && !writing && (
+      {loggedIn && !writing && (
         <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'16px' }}>
           <button onClick={() => setWriting(true)}
             style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#16a34a', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
@@ -589,10 +599,11 @@ function RequestList({ posts, onSelect, currentUser, isAdmin, canWrite, onPostSa
           </button>
         </div>
       )}
-      {canWrite && writing && (
+      {loggedIn && writing && (
         <InlineWriteForm
           currentUser={currentUser} boardType="request" boardLabel="부탁해요~" color="#16a34a"
           placeholder="관리자에게 요청하고 싶은 기능이나 도움을 자유롭게 작성해주세요."
+          writePerm={writePerm}
           onCancel={() => setWriting(false)}
           onSaved={() => { setWriting(false); onPostSaved?.() }}
         />
@@ -627,7 +638,7 @@ function RequestList({ posts, onSelect, currentUser, isAdmin, canWrite, onPostSa
         </div>
       )}
       {/* CTA */}
-      {!canWrite && (
+      {!loggedIn && (
         <div style={{ marginTop:'48px', background:'linear-gradient(135deg,#f0fdf4,#fff)', border:'2px solid #bbf7d0', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
           <div style={{ fontSize:'24px', marginBottom:'12px' }}>🙏</div>
           <h3 style={{ fontSize:'18px', fontWeight:700, color:'#15803d', marginBottom:'8px' }}>필요한 기능이 있으신가요?</h3>
@@ -990,7 +1001,7 @@ function renderNav({ blogAdminMode, switchTab, tab, selPost, currentUser, canWri
 }
 
 // ─── 본문 영역 (Blog 밖으로 분리, 일반 렌더 함수)
-function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, reviewPosts, requestPosts, handleBack, handleSelect, tab, isAdmin, canWriteBoard, onPostSaved }) {
+function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, reviewPosts, requestPosts, handleBack, handleSelect, tab, isAdmin, loggedIn, getWritePermInfo, onPostSaved }) {
   if (blogAdminMode) return <div style={{ padding:'24px' }}><BlogAdmin user={currentUser} /></div>
   if (selPost) {
     if (selPost.type === 'docs') return <DocsDetail doc={selPost} allDocs={docsPosts} onBack={handleBack} onSelect={handleSelect} />
@@ -1001,8 +1012,8 @@ function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, tem
   }
   if (tab === 'docs') return <DocsList docs={docsPosts} onSelect={handleSelect} />
   if (tab === 'templates') return <TemplateList posts={templatePosts} onSelect={handleSelect} />
-  if (tab === 'reviews') return <ReviewList posts={reviewPosts} onSelect={handleSelect} currentUser={currentUser} canWrite={canWriteBoard('review')} onPostSaved={onPostSaved} />
-  if (tab === 'requests') return <RequestList posts={requestPosts} onSelect={handleSelect} currentUser={currentUser} isAdmin={isAdmin} canWrite={canWriteBoard('request')} onPostSaved={onPostSaved} />
+  if (tab === 'reviews') return <ReviewList posts={reviewPosts} onSelect={handleSelect} currentUser={currentUser} loggedIn={loggedIn} writePerm={getWritePermInfo('review')} onPostSaved={onPostSaved} />
+  if (tab === 'requests') return <RequestList posts={requestPosts} onSelect={handleSelect} currentUser={currentUser} isAdmin={isAdmin} loggedIn={loggedIn} writePerm={getWritePermInfo('request')} onPostSaved={onPostSaved} />
   return <BlogList posts={blogPosts} onSelect={handleSelect} />
 }
 
@@ -1038,6 +1049,7 @@ export function Blog() {
     (currentUser.role === 'admin' || (currentUser.level ?? 1) >= (blogWriteMinLevel ?? 1))
   const isAdmin = currentUser && !currentUser._pending &&
     (currentUser.role === 'admin' || (currentUser.level ?? 1) >= 10)
+  const loggedIn = !!(currentUser && !currentUser._pending)
 
   const canWriteBoard = (boardKey) => {
     if (!currentUser || currentUser._pending) return false
@@ -1045,6 +1057,13 @@ export function Blog() {
     const minLevel = getBoardPermLevel(boardKey, 'write')
     return (currentUser.level ?? 1) >= (minLevel ?? 1)
   }
+
+  // 글쓰기 폼에 표시할 권한 정보 (현재 레벨 / 필요 레벨)
+  const getWritePermInfo = (boardKey) => ({
+    allowed: canWriteBoard(boardKey),
+    currentLevel: currentUser?.level ?? 1,
+    requiredLevel: getBoardPermLevel(boardKey, 'write') ?? 1,
+  })
 
   const blogPosts = allPosts.filter(p => {
     const type = p.type || 'blog'
@@ -1178,7 +1197,7 @@ export function Blog() {
           </div>
         </div>
         <div style={{ flex:1, minWidth:0, maxWidth:'1100px' }}>
-          {renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, reviewPosts, requestPosts, handleBack, handleSelect, tab, isAdmin, canWriteBoard, onPostSaved: loadPosts })}
+          {renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, reviewPosts, requestPosts, handleBack, handleSelect, tab, isAdmin, loggedIn, getWritePermInfo, onPostSaved: loadPosts })}
           {!blogAdminMode && (
             <div style={{ padding:'0 20px 40px' }}>
               <AdSense slot="3333333333" label="하단 광고" style={{ minHeight:'90px' }} />
