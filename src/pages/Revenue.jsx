@@ -37,7 +37,7 @@ function isInTerm(s, term) {
   return careers.some(c => String(c.term) === String(periodNo))
 }
 
-// ★ 특정 텀(학기/분기·텀)의 출석부 기준 현재 인원 — 그 학기/분기에 속하면서 현재 확정 상태인 학생
+// ★ 특정 텀의 출석부 기준 현재 인원 — 그 학기/분기에 속하면서 현재 확정 상태인 학생
 function termRosterCount(students, classId, sec, term) {
   if (!term) return 0
   return students.filter(s => {
@@ -46,6 +46,32 @@ function termRosterCount(students, classId, sec, term) {
     if (sec) return (s.section || '') === sec
     return true
   }).filter(s => isInTerm(s, term)).length
+}
+
+// ★ 직전 텀 종료일 ~ 이번 텀 종료일 사이에 발생한 전학/취소 인원
+function termDepartures(students, classId, sec, term, prevTerm) {
+  const result = { cancel: 0, transfer: 0 }
+  if (!term || !prevTerm) return result
+  const from = prevTerm.endDate
+  const to = term.endDate
+  students.forEach(s => {
+    if (!s.classIds?.includes(classId)) return
+    if (sec && (s.section || '') !== sec) return
+    if (!isInTerm(s, term)) return
+    if (s.status === 'transfer_out') {
+      const h = (s.statusHistory || []).slice().reverse().find(h => h.status === 'transfer_out' && h.memo?.startsWith('[전학]'))
+      const m = h?.memo?.match(/\d{4}-\d{2}-\d{2}/)
+      const d = m?.[0]
+      if (d && d > from && d <= to) result.transfer++
+    } else if (s.status === 'cancelled' || s.status === 'cancel_after' || s.status === 'cancel_before') {
+      const ci = typeof s.cancel_info === 'string'
+        ? (() => { try { return JSON.parse(s.cancel_info) } catch { return null } })()
+        : s.cancel_info
+      const d = ci?.date
+      if (d && d > from && d <= to) result.cancel++
+    }
+  })
+  return result
 }
 
 function payMatchesTerm(p, term, classId) {
@@ -1363,17 +1389,25 @@ export function Revenue({ user }) {
                           const clsTerms = getTerms(cls)
                           const lastEndedNo = clsTerms.filter(t=>t.endDate&&t.endDate<payDate).reduce((mx,t)=>Math.max(mx,t.termNo),0)
                           const curTerm = clsTerms.find(t=>t.termNo===lastEndedNo+1)||clsTerms.find(t=>t.startDate<=payDate&&t.endDate>=payDate)||clsTerms[0]
-                          // ★ 해당 텀의 출석부 기준 인원 (중간 취소자 포함)
+                          // 같은 학기/분기 내 직전 텀 (학기/분기가 바뀌면 새로 시작이므로 비교 안 함)
+                          const prevTerm = curTerm ? clsTerms.find(t=>t.periodNo===curTerm.periodNo && t.termNo===curTerm.termNo-1) : null
+                          // ★ 해당 텀의 출석부 기준 인원 (현재 확정 인원) + 직전 텀 대비 전학/취소 인원
                           const termSecLines = cls._secEntries.filter(c2=>c2._selSection).map(c2=>{
                             const cnt = curTerm ? termRosterCount(students, c2.id, c2._selSection, curTerm) : (confirmedCount[c2.id+'::'+c2._selSection]||0)
+                            const dep = curTerm ? termDepartures(students, c2.id, c2._selSection, curTerm, prevTerm) : { cancel:0, transfer:0 }
                             const time = c2._secTime ? `${c2._secTime}${c2._secTimeEnd?' ~ '+c2._secTimeEnd:''}` : ''
-                            return `${c2._selSection}반 ${cnt}명${time?' '+time:''}`
+                            return { text: `${c2._selSection}반 ${cnt}명${time?' '+time:''}`, dep }
                           })
                           const c = cls._secEntries.reduce((s,c2)=>{
                             const sec2 = c2._selSection
                             const cnt = curTerm ? termRosterCount(students, c2.id, sec2, curTerm) : (confirmedCount[c2.id+(sec2?'::'+sec2:'')]||0)
                             return s+cnt
                           }, 0)
+                          const totalDep = cls._secEntries.reduce((acc,c2)=>{
+                            const sec2 = c2._selSection
+                            const dep = curTerm ? termDepartures(students, c2.id, sec2, curTerm, prevTerm) : { cancel:0, transfer:0 }
+                            return { cancel: acc.cancel+dep.cancel, transfer: acc.transfer+dep.transfer }
+                          }, { cancel:0, transfer:0 })
                           const curTermPaid = curTerm?(payByClass[cls.id]||[]).filter(p=>payMatchesTerm(p,curTerm,cls.id)).reduce((s,p)=>s+p.amount,0):0
                           const curTermExp = curTerm&&f&&c?perSessionFee(f,curTerm,cls)*c*curTerm.sessions.length:0
                           const isPaid = curTermExp>0&&curTermPaid>=curTermExp
@@ -1400,9 +1434,23 @@ export function Revenue({ user }) {
                                 </div>
                                 {termSecLines.length > 0 ? (
                                   <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px', display:'flex', flexDirection:'column', gap:'1px' }}>
-                                    {termSecLines.map((line,li) => <div key={li}>{line}</div>)}
+                                    {termSecLines.map((line,li) => (
+                                      <div key={li}>
+                                        {line.text}
+                                        {(line.dep.cancel>0||line.dep.transfer>0) && (
+                                          <span style={{ marginLeft:'5px', fontWeight:700, color:C.danger }}>
+                                            ({[line.dep.transfer>0?`전학 -${line.dep.transfer}명`:null, line.dep.cancel>0?`취소 -${line.dep.cancel}명`:null].filter(Boolean).join(', ')})
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
                                     <div style={{ fontWeight:700, color:C.text }}>
                                       총 {c}명{f?` / ${fmt(f.amount)}원/${f.feeType==='per_session'?'회':'텀'}`:''}
+                                      {(totalDep.cancel>0||totalDep.transfer>0) && (
+                                        <span style={{ marginLeft:'5px', fontWeight:700, color:C.danger }}>
+                                          ({[totalDep.transfer>0?`전학 -${totalDep.transfer}명`:null, totalDep.cancel>0?`취소 -${totalDep.cancel}명`:null].filter(Boolean).join(', ')})
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 ) : (
