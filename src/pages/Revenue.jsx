@@ -192,6 +192,30 @@ export function Revenue({ user }) {
     return m
   }, [sorted, students])
 
+  // 입금등록 위저드용: cls.id 기준으로 A반/B반을 한 카드로 합친 목록
+  const groupedForPay = useMemo(() => {
+    const groups = []
+    const seen = {}
+    sorted.forEach(cls => {
+      if (seen[cls.id] !== undefined) {
+        groups[seen[cls.id]]._secEntries.push(cls)
+      } else {
+        seen[cls.id] = groups.length
+        groups.push({ ...cls, _secEntries: [cls] })
+      }
+    })
+    return groups.map(g => {
+      const combinedCount = g._secEntries.reduce((s, c) => {
+        const key = c.id + (c._selSection ? '::' + c._selSection : '')
+        return s + (confirmedCount[key] || 0)
+      }, 0)
+      const secLabels = g._secEntries
+        .filter(c => c._selSection)
+        .map(c => `${c._selSection}반 ${confirmedCount[c.id + '::' + c._selSection] || 0}명`)
+      return { ...g, combinedCount, secLabels }
+    })
+  }, [sorted, confirmedCount])
+
   // 취소 인원 (cancelled)
   const cancelledCount = useMemo(() => {
     const m = {}
@@ -1298,12 +1322,12 @@ export function Revenue({ user }) {
                     <div style={{ fontSize:'15px', fontWeight:700, color:C.text, marginBottom:'6px' }}>🏫 어느 수업인가요? <span style={{fontSize:'13px',color:C.primary,fontWeight:400}}>(복수 선택 가능)</span></div>
                     <div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>{payDate.replace(/-/g,'.')} 입금</div>
                     <div style={{ display:'flex', flexDirection:'column', gap:'8px', maxHeight:'220px', overflowY:'auto' }}>
-                      {sorted.length===0
+                      {groupedForPay.length===0
                         ? <div style={{ textAlign:'center', padding:'20px', color:C.muted, fontSize:'13px' }}>등록된 수업이 없습니다</div>
-                        : sorted.map(cls=>{
+                        : groupedForPay.map(cls=>{
                           const isSel = (payForm.classIds||[]).includes(cls.id)
                           const f = feeMap[cls.id]
-                          const c = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')]||0
+                          const c = cls.combinedCount
                           const clsTerms = getTerms(cls)
                           const lastEndedNo = clsTerms.filter(t=>t.endDate&&t.endDate<payDate).reduce((mx,t)=>Math.max(mx,t.termNo),0)
                           const curTerm = clsTerms.find(t=>t.termNo===lastEndedNo+1)||clsTerms.find(t=>t.startDate<=payDate&&t.endDate>=payDate)||clsTerms[0]
@@ -1324,10 +1348,11 @@ export function Revenue({ user }) {
                               </div>
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:'14px', fontWeight:700, color:isSel?C.primary:C.text }}>
-                                  {cls.organization} · {cls.className}{((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))))?' '+((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')))):''}
+                                  {cls.organization} · {cls.className}
                                 </div>
                                 <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                                  현재 {c}명{(cls.sections?.length>0?cls.sections[0].time:cls.time)?` · ${cls.sections?.length>0 ? cls.sections.map(s=>(s.section?s.section+'반 ':'')+s.time+(s.timeEnd?' ~ '+s.timeEnd:'')).join(' / ') : cls.time+(cls.timeEnd?' ~ '+cls.timeEnd:'')}`:''}{f?` · ${fmt(f.amount)}원/${f.feeType==='per_session'?'회':'텀'}`:''}
+                                  {cls.secLabels.length > 0 ? cls.secLabels.join('  ')+'  총 '+c+'명' : `현재 ${c}명`}
+                                  {(cls.sections?.length>0?cls.sections[0].time:cls.time)?` · ${cls.sections?.length>0 ? cls.sections.map(s=>(s.section?s.section+'반 ':'')+s.time+(s.timeEnd?' ~ '+s.timeEnd:'')).join(' / ') : cls.time+(cls.timeEnd?' ~ '+cls.timeEnd:'')}`:''}{f?` · ${fmt(f.amount)}원/${f.feeType==='per_session'?'회':'텀'}`:''}
                                 </div>
                               </div>
                             </div>
@@ -1344,9 +1369,9 @@ export function Revenue({ user }) {
                     {/* 선택된 수업 목록 표시 */}
                     <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'12px' }}>
                       {(payForm.classIds&&payForm.classIds.length>0?payForm.classIds:[payForm.classId]).filter(Boolean).map(cid=>{
-                        const cls2=sorted.find(c=>c.id===cid)
+                        const cls2=groupedForPay.find(c=>c.id===cid)
                         return <span key={cid} style={{ fontSize:'12px', padding:'3px 10px', borderRadius:'20px', background:'#fff7ed', border:`1px solid ${C.primary}`, color:C.primary, fontWeight:600 }}>
-                          {cls2?.organization} · {cls2?.className}{cls2?.section?' '+cls2?.section:''}
+                          {cls2?.organization} · {cls2?.className}
                         </span>
                       })}
                     </div>
@@ -1391,19 +1416,24 @@ export function Revenue({ user }) {
                     <div style={{ fontSize:'13px', color:C.muted, marginBottom:'14px' }}>각 수업의 입금 금액을 입력하세요</div>
                     <div style={{ display:'flex', flexDirection:'column', gap:'10px', maxHeight:'260px', overflowY:'auto' }}>
                       {(payForm.classIds&&payForm.classIds.length>0 ? payForm.classIds : [payForm.classId]).filter(Boolean).map((cid,idx)=>{
-                        const cls = sorted.find(c=>c.id===cid)
+                        const cls = groupedForPay.find(c=>c.id===cid)
                         const f = feeMap[cid]
                         const terms2 = cls ? getTerms(cls) : []
                         const curTerm = terms2.find(isTermCurrent)||terms2[0]
-                        const cnt2 = confirmedCount[cid]||0
+                        const cnt2 = cls?.combinedCount || 0
                         const exp2 = (f&&curTerm) ? perSessionFee(f,curTerm,cls)*cnt2*curTerm.sessions.length : 0
                         const amtKey = `amount_${cid}`
                         const curAmt = payForm[amtKey]||''
                         return (
                           <div key={cid} style={{ padding:'12px 14px', borderRadius:'12px', border:`1px solid ${C.border}`, background:'#fafafa' }}>
                             <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'6px' }}>
-                              {cls?.organization} · {cls?.className}{cls?.section?' '+cls?.section:''}
+                              {cls?.organization} · {cls?.className}
                             </div>
+                            {cls?.secLabels?.length > 0 && (
+                              <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px' }}>
+                                {cls.secLabels.join('  ')}  총 {cnt2}명
+                              </div>
+                            )}
                             {exp2>0&&(
                               <div style={{ fontSize:'12px', color:C.muted, marginBottom:'6px' }}>
                                 예상: <strong style={{color:C.primary}}>{fmt(exp2)}원</strong>
@@ -1431,11 +1461,11 @@ export function Revenue({ user }) {
                         <span>날짜</span><span style={{color:C.text,fontWeight:600}}>{payDate.replace(/-/g,'.')}</span>
                       </div>
                       {(payForm.classIds&&payForm.classIds.length>0?payForm.classIds:[payForm.classId]).filter(Boolean).map(cid=>{
-                        const cls2=sorted.find(c=>c.id===cid)
+                        const cls2=groupedForPay.find(c=>c.id===cid)
                         const amt2=Number(payForm[`amount_${cid}`]||payForm.amount||0)
                         return amt2>0&&(
                           <div key={cid} style={{ fontSize:'12px', color:C.muted, display:'flex', justifyContent:'space-between' }}>
-                            <span style={{maxWidth:'160px'}}>{cls2?.organization} · {cls2?.className}{cls2?.section?' '+cls2?.section:''}</span>
+                            <span style={{maxWidth:'160px'}}>{cls2?.organization} · {cls2?.className}</span>
                             <span style={{color:C.success,fontWeight:700}}>{fmt(amt2)}원</span>
                           </div>
                         )
