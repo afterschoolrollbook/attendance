@@ -59,7 +59,14 @@ function termRosterCount(students, classId, sec, term) {
   return students.filter(s => {
     if (!s.classIds?.includes(classId)) return false
     if (sec && (s.section || '') !== sec) return false
-    if (!isInTerm(s, term)) return false
+    // Classes.jsx와 동일: activeTerm 기준으로 분기 필터
+    // activeTerm 없으면 1분기(periodNo===1)로 간주
+    const periodNo = term.periodNo ?? term.termNo
+    if (s.activeTerm) {
+      if (String(s.activeTerm) !== String(periodNo)) return false
+    } else {
+      if (periodNo !== 1) return false
+    }
     if (s.status === 'confirmed') return true
     const dep = getDepartureDate(s)
     if (!dep) return false
@@ -1305,7 +1312,7 @@ export function Revenue({ user }) {
                             <div style={{ flex:1 }}>
                               <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
                                 <span style={{ fontSize:'13px', color:C.text, fontWeight:600 }}>{p.date?.replace(/-/g,'.').slice(2)}</span>
-                                {p.termNo&&<span style={{ fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 5px' }}>{p.termNo}텀</span>}
+                                {payTerm&&<span style={{ fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 5px' }}>{payTerm.label}</span>}
                                 {payTerm&&fee&&secCnts.length>1&&secCnts.map(s=>(
                                   <span key={s.section} style={{ fontSize:'12px', color:C.muted }}>{s.section}반 {s.cnt}명</span>
                                 ))}
