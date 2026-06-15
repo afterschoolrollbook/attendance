@@ -388,7 +388,7 @@ function BlogDetail({ post, onBack }) {
 }
 
 // ── 사용후기 목록
-function ReviewList({ posts, onSelect }) {
+function ReviewList({ posts, onSelect, currentUser }) {
   const [search, setSearch] = useState('')
   const filtered = posts.filter(p => {
     const q = search.toLowerCase()
@@ -437,8 +437,14 @@ function ReviewList({ posts, onSelect }) {
       <div style={{ marginTop:'48px', background:'linear-gradient(135deg,#fefce8,#fff)', border:'2px solid #fef08a', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
         <div style={{ fontSize:'24px', marginBottom:'12px' }}>✍️</div>
         <h3 style={{ fontSize:'18px', fontWeight:700, color:'#92400e', marginBottom:'8px' }}>방과후 출석부를 사용해보셨나요?</h3>
-        <p style={{ fontSize:'14px', color:'#b45309', marginBottom:'20px', lineHeight:1.7 }}>로그인 후 글관리 메뉴에서 사용후기를 작성해주세요!</p>
-        <a href="/?page=login" style={{ display:'inline-block', padding:'12px 32px', background:'#eab308', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>후기 작성하러 가기 →</a>
+        <p style={{ fontSize:'14px', color:'#b45309', marginBottom:'20px', lineHeight:1.7 }}>
+          {currentUser ? '아래 버튼으로 글관리 화면에서 사용후기를 작성해주세요!' : '로그인 후 글관리 메뉴에서 사용후기를 작성해주세요!'}
+        </p>
+        {currentUser ? (
+          <a href="/?page=blog_write" style={{ display:'inline-block', padding:'12px 32px', background:'#eab308', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>후기 작성하러 가기 →</a>
+        ) : (
+          <a href="/?page=login" style={{ display:'inline-block', padding:'12px 32px', background:'#eab308', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>로그인하러 가기 →</a>
+        )}
       </div>
     </div>
   )
@@ -530,8 +536,14 @@ function RequestList({ posts, onSelect, currentUser, isAdmin }) {
       <div style={{ marginTop:'48px', background:'linear-gradient(135deg,#f0fdf4,#fff)', border:'2px solid #bbf7d0', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
         <div style={{ fontSize:'24px', marginBottom:'12px' }}>🙏</div>
         <h3 style={{ fontSize:'18px', fontWeight:700, color:'#15803d', marginBottom:'8px' }}>필요한 기능이 있으신가요?</h3>
-        <p style={{ fontSize:'14px', color:'#16a34a', marginBottom:'20px', lineHeight:1.7 }}>로그인 후 글관리 메뉴에서 "🙏 부탁해요~" 게시판에 요청을 남겨주세요!</p>
-        <a href="/?page=login" style={{ display:'inline-block', padding:'12px 32px', background:'#16a34a', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>요청하러 가기 →</a>
+        <p style={{ fontSize:'14px', color:'#16a34a', marginBottom:'20px', lineHeight:1.7 }}>
+          {currentUser ? '아래 버튼으로 글관리 화면에서 "🙏 부탁해요~" 게시판에 요청을 남겨주세요!' : '로그인 후 글관리 메뉴에서 "🙏 부탁해요~" 게시판에 요청을 남겨주세요!'}
+        </p>
+        {currentUser ? (
+          <a href="/?page=blog_write" style={{ display:'inline-block', padding:'12px 32px', background:'#16a34a', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>요청하러 가기 →</a>
+        ) : (
+          <a href="/?page=login" style={{ display:'inline-block', padding:'12px 32px', background:'#16a34a', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>로그인하러 가기 →</a>
+        )}
       </div>
     </div>
   )
@@ -897,7 +909,7 @@ function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, tem
   }
   if (tab === 'docs') return <DocsList docs={docsPosts} onSelect={handleSelect} />
   if (tab === 'templates') return <TemplateList posts={templatePosts} onSelect={handleSelect} />
-  if (tab === 'reviews') return <ReviewList posts={reviewPosts} onSelect={handleSelect} />
+  if (tab === 'reviews') return <ReviewList posts={reviewPosts} onSelect={handleSelect} currentUser={currentUser} />
   if (tab === 'requests') return <RequestList posts={requestPosts} onSelect={handleSelect} currentUser={currentUser} isAdmin={isAdmin} />
   return <BlogList posts={blogPosts} onSelect={handleSelect} />
 }
