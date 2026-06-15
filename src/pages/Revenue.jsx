@@ -208,13 +208,26 @@ export function Revenue({ user }) {
     return () => unsubs.forEach(u => u())
   }, [])
 
+  // ★ 디버깅: classes 원본 데이터 확인
+  useEffect(() => {
+    console.log('[Revenue 디버그] classes 원본:', classes.map(c => ({
+      id: c.id,
+      org: c.organization,
+      className: c.className,
+      section: c.section,
+      sections: c.sections,
+      days: c.days,
+    })))
+  }, [classes])
+
   const sorted = useMemo(() => {
     const DAY_ORDER = ['월','화','수','목','금','토','일']
     // 출석부와 동일하게: 학교+수업명+요일이 같은 중복 카드는 통합카드(sections 많은 쪽)를 우선 사용
     const deduped = []
     const seenKey = {}
     classes.forEach(cls => {
-      const key = (cls.organization||'') + '__' + (cls.className||'') + '__' + (cls.days?.join(',') || '')
+      const normName = (cls.className||'').replace(/\s*[A-Za-z가-힣]반\s*$/, '').trim()
+      const key = (cls.organization||'') + '__' + normName + '__' + (cls.days?.join(',') || '')
       if (seenKey[key] !== undefined) {
         const prevIdx = seenKey[key]
         const prev = deduped[prevIdx]
@@ -1103,7 +1116,8 @@ export function Revenue({ user }) {
                         const groupMap = {}
                         const groupOrder = []
                         rows.forEach(row => {
-                          const key = (row.cls.organization||'')+'__'+(row.cls.className||'')+'__'+(row.cls.days?.join(',') || '')
+                          const normName2 = (row.cls.className||'').replace(/\s*[A-Za-z가-힣]반\s*$/, '').trim()
+                          const key = (row.cls.organization||'')+'__'+normName2+'__'+(row.cls.days?.join(',') || '')
                           if (!groupMap[key]) { groupMap[key] = { baseRow: row, sections: [] }; groupOrder.push(key) }
                           groupMap[key].sections.push(row)
                         })
