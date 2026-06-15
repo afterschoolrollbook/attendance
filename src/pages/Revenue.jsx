@@ -528,7 +528,7 @@ export function Revenue({ user }) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px' }}>
           {cells.map((date, i) => {
-            if (!date) return <div key={i} style={{ minHeight: '88px' }} />
+            if (!date) return <div key={i} style={{ minHeight: '96px' }} />
             const dayItems = dailyClasses[date] || []
             const pays     = payByDate[date] || []
             const isToday  = date === today()
@@ -539,7 +539,7 @@ export function Revenue({ user }) {
             return (
               <div key={date} onClick={() => { setCurDate(date); openPayModal(date) }}
                 title="날짜 선택"
-                style={{ borderRadius: '8px', padding: '5px 4px', cursor: 'pointer', minHeight: '88px', transition: 'all .1s', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}` }}>
+                style={{ borderRadius: '8px', padding: '5px 4px', cursor: 'pointer', minHeight: '96px', transition: 'all .1s', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}` }}>
                 {/* 날짜 숫자 */}
                 <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '1px', color: isSel ? '#fff' : dow === 6 ? C.blue : dow === 0 ? C.danger : C.text }}>
                   {Number(date.slice(-2))}
@@ -566,8 +566,10 @@ export function Revenue({ user }) {
                   })
                   return dayGrouped.map((item, idx) => {
                     const org  = item.cls.organization?.slice(0, 3) || ''
-                    const name = item.cls.className?.slice(0, 3) || ''
-                    const label = `${org}/${name}`
+                    const name = item.cls.className?.slice(0, 4) || ''
+                    const secs = [...new Set(item._secs.filter(Boolean))]
+                    const secLabel = secs.length > 0 ? ` ${secs.join('·')}반` : ''
+                    const label = `${org}/${name}${secLabel}`
                     const bgColor = item.noFee
                       ? (isSel ? 'rgba(255,255,255,0.15)' : '#f3f4f6')
                       : item.unpaid
@@ -585,7 +587,7 @@ export function Revenue({ user }) {
                             {item.termLabel}{item.termSessionNo}회
                           </div>
                         )}
-                        <div style={{ fontSize: '9px', fontWeight: 600, padding: '1px 3px', borderRadius: '3px', background: bgColor, color: txtColor, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div title={label} style={{ fontSize: '9px', fontWeight: 600, padding: '1px 3px', borderRadius: '3px', background: bgColor, color: txtColor, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {label}
                         </div>
                       </div>
