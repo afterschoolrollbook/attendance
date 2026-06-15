@@ -559,7 +559,7 @@ export function Revenue({ user }) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px' }}>
           {cells.map((date, i) => {
-            if (!date) return <div key={i} style={{ minHeight: '96px' }} />
+            if (!date) return <div key={i} style={{ minHeight: '108px' }} />
             const dayItems = dailyClasses[date] || []
             const pays     = payByDate[date] || []
             const isToday  = date === today()
@@ -570,7 +570,7 @@ export function Revenue({ user }) {
             return (
               <div key={date} onClick={() => { setCurDate(date); openPayModal(date) }}
                 title="날짜 선택"
-                style={{ borderRadius: '8px', padding: '5px 4px', cursor: 'pointer', minHeight: '96px', transition: 'all .1s', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}` }}>
+                style={{ borderRadius: '8px', padding: '5px 4px', cursor: 'pointer', minHeight: '108px', transition: 'all .1s', background: isSel ? C.primary : isToday ? '#fff7ed' : '#fff', border: `1px solid ${isSel ? C.primary : isToday ? '#fed7aa' : C.border}` }}>
                 {/* 날짜 숫자 */}
                 <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '1px', color: isSel ? '#fff' : dow === 6 ? C.blue : dow === 0 ? C.danger : C.text }}>
                   {Number(date.slice(-2))}
@@ -598,9 +598,20 @@ export function Revenue({ user }) {
                   return dayGrouped.map((item, idx) => {
                     const org  = item.cls.organization?.slice(0, 3) || ''
                     const name = item.cls.className?.slice(0, 4) || ''
+                    const label = `${org}/${name}`
                     const secs = [...new Set(item._secs.filter(Boolean))]
-                    const secLabel = secs.length > 0 ? ` ${secs.join('·')}반` : ''
-                    const label = `${org}/${name}${secLabel}`
+                    let countLabel = ''
+                    if (secs.length > 1) {
+                      const cnts = secs.map(sec => confirmedCount[item.cls.id + '::' + sec] || 0)
+                      const total = cnts.reduce((s, c) => s + c, 0)
+                      countLabel = secs.map((sec, i) => `${sec}반 ${cnts[i]}명`).join(' / ') + ` / 합계 ${total}명`
+                    } else if (secs.length === 1) {
+                      const cnt = confirmedCount[item.cls.id + '::' + secs[0]] || 0
+                      countLabel = `${secs[0]}반 ${cnt}명`
+                    } else {
+                      const cnt = confirmedCount[item.cls.id] || 0
+                      countLabel = `합계 ${cnt}명`
+                    }
                     const bgColor = item.noFee
                       ? (isSel ? 'rgba(255,255,255,0.15)' : '#f3f4f6')
                       : item.unpaid
@@ -618,8 +629,11 @@ export function Revenue({ user }) {
                             {item.termLabel}{item.termSessionNo}회
                           </div>
                         )}
-                        <div title={label} style={{ fontSize: '9px', fontWeight: 600, padding: '1px 3px', borderRadius: '3px', background: bgColor, color: txtColor, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div title={`${item.cls.organization || ''}/${item.cls.className || ''}`} style={{ fontSize: '9px', fontWeight: 600, padding: '1px 3px 0', borderRadius: '3px 3px 0 0', background: bgColor, color: txtColor, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {label}
+                        </div>
+                        <div title={countLabel} style={{ fontSize: '8px', fontWeight: 500, padding: '0 3px 1px', borderRadius: '0 0 3px 3px', background: bgColor, color: txtColor, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {countLabel}
                         </div>
                       </div>
                     )
