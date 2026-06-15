@@ -1260,28 +1260,66 @@ export function Revenue({ user }) {
                     <div style={{ padding:'14px 20px', background:'#fafafa', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'10px' }}>
                       <div>
                         <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>
-                          🏫 {cls.organization} · {cls.className}{((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : ''))))?' '+((cls._selSection ? cls._selSection+'반' : (cls.sections?.filter(s=>s.section).map(s=>s.section+'반').join('·') || (cls.section ? cls.section+'반' : '')))):''}
-                          {(cls.sections?.length>0 ? cls.sections[0].time : cls.time)&&<span style={{ fontSize:'12px', color:C.muted, fontWeight:400, marginLeft:'8px' }}>{cls.sections?.length>0 ? cls.sections.map(s=>(s.section?s.section+'반 ':'')+s.time+(s.timeEnd?' ~ '+s.timeEnd:'')).join(' / ') : cls.time+(cls.timeEnd?' ~ '+cls.timeEnd:'')}</span>}
+                          🏫 {cls.organization} · {cls.className}
                         </div>
                         <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px' }}>
-                          현재 {cnt}명 · {cls.termType==='semester'?'학기제':'분기제'} · {terms.length}텀 총 {sessions.length}회
+                          총 {cnt}명 · {cls.termType==='semester'?'학기제':'분기제'} · {terms.length}텀 총 {sessions.length}회
                         </div>
-                        {/* 텀별 회차당 금액 */}
+                        {(cls.sections?.filter(s=>s.section)||[]).length > 1 && (
+                          <div style={{ fontSize:'12px', color:C.muted, marginTop:'3px', display:'flex', flexDirection:'column', gap:'2px' }}>
+                            {cls.sections.filter(s=>s.section).map(s => {
+                              const sCnt = confirmedCount[cls.id+'::'+s.section]||0
+                              return (
+                                <div key={s.section}>
+                                  <span style={{ fontWeight:700, color:C.primary }}>{s.section}반</span>
+                                  {s.time&&<span> {s.time}{s.timeEnd?' ~ '+s.timeEnd:''}</span>}
+                                  <span> / {sCnt}명</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                        {/* 텀별 인원 x 수강료 */}
                         {fee&&terms.length>0&&(
-                          <div style={{ display:'flex', gap:'6px', marginTop:'6px', flexWrap:'wrap' }}>
+                          <div style={{ display:'flex', flexDirection:'column', gap:'4px', marginTop:'6px' }}>
                             {(()=>{
-                              // 기준 회차 = 1텀(termSizes[0]) 회차수
                               const baseCount = Number(cls.termSizes?.[0]) || terms[0]?.sessions.length || 1
+                              const secs = cls.sections?.filter(s=>s.section)||[]
                               return terms.map(term=>{
+                                const isCur = isTermCurrent(term)
                                 const termAmt = fee.feeType==='per_term'
                                   ? Math.round(Number(fee.amount) / baseCount * term.sessions.length)
                                   : Number(fee.amount) * term.sessions.length
-                                const isCur = isTermCurrent(term)
+                                // 반별 텀 인원
+                                const secCnts = secs.map(s=>({
+                                  section: s.section,
+                                  cnt: termRosterCount(students, cls.id, s.section, term)
+                                }))
+                                const totalTermCnt = secCnts.reduce((sum,s)=>sum+s.cnt, 0) || termRosterCount(students, cls.id, cls._selSection||'', term)
+                                const totalAmt = termAmt * totalTermCnt
                                 return (
-                                  <span key={term.termNo} style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'5px', border:`1px solid ${isCur?'#86efac':C.border}`, background:isCur?'#f0fdf4':'#f9fafb', color:isCur?C.success:C.text, fontWeight:isCur?700:400 }}>
-                                    {term.label} {term.sessions.length}회 {fmt(termAmt)}원
-                                    {isCur&&' 📍'}
-                                  </span>
+                                  <div key={term.termNo} style={{ fontSize:'11px', padding:'5px 10px', borderRadius:'7px', border:`1px solid ${isCur?'#86efac':C.border}`, background:isCur?'#f0fdf4':'#f9fafb', color:C.text }}>
+                                    <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+                                      <span style={{ fontWeight:700, color:isCur?C.success:C.text }}>{term.label}</span>
+                                      <span style={{ color:C.muted }}>{term.sessions.length}회</span>
+                                      {isCur&&<span style={{ fontSize:'10px', background:'#dcfce7', color:C.success, borderRadius:'3px', padding:'0 4px' }}>진행중</span>}
+                                      <span style={{ marginLeft:'auto', fontWeight:700, color:C.primary }}>{fmt(totalAmt)}원</span>
+                                    </div>
+                                    {secCnts.length > 1 && (
+                                      <div style={{ display:'flex', gap:'8px', marginTop:'3px', color:C.muted }}>
+                                        {secCnts.map(s=>(
+                                          <span key={s.section}>{s.section}반 {s.cnt}명</span>
+                                        ))}
+                                        <span>총 {totalTermCnt}명</span>
+                                        <span>× {fmt(termAmt)}원</span>
+                                      </div>
+                                    )}
+                                    {secCnts.length <= 1 && (
+                                      <div style={{ color:C.muted, marginTop:'2px' }}>
+                                        {totalTermCnt}명 × {fmt(termAmt)}원
+                                      </div>
+                                    )}
+                                  </div>
                                 )
                               })
                             })()}
