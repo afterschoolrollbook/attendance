@@ -1235,8 +1235,18 @@ export function Revenue({ user }) {
                 <div style={{ fontSize:'36px', marginBottom:'10px' }}>📚</div>
                 <div style={{ fontSize:'15px', fontWeight:600 }}>등록된 수업이 없습니다</div>
               </div>
-            : sorted.map(cls => {
-                const fee=feeMap[cls.id], cnt=confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')]||0
+            : (() => {
+                // cls.id 기준 중복 제거 (A반/B반 같은 id → 한 카드로)
+                const seen = {}
+                const dedupedSorted = []
+                sorted.forEach(cls => {
+                  if (!seen[cls.id]) { seen[cls.id] = true; dedupedSorted.push(cls) }
+                })
+                return dedupedSorted.map(cls => {
+                const fee=feeMap[cls.id]
+                const cnt = (cls.sections?.filter(s=>s.section)||[]).reduce((sum,s)=>{
+                  return sum + (confirmedCount[cls.id+'::'+s.section]||0)
+                }, 0) || confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')]||0
                 const sessions=calcSessionDates(cls)
                 const terms=getTerms(cls)
                 const clsPays=(payByClass[cls.id]||[]).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
@@ -1306,6 +1316,7 @@ export function Revenue({ user }) {
                   </div>
                 )
               })
+                })()
           }
         </div>
       )}
