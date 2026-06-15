@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { uid, now, today, localDateStr, calcSessionDates, sortClasses } from '../lib/utils.js'
 import { Classes, Students, RevenueFees, RevenuePayments } from '../lib/db.js'
-import { Modal } from '../components/Atoms.jsx'
+import { Modal, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
-import { useConfirm } from '../hooks/useConfirm.js'
 
 const C = {
   primary: '#f97316', success: '#16a34a', danger: '#ef4444',
@@ -177,7 +176,7 @@ export function Revenue({ user }) {
 
   const [expandedClass, setExpandedClass] = useState(null)
   const { error: toastError, success } = useToast()
-  const { confirm } = useConfirm()
+  const confirm = useConfirm()
 
   const reload = () => {
     setFees(RevenueFees.byTeacher(user.id) || [])
