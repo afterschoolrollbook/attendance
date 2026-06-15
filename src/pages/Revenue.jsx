@@ -30,10 +30,22 @@ function toYM(d) { return d.slice(0, 7) }
 // 입금이 특정 텀에 속하는지 판단 — classId + termNo 둘 다 일치해야 함
 // 분기별 학생 포함 여부 (Attendance.jsx의 isInCurrentTerm과 동일 로직)
 function isInTerm(s, term) {
-  // term.termNo 기준으로 student_careers 확인
+  // student_careers는 학기/분기 단위(periodNo)로 기록됨 — termNo(전역 텀 순번)가 아님
   const careers = s.student_careers || []
-  if (careers.length === 0) return true // 수강이력 없으면 1텀으로 간주
-  return careers.some(c => String(c.term) === String(term.termNo))
+  if (careers.length === 0) return true // 수강이력 없으면 해당 텀으로 간주
+  const periodNo = term.periodNo ?? term.termNo
+  return careers.some(c => String(c.term) === String(periodNo))
+}
+
+// ★ 특정 텀(학기/분기·텀)의 출석부 기준 현재 인원 — 그 학기/분기에 속하면서 현재 확정 상태인 학생
+function termRosterCount(students, classId, sec, term) {
+  if (!term) return 0
+  return students.filter(s => {
+    if (!s.classIds?.includes(classId)) return false
+    if (s.status !== 'confirmed') return false
+    if (sec) return (s.section || '') === sec
+    return true
+  }).filter(s => isInTerm(s, term)).length
 }
 
 function payMatchesTerm(p, term, classId) {
@@ -57,12 +69,12 @@ function getTerms(cls) {
         ? p.termSizes.slice(0, p.termCount || p.termSizes.length).map(n => Number(n) || 4)
         : null
       if (!termSizes) {
-        if (pSessions.length > 0) terms.push({ termNo: termNo++, label: `${periodLabel} 1텀`, sessions: pSessions, startDate: pSessions[0], endDate: pSessions[pSessions.length-1] })
+        if (pSessions.length > 0) terms.push({ termNo: termNo++, label: `${periodLabel} 1텀`, sessions: pSessions, startDate: pSessions[0], endDate: pSessions[pSessions.length-1], periodNo: pIdx+1, termType: cls.termType })
       } else {
         let idx = 0
         termSizes.forEach((size, i) => {
           const slice = pSessions.slice(idx, idx + size)
-          if (slice.length > 0) terms.push({ termNo: termNo++, label: `${periodLabel} ${i+1}텀`, sessions: slice, startDate: slice[0], endDate: slice[slice.length-1] })
+          if (slice.length > 0) terms.push({ termNo: termNo++, label: `${periodLabel} ${i+1}텀`, sessions: slice, startDate: slice[0], endDate: slice[slice.length-1], periodNo: pIdx+1, termType: cls.termType })
           idx += size
         })
         if (idx < pSessions.length && terms.length > 0) {
@@ -79,14 +91,14 @@ function getTerms(cls) {
   const termSizes = (cls.termSizes?.length > 0)
     ? cls.termSizes.slice(0, cls.termCount || cls.termSizes.length).map(n => Number(n) || 4)
     : null
-  if (!termSizes) return [{ termNo: 1, label: '전체', sessions, startDate: sessions[0] || '', endDate: sessions[sessions.length - 1] || '' }]
+  if (!termSizes) return [{ termNo: 1, label: '전체', sessions, startDate: sessions[0] || '', endDate: sessions[sessions.length - 1] || '', periodNo: 1, termType: cls.termType }]
   const terms = []
   let idx = 0
   const startMonth = cls.startDate ? parseInt(cls.startDate.slice(5, 7)) : 3
   const semesterNum = (startMonth >= 3 && startMonth <= 8) ? 1 : 2
   termSizes.forEach((size, i) => {
     const slice = sessions.slice(idx, idx + size)
-    if (slice.length > 0) terms.push({ termNo: i + 1, label: cls?.termType==='semester'?`${semesterNum}학기 ${i+1}텀`:`${semesterNum}분기 ${i+1}텀`, sessions: slice, startDate: slice[0], endDate: slice[slice.length - 1] })
+    if (slice.length > 0) terms.push({ termNo: i + 1, label: cls?.termType==='semester'?`${semesterNum}학기 ${i+1}텀`:`${semesterNum}분기 ${i+1}텀`, sessions: slice, startDate: slice[0], endDate: slice[slice.length - 1], periodNo: semesterNum, termType: cls.termType })
     idx += size
   })
   if (idx < sessions.length && terms.length > 0) {
@@ -1348,10 +1360,20 @@ export function Revenue({ user }) {
                         : groupedForPay.map(cls=>{
                           const isSel = (payForm.classIds||[]).includes(cls.id)
                           const f = feeMap[cls.id]
-                          const c = cls.combinedCount
                           const clsTerms = getTerms(cls)
                           const lastEndedNo = clsTerms.filter(t=>t.endDate&&t.endDate<payDate).reduce((mx,t)=>Math.max(mx,t.termNo),0)
                           const curTerm = clsTerms.find(t=>t.termNo===lastEndedNo+1)||clsTerms.find(t=>t.startDate<=payDate&&t.endDate>=payDate)||clsTerms[0]
+                          // ★ 해당 텀의 출석부 기준 인원 (중간 취소자 포함)
+                          const termSecLines = cls._secEntries.filter(c2=>c2._selSection).map(c2=>{
+                            const cnt = curTerm ? termRosterCount(students, c2.id, c2._selSection, curTerm) : (confirmedCount[c2.id+'::'+c2._selSection]||0)
+                            const time = c2._secTime ? `${c2._secTime}${c2._secTimeEnd?' ~ '+c2._secTimeEnd:''}` : ''
+                            return `${c2._selSection}반 ${cnt}명${time?' '+time:''}`
+                          })
+                          const c = cls._secEntries.reduce((s,c2)=>{
+                            const sec2 = c2._selSection
+                            const cnt = curTerm ? termRosterCount(students, c2.id, sec2, curTerm) : (confirmedCount[c2.id+(sec2?'::'+sec2:'')]||0)
+                            return s+cnt
+                          }, 0)
                           const curTermPaid = curTerm?(payByClass[cls.id]||[]).filter(p=>payMatchesTerm(p,curTerm,cls.id)).reduce((s,p)=>s+p.amount,0):0
                           const curTermExp = curTerm&&f&&c?perSessionFee(f,curTerm,cls)*c*curTerm.sessions.length:0
                           const isPaid = curTermExp>0&&curTermPaid>=curTermExp
@@ -1370,10 +1392,15 @@ export function Revenue({ user }) {
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:'14px', fontWeight:700, color:isSel?C.primary:C.text }}>
                                   {cls.organization} · {cls.className}
+                                  {curTerm && (
+                                    <span style={{ fontSize:'11px', fontWeight:700, color:C.blue, background:'#eff6ff', borderRadius:'4px', padding:'1px 6px', marginLeft:'6px' }}>
+                                      {curTerm.label}
+                                    </span>
+                                  )}
                                 </div>
-                                {cls.secLines.length > 0 ? (
+                                {termSecLines.length > 0 ? (
                                   <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px', display:'flex', flexDirection:'column', gap:'1px' }}>
-                                    {cls.secLines.map((line,li) => <div key={li}>{line}</div>)}
+                                    {termSecLines.map((line,li) => <div key={li}>{line}</div>)}
                                     <div style={{ fontWeight:700, color:C.text }}>
                                       총 {c}명{f?` / ${fmt(f.amount)}원/${f.feeType==='per_session'?'회':'텀'}`:''}
                                     </div>
@@ -1449,8 +1476,17 @@ export function Revenue({ user }) {
                         const cls = groupedForPay.find(c=>c.id===cid)
                         const f = feeMap[cid]
                         const terms2 = cls ? getTerms(cls) : []
-                        const curTerm = terms2.find(isTermCurrent)||terms2[0]
-                        const cnt2 = cls?.combinedCount || 0
+                        const curTerm = (payForm.termNo ? terms2.find(t=>String(t.termNo)===String(payForm.termNo)) : null) || terms2.find(isTermCurrent)||terms2[0]
+                        const termSecLines2 = cls ? cls._secEntries.filter(c2=>c2._selSection).map(c2=>{
+                          const cnt = curTerm ? termRosterCount(students, c2.id, c2._selSection, curTerm) : (confirmedCount[c2.id+'::'+c2._selSection]||0)
+                          const time = c2._secTime ? `${c2._secTime}${c2._secTimeEnd?' ~ '+c2._secTimeEnd:''}` : ''
+                          return `${c2._selSection}반 ${cnt}명${time?' '+time:''}`
+                        }) : []
+                        const cnt2 = cls ? cls._secEntries.reduce((s,c2)=>{
+                          const sec2 = c2._selSection
+                          const cnt = curTerm ? termRosterCount(students, c2.id, sec2, curTerm) : (confirmedCount[c2.id+(sec2?'::'+sec2:'')]||0)
+                          return s+cnt
+                        }, 0) : 0
                         const exp2 = (f&&curTerm) ? perSessionFee(f,curTerm,cls)*cnt2*curTerm.sessions.length : 0
                         const amtKey = `amount_${cid}`
                         const curAmt = payForm[amtKey]||''
@@ -1458,10 +1494,15 @@ export function Revenue({ user }) {
                           <div key={cid} style={{ padding:'12px 14px', borderRadius:'12px', border:`1px solid ${C.border}`, background:'#fafafa' }}>
                             <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'6px' }}>
                               {cls?.organization} · {cls?.className}
+                              {curTerm && (
+                                <span style={{ fontSize:'11px', fontWeight:700, color:C.blue, background:'#eff6ff', borderRadius:'4px', padding:'1px 6px', marginLeft:'6px' }}>
+                                  {curTerm.label}
+                                </span>
+                              )}
                             </div>
-                            {cls?.secLines?.length > 0 && (
+                            {termSecLines2.length > 0 && (
                               <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px', display:'flex', flexDirection:'column', gap:'1px' }}>
-                                {cls.secLines.map((line,li) => <div key={li}>{line}</div>)}
+                                {termSecLines2.map((line,li) => <div key={li}>{line}</div>)}
                                 <div>총 {cnt2}명</div>
                               </div>
                             )}
