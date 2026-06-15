@@ -1102,7 +1102,9 @@ export function Revenue({ user }) {
                                 <div>
                                   <div style={{ fontSize:'13px', fontWeight:700, color:C.text }}>
                                     🏫 {cls.organization} · {cls.className}
-                                    <span style={{ marginLeft:'6px', fontSize:'11px', color:C.muted, fontWeight:400 }}>{termType}</span>
+                                    <span style={{ marginLeft:'8px', fontSize:'13px', fontWeight:800, color:C.primary, background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'6px', padding:'2px 9px' }}>
+                                      {term.sessions.length}회
+                                    </span>
                                   </div>
                                   <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
                                     {hasSecs ? (
@@ -1136,10 +1138,25 @@ export function Revenue({ user }) {
                                     {totalUnpaid>0&&termSt!=='upcoming'&&<span style={{ fontSize:'12px', fontWeight:700, color:C.danger }}>미수 {fmt(totalUnpaid)}원</span>}
                                   </>}
                                   {!baseRow.fee&&<span style={{ fontSize:'11px', color:C.muted }}>수강료 미설정</span>}
-                                  {termSt!=='upcoming'&&<button onClick={e=>{e.stopPropagation();openPayModal(today(),cls.id,term.termNo,true)}}
-                                    style={{ padding:'4px 10px', borderRadius:'7px', border:'none', background:C.primary, color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                                    + 입금
-                                  </button>}
+                                  {termSt!=='upcoming'&&(()=>{
+                                    const isComplete = baseRow.fee&&totalExpected>0&&totalUnpaid<=0
+                                    return isComplete ? (
+                                      <>
+                                        <span style={{ padding:'4px 10px', borderRadius:'7px', background:'#dcfce7', color:C.success, fontSize:'11px', fontWeight:700 }}>
+                                          ✅ 완료
+                                        </span>
+                                        <button onClick={e=>{e.stopPropagation();openPayModal(today(),cls.id,term.termNo,true)}}
+                                          style={{ padding:'4px 10px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#fff', color:C.text, fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                          수정
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <button onClick={e=>{e.stopPropagation();openPayModal(today(),cls.id,term.termNo,true)}}
+                                        style={{ padding:'4px 10px', borderRadius:'7px', border:'none', background:C.primary, color:'#fff', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                                        + 입금
+                                      </button>
+                                    )
+                                  })()}
                                 </div>
                               </div>
                               {isRowExpanded&&(
