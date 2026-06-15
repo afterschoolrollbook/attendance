@@ -212,7 +212,14 @@ export function Revenue({ user }) {
       const secLabels = g._secEntries
         .filter(c => c._selSection)
         .map(c => `${c._selSection}반 ${confirmedCount[c.id + '::' + c._selSection] || 0}명`)
-      return { ...g, combinedCount, secLabels }
+      const secLines = g._secEntries
+        .filter(c => c._selSection)
+        .map(c => {
+          const cnt = confirmedCount[c.id + '::' + c._selSection] || 0
+          const time = c._secTime ? `${c._secTime}${c._secTimeEnd ? ' ~ ' + c._secTimeEnd : ''}` : ''
+          return `${c._selSection}반 ${cnt}명${time ? ' ' + time : ''}`
+        })
+      return { ...g, combinedCount, secLabels, secLines }
     })
   }, [sorted, confirmedCount])
 
@@ -1350,10 +1357,19 @@ export function Revenue({ user }) {
                                 <div style={{ fontSize:'14px', fontWeight:700, color:isSel?C.primary:C.text }}>
                                   {cls.organization} · {cls.className}
                                 </div>
-                                <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
-                                  {cls.secLabels.length > 0 ? cls.secLabels.join('  ')+'  총 '+c+'명' : `현재 ${c}명`}
-                                  {(cls.sections?.length>0?cls.sections[0].time:cls.time)?` · ${cls.sections?.length>0 ? cls.sections.map(s=>(s.section?s.section+'반 ':'')+s.time+(s.timeEnd?' ~ '+s.timeEnd:'')).join(' / ') : cls.time+(cls.timeEnd?' ~ '+cls.timeEnd:'')}`:''}{f?` · ${fmt(f.amount)}원/${f.feeType==='per_session'?'회':'텀'}`:''}
-                                </div>
+                                {cls.secLines.length > 0 ? (
+                                  <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px', display:'flex', flexDirection:'column', gap:'1px' }}>
+                                    {cls.secLines.map((line,li) => <div key={li}>{line}</div>)}
+                                    <div style={{ fontWeight:700, color:C.text }}>
+                                      총 {c}명{f?` / ${fmt(f.amount)}원/${f.feeType==='per_session'?'회':'텀'}`:''}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>
+                                    {`현재 ${c}명`}
+                                    {(cls.sections?.length>0?cls.sections[0].time:cls.time)?` · ${cls.sections?.length>0 ? cls.sections.map(s=>(s.section?s.section+'반 ':'')+s.time+(s.timeEnd?' ~ '+s.timeEnd:'')).join(' / ') : cls.time+(cls.timeEnd?' ~ '+cls.timeEnd:'')}`:''}{f?` · ${fmt(f.amount)}원/${f.feeType==='per_session'?'회':'텀'}`:''}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )
@@ -1429,9 +1445,10 @@ export function Revenue({ user }) {
                             <div style={{ fontSize:'13px', fontWeight:700, color:C.text, marginBottom:'6px' }}>
                               {cls?.organization} · {cls?.className}
                             </div>
-                            {cls?.secLabels?.length > 0 && (
-                              <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px' }}>
-                                {cls.secLabels.join('  ')}  총 {cnt2}명
+                            {cls?.secLines?.length > 0 && (
+                              <div style={{ fontSize:'11px', color:C.muted, marginBottom:'4px', display:'flex', flexDirection:'column', gap:'1px' }}>
+                                {cls.secLines.map((line,li) => <div key={li}>{line}</div>)}
+                                <div>총 {cnt2}명</div>
                               </div>
                             )}
                             {exp2>0&&(
