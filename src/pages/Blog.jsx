@@ -96,6 +96,10 @@ function formatDate(str) {
   return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`
 }
 
+function slugify(t) {
+  return (t || '').toLowerCase().replace(/[^a-z0-9가-힣\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').trim() || uid()
+}
+
 function setMeta(title, desc, url, image) {
   document.title = title
   const set = (sel, attr, val) => {
@@ -387,9 +391,68 @@ function BlogDetail({ post, onBack }) {
   )
 }
 
+// ── 블로그 인라인 글쓰기 폼 (사용후기/부탁해요~ 목록에서 마이페이지로 가지 않고 바로 작성)
+function InlineWriteForm({ currentUser, boardType, boardLabel, color, placeholder, onSaved, onCancel }) {
+  const [title, setTitle] = useState('')
+  const [content, setContent] = useState('')
+  const [isPrivateRequest, setIsPrivateRequest] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const iStyle = { width:'100%', padding:'10px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', background:'#fff' }
+
+  const handleSubmit = async () => {
+    if (!title.trim()) return alert('제목을 입력해주세요.')
+    if (!content.trim()) return alert('내용을 입력해주세요.')
+    setSaving(true)
+    try {
+      const payload = {
+        id: uid(),
+        type: 'blog',
+        boardType,
+        isSecret: false,
+        isPrivateRequest: boardType === 'request' ? isPrivateRequest : false,
+        title: title.trim(),
+        slug: slugify(title),
+        content: content.trim(),
+        category: boardType === 'review' ? '사용자 후기' : boardType === 'request' ? '부탁해요' : '',
+        tags: [],
+        author: currentUser?.name || currentUser?.email || '익명',
+        authorId: currentUser?.id,
+        status: 'published',
+        publishedAt: now(), updatedAt: now(), createdAt: now(),
+      }
+      await dbCall('insert', 'blogPosts', payload)
+      setTitle(''); setContent(''); setIsPrivateRequest(false)
+      onSaved(payload)
+    } catch (e) { alert('저장 실패: ' + e.message) }
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ background:'#fff', borderRadius:'14px', border:`1.5px solid ${color}`, padding:'20px 22px', marginBottom:'28px', display:'flex', flexDirection:'column', gap:'10px' }}>
+      <div style={{ fontSize:'14px', fontWeight:700, color:'#111827' }}>✏️ {boardLabel} 작성</div>
+      <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="제목을 입력하세요" style={{ ...iStyle, fontWeight:700 }} />
+      <textarea value={content} onChange={e=>setContent(e.target.value)} placeholder={placeholder} rows={5} style={{ ...iStyle, resize:'vertical', lineHeight:1.7 }} />
+      {boardType === 'request' && (
+        <label style={{ display:'flex', alignItems:'center', gap:'8px', cursor:'pointer', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
+          <input type="checkbox" checked={isPrivateRequest} onChange={e=>setIsPrivateRequest(e.target.checked)} style={{ width:'15px', height:'15px' }} />
+          🔒 비밀기능 — 제목만 공개되고 내용은 본인과 관리자만 볼 수 있습니다.
+        </label>
+      )}
+      <div style={{ display:'flex', justifyContent:'flex-end', gap:'8px' }}>
+        {onCancel && <button onClick={onCancel} style={{ padding:'8px 18px', borderRadius:'8px', border:'1px solid #e5e7eb', background:'#fff', color:'#6b7280', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>취소</button>}
+        <button onClick={handleSubmit} disabled={saving} style={{ padding:'8px 22px', borderRadius:'8px', border:'none', background:color, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          {saving ? '등록 중...' : '등록'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── 사용후기 목록
-function ReviewList({ posts, onSelect, currentUser }) {
+function ReviewList({ posts, onSelect, currentUser, canWrite, onPostSaved }) {
   const [search, setSearch] = useState('')
+  const [writing, setWriting] = useState(false)
   const filtered = posts.filter(p => {
     const q = search.toLowerCase()
     return !q || p.title?.toLowerCase().includes(q) || p.content?.toLowerCase().includes(q) || p.author?.toLowerCase().includes(q)
@@ -402,9 +465,25 @@ function ReviewList({ posts, onSelect, currentUser }) {
         <h1 style={{ fontSize:'34px', fontWeight:800, color:'#111827', marginBottom:'14px' }}>⭐ 사용후기</h1>
         <p style={{ fontSize:'16px', color:'#6b7280', lineHeight:1.7 }}>방과후 출석부를 직접 사용하신 선생님들의 생생한 후기를 만나보세요.</p>
       </div>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'36px' }}>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'24px' }}>
         <SearchBar value={search} onChange={setSearch} placeholder="후기 제목, 내용으로 검색..." />
       </div>
+      {canWrite && !writing && (
+        <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'16px' }}>
+          <button onClick={() => setWriting(true)}
+            style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#eab308', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            ✏️ 후기 작성
+          </button>
+        </div>
+      )}
+      {canWrite && writing && (
+        <InlineWriteForm
+          currentUser={currentUser} boardType="review" boardLabel="사용후기" color="#eab308"
+          placeholder="방과후 출석부를 사용하면서 느낀 점을 자유롭게 작성해주세요."
+          onCancel={() => setWriting(false)}
+          onSaved={() => { setWriting(false); onPostSaved?.() }}
+        />
+      )}
       {search && <div style={{ fontSize:'13px', color:'#6b7280', marginBottom:'16px' }}>"<strong>{search}</strong>" 검색 결과 {filtered.length}개</div>}
       {filtered.length === 0 ? (
         <div style={{ textAlign:'center', padding:'80px 20px', color:'#9ca3af' }}>
@@ -434,18 +513,16 @@ function ReviewList({ posts, onSelect, currentUser }) {
         </div>
       )}
       {/* CTA */}
-      <div style={{ marginTop:'48px', background:'linear-gradient(135deg,#fefce8,#fff)', border:'2px solid #fef08a', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
-        <div style={{ fontSize:'24px', marginBottom:'12px' }}>✍️</div>
-        <h3 style={{ fontSize:'18px', fontWeight:700, color:'#92400e', marginBottom:'8px' }}>방과후 출석부를 사용해보셨나요?</h3>
-        <p style={{ fontSize:'14px', color:'#b45309', marginBottom:'20px', lineHeight:1.7 }}>
-          {currentUser ? '아래 버튼으로 글관리 화면에서 사용후기를 작성해주세요!' : '로그인 후 글관리 메뉴에서 사용후기를 작성해주세요!'}
-        </p>
-        {currentUser ? (
-          <a href="/?page=blog_write" style={{ display:'inline-block', padding:'12px 32px', background:'#eab308', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>후기 작성하러 가기 →</a>
-        ) : (
+      {!canWrite && (
+        <div style={{ marginTop:'48px', background:'linear-gradient(135deg,#fefce8,#fff)', border:'2px solid #fef08a', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
+          <div style={{ fontSize:'24px', marginBottom:'12px' }}>✍️</div>
+          <h3 style={{ fontSize:'18px', fontWeight:700, color:'#92400e', marginBottom:'8px' }}>방과후 출석부를 사용해보셨나요?</h3>
+          <p style={{ fontSize:'14px', color:'#b45309', marginBottom:'20px', lineHeight:1.7 }}>
+            로그인 후 사용후기를 작성해주세요!
+          </p>
           <a href="/?page=login" style={{ display:'inline-block', padding:'12px 32px', background:'#eab308', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>로그인하러 가기 →</a>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -485,8 +562,9 @@ function ReviewDetail({ post, onBack }) {
 }
 
 // ── 부탁해요~ (요청게시판) 목록
-function RequestList({ posts, onSelect, currentUser, isAdmin }) {
+function RequestList({ posts, onSelect, currentUser, isAdmin, canWrite, onPostSaved }) {
   const [search, setSearch] = useState('')
+  const [writing, setWriting] = useState(false)
   const filtered = posts.filter(p => {
     const q = search.toLowerCase()
     const isLocked = !!p.isPrivateRequest
@@ -500,9 +578,25 @@ function RequestList({ posts, onSelect, currentUser, isAdmin }) {
         <h1 style={{ fontSize:'34px', fontWeight:800, color:'#111827', marginBottom:'14px' }}>🙏 부탁해요~</h1>
         <p style={{ fontSize:'16px', color:'#6b7280', lineHeight:1.7 }}>원하는 기능이나 도움이 필요한 점을 자유롭게 요청해주세요. 🔒 비밀기능으로 등록하면 내용은 작성자와 관리자만 볼 수 있어요.</p>
       </div>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'36px' }}>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'24px' }}>
         <SearchBar value={search} onChange={setSearch} placeholder="요청 제목으로 검색..." />
       </div>
+      {canWrite && !writing && (
+        <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'16px' }}>
+          <button onClick={() => setWriting(true)}
+            style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#16a34a', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            ✏️ 요청 작성
+          </button>
+        </div>
+      )}
+      {canWrite && writing && (
+        <InlineWriteForm
+          currentUser={currentUser} boardType="request" boardLabel="부탁해요~" color="#16a34a"
+          placeholder="관리자에게 요청하고 싶은 기능이나 도움을 자유롭게 작성해주세요."
+          onCancel={() => setWriting(false)}
+          onSaved={() => { setWriting(false); onPostSaved?.() }}
+        />
+      )}
       {search && <div style={{ fontSize:'13px', color:'#6b7280', marginBottom:'16px' }}>"<strong>{search}</strong>" 검색 결과 {filtered.length}개</div>}
       {filtered.length === 0 ? (
         <div style={{ textAlign:'center', padding:'80px 20px', color:'#9ca3af' }}>
@@ -533,18 +627,16 @@ function RequestList({ posts, onSelect, currentUser, isAdmin }) {
         </div>
       )}
       {/* CTA */}
-      <div style={{ marginTop:'48px', background:'linear-gradient(135deg,#f0fdf4,#fff)', border:'2px solid #bbf7d0', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
-        <div style={{ fontSize:'24px', marginBottom:'12px' }}>🙏</div>
-        <h3 style={{ fontSize:'18px', fontWeight:700, color:'#15803d', marginBottom:'8px' }}>필요한 기능이 있으신가요?</h3>
-        <p style={{ fontSize:'14px', color:'#16a34a', marginBottom:'20px', lineHeight:1.7 }}>
-          {currentUser ? '아래 버튼으로 글관리 화면에서 "🙏 부탁해요~" 게시판에 요청을 남겨주세요!' : '로그인 후 글관리 메뉴에서 "🙏 부탁해요~" 게시판에 요청을 남겨주세요!'}
-        </p>
-        {currentUser ? (
-          <a href="/?page=blog_write" style={{ display:'inline-block', padding:'12px 32px', background:'#16a34a', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>요청하러 가기 →</a>
-        ) : (
+      {!canWrite && (
+        <div style={{ marginTop:'48px', background:'linear-gradient(135deg,#f0fdf4,#fff)', border:'2px solid #bbf7d0', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
+          <div style={{ fontSize:'24px', marginBottom:'12px' }}>🙏</div>
+          <h3 style={{ fontSize:'18px', fontWeight:700, color:'#15803d', marginBottom:'8px' }}>필요한 기능이 있으신가요?</h3>
+          <p style={{ fontSize:'14px', color:'#16a34a', marginBottom:'20px', lineHeight:1.7 }}>
+            로그인 후 "🙏 부탁해요~" 게시판에 요청을 남겨주세요!
+          </p>
           <a href="/?page=login" style={{ display:'inline-block', padding:'12px 32px', background:'#16a34a', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>로그인하러 가기 →</a>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -898,7 +990,7 @@ function renderNav({ blogAdminMode, switchTab, tab, selPost, currentUser, canWri
 }
 
 // ─── 본문 영역 (Blog 밖으로 분리, 일반 렌더 함수)
-function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, reviewPosts, requestPosts, handleBack, handleSelect, tab, isAdmin }) {
+function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, reviewPosts, requestPosts, handleBack, handleSelect, tab, isAdmin, canWriteBoard, onPostSaved }) {
   if (blogAdminMode) return <div style={{ padding:'24px' }}><BlogAdmin user={currentUser} /></div>
   if (selPost) {
     if (selPost.type === 'docs') return <DocsDetail doc={selPost} allDocs={docsPosts} onBack={handleBack} onSelect={handleSelect} />
@@ -909,8 +1001,8 @@ function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, tem
   }
   if (tab === 'docs') return <DocsList docs={docsPosts} onSelect={handleSelect} />
   if (tab === 'templates') return <TemplateList posts={templatePosts} onSelect={handleSelect} />
-  if (tab === 'reviews') return <ReviewList posts={reviewPosts} onSelect={handleSelect} currentUser={currentUser} />
-  if (tab === 'requests') return <RequestList posts={requestPosts} onSelect={handleSelect} currentUser={currentUser} isAdmin={isAdmin} />
+  if (tab === 'reviews') return <ReviewList posts={reviewPosts} onSelect={handleSelect} currentUser={currentUser} canWrite={canWriteBoard('review')} onPostSaved={onPostSaved} />
+  if (tab === 'requests') return <RequestList posts={requestPosts} onSelect={handleSelect} currentUser={currentUser} isAdmin={isAdmin} canWrite={canWriteBoard('request')} onPostSaved={onPostSaved} />
   return <BlogList posts={blogPosts} onSelect={handleSelect} />
 }
 
@@ -946,6 +1038,13 @@ export function Blog() {
     (currentUser.role === 'admin' || (currentUser.level ?? 1) >= (blogWriteMinLevel ?? 1))
   const isAdmin = currentUser && !currentUser._pending &&
     (currentUser.role === 'admin' || (currentUser.level ?? 1) >= 10)
+
+  const canWriteBoard = (boardKey) => {
+    if (!currentUser || currentUser._pending) return false
+    if (currentUser.role === 'admin' || (currentUser.level ?? 1) >= 10) return true
+    const minLevel = getBoardPermLevel(boardKey, 'write')
+    return (currentUser.level ?? 1) >= (minLevel ?? 1)
+  }
 
   const blogPosts = allPosts.filter(p => {
     const type = p.type || 'blog'
@@ -1079,7 +1178,7 @@ export function Blog() {
           </div>
         </div>
         <div style={{ flex:1, minWidth:0, maxWidth:'1100px' }}>
-          {renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, reviewPosts, requestPosts, handleBack, handleSelect, tab, isAdmin })}
+          {renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, reviewPosts, requestPosts, handleBack, handleSelect, tab, isAdmin, canWriteBoard, onPostSaved: loadPosts })}
           {!blogAdminMode && (
             <div style={{ padding:'0 20px 40px' }}>
               <AdSense slot="3333333333" label="하단 광고" style={{ minHeight:'90px' }} />
