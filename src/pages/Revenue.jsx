@@ -59,11 +59,13 @@ function termRosterCount(students, classId, sec, term) {
   return students.filter(s => {
     if (!s.classIds?.includes(classId)) return false
     if (sec && (s.section || '') !== sec) return false
-    // Classes.jsx와 동일: activeTerm 기준으로 분기 필터
-    // activeTerm 없으면 1분기(periodNo===1)로 간주
+    // 출석부와 동일: student_careers에 해당 분기가 있으면 포함
+    // careers 없으면 1분기(periodNo===1)로 간주
     const periodNo = term.periodNo ?? term.termNo
-    if (s.activeTerm) {
-      if (String(s.activeTerm) !== String(periodNo)) return false
+    const careers = s.student_careers || []
+    if (careers.length > 0) {
+      const hasTerm = careers.some(c => String(c.term) === String(periodNo))
+      if (!hasTerm) return false
     } else {
       if (periodNo !== 1) return false
     }
@@ -1295,7 +1297,7 @@ export function Revenue({ user }) {
                     </div>
                     {clsPays.length>0&&(
                       <div style={{ padding:'4px 20px 8px' }}>
-                        {clsPays.map(p=>{
+{clsPays.map(p=>{
                           const payTerm = p.termNo ? terms.find(t=>t.termNo===Number(p.termNo)) : null
                           const baseCount = Number(cls.termSizes?.[0]) || terms[0]?.sessions.length || 1
                           const secs = cls.sections?.filter(s=>s.section)||[]
