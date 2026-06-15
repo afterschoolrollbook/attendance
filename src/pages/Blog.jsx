@@ -154,10 +154,12 @@ function SearchBar({ value, onChange, placeholder }) {
 }
 
 // ── 블로그 목록
-function BlogList({ posts, onSelect }) {
+function BlogList({ posts, onSelect, currentUser, loggedIn, writePerm, onPostSaved }) {
   const [search, setSearch] = useState('')
   const [selCat, setSelCat] = useState('전체')
+  const [writing, setWriting] = useState(false)
   const FIXED_CATEGORIES = ['전체', '출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
+  const WRITE_CATEGORIES = FIXED_CATEGORIES.filter(c => c !== '전체')
   const filtered = posts.filter(p => {
     const matchCat = selCat === '전체' || p.category === selCat
     const q = search.toLowerCase()
@@ -172,7 +174,7 @@ function BlogList({ posts, onSelect }) {
         <h1 style={{ fontSize:'34px', fontWeight:800, color:'#111827', marginBottom:'14px' }}>방과후 출석부 블로그</h1>
         <p style={{ fontSize:'16px', color:'#6b7280', lineHeight:1.7 }}>방과후 강사를 위한 출석 관리, 교구 관리, 업무 효율화 팁을 공유합니다.</p>
       </div>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'36px' }}>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'24px' }}>
         <SearchBar value={search} onChange={setSearch} placeholder="글 제목, 내용으로 검색..." />
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', justifyContent:'center' }}>
           {FIXED_CATEGORIES.map(cat => (
@@ -183,6 +185,24 @@ function BlogList({ posts, onSelect }) {
           ))}
         </div>
       </div>
+      {loggedIn && !writing && (
+        <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'16px' }}>
+          <button onClick={() => setWriting(true)}
+            style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#f97316', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            ✏️ 글쓰기
+          </button>
+        </div>
+      )}
+      {loggedIn && writing && (
+        <InlineWriteForm
+          currentUser={currentUser} boardType="blog" boardLabel="블로그" color="#f97316"
+          placeholder="방과후 강사를 위한 출석 관리, 교구 관리, 업무 효율화 팁을 자유롭게 작성해주세요."
+          categories={WRITE_CATEGORIES}
+          writePerm={writePerm}
+          onCancel={() => setWriting(false)}
+          onSaved={() => { setWriting(false); onPostSaved?.() }}
+        />
+      )}
       {search && <div style={{ fontSize:'13px', color:'#6b7280', marginBottom:'16px' }}>"<strong>{search}</strong>" 검색 결과 {filtered.length}개</div>}
       {filtered.length === 0 ? (
         <div style={{ textAlign:'center', padding:'80px 20px', color:'#9ca3af' }}>
@@ -392,9 +412,10 @@ function BlogDetail({ post, onBack }) {
 }
 
 // ── 블로그 인라인 글쓰기 폼 (사용후기/부탁해요~ 목록에서 마이페이지로 가지 않고 바로 작성)
-function InlineWriteForm({ currentUser, boardType, boardLabel, color, placeholder, writePerm, onSaved, onCancel }) {
+function InlineWriteForm({ currentUser, boardType, boardLabel, color, placeholder, writePerm, categories, onSaved, onCancel }) {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
+  const [category, setCategory] = useState('')
   const [isPrivateRequest, setIsPrivateRequest] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -418,7 +439,7 @@ function InlineWriteForm({ currentUser, boardType, boardLabel, color, placeholde
         title: title.trim(),
         slug: slugify(title),
         content: content.trim(),
-        category: boardType === 'review' ? '사용자 후기' : boardType === 'request' ? '부탁해요' : '',
+        category: boardType === 'review' ? '사용자 후기' : boardType === 'request' ? '부탁해요' : category,
         tags: [],
         author: currentUser?.name || currentUser?.email || '익명',
         authorId: currentUser?.id,
@@ -426,7 +447,7 @@ function InlineWriteForm({ currentUser, boardType, boardLabel, color, placeholde
         publishedAt: now(), updatedAt: now(), createdAt: now(),
       }
       await dbCall('insert', 'blogPosts', payload)
-      setTitle(''); setContent(''); setIsPrivateRequest(false)
+      setTitle(''); setContent(''); setCategory(''); setIsPrivateRequest(false)
       onSaved(payload)
     } catch (e) { alert('저장 실패: ' + e.message) }
     setSaving(false)
@@ -441,6 +462,12 @@ function InlineWriteForm({ currentUser, boardType, boardLabel, color, placeholde
         </div>
       )}
       <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="제목을 입력하세요" style={{ ...iStyle, fontWeight:700 }} />
+      {categories?.length > 0 && (
+        <select value={category} onChange={e=>setCategory(e.target.value)} style={{ ...iStyle, background:'#fff' }}>
+          <option value="">카테고리 선택</option>
+          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      )}
       <textarea value={content} onChange={e=>setContent(e.target.value)} placeholder={placeholder} rows={5} style={{ ...iStyle, resize:'vertical', lineHeight:1.7 }} />
       {boardType === 'request' && (
         <label style={{ display:'flex', alignItems:'center', gap:'8px', cursor:'pointer', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
@@ -1014,7 +1041,7 @@ function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, tem
   if (tab === 'templates') return <TemplateList posts={templatePosts} onSelect={handleSelect} />
   if (tab === 'reviews') return <ReviewList posts={reviewPosts} onSelect={handleSelect} currentUser={currentUser} loggedIn={loggedIn} writePerm={getWritePermInfo('review')} onPostSaved={onPostSaved} />
   if (tab === 'requests') return <RequestList posts={requestPosts} onSelect={handleSelect} currentUser={currentUser} isAdmin={isAdmin} loggedIn={loggedIn} writePerm={getWritePermInfo('request')} onPostSaved={onPostSaved} />
-  return <BlogList posts={blogPosts} onSelect={handleSelect} />
+  return <BlogList posts={blogPosts} onSelect={handleSelect} currentUser={currentUser} loggedIn={loggedIn} writePerm={getWritePermInfo('blog')} onPostSaved={onPostSaved} />
 }
 
 export function Blog() {
