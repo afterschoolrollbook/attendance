@@ -1279,52 +1279,7 @@ export function Revenue({ user }) {
                             })}
                           </div>
                         )}
-                        {/* 텀별 인원 x 수강료 */}
-                        {fee&&terms.length>0&&(
-                          <div style={{ display:'flex', flexDirection:'column', gap:'4px', marginTop:'6px' }}>
-                            {(()=>{
-                              const baseCount = Number(cls.termSizes?.[0]) || terms[0]?.sessions.length || 1
-                              const secs = cls.sections?.filter(s=>s.section)||[]
-                              return terms.map(term=>{
-                                const isCur = isTermCurrent(term)
-                                const termAmt = fee.feeType==='per_term'
-                                  ? Math.round(Number(fee.amount) / baseCount * term.sessions.length)
-                                  : Number(fee.amount) * term.sessions.length
-                                // 반별 텀 인원
-                                const secCnts = secs.map(s=>({
-                                  section: s.section,
-                                  cnt: termRosterCount(students, cls.id, s.section, term)
-                                }))
-                                const totalTermCnt = secCnts.reduce((sum,s)=>sum+s.cnt, 0) || termRosterCount(students, cls.id, cls._selSection||'', term)
-                                const totalAmt = termAmt * totalTermCnt
-                                return (
-                                  <div key={term.termNo} style={{ fontSize:'11px', padding:'5px 10px', borderRadius:'7px', border:`1px solid ${isCur?'#86efac':C.border}`, background:isCur?'#f0fdf4':'#f9fafb', color:C.text }}>
-                                    <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
-                                      <span style={{ fontWeight:700, color:isCur?C.success:C.text }}>{term.label}</span>
-                                      <span style={{ color:C.muted }}>{term.sessions.length}회</span>
-                                      {isCur&&<span style={{ fontSize:'10px', background:'#dcfce7', color:C.success, borderRadius:'3px', padding:'0 4px' }}>진행중</span>}
-                                      <span style={{ marginLeft:'auto', fontWeight:700, color:C.primary }}>{fmt(totalAmt)}원</span>
-                                    </div>
-                                    {secCnts.length > 1 && (
-                                      <div style={{ display:'flex', gap:'8px', marginTop:'3px', color:C.muted }}>
-                                        {secCnts.map(s=>(
-                                          <span key={s.section}>{s.section}반 {s.cnt}명</span>
-                                        ))}
-                                        <span>총 {totalTermCnt}명</span>
-                                        <span>× {fmt(termAmt)}원</span>
-                                      </div>
-                                    )}
-                                    {secCnts.length <= 1 && (
-                                      <div style={{ color:C.muted, marginTop:'2px' }}>
-                                        {totalTermCnt}명 × {fmt(termAmt)}원
-                                      </div>
-                                    )}
-                                  </div>
-                                )
-                              })
-                            })()}
-                          </div>
-                        )}
+
                       </div>
                       <button onClick={()=>{ setFeeTarget({classId:cls.id,org:cls.organization,className:cls.className}); setFeeForm({feeType:fee?.feeType||'per_session',amount:String(fee?.amount||'')}); setFeeModal(true) }}
                         style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:fee?'#fff7ed':'#f9fafb', color:fee?C.primary:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
@@ -1333,12 +1288,29 @@ export function Revenue({ user }) {
                     </div>
                     {clsPays.length>0&&(
                       <div style={{ padding:'4px 20px 8px' }}>
-                        {clsPays.map(p=>(
+                        {clsPays.map(p=>{
+                          const payTerm = p.termNo ? terms.find(t=>t.termNo===Number(p.termNo)) : null
+                          const baseCount = Number(cls.termSizes?.[0]) || terms[0]?.sessions.length || 1
+                          const secs = cls.sections?.filter(s=>s.section)||[]
+                          const termAmt = payTerm && fee ? (fee.feeType==='per_term'
+                            ? Math.round(Number(fee.amount) / baseCount * payTerm.sessions.length)
+                            : Number(fee.amount) * payTerm.sessions.length) : 0
+                          const secCnts = payTerm ? secs.map(s=>({
+                            section: s.section,
+                            cnt: termRosterCount(students, cls.id, s.section, payTerm)
+                          })) : []
+                          const totalTermCnt = secCnts.reduce((sum,s)=>sum+s.cnt, 0)
+                          return (
                           <div key={p.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', padding:'8px 0', borderBottom:`1px solid #f3f4f6` }}>
                             <div style={{ flex:1 }}>
                               <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
                                 <span style={{ fontSize:'13px', color:C.text, fontWeight:600 }}>{p.date?.replace(/-/g,'.').slice(2)}</span>
                                 {p.termNo&&<span style={{ fontSize:'11px', background:'#eff6ff', color:C.blue, border:'1px solid #bfdbfe', borderRadius:'4px', padding:'1px 5px' }}>{p.termNo}텀</span>}
+                                {payTerm&&fee&&secCnts.length>1&&secCnts.map(s=>(
+                                  <span key={s.section} style={{ fontSize:'12px', color:C.muted }}>{s.section}반 {s.cnt}명</span>
+                                ))}
+                                {payTerm&&fee&&totalTermCnt>0&&<span style={{ fontSize:'12px', color:C.muted }}>총 {totalTermCnt}명</span>}
+                                {payTerm&&fee&&termAmt>0&&<span style={{ fontSize:'12px', color:C.muted }}>× {fmt(termAmt)}원</span>}
                                 {p.memo&&<span style={{ fontSize:'12px', color:C.muted }}>{p.memo}</span>}
                               </div>
                               {p.reason&&<div style={{ fontSize:'11px', color:C.warning, marginTop:'2px' }}>📝 {p.reason}</div>}
@@ -1348,7 +1320,7 @@ export function Revenue({ user }) {
                               <button onClick={()=>confirm('입금 내역을 삭제할까요?', () => deletePayment(p.id))} style={{ padding:'3px 8px', borderRadius:'5px', border:'1px solid #fca5a5', background:'#fef2f2', color:C.danger, fontSize:'11px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                             </div>
                           </div>
-                        ))}
+                        )})}
                       </div>
                     )}
                   </div>
