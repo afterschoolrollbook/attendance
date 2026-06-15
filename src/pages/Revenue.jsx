@@ -1094,6 +1094,14 @@ export function Revenue({ user }) {
                           const termType = cls.termType==='semester'?'학기제':'분기제'
                           const isRowExpanded = expandedClass === (cls.id+'_'+termNo)
                           const hasSecs = sections.length > 1 && sections.some(r => r.cls._selSection)
+                          // 직전 텀 대비 전학/취소 인원
+                          const clsTerms = getTerms(cls)
+                          const prevTerm = clsTerms.find(t=>t.periodNo===term.periodNo && t.termNo===term.termNo-1)
+                          const secDeps = sections.map(r => termDepartures(students, r.cls.id, r.cls._selSection, term, prevTerm))
+                          const totalDep = secDeps.reduce((acc,d)=>({ cancel:acc.cancel+d.cancel, transfer:acc.transfer+d.transfer }), { cancel:0, transfer:0 })
+                          const depBadge = (dep) => (dep.cancel>0||dep.transfer>0)
+                            ? ` (${[dep.transfer>0?`전학 -${dep.transfer}명`:null, dep.cancel>0?`취소 -${dep.cancel}명`:null].filter(Boolean).join(', ')})`
+                            : ''
                           return (
                             <div key={cls.id} style={{ borderRadius:'10px', border:`1px solid ${hasUnpaidRow?'#fca5a5':C.border}`, overflow:'hidden' }}>
                               <div onClick={()=>setExpandedClass(isRowExpanded?null:cls.id+'_'+termNo)}
@@ -1104,10 +1112,27 @@ export function Revenue({ user }) {
                                     <span style={{ marginLeft:'6px', fontSize:'11px', color:C.muted, fontWeight:400 }}>{termType}</span>
                                   </div>
                                   <div style={{ fontSize:'11px', color:C.muted, marginTop:'2px' }}>
-                                    {hasSecs
-                                      ? sections.map(r => `${r.cls._selSection}반 ${r.cnt}명`).join('  ') + `  총 ${totalCnt}명`
-                                      : `현재 ${totalCnt}명`
-                                    } · {term.label} {term.sessions.length}회 · {days}요일
+                                    {hasSecs ? (
+                                      <>
+                                        {sections.map((r,ri) => (
+                                          <span key={ri}>
+                                            {ri>0?'  ':''}{r.cls._selSection}반 {r.cnt}명
+                                            {(secDeps[ri].cancel>0||secDeps[ri].transfer>0) &&
+                                              <span style={{ color:C.danger, fontWeight:700 }}>{depBadge(secDeps[ri])}</span>}
+                                          </span>
+                                        ))}
+                                        {`  총 ${totalCnt}명`}
+                                        {(totalDep.cancel>0||totalDep.transfer>0) &&
+                                          <span style={{ color:C.danger, fontWeight:700 }}>{depBadge(totalDep)}</span>}
+                                      </>
+                                    ) : (
+                                      <>
+                                        {`현재 ${totalCnt}명`}
+                                        {(totalDep.cancel>0||totalDep.transfer>0) &&
+                                          <span style={{ color:C.danger, fontWeight:700 }}>{depBadge(totalDep)}</span>}
+                                      </>
+                                    )}
+                                    {' '}· {term.label} {term.sessions.length}회 · {days}요일
                                     {term.startDate&&<> · {term.startDate.slice(5)}~{term.endDate.slice(5)}</>}
                                   </div>
                                 </div>
