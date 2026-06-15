@@ -196,6 +196,8 @@ export function Revenue({ user }) {
   const savingRef = React.useRef(false)
 
   const [expandedClass, setExpandedClass] = useState(null)
+  const [expandedTerms, setExpandedTerms] = useState({})   // 텀 크로스체크 텀별 접기/펼치기
+  const [expandedFees, setExpandedFees] = useState({})     // 수강료 등록 카드 접기/펼치기
   const { error: toastError, success } = useToast()
   const confirm = useConfirm()
 
@@ -1085,11 +1087,17 @@ export function Revenue({ user }) {
                 const hdrBorder= termSt==='active'?'#86efac': termSt==='upcoming'?'#bfdbfe': termUnpaidTotal>0?'#fca5a5':C.border
 
                 const isExpanded = expandedClass === ('term_'+termNo)
+                // 진행중 + 직전텀은 기본 펼침, 나머지는 접힘
+                const termKey = 'term_'+termNo
+                const isTermOpen = termKey in expandedTerms
+                  ? expandedTerms[termKey]
+                  : (termSt === 'active' || termNo === activeTermNo - 1)
+                const toggleTerm = () => setExpandedTerms(prev => ({ ...prev, [termKey]: !isTermOpen }))
 
                 return (
                   <div key={termNo} style={{ marginBottom:'14px', borderRadius:'14px', border:`1.5px solid ${hdrBorder}`, overflow:'hidden', background:C.card }}>
-                    {/* 텀 헤더 */}
-                    <div style={{ padding:'12px 20px', background:hdrBg, borderBottom:`1px solid ${hdrBorder}` }}>
+                    {/* 텀 헤더 — 클릭으로 접기/펼치기 */}
+                    <div onClick={toggleTerm} style={{ padding:'12px 20px', background:hdrBg, borderBottom: isTermOpen ? `1px solid ${hdrBorder}` : 'none', cursor:'pointer' }}>
                       {/* 텀 번호 + 상태 + 합계 */}
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
@@ -1100,16 +1108,19 @@ export function Revenue({ user }) {
                           {termSt==='upcoming'&&<span style={{ fontSize:'11px', background:'#f3f4f6', color:C.muted, border:`1px solid ${C.border}`, borderRadius:'5px', padding:'1px 7px' }}>예정</span>}
                           {termUnpaidTotal>0&&termSt!=='upcoming'&&<span style={{ fontSize:'11px', background:'#fef2f2', color:C.danger, border:'1px solid #fca5a5', borderRadius:'5px', padding:'1px 7px', fontWeight:700 }}>미수금</span>}
                         </div>
-                        {termExpTotal>0&&<div style={{ display:'flex', gap:'14px', alignItems:'center' }}>
-                          <span style={{ fontSize:'12px', color:C.muted }}>예상 <strong style={{color:C.text}}>{fmt(termExpTotal)}원</strong></span>
-                          <span style={{ fontSize:'12px', color:C.muted }}>입금 <strong style={{color:C.success}}>{fmt(termPaidTotal)}원</strong></span>
-                          {termUnpaidTotal>0&&termSt!=='upcoming'&&<span style={{ fontSize:'12px', color:C.muted }}>미수 <strong style={{color:C.danger}}>{fmt(termUnpaidTotal)}원</strong></span>}
-                        </div>}
+                        <div style={{ display:'flex', gap:'14px', alignItems:'center' }}>
+                          {termExpTotal>0&&<>
+                            <span style={{ fontSize:'12px', color:C.muted }}>예상 <strong style={{color:C.text}}>{fmt(termExpTotal)}원</strong></span>
+                            <span style={{ fontSize:'12px', color:C.muted }}>입금 <strong style={{color:C.success}}>{fmt(termPaidTotal)}원</strong></span>
+                            {termUnpaidTotal>0&&termSt!=='upcoming'&&<span style={{ fontSize:'12px', color:C.muted }}>미수 <strong style={{color:C.danger}}>{fmt(termUnpaidTotal)}원</strong></span>}
+                          </>}
+                          <span style={{ fontSize:'13px', color:C.muted }}>{isTermOpen ? '▲' : '▼'}</span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* 텀 내 수업 목록 — 같은 수업(classId)끼리 합쳐서 표시 */}
-                    <div style={{ padding:'10px 16px', display:'flex', flexDirection:'column', gap:'8px' }}>
+                    {/* 텀 내 수업 목록 — 접기/펼치기 */}
+                    {isTermOpen && <div style={{ padding:'10px 16px', display:'flex', flexDirection:'column', gap:'8px' }}>
                       {(() => {
                         // cls.id 기준으로 그룹핑 (A반/B반은 같은 id)
                         const groupMap = {}
@@ -1227,7 +1238,7 @@ export function Revenue({ user }) {
                           )
                         })
                       })()}
-                    </div>
+                    </div>}
                   </div>
                 )
               })
@@ -1264,9 +1275,12 @@ export function Revenue({ user }) {
                   const ps=perSessionFee(fee,term,cls)
                   return s+ps*cnt*term.sessions.length
                 },0)
+                const feeKey = 'fee_'+cls.id
+                const isFeeOpen = feeKey in expandedFees ? expandedFees[feeKey] : true
+                const toggleFee = () => setExpandedFees(prev => ({ ...prev, [feeKey]: !isFeeOpen }))
                 return (
                   <div key={cls.id} style={{ background:C.card, borderRadius:'14px', border:`1px solid ${C.border}`, overflow:'hidden' }}>
-                    <div style={{ padding:'14px 20px', background:'#fafafa', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'10px' }}>
+                    <div onClick={toggleFee} style={{ padding:'14px 20px', background:'#fafafa', borderBottom: isFeeOpen ? `1px solid ${C.border}` : 'none', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'10px', cursor:'pointer' }}>
                       <div>
                         <div style={{ fontSize:'15px', fontWeight:700, color:C.text }}>
                           🏫 {cls.organization} · {cls.className}
@@ -1290,12 +1304,15 @@ export function Revenue({ user }) {
                         )}
 
                       </div>
-                      <button onClick={()=>{ setFeeTarget({classId:cls.id,org:cls.organization,className:cls.className}); setFeeForm({feeType:fee?.feeType||'per_session',amount:String(fee?.amount||'')}); setFeeModal(true) }}
-                        style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:fee?'#fff7ed':'#f9fafb', color:fee?C.primary:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-                        {fee?`⚙️ ${fmt(fee.amount)}원/${fee.feeType==='per_session'?'회':'텀'}`:'⚙️ 수강료 설정'}
-                      </button>
+                      <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                        <button onClick={e=>{e.stopPropagation(); setFeeTarget({classId:cls.id,org:cls.organization,className:cls.className}); setFeeForm({feeType:fee?.feeType||'per_session',amount:String(fee?.amount||'')}); setFeeModal(true) }}
+                          style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:fee?'#fff7ed':'#f9fafb', color:fee?C.primary:C.muted, fontSize:'12px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                          {fee?`⚙️ ${fmt(fee.amount)}원/${fee.feeType==='per_session'?'회':'텀'}`:'⚙️ 수강료 설정'}
+                        </button>
+                        <span style={{ fontSize:'13px', color:C.muted }}>{isFeeOpen ? '▲' : '▼'}</span>
+                      </div>
                     </div>
-                    {clsPays.length>0&&(
+                    {isFeeOpen && clsPays.length>0&&(
                       <div style={{ padding:'4px 20px 8px' }}>
 {clsPays.map(p=>{
                           const payTerm = p.termNo ? terms.find(t=>t.termNo===Number(p.termNo)) : null
