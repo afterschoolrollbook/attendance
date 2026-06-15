@@ -392,7 +392,9 @@ export function Revenue({ user }) {
 
   // ★ 전체 미수금 목록 (과거 텀 포함) — 달력에서 상시 표시
   const allUnpaidList = useMemo(() => {
-    const list = []
+    // classId + termNo 단위로 먼저 집계 (A/B반 합산) — paid는 classId+term당 1번만 계산
+    const groups = {}
+    const order = []
     sorted.forEach(cls => {
       const fee = feeMap[cls.id]
       const allCnt = confirmedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0
@@ -412,34 +414,47 @@ export function Revenue({ user }) {
         if (!cnt) return
         const ps = perSessionFee(fee, term, cls)
         const expected = ps * cnt * term.sessions.length
-        const tagged = clsPays.filter(p =>
-          payMatchesTerm(p, term, cls.id)
-        )
-        const paid = tagged.reduce((s, p) => s + p.amount, 0)
-        const unpaid = expected - paid
-        const td = today()
-        const termEnded = term.endDate && term.endDate < td
-        const termCurrent = term.startDate <= td && term.endDate >= td
-        const termUpcoming = term.startDate > td
-        // 이 수업에서 끝난 마지막 텀 번호
-        const allTerms = getTerms(cls)
-        const lastEndedTermNo = allTerms.filter(t => t.endDate && t.endDate < td).reduce((max, t) => Math.max(max, t.termNo), 0)
-        // 끝난 텀 바로 다음 텀
-        const isNextTerm = term.termNo === lastEndedTermNo + 1
-        if (unpaid > 0 && (termEnded || termCurrent || isNextTerm)) {
-          // 시작 전(예정)인 텀은 upcoming으로 분류
-          const status = termEnded ? 'unpaid' : termUpcoming ? 'upcoming' : 'current'
-          list.push({
-            cls, term, fee, cnt,
-            expected, paid, unpaid,
-            termStatus: status,
-            startApplied: appliedCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || cnt,
-            cancelled: cancelledCount[cls.id+(cls._selSection?'::'+cls._selSection:'')] || 0,
-            confirmed: cnt,
-          })
+        const key = cls.id + '_' + term.termNo
+        if (!groups[key]) {
+          const tagged = clsPays.filter(p => payMatchesTerm(p, term, cls.id))
+          const paid = tagged.reduce((s, p) => s + p.amount, 0)
+          groups[key] = {
+            cls, term, fee, paid,
+            cnt: 0, expected: 0, confirmed: 0, startApplied: 0, cancelled: 0,
+            _sections: [], _sectionCnts: [],
+          }
+          order.push(key)
         }
+        const g = groups[key]
+        g.cnt += cnt
+        g.expected += expected
+        g.confirmed += cnt
+        g.startApplied += appliedCount[cls.id+(sec?'::'+sec:'')] || cnt
+        g.cancelled += cancelledCount[cls.id+(sec?'::'+sec:'')] || 0
+        g._sections.push(sec)
+        g._sectionCnts.push(cnt)
       })
     })
+
+    const td = today()
+    const list = []
+    order.forEach(key => {
+      const g = groups[key]
+      const { term, cls } = g
+      const unpaid = g.expected - g.paid
+      const termEnded = term.endDate && term.endDate < td
+      const termCurrent = term.startDate <= td && term.endDate >= td
+      const termUpcoming = term.startDate > td
+      // 이 수업에서 끝난 마지막 텀 번호 → 끝난 텀 바로 다음 텀
+      const allTerms = getTerms(cls)
+      const lastEndedTermNo = allTerms.filter(t => t.endDate && t.endDate < td).reduce((max, t) => Math.max(max, t.termNo), 0)
+      const isNextTerm = term.termNo === lastEndedTermNo + 1
+      if (unpaid > 0 && (termEnded || termCurrent || isNextTerm)) {
+        const status = termEnded ? 'unpaid' : termUpcoming ? 'upcoming' : 'current'
+        list.push({ ...g, unpaid, termStatus: status })
+      }
+    })
+
     // sorted 순서(학교→요일→시간→반) 유지, 같은 수업 내에서 텀 오름차순
     list.sort((a, b) => {
       const ai = sorted.findIndex(c => c.id === a.cls.id)
@@ -447,31 +462,7 @@ export function Revenue({ user }) {
       if (ai !== bi) return ai - bi
       return (a.term.startDate||'').localeCompare(b.term.startDate||'')
     })
-
-    // classId + termNo 기준으로 A반/B반 합치기
-    const grouped = []
-    const seen = {}
-    list.forEach(item => {
-      const key = item.cls.id + '_' + item.term.termNo
-      if (seen[key] !== undefined) {
-        const g = grouped[seen[key]]
-        g.cnt += item.cnt
-        g.expected += item.expected
-        g.paid += item.paid
-        g.unpaid += item.unpaid
-        g.confirmed += item.confirmed
-        g.startApplied += item.startApplied
-        g.cancelled += item.cancelled
-        g._sections = g._sections || [g.cls._selSection]
-        g._sections.push(item.cls._selSection)
-        g._sectionCnts = g._sectionCnts || [g._origCnt]
-        g._sectionCnts.push(item.cnt)
-      } else {
-        seen[key] = grouped.length
-        grouped.push({ ...item, _origCnt: item.cnt, _sections: [item.cls._selSection], _sectionCnts: [item.cnt] })
-      }
-    })
-    return grouped
+    return list
   }, [sorted, feeMap, confirmedCount, cancelledCount, appliedCount, payByClass])
 
   // 이번달 요약
@@ -1042,8 +1033,10 @@ export function Revenue({ user }) {
                 const termSt = termNo < activeTermNo ? 'done' : termNo === activeTermNo ? 'active' : 'upcoming'
 
                 const termExpTotal = rows.reduce((s,r)=>s+r.expected,0)
-                const termPaidTotal= rows.reduce((s,r)=>s+r.paid,0)
-                const termUnpaidTotal=termExpTotal-termPaidTotal
+                // ★ 같은 classId(A·B반)는 payments가 동일 레코드를 중복 보유 → id 기준 중복 제거 후 합산
+                const termAllPays = [...new Map(rows.flatMap(r=>r.payments).map(p=>[p.id,p])).values()]
+                const termPaidTotal = termAllPays.reduce((s,p)=>s+p.amount,0)
+                const termUnpaidTotal = termExpTotal-termPaidTotal
 
                 const hdrBg    = termSt==='active'?'#f0fdf4': termSt==='upcoming'?'#eff6ff':'#f9fafb'
                 const hdrBorder= termSt==='active'?'#86efac': termSt==='upcoming'?'#bfdbfe': termUnpaidTotal>0?'#fca5a5':C.border
@@ -1086,9 +1079,10 @@ export function Revenue({ user }) {
                           const { cls, term } = baseRow
                           const totalCnt = sections.reduce((s,r) => s+r.cnt, 0)
                           const totalExpected = sections.reduce((s,r) => s+r.expected, 0)
-                          const totalPaid = sections.reduce((s,r) => s+r.paid, 0)
-                          const totalUnpaid = sections.reduce((s,r) => s+r.unpaid, 0)
-                          const allPays = sections.flatMap(r => r.payments)
+                          // ★ A·B반은 같은 payments를 공유하므로 id 기준 중복 제거 후 합산
+                          const allPays = [...new Map(sections.flatMap(r => r.payments).map(p => [p.id, p])).values()]
+                          const totalPaid = allPays.reduce((s,p)=>s+p.amount, 0)
+                          const totalUnpaid = Math.max(0, totalExpected - totalPaid)
                           const hasUnpaidRow = totalUnpaid>0&&termSt!=='upcoming'
                           const days = cls.days?.join('·') || ''
                           const termType = cls.termType==='semester'?'학기제':'분기제'
