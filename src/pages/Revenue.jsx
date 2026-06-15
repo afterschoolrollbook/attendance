@@ -1139,7 +1139,7 @@ export function Revenue({ user }) {
                                   </>}
                                   {!baseRow.fee&&<span style={{ fontSize:'11px', color:C.muted }}>수강료 미설정</span>}
                                   {termSt!=='upcoming'&&(()=>{
-                                    const isComplete = baseRow.fee&&totalExpected>0&&totalUnpaid<=0
+                                    const isComplete = baseRow.fee&&totalPaid>0
                                     return isComplete ? (
                                       <>
                                         <span style={{ padding:'4px 10px', borderRadius:'7px', background:'#dcfce7', color:C.success, fontSize:'11px', fontWeight:700 }}>
