@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { uid, now, today, localDateStr, calcSessionDates, sortClasses } from '../lib/utils.js'
-import { Classes, Students, RevenueFees, RevenuePayments } from '../lib/db.js'
+import { Classes, Students, RevenueFees, RevenuePayments, onDbChange } from '../lib/db.js'
 import { Modal, useConfirm } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 
@@ -185,6 +185,16 @@ export function Revenue({ user }) {
     setStudents(Students.byTeacher(user.id) || [])
   }
   useEffect(() => { reload() }, [])
+  // ★ 다른 페이지(수업등록/학생관리 등)에서 데이터가 바뀌면 실시간으로 반영
+  useEffect(() => {
+    const unsubs = [
+      onDbChange('classes', reload),
+      onDbChange('students', reload),
+      onDbChange('revenueFees', reload),
+      onDbChange('revenuePayments', reload),
+    ]
+    return () => unsubs.forEach(u => u())
+  }, [])
 
   const sorted = useMemo(() => {
     const DAY_ORDER = ['월','화','수','목','금','토','일']
