@@ -32,6 +32,7 @@ import { Supplies }     from './pages/Supplies.jsx'
 import { MessageGuide } from './pages/MessageGuide.jsx'
 import { Blog }         from './pages/Blog.jsx'
 import { BlogAdmin }    from './pages/BlogAdmin.jsx'
+import { BlogAiWrite } from './pages/BlogAiWrite.jsx'
 import { BlogMenuManage }          from './pages/BlogMenuManage.jsx'
 import { RegionManage }             from './pages/RegionManage.jsx'
 import { TeacherServiceManage }     from './pages/TeacherServiceManage.jsx'
@@ -496,6 +497,7 @@ function AppInner() {
       case 'supplies':        return <Supplies     user={user} />
       case 'messageguide':    return <MessageGuide user={user} />
       case 'blog_admin':      return can(user, 'manage_ad') ? <BlogAdmin user={user} /> : <Dashboard {...pageProps} />
+      case 'blog_ai_write':   return can(user, 'manage_ad') ? <BlogAiWrite user={user} /> : <Dashboard {...pageProps} />
       case 'blog_menu_manage':        return can(user, 'manage_ad') ? <BlogMenuManage user={user} />        : <Dashboard {...pageProps} />
       case 'region_manage':          return can(user, 'manage_ad') ? <RegionManage user={user} />          : <Dashboard {...pageProps} />
       case 'teacher_service_manage': return can(user, 'manage_ad') ? <TeacherServiceManage user={user} /> : <Dashboard {...pageProps} />
