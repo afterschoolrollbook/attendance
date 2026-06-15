@@ -1099,14 +1099,15 @@ export function Revenue({ user }) {
                     {/* 텀 내 수업 목록 — 같은 수업(classId)끼리 합쳐서 표시 */}
                     <div style={{ padding:'10px 16px', display:'flex', flexDirection:'column', gap:'8px' }}>
                       {(() => {
-                        // classId 기준으로 그룹핑
+                        // 출석부와 동일: 학교+수업명+요일 기준으로 그룹핑 (중복 카드 합산)
                         const groupMap = {}
+                        const groupOrder = []
                         rows.forEach(row => {
-                          const key = row.cls.id
-                          if (!groupMap[key]) groupMap[key] = { baseRow: row, sections: [] }
+                          const key = (row.cls.organization||'')+'__'+(row.cls.className||'')+'__'+(row.cls.days?.join(',') || '')
+                          if (!groupMap[key]) { groupMap[key] = { baseRow: row, sections: [] }; groupOrder.push(key) }
                           groupMap[key].sections.push(row)
                         })
-                        return Object.values(groupMap).map(({ baseRow, sections }) => {
+                        return groupOrder.map(k => groupMap[k]).map(({ baseRow, sections }) => {
                           const { cls, term } = baseRow
                           const totalCnt = sections.reduce((s,r) => s+r.cnt, 0)
                           const totalExpected = sections.reduce((s,r) => s+r.expected, 0)
