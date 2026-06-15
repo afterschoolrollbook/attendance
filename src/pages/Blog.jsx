@@ -74,6 +74,20 @@ const globalStyles = `
   .md-body img { max-width:100%; border-radius:8px; margin:8px 0; }
   .blog-side-ad { display:none; }
   @media (min-width:1200px) { .blog-side-ad { display:block; } }
+  .blog-nav-tabs { display:flex; gap:2px; overflow-x:auto; -ms-overflow-style:none; scrollbar-width:none; }
+  .blog-nav-tabs::-webkit-scrollbar { display:none; }
+  .blog-nav-tabs button { white-space:nowrap; flex-shrink:0; }
+  .blog-nav-brand-text { display:inline; }
+  .blog-nav-actions { flex-shrink:0; }
+  @media (max-width:860px) {
+    .blog-nav-brand-text { display:none; }
+    .blog-nav-tabs button { padding:6px 10px !important; font-size:13px !important; }
+  }
+  @media (max-width:600px) {
+    .blog-nav-actions .blog-nav-dashboard,
+    .blog-nav-actions .blog-nav-login { display:none !important; }
+    .blog-nav-tabs button { padding:6px 8px !important; font-size:12px !important; }
+  }
 `
 
 function formatDate(str) {
@@ -818,33 +832,31 @@ function DocsDetail({ doc, allDocs, onBack, onSelect }) {
 // ─── 상단 네비게이션 (Blog 밖으로 분리, 일반 렌더 함수)
 function renderNav({ blogAdminMode, switchTab, tab, selPost, currentUser, canWrite, setBlogAdminMode }) {
   return (
-    <nav style={{ position:'sticky', top:0, zIndex:100, background:'rgba(255,255,255,0.95)', backdropFilter:'blur(8px)', borderBottom:'1px solid #e5e7eb', padding:'0 24px' }}>
-      <div style={{ maxWidth:'1100px', margin:'0 auto', height:'56px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'20px' }}>
-          <a href="/" style={{ display:'flex', alignItems:'center', gap:'8px', textDecoration:'none' }}>
-            <span style={{ fontSize:'20px' }}>📋</span>
-            <span style={{ fontSize:'15px', fontWeight:700, color:'#111827' }}>방과후 출석부</span>
-          </a>
-          {!blogAdminMode && (
-            <div style={{ display:'flex', gap:'2px' }}>
-              {[['blog','📝 블로그','#f97316'],['reviews','⭐ 사용후기','#eab308'],['requests','🙏 부탁해요~','#16a34a'],['docs','📖 설명서','#3b82f6'],['templates','📋 템플릿','#7c3aed']].map(([key,label,color]) => (
-                <button key={key} onClick={() => switchTab(key)}
-                  style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:tab===key&&!selPost?`${color}18`:'transparent', color:tab===key&&!selPost?color:'#6b7280', fontSize:'14px', fontWeight:tab===key&&!selPost?700:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+    <nav style={{ position:'sticky', top:0, zIndex:100, background:'rgba(255,255,255,0.95)', backdropFilter:'blur(8px)', borderBottom:'1px solid #e5e7eb', padding:'0 16px' }}>
+      <div style={{ maxWidth:'1100px', margin:'0 auto', height:'56px', display:'flex', alignItems:'center', gap:'12px' }}>
+        <a href="/" style={{ display:'flex', alignItems:'center', gap:'8px', textDecoration:'none', flexShrink:0 }}>
+          <span style={{ fontSize:'20px' }}>📋</span>
+          <span className="blog-nav-brand-text" style={{ fontSize:'15px', fontWeight:700, color:'#111827', whiteSpace:'nowrap' }}>방과후 출석부</span>
+        </a>
+        {!blogAdminMode && (
+          <div className="blog-nav-tabs" style={{ flex:1, minWidth:0 }}>
+            {[['blog','📝 블로그','#f97316'],['reviews','⭐ 사용후기','#eab308'],['requests','🙏 부탁해요~','#16a34a'],['docs','📖 설명서','#3b82f6'],['templates','📋 템플릿','#7c3aed']].map(([key,label,color]) => (
+              <button key={key} onClick={() => switchTab(key)}
+                style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:tab===key&&!selPost?`${color}18`:'transparent', color:tab===key&&!selPost?color:'#6b7280', fontSize:'14px', fontWeight:tab===key&&!selPost?700:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="blog-nav-actions" style={{ display:'flex', gap:'8px', alignItems:'center', marginLeft:'auto' }}>
           {currentUser && (
-            <a href="/?page=dashboard" style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#374151', borderRadius:'8px', fontSize:'13px', fontWeight:600, textDecoration:'none' }}>
+            <a href="/?page=dashboard" className="blog-nav-dashboard" style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#374151', borderRadius:'8px', fontSize:'13px', fontWeight:600, textDecoration:'none', whiteSpace:'nowrap' }}>
               🏠 대시보드
             </a>
           )}
           {canWrite && (
             <button onClick={() => setBlogAdminMode(v => !v)}
-              style={{ padding:'7px 16px', background:blogAdminMode?'#1f2937':'#f97316', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              style={{ padding:'7px 16px', background:blogAdminMode?'#1f2937':'#f97316', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
               {blogAdminMode ? '← 블로그' : '✏️ 글관리'}
             </button>
           )}
@@ -858,15 +870,15 @@ function renderNav({ blogAdminMode, switchTab, tab, selPost, currentUser, canWri
                 } catch(e) {}
                 window.location.href = '/'
               }}
-              style={{ padding:'7px 16px', background:'none', border:'1px solid #fecaca', color:'#ef4444', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              style={{ padding:'7px 16px', background:'none', border:'1px solid #fecaca', color:'#ef4444', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
               🚪 로그아웃
             </button>
           ) : (
-            <a href="/?page=login" style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#374151', borderRadius:'8px', fontSize:'13px', fontWeight:600, textDecoration:'none' }}>
+            <a href="/?page=login" className="blog-nav-login" style={{ padding:'7px 16px', background:'none', border:'1px solid #e5e7eb', color:'#374151', borderRadius:'8px', fontSize:'13px', fontWeight:600, textDecoration:'none', whiteSpace:'nowrap' }}>
               로그인
             </a>
           )}
-          <a href="/" style={{ padding:'7px 18px', background:'#f97316', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, textDecoration:'none' }}>앱 시작하기 →</a>
+          <a href="/" style={{ padding:'7px 18px', background:'#f97316', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, textDecoration:'none', whiteSpace:'nowrap' }}>앱 시작하기 →</a>
         </div>
       </div>
     </nav>
