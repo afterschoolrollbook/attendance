@@ -28,6 +28,7 @@ const BOARDS = [
   { key: 'blog',     label: '📝 블로그',       hasAccessRead: true },
   { key: 'review',   label: '⭐ 사용자 후기',   hasAccessRead: true },
   { key: 'qna',      label: '❓ 질문 게시판',   hasAccessRead: true },
+  { key: 'request',  label: '🙏 부탁해요~',     hasAccessRead: true },
   { key: 'secret',   label: '🔐 비밀 게시판',   hasAccessRead: true },
   { key: 'notice',   label: '📢 공지글',        hasAccessRead: false },
   { key: 'docs',     label: '📖 사용 설명서',   hasAccessRead: false },

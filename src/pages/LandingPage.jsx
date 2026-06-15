@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { dbCall } from '../lib/supabase.js'
 
 const C = {
   primary: '#f97316', primaryDark: '#ea6c0a', primaryLight: '#fff7ed',
@@ -39,12 +40,51 @@ const REVIEWS = [
 export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashboard, onLogout }) {
   const [scrollY, setScrollY] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [rollingReviews, setRollingReviews] = useState(
+    REVIEWS.map(r => ({ text: r.text, name: r.name, tag: r.tag }))
+  )
+  const [reviewIdx, setReviewIdx] = useState(0)
 
   useEffect(() => {
     const onScroll = () => setScrollY(window.scrollY)
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  // 블로그 사용후기 게시판에서 실제 후기를 불러와 롤링에 합산
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await dbCall('getAll', 'blogPosts')
+        const reviews = (rows || [])
+          .filter(p => {
+            const type = p.type || 'blog'
+            const boardType = p.boardType || type
+            return p.status === 'published' && boardType === 'review' && type !== 'secret' && !p.isSecret
+          })
+          .sort((a, b) => new Date(b.publishedAt || b.createdAt) - new Date(a.publishedAt || a.createdAt))
+          .slice(0, 10)
+          .map(p => ({
+            text: p.summary || p.content?.replace(/[#*`>[\]()-]/g, '').slice(0, 140) + (p.content?.length > 140 ? '...' : ''),
+            name: p.author || '익명',
+            tag: '실사용 후기',
+            slug: p.slug || p.id,
+          }))
+        if (reviews.length > 0) {
+          setRollingReviews([...reviews, ...REVIEWS.map(r => ({ text: r.text, name: r.name, tag: r.tag }))])
+        }
+      } catch (e) { /* 후기 로드 실패 시 기본 후기 표시 */ }
+    })()
+  }, [])
+
+  // 후기 자동 롤링
+  useEffect(() => {
+    if (rollingReviews.length <= 1) return
+    const timer = setInterval(() => {
+      setReviewIdx(i => (i + 1) % rollingReviews.length)
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [rollingReviews.length])
 
   const navScrolled = scrollY > 40
 
@@ -254,24 +294,54 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
         </div>
       </section>
 
-      {/* ── 사용자 후기 ── */}
+      {/* ── 사용자 후기 (롤링) ── */}
       <section style={{ padding: 'clamp(48px,8vw,80px) 20px', background: C.bg }}>
-        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+        <div style={{ maxWidth: '760px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '40px' }}>
             <div style={{ fontSize: '12px', fontWeight: 700, color: C.primary, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '12px' }}>Reviews</div>
             <h2 style={{ fontSize: 'clamp(22px, 4vw, 36px)', fontWeight: 900, margin: '0 0 14px', letterSpacing: '-0.5px' }}>실제 강사들의 이야기</h2>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
-            {REVIEWS.map((r, i) => (
-              <div key={i} style={{ background: C.white, borderRadius: '16px', padding: '22px', border: `1.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ fontSize: '24px', color: C.primary, fontWeight: 900, lineHeight: 1 }}>"</div>
-                <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.8, margin: 0, flex: 1 }}>{r.text}</p>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{r.name}</span>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: C.primary, background: C.primaryLight, border: `1px solid ${C.primaryBorder}`, padding: '2px 8px', borderRadius: '100px' }}>{r.tag}</span>
-                </div>
-              </div>
-            ))}
+
+          <div style={{ position: 'relative', overflow: 'hidden', borderRadius: '16px' }}>
+            <div style={{
+              display: 'flex',
+              transition: 'transform 0.6s ease',
+              transform: `translateX(-${reviewIdx * 100}%)`,
+            }}>
+              {rollingReviews.map((r, i) => {
+                const Wrapper = r.slug ? 'a' : 'div'
+                const wrapperProps = r.slug ? { href: `/reviews/${r.slug}`, style: { textDecoration: 'none', color: 'inherit' } } : {}
+                return (
+                  <div key={i} style={{ minWidth: '100%', boxSizing: 'border-box', padding: '2px' }}>
+                    <Wrapper {...wrapperProps}>
+                      <div style={{ background: C.white, borderRadius: '16px', padding: 'clamp(24px,4vw,36px)', border: `1.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '180px', cursor: r.slug ? 'pointer' : 'default' }}>
+                        <div style={{ fontSize: '28px', color: C.primary, fontWeight: 900, lineHeight: 1 }}>"</div>
+                        <p style={{ fontSize: '15px', color: '#374151', lineHeight: 1.8, margin: 0, flex: 1 }}>{r.text}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{r.name}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: C.primary, background: C.primaryLight, border: `1px solid ${C.primaryBorder}`, padding: '2px 8px', borderRadius: '100px' }}>{r.tag}</span>
+                        </div>
+                      </div>
+                    </Wrapper>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {rollingReviews.length > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '20px' }}>
+              {rollingReviews.map((_, i) => (
+                <button key={i} onClick={() => setReviewIdx(i)} aria-label={`후기 ${i + 1}`}
+                  style={{ width: i === reviewIdx ? '22px' : '8px', height: '8px', borderRadius: '100px', border: 'none', background: i === reviewIdx ? C.primary : C.border, cursor: 'pointer', transition: 'all 0.3s', padding: 0 }} />
+              ))}
+            </div>
+          )}
+
+          <div style={{ textAlign: 'center', marginTop: '28px' }}>
+            <button onClick={() => { window.location.href = '/reviews' }} style={{ padding: '10px 24px', borderRadius: '10px', border: `1.5px solid ${C.primaryBorder}`, background: C.primaryLight, color: C.primary, fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+              사용후기 더보기 →
+            </button>
           </div>
         </div>
       </section>

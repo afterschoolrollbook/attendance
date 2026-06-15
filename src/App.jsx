@@ -240,6 +240,9 @@ function AppInner() {
   const isStaticPath =
     pathname.startsWith('/blog') ||
     pathname.startsWith('/docs') ||
+    pathname.startsWith('/reviews') ||
+    pathname.startsWith('/requests') ||
+    pathname.startsWith('/templates') ||
     pathname === '/naver-callback' ||
     pathname === '/kakao-callback' ||
     pathname === '/auth' ||
@@ -378,6 +381,9 @@ function AppInner() {
   // 블로그 — 공개 페이지 (로그인 불필요, SEO용)
   if (pathname.startsWith('/blog')) return <Blog />
   if (pathname.startsWith('/docs')) return <Blog />
+  if (pathname.startsWith('/reviews')) return <Blog />
+  if (pathname.startsWith('/requests')) return <Blog />
+  if (pathname.startsWith('/templates')) return <Blog />
 
   // 네이버/카카오 콜백 — DB 불필요, 바로 렌더
   if (pathname === '/naver-callback') return <NaverCallback />

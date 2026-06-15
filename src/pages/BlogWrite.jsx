@@ -10,6 +10,7 @@ const BOARDS = [
   { key:'blog',    label:'📝 블로그',     color:'#f97316' },
   { key:'review',  label:'⭐ 사용자 후기', color:'#eab308' },
   { key:'qna',     label:'❓ 질문',        color:'#3b82f6' },
+  { key:'request', label:'🙏 부탁해요~',   color:'#16a34a' },
   { key:'secret',  label:'🔐 비밀게시판',  color:'#dc2626' },
 ]
 
@@ -62,7 +63,7 @@ const mdStyles = `
   .md-preview img{max-width:100%;border-radius:8px;margin:4px 0}
 `
 
-const emptyForm = (author) => ({ title:'', content:'', category:'', tags:'', boardType:'blog', author:author||'' })
+const emptyForm = (author) => ({ title:'', content:'', category:'', tags:'', boardType:'blog', author:author||'', isPrivateRequest:false })
 
 export function BlogWrite({ user, onLogout }) {
   const userLevel = user?.level || 1
@@ -107,7 +108,7 @@ export function BlogWrite({ user, onLogout }) {
   }
 
   const handleEdit = (post) => {
-    setForm({ title:post.title||'', content:post.content||'', category:post.category||'', tags:(post.tags||[]).join(', '), boardType:post.boardType||post.type||'blog', author:post.author||user?.name||'' })
+    setForm({ title:post.title||'', content:post.content||'', category:post.category||'', tags:(post.tags||[]).join(', '), boardType:post.boardType||post.type||'blog', author:post.author||user?.name||'', isPrivateRequest:!!post.isPrivateRequest })
     setEditPost(post); setPreview(false); setView('write')
   }
 
@@ -123,15 +124,17 @@ export function BlogWrite({ user, onLogout }) {
     try {
       const tags = form.tags ? form.tags.split(',').map(t=>t.trim()).filter(Boolean) : []
       const isSecret = form.boardType === 'secret'
+      const isPrivateRequest = form.boardType === 'request' && !!form.isPrivateRequest
       const payload = {
         id: editPost?.id || uid(),
         type: isSecret ? 'secret' : 'blog',
         boardType: form.boardType,
         isSecret,
+        isPrivateRequest,
         title: form.title.trim(),
         slug: editPost?.slug || slugify(form.title),
         content: form.content,
-        category: isSecret ? '비밀게시판' : form.boardType === 'qna' ? '질문' : form.boardType === 'review' ? '사용자 후기' : form.category,
+        category: isSecret ? '비밀게시판' : form.boardType === 'qna' ? '질문' : form.boardType === 'review' ? '사용자 후기' : form.boardType === 'request' ? '부탁해요' : form.category,
         tags, author: form.author||user?.name, authorId: user?.id,
         status: 'published',
         publishedAt: now(), updatedAt: now(),
@@ -201,10 +204,20 @@ export function BlogWrite({ user, onLogout }) {
             </div>
           )}
 
+          {tab === 'request' && (
+            <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'10px', padding:'10px 14px', display:'flex', flexDirection:'column', gap:'8px' }}>
+              <div style={{ fontSize:'13px', color:'#15803d' }}>🙏 관리자에게 원하는 기능이나 도움을 요청해보세요.</div>
+              <label style={{ display:'flex', alignItems:'center', gap:'8px', cursor:'pointer', fontSize:'13px', color:'#15803d', fontWeight:600 }}>
+                <input type="checkbox" checked={form.isPrivateRequest} onChange={e=>setForm(v=>({...v,isPrivateRequest:e.target.checked}))} style={{ width:'15px', height:'15px' }} />
+                🔒 비밀기능 — 제목만 공개되고 내용은 본인과 관리자만 볼 수 있습니다.
+              </label>
+            </div>
+          )}
+
           <div>
             <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>본문 (마크다운)</div>
             <textarea value={form.content} onChange={e=>setForm(v=>({...v,content:e.target.value}))} rows={22}
-              placeholder={tab==='qna' ? '질문 내용을 입력하세요.' : tab==='review' ? '사용 후기를 작성해주세요.' : '내용을 입력하세요.'}
+              placeholder={tab==='qna' ? '질문 내용을 입력하세요.' : tab==='review' ? '사용 후기를 작성해주세요.' : tab==='request' ? '관리자에게 요청하고 싶은 기능이나 도움을 자유롭게 작성해주세요.' : '내용을 입력하세요.'}
               style={{...iStyle, resize:'vertical', fontFamily:'monospace', fontSize:'13px', lineHeight:1.7}} />
           </div>
         </div>
@@ -323,10 +336,11 @@ export function BlogWrite({ user, onLogout }) {
             <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
               {posts.map(post => {
                 const isSecret = post.boardType === 'secret' || post.isSecret
-                const canReadContent = isAdmin || !isSecret || post.authorId === user?.id
+                const isLocked = isSecret || !!post.isPrivateRequest
+                const canReadContent = isAdmin || !isLocked || post.authorId === user?.id
                 const isOwn = post.authorId === user?.id
                 return (
-                  <div key={post.id} style={{ background:'#fff', borderRadius:'12px', border:`1.5px solid ${isSecret?'#fca5a5':C.border}`, padding:'14px 18px', display:'flex', alignItems:'center', gap:'14px', flexWrap:'wrap' }}>
+                  <div key={post.id} style={{ background:'#fff', borderRadius:'12px', border:`1.5px solid ${isLocked?'#fca5a5':C.border}`, padding:'14px 18px', display:'flex', alignItems:'center', gap:'14px', flexWrap:'wrap' }}>
                     <div style={{ flex:1, minWidth:0, cursor: canReadContent ? 'default' : 'not-allowed' }}>
                       <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px', flexWrap:'wrap' }}>
                         <span style={{ fontSize:'11px', fontWeight:700, padding:'2px 8px', borderRadius:'4px',
@@ -340,7 +354,7 @@ export function BlogWrite({ user, onLogout }) {
                         <span style={{ fontSize:'11px', color:C.muted }}>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('ko-KR') : ''}</span>
                       </div>
                       <div style={{ fontSize:'15px', fontWeight:700, color: canReadContent ? C.text : C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                        {post.title} {isSecret && !canReadContent && <span style={{ fontSize:'12px' }}>🔒</span>}
+                        {post.title} {isLocked && !canReadContent && <span style={{ fontSize:'12px' }}>🔒</span>}
                       </div>
                     </div>
                     <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>

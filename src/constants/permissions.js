@@ -177,6 +177,7 @@ export const BOARD_PERM_DEFAULTS = {
   blog:     { access: 1,  read: 1,  write: 1  },
   review:   { access: 1,  read: 1,  write: 1  },
   qna:      { access: 1,  read: 1,  write: 1  },
+  request:  { access: 1,  read: 1,  write: 1  },
   secret:   { access: 1,  read: 1,  write: 1  },
   notice:   { write: 10 },
   docs:     { write: 10 },

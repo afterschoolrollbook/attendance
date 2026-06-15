@@ -373,6 +373,195 @@ function BlogDetail({ post, onBack }) {
   )
 }
 
+// ── 사용후기 목록
+function ReviewList({ posts, onSelect }) {
+  const [search, setSearch] = useState('')
+  const filtered = posts.filter(p => {
+    const q = search.toLowerCase()
+    return !q || p.title?.toLowerCase().includes(q) || p.content?.toLowerCase().includes(q) || p.author?.toLowerCase().includes(q)
+  })
+
+  return (
+    <div style={{ maxWidth:'900px', margin:'0 auto', padding:'40px 20px' }}>
+      <div style={{ textAlign:'center', marginBottom:'40px' }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#eab308', letterSpacing:'2px', marginBottom:'12px' }}>REVIEWS</div>
+        <h1 style={{ fontSize:'34px', fontWeight:800, color:'#111827', marginBottom:'14px' }}>⭐ 사용후기</h1>
+        <p style={{ fontSize:'16px', color:'#6b7280', lineHeight:1.7 }}>방과후 출석부를 직접 사용하신 선생님들의 생생한 후기를 만나보세요.</p>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'36px' }}>
+        <SearchBar value={search} onChange={setSearch} placeholder="후기 제목, 내용으로 검색..." />
+      </div>
+      {search && <div style={{ fontSize:'13px', color:'#6b7280', marginBottom:'16px' }}>"<strong>{search}</strong>" 검색 결과 {filtered.length}개</div>}
+      {filtered.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'80px 20px', color:'#9ca3af' }}>
+          <div style={{ fontSize:'48px', marginBottom:'16px' }}>⭐</div>
+          <div>{search ? '검색 결과가 없습니다.' : '아직 등록된 후기가 없습니다.'}</div>
+        </div>
+      ) : (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(260px, 1fr))', gap:'20px' }}>
+          {filtered.map(post => (
+            <article key={post.id} onClick={() => onSelect(post)}
+              style={{ background:'#fff', borderRadius:'16px', border:'1.5px solid #fef08a', overflow:'hidden', cursor:'pointer', transition:'all .2s', boxShadow:'0 1px 4px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column' }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow='0 8px 24px rgba(234,179,8,0.15)'; e.currentTarget.style.transform='translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,0.05)'; e.currentTarget.style.transform='translateY(0)' }}>
+              <div style={{ padding:'22px 24px', display:'flex', flexDirection:'column', gap:'10px', flex:1 }}>
+                <div style={{ fontSize:'20px', color:'#eab308', fontWeight:900, lineHeight:1 }}>"</div>
+                <h2 style={{ fontSize:'17px', fontWeight:700, color:'#111827', marginBottom:'2px', lineHeight:1.4 }}>{post.title}</h2>
+                <p style={{ fontSize:'14px', color:'#6b7280', lineHeight:1.7, display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical', overflow:'hidden', flex:1 }}>
+                  {post.summary || post.content?.replace(/[#*`>-]/g, '').slice(0, 120) + '...'}
+                </p>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:'4px' }}>
+                  <span style={{ fontSize:'13px', fontWeight:700, color:'#92400e' }}>{post.author || '익명'}</span>
+                  <span style={{ fontSize:'12px', color:'#9ca3af' }}>{formatDate(post.publishedAt || post.createdAt)}</span>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+      {/* CTA */}
+      <div style={{ marginTop:'48px', background:'linear-gradient(135deg,#fefce8,#fff)', border:'2px solid #fef08a', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
+        <div style={{ fontSize:'24px', marginBottom:'12px' }}>✍️</div>
+        <h3 style={{ fontSize:'18px', fontWeight:700, color:'#92400e', marginBottom:'8px' }}>방과후 출석부를 사용해보셨나요?</h3>
+        <p style={{ fontSize:'14px', color:'#b45309', marginBottom:'20px', lineHeight:1.7 }}>로그인 후 글관리 메뉴에서 사용후기를 작성해주세요!</p>
+        <a href="/?page=login" style={{ display:'inline-block', padding:'12px 32px', background:'#eab308', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>후기 작성하러 가기 →</a>
+      </div>
+    </div>
+  )
+}
+
+// ── 사용후기 상세
+function ReviewDetail({ post, onBack }) {
+  useEffect(() => {
+    setMeta(`${post.title} | 방과후 출석부 사용후기`, post.summary || post.content?.replace(/[#*`>-]/g, '').slice(0, 160) || '', `${window.location.origin}/reviews/${post.slug||post.id}`)
+    window.scrollTo(0, 0)
+    return () => setMeta('방과후 출석부 블로그', '방과후 강사를 위한 출석 관리 팁', `${window.location.origin}/blog`)
+  }, [post])
+
+  return (
+    <div style={{ maxWidth:'780px', margin:'0 auto', padding:'40px 20px' }}>
+      <button onClick={onBack} style={{ display:'inline-flex', alignItems:'center', gap:'6px', marginBottom:'32px', background:'none', border:'none', cursor:'pointer', color:'#6b7280', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', padding:0 }}>← 목록으로</button>
+      <div style={{ display:'flex', gap:'10px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center' }}>
+        <span style={{ fontSize:'12px', fontWeight:700, color:'#92400e', background:'#fefce8', border:'1px solid #fef08a', borderRadius:'999px', padding:'4px 12px' }}>⭐ 사용후기</span>
+        <span style={{ fontSize:'13px', color:'#9ca3af' }}>{formatDate(post.publishedAt || post.createdAt)}</span>
+        {post.author && <span style={{ fontSize:'13px', color:'#9ca3af' }}>· {post.author}</span>}
+      </div>
+      <h1 style={{ fontSize:'32px', fontWeight:800, color:'#111827', lineHeight:1.4, marginBottom:'24px' }}>{post.title}</h1>
+      <hr style={{ border:'none', borderTop:'2px solid #f3f4f6', marginBottom:'32px' }} />
+      <div className="md-body" dangerouslySetInnerHTML={{ __html: parseMarkdown(post.content) }} />
+      {/* CTA */}
+      <div style={{ marginTop:'40px', background:'linear-gradient(135deg,#fff7ed,#fff)', border:'2px solid #fed7aa', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
+        <div style={{ fontSize:'24px', marginBottom:'12px' }}>📋</div>
+        <h3 style={{ fontSize:'20px', fontWeight:700, color:'#92400e', marginBottom:'8px' }}>방과후 출석부를 무료로 시작하세요</h3>
+        <p style={{ fontSize:'14px', color:'#b45309', marginBottom:'20px', lineHeight:1.7 }}>출석 관리, 교구 관리, 학부모 알림까지 — 방과후 강사를 위한 올인원 솔루션</p>
+        <a href="/" style={{ display:'inline-block', padding:'12px 32px', background:'#f97316', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>무료로 시작하기 →</a>
+      </div>
+      <div style={{ marginTop:'24px', textAlign:'center' }}>
+        <button onClick={onBack} style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:'8px', padding:'10px 24px', cursor:'pointer', fontSize:'14px', color:'#6b7280', fontFamily:'Noto Sans KR, sans-serif' }}>← 목록으로 돌아가기</button>
+      </div>
+      <Comments postId={post.id} />
+    </div>
+  )
+}
+
+// ── 부탁해요~ (요청게시판) 목록
+function RequestList({ posts, onSelect, currentUser, isAdmin }) {
+  const [search, setSearch] = useState('')
+  const filtered = posts.filter(p => {
+    const q = search.toLowerCase()
+    const isLocked = !!p.isPrivateRequest
+    return !q || p.title?.toLowerCase().includes(q) || (!isLocked && p.content?.toLowerCase().includes(q))
+  })
+
+  return (
+    <div style={{ maxWidth:'900px', margin:'0 auto', padding:'40px 20px' }}>
+      <div style={{ textAlign:'center', marginBottom:'40px' }}>
+        <div style={{ fontSize:'13px', fontWeight:700, color:'#16a34a', letterSpacing:'2px', marginBottom:'12px' }}>REQUESTS</div>
+        <h1 style={{ fontSize:'34px', fontWeight:800, color:'#111827', marginBottom:'14px' }}>🙏 부탁해요~</h1>
+        <p style={{ fontSize:'16px', color:'#6b7280', lineHeight:1.7 }}>원하는 기능이나 도움이 필요한 점을 자유롭게 요청해주세요. 🔒 비밀기능으로 등록하면 내용은 작성자와 관리자만 볼 수 있어요.</p>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'36px' }}>
+        <SearchBar value={search} onChange={setSearch} placeholder="요청 제목으로 검색..." />
+      </div>
+      {search && <div style={{ fontSize:'13px', color:'#6b7280', marginBottom:'16px' }}>"<strong>{search}</strong>" 검색 결과 {filtered.length}개</div>}
+      {filtered.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'80px 20px', color:'#9ca3af' }}>
+          <div style={{ fontSize:'48px', marginBottom:'16px' }}>🙏</div>
+          <div>{search ? '검색 결과가 없습니다.' : '아직 등록된 요청이 없습니다.'}</div>
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+          {filtered.map(post => {
+            const isLocked = !!post.isPrivateRequest
+            const canRead = !isLocked || isAdmin || (currentUser && currentUser.id === post.authorId)
+            return (
+              <article key={post.id} onClick={() => onSelect(post)}
+                style={{ background:'#fff', borderRadius:'14px', border:`1.5px solid ${isLocked?'#bbf7d0':'#e5e7eb'}`, padding:'18px 22px', cursor:'pointer', transition:'all .2s', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px', flexWrap:'wrap' }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow='0 6px 20px rgba(22,163,74,0.10)'; e.currentTarget.style.transform='translateY(-1px)' }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow='none'; e.currentTarget.style.transform='translateY(0)' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'10px', minWidth:0 }}>
+                  {isLocked && <span style={{ fontSize:'13px' }}>🔒</span>}
+                  <h2 style={{ fontSize:'16px', fontWeight:700, color: canRead ? '#111827' : '#9ca3af', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{post.title}</h2>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
+                  <span style={{ fontSize:'12px', fontWeight:600, color:'#15803d' }}>{post.author || '익명'}</span>
+                  <span style={{ fontSize:'12px', color:'#9ca3af' }}>{formatDate(post.publishedAt || post.createdAt)}</span>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      )}
+      {/* CTA */}
+      <div style={{ marginTop:'48px', background:'linear-gradient(135deg,#f0fdf4,#fff)', border:'2px solid #bbf7d0', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
+        <div style={{ fontSize:'24px', marginBottom:'12px' }}>🙏</div>
+        <h3 style={{ fontSize:'18px', fontWeight:700, color:'#15803d', marginBottom:'8px' }}>필요한 기능이 있으신가요?</h3>
+        <p style={{ fontSize:'14px', color:'#16a34a', marginBottom:'20px', lineHeight:1.7 }}>로그인 후 글관리 메뉴에서 "🙏 부탁해요~" 게시판에 요청을 남겨주세요!</p>
+        <a href="/?page=login" style={{ display:'inline-block', padding:'12px 32px', background:'#16a34a', color:'#fff', borderRadius:'10px', fontWeight:700, fontSize:'15px', textDecoration:'none' }}>요청하러 가기 →</a>
+      </div>
+    </div>
+  )
+}
+
+// ── 부탁해요~ (요청게시판) 상세
+function RequestDetail({ post, onBack, currentUser, isAdmin }) {
+  useEffect(() => {
+    setMeta(`${post.title} | 방과후 출석부 부탁해요~`, '', `${window.location.origin}/requests/${post.slug||post.id}`)
+    window.scrollTo(0, 0)
+    return () => setMeta('방과후 출석부 블로그', '방과후 강사를 위한 출석 관리 팁', `${window.location.origin}/blog`)
+  }, [post])
+
+  const isLocked = !!post.isPrivateRequest
+  const canRead = !isLocked || isAdmin || (currentUser && currentUser.id === post.authorId)
+
+  return (
+    <div style={{ maxWidth:'780px', margin:'0 auto', padding:'40px 20px' }}>
+      <button onClick={onBack} style={{ display:'inline-flex', alignItems:'center', gap:'6px', marginBottom:'32px', background:'none', border:'none', cursor:'pointer', color:'#6b7280', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', padding:0 }}>← 목록으로</button>
+      <div style={{ display:'flex', gap:'10px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center' }}>
+        <span style={{ fontSize:'12px', fontWeight:700, color:'#15803d', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'999px', padding:'4px 12px' }}>🙏 부탁해요~</span>
+        {isLocked && <span style={{ fontSize:'12px', fontWeight:700, color:'#dc2626', background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:'999px', padding:'4px 12px' }}>🔒 비밀기능</span>}
+        <span style={{ fontSize:'13px', color:'#9ca3af' }}>{formatDate(post.publishedAt || post.createdAt)}</span>
+        {post.author && <span style={{ fontSize:'13px', color:'#9ca3af' }}>· {post.author}</span>}
+      </div>
+      <h1 style={{ fontSize:'32px', fontWeight:800, color:'#111827', lineHeight:1.4, marginBottom:'24px' }}>{post.title}</h1>
+      <hr style={{ border:'none', borderTop:'2px solid #f3f4f6', marginBottom:'32px' }} />
+      {canRead ? (
+        <div className="md-body" dangerouslySetInnerHTML={{ __html: parseMarkdown(post.content) }} />
+      ) : (
+        <div style={{ textAlign:'center', padding:'60px 20px', color:'#9ca3af', background:'#f9fafb', borderRadius:'14px', border:'1px dashed #e5e7eb' }}>
+          <div style={{ fontSize:'40px', marginBottom:'12px' }}>🔒</div>
+          <div style={{ fontSize:'15px', fontWeight:600 }}>비밀기능으로 등록된 요청입니다.</div>
+          <div style={{ fontSize:'13px', marginTop:'6px' }}>작성자와 관리자만 내용을 볼 수 있어요.</div>
+        </div>
+      )}
+      <div style={{ marginTop:'24px', textAlign:'center' }}>
+        <button onClick={onBack} style={{ background:'none', border:'1px solid #e5e7eb', borderRadius:'8px', padding:'10px 24px', cursor:'pointer', fontSize:'14px', color:'#6b7280', fontFamily:'Noto Sans KR, sans-serif' }}>← 목록으로 돌아가기</button>
+      </div>
+      {canRead && <Comments postId={post.id} />}
+    </div>
+  )
+}
+
 // ── 템플릿 목록
 function TemplateList({ posts, onSelect }) {
   const [search, setSearch] = useState('')
@@ -638,7 +827,7 @@ function renderNav({ blogAdminMode, switchTab, tab, selPost, currentUser, canWri
           </a>
           {!blogAdminMode && (
             <div style={{ display:'flex', gap:'2px' }}>
-              {[['blog','📝 블로그','#f97316'],['docs','📖 설명서','#3b82f6'],['templates','📋 템플릿','#7c3aed']].map(([key,label,color]) => (
+              {[['blog','📝 블로그','#f97316'],['reviews','⭐ 사용후기','#eab308'],['requests','🙏 부탁해요~','#16a34a'],['docs','📖 설명서','#3b82f6'],['templates','📋 템플릿','#7c3aed']].map(([key,label,color]) => (
                 <button key={key} onClick={() => switchTab(key)}
                   style={{ padding:'6px 16px', borderRadius:'8px', border:'none', background:tab===key&&!selPost?`${color}18`:'transparent', color:tab===key&&!selPost?color:'#6b7280', fontSize:'14px', fontWeight:tab===key&&!selPost?700:500, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
                   {label}
@@ -685,15 +874,19 @@ function renderNav({ blogAdminMode, switchTab, tab, selPost, currentUser, canWri
 }
 
 // ─── 본문 영역 (Blog 밖으로 분리, 일반 렌더 함수)
-function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, handleBack, handleSelect, tab }) {
+function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, reviewPosts, requestPosts, handleBack, handleSelect, tab, isAdmin }) {
   if (blogAdminMode) return <div style={{ padding:'24px' }}><BlogAdmin user={currentUser} /></div>
   if (selPost) {
     if (selPost.type === 'docs') return <DocsDetail doc={selPost} allDocs={docsPosts} onBack={handleBack} onSelect={handleSelect} />
     if (selPost.type === 'template') return <TemplateDetail post={selPost} onBack={handleBack} />
+    if ((selPost.boardType || selPost.type) === 'review') return <ReviewDetail post={selPost} onBack={handleBack} />
+    if ((selPost.boardType || selPost.type) === 'request') return <RequestDetail post={selPost} onBack={handleBack} currentUser={currentUser} isAdmin={isAdmin} />
     return <BlogDetail post={selPost} onBack={handleBack} />
   }
   if (tab === 'docs') return <DocsList docs={docsPosts} onSelect={handleSelect} />
   if (tab === 'templates') return <TemplateList posts={templatePosts} onSelect={handleSelect} />
+  if (tab === 'reviews') return <ReviewList posts={reviewPosts} onSelect={handleSelect} />
+  if (tab === 'requests') return <RequestList posts={requestPosts} onSelect={handleSelect} currentUser={currentUser} isAdmin={isAdmin} />
   return <BlogList posts={blogPosts} onSelect={handleSelect} />
 }
 
@@ -733,17 +926,29 @@ export function Blog() {
   const blogPosts = allPosts.filter(p => {
     const type = p.type || 'blog'
     const boardType = p.boardType || type
-    // 비밀글, 후기, 질문, secret 타입 제외 — 일반 블로그/공지 글만
+    // 비밀글, 후기, 질문, 요청, secret 타입 제외 — 일반 블로그/공지 글만
     return type !== 'docs' && type !== 'template' && type !== 'secret' && !p.isSecret
-      && boardType !== 'secret' && boardType !== 'review' && boardType !== 'qna'
+      && boardType !== 'secret' && boardType !== 'review' && boardType !== 'qna' && boardType !== 'request'
   })
   const docsPosts = allPosts.filter(p => p.type === 'docs')
   const templatePosts = allPosts.filter(p => p.type === 'template')
+  const reviewPosts = allPosts.filter(p => {
+    const type = p.type || 'blog'
+    const boardType = p.boardType || type
+    return boardType === 'review' && type !== 'secret' && !p.isSecret
+  })
+  const requestPosts = allPosts.filter(p => {
+    const type = p.type || 'blog'
+    const boardType = p.boardType || type
+    return boardType === 'request' && type !== 'secret' && !p.isSecret
+  })
 
   useEffect(() => {
     const path = window.location.pathname
     if (path.startsWith('/docs')) { setTab('docs'); const slug = path.match(/^\/docs\/(.+)$/)?.[1]; if (slug) loadPostBySlug(slug) }
     else if (path.startsWith('/templates')) { setTab('templates'); const slug = path.match(/^\/templates\/(.+)$/)?.[1]; if (slug) loadPostBySlug(slug) }
+    else if (path.startsWith('/reviews')) { setTab('reviews'); const slug = path.match(/^\/reviews\/(.+)$/)?.[1]; if (slug) loadPostBySlug(slug) }
+    else if (path.startsWith('/requests')) { setTab('requests'); const slug = path.match(/^\/requests\/(.+)$/)?.[1]; if (slug) loadPostBySlug(slug) }
     else { setTab('blog'); const slug = path.match(/^\/blog\/(.+)$/)?.[1]; if (slug) loadPostBySlug(slug) }
     setMeta('방과후 출석부 블로그', '방과후 강사를 위한 출석 관리 팁', `${window.location.origin}/blog`)
     loadPosts()
@@ -818,13 +1023,14 @@ export function Blog() {
 
   const handleSelect = (post) => {
     setSelPost(post)
-    const base = post.type === 'docs' ? 'docs' : post.type === 'template' ? 'templates' : 'blog'
+    const boardType = post.boardType || post.type
+    const base = post.type === 'docs' ? 'docs' : post.type === 'template' ? 'templates' : boardType === 'review' ? 'reviews' : boardType === 'request' ? 'requests' : 'blog'
     window.history.pushState({}, '', `/${base}/${post.slug||post.id}`)
   }
 
   const handleBack = () => {
     setSelPost(null)
-    window.history.pushState({}, '', tab === 'docs' ? '/docs' : tab === 'templates' ? '/templates' : '/blog')
+    window.history.pushState({}, '', tab === 'docs' ? '/docs' : tab === 'templates' ? '/templates' : tab === 'reviews' ? '/reviews' : tab === 'requests' ? '/requests' : '/blog')
   }
 
   const switchTab = (t) => { setTab(t); setSelPost(null); window.history.pushState({}, '', `/${t}`) }
@@ -849,7 +1055,7 @@ export function Blog() {
           </div>
         </div>
         <div style={{ flex:1, minWidth:0, maxWidth:'1100px' }}>
-          {renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, handleBack, handleSelect, tab })}
+          {renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, reviewPosts, requestPosts, handleBack, handleSelect, tab, isAdmin })}
           {!blogAdminMode && (
             <div style={{ padding:'0 20px 40px' }}>
               <AdSense slot="3333333333" label="하단 광고" style={{ minHeight:'90px' }} />
