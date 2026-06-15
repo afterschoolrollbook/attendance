@@ -117,6 +117,30 @@ function setMeta(title, desc, url, image) {
   canonical.href = url
 }
 
+// ── JSON-LD 구조화 데이터 (구글 리치스니펫)
+function setJsonLd(post) {
+  const existing = document.getElementById('blog-jsonld')
+  if (existing) existing.remove()
+  if (!post) return
+  const script = document.createElement('script')
+  script.id = 'blog-jsonld'
+  script.type = 'application/ld+json'
+  script.text = JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": post.title,
+    "description": post.summary || post.content?.replace(/[#*`>-]/g,'').slice(0,160),
+    "datePublished": post.publishedAt || post.createdAt,
+    "dateModified": post.updatedAt || post.publishedAt || post.createdAt,
+    "author": { "@type": "Person", "name": post.author || "방과후 출석부" },
+    "publisher": { "@type": "Organization", "name": "방과후 출석부", "url": window.location.origin },
+    "url": `${window.location.origin}/blog/${post.slug||post.id}`,
+    "keywords": Array.isArray(post.tags) ? post.tags.join(', ') : post.tags,
+    "articleSection": post.category,
+  })
+  document.head.appendChild(script)
+}
+
 // ── 애드센스 (승인 전 플레이스홀더)
 function AdSense({ slot, label = '광고', style = {} }) {
   const isApproved = false // 애드센스 승인 후 true로 변경
@@ -366,8 +390,9 @@ function Comments({ postId }) {
 function BlogDetail({ post, onBack }) {
   useEffect(() => {
     setMeta(`${post.title} | 방과후 출석부 블로그`, post.summary || post.content?.replace(/[#*`>-]/g, '').slice(0, 160) || '', `${window.location.origin}/blog/${post.slug||post.id}`, post.coverImage)
+    setJsonLd(post)
     window.scrollTo(0, 0)
-    return () => setMeta('방과후 출석부 블로그', '방과후 강사를 위한 출석 관리 팁', `${window.location.origin}/blog`)
+    return () => { setMeta('방과후 출석부 블로그', '방과후 강사를 위한 출석 관리 팁', `${window.location.origin}/blog`); setJsonLd(null) }
   }, [post])
 
   return (
