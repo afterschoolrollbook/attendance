@@ -1015,13 +1015,7 @@ export function Revenue({ user }) {
                   const term=terms.find(t=>t.termNo===termNo)
                   if(!term) return
                   const sec=cls._selSection
-                  const clsStudentsForTerm=students.filter(s=>{
-                    if(!s.classIds?.includes(cls.id)) return false
-                    if(s.status!=='confirmed') return false
-                    if(sec) return (s.section||'')===sec
-                    return true
-                  })
-                  const cnt=clsStudentsForTerm.filter(s=>isInTerm(s,term)).length
+                  const cnt=termRosterCount(students,cls.id,sec,term)
                   const clsPays=payByClass[cls.id]||[]
                   const tagged=clsPays.filter(p=>payMatchesTerm(p,term,cls.id))
                   const ps=perSessionFee(fee,term,cls)
