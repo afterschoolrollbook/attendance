@@ -208,14 +208,13 @@ export function Revenue({ user }) {
     return () => unsubs.forEach(u => u())
   }, [])
 
-  // ★ 디버깅: classes 원본 데이터 확인
+  // ★ 디버깅
   useEffect(() => {
     console.log('[Revenue 디버그] classes 원본:', classes.map(c => ({
       id: c.id,
       org: c.organization,
       className: c.className,
-      section: c.section,
-      sections: c.sections,
+      sections: c.sections?.map(s => s.section),
       days: c.days,
     })))
   }, [classes])
@@ -252,6 +251,7 @@ export function Revenue({ user }) {
       }
       return [{ ...cls, _selSection: cls.section || '', _secTime: cls.time, _secTimeEnd: cls.timeEnd }]
     })
+    console.log('[Revenue 디버그] sorted expanded:', expanded.map(c=>({id:c.id, className:c.className, _selSection:c._selSection})))
     return expanded.sort((a, b) => {
       const aDay = DAY_ORDER.indexOf(a.days?.[0] ?? '')
       const bDay = DAY_ORDER.indexOf(b.days?.[0] ?? '')
