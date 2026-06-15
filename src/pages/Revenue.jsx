@@ -208,16 +208,7 @@ export function Revenue({ user }) {
     return () => unsubs.forEach(u => u())
   }, [])
 
-  // ★ 디버깅
-  useEffect(() => {
-    console.log('[Revenue 디버그] classes 원본:', classes.map(c => ({
-      id: c.id,
-      org: c.organization,
-      className: c.className,
-      sections: c.sections?.map(s => s.section),
-      days: c.days,
-    })))
-  }, [classes])
+
 
   const sorted = useMemo(() => {
     const DAY_ORDER = ['월','화','수','목','금','토','일']
@@ -251,7 +242,6 @@ export function Revenue({ user }) {
       }
       return [{ ...cls, _selSection: cls.section || '', _secTime: cls.time, _secTimeEnd: cls.timeEnd }]
     })
-    console.log('[Revenue 디버그] sorted expanded:', expanded.map(c=>({id:c.id, className:c.className, _selSection:c._selSection})))
     return expanded.sort((a, b) => {
       const aDay = DAY_ORDER.indexOf(a.days?.[0] ?? '')
       const bDay = DAY_ORDER.indexOf(b.days?.[0] ?? '')
@@ -1112,12 +1102,11 @@ export function Revenue({ user }) {
                     {/* 텀 내 수업 목록 — 같은 수업(classId)끼리 합쳐서 표시 */}
                     <div style={{ padding:'10px 16px', display:'flex', flexDirection:'column', gap:'8px' }}>
                       {(() => {
-                        // 출석부와 동일: 학교+수업명+요일 기준으로 그룹핑 (중복 카드 합산)
+                        // cls.id 기준으로 그룹핑 (A반/B반은 같은 id)
                         const groupMap = {}
                         const groupOrder = []
                         rows.forEach(row => {
-                          const normName2 = (row.cls.className||'').replace(/\s*[A-Za-z가-힣]반\s*$/, '').trim()
-                          const key = (row.cls.organization||'')+'__'+normName2+'__'+(row.cls.days?.join(',') || '')
+                          const key = row.cls.id
                           if (!groupMap[key]) { groupMap[key] = { baseRow: row, sections: [] }; groupOrder.push(key) }
                           groupMap[key].sections.push(row)
                         })
