@@ -43,7 +43,6 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
   const [rollingReviews, setRollingReviews] = useState(
     REVIEWS.map(r => ({ text: r.text, name: r.name, tag: r.tag }))
   )
-  const [reviewIdx, setReviewIdx] = useState(0)
 
   useEffect(() => {
     const onScroll = () => setScrollY(window.scrollY)
@@ -76,15 +75,6 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
       } catch (e) { /* 후기 로드 실패 시 기본 후기 표시 */ }
     })()
   }, [])
-
-  // 후기 자동 롤링
-  useEffect(() => {
-    if (rollingReviews.length <= 1) return
-    const timer = setInterval(() => {
-      setReviewIdx(i => (i + 1) % rollingReviews.length)
-    }, 5000)
-    return () => clearInterval(timer)
-  }, [rollingReviews.length])
 
   const navScrolled = scrollY > 40
 
@@ -295,54 +285,41 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
       </section>
 
       {/* ── 사용자 후기 (롤링) ── */}
-      <section style={{ padding: 'clamp(48px,8vw,80px) 20px', background: C.bg }}>
-        <div style={{ maxWidth: '760px', margin: '0 auto' }}>
+      <section style={{ padding: 'clamp(48px,8vw,80px) 0', background: C.bg, overflow: 'hidden' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 20px' }}>
           <div style={{ textAlign: 'center', marginBottom: '40px' }}>
             <div style={{ fontSize: '12px', fontWeight: 700, color: C.primary, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '12px' }}>Reviews</div>
             <h2 style={{ fontSize: 'clamp(22px, 4vw, 36px)', fontWeight: 900, margin: '0 0 14px', letterSpacing: '-0.5px' }}>실제 강사들의 이야기</h2>
           </div>
+        </div>
 
-          <div style={{ position: 'relative', overflow: 'hidden', borderRadius: '16px' }}>
-            <div style={{
-              display: 'flex',
-              transition: 'transform 0.6s ease',
-              transform: `translateX(-${reviewIdx * 100}%)`,
-            }}>
-              {rollingReviews.map((r, i) => {
-                const Wrapper = r.slug ? 'a' : 'div'
-                const wrapperProps = r.slug ? { href: `/reviews/${r.slug}`, style: { textDecoration: 'none', color: 'inherit' } } : {}
-                return (
-                  <div key={i} style={{ minWidth: '100%', boxSizing: 'border-box', padding: '2px' }}>
-                    <Wrapper {...wrapperProps}>
-                      <div style={{ background: C.white, borderRadius: '16px', padding: 'clamp(24px,4vw,36px)', border: `1.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '180px', cursor: r.slug ? 'pointer' : 'default' }}>
-                        <div style={{ fontSize: '28px', color: C.primary, fontWeight: 900, lineHeight: 1 }}>"</div>
-                        <p style={{ fontSize: '15px', color: '#374151', lineHeight: 1.8, margin: 0, flex: 1 }}>{r.text}</p>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{r.name}</span>
-                          <span style={{ fontSize: '11px', fontWeight: 600, color: C.primary, background: C.primaryLight, border: `1px solid ${C.primaryBorder}`, padding: '2px 8px', borderRadius: '100px' }}>{r.tag}</span>
-                        </div>
+        <div className="reviews-marquee-viewport" style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
+          <div className="reviews-marquee-track" style={{ display: 'flex', gap: '16px', width: 'max-content' }}>
+            {[...rollingReviews, ...rollingReviews].map((r, i) => {
+              const Wrapper = r.slug ? 'a' : 'div'
+              const wrapperProps = r.slug ? { href: `/reviews/${r.slug}`, style: { textDecoration: 'none', color: 'inherit' } } : {}
+              return (
+                <div key={i} className="review-card-wrap" style={{ width: '320px', flexShrink: 0, boxSizing: 'border-box' }}>
+                  <Wrapper {...wrapperProps}>
+                    <div style={{ background: C.white, borderRadius: '16px', padding: '24px', border: `1.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: '14px', height: '180px', cursor: r.slug ? 'pointer' : 'default' }}>
+                      <div style={{ fontSize: '24px', color: C.primary, fontWeight: 900, lineHeight: 1 }}>"</div>
+                      <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.8, margin: 0, flex: 1, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{r.text}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{r.name}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: C.primary, background: C.primaryLight, border: `1px solid ${C.primaryBorder}`, padding: '2px 8px', borderRadius: '100px' }}>{r.tag}</span>
                       </div>
-                    </Wrapper>
-                  </div>
-                )
-              })}
-            </div>
+                    </div>
+                  </Wrapper>
+                </div>
+              )
+            })}
           </div>
+        </div>
 
-          {rollingReviews.length > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '20px' }}>
-              {rollingReviews.map((_, i) => (
-                <button key={i} onClick={() => setReviewIdx(i)} aria-label={`후기 ${i + 1}`}
-                  style={{ width: i === reviewIdx ? '22px' : '8px', height: '8px', borderRadius: '100px', border: 'none', background: i === reviewIdx ? C.primary : C.border, cursor: 'pointer', transition: 'all 0.3s', padding: 0 }} />
-              ))}
-            </div>
-          )}
-
-          <div style={{ textAlign: 'center', marginTop: '28px' }}>
-            <button onClick={() => { window.location.href = '/reviews' }} style={{ padding: '10px 24px', borderRadius: '10px', border: `1.5px solid ${C.primaryBorder}`, background: C.primaryLight, color: C.primary, fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
-              사용후기 더보기 →
-            </button>
-          </div>
+        <div style={{ textAlign: 'center', marginTop: '32px' }}>
+          <button onClick={() => { window.location.href = '/reviews' }} style={{ padding: '10px 24px', borderRadius: '10px', border: `1.5px solid ${C.primaryBorder}`, background: C.primaryLight, color: C.primary, fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }}>
+            사용후기 더보기 →
+          </button>
         </div>
       </section>
 
@@ -408,10 +385,19 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
         @keyframes bounce { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(6px); } }
+        @keyframes reviews-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        .reviews-marquee-track {
+          animation: reviews-marquee linear infinite;
+          animation-duration: ${Math.max(rollingReviews.length * 8, 20)}s;
+        }
+        .reviews-marquee-viewport:hover .reviews-marquee-track {
+          animation-play-state: paused;
+        }
         @media (max-width: 640px) {
           .nav-desktop { display: none !important; }
           button.mobile-only { display: flex !important; }
           .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .review-card-wrap { width: 260px !important; }
         }
         @media (min-width: 641px) {
           .stats-grid { grid-template-columns: repeat(4, 1fr) !important; }
