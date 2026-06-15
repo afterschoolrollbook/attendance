@@ -40,6 +40,7 @@ const ADMIN_NAV = [
   { path: 'adsense',        label: '광고 관리',  icon: '📢', feature: FEATURES.MANAGE_AD },
   { path: 'blog_admin',     label: '블로그 관리', icon: '📝', feature: FEATURES.MANAGE_AD },
   { path: 'blog_menu_manage',     label: '블로그 메뉴관리',  icon: '📋', feature: FEATURES.MANAGE_AD },
+  { path: 'blog_ai_write',  label: 'AI 블로그 글쓰기', icon: '✨', feature: FEATURES.MANAGE_AD },
   { path: 'region_manage',         label: '지역/학교 관리',   icon: '🗺️', feature: FEATURES.MANAGE_AD },
   { path: 'teacher_service_manage',label: '강사 서비스 관리', icon: '🎓', feature: FEATURES.MANAGE_AD },
 ]
