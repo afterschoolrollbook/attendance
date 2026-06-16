@@ -112,9 +112,7 @@ export function BlogAdmin({ user }) {
   const canWriteNotice = isAdmin || userLevel >= blogNoticeMinLevel
   const canWriteDocs = isAdmin || userLevel >= docsWriteMinLevel
   const canWriteTemplate = isAdmin || userLevel >= templateWriteMinLevel
-  const filteredBlogCategories = blogCategories.filter(c =>
-    canWriteNotice ? true : (c !== '공지사항' && c !== '업데이트')
-  )
+
   const [posts, setPosts] = useState([])
   const [view, setView] = useState('list')
   const [form, setForm] = useState(emptyForm())
@@ -125,6 +123,11 @@ export function BlogAdmin({ user }) {
   const [myPostsOnly, setMyPostsOnly] = useState(false)
   const [blogCategories, setBlogCategories] = useState(DEFAULT_BLOG_CATS)
   const { success, error } = useToast()
+
+  // state 선언 이후에 blogCategories 참조
+  const filteredBlogCategories = blogCategories.filter(c =>
+    canWriteNotice ? true : (c !== '공지사항' && c !== '업데이트')
+  )
 
   useEffect(() => { loadPosts(); loadCategories() }, [])
 
