@@ -237,7 +237,6 @@ export function DemoDataManager({ user }) {
             teacher_id: r.teacher_id,
             date:       r.date || null,
             status:     r.status,
-            memo:       r.memo || null,
             updated_at: r.updated_at,
             _deleted:   false,
           }))
