@@ -63,6 +63,7 @@ export function DemoDataManager({ user }) {
   const [done,          setDone]          = useState(false)
   const [log,           setLog]           = useState([])
   const [showConfirm,   setShowConfirm]   = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
   const { toastError, success } = useToast()
 
   useEffect(() => {
@@ -102,6 +103,61 @@ export function DemoDataManager({ user }) {
   const addLog = (msg, type = 'info') => {
     setLog(prev => [...prev, { msg, type, ts: Date.now() }])
   }
+
+  // ── 대상 선생님 데이터 초기화
+  const runReset = useCallback(async () => {
+    if (!targetTeacher) return
+    setRunning(true)
+    setLog([])
+    setDone(false)
+    setShowResetConfirm(false)
+
+    const dstId = targetTeacher.id
+    addLog(`🗑 "${targetTeacher.name}" 선생님 데이터 초기화 시작…`, 'info')
+
+    try {
+      // 1) 출석 삭제
+      addLog('  출석 데이터 삭제 중…', 'debug')
+      const { error: e1, count: c1 } = await supabase
+        .from('attendance')
+        .delete({ count: 'exact' })
+        .eq('teacher_id', dstId)
+      if (e1) throw new Error(`출석 삭제 실패: ${e1.message}`)
+      addLog(`  ✓ 출석 ${c1 ?? '?'}건 삭제`, 'ok')
+
+      // 2) 학생 삭제
+      addLog('  학생 데이터 삭제 중…', 'debug')
+      const { error: e2, count: c2 } = await supabase
+        .from('students')
+        .delete({ count: 'exact' })
+        .eq('teacher_id', dstId)
+      if (e2) throw new Error(`학생 삭제 실패: ${e2.message}`)
+      addLog(`  ✓ 학생 ${c2 ?? '?'}명 삭제`, 'ok')
+
+      // 3) 수업 삭제
+      addLog('  수업 데이터 삭제 중…', 'debug')
+      const { error: e3, count: c3 } = await supabase
+        .from('classes')
+        .delete({ count: 'exact' })
+        .eq('teacher_id', dstId)
+      if (e3) throw new Error(`수업 삭제 실패: ${e3.message}`)
+      addLog(`  ✓ 수업 ${c3 ?? '?'}개 삭제`, 'ok')
+
+      // 4) 복사 이력도 초기화
+      if (sourceTeacher) {
+        localStorage.removeItem(COPY_KEY(sourceTeacher.id, dstId))
+        addLog('  ✓ 복사 이력 초기화', 'ok')
+      }
+
+      addLog('──────────────────────────────', 'divider')
+      addLog(`✅ "${targetTeacher.name}" 선생님 데이터가 모두 삭제되었습니다.`, 'success')
+    } catch (e) {
+      addLog(`❌ 오류: ${e.message}`, 'error')
+      toastError(e.message)
+    } finally {
+      setRunning(false)
+    }
+  }, [targetTeacher, sourceTeacher, toastError])
 
   // ── 복사 실행
   const runCopy = useCallback(async () => {
@@ -442,7 +498,7 @@ export function DemoDataManager({ user }) {
         </div>
 
         {/* 실행 버튼 */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
           {sourceTeacher && targetTeacher && (
             <Btn variant="ghost"
               disabled={running}
@@ -454,6 +510,15 @@ export function DemoDataManager({ user }) {
               }}
             >
               🗑 이력 초기화
+            </Btn>
+          )}
+          {targetTeacher && (
+            <Btn variant="ghost"
+              disabled={running}
+              onClick={() => setShowResetConfirm(true)}
+              style={{ color: '#ef4444', borderColor: '#fca5a5' }}
+            >
+              ⚠️ 데이터 초기화
             </Btn>
           )}
           <Btn
@@ -509,6 +574,30 @@ export function DemoDataManager({ user }) {
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
             <Btn variant="ghost" onClick={() => setShowConfirm(false)}>취소</Btn>
             <Btn onClick={runCopy}>확인, 생성하기</Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── 데이터 초기화 확인 모달 */}
+      <Modal
+        open={showResetConfirm}
+        onClose={() => setShowResetConfirm(false)}
+        title="⚠️ 데이터 초기화 확인"
+        width={440}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ fontSize: '14px', color: C.text, lineHeight: 1.7 }}>
+            <strong>{targetTeacher?.name}</strong> 선생님 계정의<br />
+            <strong style={{ color: '#ef4444' }}>수업 / 학생 / 출석 데이터를 모두 삭제</strong>합니다.
+          </div>
+          <div style={{ padding: '12px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '9px', fontSize: '13px', color: '#991b1b', lineHeight: 1.7 }}>
+            · 삭제된 데이터는 복구할 수 없습니다.<br />
+            · 원본 선생님 데이터는 변경되지 않습니다.<br />
+            · 복사 이력도 함께 초기화됩니다.
+          </div>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <Btn variant="ghost" onClick={() => setShowResetConfirm(false)}>취소</Btn>
+            <Btn onClick={runReset} style={{ background: '#ef4444' }}>삭제 실행</Btn>
           </div>
         </div>
       </Modal>
