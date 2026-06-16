@@ -264,10 +264,18 @@ export function DemoDataManager({ user }) {
       authId:       'auth_id',
       branchId:     'branch_id',
     }
+
+    // date 타입 컬럼 목록 — 빈 문자열을 null로 치환해야 PostgreSQL 오류 방지
+    const DATE_SNAKE_KEYS = new Set([
+      'start_date', 'end_date', 'birth_date', 'date',
+      'access_start_at', 'access_expired_at',
+    ])
+
     const result = {}
     for (const [k, v] of Object.entries(obj)) {
       const snakeKey = MAP[k] || k.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
-      result[snakeKey] = v
+      // 빈 문자열("")인 날짜 필드는 null로 저장 (invalid input syntax for type date 방지)
+      result[snakeKey] = (DATE_SNAKE_KEYS.has(snakeKey) && v === '') ? null : v
     }
     return result
   }
