@@ -43,6 +43,7 @@ const ADMIN_NAV = [
   { path: 'blog_ai_write',  label: 'AI 블로그 글쓰기', icon: '✨', feature: FEATURES.MANAGE_AD },
   { path: 'region_manage',         label: '지역/학교 관리',   icon: '🗺️', feature: FEATURES.MANAGE_AD },
   { path: 'teacher_service_manage',label: '강사 서비스 관리', icon: '🎓', feature: FEATURES.MANAGE_AD },
+  { path: 'demo_data',             label: '데모 데이터 생성', icon: '🎬', feature: FEATURES.MANAGE_AD },
 ]
 
 const HQ_NAV = [
