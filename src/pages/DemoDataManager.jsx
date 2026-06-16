@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Users, Classes, Students, Attendance } from '../lib/db.js'
+import { db, Users, Classes, Students, Attendance } from '../lib/db.js'
 import { uid, now } from '../lib/utils.js'
 import { supabase } from '../lib/supabase.js'
 import { PageHeader, Btn, Card, Modal } from '../components/Atoms.jsx'
@@ -86,7 +86,13 @@ export function DemoDataManager({ user }) {
       ...students.map(s => s.school).filter(Boolean),
     ])]
 
-    setPreview({ classes, students, attendanceCount, schools })
+    const sid = sourceTeacher.id
+    const supplyGivenCount    = db.where('supplyGiven',           r => r.teacherId === sid).length
+    const progressCount       = db.where('supplyStudentProgress', r => r.teacherId === sid).length
+    const lessonMemoCount     = db.where('lessonMemos',           r => r.teacherId === sid).length
+    const revenuePaymentCount = db.where('revenuePayments',       r => r.teacherId === sid).length
+
+    setPreview({ classes, students, attendanceCount, schools, supplyGivenCount, progressCount, lessonMemoCount, revenuePaymentCount })
   }, [sourceTeacher])
 
   // ── 복사 이력 (localStorage) — 원본id 기준으로 중복 스킵
@@ -157,7 +163,34 @@ export function DemoDataManager({ user }) {
       if (e3) throw new Error(`수업 삭제 실패: ${e3.message}`)
       addLog(`  ✓ 수업 ${c3 ?? '?'}개 삭제`, 'ok')
 
-      // 4) 복사 이력도 초기화
+      // 4) 추가 테이블 삭제 (teacherId 기준)
+      const extraTables = [
+        ['revenue_fees',           '수강료 항목'],
+        ['revenue_payments',       '납부 기록'],
+        ['supply_subjects',        '교구 과목'],
+        ['supply_vendors',         '교구 업체'],
+        ['supply_products',        '교구 상품'],
+        ['supply_product_plans',   '교구 상품 플랜'],
+        ['supply_plans',           '교구 플랜'],
+        ['supply_promos',          '교구 프로모'],
+        ['supply_items',           '교구 배정'],
+        ['supply_given',           '교구 지급 기록'],
+        ['supply_student_progress','진도 현황'],
+        ['supply_progress_logs',   '진도 로그'],
+        ['supply_session_checks',  '세션 체크'],
+        ['lesson_memos',           '수업 메모'],
+        ['message_guides',         '안내 문구'],
+        ['message_categories',     '메시지 카테고리'],
+        ['custom_categories',      '커스텀 카테고리'],
+        ['documents',              '방과후 서류'],
+      ]
+      for (const [tbl, label] of extraTables) {
+        const { error, count } = await supabase.from(tbl).delete({ count: 'exact' }).eq('teacher_id', dstId)
+        if (error) addLog(`  ⚠️ ${label} 삭제 실패: ${error.message}`, 'error')
+        else addLog(`  ✓ ${label} ${count ?? '?'}개 삭제`, 'ok')
+      }
+
+      // 5) 복사 이력도 초기화
       if (sourceTeacher) {
         localStorage.removeItem(COPY_KEY(sourceTeacher.id, dstId))
         addLog('  ✓ 복사 이력 초기화', 'ok')
@@ -370,6 +403,228 @@ export function DemoDataManager({ user }) {
       }
       addLog(`출석 ${attCount}건 복사 완료`, 'ok')
 
+      // ────────────────────────────────────────────────
+      // ── 헬퍼: teacherId만 교체하는 단순 복사
+      // ────────────────────────────────────────────────
+      async function copySimple(srcRows, tableName, extraMap = {}) {
+        let count = 0
+        for (const row of srcRows) {
+          if (copied.has(`${tableName}:${row.id}`)) { count++; continue }
+          const newId = uid()
+          const newRow = { ...row, ...extraMap, id: newId, teacherId: dstId, updatedAt: now(), createdAt: now() }
+          const snake  = toSnakeObj(newRow)
+          const { error } = await supabase.from(tableName).upsert(snake)
+          if (error) throw new Error(`${tableName} 복사 실패: ${error.message}`)
+          copied.add(`${tableName}:${row.id}`)
+          count++
+        }
+        saveCopied(srcId, dstId, copied)
+        return count
+      }
+
+      // ── 1단계: teacherId만 의존하는 테이블 ──────────
+
+      // 수강료 항목 (feeId 매핑 필요 — revenuePayments에서 참조)
+      addLog('수강료 항목 복사 중…', 'info')
+      const srcRevenueFees = db.where('revenueFees', r => r.teacherId === srcId)
+      const feeIdMap = {}
+      for (const row of srcRevenueFees) {
+        if (copied.has(`revenue_fees:${row.id}`)) {
+          // 이미 복사된 경우 매핑 복원 불가 → 스킵만
+          addLog(`  [SKIP] 수강료 항목 "${row.name || row.id}"`, 'debug')
+          continue
+        }
+        const newId = uid()
+        feeIdMap[row.id] = newId
+        const newRow = toSnakeObj({ ...row, id: newId, teacherId: dstId, updatedAt: now(), createdAt: now() })
+        const { error } = await supabase.from('revenue_fees').upsert(newRow)
+        if (error) throw new Error(`revenue_fees 복사 실패: ${error.message}`)
+        copied.add(`revenue_fees:${row.id}`)
+      }
+      saveCopied(srcId, dstId, copied)
+      addLog(`  ✓ 수강료 항목 ${Object.keys(feeIdMap).length}개`, 'ok')
+
+      // 교구 업체 (vendorId 매핑 필요)
+      addLog('교구 업체 복사 중…', 'info')
+      const srcVendors = db.where('supplyVendors', r => r.teacherId === srcId)
+      const vendorIdMap = {}
+      for (const row of srcVendors) {
+        if (copied.has(`supply_vendors:${row.id}`)) { continue }
+        const newId = uid()
+        vendorIdMap[row.id] = newId
+        const newRow = toSnakeObj({ ...row, id: newId, teacherId: dstId, updatedAt: now(), createdAt: now() })
+        const { error } = await supabase.from('supply_vendors').upsert(newRow)
+        if (error) throw new Error(`supply_vendors 복사 실패: ${error.message}`)
+        copied.add(`supply_vendors:${row.id}`)
+      }
+      saveCopied(srcId, dstId, copied)
+      addLog(`  ✓ 교구 업체 ${Object.keys(vendorIdMap).length}개`, 'ok')
+
+      // 교구 상품 (productId 매핑 필요)
+      addLog('교구 상품 복사 중…', 'info')
+      const srcProducts = db.where('supplyProducts', r => r.teacherId === srcId)
+      const productIdMap = {}
+      for (const row of srcProducts) {
+        if (copied.has(`supply_products:${row.id}`)) { continue }
+        const newId = uid()
+        productIdMap[row.id] = newId
+        const newRow = toSnakeObj({
+          ...row, id: newId, teacherId: dstId,
+          vendorId: vendorIdMap[row.vendorId] || row.vendorId,
+          updatedAt: now(), createdAt: now(),
+        })
+        const { error } = await supabase.from('supply_products').upsert(newRow)
+        if (error) throw new Error(`supply_products 복사 실패: ${error.message}`)
+        copied.add(`supply_products:${row.id}`)
+      }
+      saveCopied(srcId, dstId, copied)
+      addLog(`  ✓ 교구 상품 ${Object.keys(productIdMap).length}개`, 'ok')
+
+      // 교구 상품 플랜
+      addLog('교구 상품 플랜 복사 중…', 'info')
+      const srcProductPlans = db.where('supplyProductPlans', r => r.teacherId === srcId)
+      const productPlanIdMap = {}
+      for (const row of srcProductPlans) {
+        if (copied.has(`supply_product_plans:${row.id}`)) { continue }
+        const newId = uid()
+        productPlanIdMap[row.id] = newId
+        const newRow = toSnakeObj({
+          ...row, id: newId, teacherId: dstId,
+          productId: productIdMap[row.productId] || row.productId,
+          updatedAt: now(), createdAt: now(),
+        })
+        const { error } = await supabase.from('supply_product_plans').upsert(newRow)
+        if (error) throw new Error(`supply_product_plans 복사 실패: ${error.message}`)
+        copied.add(`supply_product_plans:${row.id}`)
+      }
+      saveCopied(srcId, dstId, copied)
+      addLog(`  ✓ 교구 상품 플랜 ${Object.keys(productPlanIdMap).length}개`, 'ok')
+
+      // 교구 과목, 플랜, 프로모, 안내문구, 카테고리, 서류 — 단순 복사
+      const simpleTeacherTables = [
+        { key: 'supplySubjects',     table: 'supply_subjects',     label: '교구 과목' },
+        { key: 'supplyPlans',        table: 'supply_plans',        label: '교구 플랜',
+          remap: r => ({ ...r, productId: productIdMap[r.productId] || r.productId, vendorId: vendorIdMap[r.vendorId] || r.vendorId }) },
+        { key: 'supplyPromos',       table: 'supply_promos',       label: '교구 프로모' },
+        { key: 'messageGuides',      table: 'message_guides',      label: '안내 문구' },
+        { key: 'messageCategories',  table: 'message_categories',  label: '메시지 카테고리' },
+        { key: 'customCategories',   table: 'custom_categories',   label: '커스텀 카테고리' },
+        { key: 'documents',          table: 'documents',           label: '방과후 서류' },
+      ]
+      for (const { key, table, label, remap } of simpleTeacherTables) {
+        const rows = db.where(key, r => r.teacherId === srcId)
+        let cnt = 0
+        for (const row of rows) {
+          if (copied.has(`${table}:${row.id}`)) { cnt++; continue }
+          const base = remap ? remap(row) : row
+          const newRow = toSnakeObj({ ...base, id: uid(), teacherId: dstId, updatedAt: now(), createdAt: now() })
+          const { error } = await supabase.from(table).upsert(newRow)
+          if (error) throw new Error(`${table} 복사 실패: ${error.message}`)
+          copied.add(`${table}:${row.id}`)
+          cnt++
+        }
+        saveCopied(srcId, dstId, copied)
+        addLog(`  ✓ ${label} ${cnt}개`, 'ok')
+      }
+
+      // ── 2단계: classId 의존 ──────────────────────────
+
+      // 수업 메모
+      addLog('수업 메모 복사 중…', 'info')
+      const srcLessonMemos = db.where('lessonMemos', r => r.teacherId === srcId)
+      let lessonMemoCount = 0
+      for (const row of srcLessonMemos) {
+        if (copied.has(`lesson_memos:${row.id}`)) { lessonMemoCount++; continue }
+        const newClassId = classIdMap[row.classId]
+        if (!newClassId) continue
+        const newRow = toSnakeObj({ ...row, id: uid(), teacherId: dstId, classId: newClassId, updatedAt: now(), createdAt: now() })
+        const { error } = await supabase.from('lesson_memos').upsert(newRow)
+        if (error) throw new Error(`lesson_memos 복사 실패: ${error.message}`)
+        copied.add(`lesson_memos:${row.id}`)
+        lessonMemoCount++
+      }
+      saveCopied(srcId, dstId, copied)
+      addLog(`  ✓ 수업 메모 ${lessonMemoCount}개`, 'ok')
+
+      // ── 3단계: studentId + classId 의존 ─────────────
+
+      const studentClassTables = [
+        { key: 'supplyItems',  table: 'supply_items',  label: '교구 배정' },
+        { key: 'supplyGiven',  table: 'supply_given',  label: '교구 지급 기록' },
+      ]
+      for (const { key, table, label } of studentClassTables) {
+        const rows = db.where(key, r => r.teacherId === srcId)
+        let cnt = 0
+        for (const row of rows) {
+          if (copied.has(`${table}:${row.id}`)) { cnt++; continue }
+          const newStudentId = studentIdMap[row.studentId]
+          const newClassId   = classIdMap[row.classId]
+          if (!newStudentId || !newClassId) continue
+          const newRow = toSnakeObj({
+            ...row, id: uid(), teacherId: dstId,
+            studentId: newStudentId, classId: newClassId,
+            updatedAt: now(), createdAt: now(),
+          })
+          const { error } = await supabase.from(table).upsert(newRow)
+          if (error) throw new Error(`${table} 복사 실패: ${error.message}`)
+          copied.add(`${table}:${row.id}`)
+          cnt++
+        }
+        saveCopied(srcId, dstId, copied)
+        addLog(`  ✓ ${label} ${cnt}개`, 'ok')
+      }
+
+      // 진도 현황 / 로그 / 세션 체크 (productId 매핑 추가)
+      const progressTables = [
+        { key: 'supplyStudentProgress', table: 'supply_student_progress', label: '진도 현황' },
+        { key: 'supplyProgressLogs',    table: 'supply_progress_logs',    label: '진도 로그' },
+        { key: 'supplySessionChecks',   table: 'supply_session_checks',   label: '세션 체크' },
+      ]
+      for (const { key, table, label } of progressTables) {
+        const rows = db.where(key, r => r.teacherId === srcId)
+        let cnt = 0
+        for (const row of rows) {
+          if (copied.has(`${table}:${row.id}`)) { cnt++; continue }
+          const newStudentId = studentIdMap[row.studentId]
+          const newClassId   = classIdMap[row.classId]
+          if (!newStudentId || !newClassId) continue
+          const newRow = toSnakeObj({
+            ...row, id: uid(), teacherId: dstId,
+            studentId:  newStudentId,
+            classId:    newClassId,
+            productId:  productIdMap[row.productId] || row.productId,
+            updatedAt: now(), createdAt: now(),
+          })
+          const { error } = await supabase.from(table).upsert(newRow)
+          if (error) throw new Error(`${table} 복사 실패: ${error.message}`)
+          copied.add(`${table}:${row.id}`)
+          cnt++
+        }
+        saveCopied(srcId, dstId, copied)
+        addLog(`  ✓ ${label} ${cnt}개`, 'ok')
+      }
+
+      // 납부 기록 (feeId + studentId 매핑)
+      addLog('납부 기록 복사 중…', 'info')
+      const srcPayments = db.where('revenuePayments', r => r.teacherId === srcId)
+      let paymentCount = 0
+      for (const row of srcPayments) {
+        if (copied.has(`revenue_payments:${row.id}`)) { paymentCount++; continue }
+        const newStudentId = studentIdMap[row.studentId] || row.studentId
+        const newFeeId     = feeIdMap[row.feeId]         || row.feeId
+        const newRow = toSnakeObj({
+          ...row, id: uid(), teacherId: dstId,
+          studentId: newStudentId, feeId: newFeeId,
+          updatedAt: now(), createdAt: now(),
+        })
+        const { error } = await supabase.from('revenue_payments').upsert(newRow)
+        if (error) throw new Error(`revenue_payments 복사 실패: ${error.message}`)
+        copied.add(`revenue_payments:${row.id}`)
+        paymentCount++
+      }
+      saveCopied(srcId, dstId, copied)
+      addLog(`  ✓ 납부 기록 ${paymentCount}건`, 'ok')
+
       addLog('──────────────────────────────', 'divider')
       addLog(`✅ 완료! ${targetTeacher.name} 선생님 계정에 데모 데이터가 생성되었습니다.`, 'success')
       setDone(true)
@@ -475,11 +730,15 @@ export function DemoDataManager({ user }) {
 
         {/* 미리보기 */}
         {preview && (
-          <div style={{ padding: '12px 16px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '10px', fontSize: '13px', color: '#15803d', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+          <div style={{ padding: '12px 16px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '10px', fontSize: '13px', color: '#15803d', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <span>📚 수업 <strong>{preview.classes.length}개</strong></span>
             <span>👥 학생 <strong>{preview.students.length}명</strong></span>
             <span>✅ 출석 <strong>{preview.attendanceCount}건</strong></span>
-            <span>🏫 학교 <strong>{preview.schools.length}곳</strong> → 가명 치환</span>
+            <span>🏫 학교 <strong>{preview.schools.length}곳</strong></span>
+            {preview.supplyGivenCount > 0    && <span>🎒 교구지급 <strong>{preview.supplyGivenCount}건</strong></span>}
+            {preview.progressCount > 0       && <span>📈 진도 <strong>{preview.progressCount}건</strong></span>}
+            {preview.lessonMemoCount > 0     && <span>📝 수업메모 <strong>{preview.lessonMemoCount}건</strong></span>}
+            {preview.revenuePaymentCount > 0 && <span>💰 납부기록 <strong>{preview.revenuePaymentCount}건</strong></span>}
           </div>
         )}
 
