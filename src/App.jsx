@@ -36,6 +36,7 @@ import { BlogAiWrite } from './pages/BlogAiWrite.jsx'
 import { BlogMenuManage }          from './pages/BlogMenuManage.jsx'
 import { RegionManage }             from './pages/RegionManage.jsx'
 import { TeacherServiceManage }     from './pages/TeacherServiceManage.jsx'
+import { DemoDataManager }          from './pages/DemoDataManager.jsx'
 import { BlogWrite }    from './pages/BlogWrite.jsx'
 import { ParentInvite } from './pages/ParentInvite.jsx'
 import { ParentLogin }  from './pages/ParentLogin.jsx'
@@ -501,6 +502,7 @@ function AppInner() {
       case 'blog_menu_manage':        return can(user, 'manage_ad') ? <BlogMenuManage user={user} />        : <Dashboard {...pageProps} />
       case 'region_manage':          return can(user, 'manage_ad') ? <RegionManage user={user} />          : <Dashboard {...pageProps} />
       case 'teacher_service_manage': return can(user, 'manage_ad') ? <TeacherServiceManage user={user} /> : <Dashboard {...pageProps} />
+      case 'demo_data':             return (user?.level >= 10) ? <DemoDataManager user={user} /> : <Dashboard {...pageProps} />
       case 'blog_write':      return <BlogWrite user={user} onLogout={handleLogout} />
       // ✅ 본사 업체 관리 (Lv.10 전용)
       case 'vendor_manage':   return can(user, 'manage_ad') ? <VendorManage user={user} /> : <Dashboard {...pageProps} />
