@@ -26,7 +26,7 @@ function getBlogNoticeMinLevel()    { return getBoardPermLevel('notice', 'write'
 function getDocsWriteMinLevel()     { return getBoardPermLevel('docs', 'write') }
 function getTemplateWriteMinLevel() { return getBoardPermLevel('template', 'write') }
 
-const BLOG_CATEGORIES = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
+const DEFAULT_BLOG_CATS = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
 const DOCS_CATEGORIES = ['시작하기', '출석부', '교구 관리', '학생 관리', '수업 관리', '리포트', '설정', '기타']
 const TEMPLATE_CATEGORIES = ['출석부 양식', '가정통신문', '수업 계획서', '교구 관리표', '학생 평가표', '수업료 안내', '기타 서식']
 
@@ -106,7 +106,7 @@ export function BlogAdmin({ user }) {
   const canWriteNotice = isAdmin || userLevel >= blogNoticeMinLevel
   const canWriteDocs = isAdmin || userLevel >= docsWriteMinLevel
   const canWriteTemplate = isAdmin || userLevel >= templateWriteMinLevel
-  const filteredBlogCategories = BLOG_CATEGORIES.filter(c =>
+  const filteredBlogCategories = blogCategories.filter(c =>
     canWriteNotice ? true : (c !== '공지사항' && c !== '업데이트')
   )
   const [posts, setPosts] = useState([])
@@ -115,11 +115,20 @@ export function BlogAdmin({ user }) {
   const [editId, setEditId] = useState(null)
   const [preview, setPreview] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [filterType, setFilterType] = useState('all') // 'all' | 'blog' | 'docs' | 'template'
+  const [filterType, setFilterType] = useState('all')
   const [myPostsOnly, setMyPostsOnly] = useState(false)
+  const [blogCategories, setBlogCategories] = useState(DEFAULT_BLOG_CATS)
   const { success, error } = useToast()
 
-  useEffect(() => { loadPosts() }, [])
+  useEffect(() => { loadPosts(); loadCategories() }, [])
+
+  const loadCategories = async () => {
+    try {
+      const rows = await dbCall('getAll', 'customCategories')
+      const custom = (rows || []).filter(c => c.type === 'blog').map(c => c.name)
+      setBlogCategories([...DEFAULT_BLOG_CATS, ...custom.filter(n => !DEFAULT_BLOG_CATS.includes(n))])
+    } catch (e) { console.warn('[BlogAdmin] 카테고리 로딩 실패:', e) }
+  }
 
   const loadPosts = async () => {
     try {
@@ -163,7 +172,7 @@ export function BlogAdmin({ user }) {
       const slug = form.slug.trim() || slugify(form.title)
       const tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
       const finalStatus = status || form.status
-      const payload = {
+      const basePayload = {
         id: editId || uid(),
         type: form.type,
         title: form.title.trim(), slug, summary: form.summary.trim(),
@@ -173,10 +182,10 @@ export function BlogAdmin({ user }) {
         status: finalStatus,
         publishedAt: finalStatus==='published' ? (form.publishedAt ? new Date(form.publishedAt).toISOString() : now()) : null,
         updatedAt: now(),
-        createdAt: editId ? undefined : now(),
         templateFile: form.type==='template' ? form.templateFile.trim() : undefined,
         templateDesc: form.type==='template' ? form.templateDesc.trim() : undefined,
       }
+      const payload = editId ? basePayload : { ...basePayload, createdAt: now() }
       if (editId) await dbCall('update', 'blogPosts', { id: editId, patch: payload })
       else await dbCall('insert', 'blogPosts', payload)
       success(finalStatus==='published' ? '발행되었습니다! 🎉' : '임시저장되었습니다.')
