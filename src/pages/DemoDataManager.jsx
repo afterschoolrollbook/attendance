@@ -120,11 +120,13 @@ export function DemoDataManager({ user }) {
       allSchools.forEach((s, i) => { schoolMap[s] = fakeSchool(strHash(s) + i) })
 
       addLog(`학교 ${allSchools.length}개 → 가명 치환 완료`, 'ok')
+      allSchools.forEach(s => addLog(`  "${s}" → "${schoolMap[s]}"`, 'debug'))
 
       // ── 수업 복사 (classId 매핑 필요)
       const classIdMap = {}   // 원본 classId → 새 classId
       let classCount = 0
 
+      addLog(`수업 ${srcClasses.length}개 복사 시작…`, 'info')
       for (const cls of srcClasses) {
         const newId = uid()
         classIdMap[cls.id] = newId
@@ -138,11 +140,19 @@ export function DemoDataManager({ user }) {
           createdAt:    now(),
         }
 
+        addLog(`  [${classCount + 1}/${srcClasses.length}] "${cls.className || cls.id}" upsert 중…`, 'debug')
+        const snakeCls = toSnakeObj(newCls)
+        addLog(`    payload: ${JSON.stringify(snakeCls)}`, 'trace')
+
         // Supabase에 직접 upsert (다른 선생님 데이터이므로 db.insert는 현재 user 기준)
         const { error } = await supabase
           .from('classes')
-          .upsert(toSnakeObj(newCls))
-        if (error) throw new Error(`수업 복사 실패: ${error.message}`)
+          .upsert(snakeCls)
+        if (error) {
+          addLog(`    ❌ 실패 payload: ${JSON.stringify(snakeCls)}`, 'error')
+          throw new Error(`수업 복사 실패: ${error.message}`)
+        }
+        addLog(`    ✓ 완료 (new id: ${newId})`, 'debug')
         classCount++
       }
       addLog(`수업 ${classCount}개 복사 완료`, 'ok')
@@ -151,6 +161,7 @@ export function DemoDataManager({ user }) {
       const studentIdMap = {}  // 원본 studentId → 새 studentId
       let studentCount = 0
 
+      addLog(`학생 ${srcStudents.length}명 복사 시작…`, 'info')
       for (const [idx, stu] of srcStudents.entries()) {
         const newId = uid()
         studentIdMap[stu.id] = newId
@@ -171,10 +182,18 @@ export function DemoDataManager({ user }) {
           createdAt:   now(),
         }
 
+        addLog(`  [${idx + 1}/${srcStudents.length}] "${stu.name}" → "${newStu.name}" upsert 중…`, 'debug')
+        const snakeStu = toSnakeObj(newStu)
+        addLog(`    payload: ${JSON.stringify(snakeStu)}`, 'trace')
+
         const { error } = await supabase
           .from('students')
-          .upsert(toSnakeObj(newStu))
-        if (error) throw new Error(`학생 복사 실패: ${error.message}`)
+          .upsert(snakeStu)
+        if (error) {
+          addLog(`    ❌ 실패 payload: ${JSON.stringify(snakeStu)}`, 'error')
+          throw new Error(`학생 복사 실패: ${error.message}`)
+        }
+        addLog(`    ✓ 완료 (new id: ${newId})`, 'debug')
         studentCount++
       }
       addLog(`학생 ${studentCount}명 복사 완료 (이름·학교·연락처 가명 처리)`, 'ok')
@@ -183,15 +202,20 @@ export function DemoDataManager({ user }) {
       let attCount = 0
       const ATT_BATCH = 50
 
+      addLog(`출석 복사 시작… (수업 ${srcClasses.length}개)`, 'info')
       for (const cls of srcClasses) {
         const attRows = Attendance.byClass(cls.id)
         const newClassId = classIdMap[cls.id]
-        if (!newClassId) continue
+        if (!newClassId) {
+          addLog(`  [SKIP] "${cls.className || cls.id}" — classIdMap 없음`, 'debug')
+          continue
+        }
 
         const batch = []
+        let skippedAtt = 0
         for (const att of attRows) {
           const newStuId = studentIdMap[att.studentId]
-          if (!newStuId) continue
+          if (!newStuId) { skippedAtt++; continue }
           batch.push({
             ...att,
             id:         uid(),
@@ -201,25 +225,33 @@ export function DemoDataManager({ user }) {
             updated_at: now(),
           })
         }
+        addLog(`  "${cls.className || cls.id}" — 출석 ${attRows.length}건 중 ${batch.length}건 준비 (studentId 불일치 스킵: ${skippedAtt}건)`, 'debug')
 
         // 배치 분할 upsert
         for (let i = 0; i < batch.length; i += ATT_BATCH) {
           const chunk = batch.slice(i, i + ATT_BATCH)
+          const chunkPayload = chunk.map(r => ({
+            id:         r.id,
+            class_id:   r.class_id,
+            student_id: r.student_id,
+            teacher_id: r.teacher_id,
+            date:       r.date || null,
+            status:     r.status,
+            memo:       r.memo || null,
+            updated_at: r.updated_at,
+            _deleted:   false,
+          }))
+          addLog(`    배치 upsert ${i + 1}–${Math.min(i + ATT_BATCH, batch.length)}건…`, 'debug')
+          addLog(`    payload[0]: ${JSON.stringify(chunkPayload[0])}`, 'trace')
           const { error } = await supabase
             .from('attendance')
-            .upsert(chunk.map(r => ({
-              id:         r.id,
-              class_id:   r.class_id,
-              student_id: r.student_id,
-              teacher_id: r.teacher_id,
-              date:       r.date,
-              status:     r.status,
-              memo:       r.memo || null,
-              updated_at: r.updated_at,
-              _deleted:   false,
-            })), { onConflict: 'class_id,student_id,date' })
-          if (error) throw new Error(`출석 복사 실패: ${error.message}`)
+            .upsert(chunkPayload, { onConflict: 'class_id,student_id,date' })
+          if (error) {
+            addLog(`    ❌ 실패 payload[0]: ${JSON.stringify(chunkPayload[0])}`, 'error')
+            throw new Error(`출석 복사 실패: ${error.message}`)
+          }
           attCount += chunk.length
+          addLog(`    ✓ ${chunk.length}건 완료 (누계: ${attCount})`, 'debug')
         }
       }
       addLog(`출석 ${attCount}건 복사 완료`, 'ok')
@@ -231,6 +263,7 @@ export function DemoDataManager({ user }) {
 
     } catch (e) {
       addLog(`❌ 오류: ${e.message}`, 'error')
+      addLog(`  stack: ${e.stack || '(없음)'}`, 'error')
       toastError(e.message)
     } finally {
       setRunning(false)
@@ -265,17 +298,13 @@ export function DemoDataManager({ user }) {
       branchId:     'branch_id',
     }
 
-    // date 타입 컬럼 목록 — 빈 문자열을 null로 치환해야 PostgreSQL 오류 방지
-    const DATE_SNAKE_KEYS = new Set([
-      'start_date', 'end_date', 'birth_date', 'date',
-      'access_start_at', 'access_expired_at',
-    ])
-
     const result = {}
     for (const [k, v] of Object.entries(obj)) {
       const snakeKey = MAP[k] || k.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
-      // 빈 문자열("")인 날짜 필드는 null로 저장 (invalid input syntax for type date 방지)
-      result[snakeKey] = (DATE_SNAKE_KEYS.has(snakeKey) && v === '') ? null : v
+      // _date / _at 으로 끝나는 컬럼에 빈 문자열이 오면 PostgreSQL date/timestamptz 오류 발생
+      // → 해당 패턴의 키이거나 값이 빈 문자열이면 null로 저장
+      const isDateCol = /_date$|_at$|^date$/.test(snakeKey)
+      result[snakeKey] = (isDateCol && v === '') ? null : v
     }
     return result
   }
@@ -290,7 +319,7 @@ export function DemoDataManager({ user }) {
     fontSize: '12px', fontWeight: 600, color: C.muted, display: 'block', marginBottom: '6px',
   }
 
-  const logColor = { ok:'#16a34a', error:'#ef4444', success:'#7c3aed', info:C.muted, divider:'#e5e7eb' }
+  const logColor = { ok:'#16a34a', error:'#ef4444', success:'#7c3aed', info:C.muted, divider:'#e5e7eb', debug:'#0369a1', trace:'#9ca3af' }
 
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 0 60px' }}>
@@ -386,7 +415,7 @@ export function DemoDataManager({ user }) {
           </div>
           <div style={{ fontFamily: 'monospace', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {log.map((l, i) => (
-              <div key={i} style={{ color: logColor[l.type] || C.muted }}>
+              <div key={i} style={{ color: logColor[l.type] || C.muted, whiteSpace: 'pre', fontSize: l.type === 'trace' ? '11px' : '12px', opacity: l.type === 'trace' ? 0.7 : 1 }}>
                 {l.type === 'divider' ? <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '4px 0' }} /> : l.msg}
               </div>
             ))}
