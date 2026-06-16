@@ -567,30 +567,54 @@ export function DemoDataManager({ user }) {
 
       // ── 3단계: studentId + classId 의존 ─────────────
 
-      const studentClassTables = [
-        { key: 'supplyItems',  table: 'supply_items',  label: '교구 배정' },
-        { key: 'supplyGiven',  table: 'supply_given',  label: '교구 지급 기록' },
-      ]
-      for (const { key, table, label } of studentClassTables) {
-        const rows = db.where(key, r => r.teacherId === srcId)
+      // 교구 배정 (productId도 교체 필요 — 대시보드가 item.productId로 상품 조회)
+      {
+        const rows = db.where('supplyItems', r => r.teacherId === srcId)
         let cnt = 0
         for (const row of rows) {
-          if (copied.has(`${table}:${row.id}`)) { cnt++; continue }
+          if (copied.has(`supply_items:${row.id}`)) { cnt++; continue }
           const newStudentId = studentIdMap[row.studentId]
           const newClassId   = classIdMap[row.classId]
           if (!newStudentId || !newClassId) continue
           const newRow = toSnakeObj({
             ...row, id: uid(), teacherId: dstId,
-            studentId: newStudentId, classId: newClassId,
+            studentId: newStudentId,
+            classId:   newClassId,
+            productId: productIdMap[row.productId] || row.productId,
             updatedAt: now(), createdAt: now(),
           })
-          const { error } = await supabase.from(table).upsert(newRow)
-          if (error) throw new Error(`${table} 복사 실패: ${error.message}`)
-          copied.add(`${table}:${row.id}`)
+          const { error } = await supabase.from('supply_items').upsert(newRow)
+          if (error) throw new Error(`supply_items 복사 실패: ${error.message}`)
+          copied.add(`supply_items:${row.id}`)
           cnt++
         }
         saveCopied(srcId, dstId, copied)
-        addLog(`  ✓ ${label} ${cnt}개`, 'ok')
+        addLog(`  ✓ 교구 배정 ${cnt}개`, 'ok')
+      }
+
+      // 교구 지급 기록 (productId 교체)
+      {
+        const rows = db.where('supplyGiven', r => r.teacherId === srcId)
+        let cnt = 0
+        for (const row of rows) {
+          if (copied.has(`supply_given:${row.id}`)) { cnt++; continue }
+          const newStudentId = studentIdMap[row.studentId]
+          const newClassId   = classIdMap[row.classId]
+          if (!newStudentId || !newClassId) continue
+          const newRow = toSnakeObj({
+            ...row, id: uid(), teacherId: dstId,
+            studentId: newStudentId,
+            classId:   newClassId,
+            productId: productIdMap[row.productId] || row.productId,
+            updatedAt: now(), createdAt: now(),
+          })
+          const { error } = await supabase.from('supply_given').upsert(newRow)
+          if (error) throw new Error(`supply_given 복사 실패: ${error.message}`)
+          copied.add(`supply_given:${row.id}`)
+          cnt++
+        }
+        saveCopied(srcId, dstId, copied)
+        addLog(`  ✓ 교구 지급 기록 ${cnt}개`, 'ok')
       }
 
       // 진도 현황 / 로그 / 세션 체크 (productId 매핑 추가)
@@ -609,9 +633,10 @@ export function DemoDataManager({ user }) {
           if (!newStudentId || !newClassId) continue
           const newRow = toSnakeObj({
             ...row, id: uid(), teacherId: dstId,
-            studentId:  newStudentId,
-            classId:    newClassId,
-            productId:  productIdMap[row.productId] || row.productId,
+            studentId:     newStudentId,
+            classId:       newClassId,
+            productId:     productIdMap[row.productId]     || row.productId,
+            nextProductId: productIdMap[row.nextProductId] || row.nextProductId || null,
             updatedAt: now(), createdAt: now(),
           })
           const { error } = await supabase.from(table).upsert(newRow)
