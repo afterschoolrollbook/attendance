@@ -116,16 +116,30 @@ export function DemoDataManager({ user }) {
     addLog(`🗑 "${targetTeacher.name}" 선생님 데이터 초기화 시작…`, 'info')
 
     try {
-      // 1) 출석 삭제
-      addLog('  출석 데이터 삭제 중…', 'debug')
-      const { error: e1, count: c1 } = await supabase
-        .from('attendance')
-        .delete({ count: 'exact' })
+      // 1) 대상 선생님 수업 id 목록 조회
+      addLog('  수업 목록 조회 중…', 'debug')
+      const { data: dstClasses, error: e0 } = await supabase
+        .from('classes')
+        .select('id')
         .eq('teacher_id', dstId)
-      if (e1) throw new Error(`출석 삭제 실패: ${e1.message}`)
-      addLog(`  ✓ 출석 ${c1 ?? '?'}건 삭제`, 'ok')
+      if (e0) throw new Error(`수업 조회 실패: ${e0.message}`)
+      const dstClassIds = (dstClasses || []).map(c => c.id)
+      addLog(`  ✓ 수업 ${dstClassIds.length}개 확인`, 'debug')
 
-      // 2) 학생 삭제
+      // 2) 출석 삭제 — class_id 기준
+      if (dstClassIds.length > 0) {
+        addLog('  출석 데이터 삭제 중…', 'debug')
+        const { error: e1, count: c1 } = await supabase
+          .from('attendance')
+          .delete({ count: 'exact' })
+          .in('class_id', dstClassIds)
+        if (e1) throw new Error(`출석 삭제 실패: ${e1.message}`)
+        addLog(`  ✓ 출석 ${c1 ?? '?'}건 삭제`, 'ok')
+      } else {
+        addLog('  출석 데이터 없음 (스킵)', 'debug')
+      }
+
+      // 3) 학생 삭제
       addLog('  학생 데이터 삭제 중…', 'debug')
       const { error: e2, count: c2 } = await supabase
         .from('students')
@@ -134,7 +148,7 @@ export function DemoDataManager({ user }) {
       if (e2) throw new Error(`학생 삭제 실패: ${e2.message}`)
       addLog(`  ✓ 학생 ${c2 ?? '?'}명 삭제`, 'ok')
 
-      // 3) 수업 삭제
+      // 4) 수업 삭제
       addLog('  수업 데이터 삭제 중…', 'debug')
       const { error: e3, count: c3 } = await supabase
         .from('classes')
@@ -335,11 +349,9 @@ export function DemoDataManager({ user }) {
             id:         r.id,
             class_id:   r.class_id,
             student_id: r.student_id,
-            teacher_id: r.teacher_id,
             date:       r.date || null,
             status:     r.status,
             updated_at: r.updated_at,
-            _deleted:   false,
           }))
           addLog(`    배치 upsert ${i + 1}–${Math.min(i + ATT_BATCH, batch.length)}건…`, 'debug')
           addLog(`    payload[0]: ${JSON.stringify(chunkPayload[0])}`, 'trace')
