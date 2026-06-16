@@ -158,49 +158,34 @@ export function DemoDataManager({ user }) {
         addLog('  출석 데이터 없음 (스킵)', 'debug')
       }
 
-      // 3) 학생 삭제
-      addLog('  학생 데이터 삭제 중…', 'debug')
-      const { error: e2, count: c2 } = await supabase
-        .from('students')
-        .delete({ count: 'exact' })
-        .eq('teacher_id', dstId)
-      if (e2) throw new Error(`학생 삭제 실패: ${e2.message}`)
-      addLog(`  ✓ 학생 ${c2 ?? '?'}명 삭제`, 'ok')
-
-      // 4) 수업 삭제
-      addLog('  수업 데이터 삭제 중…', 'debug')
-      const { error: e3, count: c3 } = await supabase
-        .from('classes')
-        .delete({ count: 'exact' })
-        .eq('teacher_id', dstId)
-      if (e3) throw new Error(`수업 삭제 실패: ${e3.message}`)
-      addLog(`  ✓ 수업 ${c3 ?? '?'}개 삭제`, 'ok')
-
-      // 4) 추가 테이블 삭제 (teacherId 기준)
-      const extraTables = [
-        ['revenue_fees',           '수강료 항목'],
-        ['revenue_payments',       '납부 기록'],
-        ['supply_subjects',        '교구 과목'],
-        ['supply_vendors',         '교구 업체'],
-        ['supply_products',        '교구 상품'],
-        ['supply_product_plans',   '교구 상품 플랜'],
-        ['supply_plans',           '교구 플랜'],
-        ['supply_promos',          '교구 프로모'],
-        ['supply_items',           '교구 배정'],
-        ['supply_given',           '교구 지급 기록'],
-        ['supply_student_progress','진도 현황'],
-        ['supply_progress_logs',   '진도 로그'],
-        ['supply_session_checks',  '세션 체크'],
-        ['lesson_memos',           '수업 메모'],
-        ['message_guides',         '안내 문구'],
-        ['message_categories',     '메시지 카테고리'],
-        ['custom_categories',      '커스텀 카테고리'],
-        ['documents',              '방과후 서류'],
+      // 3) 학생 + 수업 + 나머지 테이블 삭제 (teacher_id 기준)
+      const teacherTables = [
+        ['students',               '학생',           '명'],
+        ['classes',                '수업',           '개'],
+        ['revenue_fees',           '수강료 항목',    '개'],
+        ['revenue_payments',       '납부 기록',      '건'],
+        ['supply_subjects',        '교구 과목',      '개'],
+        ['supply_vendors',         '교구 업체',      '개'],
+        ['supply_products',        '교구 상품',      '개'],
+        ['supply_product_plans',   '교구 상품 플랜', '개'],
+        ['supply_plans',           '교구 플랜',      '개'],
+        ['supply_promos',          '교구 프로모',    '개'],
+        ['supply_items',           '교구 배정',      '개'],
+        ['supply_given',           '교구 지급 기록', '건'],
+        ['supply_student_progress','진도 현황',      '건'],
+        ['supply_progress_logs',   '진도 로그',      '건'],
+        ['supply_session_checks',  '세션 체크',      '건'],
+        ['lesson_memos',           '수업 메모',      '개'],
+        ['message_guides',         '안내 문구',      '개'],
+        ['message_categories',     '메시지 카테고리','개'],
+        ['custom_categories',      '커스텀 카테고리','개'],
+        ['documents',              '방과후 서류',    '개'],
       ]
-      for (const [tbl, label] of extraTables) {
+      for (const [tbl, label, unit] of teacherTables) {
         const { error, count } = await supabase.from(tbl).delete({ count: 'exact' }).eq('teacher_id', dstId)
         if (error) addLog(`  ⚠️ ${label} 삭제 실패: ${error.message}`, 'error')
-        else addLog(`  ✓ ${label} ${count ?? '?'}개 삭제`, 'ok')
+        else if (count > 0) addLog(`  ✓ ${label} ${count}${unit} 삭제`, 'ok')
+        // count === 0 이면 로그 생략 (이미 없는 데이터는 표시 안 함)
       }
 
       // 5) 복사 이력도 초기화
