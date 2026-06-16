@@ -606,11 +606,11 @@ export function DemoDataManager({ user }) {
 
       // 진도 현황 / 로그 / 세션 체크 (productId 매핑 추가)
       const progressTables = [
+      // 진도 현황 / 진도 로그 — nextProductId 포함
+      for (const { key, table, label } of [
         { key: 'supplyStudentProgress', table: 'supply_student_progress', label: '진도 현황' },
         { key: 'supplyProgressLogs',    table: 'supply_progress_logs',    label: '진도 로그' },
-        { key: 'supplySessionChecks',   table: 'supply_session_checks',   label: '세션 체크' },
-      ]
-      for (const { key, table, label } of progressTables) {
+      ]) {
         const rows = db.where(key, r => r.teacherId === srcId)
         let cnt = 0
         for (const row of rows) {
@@ -633,6 +633,37 @@ export function DemoDataManager({ user }) {
         }
         saveCopied(srcId, dstId, copied)
         addLog(`  ✓ ${label} ${cnt}개`, 'ok')
+      }
+
+      // 세션 체크 — nextProductId 컬럼 없음
+      {
+        const rows = db.where('supplySessionChecks', r => r.teacherId === srcId)
+        let cnt = 0
+        for (const row of rows) {
+          if (copied.has(`supply_session_checks:${row.id}`)) { cnt++; continue }
+          const newStudentId = studentIdMap[row.studentId]
+          const newClassId   = classIdMap[row.classId]
+          if (!newStudentId || !newClassId) continue
+          const newRow = {
+            id:         uid(),
+            teacher_id: dstId,
+            student_id: newStudentId,
+            class_id:   newClassId,
+            product_id: productIdMap[row.productId] || row.productId,
+            stage:      row.stage,
+            session_no: row.sessionNo ?? row.session_no,
+            checked_at: row.checkedAt ?? row.checked_at ?? null,
+            updated_at: now(),
+            created_at: now(),
+            _deleted:   false,
+          }
+          const { error } = await supabase.from('supply_session_checks').upsert(newRow)
+          if (error) throw new Error(`supply_session_checks 복사 실패: ${error.message}`)
+          copied.add(`supply_session_checks:${row.id}`)
+          cnt++
+        }
+        saveCopied(srcId, dstId, copied)
+        addLog(`  ✓ 세션 체크 ${cnt}개`, 'ok')
       }
 
       // 납부 기록 (feeId + studentId 매핑)
