@@ -1,27 +1,4 @@
-function sanitizeHtml(html) {
-  if (typeof window !== 'undefined' && window.DOMPurify) {
-    return window.DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: ['p','br','b','strong','i','em','u','h1','h2','h3','ul','ol','li',
-        'blockquote','code','pre','hr','a','img','table','thead','tbody','tr','th','td',
-        'svg','g','rect','circle','ellipse','line','polyline','polygon','path','text',
-        'tspan','defs','linearGradient','stop','clipPath','marker','title','desc'],
-      ALLOWED_ATTR: ['href','src','alt','target','rel','style','class',
-        'viewBox','xmlns','width','height','fill','stroke','stroke-width','d',
-        'x','y','x1','y1','x2','y2','cx','cy','r','rx','ry','points',
-        'transform','text-anchor','font-size','font-weight','font-family',
-        'id','offset','stop-color','stop-opacity','gradientUnits','gradientTransform',
-        'preserveAspectRatio','dominant-baseline'],
-      ALLOW_DATA_ATTR: false,
-    })
-  }
-  // DOMPurify 없을 때 — script/iframe/이벤트핸들러만 제거, SVG는 허용
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-    .replace(/javascript\s*:/gi, '')
-}
-
+import { parseMarkdown, markdownPreviewStyles } from '../lib/parseMarkdown.js'
 import React, { useState, useEffect } from 'react'
 import { dbCall, supabase } from '../lib/supabase.js'
 import { BlogAdmin } from './BlogAdmin.jsx'
@@ -29,56 +6,8 @@ import { uid, now } from '../lib/utils.js'
 import { getBoardPermLevel } from '../constants/permissions.js'
 
 // ── 마크다운 파서
-// replaced
-function _OLD_sanitizeHtml(html) {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
-    .replace(/on\w+\s*=\s*[^\s>]*/gi, '')
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-    .replace(/javascript\s*:/gi, '')
-}
-
-function parseMarkdown(md) {
-  if (!md) return ''
-  const html = md
-    .replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0">')
-    .replace(/^---$/gm, '<hr>')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
-    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-    .split('\n\n').map(p => p.trim()).filter(Boolean)
-    .map(p => /^<(h[1-3]|ul|ol|li|pre|blockquote|hr)/.test(p) ? p : `<p>${p.replace(/\n/g, '<br>')}</p>`)
-    .join('\n')
-  return sanitizeHtml(html)
-}
-
-const globalStyles = `
-  .md-body { line-height:1.8; color:#1f2937; font-size:16px; }
-  .md-body h1 { font-size:28px; font-weight:800; margin:32px 0 16px; color:#111827; }
-  .md-body h2 { font-size:22px; font-weight:700; margin:28px 0 12px; color:#1f2937; border-bottom:2px solid #f3f4f6; padding-bottom:8px; }
-  .md-body h3 { font-size:18px; font-weight:700; margin:20px 0 10px; color:#374151; }
+const globalStyles = markdownPreviewStyles + `
   .md-body p  { margin:12px 0; }
-  .md-body ul, .md-body ol { padding-left:24px; margin:12px 0; }
-  .md-body li { margin:6px 0; }
-  .md-body strong { font-weight:700; color:#111827; }
-  .md-body em { font-style:italic; }
-  .md-body code { background:#f3f4f6; padding:2px 6px; border-radius:4px; font-size:14px; font-family:monospace; color:#e11d48; }
-  .md-body pre { background:#1f2937; color:#f9fafb; padding:16px 20px; border-radius:10px; overflow-x:auto; margin:16px 0; }
-  .md-body pre code { background:none; color:inherit; padding:0; font-size:14px; }
-  .md-body blockquote { border-left:4px solid #f97316; padding:10px 16px; background:#fff7ed; margin:16px 0; border-radius:0 8px 8px 0; color:#92400e; font-style:italic; }
-  .md-body a { color:#f97316; text-decoration:underline; }
-  .md-body hr { border:none; border-top:2px solid #f3f4f6; margin:24px 0; }
-  .md-body img { max-width:100%; border-radius:8px; margin:8px 0; }
   .blog-side-ad { display:none; }
   @media (min-width:1200px) { .blog-side-ad { display:block; } }
   .blog-nav-tabs { display:flex; gap:2px; overflow-x:auto; -ms-overflow-style:none; scrollbar-width:none; }

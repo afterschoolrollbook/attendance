@@ -1,26 +1,4 @@
-function sanitizeHtml(html) {
-  if (typeof window !== 'undefined' && window.DOMPurify) {
-    return window.DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: ['p','br','b','strong','i','em','u','h1','h2','h3','ul','ol','li',
-        'blockquote','code','pre','hr','a','img','table','thead','tbody','tr','th','td',
-        'svg','g','rect','circle','ellipse','line','polyline','polygon','path','text',
-        'tspan','defs','linearGradient','stop','clipPath','marker','title','desc'],
-      ALLOWED_ATTR: ['href','src','alt','target','rel','style','class',
-        'viewBox','xmlns','width','height','fill','stroke','stroke-width','d',
-        'x','y','x1','y1','x2','y2','cx','cy','r','rx','ry','points',
-        'transform','text-anchor','font-size','font-weight','font-family',
-        'id','offset','stop-color','stop-opacity','gradientUnits','gradientTransform',
-        'preserveAspectRatio','dominant-baseline'],
-      ALLOW_DATA_ATTR: false,
-    })
-  }
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-    .replace(/javascript\s*:/gi, '')
-}
-
+import { parseMarkdown, markdownPreviewStyles } from '../lib/parseMarkdown.js'
 import React, { useState, useEffect } from 'react'
 import { dbCall } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
@@ -36,40 +14,7 @@ const DEFAULT_BLOG_CATS = ['출석 관리', '교구 관리', '업무 팁', '공�
 const DOCS_CATEGORIES = ['시작하기', '출석부', '교구 관리', '학생 관리', '수업 관리', '리포트', '설정', '기타']
 const TEMPLATE_CATEGORIES = ['출석부 양식', '가정통신문', '수업 계획서', '교구 관리표', '학생 평가표', '수업료 안내', '기타 서식']
 
-// replaced
-function _OLD_sanitizeHtml(html) {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
-    .replace(/on\w+\s*=\s*[^\s>]*/gi, '')
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-    .replace(/javascript\s*:/gi, '')
-}
-
-function parseMarkdown(md) {
-  if (!md) return ''
-  const html = md
-    .replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0">')
-    .replace(/^---$/gm, '<hr>')
-    .replace(/^\- (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
-    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-    .split('\n\n').map(p => p.trim()).filter(Boolean)
-    .map(p => /^<(h[1-3]|ul|ol|li|pre|blockquote|hr)/.test(p) ? p : `<p>${p.replace(/\n/g, '<br>')}</p>`)
-    .join('\n')
-  return sanitizeHtml(html)
-}
-
-const previewStyles = `
+const previewStyles = markdownPreviewStyles + `
   .md-preview h1 { font-size:22px;font-weight:800;margin:20px 0 10px;color:#111827; }
   .md-preview h2 { font-size:18px;font-weight:700;margin:16px 0 8px;color:#1f2937;border-bottom:2px solid #f3f4f6;padding-bottom:6px; }
   .md-preview h3 { font-size:16px;font-weight:700;margin:14px 0 6px;color:#374151; }
@@ -77,7 +22,6 @@ const previewStyles = `
   .md-preview ul,ol { padding-left:22px;margin:10px 0; }
   .md-preview li { margin:5px 0;line-height:1.7; }
   .md-preview strong { font-weight:700;color:#111827; }
-  .md-preview em { font-style:italic; }
   .md-preview code { background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px;font-family:monospace;color:#e11d48; }
   .md-preview pre { background:#1f2937;color:#f9fafb;padding:14px 18px;border-radius:8px;overflow-x:auto;margin:14px 0; }
   .md-preview pre code { background:none;color:inherit;padding:0; }
