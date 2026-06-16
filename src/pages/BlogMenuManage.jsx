@@ -45,7 +45,7 @@ export function BlogMenuManage({ user }) {
 
   const { success } = useToast()
 
-  // 기본 카테고리 (삭제 불가)
+  // 기본 카테고리 (DB에 없으면 초기 시드로 추가)
   const DEFAULT_CATS = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
 
   useEffect(() => { loadCategories() }, [])
@@ -54,6 +54,13 @@ export function BlogMenuManage({ user }) {
     try {
       const rows = await dbCall('getAll', 'customCategories')
       const blogCats = (rows || []).filter(c => c.type === 'blog').sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      // 한 번도 시드가 안 된 경우 기본 카테고리를 DB에 삽입
+      if (blogCats.length === 0) {
+        for (const name of DEFAULT_CATS) {
+          await dbCall('insert', 'customCategories', { d: { id: uid(), type: 'blog', name, createdAt: now(), updatedAt: now() } })
+        }
+        return loadCategories()
+      }
       setCategories(blogCats)
     } catch (e) { console.warn(e) }
   }
@@ -104,20 +111,12 @@ export function BlogMenuManage({ user }) {
           <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>📂 블로그 카테고리 관리</div>
           <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px' }}>블로그 카테고리를 추가하거나 삭제할 수 있어요. 기본 카테고리는 삭제할 수 없어요.</div>
 
-          {/* 기본 카테고리 */}
+          {/* 전체 카테고리 목록 (모두 삭제 가능) */}
           <div style={{ marginBottom:'16px' }}>
-            <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>기본 카테고리 (삭제 불가)</div>
-            <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-              {DEFAULT_CATS.map(name => (
-                <span key={name} style={{ padding:'5px 14px', borderRadius:'999px', background:'#f3f4f6', color:'#374151', fontSize:'13px', fontWeight:600 }}>{name}</span>
-              ))}
-            </div>
-          </div>
-
-          {/* 추가된 카테고리 */}
-          {categories.length > 0 && (
-            <div style={{ marginBottom:'16px' }}>
-              <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>추가된 카테고리</div>
+            <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>등록된 카테고리</div>
+            {categories.length === 0 ? (
+              <div style={{ fontSize:'13px', color:C.muted }}>카테고리가 없습니다.</div>
+            ) : (
               <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
                 {categories.map(cat => (
                   <div key={cat.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 10px 5px 14px', borderRadius:'999px', background:'#fff7ed', border:'1.5px solid #fed7aa' }}>
@@ -126,8 +125,8 @@ export function BlogMenuManage({ user }) {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* 추가 입력 */}
           <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>

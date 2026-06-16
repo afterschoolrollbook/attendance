@@ -14,7 +14,7 @@ const BOARDS = [
   { key:'secret',  label:'🔐 비밀게시판',  color:'#dc2626' },
 ]
 
-const BLOG_CATEGORIES = ['출석 관리', '교구 관리', '업무 팁', '기타']
+const DEFAULT_CATS = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
 
 function getBoardPerms() {
   return getBoardPermissions()
@@ -81,8 +81,17 @@ export function BlogWrite({ user, onLogout }) {
   const [preview, setPreview] = useState(false)
   const [saving, setSaving]   = useState(false)
   const [loading, setLoading] = useState(false)
+  const [blogCategories, setBlogCategories] = useState(DEFAULT_CATS)
 
-  useEffect(() => { loadPosts() }, [tab])
+  useEffect(() => { loadPosts(); loadCategories() }, [tab])
+
+  const loadCategories = async () => {
+    try {
+      const rows = await dbCall('getAll', 'customCategories')
+      const custom = (rows || []).filter(c => c.type === 'blog').map(c => c.name)
+      setBlogCategories([...DEFAULT_CATS, ...custom.filter(n => !DEFAULT_CATS.includes(n))])
+    } catch (e) { console.warn('[BlogWrite] 카테고리 로딩 실패:', e) }
+  }
 
   const loadPosts = async () => {
     setLoading(true)
@@ -188,7 +197,7 @@ export function BlogWrite({ user, onLogout }) {
                 <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>카테고리</div>
                 <select value={form.category} onChange={e=>setForm(v=>({...v,category:e.target.value}))} style={{...iStyle, background:'#fff'}}>
                   <option value="">카테고리 선택</option>
-                  {BLOG_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+                  {blogCategories.map(c=><option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>

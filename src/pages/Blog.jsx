@@ -189,8 +189,22 @@ function BlogList({ posts, onSelect, currentUser, loggedIn, writePerm, onPostSav
   const [search, setSearch] = useState('')
   const [selCat, setSelCat] = useState('전체')
   const [writing, setWriting] = useState(false)
-  const FIXED_CATEGORIES = ['전체', '출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
-  const WRITE_CATEGORIES = FIXED_CATEGORIES.filter(c => c !== '전체')
+  const [allCategories, setAllCategories] = useState(['전체', '출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타'])
+
+  const DEFAULT_CATS = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
+
+  useEffect(() => {
+    const loadCats = async () => {
+      try {
+        const rows = await dbCall('getAll', 'customCategories')
+        const custom = (rows || []).filter(c => c.type === 'blog').map(c => c.name)
+        setAllCategories(['전체', ...DEFAULT_CATS, ...custom.filter(n => !DEFAULT_CATS.includes(n))])
+      } catch (e) { console.warn('[Blog] 카테고리 로딩 실패:', e) }
+    }
+    loadCats()
+  }, [])
+
+  const WRITE_CATEGORIES = allCategories.filter(c => c !== '전체')
   const filtered = posts.filter(p => {
     const matchCat = selCat === '전체' || p.category === selCat
     const q = search.toLowerCase()
@@ -208,7 +222,7 @@ function BlogList({ posts, onSelect, currentUser, loggedIn, writePerm, onPostSav
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', marginBottom:'24px' }}>
         <SearchBar value={search} onChange={setSearch} placeholder="글 제목, 내용으로 검색..." />
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', justifyContent:'center' }}>
-          {FIXED_CATEGORIES.map(cat => (
+          {allCategories.map(cat => (
             <button key={cat} onClick={() => setSelCat(cat)}
               style={{ padding:'6px 18px', borderRadius:'999px', border:`2px solid ${selCat===cat?'#f97316':'#e5e7eb'}`, background:selCat===cat?'#f97316':'#fff', color:selCat===cat?'#fff':'#374151', fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', transition:'all .15s' }}>
               {cat}
