@@ -405,25 +405,6 @@ export function DemoDataManager({ user }) {
       }
       addLog(`출석 ${attCount}건 복사 완료`, 'ok')
 
-      // ────────────────────────────────────────────────
-      // ── 헬퍼: teacherId만 교체하는 단순 복사
-      // ────────────────────────────────────────────────
-      async function copySimple(srcRows, tableName, extraMap = {}) {
-        let count = 0
-        for (const row of srcRows) {
-          if (copied.has(`${tableName}:${row.id}`)) { count++; continue }
-          const newId = uid()
-          const newRow = { ...row, ...extraMap, id: newId, teacherId: dstId, updatedAt: now(), createdAt: now() }
-          const snake  = toSnakeObj(newRow)
-          const { error } = await supabase.from(tableName).upsert(snake)
-          if (error) throw new Error(`${tableName} 복사 실패: ${error.message}`)
-          copied.add(`${tableName}:${row.id}`)
-          count++
-        }
-        saveCopied(srcId, dstId, copied)
-        return count
-      }
-
       // ── 1단계: teacherId만 의존하는 테이블 ──────────
 
       // 수강료 항목 (feeId 매핑 필요 — revenuePayments에서 참조)
@@ -438,7 +419,13 @@ export function DemoDataManager({ user }) {
         }
         const newId = uid()
         feeIdMap[row.id] = newId
-        const newRow = toSnakeObj({ ...row, id: newId, teacherId: dstId, updatedAt: now(), createdAt: now() })
+        const newRow = {
+          id: newId, teacher_id: dstId,
+          class_id: classIdMap[row.classId] ?? classIdMap[row.class_id] ?? null,
+          fee_type: row.feeType ?? row.fee_type ?? null,
+          amount: row.amount ?? null,
+          updated_at: now(), created_at: now(),
+        }
         const { error } = await supabase.from('revenue_fees').upsert(newRow)
         if (error) throw new Error(`revenue_fees 복사 실패: ${error.message}`)
         copied.add(`revenue_fees:${row.id}`)
@@ -455,7 +442,13 @@ export function DemoDataManager({ user }) {
         if (copied.has(`supply_vendors:${row.id}`)) { continue }
         const newId = uid()
         vendorIdMap[row.id] = newId
-        const newRow = toSnakeObj({ ...row, id: newId, teacherId: dstId, updatedAt: now(), createdAt: now() })
+        const newRow = {
+          id: newId, teacher_id: dstId,
+          subject: row.subject ?? null, name: row.name ?? null,
+          manager_name: row.managerName ?? row.manager_name ?? null,
+          contact: row.contact ?? null, memo: row.memo ?? null,
+          updated_at: now(), created_at: now(),
+        }
         const { error } = await supabase.from('supply_vendors').upsert(newRow)
         if (error) throw new Error(`supply_vendors 복사 실패: ${error.message}`)
         copied.add(`supply_vendors:${row.id}`)
@@ -472,11 +465,15 @@ export function DemoDataManager({ user }) {
         if (copied.has(`supply_products:${row.id}`)) { continue }
         const newId = uid()
         productIdMap[row.id] = newId
-        const newRow = toSnakeObj({
-          ...row, id: newId, teacherId: dstId,
-          vendorId: vendorIdMap[row.vendorId] || row.vendorId,
-          updatedAt: now(), createdAt: now(),
-        })
+        const newRow = {
+          id: newId, teacher_id: dstId,
+          vendor_id: vendorIdMap[row.vendorId] || row.vendorId || null,
+          subject: row.subject ?? null, name: row.name ?? null,
+          max_stage: row.maxStage ?? row.max_stage ?? null,
+          sessions_per_stage: row.sessionsPerStage ?? row.sessions_per_stage ?? 12,
+          alert_session: row.alertSession ?? row.alert_session ?? 3,
+          updated_at: now(), created_at: now(),
+        }
         const { error } = await supabase.from('supply_products').upsert(newRow)
         if (error) throw new Error(`supply_products 복사 실패: ${error.message}`)
         copied.add(`supply_products:${row.id}`)
@@ -493,11 +490,17 @@ export function DemoDataManager({ user }) {
         if (copied.has(`supply_product_plans:${row.id}`)) { continue }
         const newId = uid()
         productPlanIdMap[row.id] = newId
-        const newRow = toSnakeObj({
-          ...row, id: newId, teacherId: dstId,
-          productId: productIdMap[row.productId] || row.productId,
-          updatedAt: now(), createdAt: now(),
-        })
+        const newRow = {
+          id: newId, teacher_id: dstId,
+          product_id: productIdMap[row.productId] || row.productId,
+          stage: row.stage ?? null,
+          session_no: row.sessionNo ?? row.session_no ?? null,
+          title: row.title ?? null,
+          memo: row.memo ?? null,
+          file_name: row.fileName ?? row.file_name ?? null,
+          file_url: row.fileUrl ?? row.file_url ?? null,
+          updated_at: now(), created_at: now(),
+        }
         const { error } = await supabase.from('supply_product_plans').upsert(newRow)
         if (error) throw new Error(`supply_product_plans 복사 실패: ${error.message}`)
         copied.add(`supply_product_plans:${row.id}`)
@@ -543,7 +546,12 @@ export function DemoDataManager({ user }) {
         if (copied.has(`lesson_memos:${row.id}`)) { lessonMemoCount++; continue }
         const newClassId = classIdMap[row.classId]
         if (!newClassId) continue
-        const newRow = toSnakeObj({ ...row, id: uid(), teacherId: dstId, classId: newClassId, updatedAt: now(), createdAt: now() })
+        const newRow = {
+          id: uid(), teacher_id: dstId, class_id: newClassId,
+          content: row.content ?? null,
+          date: row.date || null,
+          updated_at: now(), created_at: now(),
+        }
         const { error } = await supabase.from('lesson_memos').upsert(newRow)
         if (error) throw new Error(`lesson_memos 복사 실패: ${error.message}`)
         copied.add(`lesson_memos:${row.id}`)
@@ -563,13 +571,20 @@ export function DemoDataManager({ user }) {
           const newStudentId = studentIdMap[row.studentId]
           const newClassId   = classIdMap[row.classId]
           if (!newStudentId || !newClassId) continue
-          const newRow = toSnakeObj({
-            ...row, id: uid(), teacherId: dstId,
-            studentId: newStudentId,
-            classId:   newClassId,
-            productId: productIdMap[row.productId] || row.productId,
-            updatedAt: now(), createdAt: now(),
-          })
+          const newRow = {
+            id:         uid(),
+            teacher_id: dstId,
+            student_id: newStudentId,
+            class_id:   newClassId,
+            product_id: productIdMap[row.productId] || row.productId,
+            subject:    row.subject    ?? null,
+            name:       row.name       ?? null,
+            stage:      row.stage      ?? null,
+            remote_no:  row.remoteNo   ?? row.remote_no ?? null,
+            updated_at: now(),
+            created_at: now(),
+            _deleted:   false,
+          }
           const { error } = await supabase.from('supply_items').upsert(newRow)
           if (error) throw new Error(`supply_items 복사 실패: ${error.message}`)
           copied.add(`supply_items:${row.id}`)
@@ -588,13 +603,26 @@ export function DemoDataManager({ user }) {
           const newStudentId = studentIdMap[row.studentId]
           const newClassId   = classIdMap[row.classId]
           if (!newStudentId || !newClassId) continue
-          const newRow = toSnakeObj({
-            ...row, id: uid(), teacherId: dstId,
-            studentId: newStudentId,
-            classId:   newClassId,
-            productId: productIdMap[row.productId] || row.productId,
-            updatedAt: now(), createdAt: now(),
-          })
+          const newRow = {
+            id:           uid(),
+            teacher_id:   dstId,
+            student_id:   newStudentId,
+            student_name: row.studentName ?? row.student_name ?? null,
+            class_id:     newClassId,
+            class_name:   row.className   ?? row.class_name   ?? null,
+            school_name:  row.schoolName  ?? row.school_name  ?? null,
+            product_id:   productIdMap[row.productId] || row.productId || null,
+            product_name: row.productName ?? row.product_name ?? null,
+            vendor_id:    row.vendorId    ?? row.vendor_id    ?? null,
+            item_name:    row.itemName    ?? row.item_name    ?? null,
+            given_at:     row.givenAt     ?? row.given_at     ?? null,
+            paid_at:      row.paidAt      ?? row.paid_at      ?? null,
+            quarter:      row.quarter     ?? null,
+            supply_status: row.supplyStatus ?? row.supply_status ?? null,
+            status:       row.status      ?? null,
+            updated_at:   now(),
+            created_at:   now(),
+          }
           const { error } = await supabase.from('supply_given').upsert(newRow)
           if (error) throw new Error(`supply_given 복사 실패: ${error.message}`)
           copied.add(`supply_given:${row.id}`)
@@ -604,35 +632,72 @@ export function DemoDataManager({ user }) {
         addLog(`  ✓ 교구 지급 기록 ${cnt}개`, 'ok')
       }
 
-      // 진도 현황 / 로그 / 세션 체크 (productId 매핑 추가)
-      const progressTables = [
-      // 진도 현황 / 진도 로그 — nextProductId 포함
-      for (const { key, table, label } of [
-        { key: 'supplyStudentProgress', table: 'supply_student_progress', label: '진도 현황' },
-        { key: 'supplyProgressLogs',    table: 'supply_progress_logs',    label: '진도 로그' },
-      ]) {
-        const rows = db.where(key, r => r.teacherId === srcId)
+      // 진도 현황 — next_product_id, next_stage 포함
+      {
+        const rows = db.where('supplyStudentProgress', r => r.teacherId === srcId)
         let cnt = 0
         for (const row of rows) {
-          if (copied.has(`${table}:${row.id}`)) { cnt++; continue }
+          if (copied.has(`supply_student_progress:${row.id}`)) { cnt++; continue }
           const newStudentId = studentIdMap[row.studentId]
           const newClassId   = classIdMap[row.classId]
           if (!newStudentId || !newClassId) continue
-          const newRow = toSnakeObj({
-            ...row, id: uid(), teacherId: dstId,
-            studentId:     newStudentId,
-            classId:       newClassId,
-            productId:     productIdMap[row.productId]     || row.productId,
-            nextProductId: productIdMap[row.nextProductId] || row.nextProductId || null,
-            updatedAt: now(), createdAt: now(),
-          })
-          const { error } = await supabase.from(table).upsert(newRow)
-          if (error) throw new Error(`${table} 복사 실패: ${error.message}`)
-          copied.add(`${table}:${row.id}`)
+          const newRow = {
+            id:               uid(),
+            teacher_id:       dstId,
+            student_id:       newStudentId,
+            class_id:         newClassId,
+            product_id:       productIdMap[row.productId]     || row.productId,
+            next_product_id:  productIdMap[row.nextProductId] || row.nextProductId || null,
+            next_stage:       row.nextStage ?? row.next_stage ?? null,
+            cur_stage:        row.curStage  ?? row.cur_stage  ?? 1,
+            cur_session:      row.curSession ?? row.cur_session ?? 0,
+            supplyReady:      row.supplyReady      ?? false,
+            supplyDelivered:  row.supplyDelivered  ?? false,
+            transferSchool:   row.transferSchool   ?? false,
+            transferStudent:  row.transferStudent  ?? false,
+            transferSupply:   row.transferSupply   ?? false,
+            updated_at:       now(),
+            created_at:       now(),
+            _deleted:         false,
+          }
+          const { error } = await supabase.from('supply_student_progress').upsert(newRow)
+          if (error) throw new Error(`supply_student_progress 복사 실패: ${error.message}`)
+          copied.add(`supply_student_progress:${row.id}`)
           cnt++
         }
         saveCopied(srcId, dstId, copied)
-        addLog(`  ✓ ${label} ${cnt}개`, 'ok')
+        addLog(`  ✓ 진도 현황 ${cnt}개`, 'ok')
+      }
+
+      // 진도 로그 — next_product_id 없음
+      {
+        const rows = db.where('supplyProgressLogs', r => r.teacherId === srcId)
+        let cnt = 0
+        for (const row of rows) {
+          if (copied.has(`supply_progress_logs:${row.id}`)) { cnt++; continue }
+          const newStudentId = studentIdMap[row.studentId]
+          const newClassId   = classIdMap[row.classId]
+          if (!newStudentId || !newClassId) continue
+          const newRow = {
+            id:         uid(),
+            teacher_id: dstId,
+            student_id: newStudentId,
+            class_id:   newClassId,
+            product_id: productIdMap[row.productId] || row.productId,
+            file_name:  row.fileName  ?? row.file_name  ?? null,
+            file_url:   row.fileUrl   ?? row.file_url   ?? null,
+            file_type:  row.fileType  ?? row.file_type  ?? null,
+            updated_at: now(),
+            created_at: now(),
+            _deleted:   false,
+          }
+          const { error } = await supabase.from('supply_progress_logs').upsert(newRow)
+          if (error) throw new Error(`supply_progress_logs 복사 실패: ${error.message}`)
+          copied.add(`supply_progress_logs:${row.id}`)
+          cnt++
+        }
+        saveCopied(srcId, dstId, copied)
+        addLog(`  ✓ 진도 로그 ${cnt}개`, 'ok')
       }
 
       // 세션 체크 — nextProductId 컬럼 없음
@@ -674,11 +739,15 @@ export function DemoDataManager({ user }) {
         if (copied.has(`revenue_payments:${row.id}`)) { paymentCount++; continue }
         const newStudentId = studentIdMap[row.studentId] || row.studentId
         const newFeeId     = feeIdMap[row.feeId]         || row.feeId
-        const newRow = toSnakeObj({
-          ...row, id: uid(), teacherId: dstId,
-          studentId: newStudentId, feeId: newFeeId,
-          updatedAt: now(), createdAt: now(),
-        })
+        const newRow = {
+          id: uid(), teacher_id: dstId,
+          class_id: classIdMap[row.classId] ?? classIdMap[row.class_id] ?? null,
+          term_no: row.termNo ?? row.term_no ?? null,
+          date: row.date || null,
+          amount: row.amount ?? null,
+          memo: row.memo ?? null,
+          updated_at: now(), created_at: now(),
+        }
         const { error } = await supabase.from('revenue_payments').upsert(newRow)
         if (error) throw new Error(`revenue_payments 복사 실패: ${error.message}`)
         copied.add(`revenue_payments:${row.id}`)
