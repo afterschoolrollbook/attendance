@@ -2,8 +2,15 @@ function sanitizeHtml(html) {
   if (typeof window !== 'undefined' && window.DOMPurify) {
     return window.DOMPurify.sanitize(html, {
       ALLOWED_TAGS: ['p','br','b','strong','i','em','u','h1','h2','h3','ul','ol','li',
-        'blockquote','code','pre','hr','a','img'],
-      ALLOWED_ATTR: ['href','src','alt','target','rel'],
+        'blockquote','code','pre','hr','a','img','table','thead','tbody','tr','th','td',
+        'svg','g','rect','circle','ellipse','line','polyline','polygon','path','text',
+        'tspan','defs','linearGradient','stop','clipPath','marker','title','desc'],
+      ALLOWED_ATTR: ['href','src','alt','target','rel','style','class',
+        'viewBox','xmlns','width','height','fill','stroke','stroke-width','d',
+        'x','y','x1','y1','x2','y2','cx','cy','r','rx','ry','points',
+        'transform','text-anchor','font-size','font-weight','font-family',
+        'id','offset','stop-color','stop-opacity','gradientUnits','gradientTransform',
+        'preserveAspectRatio','dominant-baseline'],
       ALLOW_DATA_ATTR: false,
     })
   }
@@ -12,7 +19,6 @@ function sanitizeHtml(html) {
     .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
     .replace(/javascript\s*:/gi, '')
-    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
 }
 
 import React, { useState, useEffect } from 'react'
