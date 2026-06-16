@@ -88,6 +88,17 @@ export function DemoDataManager({ user }) {
     setPreview({ classes, students, attendanceCount, schools })
   }, [sourceTeacher])
 
+  // ── 복사 이력 (localStorage) — 원본id 기준으로 중복 스킵
+  const COPY_KEY = (srcId, dstId) => `demoCopied:${srcId}:${dstId}`
+  const loadCopied = (srcId, dstId) => {
+    try { return new Set(JSON.parse(localStorage.getItem(COPY_KEY(srcId, dstId)) || '[]')) }
+    catch { return new Set() }
+  }
+  const saveCopied = (srcId, dstId, set) => {
+    try { localStorage.setItem(COPY_KEY(srcId, dstId), JSON.stringify([...set])) }
+    catch {}
+  }
+
   const addLog = (msg, type = 'info') => {
     setLog(prev => [...prev, { msg, type, ts: Date.now() }])
   }
@@ -107,6 +118,10 @@ export function DemoDataManager({ user }) {
     try {
       const srcId = sourceTeacher.id
       const dstId = targetTeacher.id
+
+      // 이전에 복사 완료된 원본 id 목록 로드
+      const copied = loadCopied(srcId, dstId)
+      addLog(`이전 복사 이력: ${copied.size}건 스킵 예정`, 'info')
 
       // ── 학교명 매핑 (원본 학교 → 가짜 학교)
       const srcClasses  = Classes.byTeacher(srcId)
@@ -128,6 +143,20 @@ export function DemoDataManager({ user }) {
 
       addLog(`수업 ${srcClasses.length}개 복사 시작…`, 'info')
       for (const cls of srcClasses) {
+        if (copied.has(`cls:${cls.id}`)) {
+          // 이미 복사된 수업 — classIdMap은 복원 불가하므로 Supabase에서 조회
+          const { data: existing } = await supabase
+            .from('classes')
+            .select('id')
+            .eq('teacher_id', dstId)
+            .eq('source_origin_id', cls.id)   // 없으면 스킵만
+            .maybeSingle()
+          if (existing) classIdMap[cls.id] = existing.id
+          addLog(`  [SKIP] "${cls.className || cls.id}" — 이미 복사됨`, 'debug')
+          classCount++
+          continue
+        }
+
         const newId = uid()
         classIdMap[cls.id] = newId
 
@@ -152,9 +181,11 @@ export function DemoDataManager({ user }) {
           addLog(`    ❌ 실패 payload: ${JSON.stringify(snakeCls)}`, 'error')
           throw new Error(`수업 복사 실패: ${error.message}`)
         }
+        copied.add(`cls:${cls.id}`)
         addLog(`    ✓ 완료 (new id: ${newId})`, 'debug')
         classCount++
       }
+      saveCopied(srcId, dstId, copied)
       addLog(`수업 ${classCount}개 복사 완료`, 'ok')
 
       // ── 학생 복사 (studentId 매핑 필요)
@@ -163,6 +194,12 @@ export function DemoDataManager({ user }) {
 
       addLog(`학생 ${srcStudents.length}명 복사 시작…`, 'info')
       for (const [idx, stu] of srcStudents.entries()) {
+        if (copied.has(`stu:${stu.id}`)) {
+          addLog(`  [SKIP] "${stu.name}" — 이미 복사됨`, 'debug')
+          studentCount++
+          continue
+        }
+
         const newId = uid()
         studentIdMap[stu.id] = newId
 
@@ -193,9 +230,11 @@ export function DemoDataManager({ user }) {
           addLog(`    ❌ 실패 payload: ${JSON.stringify(snakeStu)}`, 'error')
           throw new Error(`학생 복사 실패: ${error.message}`)
         }
-        addLog(`    ✓ 완료 (new id: ${newId})`, 'debug')
+        copied.add(`stu:${stu.id}`)
         studentCount++
+        addLog(`    ✓ 완료 (new id: ${newId})`, 'debug')
       }
+      saveCopied(srcId, dstId, copied)
       addLog(`학생 ${studentCount}명 복사 완료 (이름·학교·연락처 가명 처리)`, 'ok')
 
       // ── 출석 복사 (배치 처리)
@@ -227,6 +266,12 @@ export function DemoDataManager({ user }) {
         }
         addLog(`  "${cls.className || cls.id}" — 출석 ${attRows.length}건 중 ${batch.length}건 준비 (studentId 불일치 스킵: ${skippedAtt}건)`, 'debug')
 
+        if (copied.has(`att:${cls.id}`)) {
+          addLog(`  [SKIP] "${cls.className || cls.id}" 출석 — 이미 복사됨`, 'debug')
+          attCount += batch.length
+          continue
+        }
+
         // 배치 분할 upsert
         for (let i = 0; i < batch.length; i += ATT_BATCH) {
           const chunk = batch.slice(i, i + ATT_BATCH)
@@ -252,6 +297,8 @@ export function DemoDataManager({ user }) {
           attCount += chunk.length
           addLog(`    ✓ ${chunk.length}건 완료 (누계: ${attCount})`, 'debug')
         }
+        copied.add(`att:${cls.id}`)
+        saveCopied(srcId, dstId, copied)
       }
       addLog(`출석 ${attCount}건 복사 완료`, 'ok')
 
@@ -395,7 +442,20 @@ export function DemoDataManager({ user }) {
         </div>
 
         {/* 실행 버튼 */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+          {sourceTeacher && targetTeacher && (
+            <Btn variant="ghost"
+              disabled={running}
+              onClick={() => {
+                localStorage.removeItem(COPY_KEY(sourceTeacher.id, targetTeacher.id))
+                setLog([])
+                setDone(false)
+                addLog('🗑 복사 이력 초기화 완료 — 다음 실행 시 전체 재복사합니다.', 'info')
+              }}
+            >
+              🗑 이력 초기화
+            </Btn>
+          )}
           <Btn
             disabled={!sourceTeacher || !targetTeacher || running}
             onClick={() => setShowConfirm(true)}
