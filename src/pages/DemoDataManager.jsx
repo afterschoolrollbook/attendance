@@ -509,31 +509,162 @@ export function DemoDataManager({ user }) {
       saveIdMaps(srcId, dstId, { ...loadIdMaps(srcId, dstId), productPlanIdMap })
       addLog(`  ✓ 교구 상품 플랜 ${Object.keys(productPlanIdMap).length}개`, 'ok')
 
-      // 교구 과목, 플랜, 프로모, 안내문구, 카테고리, 서류 — 단순 복사
-      const simpleTeacherTables = [
-        { key: 'supplySubjects',     table: 'supply_subjects',     label: '교구 과목' },
-        { key: 'supplyPlans',        table: 'supply_plans',        label: '교구 플랜',
-          remap: r => ({ ...r, productId: productIdMap[r.productId] || r.productId, vendorId: vendorIdMap[r.vendorId] || r.vendorId }) },
-        { key: 'supplyPromos',       table: 'supply_promos',       label: '교구 프로모' },
-        { key: 'messageGuides',      table: 'message_guides',      label: '안내 문구' },
-        { key: 'messageCategories',  table: 'message_categories',  label: '메시지 카테고리' },
-        { key: 'customCategories',   table: 'custom_categories',   label: '커스텀 카테고리' },
-        { key: 'documents',          table: 'documents',           label: '방과후 서류' },
-      ]
-      for (const { key, table, label, remap } of simpleTeacherTables) {
-        const rows = db.where(key, r => r.teacherId === srcId)
+      // 교구 과목 — supply_subjects
+      {
+        const rows = db.where('supplySubjects', r => r.teacherId === srcId)
         let cnt = 0
         for (const row of rows) {
-          if (copied.has(`${table}:${row.id}`)) { cnt++; continue }
-          const base = remap ? remap(row) : row
-          const newRow = toSnakeObj({ ...base, id: uid(), teacherId: dstId, updatedAt: now(), createdAt: now() })
-          const { error } = await supabase.from(table).upsert(newRow)
-          if (error) throw new Error(`${table} 복사 실패: ${error.message}`)
-          copied.add(`${table}:${row.id}`)
-          cnt++
+          if (copied.has(`supply_subjects:${row.id}`)) { cnt++; continue }
+          const { error } = await supabase.from('supply_subjects').upsert({
+            id: uid(), teacher_id: dstId,
+            name:       row.name       ?? null,
+            sort_order: row.sortOrder  ?? row.sort_order ?? null,
+            created_at: now(), updated_at: now(),
+          })
+          if (error) throw new Error(`supply_subjects 복사 실패: ${error.message}`)
+          copied.add(`supply_subjects:${row.id}`); cnt++
         }
         saveCopied(srcId, dstId, copied)
-        addLog(`  ✓ ${label} ${cnt}개`, 'ok')
+        addLog(`  ✓ 교구 과목 ${cnt}개`, 'ok')
+      }
+
+      // 교구 플랜 — supply_plans
+      {
+        const rows = db.where('supplyPlans', r => r.teacherId === srcId)
+        let cnt = 0
+        for (const row of rows) {
+          if (copied.has(`supply_plans:${row.id}`)) { cnt++; continue }
+          const { error } = await supabase.from('supply_plans').upsert({
+            id: uid(), teacher_id: dstId,
+            subject:    row.subject   ?? null,
+            type:       row.type      ?? null,
+            file_type:  row.fileType  ?? row.file_type  ?? null,
+            title:      row.title     ?? null,
+            school:     row.school    ?? null,
+            vendor_id:  vendorIdMap[row.vendorId]  || row.vendorId  || null,
+            product_id: productIdMap[row.productId] || row.productId || null,
+            stage:      row.stage     ?? null,
+            file_url:   row.fileUrl   ?? row.file_url  ?? null,
+            file_name:  row.fileName  ?? row.file_name ?? null,
+            created_at: now(), updated_at: now(),
+          })
+          if (error) throw new Error(`supply_plans 복사 실패: ${error.message}`)
+          copied.add(`supply_plans:${row.id}`); cnt++
+        }
+        saveCopied(srcId, dstId, copied)
+        addLog(`  ✓ 교구 플랜 ${cnt}개`, 'ok')
+      }
+
+      // 교구 프로모 — supply_promos
+      {
+        const rows = db.where('supplyPromos', r => r.teacherId === srcId)
+        let cnt = 0
+        for (const row of rows) {
+          if (copied.has(`supply_promos:${row.id}`)) { cnt++; continue }
+          const { error } = await supabase.from('supply_promos').upsert({
+            id: uid(), teacher_id: dstId,
+            subject:    row.subject   ?? null,
+            type:       row.type      ?? null,
+            file_type:  row.fileType  ?? row.file_type  ?? null,
+            title:      row.title     ?? null,
+            school:     row.school    ?? null,
+            vendor_id:  vendorIdMap[row.vendorId]  || row.vendorId  || null,
+            product_id: productIdMap[row.productId] || row.productId || null,
+            stage:      row.stage     ?? null,
+            file_url:   row.fileUrl   ?? row.file_url  ?? null,
+            file_name:  row.fileName  ?? row.file_name ?? null,
+            created_at: now(), updated_at: now(), _deleted: false,
+          })
+          if (error) throw new Error(`supply_promos 복사 실패: ${error.message}`)
+          copied.add(`supply_promos:${row.id}`); cnt++
+        }
+        saveCopied(srcId, dstId, copied)
+        addLog(`  ✓ 교구 프로모 ${cnt}개`, 'ok')
+      }
+
+      // 안내 문구 — message_guides
+      {
+        const rows = db.where('messageGuides', r => r.teacherId === srcId)
+        let cnt = 0
+        for (const row of rows) {
+          if (copied.has(`message_guides:${row.id}`)) { cnt++; continue }
+          const { error } = await supabase.from('message_guides').upsert({
+            id: uid(), teacher_id: dstId,
+            category: row.category ?? null,
+            title:    row.title    ?? null,
+            content:  row.content  ?? null,
+            created_at: now(), updated_at: now(), _deleted: false,
+          })
+          if (error) throw new Error(`message_guides 복사 실패: ${error.message}`)
+          copied.add(`message_guides:${row.id}`); cnt++
+        }
+        saveCopied(srcId, dstId, copied)
+        addLog(`  ✓ 안내 문구 ${cnt}개`, 'ok')
+      }
+
+      // 메시지 카테고리 — message_categories
+      {
+        const rows = db.where('messageCategories', r => r.teacherId === srcId)
+        let cnt = 0
+        for (const row of rows) {
+          if (copied.has(`message_categories:${row.id}`)) { cnt++; continue }
+          const { error } = await supabase.from('message_categories').upsert({
+            id: uid(), teacher_id: dstId,
+            name: row.name ?? null,
+            created_at: now(), updated_at: now(), _deleted: false,
+          })
+          if (error) throw new Error(`message_categories 복사 실패: ${error.message}`)
+          copied.add(`message_categories:${row.id}`); cnt++
+        }
+        saveCopied(srcId, dstId, copied)
+        addLog(`  ✓ 메시지 카테고리 ${cnt}개`, 'ok')
+      }
+
+      // 커스텀 카테고리 — custom_categories
+      {
+        const rows = db.where('customCategories', r => r.teacherId === srcId)
+        let cnt = 0
+        for (const row of rows) {
+          if (copied.has(`custom_categories:${row.id}`)) { cnt++; continue }
+          const { error } = await supabase.from('custom_categories').upsert({
+            id: uid(), teacher_id: dstId,
+            key:        row.key        ?? null,
+            label:      row.label      ?? null,
+            icon:       row.icon       ?? null,
+            color:      row.color      ?? null,
+            type:       row.type       ?? null,
+            sort_order: row.sortOrder  ?? row.sort_order ?? null,
+            created_at: now(),
+          })
+          if (error) throw new Error(`custom_categories 복사 실패: ${error.message}`)
+          copied.add(`custom_categories:${row.id}`); cnt++
+        }
+        saveCopied(srcId, dstId, copied)
+        addLog(`  ✓ 커스텀 카테고리 ${cnt}개`, 'ok')
+      }
+
+      // 방과후 서류 — documents
+      {
+        const rows = db.where('documents', r => r.teacherId === srcId)
+        let cnt = 0
+        for (const row of rows) {
+          if (copied.has(`documents:${row.id}`)) { cnt++; continue }
+          const { error } = await supabase.from('documents').upsert({
+            id: uid(), teacher_id: dstId,
+            category:  row.category ?? null,
+            title:     row.title    ?? null,
+            year:      row.year     ?? null,
+            file_name: row.fileName ?? row.file_name ?? null,
+            file_type: row.fileType ?? row.file_type ?? null,
+            file_data: row.fileData ?? row.file_data ?? null,
+            days:      row.days     ?? null,
+            created_at: now(),
+          })
+          if (error) throw new Error(`documents 복사 실패: ${error.message}`)
+          copied.add(`documents:${row.id}`); cnt++
+        }
+        saveCopied(srcId, dstId, copied)
+        addLog(`  ✓ 방과후 서류 ${cnt}개`, 'ok')
       }
 
       // ── 2단계: classId 의존 ──────────────────────────
@@ -550,7 +681,7 @@ export function DemoDataManager({ user }) {
           id: uid(), teacher_id: dstId, class_id: newClassId,
           content: row.content ?? null,
           date: row.date || null,
-          updated_at: now(), created_at: now(),
+          created_at: now(),
         }
         const { error } = await supabase.from('lesson_memos').upsert(newRow)
         if (error) throw new Error(`lesson_memos 복사 실패: ${error.message}`)
@@ -613,14 +744,12 @@ export function DemoDataManager({ user }) {
             school_name:  row.schoolName  ?? row.school_name  ?? null,
             product_id:   productIdMap[row.productId] || row.productId || null,
             product_name: row.productName ?? row.product_name ?? null,
-            vendor_id:    row.vendorId    ?? row.vendor_id    ?? null,
             item_name:    row.itemName    ?? row.item_name    ?? null,
             given_at:     row.givenAt     ?? row.given_at     ?? null,
             paid_at:      row.paidAt      ?? row.paid_at      ?? null,
             quarter:      row.quarter     ?? null,
             supply_status: row.supplyStatus ?? row.supply_status ?? null,
             status:       row.status      ?? null,
-            updated_at:   now(),
             created_at:   now(),
           }
           const { error } = await supabase.from('supply_given').upsert(newRow)
