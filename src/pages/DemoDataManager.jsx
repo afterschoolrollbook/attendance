@@ -87,12 +87,14 @@ export function DemoDataManager({ user }) {
     ])]
 
     const sid = sourceTeacher.id
+    const supplyItemCount     = db.where('supplyItems',           r => r.teacherId === sid).length
     const supplyGivenCount    = db.where('supplyGiven',           r => r.teacherId === sid).length
     const progressCount       = db.where('supplyStudentProgress', r => r.teacherId === sid).length
+    const sessionCheckCount   = db.where('supplySessionChecks',   r => r.teacherId === sid).length
     const lessonMemoCount     = db.where('lessonMemos',           r => r.teacherId === sid).length
     const revenuePaymentCount = db.where('revenuePayments',       r => r.teacherId === sid).length
 
-    setPreview({ classes, students, attendanceCount, schools, supplyGivenCount, progressCount, lessonMemoCount, revenuePaymentCount })
+    setPreview({ classes, students, attendanceCount, schools, supplyItemCount, supplyGivenCount, progressCount, sessionCheckCount, lessonMemoCount, revenuePaymentCount })
   }, [sourceTeacher])
 
   // ── 복사 이력 (localStorage) — 원본id 기준 스킵 + id 매핑 영속화
@@ -779,8 +781,10 @@ export function DemoDataManager({ user }) {
             <span>👥 학생 <strong>{preview.students.length}명</strong></span>
             <span>✅ 출석 <strong>{preview.attendanceCount}건</strong></span>
             <span>🏫 학교 <strong>{preview.schools.length}곳</strong></span>
-            {preview.supplyGivenCount > 0    && <span>🎒 교구지급 <strong>{preview.supplyGivenCount}건</strong></span>}
+            {preview.supplyItemCount > 0    && <span>🎒 교구배정 <strong>{preview.supplyItemCount}건</strong></span>}
+            {preview.supplyGivenCount > 0    && <span>📦 교구지급 <strong>{preview.supplyGivenCount}건</strong></span>}
             {preview.progressCount > 0       && <span>📈 진도 <strong>{preview.progressCount}건</strong></span>}
+            {preview.sessionCheckCount > 0   && <span>☑️ 세션체크 <strong>{preview.sessionCheckCount}건</strong></span>}
             {preview.lessonMemoCount > 0     && <span>📝 수업메모 <strong>{preview.lessonMemoCount}건</strong></span>}
             {preview.revenuePaymentCount > 0 && <span>💰 납부기록 <strong>{preview.revenuePaymentCount}건</strong></span>}
           </div>
