@@ -610,28 +610,10 @@ async function syncOrphanRecords() {
       // 로컬에는 있는데 Supabase에 없는 것 → insert
       const orphans = localRows.filter(r => !remoteIds.has(r.id))
 
-      // ── [DEBUG] 진단 로그: 로컬/서버 개수와 orphan 상세 정보
-      // 문제 재발 시 원인 파악용. 정상 동작 시에는 orphans.length === 0 이라 한 줄만 출력됨.
-      console.log(`[OrphanSync][DEBUG] ${t}: local=${localRows.length}, remote=${remoteIds.size}, orphans=${orphans.length}`)
-      if (orphans.length > 0) {
-        console.log(`[OrphanSync][DEBUG] orphan 목록 (최대 10개):`,
-          orphans.slice(0, 10).map(r => ({
-            id: r.id,
-            teacherId: r.teacherId,
-            school: r.school,
-            grade: r.grade,
-            classNum: r.classNum,
-            studentStartDate: r.studentStartDate,
-            studentEndDate: r.studentEndDate,
-          }))
-        )
-      }
-
       if (orphans.length === 0) continue
       for (const r of orphans) {
         try {
           await syncInsert(t, r)
-          console.log(`[OrphanSync][DEBUG] ${t} insert 성공: ${r.id}`)
         } catch (e) {
           console.warn(`[OrphanSync] ${t} insert 실패: ${r.id} (teacherId=${r.teacherId})`, e.message)
           await pendingEnqueue({ qid: `insert_${t}_${r.id}`, type: 'insert', table: t, data: r })
