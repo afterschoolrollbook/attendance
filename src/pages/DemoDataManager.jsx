@@ -95,14 +95,25 @@ export function DemoDataManager({ user }) {
     setPreview({ classes, students, attendanceCount, schools, supplyGivenCount, progressCount, lessonMemoCount, revenuePaymentCount })
   }, [sourceTeacher])
 
-  // ── 복사 이력 (localStorage) — 원본id 기준으로 중복 스킵
-  const COPY_KEY = (srcId, dstId) => `demoCopied:${srcId}:${dstId}`
+  // ── 복사 이력 (localStorage) — 원본id 기준 스킵 + id 매핑 영속화
+  const COPY_KEY   = (srcId, dstId) => `demoCopied:${srcId}:${dstId}`
+  const MAP_KEY    = (srcId, dstId) => `demoIdMap:${srcId}:${dstId}`
+
   const loadCopied = (srcId, dstId) => {
     try { return new Set(JSON.parse(localStorage.getItem(COPY_KEY(srcId, dstId)) || '[]')) }
     catch { return new Set() }
   }
   const saveCopied = (srcId, dstId, set) => {
     try { localStorage.setItem(COPY_KEY(srcId, dstId), JSON.stringify([...set])) }
+    catch {}
+  }
+  // id 매핑 저장/로드 — 재실행 시 classIdMap·studentIdMap 등 복원용
+  const loadIdMaps = (srcId, dstId) => {
+    try { return JSON.parse(localStorage.getItem(MAP_KEY(srcId, dstId)) || '{}') }
+    catch { return {} }
+  }
+  const saveIdMaps = (srcId, dstId, maps) => {
+    try { localStorage.setItem(MAP_KEY(srcId, dstId), JSON.stringify(maps)) }
     catch {}
   }
 
@@ -193,6 +204,7 @@ export function DemoDataManager({ user }) {
       // 5) 복사 이력도 초기화
       if (sourceTeacher) {
         localStorage.removeItem(COPY_KEY(sourceTeacher.id, dstId))
+        localStorage.removeItem(MAP_KEY(sourceTeacher.id, dstId))
         addLog('  ✓ 복사 이력 초기화', 'ok')
       }
 
@@ -222,8 +234,9 @@ export function DemoDataManager({ user }) {
       const srcId = sourceTeacher.id
       const dstId = targetTeacher.id
 
-      // 이전에 복사 완료된 원본 id 목록 로드
-      const copied = loadCopied(srcId, dstId)
+      // 이전에 복사 완료된 원본 id 목록 + id 매핑 로드
+      const copied   = loadCopied(srcId, dstId)
+      const savedMaps = loadIdMaps(srcId, dstId)
       addLog(`이전 복사 이력: ${copied.size}건 스킵 예정`, 'info')
 
       // ── 학교명 매핑 (원본 학교 → 가짜 학교)
@@ -241,7 +254,7 @@ export function DemoDataManager({ user }) {
       allSchools.forEach(s => addLog(`  "${s}" → "${schoolMap[s]}"`, 'debug'))
 
       // ── 수업 복사 (classId 매핑 필요)
-      const classIdMap = {}   // 원본 classId → 새 classId
+      const classIdMap = { ...(savedMaps.classIdMap || {}) }   // 원본 classId → 새 classId (이전 실행분 복원)
       let classCount = 0
 
       addLog(`수업 ${srcClasses.length}개 복사 시작…`, 'info')
@@ -289,10 +302,11 @@ export function DemoDataManager({ user }) {
         classCount++
       }
       saveCopied(srcId, dstId, copied)
+      saveIdMaps(srcId, dstId, { ...loadIdMaps(srcId, dstId), classIdMap })
       addLog(`수업 ${classCount}개 복사 완료`, 'ok')
 
       // ── 학생 복사 (studentId 매핑 필요)
-      const studentIdMap = {}  // 원본 studentId → 새 studentId
+      const studentIdMap = { ...(savedMaps.studentIdMap || {}) }  // 원본 studentId → 새 studentId (이전 실행분 복원)
       let studentCount = 0
 
       addLog(`학생 ${srcStudents.length}명 복사 시작…`, 'info')
@@ -338,6 +352,7 @@ export function DemoDataManager({ user }) {
         addLog(`    ✓ 완료 (new id: ${newId})`, 'debug')
       }
       saveCopied(srcId, dstId, copied)
+      saveIdMaps(srcId, dstId, { ...loadIdMaps(srcId, dstId), studentIdMap })
       addLog(`학생 ${studentCount}명 복사 완료 (이름·학교·연락처 가명 처리)`, 'ok')
 
       // ── 출석 복사 (배치 처리)
@@ -427,7 +442,7 @@ export function DemoDataManager({ user }) {
       // 수강료 항목 (feeId 매핑 필요 — revenuePayments에서 참조)
       addLog('수강료 항목 복사 중…', 'info')
       const srcRevenueFees = db.where('revenueFees', r => r.teacherId === srcId)
-      const feeIdMap = {}
+      const feeIdMap = { ...(savedMaps.feeIdMap || {}) }
       for (const row of srcRevenueFees) {
         if (copied.has(`revenue_fees:${row.id}`)) {
           // 이미 복사된 경우 매핑 복원 불가 → 스킵만
@@ -442,12 +457,13 @@ export function DemoDataManager({ user }) {
         copied.add(`revenue_fees:${row.id}`)
       }
       saveCopied(srcId, dstId, copied)
+      saveIdMaps(srcId, dstId, { ...loadIdMaps(srcId, dstId), feeIdMap })
       addLog(`  ✓ 수강료 항목 ${Object.keys(feeIdMap).length}개`, 'ok')
 
       // 교구 업체 (vendorId 매핑 필요)
       addLog('교구 업체 복사 중…', 'info')
       const srcVendors = db.where('supplyVendors', r => r.teacherId === srcId)
-      const vendorIdMap = {}
+      const vendorIdMap = { ...(savedMaps.vendorIdMap || {}) }
       for (const row of srcVendors) {
         if (copied.has(`supply_vendors:${row.id}`)) { continue }
         const newId = uid()
@@ -458,12 +474,13 @@ export function DemoDataManager({ user }) {
         copied.add(`supply_vendors:${row.id}`)
       }
       saveCopied(srcId, dstId, copied)
+      saveIdMaps(srcId, dstId, { ...loadIdMaps(srcId, dstId), vendorIdMap })
       addLog(`  ✓ 교구 업체 ${Object.keys(vendorIdMap).length}개`, 'ok')
 
       // 교구 상품 (productId 매핑 필요)
       addLog('교구 상품 복사 중…', 'info')
       const srcProducts = db.where('supplyProducts', r => r.teacherId === srcId)
-      const productIdMap = {}
+      const productIdMap = { ...(savedMaps.productIdMap || {}) }
       for (const row of srcProducts) {
         if (copied.has(`supply_products:${row.id}`)) { continue }
         const newId = uid()
@@ -478,12 +495,13 @@ export function DemoDataManager({ user }) {
         copied.add(`supply_products:${row.id}`)
       }
       saveCopied(srcId, dstId, copied)
+      saveIdMaps(srcId, dstId, { ...loadIdMaps(srcId, dstId), productIdMap })
       addLog(`  ✓ 교구 상품 ${Object.keys(productIdMap).length}개`, 'ok')
 
       // 교구 상품 플랜
       addLog('교구 상품 플랜 복사 중…', 'info')
       const srcProductPlans = db.where('supplyProductPlans', r => r.teacherId === srcId)
-      const productPlanIdMap = {}
+      const productPlanIdMap = { ...(savedMaps.productPlanIdMap || {}) }
       for (const row of srcProductPlans) {
         if (copied.has(`supply_product_plans:${row.id}`)) { continue }
         const newId = uid()
@@ -498,6 +516,7 @@ export function DemoDataManager({ user }) {
         copied.add(`supply_product_plans:${row.id}`)
       }
       saveCopied(srcId, dstId, copied)
+      saveIdMaps(srcId, dstId, { ...loadIdMaps(srcId, dstId), productPlanIdMap })
       addLog(`  ✓ 교구 상품 플랜 ${Object.keys(productPlanIdMap).length}개`, 'ok')
 
       // 교구 과목, 플랜, 프로모, 안내문구, 카테고리, 서류 — 단순 복사
@@ -775,6 +794,7 @@ export function DemoDataManager({ user }) {
               disabled={running}
               onClick={() => {
                 localStorage.removeItem(COPY_KEY(sourceTeacher.id, targetTeacher.id))
+                localStorage.removeItem(MAP_KEY(sourceTeacher.id, targetTeacher.id))
                 setLog([])
                 setDone(false)
                 addLog('🗑 복사 이력 초기화 완료 — 다음 실행 시 전체 재복사합니다.', 'info')
