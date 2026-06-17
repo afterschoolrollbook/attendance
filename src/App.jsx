@@ -293,7 +293,16 @@ function AppInner() {
         console.log('[init] initFromSupabase 시작')
         await initFromSupabase()
         console.log('[init] initFromSupabase 완료')
-        const fresh = Users.findByEmail(session.user.email)
+        let fresh = Users.findByEmail(session.user.email)
+        console.log('[init] Supabase 동기화 후 유저:', fresh ? '있음' : '없음 → 직접 조회 시도')
+        // 캐시에서 못 찾으면 users 테이블 직접 조회 (fallback)
+        if (!fresh) {
+          try {
+            const fromDb = await dbCall('findByEmail', 'users', { data: { email: session.user.email } })
+            if (fromDb) { fresh = fromDb; console.log('[init] 직접 조회 성공') }
+            else console.warn('[init] 직접 조회도 유저 없음 — users 테이블 확인 필요')
+          } catch (e) { console.warn('[init] 직접 조회 실패:', e.message) }
+        }
         if (fresh) {
           // 접속 기간 만료 체크
           if (fresh.role === 'teacher' && fresh.accessExpiredAt) {
