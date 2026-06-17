@@ -315,6 +315,66 @@ export function BlogAdmin({ user }) {
                 ]
               }
             ]
+          },
+          ogtag: {
+            label: '🔗 OG태그', color: '#7c3aed', border: '#ddd6fe', bg: '#faf5ff', activeBg: '#ede9fe',
+            link: 'https://developers.facebook.com/tools/debug/',
+            linkLabel: 'OG 태그 검사기 →',
+            sections: [
+              {
+                title: '🚀 최초 셋팅 (한 번만)',
+                color: '#5b21b6', bg: '#ede9fe', border: '#ddd6fe',
+                items: [
+                  { done: false, text: 'index.html에 og:title 추가', desc: '<meta property="og:title" content="방과후 출석부 — 스마트 출석 관리" />' },
+                  { done: false, text: 'og:description 추가 (80~160자)', desc: '<meta property="og:description" content="방과후 강사를 위한 스마트 출석 관리 서비스..." />' },
+                  { done: false, text: 'og:image 추가 (1200x630px 권장)', desc: '<meta property="og:image" content="https://내도메인/og-image.png" /> — SNS 공유 시 표시되는 썸네일' },
+                  { done: false, text: 'og:url / og:type / og:site_name 추가', desc: 'og:type은 website, og:url은 정확한 페이지 URL, og:site_name은 사이트명' },
+                  { done: false, text: 'Twitter Card 태그 추가', desc: '<meta name="twitter:card" content="summary_large_image" /> 등 트위터/X 공유용 태그' },
+                  { done: false, text: '블로그 글 페이지에도 동적 OG 태그 적용', desc: '각 블로그 글 제목/요약/커버이미지가 OG 태그로 출력되는지 확인' },
+                ]
+              },
+              {
+                title: '📋 주기적으로 확인할 것',
+                color: '#4c1d95', bg: '#faf5ff', border: '#e9d5ff',
+                items: [
+                  { done: false, text: 'Facebook 공유 디버거로 OG 태그 확인', desc: 'developers.facebook.com/tools/debug — 캐시 새로고침도 여기서 가능' },
+                  { done: false, text: '카카오톡 공유 미리보기 확인', desc: '카카오톡에서 링크 공유 시 썸네일·제목이 제대로 나오는지 테스트' },
+                  { done: false, text: 'og:image 사이즈 및 깨짐 확인', desc: '1200x630px 유지, 용량 8MB 이하, HTTPS URL 사용 필수' },
+                ]
+              }
+            ]
+          },
+          seo: {
+            label: '🚀 SEO', color: '#0891b2', border: '#a5f3fc', bg: '#ecfeff', activeBg: '#cffafe',
+            link: 'https://search.google.com/search-console',
+            linkLabel: '서치콘솔 열기 →',
+            sections: [
+              {
+                title: '🏗️ 기술적 SEO (사이트 구조)',
+                color: '#0e7490', bg: '#cffafe', border: '#a5f3fc',
+                items: [
+                  { done: false, text: 'sitemap.xml 자동 생성 및 제출', desc: '새 글 발행 시 sitemap이 자동 갱신되는지 확인 — 서치콘솔에 제출 완료' },
+                  { done: false, text: 'robots.txt 정상 설정 확인', desc: '/admin, /dashboard 등 앱 내부 페이지는 Disallow, 블로그/docs는 Allow' },
+                  { done: false, text: 'canonical URL 태그 삽입', desc: '각 블로그 글 페이지에 <link rel="canonical"> 태그로 중복 페이지 문제 방지' },
+                  { done: false, text: 'HTTPS 적용 확인', desc: 'HTTP 접속 시 자동으로 HTTPS 리다이렉트 되는지 확인' },
+                  { done: false, text: '모바일 반응형 확인', desc: '구글은 모바일 우선 색인 — 모바일에서 레이아웃 깨짐 없는지 점검' },
+                  { done: false, text: 'Core Web Vitals 점수 확인', desc: '서치콘솔 → 경험 → Core Web Vitals — LCP·INP·CLS 점수 확인 및 개선' },
+                ]
+              },
+              {
+                title: '✍️ 글 작성 시 매번 체크',
+                color: '#155e75', bg: '#ecfeff', border: '#a5f3fc',
+                items: [
+                  { done: false, text: '핵심 키워드를 제목(H1)에 포함', desc: '검색자가 실제로 치는 단어를 제목 앞쪽에 배치 — 예: "방과후 출석부 관리 방법"' },
+                  { done: false, text: '메타 description 작성 (80~160자)', desc: '검색결과에 표시되는 요약문 — 키워드 포함 + 클릭 유도 문구로 CTR 향상' },
+                  { done: false, text: 'URL 슬러그를 짧고 명확하게', desc: '한글 금지, 영문 소문자+하이픈 사용 — 예: /blog/attendance-management-tips' },
+                  { done: false, text: 'H2·H3 소제목으로 콘텐츠 구조화', desc: '목차 역할 + 구글이 콘텐츠 구조를 파악하는 데 도움 — 키워드 자연스럽게 포함' },
+                  { done: false, text: '이미지 alt 텍스트 입력', desc: '모든 이미지에 alt="설명" 추가 — 이미지 검색 유입 + 접근성 향상' },
+                  { done: false, text: '내부 링크 2~3개 이상 삽입', desc: '관련 글로 연결 — 체류 시간 증가 + 구글 크롤러가 사이트 구조 파악 가능' },
+                  { done: false, text: '발행 후 서치콘솔에서 URL 색인 요청', desc: 'URL 검사 → 색인 생성 요청 — 발행 즉시 구글에 알리기' },
+                ]
+              }
+            ]
           }
         }
 
