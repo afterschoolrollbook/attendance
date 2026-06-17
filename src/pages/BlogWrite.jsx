@@ -50,7 +50,7 @@ function parseMd(text) {
 const mdStyles = markdownPreviewStyles + `
 `
 
-const emptyForm = (author) => ({ title:'', content:'', category:'', tags:'', boardType:'blog', author:author||'', isPrivateRequest:false })
+const emptyForm = (author) => ({ title:'', content:'', category:'', tags:'', boardType:'blog', author:author||'', isPrivateRequest:false, scheduledAt:'' })
 
 export function BlogWrite({ user, onLogout }) {
   const userLevel = user?.level || 1
@@ -104,7 +104,7 @@ export function BlogWrite({ user, onLogout }) {
   }
 
   const handleEdit = (post) => {
-    setForm({ title:post.title||'', content:post.content||'', category:post.category||'', tags:(post.tags||[]).join(', '), boardType:post.boardType||post.type||'blog', author:post.author||user?.name||'', isPrivateRequest:!!post.isPrivateRequest })
+    setForm({ title:post.title||'', content:post.content||'', category:post.category||'', tags:(post.tags||[]).join(', '), boardType:post.boardType||post.type||'blog', author:post.author||user?.name||'', isPrivateRequest:!!post.isPrivateRequest, scheduledAt: post.scheduledAt ? post.scheduledAt.slice(0,16) : '' })
     setEditPost(post); setPreview(false); setView('write')
   }
 
@@ -113,9 +113,13 @@ export function BlogWrite({ user, onLogout }) {
     try { await dbCall('delete','blogPosts',{id:post.id}); loadPosts() } catch { alert('삭제 실패') }
   }
 
-  const handleSave = async () => {
+  const handleSave = async (status = 'published') => {
     if (!form.title.trim()) return alert('제목을 입력해주세요.')
     if (!form.content.trim()) return alert('내용을 입력해주세요.')
+    if (status === 'scheduled') {
+      if (!form.scheduledAt) return alert('예약 날짜/시간을 입력해주세요.')
+      if (new Date(form.scheduledAt) <= new Date()) return alert('예약 시간은 현재 시간 이후여야 합니다.')
+    }
     setSaving(true)
     try {
       const tags = form.tags ? form.tags.split(',').map(t=>t.trim()).filter(Boolean) : []
@@ -132,8 +136,10 @@ export function BlogWrite({ user, onLogout }) {
         content: form.content,
         category: isSecret ? '비밀게시판' : form.boardType === 'qna' ? '질문' : form.boardType === 'review' ? '사용자 후기' : form.boardType === 'request' ? '부탁해요' : form.category,
         tags, author: form.author||user?.name, authorId: user?.id,
-        status: 'published',
-        publishedAt: now(), updatedAt: now(),
+        status,
+        publishedAt: status==='published' ? now() : null,
+        scheduledAt: status==='scheduled' ? new Date(form.scheduledAt).toISOString() : null,
+        updatedAt: now(),
         createdAt: editPost ? undefined : now(),
       }
       if (editPost?.id) await dbCall('update','blogPosts',{id:editPost.id,patch:payload})
@@ -168,7 +174,22 @@ export function BlogWrite({ user, onLogout }) {
         <button onClick={() => setPreview(v=>!v)} style={{ padding:'7px 16px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:preview?'#f3f4f6':'#fff', color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           {preview ? '✏️ 편집' : '👁 미리보기'}
         </button>
-        <button onClick={handleSave} disabled={saving} style={{ padding:'7px 20px', borderRadius:'8px', border:'none', background: currentBoard?.color || C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+        <button onClick={() => handleSave('draft')} disabled={saving} style={{ padding:'7px 16px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          {saving ? '저장 중...' : '임시저장'}
+        </button>
+        <div style={{ display:'flex', alignItems:'center', gap:'6px', background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:'8px', padding:'4px 10px' }}>
+          <input
+            type="datetime-local"
+            value={form.scheduledAt}
+            onChange={e=>setForm(v=>({...v,scheduledAt:e.target.value}))}
+            min={new Date(Date.now() + 60000).toISOString().slice(0,16)}
+            style={{ border:'none', background:'transparent', fontSize:'12px', color:'#3b82f6', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}
+          />
+          <button onClick={() => handleSave('scheduled')} disabled={saving} style={{ padding:'5px 12px', borderRadius:'6px', border:'none', background:'#3b82f6', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            ⏰ 예약발행
+          </button>
+        </div>
+        <button onClick={() => handleSave('published')} disabled={saving} style={{ padding:'7px 20px', borderRadius:'8px', border:'none', background: currentBoard?.color || C.primary, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           {saving ? '저장 중...' : '🚀 발행'}
         </button>
       </div>
@@ -347,7 +368,13 @@ export function BlogWrite({ user, onLogout }) {
                         </span>
                         {post.category && !isSecret && <span style={{ fontSize:'11px', color:C.muted, background:'#f3f4f6', borderRadius:'4px', padding:'2px 8px' }}>{post.category}</span>}
                         <span style={{ fontSize:'11px', color:C.muted }}>{post.author}</span>
-                        <span style={{ fontSize:'11px', color:C.muted }}>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('ko-KR') : ''}</span>
+                        <span style={{ fontSize:'11px', color:C.muted }}>
+                          {post.status === 'scheduled' && post.scheduledAt
+                            ? `⏰ ${new Date(post.scheduledAt).toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})} 예약`
+                            : post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('ko-KR') : ''}
+                        </span>
+                        {post.status === 'draft' && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', background:'#f3f4f6', color:'#9ca3af' }}>📝 임시</span>}
+                        {post.status === 'scheduled' && <span style={{ fontSize:'10px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', background:'#eff6ff', color:'#3b82f6' }}>🕐 예약</span>}
                       </div>
                       <div style={{ fontSize:'15px', fontWeight:700, color: canReadContent ? C.text : C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                         {post.title} {isLocked && !canReadContent && <span style={{ fontSize:'12px' }}>🔒</span>}

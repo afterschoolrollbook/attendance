@@ -40,7 +40,7 @@ function slugify(text) {
 const emptyForm = () => ({
   type: 'blog', title:'', slug:'', summary:'', content:'', category:'', tags:'',
   coverImage:'', author:'관리자', status:'draft', publishedAt: new Date().toISOString().slice(0,10),
-  templateFile:'', templateDesc:'',
+  scheduledAt: '', templateFile:'', templateDesc:'',
 })
 
 const C = { primary:'#f97316', border:'#e5e7eb', muted:'#6b7280', text:'#111827', card:'#fff' }
@@ -103,6 +103,7 @@ export function BlogAdmin({ user }) {
       tags: (post.tags||[]).join(', '), coverImage: post.coverImage||'',
       author: post.author||'관리자', status: post.status||'draft',
       publishedAt: post.publishedAt ? post.publishedAt.slice(0,10) : new Date().toISOString().slice(0,10),
+      scheduledAt: post.scheduledAt ? post.scheduledAt.slice(0,16) : '',
       templateFile: post.templateFile||'', templateDesc: post.templateDesc||'',
     })
     setEditId(post.id); setPreview(false); setView('edit')
@@ -120,6 +121,11 @@ export function BlogAdmin({ user }) {
   const handleSave = async (status) => {
     if (!form.title.trim()) { error('제목을 입력해주세요'); return }
     if (!form.content.trim()) { error('내용을 입력해주세요'); return }
+    if (status === 'scheduled') {
+      if (!form.scheduledAt) { error('예약 날짜/시간을 입력해주세요'); return }
+      const scheduledTime = new Date(form.scheduledAt)
+      if (scheduledTime <= new Date()) { error('예약 시간은 현재 시간 이후여야 합니다'); return }
+    }
     setLoading(true)
     try {
       const slug = form.slug.trim() || slugify(form.title)
@@ -134,6 +140,7 @@ export function BlogAdmin({ user }) {
         authorId: user?.id || null,
         status: finalStatus,
         publishedAt: finalStatus==='published' ? (form.publishedAt ? new Date(form.publishedAt).toISOString() : now()) : null,
+        scheduledAt: finalStatus==='scheduled' ? new Date(form.scheduledAt).toISOString() : null,
         updatedAt: now(),
         templateFile: form.type==='template' ? form.templateFile.trim() : undefined,
         templateDesc: form.type==='template' ? form.templateDesc.trim() : undefined,
@@ -141,7 +148,7 @@ export function BlogAdmin({ user }) {
       const payload = editId ? basePayload : { ...basePayload, createdAt: now() }
       if (editId) await dbCall('update', 'blogPosts', { id: editId, patch: payload })
       else await dbCall('insert', 'blogPosts', { data: payload })
-      success(finalStatus==='published' ? '발행되었습니다! 🎉' : '임시저장되었습니다.')
+      success(finalStatus==='published' ? '발행되었습니다! 🎉' : finalStatus==='scheduled' ? `⏰ 예약발행이 설정되었습니다!` : '임시저장되었습니다.')
       loadPosts(); setView('list')
     } catch (e) { error('저장 실패: ' + e.message) }
     setLoading(false)
@@ -241,14 +248,16 @@ export function BlogAdmin({ user }) {
                   <span style={{ fontSize:'11px', fontWeight:700, borderRadius:'4px', padding:'2px 8px', background:(post.type||'blog')==='docs'?'#eff6ff':(post.type||'blog')==='template'?'#f5f3ff':'#fff7ed', color:(post.type||'blog')==='docs'?'#3b82f6':(post.type||'blog')==='template'?'#7c3aed':'#f97316', border:`1px solid ${(post.type||'blog')==='docs'?'#bfdbfe':(post.type||'blog')==='template'?'#ddd6fe':'#fed7aa'}` }}>
                     {(post.type||'blog')==='docs'?'📖 설명서':(post.type||'blog')==='template'?'📋 템플릿':'📝 블로그'}
                   </span>
-                  <span style={{ fontSize:'11px', fontWeight:700, borderRadius:'999px', padding:'2px 10px', background:post.status==='published'?'#f0fdf4':'#f9fafb', color:post.status==='published'?'#16a34a':'#9ca3af', border:`1px solid ${post.status==='published'?'#86efac':'#e5e7eb'}` }}>
-                    {post.status==='published'?'✅ 발행':'📝 임시'}
+                  <span style={{ fontSize:'11px', fontWeight:700, borderRadius:'999px', padding:'2px 10px', background:post.status==='published'?'#f0fdf4':post.status==='scheduled'?'#eff6ff':'#f9fafb', color:post.status==='published'?'#16a34a':post.status==='scheduled'?'#3b82f6':'#9ca3af', border:`1px solid ${post.status==='published'?'#86efac':post.status==='scheduled'?'#bfdbfe':'#e5e7eb'}` }}>
+                    {post.status==='published'?'✅ 발행':post.status==='scheduled'?'🕐 예약':'📝 임시'}
                   </span>
                   {post.category && <span style={{ fontSize:'11px', color:C.muted, background:'#f3f4f6', borderRadius:'4px', padding:'2px 8px' }}>{post.category}</span>}
                 </div>
                 <div style={{ fontSize:'15px', fontWeight:700, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:'3px' }}>{post.title}</div>
                 <div style={{ fontSize:'12px', color:C.muted }}>
-                  {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('ko-KR') : '날짜 없음'}
+                  {post.status==='scheduled' && post.scheduledAt
+                    ? `⏰ ${new Date(post.scheduledAt).toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})} 예약`
+                    : post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('ko-KR') : '날짜 없음'}
                   {post.slug && <span style={{ marginLeft:'8px', opacity:.6 }}>/{post.type==='docs'?'docs':'blog'}/{post.slug}</span>}
                 </div>
               </div>
@@ -294,6 +303,19 @@ export function BlogAdmin({ user }) {
           style={{ padding:'7px 16px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:C.card, color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           임시저장
         </button>
+        <div style={{ display:'flex', alignItems:'center', gap:'6px', background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:'8px', padding:'4px 10px' }}>
+          <input
+            type="datetime-local"
+            value={form.scheduledAt}
+            onChange={e => setForm(v => ({ ...v, scheduledAt: e.target.value }))}
+            min={new Date(Date.now() + 60000).toISOString().slice(0,16)}
+            style={{ border:'none', background:'transparent', fontSize:'12px', color:'#3b82f6', fontFamily:'Noto Sans KR, sans-serif', outline:'none', cursor:'pointer' }}
+          />
+          <button onClick={() => handleSave('scheduled')} disabled={loading}
+            style={{ padding:'5px 12px', borderRadius:'6px', border:'none', background:'#3b82f6', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap' }}>
+            ⏰ 예약발행
+          </button>
+        </div>
         <button onClick={() => handleSave('published')} disabled={loading}
           style={{ padding:'7px 20px', borderRadius:'8px', border:'none', background:typeColor, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           {loading ? '저장 중...' : '🚀 발행'}
