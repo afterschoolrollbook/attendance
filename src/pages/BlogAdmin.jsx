@@ -80,6 +80,7 @@ export function BlogAdmin({ user }) {
   const [myPostsOnly, setMyPostsOnly] = useState(false)
   const [blogCategories, setBlogCategories] = useState(DEFAULT_BLOG_CATS)
   const [activeToolPanel, setActiveToolPanel] = useState(null)
+  const [showRoutine, setShowRoutine] = useState(false)
   const { success, error } = useToast()
 
   // state 선언 이후에 blogCategories 참조
@@ -437,7 +438,132 @@ export function BlogAdmin({ user }) {
         )
       })()}
 
-      {/* 타입 필터 탭 + 내 글만 보기 */}
+      {/* 루틴 달력 */}
+      {isAdmin && (() => {
+        const ROUTINES = {
+          publish: {
+            label: '📝 글 발행할 때마다',
+            color: '#7c3aed', bg: '#faf5ff', border: '#ddd6fe',
+            items: [
+              { text: '서치콘솔 URL 색인 요청', link: 'https://search.google.com/search-console', desc: 'URL 검사 → 색인 생성 요청' },
+              { text: '실시간 트래픽 확인', link: 'https://analytics.google.com', desc: '발행 후 GA4 실시간 탭 확인' },
+              { text: 'OG태그 디버거 확인', link: 'https://developers.facebook.com/tools/debug/', desc: '페이스북 공유 미리보기 테스트' },
+            ]
+          },
+          weekly: {
+            label: '📅 매주 확인',
+            color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc',
+            items: [
+              { text: '애드센스 수익/RPM 확인', link: 'https://www.google.com/adsense', desc: '보고서 → 날짜별 수익 추이' },
+              { text: '애드센스 정책 위반 경고 확인', link: 'https://www.google.com/adsense', desc: '알림 탭 빨간 경고 확인' },
+              { text: '서치콘솔 검색 성과 확인', link: 'https://search.google.com/search-console', desc: '클릭수·노출수·CTR 키워드 분석' },
+              { text: 'GA4 인기 페이지 TOP 10', link: 'https://analytics.google.com', desc: '참여 → 페이지 및 화면' },
+              { text: 'GA4 유입 채널별 분석', link: 'https://analytics.google.com', desc: '획득 → 트래픽 획득' },
+            ]
+          },
+          monthly: {
+            label: '🗓️ 매월 확인',
+            color: '#d97706', bg: '#fffbeb', border: '#fde68a',
+            items: [
+              { text: '애드센스 광고 위치 CTR 분석', link: 'https://www.google.com/adsense', desc: '어떤 위치 광고가 잘 클릭되는지 파악' },
+              { text: '애드센스 모바일 광고 노출 확인', link: 'https://www.google.com/adsense', desc: '반응형 광고 단위 정상 작동 여부' },
+              { text: '서치콘솔 색인 현황 확인', link: 'https://search.google.com/search-console', desc: '색인 안 된 페이지 원인 파악' },
+              { text: '서치콘솔 모바일 사용성 오류', link: 'https://search.google.com/search-console', desc: '경험 → 모바일 사용성' },
+              { text: 'Core Web Vitals 점수 확인', link: 'https://search.google.com/search-console', desc: 'LCP·INP·CLS 점수 개선' },
+              { text: 'GA4 이탈률·참여 시간 확인', link: 'https://analytics.google.com', desc: '참여 시간 짧은 글 도입부 개선' },
+              { text: 'GA4 기기별·지역별 접속 현황', link: 'https://analytics.google.com', desc: '모바일 비율 높으면 UX 우선 최적화' },
+              { text: 'CTR 낮은 글 제목/메타설명 개선', link: 'https://search.google.com/search-console', desc: '성과 → CTR 낮은 페이지 찾아 수정' },
+              { text: '오래된 글 콘텐츠 업데이트', link: null, desc: '6개월~1년 된 글 최신 정보로 갱신 후 재색인 요청' },
+            ]
+          }
+        }
+
+        const now = new Date()
+        const year = now.getFullYear()
+        const month = now.getMonth()
+        const today = now.getDate()
+        const firstDay = new Date(year, month, 1).getDay()
+        const daysInMonth = new Date(year, month + 1, 0).getDate()
+        const monthName = `${year}년 ${month + 1}월`
+
+        // 매주 월요일 날짜들
+        const mondays = []
+        for (let d = 1; d <= daysInMonth; d++) {
+          if (new Date(year, month, d).getDay() === 1) mondays.push(d)
+        }
+        // 매월 1일
+        const monthlyDay = 1
+
+        return (
+          <div style={{ marginBottom:'16px' }}>
+            <button onClick={() => setShowRoutine(v => !v)}
+              style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:'#f9fafb', borderRadius: showRoutine ? '10px 10px 0 0' : '10px', border:'1.5px solid #e5e7eb', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+              <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>📆 루틴 체크리스트 — {monthName}</span>
+              <span style={{ fontSize:'12px', color:'#9ca3af' }}>{showRoutine ? '▲ 접기' : '▼ 펼치기'}</span>
+            </button>
+
+            {showRoutine && (
+              <div style={{ background:'#fff', border:'1.5px solid #e5e7eb', borderTop:'none', borderRadius:'0 0 12px 12px', padding:'20px' }}>
+
+                {/* 달력 */}
+                <div style={{ marginBottom:'20px' }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'4px', textAlign:'center' }}>
+                    {['일','월','화','수','목','금','토'].map(d => (
+                      <div key={d} style={{ fontSize:'11px', fontWeight:700, color:'#9ca3af', padding:'4px 0' }}>{d}</div>
+                    ))}
+                    {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`}/>)}
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                      const d = i + 1
+                      const isToday = d === today
+                      const isMonday = new Date(year, month, d).getDay() === 1
+                      const isFirst = d === 1
+                      const hasMark = isMonday || isFirst
+                      return (
+                        <div key={d} style={{ padding:'6px 2px', borderRadius:'6px', background: isToday ? '#f97316' : hasMark ? (isFirst ? '#fffbeb' : '#ecfeff') : 'transparent', border: hasMark && !isToday ? `1px solid ${isFirst ? '#fde68a' : '#a5f3fc'}` : 'none', position:'relative' }}>
+                          <div style={{ fontSize:'12px', fontWeight: isToday ? 700 : 400, color: isToday ? '#fff' : '#374151' }}>{d}</div>
+                          {isFirst && !isToday && <div style={{ fontSize:'8px', color:'#d97706', lineHeight:1 }}>월간</div>}
+                          {isMonday && !isToday && <div style={{ fontSize:'8px', color:'#0891b2', lineHeight:1 }}>주간</div>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div style={{ display:'flex', gap:'12px', marginTop:'10px', flexWrap:'wrap' }}>
+                    <span style={{ fontSize:'11px', color:'#0891b2' }}>🔵 주간 체크 (매주 월요일)</span>
+                    <span style={{ fontSize:'11px', color:'#d97706' }}>🟡 월간 체크 (매월 1일)</span>
+                    <span style={{ fontSize:'11px', color:'#f97316' }}>🟠 오늘</span>
+                  </div>
+                </div>
+
+                {/* 루틴 섹션들 */}
+                <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+                  {Object.entries(ROUTINES).map(([key, r]) => (
+                    <div key={key} style={{ background: r.bg, border:`1.5px solid ${r.border}`, borderRadius:'10px', padding:'14px 16px' }}>
+                      <div style={{ fontSize:'13px', fontWeight:800, color: r.color, marginBottom:'10px' }}>{r.label}</div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                        {r.items.map((item, ii) => (
+                          <div key={ii} style={{ display:'flex', gap:'10px', alignItems:'flex-start', background:'rgba(255,255,255,0.7)', borderRadius:'8px', padding:'10px 12px' }}>
+                            <span style={{ fontSize:'16px', flexShrink:0, marginTop:'1px' }}>☐</span>
+                            <div style={{ flex:1 }}>
+                              <div style={{ fontSize:'13px', fontWeight:700, color:'#111827', marginBottom:'3px' }}>{item.text}</div>
+                              <div style={{ fontSize:'12px', color:'#6b7280', lineHeight:1.6 }}>{item.desc}</div>
+                            </div>
+                            {item.link && (
+                              <a href={item.link} target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize:'11px', fontWeight:700, color: r.color, background:'rgba(255,255,255,0.9)', border:`1px solid ${r.border}`, borderRadius:'6px', padding:'3px 8px', textDecoration:'none', whiteSpace:'nowrap', flexShrink:0 }}>
+                                바로가기
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px', marginBottom:'20px' }}>
         <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
           {[['all','전체'],['blog','블로그'],['docs','설명서'],['template','📋 템플릿']].map(([key,label]) => (
