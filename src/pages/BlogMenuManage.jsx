@@ -52,17 +52,27 @@ export function BlogMenuManage({ user }) {
 
   const loadCategories = async () => {
     try {
+      console.log('[BlogMenuManage] loadCategories 시작')
       const rows = await dbCall('getAll', 'customCategories')
+      console.log('[BlogMenuManage] getAll 결과:', rows)
       const blogCats = (rows || []).filter(c => c.type === 'blog').sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      console.log('[BlogMenuManage] blogCats:', blogCats)
       // 한 번도 시드가 안 된 경우 기본 카테고리를 DB에 삽입
       if (blogCats.length === 0) {
+        console.log('[BlogMenuManage] 카테고리 없음 → 기본값 INSERT 시작')
         for (const name of DEFAULT_CATS) {
-          await dbCall('insert', 'customCategories', { d: { id: uid(), type: 'blog', name, createdAt: now(), updatedAt: now() } })
+          const payload = { id: uid(), type: 'blog', name, createdAt: now(), updatedAt: now() }
+          console.log('[BlogMenuManage] INSERT payload:', payload)
+          const result = await dbCall('insert', 'customCategories', { d: payload })
+          console.log('[BlogMenuManage] INSERT 결과:', result)
         }
         return loadCategories()
       }
       setCategories(blogCats)
-    } catch (e) { console.warn(e) }
+    } catch (e) {
+      console.error('[BlogMenuManage] 에러 발생:', e)
+      console.error('[BlogMenuManage] 에러 상세:', e.message, e.stack)
+    }
   }
 
   const addCategory = async () => {
