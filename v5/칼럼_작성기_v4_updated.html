@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>창의력 교육 칼럼 작성기</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; background: #f3f4f6; min-height: 100vh; }
+
+.topbar { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 24px; height: 52px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.topbar-title { font-size: 18px; font-weight: 800; color: #111827; }
+.topbar-actions { display: flex; gap: 8px; }
+
+.main { max-width: 860px; margin: 0 auto; padding: 24px 16px; }
+
+.ai-box { background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
+.ai-box-title { font-size: 14px; font-weight: 700; color: #ea580c; }
+.ai-row { display: flex; gap: 8px; }
+.ai-input { flex: 1; padding: 9px 12px; border-radius: 8px; border: 1.5px solid #fed7aa; font-size: 14px; font-family: inherit; outline: none; background: #fff; }
+.ai-input:focus { border-color: #f97316; }
+.btn-ai { background: #f97316; color: #fff; border: none; border-radius: 8px; padding: 9px 18px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; white-space: nowrap; }
+.btn-ai:hover { background: #ea6c0a; }
+.btn-ai:disabled { background: #fdba74; cursor: not-allowed; }
+.status { font-size: 13px; color: #6b7280; display: flex; align-items: center; gap: 6px; min-height: 18px; }
+.spinner { width: 13px; height: 13px; border: 2px solid #e5e7eb; border-top-color: #f97316; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.form-card { border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+
+.title-wrap { position: relative; }
+.title-input { width: 100%; padding: 18px 80px 18px 20px; font-size: 18px; font-weight: 700; font-family: inherit; border: none; border-bottom: 1px solid #e5e7eb; outline: none; background: #fff; color: #111827; }
+.title-input:focus { border-bottom: 1.5px solid #f97316; }
+.title-input::placeholder { color: #d1d5db; font-weight: 400; }
+
+.grid3 { display: flex; flex-direction: column; background: #fff; }
+.g3 { padding: 14px 20px; border-bottom: 1px solid #e5e7eb; }
+.g3:last-child { border-bottom: none; }
+.g3 .lbl { font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+.g3 input, .g3 select { width: 100%; border: 1.5px solid #e5e7eb; outline: none; font-size: 14px; font-family: inherit; background: #fff; color: #111827; padding: 9px 12px; border-radius: 8px; }
+.g3 input:focus, .g3 select:focus { border-color: #f97316; }
+
+.field { padding: 14px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+.field:last-child { border-bottom: none; }
+.field-label { font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+.field input, .field textarea { width: 100%; padding: 9px 12px; border-radius: 8px; border: 1.5px solid #e5e7eb; font-size: 14px; font-family: inherit; outline: none; background: #fff; color: #111827; }
+.field input:focus, .field textarea:focus { border-color: #f97316; }
+.field textarea { resize: vertical; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.7; }
+
+.btn-copy { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 3px 9px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; color: #6b7280; }
+.btn-copy:hover { background: #f3f4f6; }
+.btn-copy.ok { color: #16a34a; border-color: #86efac; background: #f0fdf4; }
+
+.btn { padding: 7px 16px; border-radius: 8px; border: 1.5px solid #e5e7eb; background: #fff; color: #6b7280; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn:hover { background: #f3f4f6; }
+.btn-pub { background: #f97316; color: #fff; border-color: #f97316; }
+.btn-pub:hover { background: #ea6c0a; }
+
+.btn-tab { padding: 4px 12px; border-radius: 6px; border: 1.5px solid #e5e7eb; background: #fff; color: #6b7280; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn-tab:hover { background: #f3f4f6; }
+.btn-tab.active { background: #f97316; color: #fff; border-color: #f97316; }
+
+#fPreview h1 { font-size: 22px; font-weight: 800; margin: 0 0 16px; color: #111827; }
+#fPreview h2 { font-size: 18px; font-weight: 700; margin: 28px 0 10px; color: #1f2937; border-bottom: 2px solid #fed7aa; padding-bottom: 6px; }
+#fPreview h3 { font-size: 15px; font-weight: 700; margin: 18px 0 8px; color: #374151; }
+#fPreview p { margin: 0 0 14px; }
+#fPreview ul, #fPreview ol { margin: 0 0 14px 20px; }
+#fPreview li { margin-bottom: 6px; }
+#fPreview strong { color: #ea580c; }
+#fPreview em { font-style: italic; }
+#fPreview blockquote { border-left: 4px solid #f97316; background: #fff7ed; padding: 10px 16px; margin: 16px 0; border-radius: 0 8px 8px 0; color: #92400e; }
+#fPreview table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; border: 2px solid #f97316; border-radius: 8px; overflow: hidden; }
+#fPreview th { background: #f97316; color: #fff; padding: 10px 14px; text-align: left; border: 1px solid #ea6c0a; font-weight: 700; }
+#fPreview td { padding: 10px 14px; border: 1px solid #e5e7eb; background: #fff; }
+#fPreview tr:nth-child(even) td { background: #fff7ed; }
+#fPreview tr:hover td { background: #fef3e2; }
+#fPreview img { max-width: 100%; border-radius: 8px; margin: 12px 0; }
+#fPreview hr { border: none; border-top: 1px solid #e5e7eb; margin: 20px 0; }
+#fPreview svg { max-width: 100%; margin: 16px 0; display: block; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">📝 블로그 글 작성</div>
+  <div class="topbar-actions">
+    <button class="btn" onclick="clearAll()">초기화</button>
+    <button class="btn btn-pub" id="pubBtn" onclick="copyAll()">📋 전체 복사</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="ai-box">
+    <div class="ai-box-title">✨ AI 칼럼 자동 생성</div>
+    <div class="ai-row">
+      <input class="ai-input" id="topicInput" placeholder="주제 입력 (비우면 AI가 선택) — 예) 놀이와 창의력, STEAM 교육" />
+      <button class="btn-ai" id="genBtn" onclick="generate()">🤖 생성하기</button>
+    </div>
+    <div class="status" id="statusMsg"></div>
+  </div>
+
+  <div class="form-card">
+    <div class="g3" style="background:#fff;">
+      <div class="lbl">제목 <button class="btn-copy" id="cpTitle" onclick="copyField('fTitle','cpTitle')">복사</button></div>
+      <input id="fTitle" placeholder="제목을 입력하세요 (20~55자, 핵심 키워드 앞에)" style="font-size:15px;font-weight:700;" />
+    </div>
+
+    <div class="grid3">
+      <div class="g3">
+        <div class="lbl">URL 슬러그 <button class="btn-copy" id="cpSlug" onclick="copyField('fSlug','cpSlug')">복사</button></div>
+        <input id="fSlug" placeholder="url-slug" />
+      </div>
+      <div class="g3">
+        <div class="lbl">카테고리 <button class="btn-copy" id="cpCat" onclick="copySelectText('fCat','cpCat')">복사</button></div>
+        <select id="fCat">
+          <option value="">카테고리 선택</option>
+          <option value="교육 정보">교육 정보</option>
+          <option value="출석 관리">출석 관리</option>
+          <option value="교구 관리">교구 관리</option>
+          <option value="업무 팁">업무 팁</option>
+          <option value="공지사항">공지사항</option>
+          <option value="업데이트">업데이트</option>
+          <option value="기타">기타</option>
+        </select>
+      </div>
+      <div class="g3">
+        <div class="lbl">발행일</div>
+        <input type="date" id="fDate" />
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-label">요약 (SEO description) <button class="btn-copy" id="cpSum" onclick="copyField('fSummary','cpSum')">복사</button></div>
+      <textarea id="fSummary" rows="3" placeholder="검색엔진에 표시될 요약 문구 (80~155자)"></textarea>
+    </div>
+
+    <div class="field">
+      <div class="field-label">커버 이미지 URL <button class="btn-copy" id="cpImg" onclick="copyField('fImage','cpImg')">복사</button></div>
+      <input type="text" id="fImage" placeholder="https://..." oninput="previewCover(this.value)" />
+      <div id="coverPreview" style="margin-top:10px;display:none;">
+        <img id="coverImg" src="" alt="커버 이미지 미리보기"
+          style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;border:1.5px solid #e5e7eb;"
+          onerror="document.getElementById('coverImgFallback').style.display='flex';this.style.display='none'"
+        />
+        <div id="coverImgFallback" style="display:none;align-items:center;gap:12px;padding:12px 14px;background:#fff7ed;border:1.5px dashed #f97316;border-radius:8px;">
+          <span style="font-size:28px">🖼️</span>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:2px;">이미지 URL이 저장됐습니다</div>
+            <div style="font-size:11px;color:#b45309;">이 환경에서는 외부 이미지 로드가 제한됩니다.<br>실제 블로그에 붙여넣으면 정상적으로 표시됩니다. ✅</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-label">태그 (쉼표로 구분) <button class="btn-copy" id="cpTag" onclick="copyField('fTags','cpTag')">복사</button></div>
+      <input type="text" id="fTags" placeholder="창의력교육, 초등교육, 방과후, ..." />
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        본문
+        <div style="display:flex;gap:4px;align-items:center;">
+          <button class="btn-tab active" id="tabMd" onclick="switchTab('md')">✏️ 마크다운</button>
+          <button class="btn-tab" id="tabPv" onclick="switchTab('pv')">👁 미리보기</button>
+          <button class="btn-copy" id="cpBody" onclick="copyField('fBody','cpBody')" style="margin-left:8px;">복사</button>
+        </div>
+      </div>
+      <textarea id="fBody" rows="28" placeholder="# 제목&#10;&#10;본문을 마크다운으로 작성하세요." oninput="updateCount()"></textarea>
+      <div id="fPreview" style="display:none;min-height:400px;padding:16px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;font-family:'Noto Sans KR',sans-serif;font-size:15px;line-height:1.8;color:#111827;overflow:auto;"></div>
+      <div id="charCount" style="margin-top:8px;font-size:12px;color:#9ca3af;display:flex;gap:16px;flex-wrap:wrap;">
+        <span>본문 텍스트(공백포함) <strong id="cAll" style="color:#374151">0</strong>자</span>
+        <span>공백 제외 <strong id="cNoSpace" style="color:#374151">0</strong>자 <span style="color:#9ca3af;font-size:11px">(기준)</span></span>
+        <span id="cStatus" style="font-weight:600"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 초기 데이터 세팅 (v4 지침 전면 적용)
+(function() {
+  document.getElementById('fDate').value = '2026-06-17';
+
+  const 칼럼 = {
+    topic: "연령별 창의력 발달 단계",
+    title: "창의력 있는 아이로 키우는 방법 — 저학년·중학년·고학년이 다르다",
+    slug: "how-to-raise-creative-child-by-grade",
+    category: "교육 정보",
+    summary: "창의력 있는 아이로 키우는 방법, 학년마다 다릅니다. 초등 저학년·중학년·고학년의 창의력 발달 특성은 완전히 달라서, 같은 방과후 창의력 수업이 어떤 아이에겐 효과 없는 이유가 여기 있습니다. 뇌과학 근거와 함께 학년별 창의력 수업법을 지금 바로 확인해 보세요.",
+    image: "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=900&auto=format&fit=crop&q=80",
+    tags: "바른교육, 초등교육, 방과후, 아이성장, 교육칼럼, 창의력, 상상력, 연령별창의력, 창의력발달단계, 초등창의력, 방과후수업",
+    body: `# 창의력 있는 아이로 키우는 방법 — 저학년·중학년·고학년이 다르다
+
+![초등학생들이 교실에서 함께 만들기 활동을 하며 방과후 창의력 수업에 참여하는 모습](https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=900&auto=format&fit=crop&q=80)
+
+## 같은 창의력 수업인데 왜 어떤 아이는 신나고, 어떤 아이는 멍할까?
+
+> "모든 아이는 예술가다. 문제는 어른이 되면서 어떻게 예술가로 남느냐다." — 파블로 피카소
+>
+> 이 말이 오늘 제가 하고 싶은 이야기의 전부입니다. **창의력 있는 아이로 키우는 방법**은 거창한 데 있지 않습니다. 연령에 맞는 수업을 설계하는 것, 그게 전부입니다.
+
+방과후 수업을 하다 보면 이런 순간이 찾아옵니다. 분명히 잘 준비한 **방과후 창의력 수업**인데, 1~2학년 아이들은 신이 나서 날뛰고, 5~6학년 아이들은 "이게 뭐야" 하는 표정으로 앉아 있죠. 반대로 고학년용 토론 활동에 저학년 아이들은 "무슨 말인지 모르겠어요"라고 합니다.
+
+이유는 하나입니다. **초등 창의력 키우는 방법**은 학년마다 완전히 달라야 하기 때문입니다. 같은 **창의력 수업**이라도 연령에 맞게 설계하지 않으면 효과는 절반 이하로 떨어집니다. 오늘은 저학년·중학년·고학년 각 시기의 **창의력 발달** 특징과 꼭 맞는 수업 설계법을 뇌과학 근거와 함께 안내해 드립니다.
+
+### 초등 창의력 발달, 왜 단계가 중요한가요?
+
+뇌과학적으로 **창의력**을 담당하는 전두엽은 만 6~12세에 폭발적으로 발달합니다. 이 시기에 감정이 실린 경험(편도체+해마)은 기억에 오래 남고, 재미와 성취감(도파민)은 다음 도전의 동력이 됩니다. 즉 **초등 창의력 키우는 방법**의 핵심은 단순히 "아이가 좋아하는 것"이 아니라 **뇌가 가장 잘 반응하는 자극**을 학년에 맞게 주는 것입니다.
+
+---
+
+## 저학년(1~2학년) 창의력 키우는 방법 — 자유와 놀이가 전부다
+
+### 저학년 창의력 발달의 핵심 특징
+
+초등 1~2학년의 **창의력 키우는 방법**은 단순합니다. 최대한 자유롭게, 몸으로 놀게 두는 것입니다. 현실과 상상의 경계가 희미해 아이디어가 넘치고, 실패를 두려워하지 않는 시기이기 때문입니다. 이 시기에 자유로운 탐색 기회를 충분히 주는 것이 이후 **초등 창의력** 성장의 토대가 됩니다.
+
+- **무한한 아이디어**: 현실과 상상의 경계가 희미해 기발한 발상이 쏟아집니다
+- **과정 중심**: 결과보다 탐색과 놀이 자체를 즐기며 실패를 실패로 인식하지 않습니다
+- **신체 연동 학습**: 몸을 움직이면서 배울 때 **방과후 창의력 수업** 효과가 가장 높습니다 — 뇌의 신경가소성이 가장 활발한 시기이기도 합니다
+- **짧은 집중 시간**: 한 활동에 10~15분이 한계이므로 짧고 다양하게 구성해야 합니다
+
+### 저학년 창의력 수업 추천 활동
+
+- **자유 그리기 & 스토리 만들기**: "이 동물은 어디 살까? 이름은 뭐야?" 식의 열린 질문으로 상상력 자극
+- **역할극 & 즉흥 놀이**: 대본 없이 즉흥으로 이야기를 만들며 **창의적 표현력** 기르기
+- **감각 탐구 활동**: 만지고, 냄새 맡고, 소리를 듣고 느낌을 말로 표현하기 — 오감 자극이 곧 **창의력 발달**의 원료
+- **20분마다 활동 전환**: 집중력과 흥미를 동시에 유지하는 핵심 전략
+
+---
+
+## 중학년(3~4학년) 창의력 키우는 방법 — 목표와 성취감이 핵심이다
+
+### 중학년 창의력 발달의 핵심 특징
+
+초등 3~4학년의 **창의력 키우는 방법**은 저학년과 달라야 합니다. 이 시기는 "왜?"라는 질문이 폭발적으로 늘어나는 동시에 친구들의 평가를 의식하기 시작합니다. **방과후 창의력 수업**에서 "잘 해야 한다"는 부담이 처음 생기는 때이므로, 명확한 목표와 성취감을 주는 활동 설계가 핵심입니다.
+
+아래 표는 세 시기의 **창의력 키우는 방법** 핵심 차이를 한눈에 정리한 것입니다.
+
+| 비교 항목 | 저학년(1~2학년) | 중학년(3~4학년) | 고학년(5~6학년) |
+|-----------|----------------|----------------|----------------|
+| 창의력 발달 동기 | 재미, 즐거움 | 성취감, 친구 인정 | 자율성, 의미 추구 |
+| 최적 집중 시간 | 10~15분 | 20~30분 | 30~40분 |
+| 선호 창의력 활동 유형 | 자유 탐색·신체 놀이 | 목표 있는 협동 활동 | 프로젝트·토론·발표 |
+| 실패에 대한 반응 | 별로 신경 쓰지 않음 | 좌절하거나 포기 | 원인 분석 시도 |
+| 창의력 수업 주의점 | 결과 강요 금지 | 경쟁보다 협력 강조 | 충분한 시간·피드백 필요 |
+| 뇌과학 핵심 | 신경가소성 최고조 | 도파민 = 성취감 | 전두엽 통합 기능 발달 |
+
+### 중학년 창의력 수업 추천 활동
+
+- **미션형 창의 활동**: "주어진 재료로 물이 새지 않는 배 만들기"처럼 목표가 명확한 과제
+- **협동 프로젝트**: 역할 분담을 스스로 정하고 함께 결과물을 만드는 경험
+- **발표 & 공유**: 자신의 창의적 아이디어를 친구들 앞에서 말하는 연습으로 **창의적 자신감** 키우기
+
+---
+
+![초등 고학년 아이들이 방과후 수업에서 프로젝트를 함께 완성하며 창의력을 키우는 모습](https://images.unsplash.com/photo-1509062522246-3755977927d7?w=900&auto=format&fit=crop&q=80)
+
+## 고학년(5~6학년) 창의력 키우는 방법 — 자율성과 완성도가 답이다
+
+### 고학년 창의력 발달의 핵심 특징
+
+초등 5~6학년의 **창의력 키우는 방법**은 완전히 달라집니다. **비판적 사고와 창의력**이 결합되는 시기로 "이게 과연 좋은 아이디어일까?"를 스스로 평가하기 시작하며, 이것이 진짜 **창의적 문제 해결력**으로 이어집니다. 이 시기를 놓치면 중·고등 가서 처음 보는 문제를 스스로 풀어내는 힘이 자라기 어렵습니다.
+
+- **추상적 사고 가능**: 깊이 있는 **창의력 수업** 설계가 가능합니다
+- **완성도 민감**: 결과물의 질에 민감하므로 충분한 제작 시간과 구체적 피드백이 중요합니다
+- **자기 주도 성향**: 스스로 계획하고 실행하는 구조일 때 **초등 창의력**이 가장 크게 발휘됩니다
+
+### 고학년 창의력 수업 추천 활동
+
+- **사회 문제 해결 프로젝트**: "우리 동네 불편한 점을 개선하는 아이디어 제안서 만들기"
+- **창작 & 제작 활동**: 단편 영상, 웹툰 등 완성도 있는 창작물 만들기
+- **토론 & 브레인스토밍**: 찬반 주제로 팀별 논리를 구성하며 **창의적 문제 해결력** 기르기
+
+---
+
+## 연령별 창의력 수업 유형별 효과 — 한눈에 보는 비교
+
+저학년일수록 자유탐색형이, 고학년일수록 프로젝트형이 압도적으로 효과적입니다. **연령별 창의력 발달 단계**에 맞지 않는 활동 유형을 쓰면 아이도 지치고 강사도 지칩니다.
+
+<svg viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg" width="100%" font-family="sans-serif">
+  <rect width="600" height="300" fill="#fff8f5" rx="12"/>
+  <text x="300" y="28" text-anchor="middle" font-size="14" font-weight="bold" fill="#f97316">초등 연령별 창의력 수업 유형별 효과 비교</text>
+  <rect x="60" y="44" width="12" height="12" rx="2" fill="#f97316"/>
+  <text x="76" y="55" font-size="11" fill="#555">자유탐색형</text>
+  <rect x="155" y="44" width="12" height="12" rx="2" fill="#fb923c"/>
+  <text x="171" y="55" font-size="11" fill="#555">목표미션형</text>
+  <rect x="250" y="44" width="12" height="12" rx="2" fill="#fdba74"/>
+  <text x="266" y="55" font-size="11" fill="#555">프로젝트형</text>
+  <line x1="50" y1="245" x2="560" y2="245" stroke="#e5e7eb" stroke-width="1"/>
+  <line x1="50" y1="200" x2="560" y2="200" stroke="#e5e7eb" stroke-width="0.5" stroke-dasharray="4,3"/>
+  <line x1="50" y1="155" x2="560" y2="155" stroke="#e5e7eb" stroke-width="0.5" stroke-dasharray="4,3"/>
+  <line x1="50" y1="110" x2="560" y2="110" stroke="#e5e7eb" stroke-width="0.5" stroke-dasharray="4,3"/>
+  <text x="44" y="249" text-anchor="end" font-size="10" fill="#aaa">0</text>
+  <text x="44" y="204" text-anchor="end" font-size="10" fill="#aaa">25</text>
+  <text x="44" y="159" text-anchor="end" font-size="10" fill="#aaa">50</text>
+  <text x="44" y="114" text-anchor="end" font-size="10" fill="#aaa">75</text>
+  <!-- 저학년 -->
+  <rect x="75"  y="95"  width="32" height="150" rx="3" fill="#f97316"/>
+  <rect x="111" y="200" width="32" height="45"  rx="3" fill="#fb923c"/>
+  <rect x="147" y="232" width="32" height="13"  rx="3" fill="#fdba74"/>
+  <text x="130" y="87" text-anchor="middle" font-size="9" font-weight="bold" fill="#c2410c">매우 높음</text>
+  <text x="130" y="265" text-anchor="middle" font-size="12" fill="#555">저학년(1~2)</text>
+  <!-- 중학년 -->
+  <rect x="235" y="155" width="32" height="90"  rx="3" fill="#f97316"/>
+  <rect x="271" y="105" width="32" height="140" rx="3" fill="#fb923c"/>
+  <rect x="307" y="178" width="32" height="67"  rx="3" fill="#fdba74"/>
+  <text x="290" y="97" text-anchor="middle" font-size="9" font-weight="bold" fill="#c2410c">매우 높음</text>
+  <text x="290" y="265" text-anchor="middle" font-size="12" fill="#555">중학년(3~4)</text>
+  <!-- 고학년 -->
+  <rect x="395" y="228" width="32" height="17"  rx="3" fill="#f97316"/>
+  <rect x="431" y="183" width="32" height="62"  rx="3" fill="#fb923c"/>
+  <rect x="467" y="95"  width="32" height="150" rx="3" fill="#fdba74"/>
+  <text x="450" y="87" text-anchor="middle" font-size="9" font-weight="bold" fill="#c2410c">매우 높음</text>
+  <text x="450" y="265" text-anchor="middle" font-size="12" fill="#555">고학년(5~6)</text>
+</svg>
+
+위 그래프를 보면 **창의력 키우는 방법**이 학년마다 얼마나 달라야 하는지 한눈에 보입니다. 저학년 자유탐색형 효과(75점)가 고학년에선 15점으로 뚝 떨어지고, 반대로 프로젝트형은 고학년에서 75점으로 치솟습니다. 저학년에게 프로젝트형을 강요하거나 고학년에게 자유탐색형만 반복하는 것이 **방과후 창의력 수업**에서 가장 흔한 실수입니다.
+
+---
+
+## 지금 바로 수업에 적용하는 창의력 키우는 방법
+
+> **"이 활동, 우리 반 아이들의 연령별 창의력 발달 단계에 맞게 설계됐나?"**
+
+- **저학년**이라면 → 자유롭고 신체적인 **창의력 놀이** 위주로
+- **중학년**이라면 → 명확한 목표와 역할이 있는 협동 활동으로
+- **고학년**이라면 → 스스로 주제를 선택하고 깊게 파고드는 프로젝트 방식으로
+
+수업 준비 시간을 줄이고 출석 관리까지 한번에 해결하고 싶다면 [방과후 출석부](https://www.afterschoolrollbook.kr)도 함께 활용해 보세요.
+
+---
+
+## 자주 묻는 질문 (FAQ)
+
+**Q. 같은 학년인데 아이마다 초등 창의력 발달 차이가 클 때 어떻게 대응하나요?**
+A. **초등 창의력 발달**은 평균적인 흐름일 뿐, 같은 학년 안에서도 6개월~1년의 개인차가 자연스럽습니다. 활동을 설계할 때 "기본 버전"과 "심화 버전"을 함께 준비하면, 서로 다른 **창의력 발달 단계**의 아이들이 같은 수업 안에서 각자의 속도로 참여할 수 있습니다.
+
+**Q. 고학년 아이들이 창의력 수업을 "유치하다"며 거부할 때는 어떻게 하나요?**
+A. 초등 고학년은 **창의력 활동**의 목적과 의미를 먼저 이해해야 참여 의지가 생깁니다. "이 수업이 왜 필요한지"를 먼저 설명하고, 결과물을 실제로 발표하거나 활용하는 기회를 주면 몰입도가 크게 높아집니다. 주제 선택권을 주는 것도 매우 효과적입니다.
+
+**Q. 방과후 창의력 수업을 학년별로 다르게 준비하는 간단한 방법이 있나요?**
+A. 가장 빠른 방법은 **활동의 자유도**를 연령에 따라 조절하는 것입니다. 저학년은 결과 없이 자유롭게, 중학년은 목표와 역할을 주고, 고학년은 주제 선택과 발표까지 포함하면 **창의력 있는 아이로 키우는 방법**이 자연스럽게 수업 안에 녹아듭니다.`
+  };
+
+  document.getElementById('topicInput').value = 칼럼.topic;
+  document.getElementById('fTitle').value     = 칼럼.title;
+  document.getElementById('fSlug').value      = 칼럼.slug;
+  document.getElementById('fCat').value       = 칼럼.category;
+  document.getElementById('fSummary').value   = 칼럼.summary;
+  document.getElementById('fImage').value     = 칼럼.image;
+  document.getElementById('fTags').value      = 칼럼.tags;
+  document.getElementById('fBody').value      = 칼럼.body;
+  setTimeout(updateCount, 100);
+  setTimeout(() => previewCover(칼럼.image), 200);
+})();
+
+function updateCount() {
+  const raw = document.getElementById('fBody').value;
+  const text = raw
+    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
+    .replace(/^\|[\s\S]*?(?=\n\n|\n##|\n#|$)/gm, '')
+    .replace(/!\[.*?\]\(.*?\)/g, '')
+    .replace(/\[.*?\]\(.*?\)/g, '')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/\*{1,2}(.*?)\*{1,2}/g, '$1')
+    .replace(/^[-*+]\s+/gm, '')
+    .replace(/^\d+\.\s+/gm, '')
+    .replace(/^>\s*/gm, '')
+    .replace(/^[-|: ]+$/gm, '')
+    .replace(/\|/g, ' ')
+    .replace(/^---+$/gm, '')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+  const all = text.replace(/\s/g, '').length;
+  const withSpace = text.length;
+  document.getElementById('cAll').textContent = withSpace.toLocaleString();
+  document.getElementById('cNoSpace').textContent = all.toLocaleString();
+  const st = document.getElementById('cStatus');
+  if (all === 0) { st.textContent = ''; return; }
+  if (all < 900)        { st.style.color = '#ef4444'; st.textContent = '⚠️ 권장 900자 이상 (' + (900 - all) + '자 부족)'; }
+  else if (all <= 1800) { st.style.color = '#16a34a'; st.textContent = '✅ 적정 분량'; }
+  else                  { st.style.color = '#f97316'; st.textContent = '⚠️ 1800자 초과 (' + (all - 1800) + '자 넘음)'; }
+}
+
+function switchTab(tab) {
+  const textarea = document.getElementById('fBody');
+  const preview  = document.getElementById('fPreview');
+  const tabMd = document.getElementById('tabMd');
+  const tabPv = document.getElementById('tabPv');
+  if (tab === 'md') {
+    textarea.style.display = '';
+    preview.style.display  = 'none';
+    tabMd.classList.add('active'); tabPv.classList.remove('active');
+  } else {
+    textarea.style.display = 'none';
+    preview.style.display  = '';
+    tabMd.classList.remove('active'); tabPv.classList.add('active');
+    preview.innerHTML = parseMarkdown(textarea.value);
+  }
+}
+
+function parseMarkdown(md) {
+  if (!md) return '';
+  const svgPlaceholders = [];
+  let html = md.replace(/<svg[\s\S]*?<\/svg>/gi, (match) => {
+    const fixed = match.includes('width=') ? match : match.replace('<svg', '<svg width="100%"');
+    svgPlaceholders.push(fixed);
+    return `%%SVG${svgPlaceholders.length - 1}%%`;
+  });
+  const codeBlocks = [];
+  html = html.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => {
+    codeBlocks.push(`<pre><code>${code.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>`);
+    return `%%CODE${codeBlocks.length - 1}%%`;
+  });
+  html = html.replace(
+    /^(\|.+\|\n)([ \t]*\|[-| :\t]+\|\n)((?:\|.+\|\n?)*)/gm,
+    (_, header, _sep, rows) => {
+      const thCells = header.split('|').filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join('');
+      const trRows = rows.trim().split('\n').filter(r => r.trim()).map(row => {
+        const cells = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+      return `<table><thead><tr>${thCells}</tr></thead><tbody>${trRows}</tbody></table>\n`;
+    }
+  );
+  html = html
+    .replace(/^---$/gm, '<hr>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => `<div style="margin:8px 0;"><img src="${src}" alt="${alt}" style="max-width:100%;border-radius:8px;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;align-items:center;gap:10px;padding:10px 14px;background:#fff7ed;border:1.5px dashed #f97316;border-radius:8px;font-size:13px;color:#92400e;">🖼️ <div><strong>${alt||'이미지'}</strong><br><span style="font-size:11px;color:#b45309;">블로그에 붙여넣으면 정상 표시됩니다 ✅</span></div></div></div>`)
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
+    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  html = html.split(/\n{2,}/).map(block => {
+    block = block.trim();
+    if (!block) return '';
+    if (/^<(h[1-3]|ul|ol|blockquote|hr|table|pre|img)/.test(block)) return block;
+    if (/%%SVG\d+%%/.test(block) || /%%CODE\d+%%/.test(block)) return block;
+    return `<p>${block.replace(/\n/g, '<br>')}</p>`;
+  }).join('\n');
+  html = html.replace(/%%CODE(\d+)%%/g, (_, i) => codeBlocks[i]);
+  html = html.replace(/%%SVG(\d+)%%/g, (_, i) => svgPlaceholders[i]);
+  return html;
+}
+
+function setStatus(msg, loading=false) {
+  const el = document.getElementById('statusMsg');
+  el.innerHTML = loading
+    ? `<div class="spinner"></div><span>${msg}</span>`
+    : `<span>${msg}</span>`;
+}
+
+function slugify(t) {
+  return t.toLowerCase().replace(/[^\w가-힣\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').trim().slice(0,60);
+}
+
+async function generate() {
+  const btn = document.getElementById('genBtn');
+  const topic = document.getElementById('topicInput').value.trim();
+  btn.disabled = true;
+  setStatus('AI가 칼럼을 작성하고 있습니다...', true);
+
+  const system = `당신은 방과후 강사·초등 선생님·학부모를 위한 창의력 교육 전문 블로그 칼럼니스트입니다.
+
+규칙:
+- 기준일: 2026년 6월 17일
+- 2022 개정 교육과정은 이미 전면 시행 중 → "최신 정책"이나 "새로운 트렌드"로 절대 언급 금지
+- 트렌드 내용은 2025~2026년 기준만 사용
+- 제목: 20~55자, SEO 핵심 키워드를 제목 앞쪽에 배치
+- 요약: 80~155자, 핵심 키워드 2~3개 자연스럽게 포함
+- H2 소제목 3~4개에 검색 키워드 직접 포함, H3 소소제목 각 1~2개
+- FAQ 3개 필수 (Q는 실제 검색어처럼 구체적으로)
+- 본문 900~1400자, 전체 1200~1800자
+- 친절하고 실용적, 핵심 단어 **굵게**, 팁은 - 목록
+- 이미지 alt 텍스트: 구체적 묘사 + 키워드 포함, "이미지"/"사진" 단어 금지
+- 마크다운 표 필수 (헤더행에도 키워드 포함, 5열 이상)
+- SVG 그래프 필수 (viewBox="0 0 600 300", width="100%", #f97316 오렌지, 코드블록 금지)
+- SVG 앞뒤 반드시 텍스트 설명 추가
+- 본문 마지막에 방과후 출석부(https://www.afterschoolrollbook.kr) 내부 링크 유도
+- 태그: 기본 5개 + 주제 관련 7개 = 총 12개
+
+JSON만 출력 (다른 텍스트 없이):
+{
+  "title": "제목",
+  "slug": "url-slug",
+  "summary": "요약 80~155자",
+  "tags": "창의력교육, 초등교육, 방과후, 창의력수업, 교육칼럼, 추가태그1, 추가태그2, 추가태그3, 추가태그4, 추가태그5, 추가태그6, 추가태그7",
+  "body": "본문 전체 마크다운"
+}`;
+
+  const userMsg = topic
+    ? `주제: ${topic} — 창의력 교육 칼럼을 작성해주세요.`
+    : `2026년 6월 기준 창의력 교육에서 주목받는 주제를 하나 선택해 칼럼을 작성해주세요.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4000,
+        system,
+        messages: [{ role: 'user', content: userMsg }]
+      })
+    });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const data = await res.json();
+    const raw = data.content?.find(c => c.type === 'text')?.text || '';
+    let json;
+    try {
+      json = JSON.parse(raw.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim());
+    } catch {
+      const m = raw.match(/\{[\s\S]*\}/);
+      if (!m) throw new Error('JSON 파싱 실패');
+      json = JSON.parse(m[0]);
+    }
+    document.getElementById('fTitle').value   = json.title   || '';
+    document.getElementById('fSlug').value    = json.slug    || slugify(json.title||'');
+    document.getElementById('fSummary').value = json.summary || '';
+    document.getElementById('fTags').value    = json.tags    || '';
+    document.getElementById('fBody').value    = json.body    || '';
+    document.getElementById('fCat').value     = '교육 정보';
+    document.getElementById('fImage').value   = 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=900&auto=format&fit=crop&q=80';
+    setStatus('✅ 생성 완료! 각 필드를 확인하고 블로그에 붙여넣으세요.');
+    updateCount();
+    previewCover(document.getElementById('fImage').value);
+  } catch(e) {
+    setStatus('❌ 실패: ' + e.message);
+  }
+  btn.disabled = false;
+}
+
+function previewCover(url) {
+  const wrap = document.getElementById('coverPreview');
+  const img  = document.getElementById('coverImg');
+  const fallback = document.getElementById('coverImgFallback');
+  if (!url) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  img.style.display = 'block';
+  if (fallback) fallback.style.display = 'none';
+  img.src = url;
+}
+
+function copyToClipboard(text, btnId) {
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => flash(btnId)).catch(() => fallbackCopy(text, btnId));
+  } else {
+    fallbackCopy(text, btnId);
+  }
+}
+
+function fallbackCopy(text, btnId) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try { document.execCommand('copy'); flash(btnId); } catch(e) { alert('복사 실패: 직접 선택 후 복사해주세요.'); }
+  document.body.removeChild(ta);
+}
+
+function copyField(id, btnId) {
+  const val = document.getElementById(id).value;
+  copyToClipboard(val, btnId);
+}
+
+function copySelectText(id, btnId) {
+  const el = document.getElementById(id);
+  const val = el.options[el.selectedIndex]?.value || '';
+  copyToClipboard(val, btnId);
+}
+
+function flash(btnId) {
+  const btn = document.getElementById(btnId);
+  const orig = btn.textContent;
+  btn.textContent = '✅';
+  btn.classList.add('ok');
+  setTimeout(() => { btn.textContent = orig; btn.classList.remove('ok'); }, 1800);
+}
+
+function copyAll() {
+  const cat = document.getElementById('fCat');
+  const parts = [
+    ['제목',        document.getElementById('fTitle').value],
+    ['URL 슬러그',  document.getElementById('fSlug').value],
+    ['카테고리',    cat.options[cat.selectedIndex]?.value || ''],
+    ['발행일',      document.getElementById('fDate').value],
+    ['요약',        document.getElementById('fSummary').value],
+    ['커버 이미지', document.getElementById('fImage').value],
+    ['태그',        document.getElementById('fTags').value],
+  ];
+  let text = parts.filter(([,v])=>v).map(([k,v])=>`[${k}]\n${v}`).join('\n\n');
+  const body = document.getElementById('fBody').value;
+  if (body) text += '\n\n[본문]\n' + body;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('pubBtn');
+    const orig = btn.textContent;
+    btn.textContent = '✅ 복사됨!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  });
+}
+
+function clearAll() {
+  if (!confirm('모두 초기화할까요?')) return;
+  ['fTitle','fSlug','fSummary','fImage','fTags','fBody'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fCat').value = '';
+  document.getElementById('fDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('topicInput').value = '';
+  setStatus(''); updateCount();
+}
+</script>
+</body>
+</html>
