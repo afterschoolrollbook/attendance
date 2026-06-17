@@ -838,7 +838,7 @@ export const db = {
 export const Users = {
   all:         ()      => db.get('users'),
   find:        (id)    => db.getOne('users', id),
-  findByEmail: (email) => db.get('users').find(u => u.email === email?.toLowerCase()),
+  findByEmail: (email) => db.get('users').find(u => u.email?.toLowerCase() === email?.toLowerCase()),
   insert:      (u)     => db.insert('users', u),
   update:      (id, p) => db.update('users', id, p),
   delete:      (id)    => db.delete('users', id),
