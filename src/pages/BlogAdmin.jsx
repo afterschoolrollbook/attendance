@@ -462,25 +462,25 @@ export function BlogAdmin({ user }) {
                 title: '🔴 필수 등록 (아직 안 됨)',
                 color: '#991b1b', bg: '#fef2f2', border: '#fca5a5',
                 items: [
-                  { done: false, text: '네이버 서치어드바이저 등록', desc: '국내 검색 유입의 핵심 — searchadvisor.naver.com → 사이트 추가 → 소유확인(HTML 파일 or 메타태그) → sitemap 제출' },
-                  { done: false, text: '빙 웹마스터 도구 등록', desc: 'IndexNow 핑 수신을 위해 필수 — bing.com/webmasters → 사이트 추가 → 소유확인 → sitemap 제출' },
+                  { done: false, text: '네이버 서치어드바이저 등록', desc: '✅ 완료 — 소유권 인증 · sitemap 제출 완료' },
+                  { done: false, text: '빙 웹마스터 도구 등록', desc: '✅ 완료 — 구글 서치콘솔에서 수입 · sitemap 자동 연동 완료' },
                 ]
               },
               {
                 title: '🟡 선택 등록 (권장)',
                 color: '#92400e', bg: '#fffbeb', border: '#fde68a',
                 items: [
-                  { done: false, text: '다음(카카오) 검색 등록', desc: '국내 포털 — 다음 웹마스터 도구에서 사이트 등록 신청' },
-                  { done: false, text: '줌(ZUM) 등록', desc: 'zum.com 검색엔진 — help.zum.com 에서 사이트 등록 신청' },
-                  { done: false, text: '얀덱스 웹마스터 등록', desc: '러시아 검색엔진 (IndexNow 지원) — webmaster.yandex.com → 사이트 추가' },
+                  { done: false, text: '다음(카카오) 검색 등록', desc: '✅ 완료 — 사이트 등록 신청 완료' },
+                  { done: false, text: '줌(ZUM) 등록', desc: '✅ 완료 — 구글·다음 등록 시 자동 수집 (별도 등록 불필요)' },
+                  { done: false, text: '얀덱스 웹마스터 등록', desc: '✅ 완료 — 소유권 인증 · sitemap 제출 완료' },
                 ]
               },
               {
                 title: '📋 등록 후 공통 해야 할 것',
                 color: '#1e40af', bg: '#eff6ff', border: '#bfdbfe',
                 items: [
-                  { done: false, text: '각 검색엔진에 sitemap.xml 제출', desc: 'https://www.afterschoolrollbook.kr/sitemap.xml — 모든 검색엔진 웹마스터 도구에서 제출' },
-                  { done: false, text: '소유권 인증 메타태그 index.html에 추가', desc: '네이버·빙 각각 고유한 인증 메타태그 발급 → index.html <head>에 삽입 후 배포' },
+                  { done: false, text: '각 검색엔진에 sitemap.xml 제출', desc: '✅ 완료 — 구글·네이버·빙·얀덱스 모두 제출 완료' },
+                  { done: false, text: '소유권 인증 메타태그 index.html에 추가', desc: '✅ 완료 — 구글·네이버·얀덱스 인증 메타태그 삽입 완료' },
                   { done: false, text: 'IndexNow 키 파일 확인', desc: 'public/9dcc9754863220877605a3ee2763022a.txt 파일 배포됐는지 브라우저에서 직접 확인' },
                 ]
               }
