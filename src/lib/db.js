@@ -81,6 +81,7 @@ const TABLE_MAP = {
 
 // ─── camelCase → snake_case 변환
 function toSnake(obj) {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return obj
   const result = {}
   for (const [k, v] of Object.entries(obj)) {
     const snake = k.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
@@ -95,6 +96,7 @@ function toSnake(obj) {
 // ─── snake_case → camelCase 변환
 const KEEP_SNAKE_FIELDS = new Set(['student_careers'])
 function toCamel(obj) {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return obj
   const result = {}
   for (const [k, v] of Object.entries(obj)) {
     // _deleted, _deleted_at 등 언더스코어로 시작하는 특수 필드 및 student_careers는 변환하지 않음

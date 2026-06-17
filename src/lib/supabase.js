@@ -81,6 +81,7 @@ const TABLE_MAP = {
 }
 
 function toSnake(obj) {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return obj
   const result = {}
   for (const [k, v] of Object.entries(obj)) {
     const snake = k.replace(/[A-Z]/g, c => '_' + c.toLowerCase())
@@ -90,6 +91,7 @@ function toSnake(obj) {
 }
 
 export function toCamel(obj) {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return obj
   const result = {}
   for (const [k, v] of Object.entries(obj)) {
     const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
