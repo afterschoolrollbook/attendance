@@ -337,10 +337,9 @@ function Comments({ postId }) {
   )
 }
 
-// ── 관련 글 추천 + 이전/다음 글 내부 링크
-function RelatedPosts({ post, allPosts, onSelect }) {
-  // 같은 카테고리 or 태그 겹치는 글 → 점수 계산
-  const scored = allPosts
+// ── 관련도 점수 계산 (공통 유틸)
+function scoreRelated(post, allPosts) {
+  return allPosts
     .filter(p => p.id !== post.id)
     .map(p => {
       let score = 0
@@ -348,67 +347,117 @@ function RelatedPosts({ post, allPosts, onSelect }) {
       const postTags = Array.isArray(post.tags) ? post.tags : []
       const pTags = Array.isArray(p.tags) ? p.tags : []
       pTags.forEach(t => { if (postTags.includes(t)) score += 2 })
-      // 제목 키워드 1글자 이상 겹치면 +1
       const kw = (post.title || '').replace(/[^가-힣a-z0-9]/gi, ' ').split(/\s+/).filter(w => w.length > 1)
       kw.forEach(w => { if ((p.title || '').includes(w)) score += 1 })
       return { ...p, _score: score }
     })
     .filter(p => p._score > 0)
     .sort((a, b) => b._score - a._score || new Date(b.publishedAt || b.createdAt) - new Date(a.publishedAt || a.createdAt))
-    .slice(0, 3)
+}
 
-  // 이전/다음 글 (날짜순)
+// ── 본문 중간 삽입용 미니 카드
+function InlineRelatedCard({ post, onSelect }) {
+  return (
+    <div style={{ margin: '32px 0', padding: '1px', background: 'linear-gradient(90deg,#f97316,#fb923c)', borderRadius: '14px' }}>
+      <button onClick={() => onSelect(post)}
+        style={{ width: '100%', textAlign: 'left', background: '#fff', borderRadius: '13px', padding: '16px 20px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', border: 'none', display: 'flex', alignItems: 'center', gap: '16px', transition: 'background .15s' }}
+        onMouseEnter={e => e.currentTarget.style.background = '#fff7ed'}
+        onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+        <span style={{ fontSize: '22px', flexShrink: 0 }}>📎</span>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: '#f97316', marginBottom: '4px', letterSpacing: '0.5px' }}>관련 글</div>
+          <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{post.title}</div>
+          {post.summary && <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '3px', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{post.summary}</div>}
+        </div>
+        <span style={{ color: '#f97316', fontSize: '18px', flexShrink: 0 }}>→</span>
+      </button>
+    </div>
+  )
+}
+
+// ── 본문 HTML을 문단 단위로 쪼개서 4문단마다 관련 글 카드 자동 삽입
+function ContentWithInlineLinks({ html, relatedPool, onSelect }) {
+  const blocks = []
+  const re = new RegExp(/(<(?:p|h[2-6]|ul|ol|blockquote|pre|table)[^>]*>[\s\S]*?<\/(?:p|h[2-6]|ul|ol|blockquote|pre|table)>)/gi)
+  let last = 0, m
+  while ((m = re.exec(html)) !== null) {
+    if (m.index > last) blocks.push(html.slice(last, m.index))
+    blocks.push(m[0])
+    last = re.lastIndex
+  }
+  if (last < html.length) blocks.push(html.slice(last))
+
+  const INTERVAL = 4
+  const result = []
+  let paraCount = 0
+  let cardIdx = 0
+  const usedIds = new Set()
+
+  blocks.forEach((block, i) => {
+    result.push(<div key={`b${i}`} className="md-body" dangerouslySetInnerHTML={{ __html: block }} />)
+    if (/^<(?:p|h[2-6]|ul|ol)/i.test(block.trim())) paraCount++
+    if (paraCount > 0 && paraCount % INTERVAL === 0 && cardIdx < relatedPool.length) {
+      const card = relatedPool[cardIdx]
+      if (!usedIds.has(card.id)) {
+        usedIds.add(card.id)
+        result.push(<InlineRelatedCard key={`rc${cardIdx}`} post={card} onSelect={onSelect} />)
+        cardIdx++
+      }
+    }
+  })
+  return <>{result}</>
+}
+
+// ── 하단 "이런 것도 궁금하지 않으세요?" 블록
+function CuriosityBlock({ post, allPosts, inlineUsedIds, onSelect }) {
+  const pool = scoreRelated(post, allPosts).filter(p => !inlineUsedIds.has(p.id)).slice(0, 4)
+  if (pool.length === 0) return null
+  return (
+    <div style={{ marginTop: '48px', paddingTop: '32px', borderTop: '2px solid #f3f4f6' }}>
+      <div style={{ fontSize: '17px', fontWeight: 800, color: '#111827', marginBottom: '6px' }}>🤔 이런 것도 궁금하지 않으세요?</div>
+      <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '20px' }}>비슷한 주제의 글을 더 읽어보세요</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+        {pool.map(p => (
+          <button key={p.id} onClick={() => onSelect(p)}
+            style={{ textAlign: 'left', background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: '14px', padding: '18px 20px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .15s', display: 'flex', flexDirection: 'column', gap: '8px' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(249,115,22,0.12)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)' }}>
+            {p.category && <span style={{ fontSize: '11px', fontWeight: 700, color: '#f97316', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '999px', padding: '2px 8px', alignSelf: 'flex-start' }}>{p.category}</span>}
+            <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827', lineHeight: 1.45 }}>{p.title}</div>
+            {p.summary && <div style={{ fontSize: '13px', color: '#6b7280', lineHeight: 1.6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.summary}</div>}
+            <div style={{ fontSize: '12px', color: '#f97316', fontWeight: 700, marginTop: '4px' }}>읽어보기 →</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── 이전/다음 글 네비게이션
+function PrevNextNav({ post, allPosts, onSelect }) {
   const sorted = [...allPosts].sort((a, b) => new Date(a.publishedAt || a.createdAt) - new Date(b.publishedAt || b.createdAt))
   const idx = sorted.findIndex(p => p.id === post.id)
   const prevPost = idx > 0 ? sorted[idx - 1] : null
   const nextPost = idx < sorted.length - 1 ? sorted[idx + 1] : null
-
+  if (!prevPost && !nextPost) return null
   return (
-    <div style={{ marginTop: '48px' }}>
-      {/* 이전 / 다음 글 */}
-      {(prevPost || nextPost) && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '40px' }}>
-          {prevPost ? (
-            <button onClick={() => onSelect(prevPost)} style={{ textAlign: 'left', background: '#f9fafb', border: '1.5px solid #e5e7eb', borderRadius: '12px', padding: '16px 18px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .15s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.background = '#fff7ed' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.background = '#f9fafb' }}>
-              <div style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 600, marginBottom: '6px' }}>← 이전 글</div>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#374151', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{prevPost.title}</div>
-            </button>
-          ) : <div />}
-          {nextPost ? (
-            <button onClick={() => onSelect(nextPost)} style={{ textAlign: 'right', background: '#f9fafb', border: '1.5px solid #e5e7eb', borderRadius: '12px', padding: '16px 18px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .15s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.background = '#fff7ed' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.background = '#f9fafb' }}>
-              <div style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 600, marginBottom: '6px' }}>다음 글 →</div>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#374151', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{nextPost.title}</div>
-            </button>
-          ) : <div />}
-        </div>
-      )}
-
-      {/* 관련 글 추천 */}
-      {scored.length > 0 && (
-        <div>
-          <div style={{ fontSize: '16px', fontWeight: 700, color: '#111827', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>📚</span> 이런 글도 읽어보세요
-          </div>
-          <div style={{ display: 'grid', gap: '12px' }}>
-            {scored.map(p => (
-              <button key={p.id} onClick={() => onSelect(p)} style={{ textAlign: 'left', background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: '12px', padding: '16px 20px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', transition: 'all .15s' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(249,115,22,0.1)'; e.currentTarget.style.transform = 'translateX(4px)' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateX(0)' }}>
-                <div style={{ minWidth: 0 }}>
-                  {p.category && <span style={{ fontSize: '11px', fontWeight: 700, color: '#f97316', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '999px', padding: '2px 8px', marginBottom: '6px', display: 'inline-block' }}>{p.category}</span>}
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827', lineHeight: 1.4, marginTop: '4px', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.title}</div>
-                  <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>{formatDate(p.publishedAt || p.createdAt)}</div>
-                </div>
-                <span style={{ color: '#f97316', fontSize: '18px', flexShrink: 0 }}>→</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '32px' }}>
+      {prevPost ? (
+        <button onClick={() => onSelect(prevPost)} style={{ textAlign: 'left', background: '#f9fafb', border: '1.5px solid #e5e7eb', borderRadius: '12px', padding: '16px 18px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .15s' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.background = '#fff7ed' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.background = '#f9fafb' }}>
+          <div style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 600, marginBottom: '6px' }}>← 이전 글</div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: '#374151', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{prevPost.title}</div>
+        </button>
+      ) : <div />}
+      {nextPost ? (
+        <button onClick={() => onSelect(nextPost)} style={{ textAlign: 'right', background: '#f9fafb', border: '1.5px solid #e5e7eb', borderRadius: '12px', padding: '16px 18px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .15s' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.background = '#fff7ed' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.background = '#f9fafb' }}>
+          <div style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 600, marginBottom: '6px' }}>다음 글 →</div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: '#374151', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{nextPost.title}</div>
+        </button>
+      ) : <div />}
     </div>
   )
 }
@@ -420,6 +469,11 @@ function BlogDetail({ post, onBack, allPosts, onSelect }) {
     window.scrollTo(0, 0)
     return () => { setMeta('방과후 출석부 블로그', '방과후 강사를 위한 출석 관리 팁', `${window.location.origin}/blog`); setJsonLd(null) }
   }, [post])
+
+  // 관련도 풀 계산 (본문 중간 삽입용 최대 3개)
+  const relatedPool = scoreRelated(post, allPosts || []).slice(0, 3)
+  const inlineUsedIds = new Set(relatedPool.map(p => p.id))
+  const bodyHtml = parseMarkdown(post.content || '')
 
   return (
     <div style={{ maxWidth:'780px', margin:'0 auto', padding:'40px 20px' }}>
@@ -433,14 +487,22 @@ function BlogDetail({ post, onBack, allPosts, onSelect }) {
       <h1 style={{ fontSize:'32px', fontWeight:800, color:'#111827', lineHeight:1.4, marginBottom:'24px' }}>{post.title}</h1>
       {post.summary && <div style={{ background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'10px', padding:'16px 20px', marginBottom:'32px', fontSize:'15px', color:'#92400e', lineHeight:1.7 }}>{post.summary}</div>}
       <hr style={{ border:'none', borderTop:'2px solid #f3f4f6', marginBottom:'32px' }} />
-      <div className="md-body" dangerouslySetInnerHTML={{ __html: parseMarkdown(post.content) }} />
+
+      {/* 본문 — 4문단마다 관련 글 카드 자동 삽입 */}
+      <ContentWithInlineLinks html={bodyHtml} relatedPool={relatedPool} onSelect={onSelect} />
+
       {post.tags?.length > 0 && (
         <div style={{ marginTop:'40px', paddingTop:'24px', borderTop:'2px solid #f3f4f6', display:'flex', gap:'8px', flexWrap:'wrap' }}>
           {post.tags.map(tag => <span key={tag} style={{ fontSize:'12px', background:'#f3f4f6', color:'#374151', borderRadius:'999px', padding:'4px 12px', fontWeight:600 }}>#{tag}</span>)}
         </div>
       )}
-      {/* 관련 글 + 이전/다음 */}
-      <RelatedPosts post={post} allPosts={allPosts || []} onSelect={onSelect} />
+
+      {/* 🤔 이런 것도 궁금하지 않으세요? — 중간 카드에 없던 글 최대 4개 */}
+      <CuriosityBlock post={post} allPosts={allPosts || []} inlineUsedIds={inlineUsedIds} onSelect={onSelect} />
+
+      {/* 이전 / 다음 글 */}
+      <PrevNextNav post={post} allPosts={allPosts || []} onSelect={onSelect} />
+
       {/* 하단 유도 카드 3종 */}
       <div style={{ marginTop:'40px', display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'12px' }}>
         <div style={{ background:'#eff6ff', border:'2px solid #bfdbfe', borderRadius:'14px', padding:'20px', display:'flex', flexDirection:'column', gap:'10px' }}>
