@@ -182,6 +182,17 @@ export function BlogAdmin({ user }) {
     } catch { error('삭제 실패') }
   }
 
+  const pingIndexNow = async (slug, type) => {
+    try {
+      const key = '9dcc9754863220877605a3ee2763022a'
+      const domain = 'www.afterschoolrollbook.kr'
+      const urlPath = type === 'docs' ? `docs/${slug}` : `blog/${slug}`
+      const pageUrl = `https://${domain}/${urlPath}`
+      await fetch(`https://api.indexnow.org/indexnow?url=${encodeURIComponent(pageUrl)}&key=${key}`, { method: 'GET' })
+      console.log('[IndexNow] 핑 전송 완료:', pageUrl)
+    } catch(e) { console.warn('[IndexNow] 핑 실패:', e) }
+  }
+
   const handleSave = async (status) => {
     if (!form.title.trim()) { error('제목을 입력해주세요'); return }
     if (!form.content.trim()) { error('내용을 입력해주세요'); return }
@@ -212,6 +223,7 @@ export function BlogAdmin({ user }) {
       const payload = editId ? basePayload : { ...basePayload, createdAt: now() }
       if (editId) await dbCall('update', 'blogPosts', { id: editId, patch: payload })
       else await dbCall('insert', 'blogPosts', { data: payload })
+      if (finalStatus === 'published') await pingIndexNow(slug, form.type)
       success(finalStatus==='published' ? '발행되었습니다! 🎉' : finalStatus==='scheduled' ? `⏰ 예약발행이 설정되었습니다!` : '임시저장되었습니다.')
       loadPosts(); setView('list')
     } catch (e) { error('저장 실패: ' + e.message) }
