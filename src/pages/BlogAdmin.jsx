@@ -445,6 +445,46 @@ export function BlogAdmin({ user }) {
                 ]
               }
             ]
+          },
+          searchreg: {
+            label: '🌐 검색엔진 등록', color: '#059669', border: '#6ee7b7', bg: '#ecfdf5', activeBg: '#d1fae5',
+            link: 'https://searchadvisor.naver.com',
+            linkLabel: '네이버 서치어드바이저 →',
+            sections: [
+              {
+                title: '✅ 이미 완료',
+                color: '#065f46', bg: '#d1fae5', border: '#6ee7b7',
+                items: [
+                  { done: true, text: '구글 서치콘솔 등록 완료', desc: '소유권 인증 ✅ · sitemap 제출 ✅ · GA4 연결 ✅' },
+                ]
+              },
+              {
+                title: '🔴 필수 등록 (아직 안 됨)',
+                color: '#991b1b', bg: '#fef2f2', border: '#fca5a5',
+                items: [
+                  { done: false, text: '네이버 서치어드바이저 등록', desc: '국내 검색 유입의 핵심 — searchadvisor.naver.com → 사이트 추가 → 소유확인(HTML 파일 or 메타태그) → sitemap 제출' },
+                  { done: false, text: '빙 웹마스터 도구 등록', desc: 'IndexNow 핑 수신을 위해 필수 — bing.com/webmasters → 사이트 추가 → 소유확인 → sitemap 제출' },
+                ]
+              },
+              {
+                title: '🟡 선택 등록 (권장)',
+                color: '#92400e', bg: '#fffbeb', border: '#fde68a',
+                items: [
+                  { done: false, text: '다음(카카오) 검색 등록', desc: '국내 포털 — 다음 웹마스터 도구에서 사이트 등록 신청' },
+                  { done: false, text: '줌(ZUM) 등록', desc: 'zum.com 검색엔진 — help.zum.com 에서 사이트 등록 신청' },
+                  { done: false, text: '얀덱스 웹마스터 등록', desc: '러시아 검색엔진 (IndexNow 지원) — webmaster.yandex.com → 사이트 추가' },
+                ]
+              },
+              {
+                title: '📋 등록 후 공통 해야 할 것',
+                color: '#1e40af', bg: '#eff6ff', border: '#bfdbfe',
+                items: [
+                  { done: false, text: '각 검색엔진에 sitemap.xml 제출', desc: 'https://www.afterschoolrollbook.kr/sitemap.xml — 모든 검색엔진 웹마스터 도구에서 제출' },
+                  { done: false, text: '소유권 인증 메타태그 index.html에 추가', desc: '네이버·빙 각각 고유한 인증 메타태그 발급 → index.html <head>에 삽입 후 배포' },
+                  { done: false, text: 'IndexNow 키 파일 확인', desc: 'public/9dcc9754863220877605a3ee2763022a.txt 파일 배포됐는지 브라우저에서 직접 확인' },
+                ]
+              }
+            ]
           }
         }
 
