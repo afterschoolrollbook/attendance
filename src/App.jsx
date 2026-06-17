@@ -336,6 +336,7 @@ function AppInner() {
               }
             }
           }
+          console.log('[init] setUser 호출, role:', fresh.role, 'accessExpiredAt:', fresh.accessExpiredAt)
           setUser(fresh)
           const pageParam = new URLSearchParams(search).get('page')
           if (pageParam) setPage(pageParam)
