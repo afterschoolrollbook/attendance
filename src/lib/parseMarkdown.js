@@ -72,13 +72,13 @@ export function parseMarkdown(md) {
     (_, header, _sep, rows) => {
       const thCells = header
         .split('|').filter(c => c.trim())
-        .map(c => `<th>${c.trim()}</th>`).join('')
-      const trRows = rows.trim().split('\n').filter(r => r.trim()).map(row => {
+        .map(c => `<th style="background:#f97316;color:#fff;padding:10px 14px;text-align:left;border:1px solid #ea6c0a;font-weight:700;">${c.trim()}</th>`).join('')
+      const trRows = rows.trim().split('\n').filter(r => r.trim()).map((row, i) => {
         const cells = row.split('|').filter(c => c.trim())
-          .map(c => `<td>${c.trim()}</td>`).join('')
+          .map(c => `<td style="padding:10px 14px;border:1px solid #e5e7eb;background:${i%2===0?'#fff':'#fff7ed'};">${c.trim()}</td>`).join('')
         return `<tr>${cells}</tr>`
       }).join('')
-      return `<table><thead><tr>${thCells}</tr></thead><tbody>${trRows}</tbody></table>\n`
+      return `<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;border:2px solid #f97316;border-radius:8px;overflow:hidden;"><thead><tr>${thCells}</tr></thead><tbody>${trRows}</tbody></table>\n`
     }
   )
 
