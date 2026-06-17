@@ -188,9 +188,13 @@ export function BlogAdmin({ user }) {
       const domain = 'www.afterschoolrollbook.kr'
       const urlPath = type === 'docs' ? `docs/${slug}` : `blog/${slug}`
       const pageUrl = `https://${domain}/${urlPath}`
-      await fetch(`https://api.indexnow.org/indexnow?url=${encodeURIComponent(pageUrl)}&key=${key}`, { method: 'GET' })
-      console.log('[IndexNow] 핑 전송 완료:', pageUrl)
-    } catch(e) { console.warn('[IndexNow] 핑 실패:', e) }
+      const res = await fetch(`https://api.indexnow.org/indexnow?url=${encodeURIComponent(pageUrl)}&key=${key}`, { method: 'GET' })
+      console.log('[IndexNow] 핑 전송 완료:', pageUrl, res.status)
+      return true
+    } catch(e) {
+      console.warn('[IndexNow] 핑 실패:', e)
+      return false
+    }
   }
 
   const handleSave = async (status) => {
@@ -223,8 +227,12 @@ export function BlogAdmin({ user }) {
       const payload = editId ? basePayload : { ...basePayload, createdAt: now() }
       if (editId) await dbCall('update', 'blogPosts', { id: editId, patch: payload })
       else await dbCall('insert', 'blogPosts', { data: payload })
-      if (finalStatus === 'published') await pingIndexNow(slug, form.type)
-      success(finalStatus==='published' ? '발행되었습니다! 🎉' : finalStatus==='scheduled' ? `⏰ 예약발행이 설정되었습니다!` : '임시저장되었습니다.')
+      if (finalStatus === 'published') {
+        const pinged = await pingIndexNow(slug, form.type)
+        success(`발행되었습니다! 🎉 ${pinged ? '· 🔔 IndexNow 핑 전송 완료' : '· ⚠️ IndexNow 핑 실패'}`)
+      } else {
+        success(finalStatus==='scheduled' ? `⏰ 예약발행이 설정되었습니다!` : '임시저장되었습니다.')
+      }
       loadPosts(); setView('list')
     } catch (e) { error('저장 실패: ' + e.message) }
     setLoading(false)
@@ -507,6 +515,7 @@ export function BlogAdmin({ user }) {
             color: '#7c3aed', bg: '#faf5ff', border: '#ddd6fe',
             items: [
               { text: '서치콘솔 URL 색인 요청', link: 'https://search.google.com/search-console', desc: 'URL 검사 → 색인 생성 요청' },
+              { text: 'IndexNow 핑 전송 확인', link: null, desc: '글 발행 시 자동 전송됨 — 발행 후 토스트 메시지에서 확인' },
               { text: '실시간 트래픽 확인', link: 'https://analytics.google.com', desc: '발행 후 GA4 실시간 탭 확인' },
               { text: 'OG태그 디버거 확인', link: 'https://developers.facebook.com/tools/debug/', desc: '페이스북 공유 미리보기 테스트' },
             ]
