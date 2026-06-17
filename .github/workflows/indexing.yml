@@ -1,0 +1,57 @@
+name: Search Console 자동 색인 요청
+
+on:
+  schedule:
+    # 매일 오전 9시 (KST) = UTC 00:00
+    - cron: "0 0 * * *"
+
+  # 수동 실행도 가능하게
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "실행 사유 (선택)"
+        required: false
+        default: "수동 실행"
+
+jobs:
+  index:
+    name: URL 색인 요청
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      # 이전 실행 로그 복원 (할당량 추적용)
+      - name: 색인 로그 캐시 복원
+        uses: actions/cache@v4
+        with:
+          path: indexing_log.json
+          key: indexing-log-${{ runner.os }}
+          restore-keys: |
+            indexing-log-
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: 의존성 설치
+        run: pip install google-auth google-api-python-client
+
+      - name: 색인 요청 실행
+        env:
+          SITE_URL:    ${{ secrets.SITE_URL }}
+          SITEMAP_URL: ${{ secrets.SITEMAP_URL }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: python scripts/indexer.py
+
+      # 로그 파일을 캐시에 저장 (다음 실행에서 할당량 이어받기)
+      - name: 색인 로그 캐시 저장
+        uses: actions/cache@v4
+        if: always()
+        with:
+          path: indexing_log.json
+          key: indexing-log-${{ runner.os }}-${{ github.run_id }}
