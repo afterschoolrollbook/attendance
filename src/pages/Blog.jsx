@@ -339,8 +339,9 @@ function Comments({ postId }) {
 
 // ── 관련도 점수 계산 (공통 유틸)
 function scoreRelated(post, allPosts) {
+  if (!post || !Array.isArray(allPosts) || allPosts.length === 0) return []
   return allPosts
-    .filter(p => p.id !== post.id)
+    .filter(p => p && p.id !== post.id)
     .map(p => {
       let score = 0
       if (p.category && p.category === post.category) score += 3
@@ -377,6 +378,8 @@ function InlineRelatedCard({ post, onSelect }) {
 
 // ── 본문 HTML을 문단 단위로 쪼개서 4문단마다 관련 글 카드 자동 삽입
 function ContentWithInlineLinks({ html, relatedPool, onSelect }) {
+  if (!html) return null
+  const safePool = Array.isArray(relatedPool) ? relatedPool : []
   const blocks = []
   const re = new RegExp(/(<(?:p|h[2-6]|ul|ol|blockquote|pre|table)[^>]*>[\s\S]*?<\/(?:p|h[2-6]|ul|ol|blockquote|pre|table)>)/gi)
   let last = 0, m
@@ -396,9 +399,9 @@ function ContentWithInlineLinks({ html, relatedPool, onSelect }) {
   blocks.forEach((block, i) => {
     result.push(<div key={`b${i}`} className="md-body" dangerouslySetInnerHTML={{ __html: block }} />)
     if (/^<(?:p|h[2-6]|ul|ol)/i.test(block.trim())) paraCount++
-    if (paraCount > 0 && paraCount % INTERVAL === 0 && cardIdx < relatedPool.length) {
-      const card = relatedPool[cardIdx]
-      if (!usedIds.has(card.id)) {
+    if (paraCount > 0 && paraCount % INTERVAL === 0 && cardIdx < safePool.length) {
+      const card = safePool[cardIdx]
+      if (card && !usedIds.has(card.id)) {
         usedIds.add(card.id)
         result.push(<InlineRelatedCard key={`rc${cardIdx}`} post={card} onSelect={onSelect} />)
         cardIdx++
@@ -410,7 +413,9 @@ function ContentWithInlineLinks({ html, relatedPool, onSelect }) {
 
 // ── 하단 "이런 것도 궁금하지 않으세요?" 블록
 function CuriosityBlock({ post, allPosts, inlineUsedIds, onSelect }) {
-  const pool = scoreRelated(post, allPosts).filter(p => !inlineUsedIds.has(p.id)).slice(0, 4)
+  if (!post || !Array.isArray(allPosts)) return null
+  const safeUsedIds = inlineUsedIds instanceof Set ? inlineUsedIds : new Set()
+  const pool = scoreRelated(post, allPosts).filter(p => !safeUsedIds.has(p.id)).slice(0, 4)
   if (pool.length === 0) return null
   return (
     <div style={{ marginTop: '48px', paddingTop: '32px', borderTop: '2px solid #f3f4f6' }}>
@@ -435,6 +440,7 @@ function CuriosityBlock({ post, allPosts, inlineUsedIds, onSelect }) {
 
 // ── 이전/다음 글 네비게이션
 function PrevNextNav({ post, allPosts, onSelect }) {
+  if (!post || !Array.isArray(allPosts) || allPosts.length === 0) return null
   const sorted = [...allPosts].sort((a, b) => new Date(a.publishedAt || a.createdAt) - new Date(b.publishedAt || b.createdAt))
   const idx = sorted.findIndex(p => p.id === post.id)
   const prevPost = idx > 0 ? sorted[idx - 1] : null
