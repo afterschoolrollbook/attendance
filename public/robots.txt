@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+
+# 앱 내부 페이지 (크롤링 불필요)
+Disallow: /dashboard
+Disallow: /attendance
+Disallow: /students
+Disallow: /classes
+Disallow: /reports
+Disallow: /profile
+Disallow: /admin
+Disallow: /login
+Disallow: /auth
+
+# 사이트맵
+Sitemap: https://afterschoolrollbook.kr/sitemap.xml
