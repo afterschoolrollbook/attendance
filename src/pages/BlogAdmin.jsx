@@ -79,6 +79,7 @@ export function BlogAdmin({ user }) {
   const [filterType, setFilterType] = useState('all')
   const [myPostsOnly, setMyPostsOnly] = useState(false)
   const [blogCategories, setBlogCategories] = useState(DEFAULT_BLOG_CATS)
+  const [activeToolPanel, setActiveToolPanel] = useState(null)
   const { success, error } = useToast()
 
   // state 선언 이후에 blogCategories 참조
@@ -228,27 +229,153 @@ export function BlogAdmin({ user }) {
         </div>
       </div>
 
-      {/* 외부 도구 빠른 링크 */}
-      {isAdmin && (
-        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'16px', flexWrap:'wrap', padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', border:'1.5px solid #e5e7eb' }}>
-          <span style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginRight:'4px', whiteSpace:'nowrap' }}>🔧 관리 도구</span>
-          <a href="https://www.google.com/adsense" target="_blank" rel="noopener noreferrer"
-            style={{ display:'flex', alignItems:'center', gap:'5px', padding:'5px 12px', borderRadius:'7px', border:'1.5px solid #fbbf24', background:'#fffbeb', color:'#d97706', fontSize:'12px', fontWeight:700, textDecoration:'none', whiteSpace:'nowrap' }}
-            title="Google AdSense 대시보드">
-            💰 애드센스
-          </a>
-          <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer"
-            style={{ display:'flex', alignItems:'center', gap:'5px', padding:'5px 12px', borderRadius:'7px', border:'1.5px solid #86efac', background:'#f0fdf4', color:'#16a34a', fontSize:'12px', fontWeight:700, textDecoration:'none', whiteSpace:'nowrap' }}
-            title="Google Search Console">
-            🔍 서치콘솔
-          </a>
-          <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer"
-            style={{ display:'flex', alignItems:'center', gap:'5px', padding:'5px 12px', borderRadius:'7px', border:'1.5px solid #93c5fd', background:'#eff6ff', color:'#2563eb', fontSize:'12px', fontWeight:700, textDecoration:'none', whiteSpace:'nowrap' }}
-            title="Google Analytics 4">
-            📊 애널리틱스
-          </a>
-        </div>
-      )}
+      {/* 외부 도구 빠른 링크 + 체크리스트 패널 */}
+      {isAdmin && (() => {
+        const TOOL_PANELS = {
+          adsense: {
+            label: '💰 애드센스', color: '#d97706', border: '#fbbf24', bg: '#fffbeb', activeBg: '#fef3c7',
+            link: 'https://www.google.com/adsense',
+            linkLabel: '애드센스 대시보드 열기 →',
+            sections: [
+              {
+                title: '🚀 최초 셋팅 (한 번만)',
+                color: '#92400e', bg: '#fef3c7', border: '#fde68a',
+                items: [
+                  { done: false, text: '사이트 URL 등록 및 소유권 확인', desc: '애드센스 가입 후 내 사이트 주소를 등록하고, <head>에 메타태그 삽입' },
+                  { done: false, text: 'ads.txt 파일 루트에 업로드', desc: 'google.com, pub-XXXXXXX, DIRECT, f08c47fec0942fa0 형식으로 /ads.txt 생성' },
+                  { done: false, text: '자동 광고 ON 또는 광고 단위 수동 생성', desc: '자동 광고는 구글이 최적 위치 자동 배치 / 수동은 원하는 위치에 직접 코드 삽입' },
+                  { done: false, text: '광고 코드를 <head> 또는 본문에 삽입', desc: 'Next.js라면 _document.js 또는 Script 컴포넌트 활용' },
+                ]
+              },
+              {
+                title: '📋 주기적으로 확인할 것',
+                color: '#78350f', bg: '#fff7ed', border: '#fed7aa',
+                items: [
+                  { done: false, text: '수익 및 RPM(페이지 1000회당 수익) 확인', desc: '대시보드 → 보고서에서 날짜별 수익 추이 체크' },
+                  { done: false, text: '정책 위반 경고 확인', desc: '알림 탭에 빨간 경고 뜨면 즉시 조치 — 방치 시 광고 중단' },
+                  { done: false, text: '잘 클릭되는 광고 위치 파악', desc: '본문 상단·목차 아래·본문 중간이 일반적으로 CTR 높음' },
+                  { done: false, text: '모바일 광고 노출 확인', desc: '반응형 광고 단위 사용 여부 체크 — 모바일 트래픽 비중이 높을수록 중요' },
+                ]
+              }
+            ]
+          },
+          searchconsole: {
+            label: '🔍 서치콘솔', color: '#16a34a', border: '#86efac', bg: '#f0fdf4', activeBg: '#dcfce7',
+            link: 'https://search.google.com/search-console',
+            linkLabel: 'Search Console 열기 →',
+            sections: [
+              {
+                title: '🚀 최초 셋팅 (한 번만)',
+                color: '#14532d', bg: '#dcfce7', border: '#86efac',
+                items: [
+                  { done: false, text: '속성 추가 및 소유권 인증', desc: 'URL 접두사 방식 권장 — HTML 파일 업로드 또는 <head> 메타태그 삽입' },
+                  { done: false, text: 'sitemap.xml 제출', desc: '설정 → Sitemaps → 내 사이트의 sitemap.xml URL 입력 후 제출' },
+                  { done: false, text: 'robots.txt 확인', desc: '크롤링 차단 규칙이 없는지 확인 — Disallow: / 이면 검색 노출 불가' },
+                  { done: false, text: 'Google Analytics 연결', desc: '설정 → 연결 → Analytics 연동하면 트래픽 데이터 통합 확인 가능' },
+                ]
+              },
+              {
+                title: '📋 주기적으로 확인할 것',
+                color: '#166534', bg: '#f0fdf4', border: '#bbf7d0',
+                items: [
+                  { done: false, text: '색인 생성 현황 확인', desc: '색인 생성 → 페이지 → "색인이 생성되지 않은 이유" 파악 및 조치' },
+                  { done: false, text: '검색 성과 (클릭수·노출수·CTR) 확인', desc: '어떤 키워드로 유입되는지 확인 — CTR 낮은 글은 제목/메타설명 수정 검토' },
+                  { done: false, text: '새 글 발행 후 URL 즉시 검사 요청', desc: 'URL 검사 → 색인 생성 요청 — 구글이 빠르게 크롤링하도록 유도' },
+                  { done: false, text: '모바일 사용성 오류 확인', desc: '경험 → 모바일 사용성 — 터치 요소 간격·뷰포트 설정 등 오류 수정' },
+                  { done: false, text: 'Core Web Vitals 점수 확인', desc: 'LCP·INP·CLS 점수 — 낮으면 이미지 최적화·레이아웃 안정성 개선 필요' },
+                ]
+              }
+            ]
+          },
+          analytics: {
+            label: '📊 애널리틱스', color: '#2563eb', border: '#93c5fd', bg: '#eff6ff', activeBg: '#dbeafe',
+            link: 'https://analytics.google.com',
+            linkLabel: 'Google Analytics 열기 →',
+            sections: [
+              {
+                title: '🚀 최초 셋팅 (한 번만)',
+                color: '#1e3a8a', bg: '#dbeafe', border: '#93c5fd',
+                items: [
+                  { done: false, text: 'GA4 속성 생성 및 데이터 스트림 추가', desc: '관리 → 속성 만들기 → 웹 스트림 추가 → 측정 ID(G-XXXXXXXX) 발급' },
+                  { done: false, text: '측정 ID를 사이트 <head>에 삽입', desc: 'Next.js라면 _app.js 또는 Script 컴포넌트로 gtag.js 로드' },
+                  { done: false, text: 'Search Console 연결', desc: 'GA4 관리 → 속성 → Search Console 링크 → 연결하면 키워드 데이터 통합' },
+                  { done: false, text: '내부 트래픽(내 IP) 필터 설정', desc: '관리 → 데이터 필터 → 내부 트래픽 정의 — 내가 접속한 기록이 통계에 잡히지 않도록' },
+                  { done: false, text: '목표/전환 이벤트 설정', desc: '뉴스레터 구독, 문의하기 클릭 등 중요 액션을 전환으로 표시' },
+                ]
+              },
+              {
+                title: '📋 주기적으로 확인할 것',
+                color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe',
+                items: [
+                  { done: false, text: '실시간 사용자 수 확인', desc: '새 글 발행 직후 트래픽 반응 체크 — SNS 공유 효과 즉시 확인 가능' },
+                  { done: false, text: '유입 채널별 트래픽 분석', desc: '획득 → 트래픽 획득 — 검색/직접/SNS/추천 비율 파악' },
+                  { done: false, text: '인기 페이지 TOP 10 확인', desc: '참여 → 페이지 및 화면 — 어떤 글이 잘 읽히는지 파악해서 유사 글 작성' },
+                  { done: false, text: '이탈률·평균 참여 시간 확인', desc: '참여 시간이 짧으면 콘텐츠 도입부 개선 필요 / 이탈률 높으면 내부 링크 강화' },
+                  { done: false, text: '기기별·지역별 접속 현황', desc: '모바일 비율이 높으면 모바일 UX를 우선 최적화' },
+                ]
+              }
+            ]
+          }
+        }
+
+        const panel = activeToolPanel ? TOOL_PANELS[activeToolPanel] : null
+
+        return (
+          <div style={{ marginBottom:'16px' }}>
+            {/* 탭 버튼 바 */}
+            <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', padding:'10px 14px', background:'#f9fafb', borderRadius: panel ? '10px 10px 0 0' : '10px', border:'1.5px solid #e5e7eb', borderBottom: panel ? 'none' : '1.5px solid #e5e7eb' }}>
+              <span style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginRight:'4px', whiteSpace:'nowrap' }}>🔧 관리 도구</span>
+              {Object.entries(TOOL_PANELS).map(([key, t]) => {
+                const isActive = activeToolPanel === key
+                return (
+                  <button key={key}
+                    onClick={() => setActiveToolPanel(isActive ? null : key)}
+                    style={{ display:'flex', alignItems:'center', gap:'5px', padding:'5px 12px', borderRadius:'7px', border:`1.5px solid ${t.border}`, background: isActive ? t.activeBg : t.bg, color: t.color, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', whiteSpace:'nowrap', boxShadow: isActive ? `0 0 0 2px ${t.border}` : 'none', transition:'all .15s' }}>
+                    {t.label} {isActive ? '▲' : '▼'}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* 체크리스트 패널 */}
+            {panel && (
+              <div style={{ background:'#fff', border:`1.5px solid #e5e7eb`, borderTop:`3px solid ${panel.border}`, borderRadius:'0 0 12px 12px', padding:'20px 22px' }}>
+                {/* 헤더 */}
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px', flexWrap:'wrap', gap:'10px' }}>
+                  <div>
+                    <span style={{ fontSize:'16px', fontWeight:800, color: panel.color }}>{panel.label} 필수 체크리스트</span>
+                    <p style={{ fontSize:'12px', color:'#9ca3af', marginTop:'3px' }}>아래 항목을 하나씩 확인하고 셋팅하세요.</p>
+                  </div>
+                  <a href={panel.link} target="_blank" rel="noopener noreferrer"
+                    style={{ display:'inline-flex', alignItems:'center', gap:'6px', padding:'7px 16px', borderRadius:'8px', background: panel.color, color:'#fff', fontSize:'12px', fontWeight:700, textDecoration:'none' }}>
+                    {panel.linkLabel}
+                  </a>
+                </div>
+
+                {/* 섹션별 체크리스트 */}
+                <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+                  {panel.sections.map((sec, si) => (
+                    <div key={si} style={{ background: sec.bg, border:`1.5px solid ${sec.border}`, borderRadius:'10px', padding:'14px 16px' }}>
+                      <div style={{ fontSize:'13px', fontWeight:800, color: sec.color, marginBottom:'10px' }}>{sec.title}</div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                        {sec.items.map((item, ii) => (
+                          <div key={ii} style={{ display:'flex', gap:'10px', alignItems:'flex-start', background:'rgba(255,255,255,0.7)', borderRadius:'8px', padding:'10px 12px' }}>
+                            <span style={{ fontSize:'16px', flexShrink:0, marginTop:'1px' }}>☐</span>
+                            <div>
+                              <div style={{ fontSize:'13px', fontWeight:700, color:'#111827', marginBottom:'3px' }}>{item.text}</div>
+                              <div style={{ fontSize:'12px', color:'#6b7280', lineHeight:1.6 }}>{item.desc}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* 타입 필터 탭 + 내 글만 보기 */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px', marginBottom:'20px' }}>
