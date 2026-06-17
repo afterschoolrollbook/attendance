@@ -81,6 +81,55 @@ export function BlogAdmin({ user }) {
   const [blogCategories, setBlogCategories] = useState(DEFAULT_BLOG_CATS)
   const [activeToolPanel, setActiveToolPanel] = useState(null)
   const [showRoutine, setShowRoutine] = useState(false)
+  const [routineChecks, setRoutineChecks] = useState({})
+
+  const getWeekKey = () => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const start = new Date(year, 0, 1)
+    const week = Math.ceil(((now - start) / 86400000 + start.getDay() + 1) / 7)
+    return `${year}-W${week}`
+  }
+  const getMonthKey = () => {
+    const now = new Date()
+    return `${now.getFullYear()}-M${now.getMonth() + 1}`
+  }
+
+  const loadRoutineChecks = async () => {
+    try {
+      const rows = await dbCall('getAll', 'routineChecks')
+      const weekKey = getWeekKey()
+      const monthKey = getMonthKey()
+      const map = {}
+      ;(rows || []).forEach(r => {
+        if (r.period_key === weekKey || r.period_key === monthKey || r.period_key === 'publish') {
+          map[`${r.period_key}__${r.routine_key}`] = true
+        }
+      })
+      setRoutineChecks(map)
+    } catch(e) { console.warn('루틴 체크 로딩 실패', e) }
+  }
+
+  const toggleRoutineCheck = async (periodKey, routineKey) => {
+    const mapKey = `${periodKey}__${routineKey}`
+    const isChecked = !!routineChecks[mapKey]
+    setRoutineChecks(v => ({ ...v, [mapKey]: !isChecked }))
+    try {
+      if (isChecked) {
+        const rows = await dbCall('getAll', 'routineChecks')
+        const found = (rows || []).find(r => r.period_key === periodKey && r.routine_key === routineKey)
+        if (found) await dbCall('delete', 'routineChecks', { id: found.id })
+      } else {
+        await dbCall('insert', 'routineChecks', { data: {
+          id: `${periodKey}__${routineKey}__${user?.id || 'admin'}`,
+          period_key: periodKey,
+          routine_key: routineKey,
+          user_id: user?.id || null,
+          checked_at: new Date().toISOString(),
+        }})
+      }
+    } catch(e) { console.warn('루틴 체크 저장 실패', e) }
+  }
   const { success, error } = useToast()
 
   // state 선언 이후에 blogCategories 참조
@@ -88,7 +137,7 @@ export function BlogAdmin({ user }) {
     canWriteNotice ? true : (c !== '공지사항' && c !== '업데이트')
   )
 
-  useEffect(() => { loadPosts(); loadCategories() }, [])
+  useEffect(() => { loadPosts(); loadCategories(); loadRoutineChecks() }, [])
 
   const loadCategories = async () => {
     try {
@@ -451,7 +500,7 @@ export function BlogAdmin({ user }) {
             ]
           },
           weekly: {
-            label: '📅 매주 확인',
+            label: '📅 매주 토요일 확인',
             color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc',
             items: [
               { text: '애드센스 수익/RPM 확인', link: 'https://www.google.com/adsense', desc: '보고서 → 날짜별 수익 추이' },
@@ -462,7 +511,7 @@ export function BlogAdmin({ user }) {
             ]
           },
           monthly: {
-            label: '🗓️ 매월 확인',
+            label: '🗓️ 매월 마지막 토요일 확인',
             color: '#d97706', bg: '#fffbeb', border: '#fde68a',
             items: [
               { text: '애드센스 광고 위치 CTR 분석', link: 'https://www.google.com/adsense', desc: '어떤 위치 광고가 잘 클릭되는지 파악' },
@@ -486,13 +535,13 @@ export function BlogAdmin({ user }) {
         const daysInMonth = new Date(year, month + 1, 0).getDate()
         const monthName = `${year}년 ${month + 1}월`
 
-        // 매주 월요일 날짜들
-        const mondays = []
+        // 매주 토요일 날짜들
+        const saturdays = []
         for (let d = 1; d <= daysInMonth; d++) {
-          if (new Date(year, month, d).getDay() === 1) mondays.push(d)
+          if (new Date(year, month, d).getDay() === 6) saturdays.push(d)
         }
-        // 매월 1일
-        const monthlyDay = 1
+        // 마지막 토요일
+        const lastSaturday = saturdays[saturdays.length - 1]
 
         return (
           <div style={{ marginBottom:'16px' }}>
@@ -515,49 +564,60 @@ export function BlogAdmin({ user }) {
                     {Array.from({ length: daysInMonth }).map((_, i) => {
                       const d = i + 1
                       const isToday = d === today
-                      const isMonday = new Date(year, month, d).getDay() === 1
-                      const isFirst = d === 1
-                      const hasMark = isMonday || isFirst
+                      const isSaturday = new Date(year, month, d).getDay() === 6
+                      const isLastSaturday = d === lastSaturday
+                      const isWeekly = isSaturday && !isLastSaturday
+                      const isMonthly = isLastSaturday
+                      const hasMark = isWeekly || isMonthly
                       return (
-                        <div key={d} style={{ padding:'6px 2px', borderRadius:'6px', background: isToday ? '#f97316' : hasMark ? (isFirst ? '#fffbeb' : '#ecfeff') : 'transparent', border: hasMark && !isToday ? `1px solid ${isFirst ? '#fde68a' : '#a5f3fc'}` : 'none', position:'relative' }}>
+                        <div key={d} style={{ padding:'6px 2px', borderRadius:'6px', background: isToday ? '#f97316' : isMonthly ? '#fffbeb' : isWeekly ? '#ecfeff' : 'transparent', border: hasMark && !isToday ? `1px solid ${isMonthly ? '#fde68a' : '#a5f3fc'}` : 'none', position:'relative' }}>
                           <div style={{ fontSize:'12px', fontWeight: isToday ? 700 : 400, color: isToday ? '#fff' : '#374151' }}>{d}</div>
-                          {isFirst && !isToday && <div style={{ fontSize:'8px', color:'#d97706', lineHeight:1 }}>월간</div>}
-                          {isMonday && !isToday && <div style={{ fontSize:'8px', color:'#0891b2', lineHeight:1 }}>주간</div>}
+                          {isMonthly && !isToday && <div style={{ fontSize:'8px', color:'#d97706', lineHeight:1 }}>월간</div>}
+                          {isWeekly && !isToday && <div style={{ fontSize:'8px', color:'#0891b2', lineHeight:1 }}>주간</div>}
                         </div>
                       )
                     })}
                   </div>
                   <div style={{ display:'flex', gap:'12px', marginTop:'10px', flexWrap:'wrap' }}>
-                    <span style={{ fontSize:'11px', color:'#0891b2' }}>🔵 주간 체크 (매주 월요일)</span>
-                    <span style={{ fontSize:'11px', color:'#d97706' }}>🟡 월간 체크 (매월 1일)</span>
+                    <span style={{ fontSize:'11px', color:'#0891b2' }}>🔵 주간 체크 (매주 토요일)</span>
+                    <span style={{ fontSize:'11px', color:'#d97706' }}>🟡 월간 체크 (마지막 토요일)</span>
                     <span style={{ fontSize:'11px', color:'#f97316' }}>🟠 오늘</span>
                   </div>
                 </div>
 
                 {/* 루틴 섹션들 */}
                 <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
-                  {Object.entries(ROUTINES).map(([key, r]) => (
+                  {Object.entries(ROUTINES).map(([key, r]) => {
+                    const periodKey = key === 'publish' ? 'publish' : key === 'weekly' ? getWeekKey() : getMonthKey()
+                    return (
                     <div key={key} style={{ background: r.bg, border:`1.5px solid ${r.border}`, borderRadius:'10px', padding:'14px 16px' }}>
                       <div style={{ fontSize:'13px', fontWeight:800, color: r.color, marginBottom:'10px' }}>{r.label}</div>
                       <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-                        {r.items.map((item, ii) => (
-                          <div key={ii} style={{ display:'flex', gap:'10px', alignItems:'flex-start', background:'rgba(255,255,255,0.7)', borderRadius:'8px', padding:'10px 12px' }}>
-                            <span style={{ fontSize:'16px', flexShrink:0, marginTop:'1px' }}>☐</span>
+                        {r.items.map((item, ii) => {
+                          const mapKey = `${periodKey}__${ii}`
+                          const checked = !!routineChecks[mapKey]
+                          return (
+                          <div key={ii} onClick={() => toggleRoutineCheck(periodKey, String(ii))}
+                            style={{ display:'flex', gap:'10px', alignItems:'flex-start', background: checked ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.7)', borderRadius:'8px', padding:'10px 12px', cursor:'pointer', opacity: checked ? 0.75 : 1, transition:'all .15s' }}>
+                            <span style={{ fontSize:'16px', flexShrink:0, marginTop:'1px' }}>{checked ? '☑' : '☐'}</span>
                             <div style={{ flex:1 }}>
-                              <div style={{ fontSize:'13px', fontWeight:700, color:'#111827', marginBottom:'3px' }}>{item.text}</div>
+                              <div style={{ fontSize:'13px', fontWeight:700, color:'#111827', marginBottom:'3px', textDecoration: checked ? 'line-through' : 'none' }}>{item.text}</div>
                               <div style={{ fontSize:'12px', color:'#6b7280', lineHeight:1.6 }}>{item.desc}</div>
                             </div>
                             {item.link && (
                               <a href={item.link} target="_blank" rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
                                 style={{ fontSize:'11px', fontWeight:700, color: r.color, background:'rgba(255,255,255,0.9)', border:`1px solid ${r.border}`, borderRadius:'6px', padding:'3px 8px', textDecoration:'none', whiteSpace:'nowrap', flexShrink:0 }}>
                                 바로가기
                               </a>
                             )}
                           </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
