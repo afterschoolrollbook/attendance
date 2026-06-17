@@ -337,7 +337,83 @@ function Comments({ postId }) {
   )
 }
 
-function BlogDetail({ post, onBack }) {
+// ── 관련 글 추천 + 이전/다음 글 내부 링크
+function RelatedPosts({ post, allPosts, onSelect }) {
+  // 같은 카테고리 or 태그 겹치는 글 → 점수 계산
+  const scored = allPosts
+    .filter(p => p.id !== post.id)
+    .map(p => {
+      let score = 0
+      if (p.category && p.category === post.category) score += 3
+      const postTags = Array.isArray(post.tags) ? post.tags : []
+      const pTags = Array.isArray(p.tags) ? p.tags : []
+      pTags.forEach(t => { if (postTags.includes(t)) score += 2 })
+      // 제목 키워드 1글자 이상 겹치면 +1
+      const kw = (post.title || '').replace(/[^가-힣a-z0-9]/gi, ' ').split(/\s+/).filter(w => w.length > 1)
+      kw.forEach(w => { if ((p.title || '').includes(w)) score += 1 })
+      return { ...p, _score: score }
+    })
+    .filter(p => p._score > 0)
+    .sort((a, b) => b._score - a._score || new Date(b.publishedAt || b.createdAt) - new Date(a.publishedAt || a.createdAt))
+    .slice(0, 3)
+
+  // 이전/다음 글 (날짜순)
+  const sorted = [...allPosts].sort((a, b) => new Date(a.publishedAt || a.createdAt) - new Date(b.publishedAt || b.createdAt))
+  const idx = sorted.findIndex(p => p.id === post.id)
+  const prevPost = idx > 0 ? sorted[idx - 1] : null
+  const nextPost = idx < sorted.length - 1 ? sorted[idx + 1] : null
+
+  return (
+    <div style={{ marginTop: '48px' }}>
+      {/* 이전 / 다음 글 */}
+      {(prevPost || nextPost) && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '40px' }}>
+          {prevPost ? (
+            <button onClick={() => onSelect(prevPost)} style={{ textAlign: 'left', background: '#f9fafb', border: '1.5px solid #e5e7eb', borderRadius: '12px', padding: '16px 18px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.background = '#fff7ed' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.background = '#f9fafb' }}>
+              <div style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 600, marginBottom: '6px' }}>← 이전 글</div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#374151', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{prevPost.title}</div>
+            </button>
+          ) : <div />}
+          {nextPost ? (
+            <button onClick={() => onSelect(nextPost)} style={{ textAlign: 'right', background: '#f9fafb', border: '1.5px solid #e5e7eb', borderRadius: '12px', padding: '16px 18px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', transition: 'all .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.background = '#fff7ed' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.background = '#f9fafb' }}>
+              <div style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 600, marginBottom: '6px' }}>다음 글 →</div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#374151', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{nextPost.title}</div>
+            </button>
+          ) : <div />}
+        </div>
+      )}
+
+      {/* 관련 글 추천 */}
+      {scored.length > 0 && (
+        <div>
+          <div style={{ fontSize: '16px', fontWeight: 700, color: '#111827', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>📚</span> 이런 글도 읽어보세요
+          </div>
+          <div style={{ display: 'grid', gap: '12px' }}>
+            {scored.map(p => (
+              <button key={p.id} onClick={() => onSelect(p)} style={{ textAlign: 'left', background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: '12px', padding: '16px 20px', cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', transition: 'all .15s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(249,115,22,0.1)'; e.currentTarget.style.transform = 'translateX(4px)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateX(0)' }}>
+                <div style={{ minWidth: 0 }}>
+                  {p.category && <span style={{ fontSize: '11px', fontWeight: 700, color: '#f97316', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '999px', padding: '2px 8px', marginBottom: '6px', display: 'inline-block' }}>{p.category}</span>}
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827', lineHeight: 1.4, marginTop: '4px', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.title}</div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>{formatDate(p.publishedAt || p.createdAt)}</div>
+                </div>
+                <span style={{ color: '#f97316', fontSize: '18px', flexShrink: 0 }}>→</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BlogDetail({ post, onBack, allPosts, onSelect }) {
   useEffect(() => {
     setMeta(`${post.title} | 방과후 출석부 블로그`, post.summary || post.content?.replace(/[#*`>-]/g, '').slice(0, 160) || '', `${window.location.origin}/blog/${post.slug||post.id}`, post.coverImage)
     setJsonLd(post)
@@ -363,13 +439,28 @@ function BlogDetail({ post, onBack }) {
           {post.tags.map(tag => <span key={tag} style={{ fontSize:'12px', background:'#f3f4f6', color:'#374151', borderRadius:'999px', padding:'4px 12px', fontWeight:600 }}>#{tag}</span>)}
         </div>
       )}
-      {/* 설명서 유도 */}
-      <div style={{ marginTop:'40px', background:'#eff6ff', border:'2px solid #bfdbfe', borderRadius:'14px', padding:'20px 24px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'12px' }}>
-        <div>
-          <div style={{ fontSize:'15px', fontWeight:700, color:'#1e40af', marginBottom:'4px' }}>📖 사용 설명서 보기</div>
-          <div style={{ fontSize:'13px', color:'#3b82f6' }}>자세한 기능 사용법이 궁금하다면 설명서를 확인해보세요</div>
+      {/* 관련 글 + 이전/다음 */}
+      <RelatedPosts post={post} allPosts={allPosts || []} onSelect={onSelect} />
+      {/* 하단 유도 카드 3종 */}
+      <div style={{ marginTop:'40px', display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'12px' }}>
+        <div style={{ background:'#eff6ff', border:'2px solid #bfdbfe', borderRadius:'14px', padding:'20px', display:'flex', flexDirection:'column', gap:'10px' }}>
+          <div style={{ fontSize:'22px' }}>📖</div>
+          <div style={{ fontSize:'15px', fontWeight:700, color:'#1e40af' }}>사용 설명서 보기</div>
+          <div style={{ fontSize:'13px', color:'#3b82f6', lineHeight:1.6, flex:1 }}>자세한 기능 사용법이 궁금하다면 설명서를 확인해보세요</div>
+          <a href="/docs" style={{ display:'inline-block', padding:'8px 16px', background:'#3b82f6', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, textDecoration:'none', textAlign:'center' }}>설명서 보러가기 →</a>
         </div>
-        <a href="/docs" style={{ padding:'9px 20px', background:'#3b82f6', color:'#fff', borderRadius:'9px', fontSize:'13px', fontWeight:700, textDecoration:'none', whiteSpace:'nowrap' }}>설명서 보러가기 →</a>
+        <div style={{ background:'#f0fdf4', border:'2px solid #bbf7d0', borderRadius:'14px', padding:'20px', display:'flex', flexDirection:'column', gap:'10px' }}>
+          <div style={{ fontSize:'22px' }}>🚀</div>
+          <div style={{ fontSize:'15px', fontWeight:700, color:'#15803d' }}>쉽게 시작하기</div>
+          <div style={{ fontSize:'13px', color:'#16a34a', lineHeight:1.6, flex:1 }}>무료로 시작해서 출석 관리, 교구 관리를 한번에 해결하세요</div>
+          <a href="/" style={{ display:'inline-block', padding:'8px 16px', background:'#16a34a', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, textDecoration:'none', textAlign:'center' }}>무료로 시작하기 →</a>
+        </div>
+        <div style={{ background:'#f5f3ff', border:'2px solid #ddd6fe', borderRadius:'14px', padding:'20px', display:'flex', flexDirection:'column', gap:'10px' }}>
+          <div style={{ fontSize:'22px' }}>📋</div>
+          <div style={{ fontSize:'15px', fontWeight:700, color:'#6d28d9' }}>템플릿 보러가기</div>
+          <div style={{ fontSize:'13px', color:'#7c3aed', lineHeight:1.6, flex:1 }}>출석부, 가정통신문, 수업 계획서 등 무료 서식을 바로 받아가세요</div>
+          <a href="/templates" style={{ display:'inline-block', padding:'8px 16px', background:'#7c3aed', color:'#fff', borderRadius:'8px', fontSize:'13px', fontWeight:700, textDecoration:'none', textAlign:'center' }}>템플릿 보러가기 →</a>
+        </div>
       </div>
       {/* CTA */}
       <div style={{ marginTop:'24px', background:'linear-gradient(135deg,#fff7ed,#fff)', border:'2px solid #fed7aa', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
@@ -1010,7 +1101,7 @@ function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, tem
     if (selPost.type === 'template') return <TemplateDetail post={selPost} onBack={handleBack} />
     if ((selPost.boardType || selPost.type) === 'review') return <ReviewDetail post={selPost} onBack={handleBack} />
     if ((selPost.boardType || selPost.type) === 'request') return <RequestDetail post={selPost} onBack={handleBack} currentUser={currentUser} isAdmin={isAdmin} />
-    return <BlogDetail post={selPost} onBack={handleBack} />
+    return <BlogDetail post={selPost} onBack={handleBack} allPosts={blogPosts} onSelect={handleSelect} />
   }
   if (tab === 'docs') return <DocsList docs={docsPosts} onSelect={handleSelect} />
   if (tab === 'templates') return <TemplateList posts={templatePosts} onSelect={handleSelect} />
