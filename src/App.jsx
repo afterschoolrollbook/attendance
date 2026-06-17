@@ -210,7 +210,8 @@ function AppLoading({ message }) {
 
 function AppInner() {
   const [user, setUser] = useState(null)
-  const [showLanding, setShowLanding] = useState(true)   // ← 랜딩 페이지 표시 여부
+  // 새로고침 시 랜딩 스킵: sessionStorage에 이전 페이지 기록이 있으면 바로 앱으로
+  const [showLanding, setShowLanding] = useState(() => !sessionStorage.getItem('asa_visited'))   // ← 랜딩 페이지 표시 여부
   const [landingTarget, setLandingTarget] = useState('login') // 'login' | 'signup'
   const [page, setPage] = useState('dashboard')
   const [pageParams, setPageParams] = useState({})
@@ -337,6 +338,7 @@ function AppInner() {
             }
           }
           console.log('[init] setUser 호출, role:', fresh.role, 'accessExpiredAt:', fresh.accessExpiredAt)
+          sessionStorage.setItem('asa_visited', '1')  // 새로고침 시 랜딩 스킵용
           setUser(fresh)
           const pageParam = new URLSearchParams(search).get('page')
           if (pageParam) setPage(pageParam)
@@ -531,6 +533,7 @@ function AppInner() {
       setShowLoginLoading(false)
       setUser(u)
       sessionStorage.setItem('asa_user', JSON.stringify(u))
+      sessionStorage.setItem('asa_visited', '1')  // 새로고침 시 랜딩 스킵용
       const pageParam = new URLSearchParams(search).get('page')
       setPage(pageParam || 'dashboard')
       setPageParams({})
@@ -541,6 +544,7 @@ function AppInner() {
       setShowLoginLoading(false)
       setUser(foundUser)
       sessionStorage.setItem('asa_user', JSON.stringify(foundUser))
+      sessionStorage.setItem('asa_visited', '1')  // 새로고침 시 랜딩 스킵용
       const pageParam = new URLSearchParams(search).get('page')
       setPage(pageParam || 'dashboard')
       setPageParams({})
@@ -595,6 +599,7 @@ function AppInner() {
     await clearLocalCache()
     setUser(null)
     sessionStorage.removeItem('asa_user')
+    sessionStorage.removeItem('asa_visited')  // 로그아웃 시 랜딩 다시 보이게
   }
 
   function handleNav(p, params = {}) {
