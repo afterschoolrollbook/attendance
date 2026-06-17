@@ -57,7 +57,7 @@ export function BlogMenuManage({ user }) {
       // 한 번도 시드가 안 된 경우 기본 카테고리를 DB에 삽입
       if (blogCats.length === 0) {
         for (const label of DEFAULT_CATS) {
-          await dbCall('insert', 'customCategories', { d: { id: uid(), type: 'blog', label, createdAt: now(), updatedAt: now() } })
+          await dbCall('insert', 'customCategories', { data: { id: uid(), type: 'blog', label, createdAt: now(), updatedAt: now() } })
         }
         return loadCategories()
       }
@@ -71,7 +71,7 @@ export function BlogMenuManage({ user }) {
     if (DEFAULT_CATS.includes(label) || categories.find(c => c.label === label)) return alert('이미 있는 카테고리예요.')
     setCatLoading(true)
     try {
-      await dbCall('insert', 'customCategories', { d: { id: uid(), type: 'blog', label, createdAt: now(), updatedAt: now() } })
+      await dbCall('insert', 'customCategories', { data: { id: uid(), type: 'blog', label, createdAt: now(), updatedAt: now() } })
       setNewCat('')
       loadCategories()
       success(`"${label}" 카테고리가 추가되었습니다.`)
