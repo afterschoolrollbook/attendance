@@ -140,7 +140,7 @@ export function BlogAdmin({ user }) {
       }
       const payload = editId ? basePayload : { ...basePayload, createdAt: now() }
       if (editId) await dbCall('update', 'blogPosts', { id: editId, patch: payload })
-      else await dbCall('insert', 'blogPosts', payload)
+      else await dbCall('insert', 'blogPosts', { data: payload })
       success(finalStatus==='published' ? '발행되었습니다! 🎉' : '임시저장되었습니다.')
       loadPosts(); setView('list')
     } catch (e) { error('저장 실패: ' + e.message) }
