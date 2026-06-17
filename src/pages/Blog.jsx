@@ -126,9 +126,12 @@ function BlogList({ posts, onSelect, currentUser, loggedIn, writePerm, onPostSav
     const loadCats = async () => {
       try {
         const rows = await dbCall('getAll', 'customCategories')
-        const custom = (rows || []).filter(c => c.type === 'blog').map(c => c.name)
-        setAllCategories(['전체', ...DEFAULT_CATS, ...custom.filter(n => !DEFAULT_CATS.includes(n))])
-      } catch (e) { console.warn('[Blog] 카테고리 로딩 실패:', e) }
+        const custom = (rows || []).filter(c => c.type === 'blog' && c.label).map(c => c.label)
+        const merged = [...new Set([...DEFAULT_CATS, ...custom])]
+        setAllCategories(['전체', ...merged])
+      } catch (e) {
+        setAllCategories(['전체', ...DEFAULT_CATS])
+      }
     }
     loadCats()
   }, [])
