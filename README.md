@@ -1882,3 +1882,49 @@ if (showLanding && !user && !isSocialRedirect) { ... }
 ```
 
 **수정 파일:** `src/App.jsx`, `src/pages/Auth.jsx`
+
+---
+
+## Search Console 자동 색인 요청
+
+GitHub Actions로 매일 오전 9시(KST) 사이트맵 기반 URL을 자동으로 색인 요청합니다.
+
+### 파일 구조
+
+```
+.github/workflows/indexing.yml   ← 스케줄 및 실행 정의
+scripts/indexer.py               ← 색인 요청 스크립트
+```
+
+### 초기 설정 (한 번만)
+
+#### 1. Google Cloud 설정
+
+1. [Google Cloud Console](https://console.cloud.google.com/) 접속
+2. **API 라이브러리** → `Web Search Indexing API` 검색 → **사용 설정**
+3. **IAM → 서비스 계정** → 새 서비스 계정 생성 → **키 탭** → JSON 키 다운로드
+
+#### 2. Search Console에 서비스 계정 등록
+
+1. [Search Console](https://search.google.com/search-console/) → 해당 속성 → **설정 → 사용자 및 권한**
+2. **사용자 추가** → 서비스 계정 이메일(`xxx@xxx.iam.gserviceaccount.com`) → 권한: **소유자**
+
+#### 3. GitHub Secrets 등록
+
+레포지토리 → **Settings → Secrets and variables → Actions → New repository secret**
+
+| Secret 이름 | 값 |
+|---|---|
+| `SITE_URL` | `https://www.afterschoolrollbook.kr/` |
+| `SITEMAP_URL` | `https://www.afterschoolrollbook.kr/sitemap.xml` |
+| `GCP_SERVICE_ACCOUNT_JSON` | 다운로드한 JSON 파일 내용 전체 붙여넣기 |
+
+### 동작 방식
+
+| 항목 | 내용 |
+|---|---|
+| 실행 주기 | 매일 오전 9시 (KST) |
+| URL 소스 | 사이트맵 자동 파싱 (사이트맵 인덱스 포함) |
+| 일일 한도 | 190건 (API 한도 200건에서 안전 마진) |
+| 중복 방지 | 당일 이미 요청한 URL은 자동 스킵 |
+| 수동 실행 | Actions 탭 → **Run workflow** 버튼 |
