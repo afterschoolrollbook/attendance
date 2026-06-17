@@ -22,7 +22,20 @@ function getBoardPerms() {
 }
 
 function slugify(t) {
-  return t.toLowerCase().replace(/[^a-z0-9가-힣\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').trim() || uid()
+  if (!t) return uid()
+  let result = t.trim().toLowerCase()
+  const hasKorean = /[가-힣]/.test(result)
+  if (hasKorean) {
+    // 영문 단어가 섞여 있으면 영문 부분만 추출
+    const engParts = result.match(/[a-z0-9]+/g)
+    if (engParts && engParts.join('').length >= 2) {
+      result = engParts.join('-')
+    } else {
+      // 한글만 있는 경우: 타임스탬프 기반 슬러그 생성
+      result = 'post-' + Date.now().toString(36)
+    }
+  }
+  return result.replace(/[^a-z0-9-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'') || uid()
 }
 
 function sanitize(html) {
@@ -50,7 +63,7 @@ function parseMd(text) {
 const mdStyles = markdownPreviewStyles + `
 `
 
-const emptyForm = (author) => ({ title:'', content:'', category:'', tags:'', boardType:'blog', author:author||'', isPrivateRequest:false, scheduledAt:'' })
+const emptyForm = (author) => ({ title:'', slug:'', summary:'', coverImage:'', content:'', category:'', tags:'', boardType:'blog', author:author||'', isPrivateRequest:false, scheduledAt:'' })
 
 export function BlogWrite({ user, onLogout }) {
   const userLevel = user?.level || 1
@@ -104,7 +117,7 @@ export function BlogWrite({ user, onLogout }) {
   }
 
   const handleEdit = (post) => {
-    setForm({ title:post.title||'', content:post.content||'', category:post.category||'', tags:(post.tags||[]).join(', '), boardType:post.boardType||post.type||'blog', author:post.author||user?.name||'', isPrivateRequest:!!post.isPrivateRequest, scheduledAt: post.scheduledAt ? post.scheduledAt.slice(0,16) : '' })
+    setForm({ title:post.title||'', slug:post.slug||'', summary:post.summary||'', coverImage:post.coverImage||'', content:post.content||'', category:post.category||'', tags:(post.tags||[]).join(', '), boardType:post.boardType||post.type||'blog', author:post.author||user?.name||'', isPrivateRequest:!!post.isPrivateRequest, scheduledAt: post.scheduledAt ? post.scheduledAt.slice(0,16) : '' })
     setEditPost(post); setPreview(false); setView('write')
   }
 
@@ -125,6 +138,7 @@ export function BlogWrite({ user, onLogout }) {
       const tags = form.tags ? form.tags.split(',').map(t=>t.trim()).filter(Boolean) : []
       const isSecret = form.boardType === 'secret'
       const isPrivateRequest = form.boardType === 'request' && !!form.isPrivateRequest
+      const slug = form.slug.trim() || slugify(form.title)
       const payload = {
         id: editPost?.id || uid(),
         type: isSecret ? 'secret' : 'blog',
@@ -132,7 +146,9 @@ export function BlogWrite({ user, onLogout }) {
         isSecret,
         isPrivateRequest,
         title: form.title.trim(),
-        slug: editPost?.slug || slugify(form.title),
+        slug: editPost?.slug || slug,
+        summary: form.summary.trim(),
+        coverImage: form.coverImage.trim(),
         content: form.content,
         category: isSecret ? '비밀게시판' : form.boardType === 'qna' ? '질문' : form.boardType === 'review' ? '사용자 후기' : form.boardType === 'request' ? '부탁해요' : form.category,
         tags, author: form.author||user?.name, authorId: user?.id,
@@ -196,10 +212,42 @@ export function BlogWrite({ user, onLogout }) {
 
       <div style={{ display:'grid', gridTemplateColumns:preview?'1fr 1.2fr':'1fr', gap:'24px' }}>
         <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
-          <input value={form.title} onChange={e=>setForm(v=>({...v,title:e.target.value}))} placeholder="제목을 입력하세요"
+          <input value={form.title} onChange={e=>setForm(v=>({...v,title:e.target.value, slug:v.slug||slugify(e.target.value)}))} placeholder="제목을 입력하세요"
             style={{...iStyle, fontSize:'17px', fontWeight:700, padding:'12px 14px'}} />
 
           {tab === 'blog' && (
+            <>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px' }}>
+                <div>
+                  <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>URL 슬러그</div>
+                  <input value={form.slug} onChange={e=>setForm(v=>({...v,slug:e.target.value}))} placeholder="url-slug" style={iStyle} />
+                </div>
+                <div>
+                  <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>카테고리</div>
+                  <select value={form.category} onChange={e=>setForm(v=>({...v,category:e.target.value}))} style={{...iStyle, background:'#fff'}}>
+                    <option value="">카테고리 선택</option>
+                    {blogCategories.map(c=><option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>태그 (쉼표 구분)</div>
+                  <input value={form.tags} onChange={e=>setForm(v=>({...v,tags:e.target.value}))} placeholder="방과후, 출석, 팁" style={iStyle} />
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>요약 (SEO description)</div>
+                <textarea value={form.summary} onChange={e=>setForm(v=>({...v,summary:e.target.value}))} rows={2}
+                  placeholder="검색엔진에 표시될 요약 문구" maxLength={200}
+                  style={{...iStyle, resize:'vertical'}} />
+              </div>
+              <div>
+                <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>커버 이미지 URL</div>
+                <input value={form.coverImage} onChange={e=>setForm(v=>({...v,coverImage:e.target.value}))} placeholder="https://..." style={iStyle} />
+              </div>
+            </>
+          )}
+
+          {tab !== 'blog' && (
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
               <div>
                 <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>카테고리</div>

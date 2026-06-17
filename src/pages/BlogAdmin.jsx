@@ -34,7 +34,20 @@ const previewStyles = markdownPreviewStyles + `
 const iStyle = { width:'100%', padding:'9px 12px', borderRadius:'8px', border:'1.5px solid #e5e7eb', fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', background:'#fff' }
 
 function slugify(text) {
-  return text.toLowerCase().replace(/[^a-z0-9가-힣\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim()
+  if (!text) return ''
+  let result = text.trim().toLowerCase()
+  const hasKorean = /[가-힣]/.test(result)
+  if (hasKorean) {
+    // 영문 단어가 섞여 있으면 영문 부분만 추출
+    const engParts = result.match(/[a-z0-9]+/g)
+    if (engParts && engParts.join('').length >= 2) {
+      result = engParts.join('-')
+    } else {
+      // 한글만 있는 경우: 타임스탬프 기반 슬러그
+      result = 'post-' + Date.now().toString(36)
+    }
+  }
+  return result.replace(/[^a-z0-9-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'')
 }
 
 const emptyForm = () => ({
