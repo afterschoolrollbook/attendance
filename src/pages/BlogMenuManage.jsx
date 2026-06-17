@@ -52,49 +52,39 @@ export function BlogMenuManage({ user }) {
 
   const loadCategories = async () => {
     try {
-      console.log('[BlogMenuManage] loadCategories 시작')
       const rows = await dbCall('getAll', 'customCategories')
-      console.log('[BlogMenuManage] getAll 결과:', rows)
       const blogCats = (rows || []).filter(c => c.type === 'blog').sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-      console.log('[BlogMenuManage] blogCats:', blogCats)
       // 한 번도 시드가 안 된 경우 기본 카테고리를 DB에 삽입
       if (blogCats.length === 0) {
-        console.log('[BlogMenuManage] 카테고리 없음 → 기본값 INSERT 시작')
-        for (const name of DEFAULT_CATS) {
-          const payload = { id: uid(), type: 'blog', name, createdAt: now(), updatedAt: now() }
-          console.log('[BlogMenuManage] INSERT payload:', payload)
-          const result = await dbCall('insert', 'customCategories', { d: payload })
-          console.log('[BlogMenuManage] INSERT 결과:', result)
+        for (const label of DEFAULT_CATS) {
+          await dbCall('insert', 'customCategories', { d: { id: uid(), type: 'blog', label, createdAt: now(), updatedAt: now() } })
         }
         return loadCategories()
       }
       setCategories(blogCats)
-    } catch (e) {
-      console.error('[BlogMenuManage] 에러 발생:', e)
-      console.error('[BlogMenuManage] 에러 상세:', e.message, e.stack)
-    }
+    } catch (e) { console.warn('[BlogMenuManage]', e) }
   }
 
   const addCategory = async () => {
-    const name = newCat.trim()
-    if (!name) return
-    if (DEFAULT_CATS.includes(name) || categories.find(c => c.name === name)) return alert('이미 있는 카테고리예요.')
+    const label = newCat.trim()
+    if (!label) return
+    if (DEFAULT_CATS.includes(label) || categories.find(c => c.label === label)) return alert('이미 있는 카테고리예요.')
     setCatLoading(true)
     try {
-      await dbCall('insert', 'customCategories', { d: { id: uid(), type: 'blog', name, createdAt: now(), updatedAt: now() } })
+      await dbCall('insert', 'customCategories', { d: { id: uid(), type: 'blog', label, createdAt: now(), updatedAt: now() } })
       setNewCat('')
       loadCategories()
-      success(`"${name}" 카테고리가 추가되었습니다.`)
+      success(`"${label}" 카테고리가 추가되었습니다.`)
     } catch (e) { alert('추가 실패: ' + e.message) }
     setCatLoading(false)
   }
 
   const deleteCategory = async (cat) => {
-    if (!window.confirm(`"${cat.name}" 카테고리를 삭제할까요?`)) return
+    if (!window.confirm(`"${cat.label}" 카테고리를 삭제할까요?`)) return
     try {
       await dbCall('delete', 'customCategories', { id: cat.id })
       loadCategories()
-      success(`"${cat.name}" 카테고리가 삭제되었습니다.`)
+      success(`"${cat.label}" 카테고리가 삭제되었습니다.`)
     } catch (e) { alert('삭제 실패: ' + e.message) }
   }
 
@@ -130,7 +120,7 @@ export function BlogMenuManage({ user }) {
               <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
                 {categories.map(cat => (
                   <div key={cat.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 10px 5px 14px', borderRadius:'999px', background:'#fff7ed', border:'1.5px solid #fed7aa' }}>
-                    <span style={{ fontSize:'13px', fontWeight:600, color:'#c2410c' }}>{cat.name}</span>
+                    <span style={{ fontSize:'13px', fontWeight:600, color:'#c2410c' }}>{cat.label}</span>
                     <button onClick={() => deleteCategory(cat)} style={{ background:'none', border:'none', cursor:'pointer', color:'#f97316', fontSize:'14px', lineHeight:1, padding:'0 2px' }}>×</button>
                   </div>
                 ))}
