@@ -173,7 +173,14 @@ export async function dbCall(action, table, payload = {}) {
         q = q.gte('date', since)
       }
       const { data: rows, error } = await q
-      if (error) throw new Error(error.message)
+      // 테이블이 존재하지 않는 경우(400/42P01) 에러를 던지지 않고 빈 배열 반환
+      if (error) {
+        if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('Bad Request')) {
+          console.warn(`[dbCall] 테이블 없음 (${tbl}), 빈 배열 반환`)
+          return []
+        }
+        throw new Error(error.message)
+      }
       return (rows || []).map(fromDb)
     }
 
@@ -190,7 +197,14 @@ export async function dbCall(action, table, payload = {}) {
         q = q.eq(dbCol, val)
       }
       const { data: rows, error } = await q
-      if (error) throw new Error(error.message)
+      // 테이블이 존재하지 않는 경우(400/42P01) 에러를 던지지 않고 빈 배열 반환
+      if (error) {
+        if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('Bad Request')) {
+          console.warn(`[dbCall] 테이블 없음 (${tbl}), 빈 배열 반환`)
+          return []
+        }
+        throw new Error(error.message)
+      }
       return (rows || []).map(fromDb)
     }
 

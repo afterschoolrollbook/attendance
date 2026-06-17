@@ -453,7 +453,7 @@ const SYNC_TABLES = [
   'teacherServiceConfigs',
   'messageGuides', 'messageCategories',
   'teacherProfiles',
-  'documents', 'customCategories',
+  'documents',
   'schoolAdmins', 'schoolAdminAccounts',
   'schoolAdminTeachers', 'schoolSubjects', 'schoolTeacherInvites',
   'schoolNotices', 'schoolNoticeSubmits',
