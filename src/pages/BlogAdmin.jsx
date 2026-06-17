@@ -228,6 +228,28 @@ export function BlogAdmin({ user }) {
         </div>
       </div>
 
+      {/* 외부 도구 빠른 링크 */}
+      {isAdmin && (
+        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'16px', flexWrap:'wrap', padding:'10px 14px', background:'#f9fafb', borderRadius:'10px', border:'1.5px solid #e5e7eb' }}>
+          <span style={{ fontSize:'12px', fontWeight:700, color:'#9ca3af', marginRight:'4px', whiteSpace:'nowrap' }}>🔧 관리 도구</span>
+          <a href="https://www.google.com/adsense" target="_blank" rel="noopener noreferrer"
+            style={{ display:'flex', alignItems:'center', gap:'5px', padding:'5px 12px', borderRadius:'7px', border:'1.5px solid #fbbf24', background:'#fffbeb', color:'#d97706', fontSize:'12px', fontWeight:700, textDecoration:'none', whiteSpace:'nowrap' }}
+            title="Google AdSense 대시보드">
+            💰 애드센스
+          </a>
+          <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer"
+            style={{ display:'flex', alignItems:'center', gap:'5px', padding:'5px 12px', borderRadius:'7px', border:'1.5px solid #86efac', background:'#f0fdf4', color:'#16a34a', fontSize:'12px', fontWeight:700, textDecoration:'none', whiteSpace:'nowrap' }}
+            title="Google Search Console">
+            🔍 서치콘솔
+          </a>
+          <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer"
+            style={{ display:'flex', alignItems:'center', gap:'5px', padding:'5px 12px', borderRadius:'7px', border:'1.5px solid #93c5fd', background:'#eff6ff', color:'#2563eb', fontSize:'12px', fontWeight:700, textDecoration:'none', whiteSpace:'nowrap' }}
+            title="Google Analytics 4">
+            📊 애널리틱스
+          </a>
+        </div>
+      )}
+
       {/* 타입 필터 탭 + 내 글만 보기 */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px', marginBottom:'20px' }}>
         <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
