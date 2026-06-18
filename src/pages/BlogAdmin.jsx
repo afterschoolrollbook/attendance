@@ -669,6 +669,21 @@ export function BlogAdmin({ user }) {
         const daysInMonth = new Date(year, month + 1, 0).getDate()
         const monthName = `${year}년 ${month + 1}월`
 
+        // 이번 달 발행된 글 날짜별 카운트
+        const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`
+        const dailyPostCount = {}
+        let monthlyPostCount = 0
+        posts.forEach(p => {
+          if (p.status === 'published' && p.publishedAt) {
+            const dateStr = p.publishedAt.slice(0, 10)
+            if (dateStr.startsWith(monthStr)) {
+              const day = parseInt(dateStr.slice(8, 10))
+              dailyPostCount[day] = (dailyPostCount[day] || 0) + 1
+              monthlyPostCount++
+            }
+          }
+        })
+
         // 매주 토요일 날짜들
         const saturdays = []
         for (let d = 1; d <= daysInMonth; d++) {
@@ -681,7 +696,12 @@ export function BlogAdmin({ user }) {
           <div style={{ marginBottom:'16px' }}>
             <button onClick={() => setShowRoutine(v => !v)}
               style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:'#f9fafb', borderRadius: showRoutine ? '10px 10px 0 0' : '10px', border:'1.5px solid #e5e7eb', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-              <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>📆 루틴 체크리스트 — {monthName}</span>
+              <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>📆 루틴 체크리스트 — {monthName}</span>
+                <span style={{ fontSize:'12px', fontWeight:700, color:'#f97316', background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'6px', padding:'2px 8px' }}>
+                  이번 달 발행 {monthlyPostCount}편
+                </span>
+              </div>
               <span style={{ fontSize:'12px', color:'#9ca3af' }}>{showRoutine ? '▲ 접기' : '▼ 펼치기'}</span>
             </button>
 
@@ -703,11 +723,17 @@ export function BlogAdmin({ user }) {
                       const isWeekly = isSaturday && !isLastSaturday
                       const isMonthly = isLastSaturday
                       const hasMark = isWeekly || isMonthly
+                      const postCount = dailyPostCount[d] || 0
                       return (
-                        <div key={d} style={{ padding:'6px 2px', borderRadius:'6px', background: isToday ? '#f97316' : isMonthly ? '#fffbeb' : isWeekly ? '#ecfeff' : 'transparent', border: hasMark && !isToday ? `1px solid ${isMonthly ? '#fde68a' : '#a5f3fc'}` : 'none', position:'relative' }}>
+                        <div key={d} style={{ padding:'4px 2px', borderRadius:'6px', background: isToday ? '#f97316' : isMonthly ? '#fffbeb' : isWeekly ? '#ecfeff' : 'transparent', border: hasMark && !isToday ? `1px solid ${isMonthly ? '#fde68a' : '#a5f3fc'}` : 'none', position:'relative', minHeight:'38px', display:'flex', flexDirection:'column', alignItems:'center', gap:'2px' }}>
                           <div style={{ fontSize:'12px', fontWeight: isToday ? 700 : 400, color: isToday ? '#fff' : '#374151' }}>{d}</div>
                           {isMonthly && !isToday && <div style={{ fontSize:'8px', color:'#d97706', lineHeight:1 }}>월간</div>}
                           {isWeekly && !isToday && <div style={{ fontSize:'8px', color:'#0891b2', lineHeight:1 }}>주간</div>}
+                          {postCount > 0 && (
+                            <div style={{ fontSize:'10px', fontWeight:700, color: isToday ? '#fff' : '#f97316', background: isToday ? 'rgba(255,255,255,0.25)' : '#fff7ed', borderRadius:'4px', padding:'0px 4px', lineHeight:'16px' }}>
+                              +{postCount}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
