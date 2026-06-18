@@ -83,6 +83,7 @@ export function BlogAdmin({ user }) {
   const [showRoutine, setShowRoutine] = useState(false)
   const [routineChecks, setRoutineChecks] = useState({})
   const [checklistChecks, setChecklistChecks] = useState({})
+  const [collapsedRoutines, setCollapsedRoutines] = useState({})
 
   const getWeekKey = () => {
     const now = new Date()
@@ -179,11 +180,11 @@ export function BlogAdmin({ user }) {
         const found = (rows || []).find(r => r.period_key === periodKey && r.routine_key === routineKey)
         if (found) await dbCall('delete', 'routineChecks', { id: found.id })
       } else {
-        await dbCall('insert', 'routineChecks', { data: {
-          id: `${periodKey}__${routineKey}__${user?.id || 'admin'}`,
+        await dbCall('upsert', 'routineChecks', { data: {
+          id: `${periodKey}__${routineKey}`,
           period_key: periodKey,
           routine_key: routineKey,
-          user_id: user?.id || null,
+          user_id: null,
           checked_at: new Date().toISOString(),
         }})
       }
@@ -761,35 +762,49 @@ export function BlogAdmin({ user }) {
                 </div>
 
                 {/* 루틴 섹션들 */}
-                <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+                <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
                   {Object.entries(ROUTINES).map(([key, r]) => {
                     const periodKey = key === 'publish' ? 'publish' : key === 'weekly' ? getWeekKey() : getMonthKey()
+                    const isCollapsed = !!collapsedRoutines[key]
+                    const checkedCount = r.items.filter((_, ii) => !!routineChecks[`${periodKey}__${ii}`]).length
+                    const total = r.items.length
                     return (
-                    <div key={key} style={{ background: r.bg, border:`1.5px solid ${r.border}`, borderRadius:'10px', padding:'14px 16px' }}>
-                      <div style={{ fontSize:'13px', fontWeight:800, color: r.color, marginBottom:'10px' }}>{r.label}</div>
-                      <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-                        {r.items.map((item, ii) => {
-                          const mapKey = `${periodKey}__${ii}`
-                          const checked = !!routineChecks[mapKey]
-                          return (
-                          <div key={ii} onClick={() => toggleRoutineCheck(periodKey, String(ii))}
-                            style={{ display:'flex', gap:'10px', alignItems:'flex-start', background: checked ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.7)', borderRadius:'8px', padding:'10px 12px', cursor:'pointer', opacity: checked ? 0.75 : 1, transition:'all .15s' }}>
-                            <span style={{ fontSize:'16px', flexShrink:0, marginTop:'1px' }}>{checked ? '☑' : '☐'}</span>
-                            <div style={{ flex:1 }}>
-                              <div style={{ fontSize:'13px', fontWeight:700, color:'#111827', marginBottom:'3px', textDecoration: checked ? 'line-through' : 'none' }}>{item.text}</div>
-                              <div style={{ fontSize:'12px', color:'#6b7280', lineHeight:1.6 }}>{item.desc}</div>
+                    <div key={key} style={{ border:`1.5px solid ${r.border}`, borderRadius:'10px', overflow:'hidden' }}>
+                      <button onClick={() => setCollapsedRoutines(v => ({ ...v, [key]: !v[key] }))}
+                        style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background: r.bg, border:'none', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                          <span style={{ fontSize:'13px', fontWeight:800, color: r.color }}>{r.label}</span>
+                          <span style={{ fontSize:'11px', fontWeight:600, color: checkedCount === total ? '#16a34a' : r.color, background:'rgba(255,255,255,0.7)', borderRadius:'10px', padding:'1px 8px' }}>
+                            {checkedCount}/{total}
+                          </span>
+                        </div>
+                        <span style={{ fontSize:'11px', color: r.color }}>{isCollapsed ? '▼' : '▲'}</span>
+                      </button>
+                      {!isCollapsed && (
+                        <div style={{ background: r.bg, padding:'0 14px 12px', display:'flex', flexDirection:'column', gap:'8px' }}>
+                          {r.items.map((item, ii) => {
+                            const mapKey = `${periodKey}__${ii}`
+                            const checked = !!routineChecks[mapKey]
+                            return (
+                            <div key={ii} onClick={() => toggleRoutineCheck(periodKey, String(ii))}
+                              style={{ display:'flex', gap:'10px', alignItems:'flex-start', background: checked ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.7)', borderRadius:'8px', padding:'10px 12px', cursor:'pointer', opacity: checked ? 0.75 : 1, transition:'all .15s' }}>
+                              <span style={{ fontSize:'16px', flexShrink:0, marginTop:'1px' }}>{checked ? '☑' : '☐'}</span>
+                              <div style={{ flex:1 }}>
+                                <div style={{ fontSize:'13px', fontWeight:700, color:'#111827', marginBottom:'3px', textDecoration: checked ? 'line-through' : 'none' }}>{item.text}</div>
+                                <div style={{ fontSize:'12px', color:'#6b7280', lineHeight:1.6 }}>{item.desc}</div>
+                              </div>
+                              {item.link && (
+                                <a href={item.link} target="_blank" rel="noopener noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  style={{ fontSize:'11px', fontWeight:700, color: r.color, background:'rgba(255,255,255,0.9)', border:`1px solid ${r.border}`, borderRadius:'6px', padding:'3px 8px', textDecoration:'none', whiteSpace:'nowrap', flexShrink:0 }}>
+                                  바로가기
+                                </a>
+                              )}
                             </div>
-                            {item.link && (
-                              <a href={item.link} target="_blank" rel="noopener noreferrer"
-                                onClick={e => e.stopPropagation()}
-                                style={{ fontSize:'11px', fontWeight:700, color: r.color, background:'rgba(255,255,255,0.9)', border:`1px solid ${r.border}`, borderRadius:'6px', padding:'3px 8px', textDecoration:'none', whiteSpace:'nowrap', flexShrink:0 }}>
-                                바로가기
-                              </a>
-                            )}
-                          </div>
-                          )
-                        })}
-                      </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                     )
                   })}
