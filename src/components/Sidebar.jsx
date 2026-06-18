@@ -17,7 +17,7 @@ const NAV = [
   { path: 'supplies',        label: '교구준비 및 관리', icon: '🎒' },
   { path: 'messageguide',    label: '안내 문구 관리',   icon: '💬' },
   { path: 'profile',         label: '내 정보',          icon: '👤' },
-  { path: 'blog_write',      label: '블로그',            icon: '📝' },
+  { path: 'blog_write',      label: '게시판',            icon: '📝' },
 ]
 
 const MY_NAV_FIXED = [
@@ -38,9 +38,9 @@ const ADMIN_NAV = [
   { path: 'level_manage',   label: '등급 관리',  icon: '🎖️', feature: FEATURES.MANAGE_LEVEL },
   { path: 'admin_settings', label: '서비스 설정', icon: '🔧', feature: FEATURES.MANAGE_AD },
   { path: 'adsense',        label: '광고 관리',  icon: '📢', feature: FEATURES.MANAGE_AD },
-  { path: 'blog_admin',     label: '블로그 관리', icon: '📝', feature: FEATURES.MANAGE_AD },
-  { path: 'blog_menu_manage',     label: '블로그 메뉴관리',  icon: '📋', feature: FEATURES.MANAGE_AD },
-  { path: 'blog_ai_write',  label: 'AI 블로그 글쓰기', icon: '✨', feature: FEATURES.MANAGE_AD },
+  { path: 'blog_admin',     label: '게시판 관리', icon: '📝', feature: FEATURES.MANAGE_AD },
+  { path: 'blog_menu_manage',     label: '게시판 메뉴관리',  icon: '📋', feature: FEATURES.MANAGE_AD },
+  { path: 'blog_ai_write',  label: 'AI 게시판 글쓰기', icon: '✨', feature: FEATURES.MANAGE_AD },
   { path: 'region_manage',         label: '지역/학교 관리',   icon: '🗺️', feature: FEATURES.MANAGE_AD },
   { path: 'teacher_service_manage',label: '강사 서비스 관리', icon: '🎓', feature: FEATURES.MANAGE_AD },
   { path: 'demo_data',             label: '데모 데이터 생성', icon: '🎬', feature: FEATURES.MANAGE_AD },
