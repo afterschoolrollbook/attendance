@@ -120,9 +120,10 @@ export function BlogAdmin({ user }) {
         if (found) await dbCall('delete', 'routineChecks', { id: found.id })
       } else {
         await dbCall('insert', 'routineChecks', { data: {
+          id: `checklist__${key}`,
           period_key: 'checklist',
           routine_key: key,
-          user_id: user?.id || null,
+          user_id: null,
           checked_at: new Date().toISOString(),
         }})
       }
