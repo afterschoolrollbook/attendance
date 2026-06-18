@@ -119,7 +119,7 @@ export function BlogAdmin({ user }) {
         const found = (rows || []).find(r => r.period_key === 'checklist' && r.routine_key === key)
         if (found) await dbCall('delete', 'routineChecks', { id: found.id })
       } else {
-        await dbCall('insert', 'routineChecks', { data: {
+        await dbCall('upsert', 'routineChecks', { data: {
           id: `checklist__${key}`,
           period_key: 'checklist',
           routine_key: key,
