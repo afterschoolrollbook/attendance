@@ -102,31 +102,55 @@ export function BlogAdmin({ user }) {
       const map = {}
       ;(rows || []).forEach(r => {
         if (r.period_key === 'checklist') {
-          map[r.routine_key] = true
+          // checked_at이 있으면 체크됨, null이면 명시적으로 해제됨
+          map[r.routine_key] = !!r.checked_at
         }
       })
       setChecklistChecks(map)
     } catch(e) { console.warn('체크리스트 로딩 실패', e) }
   }
 
-  const toggleChecklistItem = async (panelKey, sectionIdx, itemIdx) => {
-    const key = `${panelKey}__${sectionIdx}__${itemIdx}`
-    const isChecked = !!checklistChecks[key]
-    setChecklistChecks(v => ({ ...v, [key]: !isChecked }))
+  const seedDoneItems = async (panels) => {
+    // done:true 항목 중 DB에 없는 것만 최초 1회 upsert
     try {
-      if (isChecked) {
-        const rows = await dbCall('getAll', 'routineChecks')
-        const found = (rows || []).find(r => r.period_key === 'checklist' && r.routine_key === key)
-        if (found) await dbCall('delete', 'routineChecks', { id: found.id })
-      } else {
-        await dbCall('upsert', 'routineChecks', { data: {
-          id: `checklist__${key}`,
-          period_key: 'checklist',
-          routine_key: key,
-          user_id: null,
-          checked_at: new Date().toISOString(),
-        }})
+      const rows = await dbCall('getAll', 'routineChecks')
+      const existing = new Set((rows || []).filter(r => r.period_key === 'checklist').map(r => r.routine_key))
+      for (const [panelKey, panel] of Object.entries(panels)) {
+        panel.sections.forEach((sec, si) => {
+          sec.items.forEach((item, ii) => {
+            if (item.done && !item.text.startsWith('🤖')) {
+              const key = `${panelKey}__${si}__${ii}`
+              if (!existing.has(key)) {
+                dbCall('upsert', 'routineChecks', { data: {
+                  id: `checklist__${key}`,
+                  period_key: 'checklist',
+                  routine_key: key,
+                  user_id: null,
+                  checked_at: new Date().toISOString(),
+                }})
+              }
+            }
+          })
+        })
       }
+    } catch(e) { console.warn('done 항목 시드 실패', e) }
+  }
+
+  const toggleChecklistItem = async (panelKey, sectionIdx, itemIdx, itemDone) => {
+    const key = `${panelKey}__${sectionIdx}__${itemIdx}`
+    // DB에 저장된 값 우선, 없으면 item.done 기본값 사용
+    const currentState = key in checklistChecks ? checklistChecks[key] : (itemDone || false)
+    const newState = !currentState
+    setChecklistChecks(v => ({ ...v, [key]: newState }))
+    try {
+      await dbCall('upsert', 'routineChecks', { data: {
+        id: `checklist__${key}`,
+        period_key: 'checklist',
+        routine_key: key,
+        user_id: null,
+        checked_at: newState ? new Date().toISOString() : null,
+        // checked_at null이면 해제 상태로 간주
+      }})
     } catch(e) { console.warn('체크리스트 저장 실패', e) }
   }
 
@@ -569,10 +593,11 @@ export function BlogAdmin({ user }) {
                         {sec.items.map((item, ii) => {
                           const ck = `${activeToolPanel}__${si}__${ii}`
                           const isAuto = item.text.startsWith('🤖') // 🤖로 시작하는 항목만 자동완료 (클릭 불가)
-                          const isChecked = isAuto || item.done || !!checklistChecks[ck]
+                          // DB에 기록이 있으면 DB값 우선, 없으면 item.done 기본값
+                          const isChecked = isAuto || (ck in checklistChecks ? checklistChecks[ck] : (item.done || false))
                           return (
                             <div key={ii}
-                              onClick={() => !isAuto && toggleChecklistItem(activeToolPanel, si, ii)}
+                              onClick={() => !isAuto && toggleChecklistItem(activeToolPanel, si, ii, item.done)}
                               style={{ display:'flex', gap:'10px', alignItems:'flex-start', background:'rgba(255,255,255,0.7)', borderRadius:'8px', padding:'10px 12px', cursor: isAuto ? 'default' : 'pointer', opacity: isChecked ? 0.75 : 1, transition:'all .15s' }}>
                               <span style={{ fontSize:'18px', flexShrink:0, marginTop:'0px', color: isChecked ? '#16a34a' : '#9ca3af' }}>
                                 {isChecked ? '☑' : '☐'}
