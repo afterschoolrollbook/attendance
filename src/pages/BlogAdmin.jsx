@@ -82,6 +82,7 @@ export function BlogAdmin({ user }) {
   const [activeToolPanel, setActiveToolPanel] = useState(null)
   const [showRoutine, setShowRoutine] = useState(false)
   const [routineChecks, setRoutineChecks] = useState({})
+  const [checklistChecks, setChecklistChecks] = useState({})
 
   const getWeekKey = () => {
     const now = new Date()
@@ -93,6 +94,40 @@ export function BlogAdmin({ user }) {
   const getMonthKey = () => {
     const now = new Date()
     return `${now.getFullYear()}-M${now.getMonth() + 1}`
+  }
+
+  const loadChecklistChecks = async () => {
+    try {
+      const rows = await dbCall('getAll', 'routineChecks')
+      const map = {}
+      ;(rows || []).forEach(r => {
+        if (r.period_key === 'checklist') {
+          map[r.routine_key] = true
+        }
+      })
+      setChecklistChecks(map)
+    } catch(e) { console.warn('체크리스트 로딩 실패', e) }
+  }
+
+  const toggleChecklistItem = async (panelKey, sectionIdx, itemIdx) => {
+    const key = `${panelKey}__${sectionIdx}__${itemIdx}`
+    const isChecked = !!checklistChecks[key]
+    setChecklistChecks(v => ({ ...v, [key]: !isChecked }))
+    try {
+      if (isChecked) {
+        const rows = await dbCall('getAll', 'routineChecks')
+        const found = (rows || []).find(r => r.period_key === 'checklist' && r.routine_key === key)
+        if (found) await dbCall('delete', 'routineChecks', { id: found.id })
+      } else {
+        await dbCall('insert', 'routineChecks', { data: {
+          id: `checklist__${key}`,
+          period_key: 'checklist',
+          routine_key: key,
+          user_id: user?.id || null,
+          checked_at: new Date().toISOString(),
+        }})
+      }
+    } catch(e) { console.warn('체크리스트 저장 실패', e) }
   }
 
   const loadRoutineChecks = async () => {
@@ -137,7 +172,7 @@ export function BlogAdmin({ user }) {
     canWriteNotice ? true : (c !== '공지사항' && c !== '업데이트')
   )
 
-  useEffect(() => { loadPosts(); loadCategories(); loadRoutineChecks() }, [])
+  useEffect(() => { loadPosts(); loadCategories(); loadRoutineChecks(); loadChecklistChecks() }, [])
 
   const loadCategories = async () => {
     try {
@@ -531,15 +566,25 @@ export function BlogAdmin({ user }) {
                     <div key={si} style={{ background: sec.bg, border:`1.5px solid ${sec.border}`, borderRadius:'10px', padding:'14px 16px' }}>
                       <div style={{ fontSize:'13px', fontWeight:800, color: sec.color, marginBottom:'10px' }}>{sec.title}</div>
                       <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-                        {sec.items.map((item, ii) => (
-                          <div key={ii} style={{ display:'flex', gap:'10px', alignItems:'flex-start', background:'rgba(255,255,255,0.7)', borderRadius:'8px', padding:'10px 12px' }}>
-                            <span style={{ fontSize:'16px', flexShrink:0, marginTop:'1px' }}>☐</span>
-                            <div>
-                              <div style={{ fontSize:'13px', fontWeight:700, color:'#111827', marginBottom:'3px' }}>{item.text}</div>
-                              <div style={{ fontSize:'12px', color:'#6b7280', lineHeight:1.6 }}>{item.desc}</div>
+                        {sec.items.map((item, ii) => {
+                          const ck = `${activeToolPanel}__${si}__${ii}`
+                          const isChecked = item.done || !!checklistChecks[ck]
+                          const isAuto = item.done // 코드에 done:true인 항목은 자동완료라 클릭 불가
+                          return (
+                            <div key={ii}
+                              onClick={() => !isAuto && toggleChecklistItem(activeToolPanel, si, ii)}
+                              style={{ display:'flex', gap:'10px', alignItems:'flex-start', background:'rgba(255,255,255,0.7)', borderRadius:'8px', padding:'10px 12px', cursor: isAuto ? 'default' : 'pointer', opacity: isChecked ? 0.75 : 1, transition:'all .15s' }}>
+                              <span style={{ fontSize:'18px', flexShrink:0, marginTop:'0px', color: isChecked ? '#16a34a' : '#9ca3af' }}>
+                                {isChecked ? '☑' : '☐'}
+                              </span>
+                              <div style={{ flex:1 }}>
+                                <div style={{ fontSize:'13px', fontWeight:700, color: isChecked ? '#6b7280' : '#111827', marginBottom:'3px', textDecoration: isChecked && !isAuto ? 'line-through' : 'none' }}>{item.text}</div>
+                                <div style={{ fontSize:'12px', color:'#6b7280', lineHeight:1.6 }}>{item.desc}</div>
+                              </div>
+                              {isAuto && <span style={{ fontSize:'11px', color:'#16a34a', fontWeight:700, flexShrink:0, marginTop:'2px' }}>자동완료</span>}
                             </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   ))}
