@@ -462,16 +462,16 @@ export function BlogAdmin({ user }) {
                 ]
               },
               {
-                title: '🔴 필수 등록 (아직 안 됨)',
-                color: '#991b1b', bg: '#fef2f2', border: '#fca5a5',
+                title: '✅ 필수 등록 완료',
+                color: '#065f46', bg: '#d1fae5', border: '#6ee7b7',
                 items: [
                   { done: true, text: '네이버 서치어드바이저 등록 완료', desc: '소유권 인증 ✅ · sitemap 제출 완료 ✅' },
                   { done: true, text: '빙 웹마스터 도구 등록 완료', desc: '구글 서치콘솔에서 수입 · sitemap 자동 연동 완료 ✅' },
                 ]
               },
               {
-                title: '🟡 선택 등록 (권장)',
-                color: '#92400e', bg: '#fffbeb', border: '#fde68a',
+                title: '✅ 선택 등록 완료',
+                color: '#065f46', bg: '#d1fae5', border: '#6ee7b7',
                 items: [
                   { done: true, text: '다음(카카오) 검색 등록 완료', desc: '사이트 등록 신청 완료 ✅' },
                   { done: true, text: '줌(ZUM) 등록 완료', desc: '구글·다음 등록 시 자동 수집 ✅ (별도 등록 불필요)' },
