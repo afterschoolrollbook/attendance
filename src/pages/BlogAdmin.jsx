@@ -568,8 +568,8 @@ export function BlogAdmin({ user }) {
                       <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
                         {sec.items.map((item, ii) => {
                           const ck = `${activeToolPanel}__${si}__${ii}`
-                          const isChecked = item.done || !!checklistChecks[ck]
-                          const isAuto = item.done // 코드에 done:true인 항목은 자동완료라 클릭 불가
+                          const isAuto = item.text.startsWith('🤖') // 🤖로 시작하는 항목만 자동완료 (클릭 불가)
+                          const isChecked = isAuto || item.done || !!checklistChecks[ck]
                           return (
                             <div key={ii}
                               onClick={() => !isAuto && toggleChecklistItem(activeToolPanel, si, ii)}
