@@ -353,6 +353,7 @@ export function BlogAdmin({ user }) {
                   { done: false, text: '새 글 발행 후 URL 즉시 검사 요청', desc: 'URL 검사 → 색인 생성 요청 — 구글이 빠르게 크롤링하도록 유도' },
                   { done: false, text: '모바일 사용성 오류 확인', desc: '경험 → 모바일 사용성 — 터치 요소 간격·뷰포트 설정 등 오류 수정' },
                   { done: false, text: 'Core Web Vitals 점수 확인', desc: 'LCP·INP·CLS 점수 — 낮으면 이미지 최적화·레이아웃 안정성 개선 필요' },
+                  { done: true, text: '✅ 사이트맵 URL 자동 색인 요청 완료', desc: 'GitHub Actions로 매일 오전 9시(KST) 자동 실행 — Indexing API로 전체 URL 색인 요청' },
                 ]
               }
             ]
@@ -382,6 +383,7 @@ export function BlogAdmin({ user }) {
                   { done: false, text: '인기 페이지 TOP 10 확인', desc: '참여 → 페이지 및 화면 — 어떤 글이 잘 읽히는지 파악해서 유사 글 작성' },
                   { done: false, text: '이탈률·평균 참여 시간 확인', desc: '참여 시간이 짧으면 콘텐츠 도입부 개선 필요 / 이탈률 높으면 내부 링크 강화' },
                   { done: false, text: '기기별·지역별 접속 현황', desc: '모바일 비율이 높으면 모바일 UX를 우선 최적화' },
+                  { done: true, text: '✅ 주간/월간 리포트 이메일 자동 발송 완료', desc: 'GA4 → 리포트 → 공유 → 이메일 예약 전송으로 설정 완료' },
                 ]
               }
             ]
