@@ -57,13 +57,23 @@ function getMenuConfig() {
 }
 
 // ─── 권한 레벨 배지 (Sidebar 밖으로 분리)
-function UserBadge({ levelColor, levelLabel }) {
+function UserBadge({ levelColor, levelLabel, onClick }) {
+  const [hovered, setHovered] = React.useState(false)
   return (
-    <div style={{
-      display:'inline-block', fontSize:'11px', fontWeight:600, padding:'2px 8px', borderRadius:'999px',
-      background:`${levelColor}22`, color:levelColor, border:`1px solid ${levelColor}44`,
-    }}>
+    <div
+      onClick={onClick}
+      onMouseEnter={() => { if(onClick) setHovered(true) }}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display:'inline-flex', alignItems:'center', gap:'4px',
+        fontSize:'11px', fontWeight:600, padding:'3px 9px', borderRadius:'999px',
+        background: hovered ? `${levelColor}44` : `${levelColor}22`,
+        color:levelColor, border:`1px solid ${hovered ? levelColor : levelColor + '44'}`,
+        cursor: onClick ? 'pointer' : 'default',
+        transition:'all .15s', userSelect:'none',
+      }}>
       {levelLabel}
+      {onClick && <span style={{ fontSize:'10px', opacity: hovered ? 1 : 0.5, transition:'opacity .15s' }}>✏️</span>}
     </div>
   )
 }
@@ -87,8 +97,9 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
 
   const [lockModal, setLockModal] = React.useState(null)
   const [previewOpen, setPreviewOpen] = React.useState(false)
-  const isRealAdmin = realUser?.level >= 10 || realUser?.role === 'admin'
-  const isPreviewActive = isRealAdmin && previewLevel !== null
+  // realUser가 없으면 user 자체로 판단 (방어)
+  const isRealAdmin = (realUser?.level >= 10 || realUser?.role === 'admin') || (user?.level >= 10 || user?.role === 'admin')
+  const isPreviewActive = isRealAdmin && previewLevel !== null && previewLevel !== (realUser?.level || user?.level)
 
   const handleMenuClick = (path) => {
     if (!canAccessMenu(user, path)) {
@@ -238,21 +249,28 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
           <button onClick={onClose} style={{ background:'none', border:'none', color:'#71717a', fontSize:'22px', cursor:'pointer', padding:'2px 6px' }}>✕</button>
         </div>
         <div style={{ padding:'14px 16px', borderBottom:'1px solid #27272a' }}>
-          <div style={{ fontSize:'14px', fontWeight:600, color:'#fff', marginBottom:'4px' }}>{user?.name}</div>
+          <div style={{ fontSize:'14px', fontWeight:600, color:'#fff', marginBottom:'6px' }}>{user?.name}</div>
           {isPreviewActive ? (
-            <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
-              <UserBadge levelColor={realLevelColor} levelLabel={realLevelLabel} />
-              <span style={{ fontSize:'11px', color:'#71717a' }}>⇒</span>
-              <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+            <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'5px', flexWrap:'wrap' }}>
+                <UserBadge levelColor={realLevelColor} levelLabel={realLevelLabel} />
+                <span style={{ fontSize:'10px', color:'#52525b' }}>→</span>
+                <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+              </div>
               <button onClick={() => onSetPreviewLevel(null)}
-                style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'999px', border:'1px solid #3a3a3c', background:'#2c2c2e', color:'#a1a1aa', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:500 }}>
-                ↩ 복귀
+                style={{ alignSelf:'flex-start', fontSize:'11px', padding:'3px 10px', borderRadius:'6px', border:'1px solid #3f3f46', background:'#27272a', color:'#a1a1aa', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                ↩ 원래 레벨로 복귀
               </button>
             </div>
           ) : (
-            <div onClick={isRealAdmin ? () => setPreviewOpen(true) : undefined}
-              style={{ cursor: isRealAdmin ? 'pointer' : 'default', display:'inline-flex' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
               <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+              {isRealAdmin && (
+                <button onClick={() => setPreviewOpen(true)}
+                  style={{ alignSelf:'flex-start', fontSize:'11px', padding:'3px 10px', borderRadius:'6px', border:'1px solid #3f3f46', background:'#27272a', color:'#71717a', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                  🎭 레벨 미리보기
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -285,21 +303,28 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
         </div>
       </div>
       <div style={{ padding:'16px 20px', borderBottom:'1px solid #27272a' }}>
-        <div style={{ fontSize:'14px', fontWeight:600, color:'#fff', marginBottom:'4px' }}>{user?.name}</div>
+        <div style={{ fontSize:'14px', fontWeight:600, color:'#fff', marginBottom:'6px' }}>{user?.name}</div>
         {isPreviewActive ? (
-          <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
-            <UserBadge levelColor={realLevelColor} levelLabel={realLevelLabel} />
-            <span style={{ fontSize:'11px', color:'#71717a' }}>⇒</span>
-            <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+          <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'5px', flexWrap:'wrap' }}>
+              <UserBadge levelColor={realLevelColor} levelLabel={realLevelLabel} />
+              <span style={{ fontSize:'10px', color:'#52525b' }}>→</span>
+              <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+            </div>
             <button onClick={() => onSetPreviewLevel(null)}
-              style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'999px', border:'1px solid #3a3a3c', background:'#2c2c2e', color:'#a1a1aa', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:500 }}>
-              ↩ 복귀
+              style={{ alignSelf:'flex-start', fontSize:'11px', padding:'3px 10px', borderRadius:'6px', border:'1px solid #3f3f46', background:'#27272a', color:'#a1a1aa', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+              ↩ 원래 레벨로 복귀
             </button>
           </div>
         ) : (
-          <div onClick={isRealAdmin ? () => setPreviewOpen(true) : undefined}
-            style={{ cursor: isRealAdmin ? 'pointer' : 'default', display:'inline-flex' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
             <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+            {isRealAdmin && (
+              <button onClick={() => setPreviewOpen(true)}
+                style={{ alignSelf:'flex-start', fontSize:'11px', padding:'3px 10px', borderRadius:'6px', border:'1px solid #3f3f46', background:'#27272a', color:'#71717a', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
+                🎭 레벨 미리보기
+              </button>
+            )}
           </div>
         )}
       </div>
