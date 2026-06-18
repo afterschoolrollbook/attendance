@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
 import { AdSlots } from '../lib/db.js'
-import { can, canAccessMenu, isMenuVisible, getMenuMinLevel, getLevelNames, LEVEL_COLORS } from '../constants/permissions.js'
+import { can, canAccessMenu, isMenuVisible, getMenuMinLevel, getLevelNames, LEVEL_COLORS, DEFAULT_LEVEL_NAMES } from '../constants/permissions.js'
 import { FEATURES } from '../constants/permissions.js'
 
 const NAV = [
@@ -68,7 +68,7 @@ function UserBadge({ levelColor, levelLabel }) {
   )
 }
 
-export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onClose, onGoLanding }) {
+export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onClose, onGoLanding, realUser, previewLevel, onSetPreviewLevel }) {
   const adSlot     = AdSlots.all().find(s => s.id === 'sidebar_bottom')
   const menuCfg    = getMenuConfig()
   const levelNames = getLevelNames()
@@ -78,9 +78,17 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
   const levelLabel  = `Lv.${userLevel} ${levelNames[userLevel] || '미인증 선생님'}`
   const isAdmin     = user?.role === 'admin' || userLevel >= 10
 
+  // 미리보기 관련 표시용
+  const realLevel      = realUser?.level || 1
+  const realLevelColor = LEVEL_COLORS[realLevel] || '#9ca3af'
+  const realLevelLabel = `Lv.${realLevel} ${levelNames[realLevel] || '미인증 선생님'}`
+
   const visibleMyNav = MY_NAV.filter(item => menuCfg[item.menuKey] !== false)
 
   const [lockModal, setLockModal] = React.useState(null)
+  const [previewOpen, setPreviewOpen] = React.useState(false)
+  const isRealAdmin = realUser?.level >= 10 || realUser?.role === 'admin'
+  const isPreviewActive = isRealAdmin && previewLevel !== null
 
   const handleMenuClick = (path) => {
     if (!canAccessMenu(user, path)) {
@@ -92,6 +100,59 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
   }
   const handleNav = (path) => { onNav(path); if (mobile) onClose?.() }
   const handleLogout = () => { onLogout(); if (mobile) onClose?.() }
+
+
+  // ── 레벨 미리보기 모달 (관리자 전용)
+  const PreviewModal = (isRealAdmin && previewOpen) ? ReactDOM.createPortal(
+    <div onClick={() => setPreviewOpen(false)}
+      style={{ position:'fixed', inset:0, zIndex:999999, background:'rgba(0,0,0,0.65)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px', fontFamily:'Noto Sans KR, sans-serif' }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background:'#1c1c1e', borderRadius:'20px', padding:'28px 24px', width:'280px', boxShadow:'0 24px 64px rgba(0,0,0,0.5)', border:'1px solid #3a3a3c' }}>
+        <div style={{ fontSize:'18px', fontWeight:700, color:'#fff', marginBottom:'6px', textAlign:'center' }}>🎭 레벨 미리보기</div>
+        <div style={{ fontSize:'12px', color:'#8e8e93', textAlign:'center', marginBottom:'20px' }}>DB 변경 없이 해당 레벨의 UI를 체험합니다</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+          {Array.from({length:10}, (_,i) => i+1).map(lv => {
+            const isCurrentReal = lv === realUser?.level
+            const isSelected = lv === previewLevel
+            const lvColor = LEVEL_COLORS[lv] || '#9ca3af'
+            const lvName = DEFAULT_LEVEL_NAMES[lv] || ('레벨' + lv)
+            return (
+              <button key={lv}
+                onClick={() => { onSetPreviewLevel(isSelected ? null : lv); setPreviewOpen(false) }}
+                style={{
+                  display:'flex', alignItems:'center', justifyContent:'space-between',
+                  padding:'10px 14px', borderRadius:'10px', border: isSelected ? '2px solid ' + lvColor : '2px solid transparent',
+                  background: isSelected ? lvColor + '22' : isCurrentReal ? '#2c2c2e' : '#2c2c2e',
+                  cursor: isCurrentReal && !isSelected ? 'default' : 'pointer',
+                  opacity: isCurrentReal && !isSelected ? 0.5 : 1,
+                  transition:'all .15s',
+                }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                  <span style={{ fontSize:'13px', fontWeight:700, color: lvColor, width:'28px' }}>Lv.{lv}</span>
+                  <span style={{ fontSize:'13px', color:'#e5e5ea' }}>{lvName}</span>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                  {isCurrentReal && <span style={{ fontSize:'11px', color:'#8e8e93' }}>현재</span>}
+                  {isSelected && <span style={{ fontSize:'13px' }}>✓</span>}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        {isPreviewActive && (
+          <button onClick={() => { onSetPreviewLevel(null); setPreviewOpen(false) }}
+            style={{ marginTop:'16px', width:'100%', padding:'11px', borderRadius:'10px', border:'none', background:'#ff453a', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+            원래 레벨(10)로 복귀
+          </button>
+        )}
+        <button onClick={() => setPreviewOpen(false)}
+          style={{ marginTop:'8px', width:'100%', padding:'10px', borderRadius:'10px', border:'none', background:'#3a3a3c', color:'#aeaeb2', fontSize:'14px', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          닫기
+        </button>
+      </div>
+    </div>,
+    document.body
+  ) : null
 
   const LockModal = lockModal ? ReactDOM.createPortal(
     <div onClick={() => setLockModal(null)}
@@ -160,7 +221,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
 
   // ── 모바일
   if (mobile) return (
-    <>{LockModal}
+    <>{LockModal}{PreviewModal}
       {open && <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.55)' }} />}
       <aside style={{
         position:'fixed', top:0, left:open ? 0 : '-260px', zIndex:1100,
@@ -178,7 +239,22 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
         </div>
         <div style={{ padding:'14px 16px', borderBottom:'1px solid #27272a' }}>
           <div style={{ fontSize:'14px', fontWeight:600, color:'#fff', marginBottom:'4px' }}>{user?.name}</div>
-          <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+          {isPreviewActive ? (
+            <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+              <UserBadge levelColor={realLevelColor} levelLabel={realLevelLabel} />
+              <span style={{ fontSize:'11px', color:'#71717a' }}>⇒</span>
+              <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+              <button onClick={() => onSetPreviewLevel(null)}
+                style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'999px', border:'1px solid #3a3a3c', background:'#2c2c2e', color:'#a1a1aa', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:500 }}>
+                ↩ 복귀
+              </button>
+            </div>
+          ) : (
+            <div onClick={isRealAdmin ? () => setPreviewOpen(true) : undefined}
+              style={{ cursor: isRealAdmin ? 'pointer' : 'default', display:'inline-flex' }}>
+              <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+            </div>
+          )}
         </div>
         {renderNav(true)}
         <div style={{ padding:'12px 16px', borderTop:'1px solid #27272a' }}>
@@ -191,7 +267,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
   )
 
   // ── PC
-  return (<>{LockModal}
+  return (<>{LockModal}{PreviewModal}
     <aside style={{
       width:'220px', minWidth:'220px', background:'#18181b',
       display:'flex', flexDirection:'column', height:'100vh',
@@ -210,7 +286,22 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
       </div>
       <div style={{ padding:'16px 20px', borderBottom:'1px solid #27272a' }}>
         <div style={{ fontSize:'14px', fontWeight:600, color:'#fff', marginBottom:'4px' }}>{user?.name}</div>
-        <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+        {isPreviewActive ? (
+          <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+            <UserBadge levelColor={realLevelColor} levelLabel={realLevelLabel} />
+            <span style={{ fontSize:'11px', color:'#71717a' }}>⇒</span>
+            <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+            <button onClick={() => onSetPreviewLevel(null)}
+              style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'999px', border:'1px solid #3a3a3c', background:'#2c2c2e', color:'#a1a1aa', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:500 }}>
+              ↩ 복귀
+            </button>
+          </div>
+        ) : (
+          <div onClick={isRealAdmin ? () => setPreviewOpen(true) : undefined}
+            style={{ cursor: isRealAdmin ? 'pointer' : 'default', display:'inline-flex' }}>
+            <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+          </div>
+        )}
       </div>
       {renderNav(false)}
       {adSlot?.active && adSlot.code && (
