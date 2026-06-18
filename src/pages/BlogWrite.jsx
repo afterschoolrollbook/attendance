@@ -252,18 +252,9 @@ export function BlogWrite({ user, onLogout }) {
           )}
 
           {tab !== 'blog' && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
-              <div>
-                <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>카테고리</div>
-                <select value={form.category} onChange={e=>setForm(v=>({...v,category:e.target.value}))} style={{...iStyle, background:'#fff'}}>
-                  <option value="">카테고리 선택</option>
-                  {blogCategories.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>태그 (쉼표 구분)</div>
-                <input value={form.tags} onChange={e=>setForm(v=>({...v,tags:e.target.value}))} placeholder="방과후, 출석, 팁" style={iStyle} />
-              </div>
+            <div>
+              <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>태그 (쉼표 구분)</div>
+              <input value={form.tags} onChange={e=>setForm(v=>({...v,tags:e.target.value}))} placeholder="방과후, 출석, 팁" style={iStyle} />
             </div>
           )}
 
