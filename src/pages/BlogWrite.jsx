@@ -8,7 +8,7 @@ const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316'
 const iStyle = { width:'100%', padding:'9px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none', boxSizing:'border-box', background:'#fff' }
 
 const BOARDS = [
-  { key:'blog',    label:'📝 블로그',     color:'#f97316' },
+  { key:'blog',    label:'📝 블로그',     color:'#f97316', adminOnly: true },
   { key:'review',  label:'⭐ 사용자 후기', color:'#eab308' },
   { key:'qna',     label:'❓ 질문',        color:'#3b82f6' },
   { key:'request', label:'🙏 부탁해요~',   color:'#16a34a' },
@@ -70,8 +70,11 @@ export function BlogWrite({ user, onLogout }) {
   const isAdmin = user?.role === 'admin' || userLevel >= 10
   const boardPerms = getBoardPerms()
 
-  // 접근 가능한 게시판만 필터링
-  const accessibleBoards = BOARDS.filter(b => isAdmin || userLevel >= (boardPerms[b.key]?.access ?? 1))
+  // 접근 가능한 게시판만 필터링 (blog 탭은 관리자 전용)
+  const accessibleBoards = BOARDS.filter(b => {
+    if (b.adminOnly && !isAdmin) return false
+    return isAdmin || userLevel >= (boardPerms[b.key]?.access ?? 1)
+  })
 
   const [tab, setTab]         = useState(() => accessibleBoards[0]?.key || 'blog')
   const [view, setView]       = useState('list')
@@ -304,8 +307,8 @@ export function BlogWrite({ user, onLogout }) {
       <div style={{ marginBottom:'20px' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'8px' }}>
           <div>
-            <div style={{ fontSize:'22px', fontWeight:800, color:C.text }}>📝 블로그</div>
-            <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>방과후 출석부 블로그에 글을 작성하세요.</div>
+            <div style={{ fontSize:'22px', fontWeight:800, color:C.text }}>📝 게시판</div>
+            <div style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>사용자 후기, 질문, 요청 등 글을 작성하세요.</div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
             <a href="/blog" target="_blank" rel="noopener noreferrer"
