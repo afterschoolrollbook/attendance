@@ -9,6 +9,7 @@ const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 export const isConfigured = !!SUPABASE_URL && !!SUPABASE_ANON
 export const FUNCTIONS_BASE = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1` : ''
+export const SUPABASE_ANON_KEY = SUPABASE_ANON
 
 // ─── Supabase JS 클라이언트 (DB 직접 접근)
 export const supabase = isConfigured
