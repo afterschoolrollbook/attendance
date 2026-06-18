@@ -1,6 +1,6 @@
 import { parseMarkdown, markdownPreviewStyles } from '../lib/parseMarkdown.js'
 import React, { useState, useEffect } from 'react'
-import { dbCall } from '../lib/supabase.js'
+import { dbCall, FUNCTIONS_BASE } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
 import { getBoardPermLevel } from '../constants/permissions.js'
@@ -245,13 +245,19 @@ export function BlogAdmin({ user }) {
 
   const pingIndexNow = async (slug, type) => {
     try {
-      const key = '9dcc9754863220877605a3ee2763022a'
       const domain = 'www.afterschoolrollbook.kr'
       const urlPath = type === 'docs' ? `docs/${slug}` : `blog/${slug}`
       const pageUrl = `https://${domain}/${urlPath}`
-      const res = await fetch(`https://api.indexnow.org/indexnow?url=${encodeURIComponent(pageUrl)}&key=${key}`, { method: 'GET' })
-      console.log('[IndexNow] 핑 전송 완료:', pageUrl, res.status)
-      return true
+      // 브라우저에서 api.indexnow.org 직접 호출 시 CSP 오류 발생 →
+      // Supabase Edge Function(서버)을 통해 우회 호출
+      const res = await fetch(`${FUNCTIONS_BASE}/ping-indexnow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: pageUrl }),
+      })
+      const data = await res.json()
+      console.log('[IndexNow] 핑 결과:', pageUrl, data)
+      return !!data.success
     } catch(e) {
       console.warn('[IndexNow] 핑 실패:', e)
       return false
