@@ -119,15 +119,20 @@ export function BlogAdmin({ user }) {
         const found = (rows || []).find(r => r.period_key === 'checklist' && r.routine_key === key)
         if (found) await dbCall('delete', 'routineChecks', { id: found.id })
       } else {
-        await dbCall('insert', 'routineChecks', { data: {
+        const insertData = {
           id: `checklist__${key}`,
           period_key: 'checklist',
           routine_key: key,
           user_id: null,
           checked_at: new Date().toISOString(),
-        }})
+        }
+        console.log('[체크리스트 insert 시도]', insertData)
+        const result = await dbCall('insert', 'routineChecks', { data: insertData })
+        console.log('[체크리스트 insert 결과]', result)
       }
-    } catch(e) { console.warn('체크리스트 저장 실패', e) }
+    } catch(e) {
+      console.error('[체크리스트 저장 실패 상세]', e.message, e)
+    }
   }
 
   const loadRoutineChecks = async () => {
