@@ -275,32 +275,24 @@ function AppInner() {
 
     async function init() {
       try {
-      console.log('[init] 시작')
       const session = await authGetSession()
-      console.log('[init] 세션:', session?.user?.email || 'null')
 
       if (session?.user) {
         // 1) IndexedDB 캐시 즉시 로드 → 화면 빠르게 표시
-        console.log('[init] loadCacheFromIDB 시작')
         await loadCacheFromIDB()
-        console.log('[init] loadCacheFromIDB 완료')
         const cached = Users.findByEmail(session.user.email)
-        console.log('[init] 캐시 유저:', cached ? '있음' : '없음')
         if (cached) {
           setUser(cached)
           setDbReady(true)
         }
         // 2) 백그라운드에서 변경분만 Supabase 로드 (증분 동기화)
-        console.log('[init] initFromSupabase 시작')
         await initFromSupabase()
-        console.log('[init] initFromSupabase 완료')
         let fresh = Users.findByEmail(session.user.email)
-        console.log('[init] Supabase 동기화 후 유저:', fresh ? '있음' : '없음 → 직접 조회 시도')
         // 캐시에서 못 찾으면 users 테이블 직접 조회 (fallback)
         if (!fresh) {
           try {
             const fromDb = await dbCall('findByEmail', 'users', { data: { email: session.user.email } })
-            if (fromDb) { fresh = fromDb; console.log('[init] 직접 조회 성공') }
+            if (fromDb) { fresh = fromDb }
             else console.warn('[init] 직접 조회도 유저 없음 — users 테이블 확인 필요')
           } catch (e) { console.warn('[init] 직접 조회 실패:', e.message) }
         }
@@ -337,7 +329,6 @@ function AppInner() {
               }
             }
           }
-          console.log('[init] setUser 호출, role:', fresh.role, 'accessExpiredAt:', fresh.accessExpiredAt)
           sessionStorage.setItem('asa_visited', '1')  // 새로고침 시 랜딩 스킵용
           setUser(fresh)
           const pageParam = new URLSearchParams(search).get('page')
@@ -345,7 +336,6 @@ function AppInner() {
         }
       }
 
-      console.log('[init] 완료 → setDbReady(true)')
       setDbReady(true)
       } catch (e) {
         console.error('[init] 초기화 실패 → setDbReady(true):', e.message, e.stack)
@@ -425,8 +415,8 @@ function AppInner() {
   }
 
   // DB 초기화 대기
-  if (!dbReady) { console.log('[render] dbReady=false → AppLoading 표시'); return <AppLoading /> }
-  if (showLoginLoading) { console.log('[render] showLoginLoading=true → AppLoading 표시'); return <AppLoading /> }
+  if (!dbReady) { return <AppLoading /> }
+  if (showLoginLoading) { return <AppLoading /> }
 
   // ✅ 학교 담당자 포털 분기
   if (isSchoolPath) {

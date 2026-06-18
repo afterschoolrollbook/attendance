@@ -259,7 +259,6 @@ export function BlogAdmin({ user }) {
         body: JSON.stringify({ url: pageUrl }),
       })
       const data = await res.json()
-      console.log('[IndexNow] 핑 결과:', pageUrl, data)
       return !!data.success
     } catch(e) {
       console.warn('[IndexNow] 핑 실패:', e)

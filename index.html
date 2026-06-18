@@ -65,11 +65,9 @@
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault()
         window._installPrompt = e
-        console.log('[PWA] 설치 프롬프트 준비 완료')
       })
       window.addEventListener('appinstalled', () => {
         window._installPrompt = null
-        console.log('[PWA] 설치 완료')
       })
     </script>
     <!-- CSP는 vercel.json 헤더로 관리 (meta 태그 제거) -->
@@ -84,7 +82,6 @@
         window.addEventListener('load', async () => {
           try {
             const reg = await navigator.serviceWorker.register('/sw.js')
-            console.log('[SW] 등록 완료:', reg.scope)
 
             // 새 SW 감지 → 사용자에게 업데이트 알림 (자동 새로고침 X)
             reg.addEventListener('updatefound', () => {
@@ -92,7 +89,6 @@
               if (!newSW) return
               newSW.addEventListener('statechange', () => {
                 if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-                  console.log('[SW] 업데이트 감지 — 사용자에게 알림')
                   // React 렌더 사이클 완료 후 이벤트 발생 (즉시 발생 시 렌더 방해 방지)
                   setTimeout(() => {
                     window.dispatchEvent(new CustomEvent('sw-update-ready', { detail: { newSW } }))
@@ -103,7 +99,6 @@
 
             // SW 교체 완료 시 페이지 새로고침 — 사용자가 업데이트 버튼 눌렀을 때만
             navigator.serviceWorker.addEventListener('controllerchange', () => {
-              console.log('[SW] 새 버전 적용')
               if (window._swUpdateRequested) {
                 window.location.reload()
               }
