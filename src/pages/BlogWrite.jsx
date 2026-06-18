@@ -91,7 +91,7 @@ export function BlogWrite({ user, onLogout }) {
   const loadCategories = async () => {
     try {
       const rows = await dbCall('getAll', 'customCategories')
-      const custom = (rows || []).filter(c => c.type === 'blog').map(c => c.name)
+      const custom = (rows || []).filter(c => c.type === 'blog').map(c => c.label || c.name).filter(Boolean)
       setBlogCategories([...DEFAULT_CATS, ...custom.filter(n => !DEFAULT_CATS.includes(n))])
     } catch (e) { console.warn('[BlogWrite] 카테고리 로딩 실패:', e) }
   }
