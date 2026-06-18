@@ -61,7 +61,7 @@ export function BlogMenuManage({ user }) {
   const loadCategories = async () => {
     try {
       const rows = await dbCall('getAll', 'customCategories')
-      const blogCats = (rows || []).filter(c => c.type === 'blog').sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      const blogCats = (rows || []).filter(c => c.type === 'blog').sort((a, b) => (a.label || '').localeCompare(b.label || '', 'ko'))
       // 한 번도 시드가 안 된 경우 기본 카테고리를 DB에 삽입
       if (blogCats.length === 0) {
         for (const label of DEFAULT_CATS) {

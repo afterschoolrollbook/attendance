@@ -92,7 +92,8 @@ export function BlogWrite({ user, onLogout }) {
     try {
       const rows = await dbCall('getAll', 'customCategories')
       const custom = (rows || []).filter(c => c.type === 'blog').map(c => c.label || c.name).filter(Boolean)
-      setBlogCategories([...DEFAULT_CATS, ...custom.filter(n => !DEFAULT_CATS.includes(n))])
+      const merged = [...DEFAULT_CATS, ...custom.filter(n => !DEFAULT_CATS.includes(n))]
+      setBlogCategories(merged.sort((a, b) => a.localeCompare(b, 'ko')))
     } catch (e) { console.warn('[BlogWrite] 카테고리 로딩 실패:', e) }
   }
 

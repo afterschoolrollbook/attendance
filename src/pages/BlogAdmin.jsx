@@ -203,7 +203,8 @@ export function BlogAdmin({ user }) {
     try {
       const rows = await dbCall('getAll', 'customCategories')
       const custom = (rows || []).filter(c => c.type === 'blog').map(c => c.label || c.name).filter(Boolean)
-      setBlogCategories([...DEFAULT_BLOG_CATS, ...custom.filter(n => !DEFAULT_BLOG_CATS.includes(n))])
+      const merged = [...DEFAULT_BLOG_CATS, ...custom.filter(n => !DEFAULT_BLOG_CATS.includes(n))]
+      setBlogCategories(merged.sort((a, b) => a.localeCompare(b, 'ko')))
     } catch (e) { console.warn('[BlogAdmin] 카테고리 로딩 실패:', e) }
   }
 
