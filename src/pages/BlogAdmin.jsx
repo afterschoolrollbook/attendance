@@ -705,12 +705,12 @@ export function BlogAdmin({ user }) {
               style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:'#f9fafb', borderRadius: showRoutine ? '10px 10px 0 0' : '10px', border:'1.5px solid #e5e7eb', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
               <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
                 <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>📆 루틴 체크리스트 — {monthName}</span>
-                <span style={{ fontSize:'12px', fontWeight:700, color:'#f97316', background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'6px', padding:'2px 8px' }}>
+                <span style={{ fontSize:'12px', fontWeight:700, color:'#16a34a', background:'#dcfce7', border:'1px solid #86efac', borderRadius:'6px', padding:'2px 8px' }}>
                   총 {monthlyPostCount}편
                 </span>
-                {monthlyByType.blog > 0 && <span style={{ fontSize:'11px', fontWeight:600, color:'#7c3aed', background:'#faf5ff', border:'1px solid #ddd6fe', borderRadius:'6px', padding:'2px 7px' }}>블로그 {monthlyByType.blog}</span>}
-                {monthlyByType.docs > 0 && <span style={{ fontSize:'11px', fontWeight:600, color:'#2563eb', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'6px', padding:'2px 7px' }}>설명서 {monthlyByType.docs}</span>}
-                {monthlyByType.template > 0 && <span style={{ fontSize:'11px', fontWeight:600, color:'#059669', background:'#ecfdf5', border:'1px solid #6ee7b7', borderRadius:'6px', padding:'2px 7px' }}>템플릿 {monthlyByType.template}</span>}
+                <span style={{ fontSize:'11px', fontWeight:600, color:'#ea580c', background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'6px', padding:'2px 7px' }}>블로그 {monthlyByType.blog}편</span>
+                <span style={{ fontSize:'11px', fontWeight:600, color:'#2563eb', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'6px', padding:'2px 7px' }}>설명서 {monthlyByType.docs}편</span>
+                <span style={{ fontSize:'11px', fontWeight:600, color:'#7c3aed', background:'#f5f3ff', border:'1px solid #ddd6fe', borderRadius:'6px', padding:'2px 7px' }}>템플릿 {monthlyByType.template}편</span>
               </div>
               <span style={{ fontSize:'12px', color:'#9ca3af' }}>{showRoutine ? '▲ 접기' : '▼ 펼치기'}</span>
             </button>
@@ -742,9 +742,9 @@ export function BlogAdmin({ user }) {
                           {isWeekly && !isToday && <div style={{ fontSize:'8px', color:'#0891b2', lineHeight:1 }}>주간</div>}
                           {postCount > 0 && (
                             <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'1px' }}>
-                              {byType.blog > 0 && <div style={{ fontSize:'9px', fontWeight:700, color: isToday ? '#fff' : '#7c3aed', background: isToday ? 'rgba(255,255,255,0.2)' : '#faf5ff', borderRadius:'3px', padding:'0px 3px', lineHeight:'14px' }}>블{byType.blog}</div>}
+                              {byType.blog > 0 && <div style={{ fontSize:'9px', fontWeight:700, color: isToday ? '#fff' : '#ea580c', background: isToday ? 'rgba(255,255,255,0.2)' : '#fff7ed', borderRadius:'3px', padding:'0px 3px', lineHeight:'14px' }}>블{byType.blog}</div>}
                               {byType.docs > 0 && <div style={{ fontSize:'9px', fontWeight:700, color: isToday ? '#fff' : '#2563eb', background: isToday ? 'rgba(255,255,255,0.2)' : '#eff6ff', borderRadius:'3px', padding:'0px 3px', lineHeight:'14px' }}>설{byType.docs}</div>}
-                              {byType.template > 0 && <div style={{ fontSize:'9px', fontWeight:700, color: isToday ? '#fff' : '#059669', background: isToday ? 'rgba(255,255,255,0.2)' : '#ecfdf5', borderRadius:'3px', padding:'0px 3px', lineHeight:'14px' }}>템{byType.template}</div>}
+                              {byType.template > 0 && <div style={{ fontSize:'9px', fontWeight:700, color: isToday ? '#fff' : '#7c3aed', background: isToday ? 'rgba(255,255,255,0.2)' : '#f5f3ff', borderRadius:'3px', padding:'0px 3px', lineHeight:'14px' }}>템{byType.template}</div>}
                             </div>
                           )}
                         </div>
@@ -755,9 +755,9 @@ export function BlogAdmin({ user }) {
                     <span style={{ fontSize:'11px', color:'#0891b2' }}>🔵 주간 체크 (매주 토요일)</span>
                     <span style={{ fontSize:'11px', color:'#d97706' }}>🟡 월간 체크 (마지막 토요일)</span>
                     <span style={{ fontSize:'11px', color:'#f97316' }}>🟠 오늘</span>
-                    <span style={{ fontSize:'11px', color:'#7c3aed' }}>블 블로그</span>
+                    <span style={{ fontSize:'11px', color:'#ea580c' }}>블 블로그</span>
                     <span style={{ fontSize:'11px', color:'#2563eb' }}>설 설명서</span>
-                    <span style={{ fontSize:'11px', color:'#059669' }}>템 템플릿</span>
+                    <span style={{ fontSize:'11px', color:'#7c3aed' }}>템 템플릿</span>
                   </div>
                 </div>
 
