@@ -89,17 +89,20 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
   const isAdmin     = user?.role === 'admin' || userLevel >= 10
 
   // 미리보기 관련 표시용
-  const realLevel      = realUser?.level || 1
+  // realUser = 원본 user(Lv.10), user = effectiveUser(미리보기 레벨)
+  // previewLevel 이 있으면 미리보기 중 → 본 레벨은 realUser, 체험 레벨은 previewLevel
+  const realLevel      = realUser?.level || userLevel
   const realLevelColor = LEVEL_COLORS[realLevel] || '#9ca3af'
   const realLevelLabel = `Lv.${realLevel} ${levelNames[realLevel] || '미인증 선생님'}`
+  const previewLevelColor = LEVEL_COLORS[previewLevel] || '#9ca3af'
+  const previewLevelLabel = previewLevel ? `Lv.${previewLevel} ${levelNames[previewLevel] || '미인증 선생님'}` : ''
 
   const visibleMyNav = MY_NAV.filter(item => menuCfg[item.menuKey] !== false)
 
   const [lockModal, setLockModal] = React.useState(null)
   const [previewOpen, setPreviewOpen] = React.useState(false)
-  // realUser가 없으면 user 자체로 판단 (방어)
-  const isRealAdmin = (realUser?.level >= 10 || realUser?.role === 'admin') || (user?.level >= 10 || user?.role === 'admin')
-  const isPreviewActive = isRealAdmin && previewLevel !== null && previewLevel !== (realUser?.level || user?.level)
+  const isRealAdmin = realUser?.level >= 10 || realUser?.role === 'admin' || userLevel >= 10
+  const isPreviewActive = isRealAdmin && previewLevel !== null
 
   const handleMenuClick = (path) => {
     if (!canAccessMenu(user, path)) {
@@ -255,7 +258,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
               <div style={{ display:'flex', alignItems:'center', gap:'5px', flexWrap:'wrap' }}>
                 <UserBadge levelColor={realLevelColor} levelLabel={realLevelLabel} />
                 <span style={{ fontSize:'10px', color:'#52525b' }}>→</span>
-                <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+                <UserBadge levelColor={previewLevelColor} levelLabel={previewLevelLabel} />
               </div>
               <button onClick={() => onSetPreviewLevel(null)}
                 style={{ alignSelf:'flex-start', fontSize:'11px', padding:'3px 10px', borderRadius:'6px', border:'1px solid #3f3f46', background:'#27272a', color:'#a1a1aa', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
@@ -309,7 +312,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
             <div style={{ display:'flex', alignItems:'center', gap:'5px', flexWrap:'wrap' }}>
               <UserBadge levelColor={realLevelColor} levelLabel={realLevelLabel} />
               <span style={{ fontSize:'10px', color:'#52525b' }}>→</span>
-              <UserBadge levelColor={levelColor} levelLabel={levelLabel} />
+              <UserBadge levelColor={previewLevelColor} levelLabel={previewLevelLabel} />
             </div>
             <button onClick={() => onSetPreviewLevel(null)}
               style={{ alignSelf:'flex-start', fontSize:'11px', padding:'3px 10px', borderRadius:'6px', border:'1px solid #3f3f46', background:'#27272a', color:'#a1a1aa', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif', fontWeight:600 }}>
