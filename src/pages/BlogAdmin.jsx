@@ -1,6 +1,6 @@
 import { parseMarkdown, markdownPreviewStyles } from '../lib/parseMarkdown.js'
 import React, { useState, useEffect } from 'react'
-import { dbCall, FUNCTIONS_BASE } from '../lib/supabase.js'
+import { dbCall, FUNCTIONS_BASE, SUPABASE_ANON_KEY } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
 import { getBoardPermLevel } from '../constants/permissions.js'
@@ -252,7 +252,10 @@ export function BlogAdmin({ user }) {
       // Supabase Edge Function(서버)을 통해 우회 호출
       const res = await fetch(`${FUNCTIONS_BASE}/ping-indexnow`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
         body: JSON.stringify({ url: pageUrl }),
       })
       const data = await res.json()
