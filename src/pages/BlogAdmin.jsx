@@ -672,14 +672,20 @@ export function BlogAdmin({ user }) {
         // 이번 달 발행된 글 날짜별 카운트
         const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`
         const dailyPostCount = {}
+        const dailyPostByType = {}
         let monthlyPostCount = 0
+        const monthlyByType = { blog: 0, docs: 0, template: 0 }
         posts.forEach(p => {
           if (p.status === 'published' && p.publishedAt) {
             const dateStr = p.publishedAt.slice(0, 10)
             if (dateStr.startsWith(monthStr)) {
               const day = parseInt(dateStr.slice(8, 10))
               dailyPostCount[day] = (dailyPostCount[day] || 0) + 1
+              if (!dailyPostByType[day]) dailyPostByType[day] = { blog: 0, docs: 0, template: 0 }
               monthlyPostCount++
+              if (p.type === 'docs') { monthlyByType.docs++; dailyPostByType[day].docs++ }
+              else if (p.type === 'template') { monthlyByType.template++; dailyPostByType[day].template++ }
+              else { monthlyByType.blog++; dailyPostByType[day].blog++ }
             }
           }
         })
@@ -696,11 +702,14 @@ export function BlogAdmin({ user }) {
           <div style={{ marginBottom:'16px' }}>
             <button onClick={() => setShowRoutine(v => !v)}
               style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:'#f9fafb', borderRadius: showRoutine ? '10px 10px 0 0' : '10px', border:'1.5px solid #e5e7eb', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
                 <span style={{ fontSize:'13px', fontWeight:700, color:'#374151' }}>📆 루틴 체크리스트 — {monthName}</span>
                 <span style={{ fontSize:'12px', fontWeight:700, color:'#f97316', background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'6px', padding:'2px 8px' }}>
-                  이번 달 발행 {monthlyPostCount}편
+                  총 {monthlyPostCount}편
                 </span>
+                {monthlyByType.blog > 0 && <span style={{ fontSize:'11px', fontWeight:600, color:'#7c3aed', background:'#faf5ff', border:'1px solid #ddd6fe', borderRadius:'6px', padding:'2px 7px' }}>블로그 {monthlyByType.blog}</span>}
+                {monthlyByType.docs > 0 && <span style={{ fontSize:'11px', fontWeight:600, color:'#2563eb', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'6px', padding:'2px 7px' }}>설명서 {monthlyByType.docs}</span>}
+                {monthlyByType.template > 0 && <span style={{ fontSize:'11px', fontWeight:600, color:'#059669', background:'#ecfdf5', border:'1px solid #6ee7b7', borderRadius:'6px', padding:'2px 7px' }}>템플릿 {monthlyByType.template}</span>}
               </div>
               <span style={{ fontSize:'12px', color:'#9ca3af' }}>{showRoutine ? '▲ 접기' : '▼ 펼치기'}</span>
             </button>
@@ -724,14 +733,17 @@ export function BlogAdmin({ user }) {
                       const isMonthly = isLastSaturday
                       const hasMark = isWeekly || isMonthly
                       const postCount = dailyPostCount[d] || 0
+                      const byType = dailyPostByType[d] || {}
                       return (
                         <div key={d} style={{ padding:'4px 2px', borderRadius:'6px', background: isToday ? '#f97316' : isMonthly ? '#fffbeb' : isWeekly ? '#ecfeff' : 'transparent', border: hasMark && !isToday ? `1px solid ${isMonthly ? '#fde68a' : '#a5f3fc'}` : 'none', position:'relative', minHeight:'38px', display:'flex', flexDirection:'column', alignItems:'center', gap:'2px' }}>
                           <div style={{ fontSize:'12px', fontWeight: isToday ? 700 : 400, color: isToday ? '#fff' : '#374151' }}>{d}</div>
                           {isMonthly && !isToday && <div style={{ fontSize:'8px', color:'#d97706', lineHeight:1 }}>월간</div>}
                           {isWeekly && !isToday && <div style={{ fontSize:'8px', color:'#0891b2', lineHeight:1 }}>주간</div>}
                           {postCount > 0 && (
-                            <div style={{ fontSize:'10px', fontWeight:700, color: isToday ? '#fff' : '#f97316', background: isToday ? 'rgba(255,255,255,0.25)' : '#fff7ed', borderRadius:'4px', padding:'0px 4px', lineHeight:'16px' }}>
-                              +{postCount}
+                            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'1px' }}>
+                              {byType.blog > 0 && <div style={{ fontSize:'9px', fontWeight:700, color: isToday ? '#fff' : '#7c3aed', background: isToday ? 'rgba(255,255,255,0.2)' : '#faf5ff', borderRadius:'3px', padding:'0px 3px', lineHeight:'14px' }}>블{byType.blog}</div>}
+                              {byType.docs > 0 && <div style={{ fontSize:'9px', fontWeight:700, color: isToday ? '#fff' : '#2563eb', background: isToday ? 'rgba(255,255,255,0.2)' : '#eff6ff', borderRadius:'3px', padding:'0px 3px', lineHeight:'14px' }}>설{byType.docs}</div>}
+                              {byType.template > 0 && <div style={{ fontSize:'9px', fontWeight:700, color: isToday ? '#fff' : '#059669', background: isToday ? 'rgba(255,255,255,0.2)' : '#ecfdf5', borderRadius:'3px', padding:'0px 3px', lineHeight:'14px' }}>템{byType.template}</div>}
                             </div>
                           )}
                         </div>
@@ -742,6 +754,9 @@ export function BlogAdmin({ user }) {
                     <span style={{ fontSize:'11px', color:'#0891b2' }}>🔵 주간 체크 (매주 토요일)</span>
                     <span style={{ fontSize:'11px', color:'#d97706' }}>🟡 월간 체크 (마지막 토요일)</span>
                     <span style={{ fontSize:'11px', color:'#f97316' }}>🟠 오늘</span>
+                    <span style={{ fontSize:'11px', color:'#7c3aed' }}>블 블로그</span>
+                    <span style={{ fontSize:'11px', color:'#2563eb' }}>설 설명서</span>
+                    <span style={{ fontSize:'11px', color:'#059669' }}>템 템플릿</span>
                   </div>
                 </div>
 
