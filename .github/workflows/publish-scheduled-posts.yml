@@ -2,7 +2,7 @@ name: 예약발행 자동 처리
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # 5분마다 실행 (GitHub Actions 최소 단위)
+    - cron: '*/30 * * * *'  # 30분마다 실행
   workflow_dispatch:
 
 jobs:
@@ -16,5 +16,4 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             -H "Content-Type: application/json")
           echo "HTTP 응답 코드: $response"
-          # Edge Function이 없거나 예약 글이 없어도 워크플로우는 성공 처리
           exit 0
