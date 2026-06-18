@@ -321,10 +321,10 @@ export function BlogAdmin({ user }) {
                 title: '📋 주기적으로 확인할 것',
                 color: '#78350f', bg: '#fff7ed', border: '#fed7aa',
                 items: [
-                  { done: false, text: '수익 및 RPM(페이지 1000회당 수익) 확인', desc: '대시보드 → 보고서에서 날짜별 수익 추이 체크' },
-                  { done: false, text: '정책 위반 경고 확인', desc: '알림 탭에 빨간 경고 뜨면 즉시 조치 — 방치 시 광고 중단' },
-                  { done: false, text: '잘 클릭되는 광고 위치 파악', desc: '본문 상단·목차 아래·본문 중간이 일반적으로 CTR 높음' },
-                  { done: false, text: '모바일 광고 노출 확인', desc: '반응형 광고 단위 사용 여부 체크 — 모바일 트래픽 비중이 높을수록 중요' },
+                  { done: false, text: '[주간] 수익 및 RPM(페이지 1000회당 수익) 확인', desc: '대시보드 → 보고서에서 날짜별 수익 추이 체크' },
+                  { done: false, text: '[수시] 정책 위반 경고 확인', desc: '알림 탭에 빨간 경고 뜨면 즉시 조치 — 방치 시 광고 중단' },
+                  { done: false, text: '[월간] 잘 클릭되는 광고 위치 파악', desc: '본문 상단·목차 아래·본문 중간이 일반적으로 CTR 높음' },
+                  { done: false, text: '[월간] 모바일 광고 노출 확인', desc: '반응형 광고 단위 사용 여부 체크 — 모바일 트래픽 비중이 높을수록 중요' },
                 ]
               }
             ]
@@ -339,7 +339,7 @@ export function BlogAdmin({ user }) {
                 color: '#14532d', bg: '#dcfce7', border: '#86efac',
                 items: [
                   { done: false, text: '속성 추가 및 소유권 인증', desc: 'URL 접두사 방식 권장 — HTML 파일 업로드 또는 <head> 메타태그 삽입' },
-                  { done: false, text: 'sitemap.xml 제출', desc: '설정 → Sitemaps → 내 사이트의 sitemap.xml URL 입력 후 제출' },
+                  { done: true, text: 'sitemap.xml 제출 완료', desc: '설정 → Sitemaps → sitemap.xml 제출 완료 ✅' },
                   { done: false, text: 'robots.txt 확인', desc: '크롤링 차단 규칙이 없는지 확인 — Disallow: / 이면 검색 노출 불가' },
                   { done: false, text: 'Google Analytics 연결', desc: '설정 → 연결 → Analytics 연동하면 트래픽 데이터 통합 확인 가능' },
                 ]
@@ -348,12 +348,12 @@ export function BlogAdmin({ user }) {
                 title: '📋 주기적으로 확인할 것',
                 color: '#166534', bg: '#f0fdf4', border: '#bbf7d0',
                 items: [
-                  { done: false, text: '색인 생성 현황 확인', desc: '색인 생성 → 페이지 → "색인이 생성되지 않은 이유" 파악 및 조치' },
-                  { done: false, text: '검색 성과 (클릭수·노출수·CTR) 확인', desc: '어떤 키워드로 유입되는지 확인 — CTR 낮은 글은 제목/메타설명 수정 검토' },
-                  { done: false, text: '새 글 발행 후 URL 즉시 검사 요청', desc: 'URL 검사 → 색인 생성 요청 — 구글이 빠르게 크롤링하도록 유도' },
-                  { done: false, text: '모바일 사용성 오류 확인', desc: '경험 → 모바일 사용성 — 터치 요소 간격·뷰포트 설정 등 오류 수정' },
-                  { done: false, text: 'Core Web Vitals 점수 확인', desc: 'LCP·INP·CLS 점수 — 낮으면 이미지 최적화·레이아웃 안정성 개선 필요' },
-                  { done: true, text: '✅ 사이트맵 URL 자동 색인 요청 완료', desc: 'GitHub Actions로 매일 오전 9시(KST) 자동 실행 — Indexing API로 전체 URL 색인 요청' },
+                  { done: false, text: '[월간] 색인 생성 현황 확인', desc: '색인 생성 → 페이지 → "색인이 생성되지 않은 이유" 파악 및 조치' },
+                  { done: false, text: '[월간] 검색 성과 (클릭수·노출수·CTR) 확인', desc: '어떤 키워드로 유입되는지 확인 — CTR 낮은 글은 제목/메타설명 수정 검토' },
+                  { done: false, text: '[글 발행 시] 새 글 발행 후 URL 즉시 검사 요청', desc: 'URL 검사 → 색인 생성 요청 — 구글이 빠르게 크롤링하도록 유도' },
+                  { done: false, text: '[분기] 모바일 사용성 오류 확인', desc: '경험 → 모바일 사용성 — 터치 요소 간격·뷰포트 설정 등 오류 수정' },
+                  { done: false, text: '[분기] Core Web Vitals 점수 확인', desc: 'LCP·INP·CLS 점수 — 낮으면 이미지 최적화·레이아웃 안정성 개선 필요' },
+                  { done: true, text: '🤖 [매일 자동] 사이트맵 URL 자동 색인 요청', desc: 'GitHub Actions로 매일 오전 9시(KST) 자동 실행 — Indexing API로 전체 URL 색인 요청 ✅' },
                 ]
               }
             ]
@@ -367,23 +367,24 @@ export function BlogAdmin({ user }) {
                 title: '🚀 최초 셋팅 (한 번만)',
                 color: '#1e3a8a', bg: '#dbeafe', border: '#93c5fd',
                 items: [
-                  { done: false, text: 'GA4 속성 생성 및 데이터 스트림 추가', desc: '관리 → 속성 만들기 → 웹 스트림 추가 → 측정 ID(G-XXXXXXXX) 발급' },
+                  { done: true, text: 'GA4 속성 생성 및 데이터 스트림 추가 완료', desc: '관리 → 속성 만들기 → 웹 스트림 추가 → 측정 ID(G-XXXXXXXX) 발급 ✅' },
                   { done: false, text: '측정 ID를 사이트 <head>에 삽입', desc: 'Next.js라면 _app.js 또는 Script 컴포넌트로 gtag.js 로드' },
                   { done: false, text: 'Search Console 연결', desc: 'GA4 관리 → 속성 → Search Console 링크 → 연결하면 키워드 데이터 통합' },
                   { done: false, text: '내부 트래픽(내 IP) 필터 설정', desc: '관리 → 데이터 필터 → 내부 트래픽 정의 — 내가 접속한 기록이 통계에 잡히지 않도록' },
                   { done: false, text: '목표/전환 이벤트 설정', desc: '뉴스레터 구독, 문의하기 클릭 등 중요 액션을 전환으로 표시' },
+                  { done: true, text: '주간/월간 리포트 이메일 자동 발송 설정 완료', desc: 'GA4 → 리포트 → 공유 → 이메일 예약 전송 설정 완료 ✅' },
                 ]
               },
               {
                 title: '📋 주기적으로 확인할 것',
                 color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe',
                 items: [
-                  { done: false, text: '실시간 사용자 수 확인', desc: '새 글 발행 직후 트래픽 반응 체크 — SNS 공유 효과 즉시 확인 가능' },
-                  { done: false, text: '유입 채널별 트래픽 분석', desc: '획득 → 트래픽 획득 — 검색/직접/SNS/추천 비율 파악' },
-                  { done: false, text: '인기 페이지 TOP 10 확인', desc: '참여 → 페이지 및 화면 — 어떤 글이 잘 읽히는지 파악해서 유사 글 작성' },
-                  { done: false, text: '이탈률·평균 참여 시간 확인', desc: '참여 시간이 짧으면 콘텐츠 도입부 개선 필요 / 이탈률 높으면 내부 링크 강화' },
-                  { done: false, text: '기기별·지역별 접속 현황', desc: '모바일 비율이 높으면 모바일 UX를 우선 최적화' },
-                  { done: true, text: '✅ 주간/월간 리포트 이메일 자동 발송 완료', desc: 'GA4 → 리포트 → 공유 → 이메일 예약 전송으로 설정 완료' },
+                  { done: false, text: '[수시] 실시간 사용자 수 확인', desc: '새 글 발행 직후 트래픽 반응 체크 — SNS 공유 효과 즉시 확인 가능' },
+                  { done: false, text: '[주간] 유입 채널별 트래픽 분석', desc: '획득 → 트래픽 획득 — 검색/직접/SNS/추천 비율 파악' },
+                  { done: false, text: '[주간] 인기 페이지 TOP 10 확인', desc: '참여 → 페이지 및 화면 — 어떤 글이 잘 읽히는지 파악해서 유사 글 작성' },
+                  { done: false, text: '[월간] 이탈률·평균 참여 시간 확인', desc: '참여 시간이 짧으면 콘텐츠 도입부 개선 필요 / 이탈률 높으면 내부 링크 강화' },
+                  { done: false, text: '[월간] 기기별·지역별 접속 현황', desc: '모바일 비율이 높으면 모바일 UX를 우선 최적화' },
+                  { done: true, text: '🤖 [자동] 주간/월간 리포트 이메일 수신 중', desc: 'GA4 이메일 예약 전송으로 자동 발송 중 ✅' },
                 ]
               }
             ]
@@ -464,25 +465,25 @@ export function BlogAdmin({ user }) {
                 title: '🔴 필수 등록 (아직 안 됨)',
                 color: '#991b1b', bg: '#fef2f2', border: '#fca5a5',
                 items: [
-                  { done: false, text: '네이버 서치어드바이저 등록', desc: '✅ 완료 — 소유권 인증 · sitemap 제출 완료' },
-                  { done: false, text: '빙 웹마스터 도구 등록', desc: '✅ 완료 — 구글 서치콘솔에서 수입 · sitemap 자동 연동 완료' },
+                  { done: true, text: '네이버 서치어드바이저 등록 완료', desc: '소유권 인증 ✅ · sitemap 제출 완료 ✅' },
+                  { done: true, text: '빙 웹마스터 도구 등록 완료', desc: '구글 서치콘솔에서 수입 · sitemap 자동 연동 완료 ✅' },
                 ]
               },
               {
                 title: '🟡 선택 등록 (권장)',
                 color: '#92400e', bg: '#fffbeb', border: '#fde68a',
                 items: [
-                  { done: false, text: '다음(카카오) 검색 등록', desc: '✅ 완료 — 사이트 등록 신청 완료' },
-                  { done: false, text: '줌(ZUM) 등록', desc: '✅ 완료 — 구글·다음 등록 시 자동 수집 (별도 등록 불필요)' },
-                  { done: false, text: '얀덱스 웹마스터 등록', desc: '✅ 완료 — 소유권 인증 · sitemap 제출 완료' },
+                  { done: true, text: '다음(카카오) 검색 등록 완료', desc: '사이트 등록 신청 완료 ✅' },
+                  { done: true, text: '줌(ZUM) 등록 완료', desc: '구글·다음 등록 시 자동 수집 ✅ (별도 등록 불필요)' },
+                  { done: true, text: '얀덱스 웹마스터 등록 완료', desc: '소유권 인증 ✅ · sitemap 제출 완료 ✅' },
                 ]
               },
               {
                 title: '📋 등록 후 공통 해야 할 것',
                 color: '#1e40af', bg: '#eff6ff', border: '#bfdbfe',
                 items: [
-                  { done: false, text: '각 검색엔진에 sitemap.xml 제출', desc: '✅ 완료 — 구글·네이버·빙·얀덱스 모두 제출 완료' },
-                  { done: false, text: '소유권 인증 메타태그 index.html에 추가', desc: '✅ 완료 — 구글·네이버·얀덱스 인증 메타태그 삽입 완료' },
+                  { done: true, text: '각 검색엔진에 sitemap.xml 제출 완료', desc: '구글·네이버·빙·얀덱스 모두 제출 완료 ✅' },
+                  { done: true, text: '소유권 인증 메타태그 index.html에 추가 완료', desc: '구글·네이버·얀덱스 인증 메타태그 삽입 완료 ✅' },
                   { done: false, text: 'IndexNow 키 파일 확인', desc: 'public/9dcc9754863220877605a3ee2763022a.txt 파일 배포됐는지 브라우저에서 직접 확인' },
                 ]
               }
