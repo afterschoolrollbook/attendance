@@ -210,6 +210,11 @@ function AppLoading({ message }) {
 
 function AppInner() {
   const [user, setUser] = useState(null)
+  // 관리자 전용: 레벨 미리보기 (DB 변경 없이 특정 레벨로 UI 체험)
+  const [previewLevel, setPreviewLevel] = useState(() => {
+    const saved = localStorage.getItem('asa_preview_level')
+    return saved ? Number(saved) : null
+  })
   // 새로고침 시 랜딩 스킵: sessionStorage에 이전 페이지 기록이 있으면 바로 앱으로
   const [showLanding, setShowLanding] = useState(() => !sessionStorage.getItem('asa_visited'))   // ← 랜딩 페이지 표시 여부
   const [landingTarget, setLandingTarget] = useState('login') // 'login' | 'signup'
@@ -472,9 +477,27 @@ function AppInner() {
 
   if (!user) return <Auth onLogin={handleLogin} initialTab={landingTarget} onGoLanding={() => setShowLanding(true)} onBeforeLogin={() => setShowLoginLoading(true)} />
 
-  const pageProps = { user, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate, onLogout: handleLogout }
+  // 관리자만 previewLevel 사용 가능 — 실제 level 10이어야 활성화
+  const isRealAdmin = user?.level >= 10 || user?.role === 'admin'
+  const effectiveUser = (isRealAdmin && previewLevel !== null)
+    ? { ...user, level: previewLevel, _previewLevel: previewLevel }
+    : user
+
+  function handleSetPreviewLevel(level) {
+    if (level === null) {
+      localStorage.removeItem('asa_preview_level')
+      setPreviewLevel(null)
+    } else {
+      localStorage.setItem('asa_preview_level', String(level))
+      setPreviewLevel(level)
+    }
+    setPage('dashboard')
+  }
+
+  const pageProps = { user: effectiveUser, onNav: handleNav, pageParams, onUserUpdate: handleUserUpdate, onLogout: handleLogout }
 
   const renderPage = () => {
+    const u = effectiveUser  // 미리보기 중이면 오버라이드된 레벨 적용
     switch (page) {
       case 'dashboard':       return <Dashboard {...pageProps} />
       case 'classes':         return <Classes {...pageProps} />
@@ -484,32 +507,32 @@ function AppInner() {
       case 'reports':         return <Reports {...pageProps} />
       case 'templates':       return <Templates {...pageProps} />
       case 'printsetup':      return <PrintSetup {...pageProps} />
-      case 'parent-service':  return <ParentServiceManage user={user} />
-      case 'admin':           return can(user, 'approve_teacher') ? <Admin {...pageProps} /> : <Dashboard {...pageProps} />
-      case 'level_manage':    return can(user, 'manage_level') ? <LevelManage user={user} /> : <Dashboard {...pageProps} />
+      case 'parent-service':  return <ParentServiceManage user={u} />
+      case 'admin':           return can(u, 'approve_teacher') ? <Admin {...pageProps} /> : <Dashboard {...pageProps} />
+      case 'level_manage':    return can(u, 'manage_level') ? <LevelManage user={u} /> : <Dashboard {...pageProps} />
       case 'adsense':         return <Adsense {...pageProps} />
       case 'profile':         return <Profile {...pageProps} />
-      case 'admin_settings':  return can(user, 'manage_ad') ? <AdminSettings {...pageProps} /> : <Dashboard {...pageProps} />
-      case 'training':        return <Training     user={user} />
-      case 'certificates':    return <Certificates user={user} />
-      case 'career':          return <Career       user={user} />
-      case 'awards':          return <AwardsPage   user={user} />
-      case 'proposals':       return <Proposals    user={user} />
-      case 'jobs':            return <Jobs         user={user} />
-      case 'revenue':         return <Revenue      user={user} />
-      case 'supplies':        return <Supplies     user={user} />
-      case 'messageguide':    return <MessageGuide user={user} />
-      case 'blog_admin':      return can(user, 'manage_ad') ? <BlogAdmin user={user} /> : <Dashboard {...pageProps} />
-      case 'blog_ai_write':   return can(user, 'manage_ad') ? <BlogAiWrite user={user} /> : <Dashboard {...pageProps} />
-      case 'blog_menu_manage':        return can(user, 'manage_ad') ? <BlogMenuManage user={user} />        : <Dashboard {...pageProps} />
-      case 'region_manage':          return can(user, 'manage_ad') ? <RegionManage user={user} />          : <Dashboard {...pageProps} />
-      case 'teacher_service_manage': return can(user, 'manage_ad') ? <TeacherServiceManage user={user} /> : <Dashboard {...pageProps} />
-      case 'demo_data':             return (user?.level >= 10) ? <DemoDataManager user={user} /> : <Dashboard {...pageProps} />
-      case 'blog_write':      return <BlogWrite user={user} onLogout={handleLogout} />
+      case 'admin_settings':  return can(u, 'manage_ad') ? <AdminSettings {...pageProps} /> : <Dashboard {...pageProps} />
+      case 'training':        return <Training     user={u} />
+      case 'certificates':    return <Certificates user={u} />
+      case 'career':          return <Career       user={u} />
+      case 'awards':          return <AwardsPage   user={u} />
+      case 'proposals':       return <Proposals    user={u} />
+      case 'jobs':            return <Jobs         user={u} />
+      case 'revenue':         return <Revenue      user={u} />
+      case 'supplies':        return <Supplies     user={u} />
+      case 'messageguide':    return <MessageGuide user={u} />
+      case 'blog_admin':      return can(u, 'manage_ad') ? <BlogAdmin user={u} /> : <Dashboard {...pageProps} />
+      case 'blog_ai_write':   return can(u, 'manage_ad') ? <BlogAiWrite user={u} /> : <Dashboard {...pageProps} />
+      case 'blog_menu_manage':        return can(u, 'manage_ad') ? <BlogMenuManage user={u} />        : <Dashboard {...pageProps} />
+      case 'region_manage':          return can(u, 'manage_ad') ? <RegionManage user={u} />          : <Dashboard {...pageProps} />
+      case 'teacher_service_manage': return can(u, 'manage_ad') ? <TeacherServiceManage user={u} /> : <Dashboard {...pageProps} />
+      case 'demo_data':             return (u?.level >= 10) ? <DemoDataManager user={u} /> : <Dashboard {...pageProps} />
+      case 'blog_write':      return <BlogWrite user={u} onLogout={handleLogout} />
       // ✅ 본사 업체 관리 (Lv.10 전용)
-      case 'vendor_manage':   return can(user, 'manage_ad') ? <VendorManage user={user} /> : <Dashboard {...pageProps} />
+      case 'vendor_manage':   return can(u, 'manage_ad') ? <VendorManage user={u} /> : <Dashboard {...pageProps} />
       // ✅ 본사 학교 담당자 관리 (Lv.10 전용)
-      case 'school_manage':   return can(user, 'manage_ad') ? <SchoolAdminManage user={user} /> : <Dashboard {...pageProps} />
+      case 'school_manage':   return can(u, 'manage_ad') ? <SchoolAdminManage user={u} /> : <Dashboard {...pageProps} />
       default:                return <Dashboard {...pageProps} />
     }
   }
@@ -608,9 +631,10 @@ function AppInner() {
     <div style={{ display:'flex', minHeight:'100vh', background:'#f4f5f7', flexDirection: isMobile ? 'column' : 'row' }}>
       <SaveStatusBar user={user} />
       {isMobile && <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />}
-      <Sidebar user={user} currentPage={page} onNav={handleNav} onLogout={handleLogout}
+      <Sidebar user={effectiveUser} currentPage={page} onNav={handleNav} onLogout={handleLogout}
                mobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)}
-               onGoLanding={() => { setShowLanding(true) }} />
+               onGoLanding={() => { setShowLanding(true) }}
+               realUser={user} previewLevel={previewLevel} onSetPreviewLevel={handleSetPreviewLevel} />
       <main style={{ flex:1, height:'100vh', overflowY:'auto', paddingTop: isMobile ? '52px' : 0, paddingBottom: isMobile ? '60px' : 0 }}>
         {renderPage()}
       </main>

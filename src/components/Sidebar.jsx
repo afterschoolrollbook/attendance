@@ -132,7 +132,7 @@ export function Sidebar({ user, currentPage, onNav, onLogout, mobile, open, onCl
             const lvName = DEFAULT_LEVEL_NAMES[lv] || ('레벨' + lv)
             return (
               <button key={lv}
-                onClick={() => { onSetPreviewLevel(isSelected ? null : lv); setPreviewOpen(false) }}
+                onClick={() => { if(isCurrentReal && !isSelected) return; onSetPreviewLevel(isSelected ? null : lv); setPreviewOpen(false) }}
                 style={{
                   display:'flex', alignItems:'center', justifyContent:'space-between',
                   padding:'10px 14px', borderRadius:'10px', border: isSelected ? '2px solid ' + lvColor : '2px solid transparent',
