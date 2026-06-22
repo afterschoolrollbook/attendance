@@ -41,6 +41,8 @@ const ADMIN_NAV = [
   { path: 'blog_admin',     label: '게시판 관리', icon: '📝', feature: FEATURES.MANAGE_AD },
   { path: 'blog_menu_manage',     label: '게시판 메뉴관리',  icon: '📋', feature: FEATURES.MANAGE_AD },
   { path: 'blog_ai_write',  label: 'AI 게시판 글쓰기', icon: '✨', feature: FEATURES.MANAGE_AD },
+  { path: 'blog_publish_log', label: '발행 기록',     icon: '🗂️', feature: FEATURES.MANAGE_AD },
+  { path: 'blog_keywords',    label: '키워드 관리',   icon: '🔍', feature: FEATURES.MANAGE_AD },
   { path: 'region_manage',         label: '지역/학교 관리',   icon: '🗺️', feature: FEATURES.MANAGE_AD },
   { path: 'teacher_service_manage',label: '강사 서비스 관리', icon: '🎓', feature: FEATURES.MANAGE_AD },
   { path: 'demo_data',             label: '데모 데이터 생성', icon: '🎬', feature: FEATURES.MANAGE_AD },
