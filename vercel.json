@@ -1,4 +1,18 @@
 {
+  "redirects": [
+    {
+      "source": "/:path((?!ads\\.txt$).*)",
+      "has": [{ "type": "host", "value": "afterschoolrollbook.kr" }],
+      "destination": "https://www.afterschoolrollbook.kr/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "afterschoolrollbook.kr" }],
+      "destination": "https://www.afterschoolrollbook.kr/",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/sitemap.xml",
