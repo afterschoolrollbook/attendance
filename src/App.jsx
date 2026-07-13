@@ -37,6 +37,7 @@ import { BlogMenuManage }          from './pages/BlogMenuManage.jsx'
 import { BlogPublishLogPage }      from './pages/BlogPublishLogPage.jsx'
 import { BlogKeywordPage }         from './pages/BlogKeywordPage.jsx'
 import { BlogSystemPrompt }        from './pages/BlogSystemPrompt.jsx'
+import { CoupangManage }           from './pages/CoupangManage.jsx'
 import { RegionManage }             from './pages/RegionManage.jsx'
 import { TeacherServiceManage }     from './pages/TeacherServiceManage.jsx'
 import { DemoDataManager }          from './pages/DemoDataManager.jsx'
@@ -515,6 +516,7 @@ function AppInner() {
       case 'admin':           return can(u, 'approve_teacher') ? <Admin {...pageProps} /> : <Dashboard {...pageProps} />
       case 'level_manage':    return can(u, 'manage_level') ? <LevelManage user={u} /> : <Dashboard {...pageProps} />
       case 'adsense':         return <Adsense {...pageProps} />
+      case 'coupang_manage':  return can(u, 'manage_ad') ? <CoupangManage user={u} /> : <Dashboard {...pageProps} />
       case 'profile':         return <Profile {...pageProps} />
       case 'admin_settings':  return can(u, 'manage_ad') ? <AdminSettings {...pageProps} /> : <Dashboard {...pageProps} />
       case 'training':        return <Training     user={u} />
