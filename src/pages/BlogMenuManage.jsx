@@ -8,6 +8,9 @@ import { LEVEL_NAMES, LEVEL_COLORS, BOARD_PERM_DEFAULTS, getBoardPermissions } f
 
 const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316', success:'#16a34a' }
 
+// ─── 커스텀 카테고리 아이콘 선택지 (Fresh_Season BlogMenuPanel의 ICON_CHOICES와 동일)
+const ICON_CHOICES = ['📁','✏️','💡','🌍','📝','🎯','⭐','🎥','📖','🛒','🧩','❄️','🔥','🎉','📌']
+
 // ─── 권한 레벨 선택 버튼 (BlogAdmin 권한설정에서 사용)
 function LevelButtons({ value, onChange }) {
   return (
@@ -41,9 +44,10 @@ export function BlogMenuManage({ user }) {
   const [boardPerms, setBoardPerms] = useState(() => getBoardPermissions())
   const [categories, setCategories] = useState([])
   const [newCat, setNewCat] = useState('')
+  const [newIcon, setNewIcon] = useState(ICON_CHOICES[0])
   const [catLoading, setCatLoading] = useState(false)
 
-  const { success } = useToast()
+  const { success, error: toastError } = useToast()
 
   // 기본 카테고리 (DB에 없으면 초기 시드로 추가)
   const DEFAULT_CATS = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
@@ -76,14 +80,15 @@ export function BlogMenuManage({ user }) {
   const addCategory = async () => {
     const label = newCat.trim()
     if (!label) return
-    if (DEFAULT_CATS.includes(label) || categories.find(c => c.label === label)) return alert('이미 있는 카테고리예요.')
+    if (DEFAULT_CATS.includes(label) || categories.find(c => c.label === label)) return toastError('이미 있는 카테고리예요.')
     setCatLoading(true)
     try {
-      await dbCall('insert', 'customCategories', { data: { id: uid(), key: `blog_${uid()}`, type: 'blog', label, createdAt: now(), updatedAt: now() } })
+      await dbCall('insert', 'customCategories', { data: { id: uid(), key: `blog_${uid()}`, type: 'blog', label, icon: newIcon, createdAt: now(), updatedAt: now() } })
       setNewCat('')
+      setNewIcon(ICON_CHOICES[0])
       loadCategories()
       success(`"${label}" 카테고리가 추가되었습니다.`)
-    } catch (e) { alert('추가 실패: ' + e.message) }
+    } catch (e) { toastError('추가 실패: ' + e.message) }
     setCatLoading(false)
   }
 
@@ -93,7 +98,7 @@ export function BlogMenuManage({ user }) {
       await dbCall('delete', 'customCategories', { id: cat.id })
       loadCategories()
       success(`"${cat.label}" 카테고리가 삭제되었습니다.`)
-    } catch (e) { alert('삭제 실패: ' + e.message) }
+    } catch (e) { toastError('삭제 실패: ' + e.message) }
   }
 
   const save = () => {
@@ -108,42 +113,63 @@ export function BlogMenuManage({ user }) {
     setBoardPerms(prev => ({ ...prev, [boardKey]: { ...prev[boardKey], [permType]: lv } }))
   }
 
+  // DB에 최초 시드된 기본 카테고리는 위쪽 "기본 카테고리" 카드에서 읽기 전용으로 보여주고,
+  // 여기서는 사용자가 직접 추가한 커스텀 카테고리만 추가/삭제 대상으로 다룬다.
+  const customCategories = categories.filter(c => !DEFAULT_CATS.includes(c.label))
+
   return (
     <div style={{ padding:'28px', maxWidth:'1100px' }}>
       <PageHeader title="블로그 메뉴관리" sub="게시판 접근/읽기/글쓰기 권한 및 콘텐츠 작성 최소 레벨을 설정합니다." />
 
       <div style={{ marginTop:'20px' }}>
 
-        {/* 카테고리 관리 */}
+        {/* 기본 카테고리 — 읽기 전용, 삭제 불가 (Fresh_Season BlogMenuPanel의 "기본 카테고리" 카드와 동일 구조) */}
         <Card style={{ marginBottom:'16px' }}>
-          <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>📂 블로그 카테고리 관리</div>
-          <div style={{ fontSize:'13px', color:C.muted, marginBottom:'20px' }}>블로그 카테고리를 추가하거나 삭제할 수 있어요. 기본 카테고리는 삭제할 수 없어요.</div>
+          <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>📌 기본 카테고리 (삭제 불가)</div>
+          <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>방과후 출석부 기본 카테고리예요. 삭제할 수 없어요.</div>
+          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+            {DEFAULT_CATS.map(cat => (
+              <span key={cat} style={{ padding:'6px 14px', borderRadius:'999px', fontSize:'13px', fontWeight:600, background:'#f0fdf4', border:'1px solid #86efac', color:'#16a34a' }}>{cat}</span>
+            ))}
+          </div>
+        </Card>
 
-          {/* 전체 카테고리 목록 (모두 삭제 가능) */}
-          <div style={{ marginBottom:'16px' }}>
-            <div style={{ fontSize:'12px', fontWeight:700, color:C.muted, marginBottom:'8px' }}>등록된 카테고리</div>
-            {categories.length === 0 ? (
-              <div style={{ fontSize:'13px', color:C.muted }}>카테고리가 없습니다.</div>
-            ) : (
-              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-                {categories.map(cat => (
-                  <div key={cat.id} style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 10px 5px 14px', borderRadius:'999px', background:'#fff7ed', border:'1.5px solid #fed7aa' }}>
-                    <span style={{ fontSize:'13px', fontWeight:600, color:'#c2410c' }}>{cat.label}</span>
-                    <button onClick={() => deleteCategory(cat)} style={{ background:'none', border:'none', cursor:'pointer', color:'#f97316', fontSize:'14px', lineHeight:1, padding:'0 2px' }}>×</button>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* 커스텀 카테고리 — 이모지 선택 + 추가/삭제 (Fresh_Season BlogMenuPanel의 "커스텀 카테고리" 카드와 동일 구조) */}
+        <Card style={{ marginBottom:'16px' }}>
+          <div style={{ fontSize:'16px', fontWeight:700, color:C.text, marginBottom:'4px' }}>📂 커스텀 카테고리</div>
+          <div style={{ fontSize:'13px', color:C.muted, marginBottom:'16px' }}>블로그 글에서 사용할 카테고리를 추가하거나 삭제할 수 있어요.</div>
+
+          {/* 아이콘 선택 */}
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'12px' }}>
+            {ICON_CHOICES.map(ic => (
+              <button key={ic} type="button" onClick={() => setNewIcon(ic)}
+                style={{ width:'34px', height:'34px', borderRadius:'8px', fontSize:'16px', cursor:'pointer',
+                  background: newIcon === ic ? '#fff7ed' : '#f9fafb',
+                  border: newIcon === ic ? `1.5px solid ${C.primary}` : `1.5px solid ${C.border}` }}>{ic}</button>
+            ))}
           </div>
 
           {/* 추가 입력 */}
-          <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+          <div style={{ display:'flex', gap:'8px', marginBottom:'20px' }}>
             <input value={newCat} onChange={e => setNewCat(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addCategory()}
               placeholder="새 카테고리 이름 입력 (예: 교육 칼럼)"
               style={{ flex:1, padding:'9px 12px', borderRadius:'8px', border:`1.5px solid ${C.border}`, fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', outline:'none' }} />
-            <Btn onClick={addCategory} disabled={catLoading || !newCat.trim()}>+ 추가</Btn>
+            <Btn onClick={addCategory} disabled={catLoading || !newCat.trim()}>{newIcon} 추가</Btn>
           </div>
+
+          {customCategories.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'24px 0', fontSize:'13px', color:C.muted }}>추가된 커스텀 카테고리가 없습니다</div>
+          ) : (
+            <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
+              {customCategories.map(cat => (
+                <div key={cat.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 10px 7px 16px', borderRadius:'999px', background:'#fff7ed', border:'1.5px solid #fed7aa' }}>
+                  <span style={{ fontSize:'13px', fontWeight:600, color:'#c2410c' }}>{cat.icon || '📁'} {cat.label}</span>
+                  <button onClick={() => deleteCategory(cat)} style={{ background:'none', border:'none', cursor:'pointer', color:'#f97316', fontSize:'14px', lineHeight:1, padding:'0 2px' }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
 
         <Card style={{ marginBottom:'16px' }}>
