@@ -40,6 +40,7 @@ import { BlogSystemPrompt }        from './pages/BlogSystemPrompt.jsx'
 import { CoupangManage }           from './pages/CoupangManage.jsx'
 import { PopupManage }             from './pages/PopupManage.jsx'
 import { PopupDisplay }            from './components/PopupDisplay.jsx'
+import { BacklinkManage }          from './pages/BacklinkManage.jsx'
 import { RegionManage }             from './pages/RegionManage.jsx'
 import { TeacherServiceManage }     from './pages/TeacherServiceManage.jsx'
 import { DemoDataManager }          from './pages/DemoDataManager.jsx'
@@ -534,6 +535,7 @@ function AppInner() {
       case 'blog_write_admin': return can(u, 'manage_ad') ? <BlogAdmin key="blog_write" user={u} initialView="write" /> : <Dashboard {...pageProps} />
       case 'blog_admin':      return can(u, 'manage_ad') ? <BlogAdmin key="blog_admin" user={u} /> : <Dashboard {...pageProps} />
       case 'blog_ai_write':   return can(u, 'manage_ad') ? <BlogAiWrite user={u} /> : <Dashboard {...pageProps} />
+      case 'backlink_manage': return can(u, 'manage_ad') ? <BacklinkManage user={u} /> : <Dashboard {...pageProps} />
       case 'blog_menu_manage':        return can(u, 'manage_ad') ? <BlogMenuManage user={u} />        : <Dashboard {...pageProps} />
       case 'blog_publish_log':        return can(u, 'manage_ad') ? <BlogPublishLogPage user={u} />    : <Dashboard {...pageProps} />
       case 'blog_keywords':           return can(u, 'manage_ad') ? <BlogKeywordPage user={u} />       : <Dashboard {...pageProps} />

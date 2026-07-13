@@ -5,7 +5,7 @@
 // Claude(연결된 커넥터)가 이 툴들을 직접 호출해서 "오늘 블로그 글" 글감을
 // 사람 개입 없이 스스로 판단할 수 있게 하는 것이 목적입니다.
 //
-// 노출 툴 16개:
+// 노출 툴 23개:
 //   - get_publish_log      : 발행 기록 조회 (중복 방지 + 키워드 추적, STEP 1에서 가장 먼저 호출)
 //   - get_keyword_data     : 과목/역량 그룹별 찜한 키워드 + TOP 키워드 조회
 //   - search_keyword_data  : keyword_stats 전체를 그룹 구분 없이 검색 (황금키워드 탐색)
@@ -22,6 +22,13 @@
 //   - update_series_info   : 시리즈/카테고리 정보 갱신
 //   - get_system_prompt    : 관리자 화면("클로드 지침")의 시스템 프롬프트 조회 (claude/main/main2)
 //   - update_system_prompt : 관리자 화면("클로드 지침")의 시스템 프롬프트 갱신
+//   - list_github_files    : GitHub 저장소(afterschoolrollbook/attendance) 특정 경로 파일 목록 조회
+//   - get_github_file      : GitHub 저장소 특정 파일 내용 조회
+//   - list_tables          : Supabase DB 테이블 목록 조회
+//   - get_rows             : 임의 테이블 행 조회 (필터·검색·정렬·페이징)
+//   - upsert_row           : 임의 테이블 행 추가·수정
+//   - delete_row           : 임의 테이블 행 삭제 (되돌릴 수 없음)
+//   - run_sql              : SQL 직접 실행 (위험 DDL 자동 차단, run_sql_query RPC 필요)
 //
 // 필요한 Supabase 테이블 (최초 1회 실행):
 //
@@ -83,6 +90,24 @@
 //   NAVER_AD_API_KEY / NAVER_AD_SECRET_KEY / NAVER_AD_CUSTOMER_ID
 //   NAVER_CLIENT_ID / NAVER_CLIENT_SECRET (선택)
 //   MCP_SHARED_SECRET
+//   GITHUB_TOKEN (선택)                        - list_github_files/get_github_file 툴의 GitHub API
+//                                                 호출 제한(시간당 60회)을 늘려줌, 없어도 동작함
+//
+// list_tables/run_sql 완전 동작을 위한 Postgres RPC (선택, 없으면 일부 기능만 제한):
+// ⚠️ 임의 SQL을 실행할 수 있는 함수라 위험도가 높다 — 필요할 때만 생성할 것.
+//
+// create or replace function run_sql_query(sql text)
+// returns jsonb
+// language plpgsql
+// security definer
+// as $$
+// declare
+//   result jsonb;
+// begin
+//   execute format('select coalesce(jsonb_agg(t), ''[]''::jsonb) from (%s) t', sql) into result;
+//   return result;
+// end;
+// $$;
 //
 // claude.ai 커넥터 등록 주소:
 //   https://attendance-blog-mcp.vercel.app/api/mcp?key=여기에_MCP_SHARED_SECRET_값
@@ -433,8 +458,201 @@ const baseHandler = createMcpHandler(
       return { content: [{ type: 'text', text: `✅ [${id}] 시스템 프롬프트 갱신됨` }] }
     })
 
+    // ── GitHub 저장소 확인 툴 (Fresh_Season MCP와 동일 구조, 저장소만 attendance로 교체) ──
+    // 공개 저장소라 토큰 없이도 동작하지만(시간당 60회 제한),
+    // GITHUB_TOKEN 환경변수를 등록해두면 그 제한이 훨씬 늘어난다.
+    // 저장소: afterschoolrollbook/attendance (사용자 확인됨)
+    const GITHUB_REPO = 'afterschoolrollbook/attendance'
+
+    server.registerTool(
+      'list_github_files',
+      {
+        title: 'GitHub 저장소 파일 목록 조회',
+        description: `${GITHUB_REPO} 저장소의 특정 경로에 어떤 파일·폴더가 있는지 조회한다. path를 비우면 저장소 루트를 본다. GitHub에 실제로 무엇이 올라가 있는지 확인할 때 사용.`,
+        inputSchema: {
+          path: z.string().optional().describe('조회할 경로. 예: "src/pages" 또는 "mcp/app/api/mcp". 비우면 루트'),
+          ref: z.string().optional().describe('브랜치/커밋. 기본: main'),
+        },
+      },
+      async ({ path = '', ref = 'main' }) => {
+        const url = `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}?ref=${encodeURIComponent(ref)}`
+        const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'attendance-mcp' }
+        if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`
+        const res = await fetch(url, { headers })
+        if (!res.ok) {
+          const text = await res.text().catch(() => '')
+          return { content: [{ type: 'text', text: `❌ GitHub API 오류 (${res.status}): ${text}` }], isError: true }
+        }
+        const data = await res.json()
+        const list = Array.isArray(data) ? data : [data]
+        const lines = list.map(f => `${f.type === 'dir' ? '📁' : '📄'} ${f.path}${f.type === 'file' ? ` (${f.size} bytes)` : ''}`)
+        return { content: [{ type: 'text', text: lines.join('\n') }] }
+      }
+    )
+
+    server.registerTool(
+      'get_github_file',
+      {
+        title: 'GitHub 저장소 파일 내용 조회',
+        description: `${GITHUB_REPO} 저장소의 특정 파일 내용을 텍스트로 가져온다. list_github_files로 경로 확인 후 사용. 100KB 넘는 파일은 GitHub API 제약으로 못 가져올 수 있다.`,
+        inputSchema: {
+          path: z.string().describe('파일 경로. 예: "src/App.jsx"'),
+          ref: z.string().optional().describe('브랜치/커밋. 기본: main'),
+        },
+      },
+      async ({ path, ref = 'main' }) => {
+        const url = `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}?ref=${encodeURIComponent(ref)}`
+        const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'attendance-mcp' }
+        if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`
+        const res = await fetch(url, { headers })
+        if (!res.ok) {
+          const text = await res.text().catch(() => '')
+          return { content: [{ type: 'text', text: `❌ GitHub API 오류 (${res.status}): ${text}` }], isError: true }
+        }
+        const data = await res.json()
+        if (data.type !== 'file') return { content: [{ type: 'text', text: `❌ "${path}"는 파일이 아니라 ${data.type}입니다` }], isError: true }
+        const content = Buffer.from(data.content, data.encoding || 'base64').toString('utf-8')
+        return { content: [{ type: 'text', text: `[${path}] (${data.size} bytes)\n\n${content}` }] }
+      }
+    )
+
+    // ── Supabase 직접 조회·수정 툴 (Fresh_Season MCP와 동일) ──────────────
+    // list_tables/run_sql은 run_sql_query라는 Postgres RPC 함수가 있어야 완전히 동작한다.
+    // ⚠️ 이 RPC는 임의 SQL을 실행할 수 있어 위험도가 높다 — 생성 여부는 사용자가 판단해서 결정할 것.
+    //   (get_rows/upsert_row/delete_row는 이 RPC 없이도 바로 동작한다.)
+
+    server.registerTool(
+      'list_tables',
+      {
+        title: 'DB 테이블 목록 조회',
+        description: 'list_tables — DB 테이블 목록 조회. Supabase DB에 있는 테이블 목록을 반환한다. 어떤 테이블이 있는지 모를 때 가장 먼저 호출한다.',
+        inputSchema: {
+          schema: z.string().optional().describe('스키마 이름. 기본값: public'),
+        },
+      },
+      async ({ schema = 'public' }) => {
+        const { data: d2, error: e2 } = await supabase
+          .from('information_schema.tables')
+          .select('table_name')
+          .eq('table_schema', schema)
+          .eq('table_type', 'BASE TABLE')
+          .order('table_name')
+        if (e2) {
+          const { data: d3, error: e3 } = await supabase.rpc('run_sql_query', {
+            sql: `SELECT table_name FROM information_schema.tables WHERE table_schema = '${schema}' AND table_type = 'BASE TABLE' ORDER BY table_name`
+          })
+          if (e3) return { content: [{ type: 'text', text: `❌ ${e3.message}` }], isError: true }
+          return { content: [{ type: 'text', text: JSON.stringify(d3, null, 2) }] }
+        }
+        const names = (d2 || []).map(r => r.table_name).join('\n')
+        return { content: [{ type: 'text', text: `테이블 목록 (${schema} 스키마):\n${names}` }] }
+      }
+    )
+
+    server.registerTool(
+      'get_rows',
+      {
+        title: 'DB 테이블 데이터 조회',
+        description: 'get_rows — DB 테이블 데이터 조회. 특정 테이블의 행을 조회한다. 필터·텍스트검색·정렬·페이징 지원, 최대 500행. 데이터 확인이나 수정 전 ID 조회에 사용.',
+        inputSchema: {
+          table:   z.string().describe('테이블 이름. 예: blog_posts, blog_keyword_stats, popups'),
+          select:  z.string().optional().describe('가져올 컬럼 (쉼표 구분). 비우면 전체(*). 예: id,title,created_at'),
+          filter:  z.record(z.string()).optional().describe('eq 필터. 예: {"status":"published","category":"공지사항"}'),
+          search_column: z.string().optional().describe('텍스트 검색할 컬럼. search_value와 함께 사용'),
+          search_value:  z.string().optional().describe('텍스트 검색어 (ilike, 부분일치)'),
+          order_by: z.string().optional().describe('정렬 기준 컬럼. 기본: created_at'),
+          ascending: z.boolean().optional().describe('오름차순 여부. 기본: false (최신순)'),
+          limit:   z.number().int().min(1).max(500).optional().describe('가져올 행 수. 기본: 50, 최대: 500'),
+          offset:  z.number().int().min(0).optional().describe('건너뛸 행 수 (페이징). 기본: 0'),
+        },
+      },
+      async ({ table, select = '*', filter, search_column, search_value, order_by = 'created_at', ascending = false, limit = 50, offset = 0 }) => {
+        let q = supabase.from(table).select(select)
+        if (filter) {
+          for (const [col, val] of Object.entries(filter)) q = q.eq(col, val)
+        }
+        if (search_column && search_value) q = q.ilike(search_column, `%${search_value}%`)
+        q = q.order(order_by, { ascending }).range(offset, offset + limit - 1)
+        const { data, error } = await q
+        if (error) return { content: [{ type: 'text', text: `❌ ${error.message}` }], isError: true }
+        if (!data?.length) return { content: [{ type: 'text', text: `(결과 없음) 테이블: ${table}` }] }
+        return { content: [{ type: 'text', text: `[${table}] ${data.length}행 반환 (offset:${offset})\n${JSON.stringify(data, null, 2)}` }] }
+      }
+    )
+
+    server.registerTool(
+      'upsert_row',
+      {
+        title: 'DB 행 추가·수정',
+        description: 'upsert_row — DB 행 추가·수정. 테이블에 행을 추가하거나 수정한다. id를 포함하면 수정(upsert), 없으면 새 행 추가. 수정 전 get_rows로 기존 데이터를 먼저 확인할 것.',
+        inputSchema: {
+          table: z.string().describe('테이블 이름. 예: blog_posts, popups'),
+          row:   z.record(z.any()).describe('추가·수정할 데이터 객체. 예: {"id":"abc","title":"...","status":"draft"}'),
+        },
+        annotations: { destructiveHint: true },
+      },
+      async ({ table, row }) => {
+        const { data, error } = await supabase
+          .from(table)
+          .upsert([row], { onConflict: 'id' })
+          .select()
+          .single()
+        if (error) return { content: [{ type: 'text', text: `❌ ${error.message}` }], isError: true }
+        return { content: [{ type: 'text', text: `✅ [${table}] upsert 완료\n${JSON.stringify(data, null, 2)}` }] }
+      }
+    )
+
+    server.registerTool(
+      'delete_row',
+      {
+        title: 'DB 행 삭제',
+        description: 'delete_row — DB 행 삭제. 테이블에서 특정 id의 행을 삭제한다. 삭제 전 존재 자동 확인, 되돌릴 수 없음. 삭제 전 반드시 get_rows로 대상을 먼저 확인할 것.',
+        inputSchema: {
+          table: z.string().describe('테이블 이름'),
+          id:    z.string().describe('삭제할 행의 id'),
+        },
+        annotations: { destructiveHint: true },
+      },
+      async ({ table, id }) => {
+        const { data: existing } = await supabase.from(table).select('id').eq('id', id).maybeSingle()
+        if (!existing) return { content: [{ type: 'text', text: `❌ [${table}] id="${id}" 행을 찾을 수 없음` }], isError: true }
+        const { error } = await supabase.from(table).delete().eq('id', id)
+        if (error) return { content: [{ type: 'text', text: `❌ ${error.message}` }], isError: true }
+        return { content: [{ type: 'text', text: `✅ [${table}] id="${id}" 삭제 완료` }] }
+      }
+    )
+
+    server.registerTool(
+      'run_sql',
+      {
+        title: 'SQL 직접 실행',
+        description: 'run_sql — SQL 직접 실행. 복잡한 조회나 수정이 필요할 때 SQL 쿼리를 직접 실행한다. SELECT/UPDATE/DELETE 모두 가능. DROP·TRUNCATE·ALTER 등 위험 DDL은 자동 차단. run_sql_query RPC 함수가 DB에 있어야 동작한다.',
+        inputSchema: {
+          sql: z.string().describe('실행할 SQL 쿼리. 예: SELECT id, title FROM blog_posts WHERE status = \'draft\' ORDER BY created_at DESC LIMIT 20'),
+        },
+        annotations: { destructiveHint: true },
+      },
+      async ({ sql }) => {
+        const upper = sql.trim().toUpperCase()
+        const dangerous = ['DROP ', 'TRUNCATE ', 'ALTER TABLE', 'CREATE TABLE', 'GRANT ', 'REVOKE ']
+        if (dangerous.some(kw => upper.startsWith(kw) || upper.includes('\n' + kw))) {
+          return { content: [{ type: 'text', text: `⛔ 위험한 DDL/권한 쿼리는 차단됩니다: ${sql.slice(0, 80)}` }], isError: true }
+        }
+        const { data, error } = await supabase.rpc('run_sql_query', { sql })
+        if (error) return { content: [{ type: 'text', text: `❌ ${error.message}\n\nSQL: ${sql}` }], isError: true }
+        return { content: [{ type: 'text', text: `✅ SQL 실행 완료\n${JSON.stringify(data, null, 2)}` }] }
+      }
+    )
+
   },
-  {},
+  {
+    instructions:
+      '방과후 출석부 블로그 자동화 서버. ' +
+      '블로그 글 발행/발행기록/키워드 검색량/글감 아이디어/시리즈 정보/클로드 시스템 프롬프트를 관리하는 도구, ' +
+      'GitHub 저장소(' + GITHUB_REPO + ') 파일 확인 도구(list_github_files/get_github_file), ' +
+      'Supabase DB 직접 조회·수정 도구(list_tables/get_rows/upsert_row/delete_row/run_sql)를 제공한다. ' +
+      '오늘의 블로그 글을 쓰거나 발행하거나, DB 테이블을 조회/수정할 때 이 서버의 도구를 사용한다.',
+  },
   { basePath: '/api', maxDuration: 30, verboseLogs: true }
 )
 
