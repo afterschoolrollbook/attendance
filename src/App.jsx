@@ -53,6 +53,7 @@ import { SchoolAdminManage } from './pages/SchoolAdminManage.jsx'
 import { VendorAuth }   from './pages/VendorAuth.jsx'
 import { VendorApp }    from './pages/VendorApp.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
+import { AdSlot } from './components/AdSlot.jsx'
 import { ToastContainer, ConfirmDialog, useConfirmDialog } from './components/Atoms.jsx'
 import { useToast } from './hooks/useToast.js'
 import { can } from './constants/permissions.js'
@@ -525,7 +526,7 @@ function AppInner() {
       case 'revenue':         return <Revenue      user={u} />
       case 'supplies':        return <Supplies     user={u} />
       case 'messageguide':    return <MessageGuide user={u} />
-      case 'blog_write':      return can(u, 'manage_ad') ? <BlogAdmin key="blog_write" user={u} initialView="write" /> : <Dashboard {...pageProps} />
+      case 'blog_write_admin': return can(u, 'manage_ad') ? <BlogAdmin key="blog_write" user={u} initialView="write" /> : <Dashboard {...pageProps} />
       case 'blog_admin':      return can(u, 'manage_ad') ? <BlogAdmin key="blog_admin" user={u} /> : <Dashboard {...pageProps} />
       case 'blog_ai_write':   return can(u, 'manage_ad') ? <BlogAiWrite user={u} /> : <Dashboard {...pageProps} />
       case 'blog_menu_manage':        return can(u, 'manage_ad') ? <BlogMenuManage user={u} />        : <Dashboard {...pageProps} />
@@ -644,6 +645,10 @@ function AppInner() {
                realUser={user} previewLevel={previewLevel} onSetPreviewLevel={handleSetPreviewLevel} />
       <main style={{ flex:1, height:'100vh', overflowY:'auto', paddingTop: isMobile ? '52px' : 0, paddingBottom: isMobile ? '60px' : 0 }}>
         {renderPage()}
+        {/* Fresh_Season Footer.js와 동일하게 모든 페이지 공통 하단에 배치 */}
+        <div style={{ padding: '0 24px 24px' }}>
+          <AdSlot slotId="footer" />
+        </div>
       </main>
       {isMobile && <MobileBottomNav currentPage={page} onNav={handleNav} />}
       <ToastContainer toasts={toasts} />

@@ -77,11 +77,17 @@ export const COLORS = {
   textMuted: '#6b7280',
 }
 
+// Fresh_Season(home_top/home_middle/home_left/home_right/footer/home_cooldown = 6개)과
+// 슬롯 개수를 맞추기 위해 footer/landing_bottom 2개 추가 — 방과후 출석부는 로그인 기반 앱이라
+// "사이트 전체 공통 좌우 사이드레일" 개념이 없어서, 대신 전체 공통 하단(footer)과
+// 로그인 전 공개 랜딩페이지 하단(landing_bottom)에 배치했다.
 export const AD_SLOTS = [
-  { id: 'dashboard_top',  name: '대시보드 상단',  position: 'dashboard_top',  w: '100%', h: 90 },
-  { id: 'student_mid',    name: '학생관리 상단',   position: 'student_mid',    w: '100%', h: 90 },
-  { id: 'sidebar_bottom', name: '사이드바 하단',   position: 'sidebar_bottom', w: 224,    h: 120 },
-  { id: 'report_bottom',  name: '리포트 하단',     position: 'report_bottom',  w: '100%', h: 90 },
+  { id: 'dashboard_top',   name: '대시보드 상단',      position: 'dashboard_top',   w: '100%', h: 90 },
+  { id: 'student_mid',     name: '학생관리 상단',       position: 'student_mid',     w: '100%', h: 90 },
+  { id: 'sidebar_bottom',  name: '사이드바 하단',       position: 'sidebar_bottom',  w: 224,    h: 120 },
+  { id: 'report_bottom',   name: '리포트 하단',         position: 'report_bottom',   w: '100%', h: 90 },
+  { id: 'footer',          name: '전체 공통 하단',      position: 'footer',          w: '100%', h: 90 },
+  { id: 'landing_bottom',  name: '랜딩페이지 하단',     position: 'landing_bottom',  w: '100%', h: 90 },
 ]
 
 export const ABSENT_REASONS = [

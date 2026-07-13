@@ -38,7 +38,7 @@ const ADMIN_NAV = [
   { path: 'level_manage',   label: '등급 관리',  icon: '🎖️', feature: FEATURES.MANAGE_LEVEL },
   { path: 'admin_settings', label: '서비스 설정', icon: '🔧', feature: FEATURES.MANAGE_AD },
   { path: 'adsense',        label: '광고 관리',  icon: '📢', feature: FEATURES.MANAGE_AD },
-  { path: 'blog_write',     label: '블로그 글쓰기', icon: '✍️', feature: FEATURES.MANAGE_AD },
+  { path: 'blog_write_admin', label: '블로그 글쓰기', icon: '✍️', feature: FEATURES.MANAGE_AD },
   { path: 'blog_admin',     label: '블로그 관리', icon: '📝', feature: FEATURES.MANAGE_AD },
   { path: 'blog_menu_manage',     label: '블로그 메뉴관리',  icon: '📋', feature: FEATURES.MANAGE_AD },
   { path: 'blog_publish_log', label: '발행 기록',     icon: '🗂️', feature: FEATURES.MANAGE_AD },

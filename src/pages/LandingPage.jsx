@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { dbCall } from '../lib/supabase.js'
+import { AdSlot } from '../components/AdSlot.jsx'
 
 const C = {
   primary: '#f97316', primaryDark: '#ea6c0a', primaryLight: '#fff7ed',
@@ -359,6 +360,11 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
           </div>
         </section>
       )}
+
+      {/* 랜딩페이지 하단 광고 */}
+      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '0 20px' }}>
+        <AdSlot slotId="landing_bottom" />
+      </div>
 
       {/* ── 푸터 ── */}
       <footer style={{ borderTop: `1px solid ${C.border}`, padding: '28px 20px', background: C.white }}>
