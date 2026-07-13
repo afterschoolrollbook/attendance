@@ -5,7 +5,7 @@
 // Claude(연결된 커넥터)가 이 툴들을 직접 호출해서 "오늘 블로그 글" 글감을
 // 사람 개입 없이 스스로 판단할 수 있게 하는 것이 목적입니다.
 //
-// 노출 툴 14개:
+// 노출 툴 16개:
 //   - get_publish_log      : 발행 기록 조회 (중복 방지 + 키워드 추적, STEP 1에서 가장 먼저 호출)
 //   - get_keyword_data     : 과목/역량 그룹별 찜한 키워드 + TOP 키워드 조회
 //   - search_keyword_data  : keyword_stats 전체를 그룹 구분 없이 검색 (황금키워드 탐색)
@@ -20,6 +20,8 @@
 //   - create_blog_post     : 블로그 글 본문을 실제로 사이트에 발행
 //   - get_series_info      : 시리즈/카테고리 정보 조회
 //   - update_series_info   : 시리즈/카테고리 정보 갱신
+//   - get_system_prompt    : 관리자 화면("클로드 지침")의 시스템 프롬프트 조회 (claude/main/main2)
+//   - update_system_prompt : 관리자 화면("클로드 지침")의 시스템 프롬프트 갱신
 //
 // 필요한 Supabase 테이블 (최초 1회 실행):
 //
@@ -67,6 +69,12 @@
 // create table if not exists blog_series_info (
 //   series_id text primary key,
 //   name text, description text not null,
+//   updated_at timestamptz not null default now()
+// );
+//
+// create table if not exists system_prompts (
+//   id text primary key,          -- 'claude' | 'main' | 'main2'
+//   content text,
 //   updated_at timestamptz not null default now()
 // );
 //
@@ -401,6 +409,28 @@ const baseHandler = createMcpHandler(
       const { error } = await supabase.from('blog_series_info').upsert(row, { onConflict: 'series_id' })
       if (error) return { content: [{ type: 'text', text: `오류: ${error.message}` }], isError: true }
       return { content: [{ type: 'text', text: `✅ [${series_id}] 정보 갱신됨` }] }
+    })
+
+    server.registerTool('get_system_prompt', {
+      title: '클로드 시스템 프롬프트 조회',
+      description: '관리자 화면("클로드 지침")에서 관리하는 시스템 프롬프트를 조회한다. 대화 시작 시 claude 탭을 가장 먼저 불러온다.',
+      inputSchema: { id: z.enum(['claude', 'main', 'main2']) },
+    }, async ({ id }) => {
+      const { data, error } = await supabase.from('system_prompts').select('*').eq('id', id).maybeSingle()
+      if (error) return { content: [{ type: 'text', text: `오류: ${error.message}` }], isError: true }
+      if (!data) return { content: [{ type: 'text', text: `[${id}] 아직 등록된 내용이 없습니다.` }] }
+      return { content: [{ type: 'text', text: data.content || '' }] }
+    })
+
+    server.registerTool('update_system_prompt', {
+      title: '클로드 시스템 프롬프트 갱신',
+      description: '관리자 화면("클로드 지침")의 시스템 프롬프트 내용을 갱신한다. 사용자가 직접 요청한 경우에만 반영한다.',
+      inputSchema: { id: z.enum(['claude', 'main', 'main2']), content: z.string() },
+      annotations: { destructiveHint: false, idempotentHint: true },
+    }, async ({ id, content }) => {
+      const { error } = await supabase.from('system_prompts').upsert({ id, content, updated_at: new Date().toISOString() })
+      if (error) return { content: [{ type: 'text', text: `오류: ${error.message}` }], isError: true }
+      return { content: [{ type: 'text', text: `✅ [${id}] 시스템 프롬프트 갱신됨` }] }
     })
 
   },
