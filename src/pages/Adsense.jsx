@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { AdSlots } from '../lib/db.js'
 import { supabase } from '../lib/supabase.js'
 import { SLOT_BANNER_SIZE } from '../lib/adSlotSizes.js'
-import { Btn, Card, PageHeader, Toggle, Textarea } from '../components/Atoms.jsx'
+import { Btn, Toggle, Textarea } from '../components/Atoms.jsx'
 import { useToast } from '../hooks/useToast.js'
 
 const SOURCE_OPTIONS = [
@@ -10,6 +10,15 @@ const SOURCE_OPTIONS = [
   { value: 'coupang', label: '쿠팡' },
   { value: 'random',  label: '무작위' },
 ]
+
+// Fresh_Season AdsensePanel.js와 동일하게 카드 하나 안에 타이틀+설명+슬롯 목록이
+// 전부 들어가는 구조 (슬롯마다 별도 카드로 떨어져 있지 않음)
+const C = { primary: '#f97316', border: '#e5e7eb', muted: '#6b7280', text: '#111827', card: '#fff', bg: '#f9fafb' }
+const S = {
+  card: { background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20 },
+  cardTitle: { fontSize: 16, fontWeight: 800, color: C.text, marginBottom: 14 },
+  row: { background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 16px' },
+}
 
 export function Adsense() {
   const [slots, setSlots] = useState(() => AdSlots.all())
@@ -61,20 +70,21 @@ export function Adsense() {
 
   return (
     <div style={{ padding: '28px', maxWidth: '900px' }}>
-      <PageHeader title="광고 슬롯 관리" sub="Google AdSense 광고 코드를 관리합니다." />
+      <div style={S.card}>
+        <div style={S.cardTitle}>📢 광고 슬롯 관리</div>
 
-      <div style={{ marginBottom: '20px', padding: '16px', background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '12px', fontSize: '13px', color: '#92400e', lineHeight: 1.7 }}>
-        <strong>동작 방식</strong><br />
-        ⚪ <strong>OFF</strong> — 사용자 화면에서 해당 광고 영역이 완전히 숨겨집니다.<br />
-        🟡 <strong>대기</strong> — ON인데 노출할 코드/배너가 없는 상태. 빈 광고 자리만 표시됩니다.<br />
-        ✅ <strong>ON + 코드/배너 등록</strong> — 실제 광고가 노출됩니다.<br /><br />
-        <strong>소스 선택 (애드센스 / 쿠팡 / 무작위)</strong><br />
-        <strong>애드센스</strong> — 아래 "코드 입력"에 등록한 애드센스 코드를 보여줍니다.<br />
-        <strong>쿠팡</strong> — 쿠팡 관리 &gt; 배너/위젯 목록에서 이 슬롯 사이즈와 맞는 배너를 자동으로(여러 개면 무작위로) 골라 보여줍니다. 코드 입력은 필요 없어요.<br />
-        <strong>무작위</strong> — 애드센스 코드와 쿠팡 배너 중 있는 것을 무작위로 섞어서 보여줍니다.
-      </div>
+        <div style={{ marginBottom: '20px', padding: '16px', background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '12px', fontSize: '13px', color: '#92400e', lineHeight: 1.7 }}>
+          <strong>동작 방식</strong><br />
+          ⚪ <strong>OFF</strong> — 사용자 화면에서 해당 광고 영역이 완전히 숨겨집니다.<br />
+          🟡 <strong>대기</strong> — ON인데 노출할 코드/배너가 없는 상태. 빈 광고 자리만 표시됩니다.<br />
+          ✅ <strong>ON + 코드/배너 등록</strong> — 실제 광고가 노출됩니다.<br /><br />
+          <strong>소스 선택 (애드센스 / 쿠팡 / 무작위)</strong><br />
+          <strong>애드센스</strong> — 아래 "코드 입력"에 등록한 애드센스 코드를 보여줍니다.<br />
+          <strong>쿠팡</strong> — 쿠팡 관리 &gt; 배너/위젯 목록에서 이 슬롯 사이즈와 맞는 배너를 자동으로(여러 개면 무작위로) 골라 보여줍니다. 코드 입력은 필요 없어요.<br />
+          <strong>무작위</strong> — 애드센스 코드와 쿠팡 배너 중 있는 것을 무작위로 섞어서 보여줍니다.
+        </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         {slots.map(slot => {
           const isActivePending = slot.id in pendingActive
           const activeVal = isActivePending ? pendingActive[slot.id] : slot.active
@@ -91,7 +101,7 @@ export function Adsense() {
             else statusText = '✅ 광고 노출 중'
           }
           return (
-            <Card key={slot.id}>
+            <div key={slot.id} style={S.row}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 220 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
@@ -171,9 +181,10 @@ export function Adsense() {
                   )}
                 </div>
               </div>
-            </Card>
+            </div>
           )
         })}
+        </div>
       </div>
     </div>
   )
