@@ -213,7 +213,7 @@ function LessonMemoPanel({ cls, date, students, spItems, spProds, spProg, spChec
   }
   const delMemo = (id) => { LessonMemos.delete(id); setMemos(LessonMemos.byClassDate(cls.id, date).filter(m => !m.content?.startsWith(PARTS_ORDER_KEY))) }
 
-  const activeStudents = students.filter(s => ['applied','selected','confirmed'].includes(s.status))
+  const activeStudents = students.filter(s => isActiveOnDate(s, date) && isInCurrentTerm(s, cls, date))
   const studentProgList = activeStudents.map(s => {
     // classId가 통합카드 id와 다를 수 있음 (구버전 별도카드 → 통합카드 이동)
     // 우선 현재 cls.id로 찾고, 없으면 학생의 classIds 중 아무 카드로 찾음
