@@ -77,10 +77,12 @@ export const COLORS = {
   textMuted: '#6b7280',
 }
 
-// Fresh_Season(home_top/home_middle/home_left/home_right/footer/home_cooldown = 6개)과
-// 슬롯 개수를 맞추기 위해 footer/landing_bottom 2개 추가 — 방과후 출석부는 로그인 기반 앱이라
-// "사이트 전체 공통 좌우 사이드레일" 개념이 없어서, 대신 전체 공통 하단(footer)과
-// 로그인 전 공개 랜딩페이지 하단(landing_bottom)에 배치했다.
+// Fresh_Season의 광고 슬롯(home_top/home_middle/home_left/home_right/footer/home_cooldown)은
+// 전부 "로그인 없이 보는 공개 콘텐츠 페이지"에 붙어있다 — 광고는 로그인한 유료 사용자용
+// 내부 화면이 아니라 공개 페이지(랜딩페이지·블로그)에 붙어야 실제로 방문자에게 노출된다.
+// dashboard_top/student_mid는 그런 이유로 로그인 후 내부 화면에만 정의돼 있던 기존 슬롯이라
+// 그대로 두고(제거하지 않음), 새로 추가하는 footer/landing_bottom/blog_middle을
+// 실제 공개 페이지(App.jsx 공통 레이아웃, LandingPage.jsx, Blog.jsx)에 배치했다.
 export const AD_SLOTS = [
   { id: 'dashboard_top',   name: '대시보드 상단',      position: 'dashboard_top',   w: '100%', h: 90 },
   { id: 'student_mid',     name: '학생관리 상단',       position: 'student_mid',     w: '100%', h: 90 },
@@ -88,6 +90,7 @@ export const AD_SLOTS = [
   { id: 'report_bottom',   name: '리포트 하단',         position: 'report_bottom',   w: '100%', h: 90 },
   { id: 'footer',          name: '전체 공통 하단',      position: 'footer',          w: '100%', h: 90 },
   { id: 'landing_bottom',  name: '랜딩페이지 하단',     position: 'landing_bottom',  w: '100%', h: 90 },
+  { id: 'blog_middle',     name: '블로그 중단',         position: 'blog_middle',     w: '100%', h: 90 },
 ]
 
 export const ABSENT_REASONS = [

@@ -8,4 +8,7 @@ export const SLOT_BANNER_SIZE = {
   dashboard_top: '728x90',
   student_mid: '728x90',
   report_bottom: '728x90',
+  footer: '728x90',
+  landing_bottom: '728x90',
+  blog_middle: '728x90',
 }

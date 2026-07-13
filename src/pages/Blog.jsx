@@ -2,6 +2,7 @@ import { parseMarkdown, markdownPreviewStyles } from '../lib/parseMarkdown.js'
 import React, { useState, useEffect } from 'react'
 import { dbCall, supabase } from '../lib/supabase.js'
 import { BlogAdmin } from './BlogAdmin.jsx'
+import { AdSlot } from '../components/AdSlot.jsx'
 import { uid, now } from '../lib/utils.js'
 import { getBoardPermLevel } from '../constants/permissions.js'
 
@@ -162,6 +163,7 @@ function BlogList({ posts, onSelect, currentUser, loggedIn, writePerm, onPostSav
           ))}
         </div>
       </div>
+      <AdSlot slotId="blog_middle" />
       {loggedIn && !writing && (
         <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'16px' }}>
           <button onClick={() => setWriting(true)}
@@ -499,6 +501,10 @@ function BlogDetail({ post, onBack, allPosts, onSelect }) {
 
       {/* 본문 — 4문단마다 관련 글 카드 자동 삽입 */}
       <ContentWithInlineLinks html={bodyHtml} relatedPool={relatedPool} onSelect={onSelect} />
+
+      <div style={{ margin: '32px 0' }}>
+        <AdSlot slotId="blog_middle" />
+      </div>
 
       {post.tags?.length > 0 && (
         <div style={{ marginTop:'40px', paddingTop:'24px', borderTop:'2px solid #f3f4f6', display:'flex', gap:'8px', flexWrap:'wrap' }}>
