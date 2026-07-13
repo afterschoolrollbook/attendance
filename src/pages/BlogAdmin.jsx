@@ -58,7 +58,7 @@ const emptyForm = () => ({
 
 const C = { primary:'#f97316', border:'#e5e7eb', muted:'#6b7280', text:'#111827', card:'#fff' }
 
-export function BlogAdmin({ user }) {
+export function BlogAdmin({ user, initialView }) {
   const userLevel = user?.level || 1
   const isAdmin = user?.role === 'admin' || userLevel >= 10
   const blogWriteMinLevel = getBlogWriteMinLevel()
@@ -71,7 +71,7 @@ export function BlogAdmin({ user }) {
   const canWriteTemplate = isAdmin || userLevel >= templateWriteMinLevel
 
   const [posts, setPosts] = useState([])
-  const [view, setView] = useState('list')
+  const [view, setView] = useState(initialView === 'write' ? 'edit' : 'list')
   const [form, setForm] = useState(emptyForm())
   const [editId, setEditId] = useState(null)
   const [preview, setPreview] = useState(false)
@@ -894,21 +894,23 @@ export function BlogAdmin({ user }) {
   // ── 편집 뷰
   const typeColor = form.type === 'docs' ? '#3b82f6' : C.primary
   return (
-    <div style={{ padding:'24px', maxWidth:'1600px' }}>
+    <div>
       <style>{previewStyles}</style>
-      <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'24px', flexWrap:'wrap' }}>
+      {/* 상단 헤더바 — 전체폭 흰 배경 + 하단 구분선 (Fresh_Season BlogAdminPanel 헤더 구조와 동일) */}
+      <div style={{ background:C.card, borderBottom:`1.5px solid ${C.border}`, padding:'16px 24px', display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap' }}>
         <button onClick={() => setView('list')}
           style={{ background:'none', border:'none', cursor:'pointer', color:C.muted, fontSize:'14px', fontFamily:'Noto Sans KR, sans-serif', padding:0 }}>← 목록</button>
-        <h1 style={{ fontSize:'20px', fontWeight:700, color:C.text, flex:1 }}>
-          {editId ? '글 수정' : (form.type==='docs'?'📖 설명서 작성':'📝 블로그 글 작성')}
+        <span style={{ color:C.border }}>|</span>
+        <h1 style={{ fontSize:'16px', fontWeight:800, color:C.text, flex:1 }}>
+          {editId ? '✏️ 글 수정' : (form.type==='docs'?'📖 설명서 작성':form.type==='template'?'📋 템플릿 작성':'📝 블로그 글 작성')}
         </h1>
         <button onClick={() => setPreview(v => !v)}
-          style={{ padding:'7px 16px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:preview?'#f3f4f6':C.card, color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          style={{ padding:'8px 14px', borderRadius:'8px', border:'none', background:'#374151', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           {preview ? '✏️ 편집' : '👁 미리보기'}
         </button>
         <button onClick={() => handleSave('draft')} disabled={loading}
-          style={{ padding:'7px 16px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background:C.card, color:C.muted, fontSize:'13px', fontWeight:600, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
-          임시저장
+          style={{ padding:'8px 14px', borderRadius:'8px', border:'none', background:'#6b7280', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          💾 임시저장
         </button>
         <div style={{ display:'flex', alignItems:'center', gap:'6px', background:'#eff6ff', border:'1.5px solid #bfdbfe', borderRadius:'8px', padding:'4px 10px' }}>
           <input
@@ -924,11 +926,12 @@ export function BlogAdmin({ user }) {
           </button>
         </div>
         <button onClick={() => handleSave('published')} disabled={loading}
-          style={{ padding:'7px 20px', borderRadius:'8px', border:'none', background:typeColor, color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+          style={{ padding:'8px 20px', borderRadius:'8px', border:'none', background:typeColor, color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
           {loading ? '저장 중...' : '🚀 발행'}
         </button>
       </div>
 
+      <div style={{ padding:'24px', maxWidth:'1600px' }}>
       <div style={{ display:'grid', gridTemplateColumns:preview?'1fr 1.2fr':'1fr', gap:'24px' }}>
         <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
 
@@ -1047,6 +1050,7 @@ export function BlogAdmin({ user }) {
             <div className="md-preview" dangerouslySetInnerHTML={{ __html: parseMarkdown(form.content) }} />
           </div>
         )}
+      </div>
       </div>
     </div>
   )
