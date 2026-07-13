@@ -316,12 +316,13 @@ export function BlogAdmin({ user, initialView }) {
 
   // ── 목록 뷰
   if (view === 'list') return (
-    <div style={{ padding:'24px', maxWidth:'1000px' }}>
+    <div>
       <style>{previewStyles}</style>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'24px', flexWrap:'wrap', gap:'12px' }}>
+      {/* 상단 헤더바 — 전체폭 흰 배경 + 하단 구분선 (편집 뷰와 동일한 Fresh_Season 헤더 구조) */}
+      <div style={{ background:C.card, borderBottom:`1.5px solid ${C.border}`, padding:'16px 24px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'12px' }}>
         <div>
-          <h1 style={{ fontSize:'22px', fontWeight:700, color:C.text }}>📝 블로그 · 설명서 관리</h1>
-          <p style={{ fontSize:'13px', color:C.muted, marginTop:'4px' }}>블로그 글과 사용 설명서를 작성하고 관리하세요.</p>
+          <h1 style={{ fontSize:'16px', fontWeight:800, color:C.text }}>📝 블로그 · 설명서 관리</h1>
+          <p style={{ fontSize:'12px', color:C.muted, marginTop:'2px' }}>블로그 글과 사용 설명서를 작성하고 관리하세요.</p>
         </div>
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
           <a href="/blog" target="_blank" rel="noopener noreferrer" title="발행된 블로그 페이지를 새 탭으로 봅니다"
@@ -368,6 +369,7 @@ export function BlogAdmin({ user, initialView }) {
         </div>
       </div>
 
+      <div style={{ padding:'24px', maxWidth:'1000px' }}>
       {/* 외부 도구 빠른 링크 + 체크리스트 패널 */}
       {isAdmin && (() => {
         const TOOL_PANELS = {
@@ -856,7 +858,7 @@ export function BlogAdmin({ user, initialView }) {
                     {(post.type||'blog')==='docs'?'📖 설명서':(post.type||'blog')==='template'?'📋 템플릿':'📝 블로그'}
                   </span>
                   <span style={{ fontSize:'11px', fontWeight:700, borderRadius:'999px', padding:'2px 10px', background:post.status==='published'?'#f0fdf4':post.status==='scheduled'?'#eff6ff':'#f9fafb', color:post.status==='published'?'#16a34a':post.status==='scheduled'?'#3b82f6':'#9ca3af', border:`1px solid ${post.status==='published'?'#86efac':post.status==='scheduled'?'#bfdbfe':'#e5e7eb'}` }}>
-                    {post.status==='published'?'✅ 발행':post.status==='scheduled'?'🕐 예약':'📝 임시'}
+                    {post.status==='published'?'✅ 발행':post.status==='scheduled'?'⏰ 예약':'📝 임시'}
                   </span>
                   {post.category && <span style={{ fontSize:'11px', color:C.muted, background:'#f3f4f6', borderRadius:'4px', padding:'2px 8px' }}>{post.category}</span>}
                 </div>
@@ -876,9 +878,10 @@ export function BlogAdmin({ user, initialView }) {
                 {(() => {
                   const type = post.type || 'blog'
                   const canEditThis = type === 'docs' ? canWriteDocs : type === 'template' ? canWriteTemplate : canWrite
+                  const rowTypeColor = type === 'docs' ? '#3b82f6' : type === 'template' ? '#7c3aed' : C.primary
                   return canEditThis && <>
                     <button onClick={() => handleEdit(post)}
-                      style={{ padding:'6px 14px', borderRadius:'7px', border:`1px solid ${C.primary}`, background:'#fff7ed', color:C.primary, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
+                      style={{ padding:'6px 14px', borderRadius:'7px', border:'none', background:rowTypeColor, color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
                     <button onClick={() => handleDelete(post)}
                       style={{ padding:'6px 12px', borderRadius:'7px', border:'1px solid #fca5a5', background:'#fef2f2', color:'#ef4444', fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>삭제</button>
                   </>
@@ -888,6 +891,7 @@ export function BlogAdmin({ user, initialView }) {
           ))}
         </div>
       )}
+      </div>
     </div>
   )
 
