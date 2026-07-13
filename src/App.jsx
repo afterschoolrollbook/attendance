@@ -524,8 +524,8 @@ function AppInner() {
       case 'revenue':         return <Revenue      user={u} />
       case 'supplies':        return <Supplies     user={u} />
       case 'messageguide':    return <MessageGuide user={u} />
-      case 'blog_write':      return can(u, 'manage_ad') ? <BlogAdmin user={u} initialView="write" /> : <Dashboard {...pageProps} />
-      case 'blog_admin':      return can(u, 'manage_ad') ? <BlogAdmin user={u} /> : <Dashboard {...pageProps} />
+      case 'blog_write':      return can(u, 'manage_ad') ? <BlogAdmin key="blog_write" user={u} initialView="write" /> : <Dashboard {...pageProps} />
+      case 'blog_admin':      return can(u, 'manage_ad') ? <BlogAdmin key="blog_admin" user={u} /> : <Dashboard {...pageProps} />
       case 'blog_ai_write':   return can(u, 'manage_ad') ? <BlogAiWrite user={u} /> : <Dashboard {...pageProps} />
       case 'blog_menu_manage':        return can(u, 'manage_ad') ? <BlogMenuManage user={u} />        : <Dashboard {...pageProps} />
       case 'blog_publish_log':        return can(u, 'manage_ad') ? <BlogPublishLogPage user={u} />    : <Dashboard {...pageProps} />
