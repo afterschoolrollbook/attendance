@@ -193,6 +193,8 @@ export function BlogKeywordPanel({ isAdmin }) {
   const [goldenKw, setGoldenKw]               = useState([])
   const [goldenLoading, setGoldenLoading]     = useState(false)
   const [goldenComp, setGoldenComp]           = useState('낮음')
+  const [todayRows, setTodayRows]             = useState([])
+  const [todayLoading, setTodayLoading]       = useState(false)
   const [toast, setToast]                     = useState('')
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
@@ -289,12 +291,29 @@ export function BlogKeywordPanel({ isAdmin }) {
     setGoldenLoading(false)
   }, [goldenComp])
 
+  // ── 오늘 실시간 조회된 키워드 (naver_keyword_volume MCP 툴이 오늘 캐시한 것만)
+  const loadToday = useCallback(async () => {
+    if (!supabase) return
+    setTodayLoading(true)
+    try {
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+      const { data } = await supabase
+        .from('blog_keyword_stats')
+        .select('hint, keyword, pc, mobile, total, competition')
+        .gte('updated_at', todayStart.toISOString())
+        .order('total', { ascending: false })
+      setTodayRows(Array.isArray(data) ? data : [])
+    } catch (e) { console.error(e) }
+    setTodayLoading(false)
+  }, [])
+
   useEffect(() => { loadStats(); loadPicks() }, [])
 
   const handleTabChange = (t) => {
     setTab(t)
     if (t === 'all') loadAllKw()
     if (t === 'golden') loadGolden()
+    if (t === 'today') loadToday()
   }
 
   // ── 찜 토글
@@ -363,6 +382,7 @@ export function BlogKeywordPanel({ isAdmin }) {
     ['stats',  '📊 수집 현황'],
     ['all',    '📈 전체 순위'],
     ['golden', '🏆 황금키워드'],
+    ['today',  '🔴 오늘 실시간'],
     ['picks',  `⭐ 찜 (${pendingPicks.length})`],
     ['used',   '✅ 사용 기록'],
     ['ideas',  '💡 아이디어'],
@@ -618,6 +638,74 @@ export function BlogKeywordPanel({ isAdmin }) {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── 탭: 오늘 실시간 조회 */}
+      {tab === 'today' && (
+        <div style={S.card}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7 }}>
+              오늘 Claude가 <code style={{ background: '#fff7ed', color: C.primary, padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>naver_keyword_volume</code> 툴로 실시간 조회한 키워드 목록입니다.<br />
+              ☆ 버튼으로 찜해두면 "찜" 탭에서 관리할 수 있습니다.
+            </div>
+            <button onClick={loadToday} style={S.btnGhost}>🔄 새로고침</button>
+          </div>
+          {todayLoading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: C.muted }}>로딩 중...</div>
+          ) : todayRows.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: C.muted, background: C.bg, borderRadius: 12, border: `1.5px solid ${C.border}` }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>🔴</div>
+              <div style={{ fontWeight: 600 }}>오늘 실시간 조회한 키워드가 없어요</div>
+              <div style={{ fontSize: 12, marginTop: 6 }}>Claude와 대화 중 naver_keyword_volume 툴이 호출되면 여기에 나타납니다.</div>
+            </div>
+          ) : (() => {
+            const groups = {}
+            todayRows.forEach(r => { if (!groups[r.hint]) groups[r.hint] = []; groups[r.hint].push(r) })
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {Object.entries(groups).map(([hint, rows]) => (
+                  <div key={hint} style={{ background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
+                    <div style={{ padding: '12px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: C.primary }}>🔍 {GROUPS.find(g => g.id === hint)?.label || hint}</span>
+                      <span style={{ fontSize: 12, color: C.muted }}>연관 키워드 {rows.length}개</span>
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead><tr>
+                        <th style={S.th}>순위</th><th style={S.th}>키워드</th>
+                        <th style={{ ...S.th, textAlign: 'right' }}>PC</th>
+                        <th style={{ ...S.th, textAlign: 'right' }}>모바일</th>
+                        <th style={{ ...S.th, textAlign: 'right' }}>합계</th>
+                        <th style={S.th}>경쟁</th>
+                        <th style={{ ...S.th, textAlign: 'center' }}>찜</th>
+                      </tr></thead>
+                      <tbody>
+                        {rows.map((item, i) => {
+                          const isPicked = picks.some(p => p.keyword === item.keyword && p.tool_id === hint)
+                          const cs = item.competition ? competitionStyle(item.competition) : null
+                          return (
+                            <tr key={item.keyword} style={{ background: isPicked ? '#fff7ed' : C.card }}>
+                              <td style={{ ...S.td, color: C.muted }}>{i + 1}</td>
+                              <td style={{ ...S.td, fontWeight: 600 }}>{item.keyword}</td>
+                              <td style={S.tdNum}>{fmt(item.pc)}</td>
+                              <td style={S.tdNum}>{fmt(item.mobile)}</td>
+                              <td style={{ ...S.tdNum, color: C.primary }}>{fmt(item.total)}</td>
+                              <td style={S.td}>{cs && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: cs.bg, color: cs.color, border: `1px solid ${cs.border}` }}>{item.competition}</span>}</td>
+                              <td style={{ ...S.td, textAlign: 'center' }}>
+                                <button onClick={() => handlePick(hint, item, isPicked)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>
+                                  {isPicked ? '⭐' : '☆'}
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
         </div>
       )}
 
