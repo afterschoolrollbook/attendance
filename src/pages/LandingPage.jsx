@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { dbCall } from '../lib/supabase.js'
 import { AdSlot } from '../components/AdSlot.jsx'
+import { PopupDisplay } from '../components/PopupDisplay.jsx'
 
 const C = {
   primary: '#f97316', primaryDark: '#ea6c0a', primaryLight: '#fff7ed',
@@ -81,6 +82,7 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
 
   return (
     <div style={{ minHeight: '100vh', background: C.white, color: C.text, fontFamily: 'Noto Sans KR, sans-serif', overflowX: 'hidden' }}>
+      <PopupDisplay />
 
       {/* ── 네비게이션 ── */}
       <nav style={{

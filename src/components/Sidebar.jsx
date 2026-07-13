@@ -39,6 +39,7 @@ const ADMIN_NAV = [
   { path: 'admin_settings', label: '서비스 설정', icon: '🔧', feature: FEATURES.MANAGE_AD },
   { path: 'adsense',        label: '광고 관리',  icon: '📢', feature: FEATURES.MANAGE_AD },
   { path: 'coupang_manage', label: '쿠팡 관리',  icon: '🛒', feature: FEATURES.MANAGE_AD },
+  { path: 'popup_manage',   label: '팝업 관리',  icon: '📣', feature: FEATURES.MANAGE_AD },
   { path: 'blog_write_admin', label: '블로그 글쓰기', icon: '✍️', feature: FEATURES.MANAGE_AD },
   { path: 'blog_admin',     label: '블로그 관리', icon: '📝', feature: FEATURES.MANAGE_AD },
   { path: 'blog_menu_manage',     label: '블로그 메뉴관리',  icon: '📋', feature: FEATURES.MANAGE_AD },

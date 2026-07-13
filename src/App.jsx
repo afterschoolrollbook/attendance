@@ -38,6 +38,8 @@ import { BlogPublishLogPage }      from './pages/BlogPublishLogPage.jsx'
 import { BlogKeywordPage }         from './pages/BlogKeywordPage.jsx'
 import { BlogSystemPrompt }        from './pages/BlogSystemPrompt.jsx'
 import { CoupangManage }           from './pages/CoupangManage.jsx'
+import { PopupManage }             from './pages/PopupManage.jsx'
+import { PopupDisplay }            from './components/PopupDisplay.jsx'
 import { RegionManage }             from './pages/RegionManage.jsx'
 import { TeacherServiceManage }     from './pages/TeacherServiceManage.jsx'
 import { DemoDataManager }          from './pages/DemoDataManager.jsx'
@@ -517,6 +519,7 @@ function AppInner() {
       case 'level_manage':    return can(u, 'manage_level') ? <LevelManage user={u} /> : <Dashboard {...pageProps} />
       case 'adsense':         return <Adsense {...pageProps} />
       case 'coupang_manage':  return can(u, 'manage_ad') ? <CoupangManage user={u} /> : <Dashboard {...pageProps} />
+      case 'popup_manage':    return can(u, 'manage_ad') ? <PopupManage user={u} />   : <Dashboard {...pageProps} />
       case 'profile':         return <Profile {...pageProps} />
       case 'admin_settings':  return can(u, 'manage_ad') ? <AdminSettings {...pageProps} /> : <Dashboard {...pageProps} />
       case 'training':        return <Training     user={u} />
@@ -655,6 +658,7 @@ function AppInner() {
       {isMobile && <MobileBottomNav currentPage={page} onNav={handleNav} />}
       <ToastContainer toasts={toasts} />
       <ConfirmDialog {...confirmDialogProps} />
+      <PopupDisplay />
     </div>
   )
 }
