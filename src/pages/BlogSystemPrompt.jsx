@@ -4,16 +4,22 @@
  * - Fresh_Season SystemPromptPanel.js를 출석부 스타일(밝은 테마)로 이식
  * - system_prompts 테이블 직접 조회/수정 (supabase 클라이언트)
  * - MCP get_system_prompt / update_system_prompt 툴이 같은 테이블을 사용
- * - Fresh_Season의 4번째 탭(글감관리 월기획지침)은 출석부에 글감관리 기능이 없어 제외 — 3탭만 사용
+ * - 2026-07-15: claude/main/main2 3탭에서 8탭으로 확장 — 원래 별도 파일(Step0/Step1-B/C/D/
+ *   Step2/명언모음)로 나뉘어 있던 소재 참고자료를 각각 독립 슬롯으로 분리해서 main 문서 비대화 방지
  */
 
 import { useState, useCallback, useEffect } from 'react'
 import { supabase } from '../lib/supabase.js'
 
 const TABS = [
-  { id: 'claude', label: '1️⃣ 클로드 실행지침', desc: 'Claude 전체 행동 지침 — 대화 시작 시 가장 먼저 불러오는 메인 시스템 프롬프트예요.' },
-  { id: 'main',   label: '2️⃣ 블로그 글작성지침', desc: '"오늘 블로그 글 써줘" 할 때 사용하는 지침 — 글 1편 작성·발행 절차예요.' },
-  { id: 'main2',  label: '3️⃣ 추가 지침', desc: '위 두 지침과 별도로 관리하는 추가 지침이에요.' },
+  { id: 'claude',       label: '1️⃣ 클로드 실행지침', desc: 'Claude 전체 행동 지침 — 대화 시작 시 가장 먼저 불러오는 메인 시스템 프롬프트예요.' },
+  { id: 'main',         label: '2️⃣ 블로그 글작성지침', desc: '"오늘 블로그 글 써줘" 할 때 사용하는 지침 — 글 1편 작성·발행 절차예요.' },
+  { id: 'main2',        label: '3️⃣ 학습 메모', desc: '실제로 글을 쓰면서 발견한 문제·교훈을 계속 누적하는 메모장이에요.' },
+  { id: 'quotes',       label: '4️⃣ 명언·속담 모음', desc: '칼럼에 매번 1개씩 삽입하는 명언·속담·사자성어 참고자료예요.' },
+  { id: 'tags',         label: '5️⃣ 태그 목록', desc: '역량(축1)·활동(축2)·과목(축3) 태그 전체 목록이에요.' },
+  { id: 'edu_methods',  label: '6️⃣ 해외 교육법(시리즈B)', desc: '시리즈 B 칼럼 소재 — 해외 교육법 목록과 방과후 적용 방법이에요.' },
+  { id: 'worry_topics', label: '7️⃣ 고민 시리즈(시리즈C)', desc: '시리즈 C 칼럼 소재 — 방과후 고민 주제와 작성 시 준수사항이에요.' },
+  { id: 'activities',   label: '8️⃣ 활동·역량 연결(시리즈D)', desc: '시리즈 D 칼럼 소재 — 활동↔역량 연결표예요.' },
 ]
 
 const C = {

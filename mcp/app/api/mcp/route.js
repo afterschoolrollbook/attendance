@@ -20,7 +20,8 @@
 //   - create_blog_post     : 블로그 글 본문을 실제로 사이트에 발행
 //   - get_series_info      : 시리즈/카테고리 정보 조회
 //   - update_series_info   : 시리즈/카테고리 정보 갱신
-//   - get_system_prompt    : 관리자 화면("클로드 지침")의 시스템 프롬프트 조회 (claude/main/main2)
+//   - get_system_prompt    : 관리자 화면("클로드 지침")의 시스템 프롬프트 조회
+//                             (claude/main/main2/quotes/tags/edu_methods/worry_topics/activities)
 //   - update_system_prompt : 관리자 화면("클로드 지침")의 시스템 프롬프트 갱신
 //   - list_github_files    : GitHub 저장소(afterschoolrollbook/attendance) 특정 경로 파일 목록 조회
 //   - get_github_file      : GitHub 저장소 특정 파일 내용 조회
@@ -80,7 +81,7 @@
 // );
 //
 // create table if not exists system_prompts (
-//   id text primary key,          -- 'claude' | 'main' | 'main2'
+//   id text primary key,          -- 'claude' | 'main' | 'main2' | 'quotes' | 'tags' | 'edu_methods' | 'worry_topics' | 'activities'
 //   content text,
 //   updated_at timestamptz not null default now()
 // );
@@ -444,8 +445,8 @@ const baseHandler = createMcpHandler(
 
     server.registerTool('get_system_prompt', {
       title: '클로드 시스템 프롬프트 조회',
-      description: '관리자 화면("클로드 지침")에서 관리하는 시스템 프롬프트를 조회한다. 대화 시작 시 claude 탭을 가장 먼저 불러온다.',
-      inputSchema: { id: z.enum(['claude', 'main', 'main2']) },
+      description: '관리자 화면("클로드 지침")에서 관리하는 시스템 프롬프트를 조회한다. 대화 시작 시 claude 탭을 가장 먼저 불러온다. claude/main/main2는 매 대화 로드, quotes/tags/edu_methods/worry_topics/activities는 글 작성 중 해당 소재가 필요할 때만 조건부로 불러온다.',
+      inputSchema: { id: z.enum(['claude', 'main', 'main2', 'quotes', 'tags', 'edu_methods', 'worry_topics', 'activities']) },
     }, async ({ id }) => {
       const { data, error } = await supabase.from('system_prompts').select('*').eq('id', id).maybeSingle()
       if (error) return { content: [{ type: 'text', text: `오류: ${error.message}` }], isError: true }
@@ -456,7 +457,7 @@ const baseHandler = createMcpHandler(
     server.registerTool('update_system_prompt', {
       title: '클로드 시스템 프롬프트 갱신',
       description: '관리자 화면("클로드 지침")의 시스템 프롬프트 내용을 갱신한다. 사용자가 직접 요청한 경우에만 반영한다.',
-      inputSchema: { id: z.enum(['claude', 'main', 'main2']), content: z.string() },
+      inputSchema: { id: z.enum(['claude', 'main', 'main2', 'quotes', 'tags', 'edu_methods', 'worry_topics', 'activities']), content: z.string() },
       annotations: { destructiveHint: false, idempotentHint: true },
     }, async ({ id, content }) => {
       const { error } = await supabase.from('system_prompts').upsert({ id, content, updated_at: new Date().toISOString() })
