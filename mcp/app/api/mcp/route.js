@@ -5,7 +5,7 @@
 // Claude(연결된 커넥터)가 이 툴들을 직접 호출해서 "오늘 블로그 글" 글감을
 // 사람 개입 없이 스스로 판단할 수 있게 하는 것이 목적입니다.
 //
-// 노출 툴 23개:
+// 노출 툴 24개:
 //   - get_publish_log      : 발행 기록 조회 (중복 방지 + 키워드 추적, STEP 1에서 가장 먼저 호출)
 //   - get_keyword_data     : 과목/역량 그룹별 찜한 키워드 + TOP 키워드 조회
 //   - search_keyword_data  : keyword_stats 전체를 그룹 구분 없이 검색 (황금키워드 탐색)
@@ -18,6 +18,8 @@
 //   - get_feature_ideas    : suggest_feature로 기록해둔 제안 목록 조회
 //   - add_publish_log      : 글 작성 후 발행 기록에 자동으로 남기기
 //   - create_blog_post     : 블로그 글 본문을 실제로 사이트에 발행
+//   - capture_screenshot   : 뉴스·공식 홈페이지의 그래프·차트를 헤드리스 브라우저로 캡처해
+//                             Supabase Storage(blog-images 버킷)에 저장하고 공개 URL 반환
 //   - get_series_info      : 시리즈/카테고리 정보 조회
 //   - update_series_info   : 시리즈/카테고리 정보 갱신
 //   - get_system_prompt    : 관리자 화면("클로드 지침")의 시스템 프롬프트 조회
@@ -26,10 +28,10 @@
 //   - list_github_files    : GitHub 저장소(afterschoolrollbook/attendance) 특정 경로 파일 목록 조회
 //   - get_github_file      : GitHub 저장소 특정 파일 내용 조회
 //   - list_tables          : Supabase DB 테이블 목록 조회
-//   - get_rows             : 임의 테이블 행 조회 (필터·검색·정렬·페이징)
-//   - upsert_row           : 임의 테이블 행 추가·수정
-//   - delete_row           : 임의 테이블 행 삭제 (되돌릴 수 없음)
-//   - run_sql              : SQL 직접 실행 (위험 DDL 자동 차단, run_sql_query RPC 필요)
+//   - get_rows              : 임의 테이블 행 조회 (필터·검색·정렬·페이징)
+//   - upsert_row            : 임의 테이블 행 추가·수정
+//   - delete_row            : 임의 테이블 행 삭제 (되돌릴 수 없음)
+//   - run_sql               : SQL 직접 실행 (위험 DDL 자동 차단, run_sql_query RPC 필요)
 //
 // 필요한 Supabase 테이블 (최초 1회 실행):
 //
@@ -85,6 +87,9 @@
 //   content text,
 //   updated_at timestamptz not null default now()
 // );
+//
+// capture_screenshot 툴을 쓰려면 Supabase Storage에 'blog-images' 버킷이 필요합니다.
+// 코드가 최초 호출 시 자동으로 만들어주므로 별도 SQL은 필요 없습니다(퍼블릭 버킷, 5MB 제한).
 //
 // 필요한 환경변수 (Vercel 프로젝트 설정 > Environment Variables):
 //   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
@@ -416,6 +421,80 @@ const baseHandler = createMcpHandler(
       return { content: [{ type: 'text', text: finalStatus === 'published' ? `✅ 발행 완료 — https://afterschoolrollbook.kr/blog/${slug}` : `✅ ${finalStatus === 'draft' ? '임시저장' : '예약'} 완료` }] }
     })
 
+    // ── 그래프·차트 스크린샷 캡처 (뉴스·공식 홈페이지의 통계 자료를 실제로 캡처해서 저장) ──
+    // 이지트레이더(trader) MCP 서버의 capture_screenshot 구현을 그대로 이식한 것.
+    // 헤드리스 브라우저로 해당 페이지(또는 selector로 지정한 요소)를 캡처해
+    // Supabase Storage 'blog-images' 버킷에 PNG로 저장하고 공개 URL을 반환한다.
+    async function ensureScreenshotBucket() {
+      const { data: buckets } = await supabase.storage.listBuckets()
+      if (buckets?.some(b => b.name === 'blog-images')) return
+      await supabase.storage.createBucket('blog-images', { public: true, fileSizeLimit: '5MB' })
+    }
+
+    server.registerTool(
+      'capture_screenshot',
+      {
+        title: '웹페이지 그래프·차트 스크린샷 캡처 및 저장',
+        description:
+          '뉴스·공식 홈페이지(교육부, 한국교육개발원(KEDI), 통계청 등)에 있는 그래프·차트를 헤드리스 브라우저로 실제로 캡처해서 ' +
+          'Supabase Storage(blog-images 버킷)에 저장하고 공개 URL을 반환한다. selector를 주면 그 요소만 잘라서 캡처하고, ' +
+          '안 주면 뷰포트 전체를 캡처한다. 출처 페이지에 실제 이미지 파일(<img>)이 있으면 그 URL을 직접 쓰는 게 우선이고, ' +
+          '자바스크립트/캔버스로 그려져서 이미지 파일 자체가 없는 경우에만 이 툴을 쓴다. 반환된 URL을 블로그 본문에 마크다운 ' +
+          '이미지 문법(![alt](url))으로 넣고, 바로 아래에 반드시 출처(사이트명 + 원본 링크)를 캡션으로 명시할 것 — 저작권 있는 ' +
+          '자료를 그대로 재게시하는 것이므로 출처 표기 없이 쓰지 않는다.',
+        inputSchema: {
+          url: z.string().describe('캡처할 페이지 URL'),
+          selector: z.string().optional().describe('캡처할 특정 요소의 CSS selector (예: "#chart-container", ".graph-wrap"). 안 주면 뷰포트 전체를 캡처'),
+          waitMs: z.number().int().min(0).max(8000).optional().describe('페이지 로드 후 추가로 기다릴 시간(ms). 자바스크립트로 그려지는 차트가 렌더링될 시간을 줄 때 사용. 기본 1500'),
+          width: z.number().int().min(320).max(1920).optional().describe('뷰포트 너비. 기본 1200'),
+        },
+        annotations: { destructiveHint: false },
+      },
+      async ({ url, selector, waitMs = 1500, width = 1200 }) => {
+        let browser
+        try {
+          const { default: chromium } = await import('@sparticuz/chromium-min')
+          const puppeteer = await import('puppeteer-core')
+          // ⚠️ 이 URL의 버전(v131.0.1)은 package.json의 @sparticuz/chromium-min 버전과 반드시 일치해야 한다.
+          // npm install 이후 버전이 다르면 https://github.com/Sparticuz/chromium/releases 에서 맞는 pack.tar로 교체할 것.
+          const executablePath = await chromium.executablePath(
+            'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
+          )
+          browser = await puppeteer.default.launch({
+            args: chromium.args,
+            executablePath,
+            headless: true,
+            defaultViewport: { width, height: 900 },
+          })
+          const page = await browser.newPage()
+          await page.goto(url, { waitUntil: 'networkidle2', timeout: 20000 })
+          if (waitMs) await new Promise(r => setTimeout(r, waitMs))
+
+          let buffer
+          if (selector) {
+            const el = await page.$(selector)
+            if (!el) throw new Error(`selector "${selector}"에 해당하는 요소를 찾을 수 없음`)
+            buffer = await el.screenshot({ type: 'png' })
+          } else {
+            buffer = await page.screenshot({ type: 'png' })
+          }
+          await browser.close()
+          browser = null
+
+          await ensureScreenshotBucket()
+          const path = `captures/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.png`
+          const { error: upErr } = await supabase.storage.from('blog-images').upload(path, buffer, { contentType: 'image/png', upsert: false })
+          if (upErr) return { content: [{ type: 'text', text: `❌ 업로드 실패: ${upErr.message}` }], isError: true }
+          const { data: pub } = supabase.storage.from('blog-images').getPublicUrl(path)
+
+          return { content: [{ type: 'text', text: `✅ 캡처 완료\nURL: ${pub.publicUrl}\n원본 페이지: ${url}\n⚠️ 본문에 쓸 때 반드시 출처(사이트명+원본 링크)를 캡션으로 함께 표기할 것.` }] }
+        } catch (e) {
+          if (browser) { try { await browser.close() } catch {} }
+          return { content: [{ type: 'text', text: `❌ 캡처 실패: ${e.message}` }], isError: true }
+        }
+      }
+    )
+
     server.registerTool('get_series_info', {
       title: '시리즈/카테고리 정보 조회',
       description: '등록된 시리즈 및 카테고리의 최신 설명을 조회한다. STEP 1에서 get_publish_log와 함께 호출한다.',
@@ -656,6 +735,7 @@ const baseHandler = createMcpHandler(
     instructions:
       '방과후 출석부 블로그 자동화 서버. ' +
       '블로그 글 발행/발행기록/키워드 검색량/글감 아이디어/시리즈 정보/클로드 시스템 프롬프트를 관리하는 도구, ' +
+      '뉴스·공식 홈페이지의 그래프·차트를 실제로 캡처해서 저장하는 도구(capture_screenshot), ' +
       'GitHub 저장소(' + GITHUB_REPO + ') 파일 확인 도구(list_github_files/get_github_file), ' +
       'Supabase DB 직접 조회·수정 도구(list_tables/get_rows/upsert_row/delete_row/run_sql)를 제공한다. ' +
       '오늘의 블로그 글을 쓰거나 발행하거나, DB 테이블을 조회/수정할 때 이 서버의 도구를 사용한다.',
