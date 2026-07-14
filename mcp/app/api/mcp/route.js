@@ -5,7 +5,8 @@
 // Claude(연결된 커넥터)가 이 툴들을 직접 호출해서 "오늘 블로그 글" 글감을
 // 사람 개입 없이 스스로 판단할 수 있게 하는 것이 목적입니다.
 //
-// 노출 툴 24개:
+// 노출 툴 24개 (2026-07-15: update_blog_post 신설 + create_blog_post에 제목/SEO 점수
+// 디테일·네이버요약·인스타카드뉴스 필드 추가 — fresh-season 최신 파이프라인 이식):
 //   - get_publish_log      : 발행 기록 조회 (중복 방지 + 키워드 추적, STEP 1에서 가장 먼저 호출)
 //   - get_keyword_data     : 과목/역량 그룹별 찜한 키워드 + TOP 키워드 조회
 //   - search_keyword_data  : keyword_stats 전체를 그룹 구분 없이 검색 (황금키워드 탐색)
@@ -17,9 +18,10 @@
 //   - suggest_feature      : 새 각도/주제 제안을 검토 메모와 함께 기록
 //   - get_feature_ideas    : suggest_feature로 기록해둔 제안 목록 조회
 //   - add_publish_log      : 글 작성 후 발행 기록에 자동으로 남기기
-//   - create_blog_post     : 블로그 글 본문을 실제로 사이트에 발행
-//   - capture_screenshot   : 뉴스·공식 홈페이지의 그래프·차트를 헤드리스 브라우저로 캡처해
-//                             Supabase Storage(blog-images 버킷)에 저장하고 공개 URL 반환
+//   - create_blog_post     : 블로그 글 본문을 실제로 사이트에 발행. 제목/SEO 점수 디테일,
+//                             네이버 요약, 인스타 카드뉴스도 함께 저장 가능(전부 관리자 전용).
+//                             published 상태면 Google Indexing API + IndexNow 색인 요청도 시도.
+//   - update_blog_post     : 발행된 글의 특정 필드만 수정(slug 기준). 재작성·점수 재채점 시 사용.
 //   - get_series_info      : 시리즈/카테고리 정보 조회
 //   - update_series_info   : 시리즈/카테고리 정보 갱신
 //   - get_system_prompt    : 관리자 화면("클로드 지침")의 시스템 프롬프트 조회
@@ -88,8 +90,13 @@
 //   updated_at timestamptz not null default now()
 // );
 //
-// capture_screenshot 툴을 쓰려면 Supabase Storage에 'blog-images' 버킷이 필요합니다.
-// 코드가 최초 호출 시 자동으로 만들어주므로 별도 SQL은 필요 없습니다(퍼블릭 버킷, 5MB 제한).
+// 2026-07-15 추가 — blog_posts에 제목/SEO 점수 디테일 + 백링크 콘텐츠 컬럼(fresh-season 이식):
+// alter table blog_posts add column if not exists title_score integer;
+// alter table blog_posts add column if not exists seo_score integer;
+// alter table blog_posts add column if not exists title_score_detail jsonb;
+// alter table blog_posts add column if not exists seo_score_detail jsonb;
+// alter table blog_posts add column if not exists naver_summary text;
+// alter table blog_posts add column if not exists instagram_cards text;
 //
 // 필요한 환경변수 (Vercel 프로젝트 설정 > Environment Variables):
 //   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
@@ -98,6 +105,10 @@
 //   MCP_SHARED_SECRET
 //   GITHUB_TOKEN (선택)                        - list_github_files/get_github_file 툴의 GitHub API
 //                                                 호출 제한(시간당 60회)을 늘려줌, 없어도 동작함
+//   GOOGLE_SERVICE_ACCOUNT_JSON (선택)         - create_blog_post의 Google Indexing API 색인 요청.
+//                                                 없으면 색인 요청은 조용히 실패하고 발행 자체는 정상 진행됨.
+//   INDEXNOW_KEY (선택)                        - create_blog_post의 IndexNow(Bing·Naver·Yandex) 색인 요청.
+//                                                 없으면 "skipped"로 표시되고 발행 자체는 정상 진행됨.
 //
 // list_tables/run_sql 완전 동작을 위한 Postgres RPC (선택, 없으면 일부 기능만 제한):
 // ⚠️ 임의 SQL을 실행할 수 있는 함수라 위험도가 높다 — 필요할 때만 생성할 것.
@@ -198,6 +209,7 @@ async function fetchNaverKeywordData(keywords) {
 // 양쪽 모두에서 참조하기 때문에, 콜백 안에 선언하면 instructions 쪽에서
 // ReferenceError가 난다.
 const GITHUB_REPO = 'afterschoolrollbook/attendance'
+const SITE_ORIGIN = 'https://afterschoolrollbook.kr'
 
 const baseHandler = createMcpHandler(
   (server) => {
@@ -405,95 +417,181 @@ const baseHandler = createMcpHandler(
 
     server.registerTool('create_blog_post', {
       title: '블로그 글 실제 발행',
-      description: '작성한 글 본문을 blog_posts 테이블에 발행한다. 기본 status는 published(즉시 공개).',
+      description: '작성한 글 본문을 blog_posts 테이블에 발행한다. 기본 status는 published(즉시 공개). ' +
+        '제목/SEO 점수 디테일, 네이버 요약, 인스타 카드뉴스도 함께 저장 가능(전부 관리자 전용, 방문자 비노출). ' +
+        'published 상태면 Google Indexing API + IndexNow 색인 요청도 함께 시도한다(실패해도 발행 자체는 진행).',
       inputSchema: {
         title: z.string(), slug: z.string(), summary: z.string().optional(), content: z.string(),
         category: z.string(), tags: z.array(z.string()).optional(), cover_image: z.string().optional(),
         status: z.enum(['published', 'draft', 'scheduled']).optional(), scheduled_at: z.string().optional(),
+        title_score: z.number().optional().describe('제목 점수표(10점 만점) 채점 결과. 관리자만 조회 가능.'),
+        seo_score: z.number().optional().describe('SEO 체크리스트(100점 만점) 채점 결과. 관리자만 조회 가능.'),
+        title_score_detail: z.array(z.object({
+          label: z.string().describe('채점 항목명 (예: 키워드 포함·위치)'),
+          points: z.number().describe('이 항목에서 받은 점수'),
+          max: z.number().describe('이 항목의 배점'),
+          reason: z.string().describe('이 점수를 준 구체적 이유'),
+        })).optional().describe('제목 점수표(10점)의 항목별 배점·이유 breakdown. title_score를 줄 때 항상 함께 채운다.'),
+        seo_score_detail: z.array(z.object({
+          label: z.string().describe('체크리스트 항목명 (예: 키워드 밀도)'),
+          points: z.number().describe('이 항목에서 받은 점수'),
+          max: z.number().describe('이 항목의 배점'),
+          pass: z.boolean().describe('이 항목 통과 여부'),
+          desc: z.string().describe('이 점수를 준 구체적 이유'),
+        })).optional().describe('SEO 체크리스트(100점)의 항목별 배점·통과여부·이유 breakdown. seo_score를 줄 때 항상 함께 채운다.'),
+        naver_summary: z.string().optional().describe('네이버 블로그에 붙여넣을 요약글(300~500자 + 원문 링크). 관리자만 조회 가능.'),
+        instagram_cards: z.string().optional().describe('인스타그램 카드뉴스(슬라이드 텍스트 스크립트 + 캡처용 HTML 카드 전체). 관리자만 조회 가능.'),
       },
       annotations: { destructiveHint: false, idempotentHint: false },
-    }, async ({ title, slug, summary, content, category, tags, cover_image, status, scheduled_at }) => {
+    }, async ({ title, slug, summary, content, category, tags, cover_image, status, scheduled_at, title_score, seo_score, title_score_detail, seo_score_detail, naver_summary, instagram_cards }) => {
       const finalStatus = status || 'published'
       const nowIso = new Date().toISOString()
-      const row = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), type: 'blog', title, slug, summary: summary || null, content, category, tags: Array.isArray(tags) ? tags : [], cover_image: cover_image || null, author: null, status: finalStatus, scheduled_at: finalStatus === 'scheduled' ? (scheduled_at || null) : null, published_at: finalStatus === 'published' ? nowIso : null, created_at: nowIso, updated_at: nowIso }
+      const row = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+        type: 'blog', title, slug,
+        summary: summary || null, content, category, tags: Array.isArray(tags) ? tags : [],
+        cover_image: cover_image || null, author: null, status: finalStatus,
+        scheduled_at: finalStatus === 'scheduled' ? (scheduled_at || null) : null,
+        published_at: finalStatus === 'published' ? nowIso : null,
+        created_at: nowIso, updated_at: nowIso,
+        // 제목 점수·SEO 점수·네이버 요약글·인스타 카드뉴스 — 관리자 내부 참고용 (공개 API에서는 노출되지 않음)
+        title_score: title_score ?? null,
+        seo_score: seo_score ?? null,
+        title_score_detail: title_score_detail ?? null,
+        seo_score_detail: seo_score_detail ?? null,
+        naver_summary: naver_summary ?? null,
+        instagram_cards: instagram_cards ?? null,
+      }
       const { error } = await supabase.from('blog_posts').insert([row])
       if (error) return { content: [{ type: 'text', text: `오류: ${error.message}` }], isError: true }
-      return { content: [{ type: 'text', text: finalStatus === 'published' ? `✅ 발행 완료 — https://afterschoolrollbook.kr/blog/${slug}` : `✅ ${finalStatus === 'draft' ? '임시저장' : '예약'} 완료` }] }
-    })
 
-    // ── 그래프·차트 스크린샷 캡처 (뉴스·공식 홈페이지의 통계 자료를 실제로 캡처해서 저장) ──
-    // 이지트레이더(trader) MCP 서버의 capture_screenshot 구현을 그대로 이식한 것.
-    // 헤드리스 브라우저로 해당 페이지(또는 selector로 지정한 요소)를 캡처해
-    // Supabase Storage 'blog-images' 버킷에 PNG로 저장하고 공개 URL을 반환한다.
-    async function ensureScreenshotBucket() {
-      const { data: buckets } = await supabase.storage.listBuckets()
-      if (buckets?.some(b => b.name === 'blog-images')) return
-      await supabase.storage.createBucket('blog-images', { public: true, fileSizeLimit: '5MB' })
-    }
+      // ── 색인 요청 (published 상태일 때만, 실패해도 발행 자체는 막지 않음) ──────────
+      const indexingResult = { googleIndexing: null, indexNow: null }
+      if (finalStatus === 'published') {
+        const pageUrl = `${SITE_ORIGIN}/blog/${slug}`
 
-    server.registerTool(
-      'capture_screenshot',
-      {
-        title: '웹페이지 그래프·차트 스크린샷 캡처 및 저장',
-        description:
-          '뉴스·공식 홈페이지(교육부, 한국교육개발원(KEDI), 통계청 등)에 있는 그래프·차트를 헤드리스 브라우저로 실제로 캡처해서 ' +
-          'Supabase Storage(blog-images 버킷)에 저장하고 공개 URL을 반환한다. selector를 주면 그 요소만 잘라서 캡처하고, ' +
-          '안 주면 뷰포트 전체를 캡처한다. 출처 페이지에 실제 이미지 파일(<img>)이 있으면 그 URL을 직접 쓰는 게 우선이고, ' +
-          '자바스크립트/캔버스로 그려져서 이미지 파일 자체가 없는 경우에만 이 툴을 쓴다. 반환된 URL을 블로그 본문에 마크다운 ' +
-          '이미지 문법(![alt](url))으로 넣고, 바로 아래에 반드시 출처(사이트명 + 원본 링크)를 캡션으로 명시할 것 — 저작권 있는 ' +
-          '자료를 그대로 재게시하는 것이므로 출처 표기 없이 쓰지 않는다.',
-        inputSchema: {
-          url: z.string().describe('캡처할 페이지 URL'),
-          selector: z.string().optional().describe('캡처할 특정 요소의 CSS selector (예: "#chart-container", ".graph-wrap"). 안 주면 뷰포트 전체를 캡처'),
-          waitMs: z.number().int().min(0).max(8000).optional().describe('페이지 로드 후 추가로 기다릴 시간(ms). 자바스크립트로 그려지는 차트가 렌더링될 시간을 줄 때 사용. 기본 1500'),
-          width: z.number().int().min(320).max(1920).optional().describe('뷰포트 너비. 기본 1200'),
-        },
-        annotations: { destructiveHint: false },
-      },
-      async ({ url, selector, waitMs = 1500, width = 1200 }) => {
-        let browser
+        // 1) Google Indexing API
         try {
-          const { default: chromium } = await import('@sparticuz/chromium-min')
-          const puppeteer = await import('puppeteer-core')
-          // ⚠️ 이 URL의 버전(v131.0.1)은 package.json의 @sparticuz/chromium-min 버전과 반드시 일치해야 한다.
-          // npm install 이후 버전이 다르면 https://github.com/Sparticuz/chromium/releases 에서 맞는 pack.tar로 교체할 것.
-          const executablePath = await chromium.executablePath(
-            'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
-          )
-          browser = await puppeteer.default.launch({
-            args: chromium.args,
-            executablePath,
-            headless: true,
-            defaultViewport: { width, height: 900 },
+          const { GoogleAuth } = await import('google-auth-library')
+          const auth = new GoogleAuth({
+            credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON),
+            scopes: ['https://www.googleapis.com/auth/indexing'],
           })
-          const page = await browser.newPage()
-          await page.goto(url, { waitUntil: 'networkidle2', timeout: 20000 })
-          if (waitMs) await new Promise(r => setTimeout(r, waitMs))
-
-          let buffer
-          if (selector) {
-            const el = await page.$(selector)
-            if (!el) throw new Error(`selector "${selector}"에 해당하는 요소를 찾을 수 없음`)
-            buffer = await el.screenshot({ type: 'png' })
-          } else {
-            buffer = await page.screenshot({ type: 'png' })
-          }
-          await browser.close()
-          browser = null
-
-          await ensureScreenshotBucket()
-          const path = `captures/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.png`
-          const { error: upErr } = await supabase.storage.from('blog-images').upload(path, buffer, { contentType: 'image/png', upsert: false })
-          if (upErr) return { content: [{ type: 'text', text: `❌ 업로드 실패: ${upErr.message}` }], isError: true }
-          const { data: pub } = supabase.storage.from('blog-images').getPublicUrl(path)
-
-          return { content: [{ type: 'text', text: `✅ 캡처 완료\nURL: ${pub.publicUrl}\n원본 페이지: ${url}\n⚠️ 본문에 쓸 때 반드시 출처(사이트명+원본 링크)를 캡션으로 함께 표기할 것.` }] }
+          const client = await auth.getClient()
+          await client.request({
+            url: 'https://indexing.googleapis.com/v3/urlNotifications:publish',
+            method: 'POST',
+            data: { url: pageUrl, type: 'URL_UPDATED' },
+          })
+          indexingResult.googleIndexing = 'success'
         } catch (e) {
-          if (browser) { try { await browser.close() } catch {} }
-          return { content: [{ type: 'text', text: `❌ 캡처 실패: ${e.message}` }], isError: true }
+          indexingResult.googleIndexing = 'error: ' + e.message
+        }
+
+        // 2) IndexNow — Bing·Naver·Yandex 색인 요청
+        try {
+          const INDEXNOW_KEY = process.env.INDEXNOW_KEY
+          if (INDEXNOW_KEY) {
+            const inRes = await fetch('https://api.indexnow.org/indexnow', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json; charset=utf-8' },
+              body: JSON.stringify({
+                host: 'afterschoolrollbook.kr',
+                key: INDEXNOW_KEY,
+                keyLocation: `${SITE_ORIGIN}/${INDEXNOW_KEY}.txt`,
+                urlList: [pageUrl],
+              }),
+            })
+            indexingResult.indexNow = 'success:' + inRes.status
+          } else {
+            indexingResult.indexNow = 'skipped: INDEXNOW_KEY 미설정'
+          }
+        } catch (e) {
+          indexingResult.indexNow = 'error: ' + e.message
         }
       }
-    )
+      // ────────────────────────────────────────────────────────────────────────
+
+      const liveNote = finalStatus === 'published'
+        ? `✅ 발행 완료 — ${SITE_ORIGIN}/blog/${slug}`
+        : `✅ ${finalStatus === 'draft' ? '임시저장' : '예약'} 완료`
+
+      const indexNote = finalStatus === 'published'
+        ? `\n🔍 Google 색인: ${indexingResult.googleIndexing || '미실행'}\n⚡ IndexNow: ${indexingResult.indexNow || '미실행'}`
+        : ''
+
+      return { content: [{ type: 'text', text: liveNote + indexNote }] }
+    })
+
+    server.registerTool('update_blog_post', {
+      title: '발행된 글 수정',
+      description: '발행된 블로그 글의 특정 필드를 수정한다. slug로 대상 글을 찾고, 전달된 필드만 업데이트한다 — ' +
+        '넘기지 않은 필드는 기존 값 그대로 유지된다. 커버 이미지 교체, 본문·제목·태그·요약 수정, 상태 변경, ' +
+        '제목/SEO 점수 재채점 등 모든 글 수정 작업에 사용한다.',
+      inputSchema: {
+        slug: z.string().describe('수정할 글의 URL 슬러그 (필수, 대상 글 식별자)'),
+        title: z.string().optional().describe('새 제목'),
+        summary: z.string().optional().describe('새 SEO 요약'),
+        content: z.string().optional().describe('새 본문 마크다운 전체'),
+        cover_image: z.string().optional().describe('새 커버 이미지 URL'),
+        tags: z.array(z.string()).optional().describe('새 태그 배열'),
+        status: z.enum(['published', 'draft']).optional().describe('글 상태 변경'),
+        title_score: z.number().optional().describe('제목 점수표(10점 만점) 재채점 결과. 관리자만 조회 가능.'),
+        seo_score: z.number().optional().describe('SEO 체크리스트(100점 만점) 재채점 결과. 관리자만 조회 가능.'),
+        title_score_detail: z.array(z.object({
+          label: z.string().describe('채점 항목명'),
+          points: z.number().describe('이 항목에서 받은 점수'),
+          max: z.number().describe('이 항목의 배점'),
+          reason: z.string().describe('이 점수를 준 구체적 이유'),
+        })).optional().describe('제목 점수표 항목별 breakdown. title_score를 줄 때 항상 함께 채운다.'),
+        seo_score_detail: z.array(z.object({
+          label: z.string().describe('체크리스트 항목명'),
+          points: z.number().describe('이 항목에서 받은 점수'),
+          max: z.number().describe('이 항목의 배점'),
+          pass: z.boolean().describe('이 항목 통과 여부'),
+          desc: z.string().describe('이 점수를 준 구체적 이유'),
+        })).optional().describe('SEO 체크리스트 항목별 breakdown. seo_score를 줄 때 항상 함께 채운다.'),
+        naver_summary: z.string().optional().describe('네이버 블로그에 붙여넣을 요약글(300~500자 + 원문 링크). 관리자만 조회 가능.'),
+        instagram_cards: z.string().optional().describe('인스타그램 카드뉴스(슬라이드 텍스트 스크립트 + 캡처용 HTML 카드 전체). 관리자만 조회 가능.'),
+      },
+      annotations: { destructiveHint: false, idempotentHint: true },
+    }, async ({ slug, title, summary, content, cover_image, tags, status, title_score, seo_score, title_score_detail, seo_score_detail, naver_summary, instagram_cards }) => {
+      const patch = {}
+      if (title !== undefined) patch.title = title
+      if (summary !== undefined) patch.summary = summary
+      if (content !== undefined) patch.content = content
+      if (cover_image !== undefined) patch.cover_image = cover_image
+      if (tags !== undefined) patch.tags = tags
+      if (status !== undefined) patch.status = status
+      if (title_score !== undefined) patch.title_score = title_score
+      if (seo_score !== undefined) patch.seo_score = seo_score
+      if (title_score_detail !== undefined) patch.title_score_detail = title_score_detail
+      if (seo_score_detail !== undefined) patch.seo_score_detail = seo_score_detail
+      if (naver_summary !== undefined) patch.naver_summary = naver_summary
+      if (instagram_cards !== undefined) patch.instagram_cards = instagram_cards
+
+      if (Object.keys(patch).length === 0) {
+        return { content: [{ type: 'text', text: '오류: 수정할 필드가 없습니다. title/summary/content/cover_image/tags/status/title_score/seo_score/title_score_detail/seo_score_detail/naver_summary/instagram_cards 중 하나 이상을 전달해주세요.' }], isError: true }
+      }
+      patch.updated_at = new Date().toISOString()
+
+      const { data, error } = await supabase
+        .from('blog_posts')
+        .update(patch)
+        .eq('slug', slug)
+        .select('slug, title, status')
+        .single()
+      if (error) return { content: [{ type: 'text', text: `오류: ${error.message}` }], isError: true }
+      if (!data) return { content: [{ type: 'text', text: `슬러그 '${slug}'에 해당하는 글을 찾을 수 없습니다.` }], isError: true }
+
+      const changedFields = Object.keys(patch).filter(k => k !== 'updated_at').join(', ')
+      return {
+        content: [{
+          type: 'text',
+          text: `✅ 수정 완료\n제목: ${data.title}\nslug: ${data.slug}\n변경 필드: ${changedFields}\n라이브 URL: ${SITE_ORIGIN}/blog/${data.slug}`,
+        }],
+      }
+    })
 
     server.registerTool('get_series_info', {
       title: '시리즈/카테고리 정보 조회',
@@ -734,10 +832,10 @@ const baseHandler = createMcpHandler(
   {
     instructions:
       '방과후 출석부 블로그 자동화 서버. ' +
-      '블로그 글 발행/발행기록/키워드 검색량/글감 아이디어/시리즈 정보/클로드 시스템 프롬프트를 관리하는 도구, ' +
-      '뉴스·공식 홈페이지의 그래프·차트를 실제로 캡처해서 저장하는 도구(capture_screenshot), ' +
+      '블로그 글 발행/수정/발행기록/키워드 검색량/글감 아이디어/시리즈 정보/클로드 시스템 프롬프트를 관리하는 도구, ' +
       'GitHub 저장소(' + GITHUB_REPO + ') 파일 확인 도구(list_github_files/get_github_file), ' +
       'Supabase DB 직접 조회·수정 도구(list_tables/get_rows/upsert_row/delete_row/run_sql)를 제공한다. ' +
+      'create_blog_post/update_blog_post는 제목·SEO 점수 디테일, 네이버 요약, 인스타 카드뉴스까지 함께 저장한다. ' +
       '오늘의 블로그 글을 쓰거나 발행하거나, DB 테이블을 조회/수정할 때 이 서버의 도구를 사용한다.',
   },
   { basePath: '/api', maxDuration: 30, verboseLogs: true }
