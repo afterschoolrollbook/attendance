@@ -187,7 +187,10 @@ async function fetchNaverKeywordData(keywords) {
 }
 
 // ── MCP 서버 ─────────────────────────────────────────────────────────
-// 저장소: afterschoolrollbook/attendance (사용자 확인됨)
+// GITHUB_REPO는 여기 파일 최상단(모듈 스코프)에서 선언한다 — 아래 콜백 내부의
+// server.registerTool 도구 설명과, 콜백 바깥 두 번째 인자인 instructions 객체
+// 양쪽 모두에서 참조하기 때문에, 콜백 안에 선언하면 instructions 쪽에서
+// ReferenceError가 난다.
 const GITHUB_REPO = 'afterschoolrollbook/attendance'
 
 const baseHandler = createMcpHandler(
@@ -464,7 +467,8 @@ const baseHandler = createMcpHandler(
     // ── GitHub 저장소 확인 툴 (Fresh_Season MCP와 동일 구조, 저장소만 attendance로 교체) ──
     // 공개 저장소라 토큰 없이도 동작하지만(시간당 60회 제한),
     // GITHUB_TOKEN 환경변수를 등록해두면 그 제한이 훨씬 늘어난다.
-    // GITHUB_REPO는 파일 상단(모듈 스코프)에서 선언 — instructions 객체에서도 참조하기 때문
+    // 저장소: afterschoolrollbook/attendance (사용자 확인됨)
+    // GITHUB_REPO는 파일 최상단(모듈 스코프)에서 선언돼 있음 — 아래는 그 값을 그대로 참조
 
     server.registerTool(
       'list_github_files',
