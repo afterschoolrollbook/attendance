@@ -1,8 +1,40 @@
-import React from 'react'
+
+import React, { useState, useEffect, useMemo } from 'react'
 import { AdSlots } from '../lib/db.js'
+import { supabase } from '../lib/supabase.js'
+import { SLOT_BANNER_SIZE } from '../lib/adSlotSizes.js'
 
 export function AdSlot({ slotId }) {
   const slot = AdSlots.all().find(s => s.id === slotId)
+  const source = slot?.source || 'adsense'
+  const [coupangHtml, setCoupangHtml] = useState(null)
+
+  // 쿠팡/무작위 소스 슬롯은 코드 입력이 없으므로, 슬롯 사이즈에 맞는 등록된 쿠팡 배너를
+  // coupang_widgets에서 직접 조회해 온다 (Adsense.jsx의 countCoupangBanners와 동일한 매칭 기준).
+  useEffect(() => {
+    if (!slot?.active || !supabase || source === 'adsense') return
+    const size = SLOT_BANNER_SIZE[slot.id]
+    if (!size) return
+    let cancelled = false
+    supabase.from('coupang_widgets').select('widget_html')
+      .eq('size', size).eq('enabled', true)
+      .then(({ data, error }) => {
+        if (cancelled || error || !data?.length) return
+        setCoupangHtml(data[Math.floor(Math.random() * data.length)].widget_html)
+      })
+    return () => { cancelled = true }
+  }, [slot?.id, slot?.active, source])
+
+  const html = useMemo(() => {
+    if (source === 'coupang') return coupangHtml
+    if (source === 'random') {
+      const candidates = [slot?.code, coupangHtml].filter(Boolean)
+      if (!candidates.length) return null
+      return candidates[Math.floor(Math.random() * candidates.length)]
+    }
+    return slot?.code
+  }, [source, slot?.code, coupangHtml])
+
   if (!slot || !slot.active) return null
 
   const style = {
@@ -13,7 +45,7 @@ export function AdSlot({ slotId }) {
     marginBottom: '12px',
   }
 
-  if (!slot.code) {
+  if (!html) {
     return (
       <div style={{ ...style, background: '#f9fafb', border: '1.5px dashed #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '4px' }}>
         <span style={{ fontSize: '12px', color: '#9ca3af' }}>광고 영역 ({slot.name})</span>
@@ -26,7 +58,7 @@ export function AdSlot({ slotId }) {
   // allow-same-origin 제거: allow-scripts + allow-same-origin 동시 사용 시 sandbox 무력화됨
   const iframeSrc = `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>body{margin:0;padding:0;overflow:hidden;}</style></head>
-    <body>${slot.code}</body></html>`
+    <body>${html}</body></html>`
   const blob = typeof Blob !== 'undefined'
     ? URL.createObjectURL(new Blob([iframeSrc], { type: 'text/html' }))
     : null
