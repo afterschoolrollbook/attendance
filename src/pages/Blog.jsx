@@ -78,28 +78,6 @@ function setJsonLd(post) {
   document.head.appendChild(script)
 }
 
-// ── 애드센스 (승인 전 플레이스홀더)
-function AdSense({ slot, label = '광고', style = {} }) {
-  const isApproved = false // 애드센스 승인 후 true로 변경
-  useEffect(() => {
-    if (!isApproved) return
-    try { (window.adsbygoogle = window.adsbygoogle || []).push({}) } catch (e) { console.warn('[Blog] 오류:', e) }
-  }, [])
-  if (!isApproved) return (
-    <div style={{ background:'#f9fafb', border:'2px dashed #e5e7eb', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:'4px', minHeight:'90px', color:'#d1d5db', fontSize:'12px', fontFamily:'Noto Sans KR, sans-serif', ...style }}>
-      <span style={{ fontSize:'18px' }}>📢</span>
-      <span>{label}</span>
-    </div>
-  )
-  return (
-    <div style={{ textAlign:'center', ...style }}>
-      <ins className="adsbygoogle" style={{ display:'block' }}
-        data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" data-ad-slot={slot}
-        data-ad-format="auto" data-full-width-responsive="true" />
-    </div>
-  )
-}
-
 // ── 검색바
 function SearchBar({ value, onChange, placeholder }) {
   return (
@@ -1363,20 +1341,20 @@ export function Blog() {
       <div style={{ display:'flex', justifyContent:'center', gap:'20px', padding:'0 16px', maxWidth:'1500px', margin:'0 auto' }}>
         <div className="blog-side-ad" style={{ width:'160px', flexShrink:0, paddingTop:'32px' }}>
           <div style={{ position:'sticky', top:'80px' }}>
-            <AdSense slot="1111111111" label="왼쪽 광고" style={{ width:'160px', minHeight:'600px' }} />
+            <AdSlot slotId="blog_left" />
           </div>
         </div>
         <div style={{ flex:1, minWidth:0, maxWidth:'1100px' }}>
           {renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, reviewPosts, requestPosts, handleBack, handleSelect, tab, isAdmin, loggedIn, getWritePermInfo, onPostSaved: loadPosts })}
           {!blogAdminMode && (
             <div style={{ padding:'0 20px 40px' }}>
-              <AdSense slot="3333333333" label="하단 광고" style={{ minHeight:'90px' }} />
+              <AdSlot slotId="blog_bottom" />
             </div>
           )}
         </div>
         <div className="blog-side-ad" style={{ width:'160px', flexShrink:0, paddingTop:'32px' }}>
           <div style={{ position:'sticky', top:'80px' }}>
-            <AdSense slot="2222222222" label="오른쪽 광고" style={{ width:'160px', minHeight:'600px' }} />
+            <AdSlot slotId="blog_right" />
           </div>
         </div>
       </div>
