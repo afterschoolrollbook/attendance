@@ -16,6 +16,7 @@
     "puppeteer-core": "^23.11.1",
     "mcp-handler": "^1.0.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
-    "zod": "^3.23.0"
+    "zod": "^3.23.0",
+    "google-auth-library": "^9.0.0"
   }
 }
