@@ -11,4 +11,7 @@ export const SLOT_BANNER_SIZE = {
   footer: '728x90',
   landing_bottom: '728x90',
   blog_middle: '728x90',
+  blog_bottom: '728x90',
+  blog_left: '160x600',
+  blog_right: '160x600',
 }
