@@ -455,6 +455,25 @@ function PrevNextNav({ post, allPosts, onSelect }) {
 
 function BlogDetail({ post, onBack, allPosts, onSelect, isAdmin }) {
   const middleSlot = useAdSlot('blog_middle')
+  const [copiedField, setCopiedField] = useState('')
+  const copyToClipboard = (field, text) => {
+    if (!text) return
+    try {
+      navigator.clipboard.writeText(text)
+      setCopiedField(field)
+      setTimeout(() => setCopiedField(''), 1500)
+    } catch (e) {}
+  }
+  // 인스타 카드뉴스는 "슬라이드 스크립트 + HTML" 전체가 한 필드에 이어붙어 있는데,
+  // 실제로 .html로 저장해서 캡처할 때 쓰는 건 HTML 부분뿐이라 그 부분만 골라 복사한다.
+  const instagramHtmlOnly = (text) => {
+    const marker = '--- 아래는 카드뉴스 HTML'
+    const idx = (text || '').indexOf(marker)
+    if (idx === -1) return text
+    const after = text.slice(idx)
+    const htmlStart = after.indexOf('<!DOCTYPE')
+    return htmlStart !== -1 ? after.slice(htmlStart) : after
+  }
   useEffect(() => {
     setMeta(`${post.title} | 방과후 출석부 블로그`, post.summary || post.content?.replace(/[#*`>-]/g, '').slice(0, 160) || '', `${window.location.origin}/blog/${post.slug||post.id}`, post.coverImage)
     setJsonLd(post)
@@ -512,12 +531,24 @@ function BlogDetail({ post, onBack, allPosts, onSelect, isAdmin }) {
           {post.naverSummary && (
             <details>
               <summary style={{ fontSize:'12px', fontWeight:600, color:'#6d28d9', cursor:'pointer' }}>네이버 요약</summary>
+              <div style={{ marginTop:'6px', display:'flex', justifyContent:'flex-end' }}>
+                <button type="button" onClick={() => copyToClipboard('naver', post.naverSummary)}
+                  style={{ fontSize:'11px', fontWeight:700, padding:'3px 10px', borderRadius:'999px', border:'1px solid #ddd6fe', background: copiedField==='naver' ? '#6d28d9' : '#fff', color: copiedField==='naver' ? '#fff' : '#6d28d9', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  {copiedField==='naver' ? '복사됨!' : '📋 복사'}
+                </button>
+              </div>
               <div style={{ marginTop:'6px', fontSize:'12px', color:'#6b7280', whiteSpace:'pre-wrap', lineHeight:1.6 }}>{post.naverSummary}</div>
             </details>
           )}
           {post.instagramCards && (
             <details>
               <summary style={{ fontSize:'12px', fontWeight:600, color:'#6d28d9', cursor:'pointer' }}>인스타그램 카드뉴스 (슬라이드 스크립트 + HTML)</summary>
+              <div style={{ marginTop:'6px', display:'flex', justifyContent:'flex-end' }}>
+                <button type="button" onClick={() => copyToClipboard('instagram', instagramHtmlOnly(post.instagramCards))}
+                  style={{ fontSize:'11px', fontWeight:700, padding:'3px 10px', borderRadius:'999px', border:'1px solid #ddd6fe', background: copiedField==='instagram' ? '#6d28d9' : '#fff', color: copiedField==='instagram' ? '#fff' : '#6d28d9', cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>
+                  {copiedField==='instagram' ? '복사됨! (HTML만)' : '📋 복사 (HTML만)'}
+                </button>
+              </div>
               <textarea readOnly value={post.instagramCards} rows={8}
                 style={{ marginTop:'6px', width:'100%', boxSizing:'border-box', padding:'10px 12px', borderRadius:'8px', border:'1.5px solid #ddd6fe', fontSize:'11px', fontFamily:'monospace', color:'#6b7280', background:'#fafafa', resize:'vertical' }} />
             </details>
