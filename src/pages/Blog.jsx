@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { dbCall, supabase } from '../lib/supabase.js'
 import { BlogAdmin } from './BlogAdmin.jsx'
 import { AdSlot } from '../components/AdSlot.jsx'
+import { AdSlotsProvider, useAdSlot } from '../lib/AdSlotsContext.jsx'
 import { uid, now } from '../lib/utils.js'
 import { getBoardPermLevel } from '../constants/permissions.js'
 
@@ -94,6 +95,7 @@ function SearchBar({ value, onChange, placeholder }) {
 
 // ── 블로그 목록
 function BlogList({ posts, onSelect, currentUser, loggedIn, writePerm, onPostSaved }) {
+  const middleSlot = useAdSlot('blog_middle')
   const [search, setSearch] = useState('')
   const [selCat, setSelCat] = useState('전체')
   const [writing, setWriting] = useState(false)
@@ -141,7 +143,7 @@ function BlogList({ posts, onSelect, currentUser, loggedIn, writePerm, onPostSav
           ))}
         </div>
       </div>
-      <AdSlot slotId="blog_middle" />
+      <AdSlot slotId="blog_middle" slotData={middleSlot} />
       {loggedIn && !writing && (
         <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'16px' }}>
           <button onClick={() => setWriting(true)}
@@ -452,6 +454,7 @@ function PrevNextNav({ post, allPosts, onSelect }) {
 }
 
 function BlogDetail({ post, onBack, allPosts, onSelect }) {
+  const middleSlot = useAdSlot('blog_middle')
   useEffect(() => {
     setMeta(`${post.title} | 방과후 출석부 블로그`, post.summary || post.content?.replace(/[#*`>-]/g, '').slice(0, 160) || '', `${window.location.origin}/blog/${post.slug||post.id}`, post.coverImage)
     setJsonLd(post)
@@ -481,7 +484,7 @@ function BlogDetail({ post, onBack, allPosts, onSelect }) {
       <ContentWithInlineLinks html={bodyHtml} relatedPool={relatedPool} onSelect={onSelect} />
 
       <div style={{ margin: '32px 0' }}>
-        <AdSlot slotId="blog_middle" />
+        <AdSlot slotId="blog_middle" slotData={middleSlot} />
       </div>
 
       {post.tags?.length > 0 && (
@@ -1165,7 +1168,18 @@ function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, tem
   return <BlogList posts={blogPosts} onSelect={handleSelect} currentUser={currentUser} loggedIn={loggedIn} writePerm={getWritePermInfo('blog')} onPostSaved={onPostSaved} />
 }
 
+// AdSlotsProvider가 blog_left/blog_right/blog_bottom/blog_middle 슬롯을 대시보드
+// 오프라인 캐시와 무관하게 독립적으로 조회해서 하위 컴포넌트(BlogInner, BlogList, BlogDetail)에
+// useAdSlot()으로 공급한다 — fresh-season의 AdSlotsProvider와 동일한 구조.
 export function Blog() {
+  return (
+    <AdSlotsProvider>
+      <BlogInner />
+    </AdSlotsProvider>
+  )
+}
+
+function BlogInner() {
   const [allPosts, setAllPosts] = useState([])
   const [tab, setTab] = useState('blog')
   const [selPost, setSelPost] = useState(null)
@@ -1325,6 +1339,10 @@ export function Blog() {
 
   const switchTab = (t) => { setTab(t); setSelPost(null); window.history.pushState({}, '', `/${t}`) }
 
+  const blogLeftSlot = useAdSlot('blog_left')
+  const blogRightSlot = useAdSlot('blog_right')
+  const blogBottomSlot = useAdSlot('blog_bottom')
+
   if (loading) return (
     <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#fafafa' }}>
       <div style={{ textAlign:'center' }}>
@@ -1341,20 +1359,20 @@ export function Blog() {
       <div style={{ display:'flex', justifyContent:'center', gap:'20px', padding:'0 16px', maxWidth:'1500px', margin:'0 auto' }}>
         <div className="blog-side-ad" style={{ width:'160px', flexShrink:0, paddingTop:'32px' }}>
           <div style={{ position:'sticky', top:'80px' }}>
-            <AdSlot slotId="blog_left" />
+            <AdSlot slotId="blog_left" slotData={blogLeftSlot} />
           </div>
         </div>
         <div style={{ flex:1, minWidth:0, maxWidth:'1100px' }}>
           {renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, templatePosts, blogPosts, reviewPosts, requestPosts, handleBack, handleSelect, tab, isAdmin, loggedIn, getWritePermInfo, onPostSaved: loadPosts })}
           {!blogAdminMode && (
             <div style={{ padding:'0 20px 40px' }}>
-              <AdSlot slotId="blog_bottom" />
+              <AdSlot slotId="blog_bottom" slotData={blogBottomSlot} />
             </div>
           )}
         </div>
         <div className="blog-side-ad" style={{ width:'160px', flexShrink:0, paddingTop:'32px' }}>
           <div style={{ position:'sticky', top:'80px' }}>
-            <AdSlot slotId="blog_right" />
+            <AdSlot slotId="blog_right" slotData={blogRightSlot} />
           </div>
         </div>
       </div>

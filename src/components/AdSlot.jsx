@@ -4,8 +4,12 @@ import { AdSlots } from '../lib/db.js'
 import { supabase } from '../lib/supabase.js'
 import { SLOT_BANNER_SIZE } from '../lib/adSlotSizes.js'
 
-export function AdSlot({ slotId }) {
-  const slot = AdSlots.all().find(s => s.id === slotId)
+export function AdSlot({ slotId, slotData }) {
+  // slotData가 주어지면 그것을 우선 사용한다 (예: 블로그처럼 대시보드 오프라인 캐시가
+  // 채워지지 않는 페이지에서 AdSlotsContext가 직접 조회해서 넘겨주는 경우).
+  // 넘어오지 않으면 기존처럼 대시보드 캐시(AdSlots.all())에서 찾는다.
+  const cachedSlot = AdSlots.all().find(s => s.id === slotId)
+  const slot = slotData || cachedSlot
   const source = slot?.source || 'adsense'
   const [coupangHtml, setCoupangHtml] = useState(null)
 
