@@ -1,6 +1,6 @@
 import { parseMarkdown, markdownPreviewStyles } from '../lib/parseMarkdown.js'
 import React, { useState, useEffect } from 'react'
-import { dbCall, supabase } from '../lib/supabase.js'
+import { dbCall, supabase, toCamel } from '../lib/supabase.js'
 import { BlogAdmin } from './BlogAdmin.jsx'
 import { AdSlot } from '../components/AdSlot.jsx'
 import { AdSlotsProvider, useAdSlot } from '../lib/AdSlotsContext.jsx'
@@ -453,7 +453,7 @@ function PrevNextNav({ post, allPosts, onSelect }) {
   )
 }
 
-function BlogDetail({ post, onBack, allPosts, onSelect }) {
+function BlogDetail({ post, onBack, allPosts, onSelect, isAdmin }) {
   const middleSlot = useAdSlot('blog_middle')
   useEffect(() => {
     setMeta(`${post.title} | 방과후 출석부 블로그`, post.summary || post.content?.replace(/[#*`>-]/g, '').slice(0, 160) || '', `${window.location.origin}/blog/${post.slug||post.id}`, post.coverImage)
@@ -478,6 +478,53 @@ function BlogDetail({ post, onBack, allPosts, onSelect }) {
       </div>
       <h1 style={{ fontSize:'32px', fontWeight:800, color:'#111827', lineHeight:1.4, marginBottom:'24px' }}>{post.title}</h1>
       {post.summary && <div style={{ background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'10px', padding:'16px 20px', marginBottom:'32px', fontSize:'15px', color:'#92400e', lineHeight:1.7 }}>{post.summary}</div>}
+
+      {/* 관리자 로그인 상태에서만 노출 — SEO·백링크 정보 */}
+      {isAdmin && (post.titleScore != null || post.seoScore != null || post.naverSummary || post.instagramCards) && (
+        <div style={{ background:'#f5f3ff', border:'1.5px solid #ddd6fe', borderRadius:'12px', padding:'18px 20px', marginBottom:'32px', display:'flex', flexDirection:'column', gap:'12px' }}>
+          <div style={{ fontSize:'13px', fontWeight:700, color:'#6d28d9' }}>📊 SEO·백링크 정보 (관리자만 보임)</div>
+          {(post.titleScore != null || post.seoScore != null) && (
+            <div style={{ display:'flex', gap:'16px', flexWrap:'wrap' }}>
+              {post.titleScore != null && <div style={{ fontSize:'13px', color:'#111827' }}>제목 점수: <strong>{post.titleScore}/10</strong></div>}
+              {post.seoScore != null && <div style={{ fontSize:'13px', color:'#111827' }}>SEO 점수: <strong>{post.seoScore}/100</strong></div>}
+            </div>
+          )}
+          {Array.isArray(post.titleScoreDetail) && post.titleScoreDetail.length > 0 && (
+            <details>
+              <summary style={{ fontSize:'12px', fontWeight:600, color:'#6d28d9', cursor:'pointer' }}>제목 점수 상세</summary>
+              <div style={{ marginTop:'6px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                {post.titleScoreDetail.map((it, i) => (
+                  <div key={i} style={{ fontSize:'12px', color:'#6b7280' }}>· {it.label}: {it.points}/{it.max} — {it.reason}</div>
+                ))}
+              </div>
+            </details>
+          )}
+          {Array.isArray(post.seoScoreDetail) && post.seoScoreDetail.length > 0 && (
+            <details>
+              <summary style={{ fontSize:'12px', fontWeight:600, color:'#6d28d9', cursor:'pointer' }}>SEO 체크리스트 상세</summary>
+              <div style={{ marginTop:'6px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                {post.seoScoreDetail.map((it, i) => (
+                  <div key={i} style={{ fontSize:'12px', color:'#6b7280' }}>{it.pass ? '✅' : '⚠️'} {it.label}: {it.points}/{it.max} — {it.desc}</div>
+                ))}
+              </div>
+            </details>
+          )}
+          {post.naverSummary && (
+            <details>
+              <summary style={{ fontSize:'12px', fontWeight:600, color:'#6d28d9', cursor:'pointer' }}>네이버 요약</summary>
+              <div style={{ marginTop:'6px', fontSize:'12px', color:'#6b7280', whiteSpace:'pre-wrap', lineHeight:1.6 }}>{post.naverSummary}</div>
+            </details>
+          )}
+          {post.instagramCards && (
+            <details>
+              <summary style={{ fontSize:'12px', fontWeight:600, color:'#6d28d9', cursor:'pointer' }}>인스타그램 카드뉴스 (슬라이드 스크립트 + HTML)</summary>
+              <textarea readOnly value={post.instagramCards} rows={8}
+                style={{ marginTop:'6px', width:'100%', boxSizing:'border-box', padding:'10px 12px', borderRadius:'8px', border:'1.5px solid #ddd6fe', fontSize:'11px', fontFamily:'monospace', color:'#6b7280', background:'#fafafa', resize:'vertical' }} />
+            </details>
+          )}
+        </div>
+      )}
+
       <hr style={{ border:'none', borderTop:'2px solid #f3f4f6', marginBottom:'32px' }} />
 
       {/* 본문 — 4문단마다 관련 글 카드 자동 삽입 */}
@@ -1159,7 +1206,7 @@ function renderMainContent({ blogAdminMode, currentUser, selPost, docsPosts, tem
     if (selPost.type === 'template') return <TemplateDetail post={selPost} onBack={handleBack} />
     if ((selPost.boardType || selPost.type) === 'review') return <ReviewDetail post={selPost} onBack={handleBack} />
     if ((selPost.boardType || selPost.type) === 'request') return <RequestDetail post={selPost} onBack={handleBack} currentUser={currentUser} isAdmin={isAdmin} />
-    return <BlogDetail post={selPost} onBack={handleBack} allPosts={blogPosts} onSelect={handleSelect} />
+    return <BlogDetail post={selPost} onBack={handleBack} allPosts={blogPosts} onSelect={handleSelect} isAdmin={isAdmin} />
   }
   if (tab === 'docs') return <DocsList docs={docsPosts} onSelect={handleSelect} />
   if (tab === 'templates') return <TemplateList posts={templatePosts} onSelect={handleSelect} />
@@ -1308,9 +1355,20 @@ function BlogInner() {
     }
   }
 
+  // 공개 블로그 페이지 전용 조회 — get_blog_posts_public RPC를 쓴다(dbCall('getAll','blogPosts')
+  // 아님). blog_posts 테이블 자체는 RLS가 전체공개(select true)라 dbCall로 그냥 읽으면
+  // title_score/seo_score/naver_summary/instagram_cards 같은 관리자 전용 필드가 비로그인
+  // 방문자에게도 네트워크 응답 그대로 노출된다. RPC는 DB 안에서 is_admin()이 아니면 이
+  // 필드들을 null로 지워서 내려주므로, 관리자가 아니면 애초에 값 자체가 응답에 안 실린다.
+  const loadBlogPostsPublic = async () => {
+    const { data, error } = await supabase.rpc('get_blog_posts_public')
+    if (error) throw new Error(error.message)
+    return (data || []).map(toCamel)
+  }
+
   const loadPosts = async () => {
     try {
-      const rows = await dbCall('getAll', 'blogPosts')
+      const rows = await loadBlogPostsPublic()
       const published = (rows||[]).filter(p => p.status==='published').sort((a,b) => new Date(b.publishedAt||b.createdAt) - new Date(a.publishedAt||a.createdAt))
       setAllPosts(published)
     } catch (e) { console.warn('[Blog] 오류:', e) }
@@ -1319,7 +1377,7 @@ function BlogInner() {
 
   const loadPostBySlug = async (slug) => {
     try {
-      const rows = await dbCall('getAll', 'blogPosts')
+      const rows = await loadBlogPostsPublic()
       const post = (rows||[]).find(p => p.slug===slug || p.id===slug)
       if (post) setSelPost(post)
     } catch (e) { console.warn('[Blog] 오류:', e) }
