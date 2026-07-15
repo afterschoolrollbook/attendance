@@ -91,6 +91,7 @@ function LandingPageInner({ onGoLogin, onGoSignup, onGoBlog, onGoDashboard, onLo
     REVIEWS.map(r => ({ text: r.text, name: r.name, tag: r.tag }))
   )
   const landingBottomSlot = useAdSlot('landing_bottom')
+  const landingMiddleSlot = useAdSlot('landing_middle')
 
   useEffect(() => {
     const onScroll = () => setScrollY(window.scrollY)
@@ -275,6 +276,11 @@ function LandingPageInner({ onGoLogin, onGoSignup, onGoBlog, onGoDashboard, onLo
         <div style={{ position: 'absolute', bottom: '32px', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', color: C.muted, fontSize: '12px', animation: 'bounce 2s infinite' }}>
           <span>스크롤</span><span style={{ fontSize: '18px' }}>↓</span>
         </div>
+      </div>
+
+      {/* ── 히어로 다음 중단 배너 (fresh-season의 home_middle과 동일한 위치) ── */}
+      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '0 20px 32px' }}>
+        <AdSlot slotId="landing_middle" slotData={landingMiddleSlot} />
       </div>
 
       {/* ── 통계 배너 ── */}
