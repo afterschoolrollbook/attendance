@@ -1,6 +1,6 @@
 import { parseMarkdown, markdownPreviewStyles } from '../lib/parseMarkdown.js'
 import React, { useState, useEffect } from 'react'
-import { dbCall, FUNCTIONS_BASE, SUPABASE_ANON_KEY } from '../lib/supabase.js'
+import { dbCall, FUNCTIONS_BASE, SUPABASE_ANON_KEY, copyAuthTokenForNewTab } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
 import { getBoardPermLevel } from '../constants/permissions.js'
@@ -54,6 +54,8 @@ const emptyForm = () => ({
   type: 'blog', title:'', slug:'', summary:'', content:'', category:'', tags:'',
   coverImage:'', author:'관리자', status:'draft', publishedAt: new Date().toISOString().slice(0,10),
   scheduledAt: '', templateFile:'', templateDesc:'',
+  // 제목/SEO 점수·백링크 콘텐츠 — create_blog_post/update_blog_post(MCP)가 채워둔 값을 읽기 전용으로 표시만 함
+  titleScore:null, titleScoreDetail:null, seoScore:null, seoScoreDetail:null, naverSummary:'', instagramCards:'',
 })
 
 const C = { primary:'#f97316', border:'#e5e7eb', muted:'#6b7280', text:'#111827', card:'#fff' }
@@ -230,8 +232,16 @@ export function BlogAdmin({ user, initialView }) {
       publishedAt: post.publishedAt ? post.publishedAt.slice(0,10) : new Date().toISOString().slice(0,10),
       scheduledAt: post.scheduledAt ? post.scheduledAt.slice(0,16) : '',
       templateFile: post.templateFile||'', templateDesc: post.templateDesc||'',
+      titleScore: post.titleScore ?? null, titleScoreDetail: post.titleScoreDetail || null,
+      seoScore: post.seoScore ?? null, seoScoreDetail: post.seoScoreDetail || null,
+      naverSummary: post.naverSummary || '', instagramCards: post.instagramCards || '',
     })
     setEditId(post.id); setPreview(false); setView('edit')
+  }
+
+  const copyToClipboard = async (text, label) => {
+    try { await navigator.clipboard.writeText(text || ''); success(`${label} 복사됨`) }
+    catch { error('복사 실패 — 직접 선택해서 복사해주세요') }
   }
 
   const handleDelete = async (post) => {
@@ -326,24 +336,12 @@ export function BlogAdmin({ user, initialView }) {
         </div>
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
           <a href="/blog" target="_blank" rel="noopener noreferrer" title="발행된 블로그 페이지를 새 탭으로 봅니다"
-            onClick={() => {
-              // 새 탭에서도 로그인 유지: sessionStorage 토큰을 localStorage로 복사
-              try {
-                const key = Object.keys(sessionStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
-                if (key) localStorage.setItem(key, sessionStorage.getItem(key))
-              } catch(e) {}
-            }}
+            onClick={copyAuthTokenForNewTab}
             style={{ padding:'9px 16px', borderRadius:'9px', border:`1.5px solid ${C.border}`, background:C.card, color:C.muted, fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
             🌐 블로그 보기
           </a>
           <a href="/docs" target="_blank" rel="noopener noreferrer" title="발행된 설명서 페이지를 새 탭으로 봅니다"
-            onClick={() => {
-              // 새 탭에서도 로그인 유지: sessionStorage 토큰을 localStorage로 복사
-              try {
-                const key = Object.keys(sessionStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
-                if (key) localStorage.setItem(key, sessionStorage.getItem(key))
-              } catch(e) {}
-            }}
+            onClick={copyAuthTokenForNewTab}
             style={{ padding:'9px 16px', borderRadius:'9px', border:`1.5px solid #bfdbfe`, background:'#eff6ff', color:'#3b82f6', fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
             📖 설명서 보기
           </a>
@@ -873,6 +871,7 @@ export function BlogAdmin({ user, initialView }) {
               <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
                 {post.status==='published' && (
                   <a href={`/${post.type==='docs'?'docs':'blog'}/${post.slug||post.id}`} target="_blank" rel="noopener noreferrer"
+                    onClick={copyAuthTokenForNewTab}
                     style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', color:C.muted, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>보기</a>
                 )}
                 {(() => {
@@ -1019,6 +1018,64 @@ export function BlogAdmin({ user, initialView }) {
             <label style={{ fontSize:'12px', fontWeight:600, color:C.muted, display:'block', marginBottom:'4px' }}>태그 (쉼표로 구분)</label>
             <input value={form.tags} onChange={e => setForm(v => ({ ...v, tags:e.target.value }))} placeholder="출석관리, 방과후, 로봇교육" style={iStyle} />
           </div>
+
+          {/* SEO·백링크 정보 — MCP(create_blog_post/update_blog_post)가 채워둔 값, 읽기 전용 표시 */}
+          {form.type === 'blog' && editId && (form.titleScore != null || form.seoScore != null || form.naverSummary || form.instagramCards) && (
+            <div style={{ background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:'10px', padding:'14px 16px', display:'flex', flexDirection:'column', gap:'12px' }}>
+              <div style={{ fontSize:'13px', fontWeight:700, color:'#c2410c' }}>📊 SEO·백링크 정보 (관리자 전용, 방문자 비노출)</div>
+
+              {(form.titleScore != null || form.seoScore != null) && (
+                <div style={{ display:'flex', gap:'16px', flexWrap:'wrap' }}>
+                  {form.titleScore != null && <div style={{ fontSize:'13px', color:C.text }}>제목 점수: <strong>{form.titleScore}/10</strong></div>}
+                  {form.seoScore != null && <div style={{ fontSize:'13px', color:C.text }}>SEO 점수: <strong>{form.seoScore}/100</strong></div>}
+                </div>
+              )}
+
+              {Array.isArray(form.titleScoreDetail) && form.titleScoreDetail.length > 0 && (
+                <details>
+                  <summary style={{ fontSize:'12px', fontWeight:600, color:'#c2410c', cursor:'pointer' }}>제목 점수 상세</summary>
+                  <div style={{ marginTop:'6px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                    {form.titleScoreDetail.map((it, i) => (
+                      <div key={i} style={{ fontSize:'12px', color:C.muted }}>· {it.label}: {it.points}/{it.max} — {it.reason}</div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+              {Array.isArray(form.seoScoreDetail) && form.seoScoreDetail.length > 0 && (
+                <details>
+                  <summary style={{ fontSize:'12px', fontWeight:600, color:'#c2410c', cursor:'pointer' }}>SEO 체크리스트 상세</summary>
+                  <div style={{ marginTop:'6px', display:'flex', flexDirection:'column', gap:'4px' }}>
+                    {form.seoScoreDetail.map((it, i) => (
+                      <div key={i} style={{ fontSize:'12px', color:C.muted }}>{it.pass ? '✅' : '⚠️'} {it.label}: {it.points}/{it.max} — {it.desc}</div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+              {form.naverSummary && (
+                <div>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px' }}>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>네이버 요약</label>
+                    <button type="button" onClick={() => copyToClipboard(form.naverSummary, '네이버 요약')}
+                      style={{ padding:'3px 10px', borderRadius:'6px', border:'1px solid #fed7aa', background:'#fff', color:'#c2410c', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 복사</button>
+                  </div>
+                  <textarea readOnly value={form.naverSummary} rows={4} style={{ ...iStyle, resize:'vertical', background:'#fafafa', color:C.muted }} />
+                </div>
+              )}
+
+              {form.instagramCards && (
+                <div>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px' }}>
+                    <label style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>인스타그램 카드뉴스 (슬라이드 스크립트 + HTML)</label>
+                    <button type="button" onClick={() => copyToClipboard(form.instagramCards, '인스타그램 카드뉴스')}
+                      style={{ padding:'3px 10px', borderRadius:'6px', border:'1px solid #fed7aa', background:'#fff', color:'#c2410c', fontSize:'11px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>📋 전체 복사</button>
+                  </div>
+                  <textarea readOnly value={form.instagramCards} rows={8} style={{ ...iStyle, resize:'vertical', fontFamily:'monospace', fontSize:'12px', background:'#fafafa', color:C.muted }} />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 본문 */}
           <div>

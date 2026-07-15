@@ -386,6 +386,20 @@ export function authOnStateChange(callback) {
   return () => subscription.unsubscribe()
 }
 
+// ─── 새 탭에서도 로그인 유지: sessionStorage 인증 토큰을 localStorage로 복사
+// Supabase 클라이언트가 세션을 sessionStorage에 저장하므로(위 createClient 설정),
+// /blog·/docs 같은 공개 페이지를 새 탭(target="_blank")으로 열면 그 탭은 로그인 상태를
+// 못 읽는다 — sessionStorage는 탭 간에 공유되지 않기 때문. 새 탭을 여는 <a onClick>에서
+// 이 함수를 호출해두면, Blog.jsx의 loadCurrentUser()가 localStorage에서 토큰을 복원해
+// 로그인 상태를 이어갈 수 있다. /blog·/docs 등을 새 탭으로 여는 링크에는 전부 붙여야 한다
+// (개별 글 "보기" 링크에서 이 호출이 빠지면 그 링크로 열었을 때만 로그인이 안 풀린 것처럼 보인다).
+export function copyAuthTokenForNewTab() {
+  try {
+    const key = Object.keys(sessionStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+    if (key) localStorage.setItem(key, sessionStorage.getItem(key))
+  } catch (e) {}
+}
+
 // ─── 업체 포털 RPC 헬퍼 (SECURITY DEFINER RPC 경유 — RLS 우회)
 // supabase/migrations/20240001_vendor_rpc.sql 의 함수들과 1:1 대응
 export const vendorRpc = {

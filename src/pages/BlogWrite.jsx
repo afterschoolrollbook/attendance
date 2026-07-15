@@ -1,6 +1,6 @@
 import { parseMarkdown, markdownPreviewStyles } from '../lib/parseMarkdown.js'
 import React, { useState, useEffect } from 'react'
-import { dbCall } from '../lib/supabase.js'
+import { dbCall, copyAuthTokenForNewTab } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { getBoardPermissions } from '../constants/permissions.js'
 
@@ -304,13 +304,7 @@ export function BlogWrite({ user, onLogout }) {
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
             <a href="/blog" target="_blank" rel="noopener noreferrer"
-              onClick={() => {
-                // 새 탭에서도 로그인 유지: sessionStorage 토큰을 localStorage로 복사
-                try {
-                  const key = Object.keys(sessionStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
-                  if (key) localStorage.setItem(key, sessionStorage.getItem(key))
-                } catch(e) {}
-              }}
+              onClick={copyAuthTokenForNewTab}
               style={{ padding:'8px 16px', borderRadius:'9px', border:`1.5px solid ${C.border}`, background:'#fff', color:C.muted, fontSize:'13px', fontWeight:600, textDecoration:'none', display:'flex', alignItems:'center', gap:'6px' }}>
               🌐 블로그 보러가기 →
             </a>
@@ -425,7 +419,9 @@ export function BlogWrite({ user, onLogout }) {
                     </div>
                     <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
                       {!isSecret && post.slug && (
-                        <a href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer" style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', color:C.muted, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>보기</a>
+                        <a href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer"
+                          onClick={copyAuthTokenForNewTab}
+                          style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${C.border}`, background:'#f9fafb', color:C.muted, fontSize:'12px', fontWeight:600, textDecoration:'none' }}>보기</a>
                       )}
                       {(isOwn || isAdmin) && <>
                         <button onClick={()=>handleEdit(post)} style={{ padding:'6px 12px', borderRadius:'7px', border:`1px solid ${currentBoard?.color}`, background:`${currentBoard?.color}18`, color:currentBoard?.color, fontSize:'12px', fontWeight:700, cursor:'pointer', fontFamily:'Noto Sans KR, sans-serif' }}>수정</button>
