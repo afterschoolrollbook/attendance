@@ -39,6 +39,23 @@ export function AdSlot({ slotId, slotData }) {
     return slot?.code
   }, [source, slot?.code, coupangHtml])
 
+  // blob URL은 html이 실제로 바뀔 때만 새로 만든다 — 매 렌더마다 새로 만들면(예: 검색창
+  // 입력, 스크롤 등 상위 컴포넌트 리렌더마다) iframe src가 계속 바뀌어서 광고가 매번
+  // 다시 로드되며 깜빡이거나 순간적으로 사라져 보이는 원인이 된다.
+  // iframe sandbox으로 광고 코드 격리 — XSS 방어
+  // allow-same-origin 제거: allow-scripts + allow-same-origin 동시 사용 시 sandbox 무력화됨
+  const blobUrl = useMemo(() => {
+    if (!html || typeof Blob === 'undefined') return null
+    const iframeSrc = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <style>body{margin:0;padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;}</style></head>
+    <body>${html}</body></html>`
+    return URL.createObjectURL(new Blob([iframeSrc], { type: 'text/html' }))
+  }, [html])
+
+  useEffect(() => {
+    return () => { if (blobUrl) URL.revokeObjectURL(blobUrl) }
+  }, [blobUrl])
+
   if (!slot || !slot.active) return null
 
   const style = {
@@ -58,24 +75,14 @@ export function AdSlot({ slotId, slotData }) {
     )
   }
 
-  // iframe sandbox으로 광고 코드 격리 — XSS 방어
-  // allow-same-origin 제거: allow-scripts + allow-same-origin 동시 사용 시 sandbox 무력화됨
-  const iframeSrc = `<!DOCTYPE html><html><head><meta charset="utf-8">
-    <style>body{margin:0;padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;}</style></head>
-    <body>${html}</body></html>`
-  const blob = typeof Blob !== 'undefined'
-    ? URL.createObjectURL(new Blob([iframeSrc], { type: 'text/html' }))
-    : null
-
-  if (!blob) return null
+  if (!blobUrl) return null
 
   return (
     <iframe
-      src={blob}
+      src={blobUrl}
       style={{ ...style, border: 'none', display: 'block' }}
       sandbox="allow-scripts allow-popups"
       title={slot.name || 'ad'}
-      onLoad={() => URL.revokeObjectURL(blob)}
     />
   )
 }
