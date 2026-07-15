@@ -61,7 +61,7 @@ export function AdSlot({ slotId, slotData }) {
   // iframe sandbox으로 광고 코드 격리 — XSS 방어
   // allow-same-origin 제거: allow-scripts + allow-same-origin 동시 사용 시 sandbox 무력화됨
   const iframeSrc = `<!DOCTYPE html><html><head><meta charset="utf-8">
-    <style>body{margin:0;padding:0;overflow:hidden;}</style></head>
+    <style>body{margin:0;padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;}</style></head>
     <body>${html}</body></html>`
   const blob = typeof Blob !== 'undefined'
     ? URL.createObjectURL(new Blob([iframeSrc], { type: 'text/html' }))

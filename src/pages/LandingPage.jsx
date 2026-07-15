@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { dbCall } from '../lib/supabase.js'
 import { AdSlot } from '../components/AdSlot.jsx'
+import { AdSlotsProvider, useAdSlot } from '../lib/AdSlotsContext.jsx'
 import { PopupDisplay } from '../components/PopupDisplay.jsx'
 
 const C = {
@@ -39,12 +40,57 @@ const REVIEWS = [
   { text: '리포트 엑셀 출력 기능 덕분에 학교 제출 서류 만드는 시간이 확 줄었어요. 현직 강사가 만들어서 그런지 딱 필요한 것만 있어요.', name: '방과후 수학 강사', tag: '베타 초기부터 사용' },
 ]
 
-export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashboard, onLogout }) {
+// 전체 페이지 좌/우 사이드 레일 광고 (랜딩페이지 전용).
+// AdSlotsProvider가 대시보드 오프라인 캐시와 무관하게 landing_left/landing_right를
+// 직접 조회해서 넘겨준다 — 로그인 여부와 상관없이 항상 동작한다.
+// 화면 폭에 따라 본문(최대 1100px)과 겹치지 않도록, 남는 여백 크기에 맞춰
+// 광고를 비율대로(scale) 줄여서 항상 표시한다 — 특정 폭 이하에서 통째로 숨기지 않는다.
+const RAIL_AD_WIDTH = 160
+const RAIL_CONTENT_MAX = 1100
+const RAIL_GAP = 24 // 본문과 광고 사이 최소 여백
+
+function LandingSideRailAds() {
+  const left = useAdSlot('landing_left')
+  const right = useAdSlot('landing_right')
+  const [scale, setScale] = useState(1)
+
+  useEffect(() => {
+    const compute = () => {
+      const gutter = (window.innerWidth - RAIL_CONTENT_MAX) / 2 - RAIL_GAP
+      setScale(Math.max(0, Math.min(1, gutter / RAIL_AD_WIDTH)))
+    }
+    compute()
+    window.addEventListener('resize', compute)
+    return () => window.removeEventListener('resize', compute)
+  }, [])
+
+  return (
+    <>
+      <div className="landing-ad-rail landing-ad-rail-left" style={{ transform: `translateY(-50%) scale(${scale})`, transformOrigin: 'left center', pointerEvents: scale <= 0.02 ? 'none' : 'auto' }}>
+        <AdSlot slotId="landing_left" slotData={left} />
+      </div>
+      <div className="landing-ad-rail landing-ad-rail-right" style={{ transform: `translateY(-50%) scale(${scale})`, transformOrigin: 'right center', pointerEvents: scale <= 0.02 ? 'none' : 'auto' }}>
+        <AdSlot slotId="landing_right" slotData={right} />
+      </div>
+    </>
+  )
+}
+
+export default function LandingPage(props) {
+  return (
+    <AdSlotsProvider>
+      <LandingPageInner {...props} />
+    </AdSlotsProvider>
+  )
+}
+
+function LandingPageInner({ onGoLogin, onGoSignup, onGoBlog, onGoDashboard, onLogout }) {
   const [scrollY, setScrollY] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [rollingReviews, setRollingReviews] = useState(
     REVIEWS.map(r => ({ text: r.text, name: r.name, tag: r.tag }))
   )
+  const landingBottomSlot = useAdSlot('landing_bottom')
 
   useEffect(() => {
     const onScroll = () => setScrollY(window.scrollY)
@@ -83,6 +129,7 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
   return (
     <div style={{ minHeight: '100vh', background: C.white, color: C.text, fontFamily: 'Noto Sans KR, sans-serif', overflowX: 'hidden' }}>
       <PopupDisplay />
+      <LandingSideRailAds />
 
       {/* ── 네비게이션 ── */}
       <nav style={{
@@ -365,7 +412,7 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
 
       {/* 랜딩페이지 하단 광고 */}
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '0 20px' }}>
-        <AdSlot slotId="landing_bottom" />
+        <AdSlot slotId="landing_bottom" slotData={landingBottomSlot} />
       </div>
 
       {/* ── 푸터 ── */}
@@ -400,6 +447,9 @@ export default function LandingPage({ onGoLogin, onGoSignup, onGoBlog, onGoDashb
         .reviews-marquee-viewport:hover .reviews-marquee-track {
           animation-play-state: paused;
         }
+        .landing-ad-rail { position: fixed; top: 50%; z-index: 40; display: block; transition: transform 0.15s ease; }
+        .landing-ad-rail-left { left: 16px; }
+        .landing-ad-rail-right { right: 16px; }
         @media (max-width: 640px) {
           .nav-desktop { display: none !important; }
           button.mobile-only { display: flex !important; }
