@@ -5,7 +5,8 @@
 // Claude(연결된 커넥터)가 이 툴들을 직접 호출해서 "오늘 블로그 글" 글감을
 // 사람 개입 없이 스스로 판단할 수 있게 하는 것이 목적입니다.
 //
-// 노출 툴 26개 (2026-07-16: naver_news_search 신설 — fresh-season MCP 서버에서 1:1 이식.
+// 노출 툴 27개 (2026-07-17: append_system_prompt 신설 — fresh-season MCP 서버에서 1:1 이식.
+// 2026-07-16: naver_news_search 신설 — fresh-season MCP 서버에서 1:1 이식.
 // capture_screenshot 신설 — fresh-season MCP 서버에서 1:1 이식.
 // 2026-07-15: update_blog_post 신설 + create_blog_post에 제목/SEO 점수
 // 디테일·네이버요약·인스타카드뉴스 필드 추가 — fresh-season 최신 파이프라인 이식):
@@ -767,6 +768,21 @@ const baseHandler = createMcpHandler(
       const { error } = await supabase.from('system_prompts').upsert({ id, content, updated_at: new Date().toISOString() })
       if (error) return { content: [{ type: 'text', text: `오류: ${error.message}` }], isError: true }
       return { content: [{ type: 'text', text: `✅ [${id}] 시스템 프롬프트 갱신됨` }] }
+    })
+
+    server.registerTool('append_system_prompt', {
+      title: '클로드 시스템 프롬프트 맨 아래에 추가',
+      description: '관리자 화면("클로드 지침")의 시스템 프롬프트 특정 탭 맨 아래에 새 내용을 이어붙인다. update_system_prompt처럼 전체를 다시 불러와서 통째로 다시 보낼 필요 없이, 추가할 내용만 전달하면 서버가 기존 내용 뒤에 이어붙여 저장한다. main2(작업 메모장)에 새 기록 한 건을 추가할 때 update_system_prompt 대신 우선 사용한다. 문서 중간 섹션에 끼워 넣거나 기존 내용을 수정·삭제해야 할 때는 get_system_prompt로 전체를 불러온 뒤 update_system_prompt를 쓴다.',
+      inputSchema: { id: z.enum(['claude', 'main', 'main2', 'quotes', 'tags', 'edu_methods', 'worry_topics', 'activities']), content: z.string().describe('맨 아래에 추가할 내용 (마크다운)') },
+      annotations: { destructiveHint: false, idempotentHint: false },
+    }, async ({ id, content }) => {
+      const { data: existing, error: readErr } = await supabase.from('system_prompts').select('content').eq('id', id).maybeSingle()
+      if (readErr) return { content: [{ type: 'text', text: `오류: ${readErr.message}` }], isError: true }
+      const base = existing?.content || ''
+      const newContent = base.replace(/\n+$/, '') + (base ? '\n\n' : '') + content.trim() + '\n'
+      const { error } = await supabase.from('system_prompts').upsert({ id, content: newContent, updated_at: new Date().toISOString() })
+      if (error) return { content: [{ type: 'text', text: `오류: ${error.message}` }], isError: true }
+      return { content: [{ type: 'text', text: `✅ [${id}] 맨 아래에 추가 완료 (추가된 글자수: ${content.trim().length.toLocaleString()}자 / 총 글자수: ${newContent.length.toLocaleString()}자)` }] }
     })
 
     // ── GitHub 저장소 확인 툴 (Fresh_Season MCP와 동일 구조, 저장소만 attendance로 교체) ──
