@@ -5,7 +5,8 @@
 // Claude(연결된 커넥터)가 이 툴들을 직접 호출해서 "오늘 블로그 글" 글감을
 // 사람 개입 없이 스스로 판단할 수 있게 하는 것이 목적입니다.
 //
-// 노출 툴 24개 (2026-07-15: update_blog_post 신설 + create_blog_post에 제목/SEO 점수
+// 노출 툴 25개 (2026-07-16: capture_screenshot 신설 — fresh-season MCP 서버에서 1:1 이식.
+// 2026-07-15: update_blog_post 신설 + create_blog_post에 제목/SEO 점수
 // 디테일·네이버요약·인스타카드뉴스 필드 추가 — fresh-season 최신 파이프라인 이식):
 //   - get_publish_log      : 발행 기록 조회 (중복 방지 + 키워드 추적, STEP 1에서 가장 먼저 호출)
 //   - get_keyword_data     : 과목/역량 그룹별 찜한 키워드 + TOP 키워드 조회
@@ -21,6 +22,8 @@
 //   - create_blog_post     : 블로그 글 본문을 실제로 사이트에 발행. 제목/SEO 점수 디테일,
 //                             네이버 요약, 인스타 카드뉴스도 함께 저장 가능(전부 관리자 전용).
 //                             published 상태면 Google Indexing API + IndexNow 색인 요청도 시도.
+//   - capture_screenshot   : 뉴스·공식 홈페이지의 그래프·차트를 헤드리스 브라우저로 실제로 캡처해서
+//                             Supabase Storage(blog-images 버킷)에 저장하고 공개 URL을 반환.
 //   - update_blog_post     : 발행된 글의 특정 필드만 수정(slug 기준). 재작성·점수 재채점 시 사용.
 //   - get_series_info      : 시리즈/카테고리 정보 조회
 //   - update_series_info   : 시리즈/카테고리 정보 갱신
@@ -98,6 +101,11 @@
 // alter table blog_posts add column if not exists naver_summary text;
 // alter table blog_posts add column if not exists instagram_cards text;
 //
+// 2026-07-16 추가 — capture_screenshot용 공개 스토리지 버킷(supabase/013_blog_images_bucket.sql
+// 을 먼저 Supabase SQL Editor에서 실행할 것). capture_screenshot 자체는 SERVICE_ROLE 키로
+// 동작하므로 RLS 정책 없이도 버킷만 있으면 캡처 업로드는 되지만, 관리자 화면(BlogWrite.jsx)의
+// 수동 이미지 업로드 기능은 로그인 사용자의 anon 키로 동작하므로 그 SQL의 RLS 정책이 필요하다.
+//
 // 필요한 환경변수 (Vercel 프로젝트 설정 > Environment Variables):
 //   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
 //   NAVER_AD_API_KEY / NAVER_AD_SECRET_KEY / NAVER_AD_CUSTOMER_ID
@@ -109,6 +117,10 @@
 //                                                 없으면 색인 요청은 조용히 실패하고 발행 자체는 정상 진행됨.
 //   INDEXNOW_KEY (선택)                        - create_blog_post의 IndexNow(Bing·Naver·Yandex) 색인 요청.
 //                                                 없으면 "skipped"로 표시되고 발행 자체는 정상 진행됨.
+//   (capture_screenshot은 추가 환경변수 불필요 — @sparticuz/chromium-min이 실행 시점에
+//    자체적으로 크로미움 바이너리를 내려받는다. package.json의 @sparticuz/chromium-min
+//    버전(현재 ^131.0.1)과 아래 코드의 하드코딩된 pack.tar 버전(v131.0.1)은 반드시 일치해야
+//    하며, 버전을 올릴 땐 둘 다 같이 바꿔야 한다.)
 //
 // list_tables/run_sql 완전 동작을 위한 Postgres RPC (선택, 없으면 일부 기능만 제한):
 // ⚠️ 임의 SQL을 실행할 수 있는 함수라 위험도가 높다 — 필요할 때만 생성할 것.
@@ -523,6 +535,81 @@ const baseHandler = createMcpHandler(
       return { content: [{ type: 'text', text: liveNote + indexNote }] }
     })
 
+    // ── 그래프·차트 스크린샷 캡처 (뉴스·공식 홈페이지의 통계 자료를 실제로 캡처해서 저장) ──
+    // 2026-07-16: fresh-season MCP 서버(minsiljang0/Fresh_Season)에서 1:1 이식.
+    // blog-images 버킷이 없으면 이 함수가 SERVICE_ROLE 권한으로 자동 생성한다(RLS 정책 불필요).
+    // 단, 관리자 화면(BlogWrite.jsx)의 수동 업로드 기능은 anon 키로 동작하므로 RLS 정책이 별도로
+    // 필요하다 — supabase/013_blog_images_bucket.sql 을 먼저 실행해둘 것.
+    async function ensureScreenshotBucket() {
+      const { data: buckets } = await supabase.storage.listBuckets()
+      if (buckets?.some(b => b.name === 'blog-images')) return
+      await supabase.storage.createBucket('blog-images', { public: true, fileSizeLimit: '5MB' })
+    }
+
+    server.registerTool(
+      'capture_screenshot',
+      {
+        title: '웹페이지 그래프·차트 스크린샷 캡처 및 저장',
+        description:
+          '뉴스·공식 홈페이지(교육부, 한국교육개발원(KEDI), 통계청, 여성가족부 등)에 있는 그래프·차트를 헤드리스 브라우저로 실제로 캡처해서 ' +
+          'Supabase Storage(blog-images 버킷)에 저장하고 공개 URL을 반환한다. selector를 주면 그 요소만 잘라서 캡처하고, ' +
+          '안 주면 뷰포트 전체를 캡처한다. **이 툴은 출처 페이지에 실제 이미지 파일(<img>)이 없고 자바스크립트/캔버스로 그려지는 ' +
+          '차트일 때만 쓴다 — 이미지 파일이 이미 있으면 그냥 그 URL을 직접 쓰는 게 먼저다.** 반환된 URL을 블로그 본문 <img> 태그에 ' +
+          '쓰고, 바로 아래에 반드시 출처(사이트명 + 원본 링크)를 캡션으로 명시할 것 — 저작권 있는 자료를 그대로 재게시하는 것이므로 ' +
+          '출처 표기 없이 쓰지 않는다.',
+        inputSchema: {
+          url: z.string().describe('캡처할 페이지 URL'),
+          selector: z.string().optional().describe('캡처할 특정 요소의 CSS selector (예: "#chart-container", ".graph-wrap"). 안 주면 뷰포트 전체를 캡처'),
+          waitMs: z.number().int().min(0).max(8000).optional().describe('페이지 로드 후 추가로 기다릴 시간(ms). 자바스크립트로 그려지는 차트가 렌더링될 시간을 줄 때 사용. 기본 1500'),
+          width: z.number().int().min(320).max(1920).optional().describe('뷰포트 너비. 기본 1200'),
+        },
+        annotations: { destructiveHint: false },
+      },
+      async ({ url, selector, waitMs = 1500, width = 1200 }) => {
+        let browser
+        try {
+          const { default: chromium } = await import('@sparticuz/chromium-min')
+          const puppeteer = await import('puppeteer-core')
+          // ⚠️ 이 URL의 버전(v131.0.1)은 package.json의 @sparticuz/chromium-min 버전과 반드시 일치해야 한다.
+          // npm install 이후 버전이 다르면 https://github.com/Sparticuz/chromium/releases 에서 맞는 pack.tar로 교체할 것.
+          const executablePath = await chromium.executablePath(
+            'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
+          )
+          browser = await puppeteer.default.launch({
+            args: chromium.args,
+            executablePath,
+            headless: true,
+            defaultViewport: { width, height: 900 },
+          })
+          const page = await browser.newPage()
+          await page.goto(url, { waitUntil: 'networkidle2', timeout: 20000 })
+          if (waitMs) await new Promise(r => setTimeout(r, waitMs))
+
+          let buffer
+          if (selector) {
+            const el = await page.$(selector)
+            if (!el) throw new Error(`selector "${selector}"에 해당하는 요소를 찾을 수 없음`)
+            buffer = await el.screenshot({ type: 'png' })
+          } else {
+            buffer = await page.screenshot({ type: 'png' })
+          }
+          await browser.close()
+          browser = null
+
+          await ensureScreenshotBucket()
+          const path = `captures/${Date.now().toString(36)}${Math.random().toString(36).slice(2)}.png`
+          const { error: upErr } = await supabase.storage.from('blog-images').upload(path, buffer, { contentType: 'image/png', upsert: false })
+          if (upErr) return { content: [{ type: 'text', text: `❌ 업로드 실패: ${upErr.message}` }], isError: true }
+          const { data: pub } = supabase.storage.from('blog-images').getPublicUrl(path)
+
+          return { content: [{ type: 'text', text: `✅ 캡처 완료\nURL: ${pub.publicUrl}\n원본 페이지: ${url}\n⚠️ 본문에 쓸 때 반드시 출처(사이트명+원본 링크)를 캡션으로 함께 표기할 것.` }] }
+        } catch (e) {
+          if (browser) { try { await browser.close() } catch {} }
+          return { content: [{ type: 'text', text: `❌ 캡처 실패: ${e.message}` }], isError: true }
+        }
+      }
+    )
+
     server.registerTool('update_blog_post', {
       title: '발행된 글 수정',
       description: '발행된 블로그 글의 특정 필드를 수정한다. slug로 대상 글을 찾고, 전달된 필드만 업데이트한다 — ' +
@@ -833,6 +920,7 @@ const baseHandler = createMcpHandler(
     instructions:
       '방과후 출석부 블로그 자동화 서버. ' +
       '블로그 글 발행/수정/발행기록/키워드 검색량/글감 아이디어/시리즈 정보/클로드 시스템 프롬프트를 관리하는 도구, ' +
+      '뉴스·공식 홈페이지의 그래프·차트를 실제로 캡처해서 저장하는 도구(capture_screenshot), ' +
       'GitHub 저장소(' + GITHUB_REPO + ') 파일 확인 도구(list_github_files/get_github_file), ' +
       'Supabase DB 직접 조회·수정 도구(list_tables/get_rows/upsert_row/delete_row/run_sql)를 제공한다. ' +
       'create_blog_post/update_blog_post는 제목·SEO 점수 디테일, 네이버 요약, 인스타 카드뉴스까지 함께 저장한다. ' +

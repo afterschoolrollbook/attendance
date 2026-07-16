@@ -17,6 +17,29 @@ const BOARDS = [
 
 const DEFAULT_CATS = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
 
+// ─── 이미지 업로드 (Supabase Storage 'blog-images' 공개 버킷)
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const MAX_IMAGE_MB = 10
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '')
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+async function uploadBlogImage(file) {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) throw new Error('이미지 파일(jpg/png/gif/webp)만 업로드할 수 있습니다.')
+  if (file.size > MAX_IMAGE_MB * 1024 * 1024) throw new Error(`${MAX_IMAGE_MB}MB 이하 파일만 업로드할 수 있습니다.`)
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+  const path = `posts/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const base64 = await fileToBase64(file)
+  const { url } = await dbCall('storageUpload', null, { bucket: 'blog-images', path, base64, contentType: file.type })
+  return url
+}
+
 function getBoardPerms() {
   return getBoardPermissions()
 }
@@ -85,6 +108,8 @@ export function BlogWrite({ user, onLogout }) {
   const [saving, setSaving]   = useState(false)
   const [loading, setLoading] = useState(false)
   const [blogCategories, setBlogCategories] = useState(DEFAULT_CATS)
+  const [uploadingCover, setUploadingCover] = useState(false)
+  const [uploadingContent, setUploadingContent] = useState(false)
 
   useEffect(() => { loadPosts(); loadCategories() }, [tab])
 
@@ -128,6 +153,30 @@ export function BlogWrite({ user, onLogout }) {
   const handleDelete = async (post) => {
     if (!window.confirm(`"${post.title}" 을(를) 삭제하시겠습니까?`)) return
     try { await dbCall('delete','blogPosts',{id:post.id}); loadPosts() } catch { alert('삭제 실패') }
+  }
+
+  const handleCoverUpload = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploadingCover(true)
+    try {
+      const url = await uploadBlogImage(file)
+      setForm(v => ({ ...v, coverImage: url }))
+    } catch (err) { alert('업로드 실패: ' + err.message) }
+    setUploadingCover(false)
+  }
+
+  const handleContentImageUpload = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploadingContent(true)
+    try {
+      const url = await uploadBlogImage(file)
+      setForm(v => ({ ...v, content: v.content ? `${v.content}\n\n![](${url})\n` : `![](${url})\n` }))
+    } catch (err) { alert('업로드 실패: ' + err.message) }
+    setUploadingContent(false)
   }
 
   const handleSave = async (status = 'published') => {
@@ -245,8 +294,17 @@ export function BlogWrite({ user, onLogout }) {
                   style={{...iStyle, resize:'vertical'}} />
               </div>
               <div>
-                <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>커버 이미지 URL</div>
-                <input value={form.coverImage} onChange={e=>setForm(v=>({...v,coverImage:e.target.value}))} placeholder="https://..." style={iStyle} />
+                <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>커버 이미지</div>
+                <div style={{ display:'flex', gap:'8px' }}>
+                  <input value={form.coverImage} onChange={e=>setForm(v=>({...v,coverImage:e.target.value}))} placeholder="https://... 또는 오른쪽 버튼으로 업로드" style={{...iStyle, flex:1}} />
+                  <label style={{ padding:'9px 14px', borderRadius:'8px', border:`1.5px solid ${C.border}`, background: uploadingCover ? '#f3f4f6' : '#fff', color:C.muted, fontSize:'13px', fontWeight:600, cursor: uploadingCover ? 'default' : 'pointer', whiteSpace:'nowrap' }}>
+                    {uploadingCover ? '업로드 중...' : '📤 업로드'}
+                    <input type="file" accept="image/*" onChange={handleCoverUpload} disabled={uploadingCover} style={{ display:'none' }} />
+                  </label>
+                </div>
+                {form.coverImage && (
+                  <img src={form.coverImage} alt="" style={{ marginTop:'8px', maxHeight:'140px', borderRadius:'8px', border:`1px solid ${C.border}`, display:'block' }} />
+                )}
               </div>
             </>
           )}
@@ -275,7 +333,13 @@ export function BlogWrite({ user, onLogout }) {
           )}
 
           <div>
-            <div style={{ fontSize:'12px', fontWeight:600, color:C.muted, marginBottom:'4px' }}>본문 (마크다운)</div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'4px' }}>
+              <div style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>본문 (마크다운)</div>
+              <label style={{ padding:'5px 10px', borderRadius:'6px', border:`1.5px solid ${C.border}`, background: uploadingContent ? '#f3f4f6' : '#fff', color:C.muted, fontSize:'12px', fontWeight:600, cursor: uploadingContent ? 'default' : 'pointer' }}>
+                {uploadingContent ? '업로드 중...' : '🖼 이미지 삽입'}
+                <input type="file" accept="image/*" onChange={handleContentImageUpload} disabled={uploadingContent} style={{ display:'none' }} />
+              </label>
+            </div>
             <textarea value={form.content} onChange={e=>setForm(v=>({...v,content:e.target.value}))} rows={22}
               placeholder={tab==='qna' ? '질문 내용을 입력하세요.' : tab==='review' ? '사용 후기를 작성해주세요.' : tab==='request' ? '관리자에게 요청하고 싶은 기능이나 도움을 자유롭게 작성해주세요.' : '내용을 입력하세요.'}
               style={{...iStyle, resize:'vertical', fontFamily:'monospace', fontSize:'13px', lineHeight:1.7}} />
