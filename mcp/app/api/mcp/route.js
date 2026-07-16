@@ -5,13 +5,15 @@
 // Claude(연결된 커넥터)가 이 툴들을 직접 호출해서 "오늘 블로그 글" 글감을
 // 사람 개입 없이 스스로 판단할 수 있게 하는 것이 목적입니다.
 //
-// 노출 툴 25개 (2026-07-16: capture_screenshot 신설 — fresh-season MCP 서버에서 1:1 이식.
+// 노출 툴 26개 (2026-07-16: naver_news_search 신설 — fresh-season MCP 서버에서 1:1 이식.
+// capture_screenshot 신설 — fresh-season MCP 서버에서 1:1 이식.
 // 2026-07-15: update_blog_post 신설 + create_blog_post에 제목/SEO 점수
 // 디테일·네이버요약·인스타카드뉴스 필드 추가 — fresh-season 최신 파이프라인 이식):
 //   - get_publish_log      : 발행 기록 조회 (중복 방지 + 키워드 추적, STEP 1에서 가장 먼저 호출)
 //   - get_keyword_data     : 과목/역량 그룹별 찜한 키워드 + TOP 키워드 조회
 //   - search_keyword_data  : keyword_stats 전체를 그룹 구분 없이 검색 (황금키워드 탐색)
 //   - naver_keyword_volume : 특정 키워드의 실시간 네이버 검색량 조회
+//   - naver_news_search    : 네이버 뉴스 검색 오픈API로 기사 제목/링크/발행일/요약 조회 (web_search 대체, 토큰 절약)
 //   - save_keyword_data    : naver_keyword_volume 조회 결과를 TOP 키워드 캐시에 저장
 //   - pick_keyword         : 나중에 쓸 키워드를 찜(bookmark)해두기
 //   - search_keyword_picks : 찜해둔 키워드 검색/열람, 기본은 미사용만
@@ -308,6 +310,44 @@ const baseHandler = createMcpHandler(
         return { content: [{ type: 'text', text: JSON.stringify({ query: keywords, results }, null, 2) }] }
       } catch (err) {
         return { content: [{ type: 'text', text: `오류: ${err.message}` }], isError: true }
+      }
+    })
+
+    server.registerTool('naver_news_search', {
+      title: '네이버 뉴스 검색',
+      description: '네이버 뉴스 검색 오픈API로 기사 제목·링크·발행일·요약을 가져온다. 블로그 글의 통계·근거 인용이나 최신 이슈 벤치마킹 단계에서 web_search 대신 우선 사용한다(더 빠르고 토큰도 절약됨). naver_keyword_volume과 같은 NAVER_CLIENT_ID/SECRET을 쓴다.',
+      inputSchema: {
+        query: z.string().describe('검색어. 예: "초등 방과후 수업 트렌드"'),
+        display: z.number().int().min(1).max(100).optional().describe('가져올 기사 개수 (기본 10, 최대 100)'),
+        sort: z.enum(['sim', 'date']).optional().describe('정렬 방식: sim=정확도순(기본), date=최신순'),
+      },
+    }, async ({ query, display, sort }) => {
+      const clientId = process.env.NAVER_CLIENT_ID
+      const clientSecret = process.env.NAVER_CLIENT_SECRET
+      if (!clientId || !clientSecret) {
+        return { content: [{ type: 'text', text: 'NAVER_CLIENT_ID/SECRET 환경변수가 설정되어 있지 않습니다.' }], isError: true }
+      }
+      try {
+        const params = new URLSearchParams({ query, display: String(display || 10), sort: sort || 'sim' })
+        const res = await fetch(`https://openapi.naver.com/v1/search/news.json?${params.toString()}`, {
+          headers: { 'X-Naver-Client-Id': clientId, 'X-Naver-Client-Secret': clientSecret },
+          signal: AbortSignal.timeout(5000),
+        })
+        if (!res.ok) {
+          const text = await res.text().catch(() => '')
+          return { content: [{ type: 'text', text: `네이버 뉴스 API 오류 (${res.status}): ${text}` }], isError: true }
+        }
+        const data = await res.json()
+        const items = (data.items || []).map(it => ({
+          title: it.title.replace(/<\/?b>/g, '').replace(/&quot;/g, '"').replace(/&amp;/g, '&'),
+          link: it.originallink || it.link,
+          pubDate: it.pubDate,
+          description: it.description.replace(/<\/?b>/g, '').replace(/&quot;/g, '"').replace(/&amp;/g, '&'),
+        }))
+        if (!items.length) return { content: [{ type: 'text', text: `"${query}" 검색 결과 없음` }] }
+        return { content: [{ type: 'text', text: JSON.stringify({ query, total: data.total, items }, null, 2) }] }
+      } catch (err) {
+        return { content: [{ type: 'text', text: `오류: ${err.message || '뉴스 검색 중 오류가 발생했습니다.'}` }], isError: true }
       }
     })
 

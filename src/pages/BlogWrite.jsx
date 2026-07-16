@@ -1,6 +1,6 @@
 import { parseMarkdown, markdownPreviewStyles } from '../lib/parseMarkdown.js'
 import React, { useState, useEffect } from 'react'
-import { dbCall, copyAuthTokenForNewTab } from '../lib/supabase.js'
+import { dbCall, copyAuthTokenForNewTab, supabase } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { getBoardPermissions } from '../constants/permissions.js'
 
@@ -40,6 +40,32 @@ async function uploadBlogImage(file) {
   return url
 }
 
+// ─── 영상 업로드 (YouTube resumable upload — 브라우저가 서버를 거치지 않고 직접 업로드)
+async function uploadBlogVideo(file, title) {
+  if (!file.type.startsWith('video/')) throw new Error('동영상 파일만 업로드할 수 있습니다.')
+  if (file.size > 500 * 1024 * 1024) throw new Error('500MB 이하 파일만 업로드할 수 있습니다.')
+
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('로그인이 필요합니다.')
+
+  const initRes = await fetch('/api/admin/youtube-upload-init', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ title, contentType: file.type, fileSize: file.size }),
+  })
+  const initData = await initRes.json()
+  if (!initRes.ok) throw new Error(initData.error || '업로드 세션 생성 실패')
+
+  const putRes = await fetch(initData.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  })
+  const putData = await putRes.json()
+  if (!putRes.ok || !putData.id) throw new Error(putData.error?.message || '유튜브 업로드 실패')
+  return `https://www.youtube.com/embed/${putData.id}`
+}
+
 function getBoardPerms() {
   return getBoardPermissions()
 }
@@ -63,13 +89,18 @@ function slugify(t) {
 
 function sanitize(html) {
   if (typeof window !== 'undefined' && window.DOMPurify)
-    return window.DOMPurify.sanitize(html, { ALLOWED_TAGS:['p','br','b','strong','i','em','u','h1','h2','h3','ul','ol','li','blockquote','code','pre','hr','a','img'], ALLOWED_ATTR:['href','src','alt','target','rel'] })
+    return window.DOMPurify.sanitize(html, { ALLOWED_TAGS:['p','br','b','strong','i','em','u','h1','h2','h3','ul','ol','li','blockquote','code','pre','hr','a','img','iframe'], ALLOWED_ATTR:['href','src','alt','target','rel','width','height','frameborder','allow','allowfullscreen','title'] })
   return html.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/on\w+\s*=\s*["'][^"']*["']/gi,'')
 }
 
 function parseMd(text) {
   if (!text) return ''
-  const html = text
+  const iframePlaceholders = []
+  let withoutIframes = text.replace(/<iframe[\s\S]*?<\/iframe>/gi, (match) => {
+    iframePlaceholders.push(match)
+    return `%%IFRAME${iframePlaceholders.length - 1}%%`
+  })
+  let html = withoutIframes
     .replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre><code>$1</code></pre>')
     .replace(/`([^`]+)`/g,'<code>$1</code>')
     .replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>')
@@ -78,8 +109,9 @@ function parseMd(text) {
     .replace(/^---$/gm,'<hr>').replace(/^\- (.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>)/gs,'<ul>$1</ul>')
     .replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>')
     .split('\n\n').map(p=>p.trim()).filter(Boolean)
-    .map(p=>/^<(h[1-3]|ul|ol|li|pre|blockquote|hr)/.test(p)?p:`<p>${p.replace(/\n/g,'<br>')}</p>`)
+    .map(p=>/^<(h[1-3]|ul|ol|li|pre|blockquote|hr)/.test(p) || /%%IFRAME\d+%%/.test(p) ?p:`<p>${p.replace(/\n/g,'<br>')}</p>`)
     .join('\n')
+  html = html.replace(/%%IFRAME(\d+)%%/g, (_, i) => iframePlaceholders[i])
   return sanitize(html)
 }
 
@@ -110,6 +142,7 @@ export function BlogWrite({ user, onLogout }) {
   const [blogCategories, setBlogCategories] = useState(DEFAULT_CATS)
   const [uploadingCover, setUploadingCover] = useState(false)
   const [uploadingContent, setUploadingContent] = useState(false)
+  const [uploadingVideo, setUploadingVideo] = useState(false)
 
   useEffect(() => { loadPosts(); loadCategories() }, [tab])
 
@@ -177,6 +210,19 @@ export function BlogWrite({ user, onLogout }) {
       setForm(v => ({ ...v, content: v.content ? `${v.content}\n\n![](${url})\n` : `![](${url})\n` }))
     } catch (err) { alert('업로드 실패: ' + err.message) }
     setUploadingContent(false)
+  }
+
+  const handleContentVideoUpload = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploadingVideo(true)
+    try {
+      const embedUrl = await uploadBlogVideo(file, form.title)
+      const iframe = `<iframe width="100%" height="400" src="${embedUrl}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`
+      setForm(v => ({ ...v, content: v.content ? `${v.content}\n\n${iframe}\n` : `${iframe}\n` }))
+    } catch (err) { alert('업로드 실패: ' + err.message) }
+    setUploadingVideo(false)
   }
 
   const handleSave = async (status = 'published') => {
@@ -335,10 +381,16 @@ export function BlogWrite({ user, onLogout }) {
           <div>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'4px' }}>
               <div style={{ fontSize:'12px', fontWeight:600, color:C.muted }}>본문 (마크다운)</div>
-              <label style={{ padding:'5px 10px', borderRadius:'6px', border:`1.5px solid ${C.border}`, background: uploadingContent ? '#f3f4f6' : '#fff', color:C.muted, fontSize:'12px', fontWeight:600, cursor: uploadingContent ? 'default' : 'pointer' }}>
-                {uploadingContent ? '업로드 중...' : '🖼 이미지 삽입'}
-                <input type="file" accept="image/*" onChange={handleContentImageUpload} disabled={uploadingContent} style={{ display:'none' }} />
-              </label>
+              <div style={{ display:'flex', gap:'6px' }}>
+                <label style={{ padding:'5px 10px', borderRadius:'6px', border:`1.5px solid ${C.border}`, background: uploadingContent ? '#f3f4f6' : '#fff', color:C.muted, fontSize:'12px', fontWeight:600, cursor: uploadingContent ? 'default' : 'pointer' }}>
+                  {uploadingContent ? '업로드 중...' : '🖼 이미지 삽입'}
+                  <input type="file" accept="image/*" onChange={handleContentImageUpload} disabled={uploadingContent} style={{ display:'none' }} />
+                </label>
+                <label style={{ padding:'5px 10px', borderRadius:'6px', border:`1.5px solid ${C.border}`, background: uploadingVideo ? '#f3f4f6' : '#fff', color:C.muted, fontSize:'12px', fontWeight:600, cursor: uploadingVideo ? 'default' : 'pointer' }}>
+                  {uploadingVideo ? '업로드 중...' : '🎬 영상 삽입'}
+                  <input type="file" accept="video/*" onChange={handleContentVideoUpload} disabled={uploadingVideo} style={{ display:'none' }} />
+                </label>
+              </div>
             </div>
             <textarea value={form.content} onChange={e=>setForm(v=>({...v,content:e.target.value}))} rows={22}
               placeholder={tab==='qna' ? '질문 내용을 입력하세요.' : tab==='review' ? '사용 후기를 작성해주세요.' : tab==='request' ? '관리자에게 요청하고 싶은 기능이나 도움을 자유롭게 작성해주세요.' : '내용을 입력하세요.'}

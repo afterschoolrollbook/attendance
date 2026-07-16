@@ -13,6 +13,7 @@
  *  - 수평선 (---)
  *  - 마크다운 표 (thead/tbody 구분, 테두리 포함)
  *  - SVG 인라인 (코드블록 없이 태그 그대로, width=100% 자동 보장)
+ *  - iframe (유튜브 영상 임베드 전용 — 관리자 화면 "🎬 영상 삽입" 버튼으로만 생성됨)
  */
 
 export function sanitizeHtml(html) {
@@ -21,7 +22,7 @@ export function sanitizeHtml(html) {
       ALLOWED_TAGS: [
         'p','br','b','strong','i','em','u','h1','h2','h3',
         'ul','ol','li','blockquote','code','pre','hr','a','img',
-        'table','thead','tbody','tr','th','td',
+        'table','thead','tbody','tr','th','td','iframe',
         'svg','g','rect','circle','ellipse','line','polyline','polygon',
         'path','text','tspan','defs','linearGradient','stop','clipPath',
         'marker','title','desc',
@@ -33,15 +34,15 @@ export function sanitizeHtml(html) {
         'transform','text-anchor','font-size','font-weight','font-family',
         'id','offset','stop-color','stop-opacity','gradientUnits','gradientTransform',
         'preserveAspectRatio','dominant-baseline','opacity','font-family',
+        'frameborder','allow','allowfullscreen',
       ],
       ALLOW_DATA_ATTR: false,
     })
   }
-  // DOMPurify 없을 때 — script/iframe/이벤트핸들러만 제거
+  // DOMPurify 없을 때 — script/이벤트핸들러만 제거 (iframe은 영상 임베드용으로 허용)
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
     .replace(/javascript\s*:/gi, '')
 }
 
@@ -57,6 +58,13 @@ export function parseMarkdown(md) {
       : match.replace('<svg', '<svg width="100%"')
     svgPlaceholders.push(fixed)
     return `%%SVG${svgPlaceholders.length - 1}%%`
+  })
+
+  // 1-1) iframe 블록 분리 보존 (영상 임베드)
+  const iframePlaceholders = []
+  html = html.replace(/<iframe[\s\S]*?<\/iframe>/gi, (match) => {
+    iframePlaceholders.push(match)
+    return `%%IFRAME${iframePlaceholders.length - 1}%%`
   })
 
   // 2) 코드블록 보존
@@ -107,6 +115,7 @@ export function parseMarkdown(md) {
     if (/^<(h[1-3]|ul|ol|blockquote|hr|table|pre|img)/.test(block)) return block
     if (/%%SVG\d+%%/.test(block)) return block
     if (/%%CODE\d+%%/.test(block)) return block
+    if (/%%IFRAME\d+%%/.test(block)) return block
     return `<p>${block.replace(/\n/g, '<br>')}</p>`
   }).join('\n')
 
@@ -115,6 +124,9 @@ export function parseMarkdown(md) {
 
   // 7) SVG 복원
   html = html.replace(/%%SVG(\d+)%%/g, (_, i) => svgPlaceholders[i])
+
+  // 8) iframe 복원
+  html = html.replace(/%%IFRAME(\d+)%%/g, (_, i) => iframePlaceholders[i])
 
   return sanitizeHtml(html)
 }
@@ -148,6 +160,7 @@ export const markdownPreviewStyles = `
   .md-body hr, .md-preview hr { border: none; border-top: 2px solid #f3f4f6; margin: 20px 0; }
   .md-body img, .md-preview img { max-width: 100%; border-radius: 8px; margin: 8px 0; display: block; }
   .md-body svg, .md-preview svg { max-width: 100%; display: block; margin: 16px 0; }
+  .md-body iframe, .md-preview iframe { max-width: 100%; display: block; margin: 16px 0; border-radius: 8px; }
   .md-body table, .md-preview table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; border: 2px solid #f97316; border-radius: 8px; overflow: hidden; }
   .md-body thead th, .md-preview thead th { background: #f97316; color: #fff; padding: 10px 14px; text-align: left; border: 1px solid #ea6c0a; font-weight: 700; }
   .md-body tbody td, .md-preview tbody td { padding: 10px 14px; border: 1px solid #e5e7eb; background: #fff; }
