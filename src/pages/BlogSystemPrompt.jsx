@@ -6,6 +6,8 @@
  * - MCP get_system_prompt / update_system_prompt 툴이 같은 테이블을 사용
  * - 2026-07-15: claude/main/main2 3탭에서 8탭으로 확장 — 원래 별도 파일(Step0/Step1-B/C/D/
  *   Step2/명언모음)로 나뉘어 있던 소재 참고자료를 각각 독립 슬롯으로 분리해서 main 문서 비대화 방지
+ * - 2026-07-17: 9️⃣ 글쓰기 참고자료 탭 추가 — 규칙이 아니라 다른 사이트 글쓰기·설득 기법 예시를
+ *   가끔 살펴보는 스와이프 파일. 다른 탭과 달리 Claude가 매 대화 자동으로 불러오지 않음.
  */
 
 import { useState, useCallback, useEffect } from 'react'
@@ -20,6 +22,8 @@ const TABS = [
   { id: 'edu_methods',  label: '6️⃣ 해외 교육법(시리즈B)', desc: '시리즈 B 칼럼 소재 — 해외 교육법 목록과 방과후 적용 방법이에요.' },
   { id: 'worry_topics', label: '7️⃣ 고민 시리즈(시리즈C)', desc: '시리즈 C 칼럼 소재 — 방과후 고민 주제와 작성 시 준수사항이에요.' },
   { id: 'activities',   label: '8️⃣ 활동·역량 연결(시리즈D)', desc: '시리즈 D 칼럼 소재 — 활동↔역량 연결표예요.' },
+  { id: 'reference',    label: '9️⃣ 글쓰기 참고자료', desc: '규칙이 아니라 참고용 스와이프 파일이에요 — 다른 사이트 글쓰기·설득 기법 예시를 모아두고 가끔 살펴보는 용도예요. Claude가 매 대화 자동으로 불러오진 않아요.' },
+  { id: 'rss_sources',  label: '🔟 정보 소스(RSS)', desc: '실제 검증된 언론사 RSS 주소 목록이에요 — 글감 아이디어를 찾거나 근거자료를 확인할 때 Claude가 참고해요.' },
 ]
 
 const C = {
@@ -155,6 +159,7 @@ export function BlogSystemPrompt({ user }) {
         <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 16 }}>
           MCP <code style={{ background: '#fff7ed', color: C.primary, padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>get_system_prompt</code> 툴로 Claude가 이 내용을 불러가고,
           <code style={{ background: '#fff7ed', color: C.primary, padding: '1px 6px', borderRadius: 4, fontSize: 12, marginLeft: 4 }}>update_system_prompt</code> 툴로 이 화면과 동일한 내용을 갱신할 수 있어요.
+          {activeTab === 'reference' && <><br /><b style={{ color: C.text }}>이 탭은 규칙이 아니라 참고용 예시 모음이에요</b> — Claude가 매 대화 자동으로 불러오진 않고, 명시적으로 요청했을 때만 봐요.</>}
         </p>
 
         {/* 탭 바 */}
@@ -237,7 +242,7 @@ export function BlogSystemPrompt({ user }) {
       <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 12, padding: '16px 20px', fontSize: 12, color: '#166534', lineHeight: 1.8 }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>사용 방법</div>
         1. 여기서 지침을 작성/수정하고 저장하면 <code style={{ background: '#fff', padding: '1px 6px', borderRadius: 4 }}>system_prompts</code> 테이블에 반영됩니다.<br />
-        2. Claude가 대화를 시작할 때 <code style={{ background: '#fff', padding: '1px 6px', borderRadius: 4 }}>get_system_prompt</code> 툴로 이 내용을 불러갑니다.<br />
+        2. Claude가 대화를 시작할 때 <code style={{ background: '#fff', padding: '1px 6px', borderRadius: 4 }}>get_system_prompt</code> 툴로 이 내용을 불러갑니다(9️⃣ 글쓰기 참고자료는 예외 — 명시적으로 요청했을 때만).<br />
         3. Claude Project 설정의 커스텀 지침에는 아래 한 줄만 넣어두면 됩니다:<br />
         <code style={{ background: '#fff', padding: '4px 8px', borderRadius: 6, display: 'inline-block', marginTop: 6 }}>대화 시작 시 get_system_prompt 툴로 클로드 실행지침(claude)을 먼저 불러와서 그대로 따라줘.</code>
       </div>
