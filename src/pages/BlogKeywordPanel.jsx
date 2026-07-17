@@ -199,25 +199,17 @@ export function BlogKeywordPanel({ isAdmin }) {
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
-  // ── 통계 요약 로드 (hint별 count)
+  // ── 통계 요약 로드 (hint별 count) — DB의 blog_keyword_stats_summary() 함수로 집계한다.
+  // (예전엔 blog_keyword_stats 전체를 .limit() 없이 select()해서 브라우저에서 그룹핑했는데,
+  //  Supabase 기본 응답 상한(1,000행)에 걸려 테이블이 1,000행을 넘으면 뒤쪽 그룹이 누락됐다.
+  //  supabase/014_blog_keyword_stats_summary.sql 참고.)
   const loadStats = useCallback(async () => {
     if (!supabase) return
     setStatsLoading(true)
     try {
-      // hint별 최신 업데이트일, 개수 집계
-      const { data } = await supabase
-        .from('blog_keyword_stats')
-        .select('hint, updated_at')
-        .order('updated_at', { ascending: false })
-      if (!data) { setStats([]); setStatsLoading(false); return }
-      // 그룹화
-      const grouped = {}
-      data.forEach(r => {
-        if (!grouped[r.hint]) grouped[r.hint] = { hint: r.hint, count: 0, collected_at: r.updated_at }
-        grouped[r.hint].count++
-        if (r.updated_at > grouped[r.hint].collected_at) grouped[r.hint].collected_at = r.updated_at
-      })
-      setStats(Object.values(grouped).sort((a, b) => a.hint.localeCompare(b.hint, 'ko')))
+      const { data, error } = await supabase.rpc('blog_keyword_stats_summary')
+      if (error) throw error
+      setStats((Array.isArray(data) ? data : []).sort((a, b) => a.hint.localeCompare(b.hint, 'ko')))
     } catch (e) { console.error(e) }
     setStatsLoading(false)
   }, [])
@@ -292,6 +284,7 @@ export function BlogKeywordPanel({ isAdmin }) {
   }, [goldenComp])
 
   // ── 오늘 실시간 조회된 키워드 (naver_keyword_volume MCP 툴이 오늘 캐시한 것만)
+  // .limit()이 없으면 이 역시 Supabase 기본 1,000행 상한에 걸릴 수 있어 방어적으로 추가.
   const loadToday = useCallback(async () => {
     if (!supabase) return
     setTodayLoading(true)
@@ -302,6 +295,7 @@ export function BlogKeywordPanel({ isAdmin }) {
         .select('hint, keyword, pc, mobile, total, competition')
         .gte('updated_at', todayStart.toISOString())
         .order('total', { ascending: false })
+        .limit(3000)
       setTodayRows(Array.isArray(data) ? data : [])
     } catch (e) { console.error(e) }
     setTodayLoading(false)
