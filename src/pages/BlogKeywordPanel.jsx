@@ -20,6 +20,19 @@ const GROUPS = [
 
 function fmt(n) { return (n || 0).toLocaleString('ko-KR') }
 
+// 찜(별) 아이콘 — 유니코드 ☆/⭐ 글자 대신 SVG로.
+function StarIcon({ filled, size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24"
+      fill={filled ? '#facc15' : 'none'}
+      stroke={filled ? '#eab308' : '#9ca3af'}
+      strokeWidth="1.6" strokeLinejoin="round"
+      style={{ display: 'block' }}>
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  )
+}
+
 function formatDate(iso) {
   if (!iso) return '기록 없음'
   const d = new Date(iso)
@@ -542,7 +555,7 @@ export function BlogKeywordPanel({ isAdmin }) {
                                     </td>
                                     <td style={{ ...S.td, textAlign: 'center' }}>
                                       <button onClick={e => { e.stopPropagation(); handlePick(row.hint, item, isPicked) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>
-                                        {isPicked ? '⭐' : '☆'}
+                                        <StarIcon filled={isPicked} />
                                       </button>
                                     </td>
                                   </tr>
@@ -606,7 +619,7 @@ export function BlogKeywordPanel({ isAdmin }) {
                         <td style={S.td}>{cs && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: cs.bg, color: cs.color, border: `1px solid ${cs.border}` }}>{item.competition}</span>}</td>
                         <td style={{ ...S.td, textAlign: 'center' }}>
                           <button onClick={() => handlePick(item.hint, item, isPicked)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>
-                            {isPicked ? '⭐' : '☆'}
+                            <StarIcon filled={isPicked} />
                           </button>
                         </td>
                       </tr>
@@ -669,7 +682,7 @@ export function BlogKeywordPanel({ isAdmin }) {
                         <td style={S.td}>{cs && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: cs.bg, color: cs.color, border: `1px solid ${cs.border}` }}>{item.competition}</span>}</td>
                         <td style={{ ...S.td, textAlign: 'center' }}>
                           <button onClick={() => handlePick(item.hint, item, isPicked)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>
-                            {isPicked ? '⭐' : '☆'}
+                            <StarIcon filled={isPicked} />
                           </button>
                         </td>
                       </tr>
@@ -734,7 +747,7 @@ export function BlogKeywordPanel({ isAdmin }) {
                               <td style={S.td}>{cs && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: cs.bg, color: cs.color, border: `1px solid ${cs.border}` }}>{item.competition}</span>}</td>
                               <td style={{ ...S.td, textAlign: 'center' }}>
                                 <button onClick={() => handlePick(hint, item, isPicked)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>
-                                  {isPicked ? '⭐' : '☆'}
+                                  <StarIcon filled={isPicked} />
                                 </button>
                               </td>
                             </tr>
@@ -795,7 +808,7 @@ export function BlogKeywordPanel({ isAdmin }) {
                           </button>
                         </td>
                         <td style={{ ...S.td, textAlign: 'center' }}>
-                          <button onClick={() => handleUnpick(item.tool_id, item.keyword)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>⭐</button>
+                          <button onClick={() => handleUnpick(item.tool_id, item.keyword)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}><StarIcon filled /></button>
                         </td>
                       </tr>
                     )
