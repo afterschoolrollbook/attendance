@@ -196,6 +196,8 @@ export function BlogKeywordPanel({ isAdmin }) {
   const [todayRows, setTodayRows]             = useState([])
   const [todayLoading, setTodayLoading]       = useState(false)
   const [toast, setToast]                     = useState('')
+  const [addKeyword, setAddKeyword]           = useState('')
+  const [addLoading, setAddLoading]           = useState(false)
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
@@ -234,6 +236,33 @@ export function BlogKeywordPanel({ isAdmin }) {
     if (expanded === hint) { setExpanded(null); return }
     setExpanded(hint)
     loadTop(hint)
+  }
+
+  // ── 키워드 추가 수집 — 카드뉴스컨버터 KeywordPanel.js의 handleAdd를 그대로 이식.
+  // 다른 4개 프로젝트는 x-admin-token 고정 비밀키로 /api/tools/keyword-volume을 부르지만,
+  // 이 프로젝트는 Supabase Auth 기반이라 세션 access_token을 Bearer로 실어
+  // /api/admin/keyword-volume(신규)을 부르는 것만 다르다.
+  const handleAdd = async () => {
+    if (!supabase) return
+    const kw = addKeyword.trim()
+    if (!kw) return showToast('키워드를 입력해주세요')
+    const exists = stats.find(h => h.hint === kw)
+    if (exists) return showToast(`⚠️ "${kw}"는 이미 수집된 키워드예요. 아래 목록에서 펼쳐보세요.`)
+
+    setAddLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('로그인이 필요합니다.')
+      const res = await fetch(`/api/admin/keyword-volume?keyword=${encodeURIComponent(kw)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '오류')
+      loadStats()
+      showToast(`✅ "${kw}" 연관 키워드 ${data.saved}개 추가됨!`)
+      setAddKeyword('')
+    } catch (e) { showToast(`❌ 오류: ${e.message}`) }
+    setAddLoading(false)
   }
 
   // ── 찜 목록 로드
@@ -413,6 +442,24 @@ export function BlogKeywordPanel({ isAdmin }) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* 키워드 추가 수집 */}
+      <div style={S.card}>
+        <div style={S.cardTitle}>➕ 키워드 추가 수집</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={addKeyword}
+            onChange={e => setAddKeyword(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            placeholder="예: 바둑수업효과, 초등집중력, 방과후바둑"
+            style={S.input}
+          />
+          <button onClick={handleAdd} disabled={addLoading} style={{ ...S.btn, cursor: addLoading ? 'wait' : 'pointer', opacity: addLoading ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+            {addLoading ? '수집 중...' : '수집'}
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>수집하면 아래 "수집 현황" 목록에 새 그룹으로 추가됩니다.</div>
       </div>
 
       {/* 탭 버튼 */}
