@@ -34,6 +34,11 @@ export function BlogImagePanel() {
   // (배열 index로 매기면 앞의 항목을 지웠을 때 뒤 항목 번호가 밀려서, 채팅에서 이미
   // 말해둔 "3번"이 다른 사진을 가리키게 되는 문제가 생긴다).
   const seqRef = useRef(0)
+  // 복원(localStorage → state) effect가 끝나기 전에 저장 effect가 먼저 실행돼서
+  // 빈 배열([])로 기존 저장 내용을 덮어써버리는 레이스가 있었다(2026-07-19 — 업로드해도
+  // 새로고침하면 사라지는 버그의 원인). 복원이 끝났다는 표시가 될 때까지 저장 effect가
+  // 아무것도 쓰지 않도록 막는다.
+  const hydratedRef = useRef(false)
 
   // 마운트 시 이전에 저장해둔 완료 항목을 복원한다 (새로고침 대비).
   useEffect(() => {
@@ -44,10 +49,12 @@ export function BlogImagePanel() {
         seqRef.current = saved.reduce((max, it) => Math.max(max, it.seq || 0), 0)
       }
     } catch {}
+    hydratedRef.current = true
   }, [])
 
   // 완료된 항목만 골라 localStorage에 저장 — 업로드/삭제/새 항목 추가마다 자동 반영.
   useEffect(() => {
+    if (!hydratedRef.current) return // 복원 전에는 절대 쓰지 않는다(빈 배열로 덮어쓰기 방지)
     try {
       const persistable = items
         .filter(it => it.status === 'done')
