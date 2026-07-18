@@ -2,6 +2,9 @@
 // BlogMenuManage.jsx(블로그 메뉴관리)에서 사용. 원래는 dbCall('insert'/'delete', 'customCategories', ...)로
 // anon 키 + RLS 정책에 의존했는데, blog-images.js/blog-posts.js와 같은 이유로 서비스롤 구조로 전환한다(2026-07-19).
 //
+// ⚠️ users 테이블의 PK(id)는 Supabase Auth uid와 다른 앱 내부 텍스트 ID다(예: "moim663ls2un9").
+//    Auth uid와 매칭되는 컬럼은 auth_id(uuid)이므로 반드시 auth_id로 조회해야 한다
+//    (2026-07-19: id로 조회하도록 되어 있어서 관리자도 전부 401 "인증 필요"가 뜨던 버그를 수정함).
 // ⚠️ Vercel 프로젝트 환경변수에 SUPABASE_SERVICE_ROLE_KEY가 반드시 있어야 한다
 //    (VITE_ 접두사 없이 — VITE_ 접두사가 붙으면 Vite가 클라이언트 번들에 그대로 노출시킨다).
 const { createClient } = require('@supabase/supabase-js')
@@ -16,7 +19,7 @@ async function verifyAdminAndGetClient(req) {
   if (authErr || !user) return null
 
   const serviceClient = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
-  const { data: rows, error: dbErr } = await serviceClient.from('users').select('level, role').eq('id', user.id).limit(1)
+  const { data: rows, error: dbErr } = await serviceClient.from('users').select('level, role').eq('auth_id', user.id).limit(1)
   if (dbErr) return null
   const profile = rows?.[0]
   const isAdmin = profile?.role === 'admin' || (profile?.level || 1) >= 10
