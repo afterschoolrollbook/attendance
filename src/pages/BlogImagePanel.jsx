@@ -181,10 +181,10 @@ export function BlogImagePanel() {
               fontSize: 12, fontWeight: 800, color: C.primary,
             }}>{it.seq}</div>
             <img
-              src={it.previewUrl || it.url}
+              src={it.url || it.previewUrl}
               alt=""
-              onClick={() => (it.previewUrl || it.url) && setPreviewItem(it)}
-              style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, flexShrink: 0, background: '#f3f4f6', cursor: (it.previewUrl || it.url) ? 'zoom-in' : 'default' }}
+              onClick={() => (it.url || it.previewUrl) && setPreviewItem(it)}
+              style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, flexShrink: 0, background: '#f3f4f6', cursor: (it.url || it.previewUrl) ? 'zoom-in' : 'default' }}
             />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, color: C.text, fontWeight: 600, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -221,7 +221,7 @@ export function BlogImagePanel() {
         >
           <div onClick={e => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
             <img
-              src={previewItem.previewUrl || previewItem.url}
+              src={previewItem.url || previewItem.previewUrl}
               alt=""
               style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: 10, display: 'block', boxShadow: '0 12px 40px rgba(0,0,0,0.4)' }}
             />
