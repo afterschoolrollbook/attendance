@@ -7,7 +7,11 @@ const C = { border: '#e5e7eb', text: '#111827', muted: '#6b7280', primary: '#f97
 const ALLOWED = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 // 새로고침해도 업로드 목록이 사라지지 않도록 완료된 항목만 localStorage에 저장한다
 // (업로드 중이거나 실패한 항목은 새로고침 시점엔 이미 의미가 없어져서 제외).
-const STORAGE_KEY = 'attendance_blog_image_uploads'
+// ⚠️ 앱 시작 시 App.jsx 쪽에 'sb-'/'asa_'/'access_warn_sent_' 접두사가 아닌 localStorage
+// 키를 전부 지우는 정리 루틴이 있다(2026-07-19에 라이브 번들에서 직접 확인함 — 새로고침할
+// 때마다 업로드 목록이 사라지던 진짜 원인이 이거였고, 처음에 effect 실행 순서 레이스로
+// 잘못 짚었었다). 그 정리 루틴에 걸리지 않도록 반드시 'asa_' 접두사를 붙여야 한다.
+const STORAGE_KEY = 'asa_blog_image_uploads'
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -35,9 +39,9 @@ export function BlogImagePanel() {
   // 말해둔 "3번"이 다른 사진을 가리키게 되는 문제가 생긴다).
   const seqRef = useRef(0)
   // 복원(localStorage → state) effect가 끝나기 전에 저장 effect가 먼저 실행돼서
-  // 빈 배열([])로 기존 저장 내용을 덮어써버리는 레이스가 있었다(2026-07-19 — 업로드해도
-  // 새로고침하면 사라지는 버그의 원인). 복원이 끝났다는 표시가 될 때까지 저장 effect가
-  // 아무것도 쓰지 않도록 막는다.
+  // 빈 배열([])로 기존 저장 내용을 덮어써버리는 레이스가 이론상 있어서 막아둔다
+  // (실제 "새로고침하면 사라짐" 버그의 진짜 원인은 STORAGE_KEY 접두사 문제였지만,
+  // 이 가드 자체도 불필요한 건 아니라 유지한다).
   const hydratedRef = useRef(false)
 
   // 마운트 시 이전에 저장해둔 완료 항목을 복원한다 (새로고침 대비).
