@@ -1,3 +1,4 @@
+
 /**
  * parseMarkdown.js — 공통 마크다운 파서
  *
@@ -14,13 +15,14 @@
  *  - 마크다운 표 (thead/tbody 구분, 테두리 포함)
  *  - SVG 인라인 (코드블록 없이 태그 그대로, width=100% 자동 보장)
  *  - iframe (유튜브 영상 임베드 전용 — 관리자 화면 "🎬 영상 삽입" 버튼으로만 생성됨)
+ *  - div/span (색상·굵기 등 인라인 스타일 강조용, style 속성 허용)
  */
 
 export function sanitizeHtml(html) {
   if (typeof window !== 'undefined' && window.DOMPurify) {
     return window.DOMPurify.sanitize(html, {
       ALLOWED_TAGS: [
-        'p','br','b','strong','i','em','u','h1','h2','h3',
+        'p','br','div','span','b','strong','i','em','u','h1','h2','h3',
         'ul','ol','li','blockquote','code','pre','hr','a','img',
         'table','thead','tbody','tr','th','td','iframe',
         'svg','g','rect','circle','ellipse','line','polyline','polygon',
@@ -112,7 +114,7 @@ export function parseMarkdown(md) {
   html = html.split(/\n{2,}/).map(block => {
     block = block.trim()
     if (!block) return ''
-    if (/^<(h[1-3]|ul|ol|blockquote|hr|table|pre|img)/.test(block)) return block
+    if (/^<(h[1-3]|ul|ol|blockquote|hr|table|pre|img|div)/.test(block)) return block
     if (/%%SVG\d+%%/.test(block)) return block
     if (/%%CODE\d+%%/.test(block)) return block
     if (/%%IFRAME\d+%%/.test(block)) return block
