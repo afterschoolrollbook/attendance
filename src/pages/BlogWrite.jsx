@@ -1,3 +1,4 @@
+
 import { parseMarkdown, markdownPreviewStyles } from '../lib/parseMarkdown.js'
 import React, { useState, useEffect } from 'react'
 import { dbCall, copyAuthTokenForNewTab, supabase } from '../lib/supabase.js'
@@ -17,7 +18,9 @@ const BOARDS = [
 
 const DEFAULT_CATS = ['출석 관리', '교구 관리', '업무 팁', '공지사항', '업데이트', '기타']
 
-// ─── 이미지 업로드 (Supabase Storage 'blog-images' 공개 버킷)
+// ─── 이미지 업로드 (api/admin/blog-images.js — 서비스롤 키로 Storage 'blog-images' 버킷에 업로드)
+// 원래는 dbCall('storageUpload', ...)로 anon 키 + RLS 정책에 의존했는데, 블로그 관리 화면에
+// 기능을 추가할 때마다 새 RLS 정책이 필요해서 반복적으로 문제가 생겨 서비스롤 구조로 전환했다(2026-07-19).
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 const MAX_IMAGE_MB = 10
 
@@ -33,11 +36,17 @@ function fileToBase64(file) {
 async function uploadBlogImage(file) {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) throw new Error('이미지 파일(jpg/png/gif/webp)만 업로드할 수 있습니다.')
   if (file.size > MAX_IMAGE_MB * 1024 * 1024) throw new Error(`${MAX_IMAGE_MB}MB 이하 파일만 업로드할 수 있습니다.`)
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
-  const path = `posts/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
   const base64 = await fileToBase64(file)
-  const { url } = await dbCall('storageUpload', null, { bucket: 'blog-images', path, base64, contentType: file.type })
-  return url
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('로그인이 필요합니다.')
+  const res = await fetch('/api/admin/blog-images', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ base64, contentType: file.type }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || '업로드 실패')
+  return data.url
 }
 
 // ─── 영상 업로드 (YouTube resumable upload — 브라우저가 서버를 거치지 않고 직접 업로드)
@@ -185,7 +194,18 @@ export function BlogWrite({ user, onLogout }) {
 
   const handleDelete = async (post) => {
     if (!window.confirm(`"${post.title}" 을(를) 삭제하시겠습니까?`)) return
-    try { await dbCall('delete','blogPosts',{id:post.id}); loadPosts() } catch { alert('삭제 실패') }
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('로그인이 필요합니다.')
+      const res = await fetch('/api/admin/blog-posts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ id: post.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '삭제 실패')
+      loadPosts()
+    } catch { alert('삭제 실패') }
   }
 
   const handleCoverUpload = async (e) => {
@@ -257,8 +277,18 @@ export function BlogWrite({ user, onLogout }) {
         updatedAt: now(),
         createdAt: editPost ? undefined : now(),
       }
-      if (editPost?.id) await dbCall('update','blogPosts',{id:editPost.id,patch:payload})
-      else await dbCall('insert','blogPosts',{ data: payload })
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('로그인이 필요합니다.')
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }
+      if (editPost?.id) {
+        const res = await fetch('/api/admin/blog-posts', { method: 'PUT', headers, body: JSON.stringify({ id: editPost.id, patch: payload }) })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || '저장 실패')
+      } else {
+        const res = await fetch('/api/admin/blog-posts', { method: 'POST', headers, body: JSON.stringify({ data: payload }) })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || '저장 실패')
+      }
       setView('list'); setEditPost(null); loadPosts()
     } catch(e) { alert('저장 실패: '+e.message) }
     setSaving(false)

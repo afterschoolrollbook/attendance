@@ -44,6 +44,7 @@ const ADMIN_NAV = [
   { path: 'blog_write_admin', label: '블로그 글쓰기', icon: '✍️', feature: FEATURES.MANAGE_AD },
   { path: 'blog_admin',     label: '블로그 관리', icon: '📝', feature: FEATURES.MANAGE_AD },
   { path: 'blog_menu_manage',     label: '블로그 메뉴관리',  icon: '📋', feature: FEATURES.MANAGE_AD },
+  { path: 'blog_images',    label: '블로그 사진', icon: '🖼️', feature: FEATURES.MANAGE_AD },
   { path: 'blog_publish_log', label: '발행 기록',     icon: '🗂️', feature: FEATURES.MANAGE_AD },
   { path: 'blog_keywords',    label: '키워드 관리',   icon: '🔍', feature: FEATURES.MANAGE_AD },
   { path: 'blog_system_prompt', label: '클로드 지침', icon: '🤖', feature: FEATURES.MANAGE_AD },

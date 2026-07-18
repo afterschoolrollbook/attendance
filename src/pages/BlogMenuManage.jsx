@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { dbCall } from '../lib/supabase.js'
+import { dbCall, supabase } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { Settings } from '../lib/db.js'
 import { Card, PageHeader, Btn } from '../components/Atoms.jsx'
@@ -10,6 +10,23 @@ const C = { border:'#e5e7eb', text:'#111827', muted:'#6b7280', primary:'#f97316'
 
 // ─── 커스텀 카테고리 아이콘 선택지 (Fresh_Season BlogMenuPanel의 ICON_CHOICES와 동일)
 const ICON_CHOICES = ['📁','✏️','💡','🌍','📝','🎯','⭐','🎥','📖','🛒','🧩','❄️','🔥','🎉','📌']
+
+// ─── 커스텀 카테고리 쓰기(insert/delete) — api/admin/blog-categories.js(서비스롤 키)를 거친다.
+// 원래는 dbCall('insert'/'delete', 'customCategories', ...)로 anon 키 + RLS 정책에 의존했는데,
+// 블로그 관리 화면에 기능을 추가할 때마다 새 RLS 정책이 필요해서 반복적으로 문제가 생겨
+// 서비스롤 구조로 전환했다(2026-07-19).
+async function categoryFetch(method, body) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('로그인이 필요합니다.')
+  const res = await fetch('/api/admin/blog-categories', {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || `${method} 실패`)
+  return data
+}
 
 // ─── 권한 레벨 선택 버튼 (BlogAdmin 권한설정에서 사용)
 function LevelButtons({ value, onChange }) {
@@ -69,7 +86,7 @@ export function BlogMenuManage({ user }) {
       // 한 번도 시드가 안 된 경우 기본 카테고리를 DB에 삽입
       if (blogCats.length === 0) {
         for (const label of DEFAULT_CATS) {
-          await dbCall('insert', 'customCategories', { data: { id: uid(), key: DEFAULT_CAT_KEYS[label], type: 'blog', label, createdAt: now(), updatedAt: now() } })
+          await categoryFetch('POST', { data: { id: uid(), key: DEFAULT_CAT_KEYS[label], type: 'blog', label, createdAt: now(), updatedAt: now() } })
         }
         return loadCategories()
       }
@@ -83,7 +100,7 @@ export function BlogMenuManage({ user }) {
     if (DEFAULT_CATS.includes(label) || categories.find(c => c.label === label)) return toastError('이미 있는 카테고리예요.')
     setCatLoading(true)
     try {
-      await dbCall('insert', 'customCategories', { data: { id: uid(), key: `blog_${uid()}`, type: 'blog', label, icon: newIcon, createdAt: now(), updatedAt: now() } })
+      await categoryFetch('POST', { data: { id: uid(), key: `blog_${uid()}`, type: 'blog', label, icon: newIcon, createdAt: now(), updatedAt: now() } })
       setNewCat('')
       setNewIcon(ICON_CHOICES[0])
       loadCategories()
@@ -95,7 +112,7 @@ export function BlogMenuManage({ user }) {
   const deleteCategory = async (cat) => {
     if (!window.confirm(`"${cat.label}" 카테고리를 삭제할까요?`)) return
     try {
-      await dbCall('delete', 'customCategories', { id: cat.id })
+      await categoryFetch('DELETE', { id: cat.id })
       loadCategories()
       success(`"${cat.label}" 카테고리가 삭제되었습니다.`)
     } catch (e) { toastError('삭제 실패: ' + e.message) }

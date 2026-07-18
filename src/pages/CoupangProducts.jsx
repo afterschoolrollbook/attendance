@@ -1,8 +1,10 @@
 /**
  * CoupangProducts.jsx — 쿠팡상품(카테고리 탭 + 상품 카탈로그)
  * trader(EasyTrade) 프로젝트의 components/admin/CoupangProductsPanel.js를 이식.
- * Next.js API 라우트(fetch + x-admin-token) 대신 supabase 클라이언트로
- * coupang_products / coupang_product_categories 테이블을 직접 조회·수정한다.
+ * 조회(select)는 supabase 클라이언트로 직접 하고, 쓰기(insert/update/delete)는
+ * api/admin/coupang-products.js(서비스롤 키)를 거친다 — 원래는 여기도 supabase 클라이언트로
+ * anon 키 + RLS 정책에 직접 의존했는데, 블로그 관리 화면들과 같은 이유로 서비스롤 구조로
+ * 전환했다(2026-07-19).
  * (CoupangManage.jsx의 coupang_links/coupang_widgets — 광고 자동노출용 —와는 별개의,
  *  블로그 글 등에 수동으로 붙여넣어 쓸 상품을 카테고리별로 등록해두는 목록)
  */
@@ -27,6 +29,20 @@ const S = {
   textarea: { width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 13, fontFamily: 'monospace', outline: 'none', background: '#fff', color: C.text, boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6 },
   btn: (color = ACCENT) => ({ background: color, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' }),
   btnGhost: { padding: '10px 16px', borderRadius: 8, border: `1.5px solid ${C.border}`, background: '#fff', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Noto Sans KR, sans-serif' },
+}
+
+// api/admin/coupang-products.js 호출 헬퍼 — resource: 'category' | 'product'
+async function coupangFetch(method, body) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('로그인이 필요합니다.')
+  const res = await fetch('/api/admin/coupang-products', {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || `${method} 실패`)
+  return data
 }
 
 // isAdmin 체크만 하는 얇은 wrapper — 아래 Body가 실제 상태/훅을 전부 가진다.
@@ -97,10 +113,9 @@ function CoupangProductsBody() {
     setAddingTab(true)
     try {
       const row = { id: uid(), label, concept: '', created_at: now() }
-      const { data, error } = await supabase.from('coupang_product_categories').insert(row).select().single()
-      if (error) throw error
-      setCategories(p => [...p, data])
-      setActiveTab(data.id)
+      const { row: created } = await coupangFetch('POST', { resource: 'category', data: row })
+      setCategories(p => [...p, created || row])
+      setActiveTab(row.id)
       setNewTab('')
     } catch { alert('탭 추가 실패') }
     setAddingTab(false)
@@ -109,8 +124,7 @@ function CoupangProductsBody() {
   const deleteTab = async (id, label) => {
     if (!window.confirm(`"${label}" 탭을 삭제할까요? (이 탭에 등록된 상품은 삭제되지 않고 '전체'에서 계속 보여요)`)) return
     try {
-      const { error } = await supabase.from('coupang_product_categories').delete().eq('id', id)
-      if (error) throw error
+      await coupangFetch('DELETE', { resource: 'category', id })
       setCategories(p => p.filter(c => c.id !== id))
       if (activeTab === id) setActiveTab('')
       loadProducts() // FK(on delete set null)로 해당 상품들의 category_id가 비워지므로 목록 새로고침
@@ -121,8 +135,7 @@ function CoupangProductsBody() {
     if (!activeTab) return
     setSavingConcept(true)
     try {
-      const { error } = await supabase.from('coupang_product_categories').update({ concept: conceptDraft }).eq('id', activeTab)
-      if (error) throw error
+      await coupangFetch('PUT', { resource: 'category', id: activeTab, patch: { concept: conceptDraft } })
       setCategories(p => p.map(c => c.id === activeTab ? { ...c, concept: conceptDraft } : c))
       setConceptSaved(true)
       setTimeout(() => setConceptSaved(false), 2000)
@@ -147,11 +160,9 @@ function CoupangProductsBody() {
       }
       if (isNew) {
         const row = { ...base, id: uid(), created_at: now(), updated_at: now() }
-        const { error } = await supabase.from('coupang_products').insert(row)
-        if (error) throw error
+        await coupangFetch('POST', { resource: 'product', data: row })
       } else {
-        const { error } = await supabase.from('coupang_products').update({ ...base, updated_at: now() }).eq('id', editing.id)
-        if (error) throw error
+        await coupangFetch('PUT', { resource: 'product', id: editing.id, patch: { ...base, updated_at: now() } })
       }
       await loadProducts()
       setEditing(null)
@@ -164,8 +175,7 @@ function CoupangProductsBody() {
   const handleDeleteProduct = (id) => {
     confirm('이 상품을 삭제할까요?', async () => {
       try {
-        const { error } = await supabase.from('coupang_products').delete().eq('id', id)
-        if (error) throw error
+        await coupangFetch('DELETE', { resource: 'product', id })
         setProducts(p => p.filter(x => x.id !== id))
         if (editing?.id === id) setEditing(null)
       } catch { alert('삭제 실패') }

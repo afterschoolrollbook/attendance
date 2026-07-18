@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { dbCall } from '../lib/supabase.js'
+import { supabase } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 
 const C = {
@@ -222,7 +222,15 @@ ${selectedTopic?.keywords ? `타겟 키워드: ${selectedTopic.keywords}` : ''}
         updatedAt: now(),
         createdAt: now(),
       }
-      await dbCall('insert', 'blogPosts', { d: payload })
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('로그인이 필요합니다.')
+      const res = await fetch('/api/admin/blog-posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ data: payload }),
+      })
+      const resData = await res.json()
+      if (!res.ok) throw new Error(resData.error || '발행 실패')
       setDone(true)
       setStatus({ msg: '발행 완료! 블로그에 올라갔어요.', type: 'ok' })
     } catch (e) {

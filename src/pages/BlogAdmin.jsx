@@ -1,6 +1,6 @@
 import { parseMarkdown, markdownPreviewStyles } from '../lib/parseMarkdown.js'
 import React, { useState, useEffect } from 'react'
-import { dbCall, FUNCTIONS_BASE, SUPABASE_ANON_KEY, copyAuthTokenForNewTab } from '../lib/supabase.js'
+import { dbCall, FUNCTIONS_BASE, SUPABASE_ANON_KEY, copyAuthTokenForNewTab, supabase } from '../lib/supabase.js'
 import { uid, now } from '../lib/utils.js'
 import { useToast } from '../hooks/useToast.js'
 import { getBoardPermLevel } from '../constants/permissions.js'
@@ -247,7 +247,15 @@ export function BlogAdmin({ user, initialView }) {
   const handleDelete = async (post) => {
     if (!window.confirm(`"${post.title}" 을(를) 삭제하시겠습니까?`)) return
     try {
-      await dbCall('delete', 'blogPosts', { id: post.id })
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('로그인이 필요합니다.')
+      const res = await fetch('/api/admin/blog-posts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ id: post.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '삭제 실패')
       success('삭제되었습니다.')
       loadPosts()
     } catch { error('삭제 실패') }
@@ -304,8 +312,18 @@ export function BlogAdmin({ user, initialView }) {
         templateDesc: form.type==='template' ? form.templateDesc.trim() : undefined,
       }
       const payload = editId ? basePayload : { ...basePayload, createdAt: now() }
-      if (editId) await dbCall('update', 'blogPosts', { id: editId, patch: payload })
-      else await dbCall('insert', 'blogPosts', { data: payload })
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('로그인이 필요합니다.')
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }
+      if (editId) {
+        const res = await fetch('/api/admin/blog-posts', { method: 'PUT', headers, body: JSON.stringify({ id: editId, patch: payload }) })
+        const resData = await res.json()
+        if (!res.ok) throw new Error(resData.error || '저장 실패')
+      } else {
+        const res = await fetch('/api/admin/blog-posts', { method: 'POST', headers, body: JSON.stringify({ data: payload }) })
+        const resData = await res.json()
+        if (!res.ok) throw new Error(resData.error || '저장 실패')
+      }
       if (finalStatus === 'published') {
         const pinged = await pingIndexNow(slug, form.type)
         success(`발행되었습니다! 🎉 ${pinged ? '· 🔔 IndexNow 핑 전송 완료' : '· ⚠️ IndexNow 핑 실패'}`)

@@ -36,6 +36,7 @@ import { BlogAiWrite } from './pages/BlogAiWrite.jsx'
 import { BlogMenuManage }          from './pages/BlogMenuManage.jsx'
 import { BlogPublishLogPage }      from './pages/BlogPublishLogPage.jsx'
 import { BlogKeywordPage }         from './pages/BlogKeywordPage.jsx'
+import { BlogImagePage }           from './pages/BlogImagePage.jsx'
 import { BlogSystemPrompt }        from './pages/BlogSystemPrompt.jsx'
 import { CoupangManage }           from './pages/CoupangManage.jsx'
 import { CoupangProducts }         from './pages/CoupangProducts.jsx'
@@ -541,6 +542,7 @@ function AppInner() {
       case 'blog_menu_manage':        return can(u, 'manage_ad') ? <BlogMenuManage user={u} />        : <Dashboard {...pageProps} />
       case 'blog_publish_log':        return can(u, 'manage_ad') ? <BlogPublishLogPage user={u} />    : <Dashboard {...pageProps} />
       case 'blog_keywords':           return can(u, 'manage_ad') ? <BlogKeywordPage user={u} />       : <Dashboard {...pageProps} />
+      case 'blog_images':             return can(u, 'manage_ad') ? <BlogImagePage user={u} />         : <Dashboard {...pageProps} />
       case 'blog_system_prompt':      return can(u, 'manage_ad') ? <BlogSystemPrompt user={u} />      : <Dashboard {...pageProps} />
       case 'region_manage':          return can(u, 'manage_ad') ? <RegionManage user={u} />          : <Dashboard {...pageProps} />
       case 'teacher_service_manage': return can(u, 'manage_ad') ? <TeacherServiceManage user={u} /> : <Dashboard {...pageProps} />
