@@ -795,7 +795,7 @@ URL: ${pub.publicUrl}` }] }
     server.registerTool('get_system_prompt', {
       title: '클로드 시스템 프롬프트 조회',
       description: '관리자 화면("클로드 지침")에서 관리하는 시스템 프롬프트를 조회한다. 대화 시작 시 claude 탭을 가장 먼저 불러온다. claude/main/main2는 매 대화 로드, quotes/tags/edu_methods/worry_topics/activities는 글 작성 중 해당 소재가 필요할 때만 조건부로 불러온다.',
-      inputSchema: { id: z.enum(['claude', 'main', 'main2', 'quotes', 'tags', 'edu_methods', 'worry_topics', 'activities', 'reference', 'rss_sources']) },
+      inputSchema: { id: z.enum(['claude', 'main', 'main2', 'quotes', 'tags', 'edu_methods', 'worry_topics', 'activities', 'reference', 'rss_sources', 'todo']) },
     }, async ({ id }) => {
       const { data, error } = await supabase.from('system_prompts').select('*').eq('id', id).maybeSingle()
       if (error) return { content: [{ type: 'text', text: `오류: ${error.message}` }], isError: true }
@@ -806,7 +806,7 @@ URL: ${pub.publicUrl}` }] }
     server.registerTool('update_system_prompt', {
       title: '클로드 시스템 프롬프트 갱신',
       description: '관리자 화면("클로드 지침")의 시스템 프롬프트 내용을 갱신한다. 사용자가 직접 요청한 경우에만 반영한다.',
-      inputSchema: { id: z.enum(['claude', 'main', 'main2', 'quotes', 'tags', 'edu_methods', 'worry_topics', 'activities', 'reference', 'rss_sources']), content: z.string() },
+      inputSchema: { id: z.enum(['claude', 'main', 'main2', 'quotes', 'tags', 'edu_methods', 'worry_topics', 'activities', 'reference', 'rss_sources', 'todo']), content: z.string() },
       annotations: { destructiveHint: false, idempotentHint: true },
     }, async ({ id, content }) => {
       const { error } = await supabase.from('system_prompts').upsert({ id, content, updated_at: new Date().toISOString() })
@@ -817,7 +817,7 @@ URL: ${pub.publicUrl}` }] }
     server.registerTool('append_system_prompt', {
       title: '클로드 시스템 프롬프트 맨 아래에 추가',
       description: '관리자 화면("클로드 지침")의 시스템 프롬프트 특정 탭 맨 아래에 새 내용을 이어붙인다. update_system_prompt처럼 전체를 다시 불러와서 통째로 다시 보낼 필요 없이, 추가할 내용만 전달하면 서버가 기존 내용 뒤에 이어붙여 저장한다. main2(작업 메모장)에 새 기록 한 건을 추가할 때 update_system_prompt 대신 우선 사용한다. 문서 중간 섹션에 끼워 넣거나 기존 내용을 수정·삭제해야 할 때는 get_system_prompt로 전체를 불러온 뒤 update_system_prompt를 쓴다.',
-      inputSchema: { id: z.enum(['claude', 'main', 'main2', 'quotes', 'tags', 'edu_methods', 'worry_topics', 'activities', 'reference', 'rss_sources']), content: z.string().describe('맨 아래에 추가할 내용 (마크다운)') },
+      inputSchema: { id: z.enum(['claude', 'main', 'main2', 'quotes', 'tags', 'edu_methods', 'worry_topics', 'activities', 'reference', 'rss_sources', 'todo']), content: z.string().describe('맨 아래에 추가할 내용 (마크다운)') },
       annotations: { destructiveHint: false, idempotentHint: false },
     }, async ({ id, content }) => {
       const { data: existing, error: readErr } = await supabase.from('system_prompts').select('content').eq('id', id).maybeSingle()
