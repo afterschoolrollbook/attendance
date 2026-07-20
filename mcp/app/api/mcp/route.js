@@ -15,9 +15,13 @@
 //   - get_publish_log      : 발행 기록 조회 (중복 방지 + 키워드 추적, STEP 1에서 가장 먼저 호출)
 //   - get_keyword_data     : 과목/역량 그룹별 찜한 키워드 + TOP 키워드 조회
 //   - search_keyword_data  : keyword_stats 전체를 그룹 구분 없이 검색 (황금키워드 탐색)
-//   - naver_keyword_volume : 특정 키워드의 실시간 네이버 검색량 조회
+//   - naver_keyword_volume : 특정 키워드의 실시간 네이버 검색량 조회. hint(카테고리명)를 함께 주면
+//                             조회 즉시 blog_keyword_stats에 자동 저장됨(fresh-season 방식과 1:1 통일,
+//                             2026-07-21 — 예전엔 조회만 하고 save_keyword_data를 따로 안 불러서
+//                             blog_keyword_stats가 항상 비어있던 문제 수정)
 //   - naver_news_search    : 네이버 뉴스 검색 오픈API로 기사 제목/링크/발행일/요약 조회 (web_search 대체, 토큰 절약)
-//   - save_keyword_data    : naver_keyword_volume 조회 결과를 TOP 키워드 캐시에 저장
+//   - save_keyword_data    : naver_keyword_volume 조회 결과를 TOP 키워드 캐시에 저장 (hint 없이 조회했거나
+//                             결과를 나중에 골라서 저장하고 싶을 때 쓰는 수동 백업 경로 — 평소엔 위 자동저장으로 충분)
 //   - pick_keyword         : 나중에 쓸 키워드를 찜(bookmark)해두기
 //   - search_keyword_picks : 찜해둔 키워드 검색/열람, 기본은 미사용만
 //   - mark_keyword_used    : 찜 키워드를 글에 실제로 썼을 때 사용 처리
@@ -301,16 +305,33 @@ const baseHandler = createMcpHandler(
 
     server.registerTool('naver_keyword_volume', {
       title: '네이버 키워드 실시간 검색량 조회',
-      description: '네이버 검색광고 키워드도구로 키워드별 월간 검색량(PC/모바일)과 경쟁도를 실시간 조회한다.',
+      description: '네이버 검색광고 키워드도구로 키워드별 월간 검색량(PC/모바일)과 경쟁도를 실시간 조회한다. hint(카테고리명)를 함께 주면 조회 결과가 blog_keyword_stats에 자동 저장된다(save_keyword_data를 별도로 부르지 않아도 됨 — fresh-season의 "조회=저장" 방식과 동일).',
       inputSchema: {
         hintKeywords: z.string().describe('쉼표로 구분된 키워드, 최대 5개. 예: "초등집중력,방과후바둑,바둑수업효과"'),
+        hint: z.string().describe('과목/역량 카테고리명 (예: 바둑, 창의력, 집중력) — get_keyword_data로 나중에 다시 불러올 때 쓰는 그룹 키'),
       },
-    }, async ({ hintKeywords }) => {
+    }, async ({ hintKeywords, hint }) => {
       const keywords = normalizeKeywords(hintKeywords)
       if (!keywords.length) return { content: [{ type: 'text', text: '키워드를 입력해주세요.' }], isError: true }
       try {
         const results = await fetchNaverKeywordData(keywords)
-        return { content: [{ type: 'text', text: JSON.stringify({ query: keywords, results }, null, 2) }] }
+        let saveNote = '\n\n(저장 결과 없음 — 조회된 키워드가 없어 저장 생략)'
+        if (results.length) {
+          const rows = results.map(r => ({
+            hint,
+            keyword: r.keyword,
+            pc: r.monthlySearchPc || 0,
+            mobile: r.monthlySearchMobile || 0,
+            total: r.monthlySearchTotal ?? ((r.monthlySearchPc || 0) + (r.monthlySearchMobile || 0)),
+            competition: r.competition || '-',
+            updated_at: new Date().toISOString(),
+          }))
+          const { error: saveErr } = await supabase.from('blog_keyword_stats').upsert(rows, { onConflict: 'hint,keyword' })
+          saveNote = saveErr
+            ? `\n\n⚠️ blog_keyword_stats 자동 저장 실패: ${saveErr.message}`
+            : `\n\n✅ [${hint}] 키워드 ${rows.length}개 blog_keyword_stats에 자동 저장됨.`
+        }
+        return { content: [{ type: 'text', text: JSON.stringify({ query: keywords, results }, null, 2) + saveNote }] }
       } catch (err) {
         return { content: [{ type: 'text', text: `오류: ${err.message}` }], isError: true }
       }
