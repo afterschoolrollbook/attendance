@@ -484,7 +484,9 @@ function BlogDetail({ post, onBack, allPosts, onSelect, isAdmin }) {
   // 관련도 풀 계산 (본문 중간 삽입용 최대 3개)
   const relatedPool = scoreRelated(post, allPosts || []).slice(0, 3)
   const inlineUsedIds = new Set(relatedPool.map(p => p.id))
-  const bodyHtml = parseMarkdown(post.content || '')
+  // content_format === 'html'이면 마크다운 변환(및 그에 따른 구조 태그 이스케이프) 없이
+  // 원본 그대로 사용 — 자동화 스크립트가 완성된 HTML을 직접 저장하는 경우용
+  const bodyHtml = post.contentFormat === 'html' ? (post.content || '') : parseMarkdown(post.content || '')
 
   return (
     <div style={{ maxWidth:'780px', margin:'0 auto', padding:'40px 20px' }}>
@@ -784,7 +786,7 @@ function ReviewDetail({ post, onBack }) {
       </div>
       <h1 style={{ fontSize:'32px', fontWeight:800, color:'#111827', lineHeight:1.4, marginBottom:'24px' }}>{post.title}</h1>
       <hr style={{ border:'none', borderTop:'2px solid #f3f4f6', marginBottom:'32px' }} />
-      <div className="md-body" dangerouslySetInnerHTML={{ __html: parseMarkdown(post.content) }} />
+      <div className="md-body" dangerouslySetInnerHTML={{ __html: post.contentFormat === 'html' ? (post.content || '') : parseMarkdown(post.content) }} />
       {/* CTA */}
       <div style={{ marginTop:'40px', background:'linear-gradient(135deg,#fff7ed,#fff)', border:'2px solid #fed7aa', borderRadius:'16px', padding:'32px', textAlign:'center' }}>
         <div style={{ fontSize:'24px', marginBottom:'12px' }}>📋</div>
@@ -904,7 +906,7 @@ function RequestDetail({ post, onBack, currentUser, isAdmin }) {
       <h1 style={{ fontSize:'32px', fontWeight:800, color:'#111827', lineHeight:1.4, marginBottom:'24px' }}>{post.title}</h1>
       <hr style={{ border:'none', borderTop:'2px solid #f3f4f6', marginBottom:'32px' }} />
       {canRead ? (
-        <div className="md-body" dangerouslySetInnerHTML={{ __html: parseMarkdown(post.content) }} />
+        <div className="md-body" dangerouslySetInnerHTML={{ __html: post.contentFormat === 'html' ? (post.content || '') : parseMarkdown(post.content) }} />
       ) : (
         <div style={{ textAlign:'center', padding:'60px 20px', color:'#9ca3af', background:'#f9fafb', borderRadius:'14px', border:'1px dashed #e5e7eb' }}>
           <div style={{ fontSize:'40px', marginBottom:'12px' }}>🔒</div>
@@ -1021,7 +1023,7 @@ function TemplateDetail({ post, onBack }) {
 
       {post.summary && <div style={{ background:'#f5f3ff', border:'1px solid #ddd6fe', borderRadius:'10px', padding:'16px 20px', marginBottom:'28px', fontSize:'15px', color:'#6d28d9', lineHeight:1.7 }}>{post.summary}</div>}
       <hr style={{ border:'none', borderTop:'2px solid #f3f4f6', marginBottom:'28px' }} />
-      <div className="md-body" dangerouslySetInnerHTML={{ __html: parseMarkdown(post.content) }} />
+      <div className="md-body" dangerouslySetInnerHTML={{ __html: post.contentFormat === 'html' ? (post.content || '') : parseMarkdown(post.content) }} />
       {post.tags?.length > 0 && (
         <div style={{ marginTop:'32px', paddingTop:'20px', borderTop:'2px solid #f3f4f6', display:'flex', gap:'8px', flexWrap:'wrap' }}>
           {post.tags.map(tag => <span key={tag} style={{ fontSize:'12px', background:'#f5f3ff', color:'#7c3aed', borderRadius:'999px', padding:'4px 12px', fontWeight:600 }}>#{tag}</span>)}
@@ -1158,7 +1160,7 @@ function DocsDetail({ doc, allDocs, onBack, onSelect }) {
         <h1 style={{ fontSize:'30px', fontWeight:800, color:'#111827', lineHeight:1.4, marginBottom:'24px' }}>{doc.title}</h1>
         {doc.summary && <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'10px', padding:'16px 20px', marginBottom:'28px', fontSize:'15px', color:'#1e40af', lineHeight:1.7 }}>{doc.summary}</div>}
         <hr style={{ border:'none', borderTop:'2px solid #f3f4f6', marginBottom:'28px' }} />
-        <div className="md-body" dangerouslySetInnerHTML={{ __html: parseMarkdown(doc.content) }} />
+        <div className="md-body" dangerouslySetInnerHTML={{ __html: doc.contentFormat === 'html' ? (doc.content || '') : parseMarkdown(doc.content) }} />
         {/* 블로그 유도 */}
         <div style={{ marginTop:'40px', background:'#fff7ed', border:'2px solid #fed7aa', borderRadius:'14px', padding:'20px 24px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'12px' }}>
           <div>
